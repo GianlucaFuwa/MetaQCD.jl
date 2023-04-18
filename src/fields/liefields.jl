@@ -3,11 +3,13 @@ module Liefields
     using LinearAlgebra
     using StaticArrays
     using Base.Threads
+    using Polyester
 
-    import ..Utils:exp_iQ
+    using ..Utils
+    import ..Gaugefields: Gaugefield
 
-    mutable struct Liefield
-        P::Array{SMatrix{3,3,ComplexF64,9},4}
+    struct Liefield
+        P::Vector{Array{SMatrix{3,3,ComplexF64,9},4}}
 		NX::Int64
 		NY::Int64
 		NZ::Int64
@@ -15,82 +17,93 @@ module Liefields
 		NV::Int64
 		NC::Int64	
 
-		function Liefield(NX,NY,NZ,NT)
+		function Liefield(NX, NY, NZ, NT)
             NV = NX*NY*NZ*NT
-            P = Array{SMatrix{3,3,ComplexF64,9},4}(undef,NX,NY,NZ,NT)
-			return new(P,NX,NY,NZ,NT,NV,3)
+			P = Vector{Array{SMatrix{3,3,ComplexF64,9},4}}(undef, 0)
+			for μ = 1:4
+                Pμ = Array{SMatrix{3,3,ComplexF64,9},4}(undef, NX, NY, NZ, NT)
+                fill!(Pμ, SMatrix{3,3}(zeros(ComplexF64,3,3)))
+				push!(P, Pμ)
+			end
+			return new(P, NX, NY, NZ, NT, NV, 3)
 		end
+
+        function Liefield(g::Gaugefield)
+            return Liefield(g.NX, g.NY, g.NZ, g.NT)
+        end
 	end
 
-    function Base.setindex!(p::Liefield,v,ix,iy,iz,it) 
-        p.P[ix,iy,iz,it] = v
+    function Base.setindex!(p::Liefield, v, μ) 
+        p.P[μ] = v
 		return nothing
     end
 
-	function Base.setindex!(p::Liefield,v,ix,iy,iz,it,i1,i2) 
-        p.P[ix,iy,iz,it][i1,i2] = v
+    function Base.getindex(p::Liefield, μ)
+        return p.P[μ]
+    end
+
+    function Base.size(p::Liefield)
+        return p.NX, p.NY, p.NZ, p.NT
+    end
+
+    function clear_P!(p::Liefield)
+		NX,NY,NZ,NT = size(p)
+		for it = 1:NT
+			for iz = 1:NZ
+				for iy = 1:NY
+					for ix = 1:NX
+                        for μ = 1:4
+                            @inbounds p[μ][ix,iy,iz,it] = zeros(3,3)
+                        end
+					end
+				end
+			end
+		end
 		return nothing
-    end
+	end
 
-	function Base.setindex!(p::Liefield,v,site::CartesianIndex{4}) 
-        p.P[site] = v
-		return nothing
-    end
-
-    function Base.getindex(p::Liefield,ix,iy,iz,it)
-        return p.P[ix,iy,iz,it]
-    end
-
-	function Base.getindex(p::Liefield,ix,iy,iz,it,i1,i2)
-        return p.P[ix,iy,iz,it][i1,i2]
-    end
-
-    function Base.getindex(p::Liefield,site::CartesianIndex{4})
-        return p.P[site]
-    end
-
-    function gaussianP!(p::Liefield,rng::Xoshiro)
-        NX = p.NX
-		NY = p.NY
-		NZ = p.NZ
-		NT = p.NT
+    function gaussianP!(p::Liefield, rng::Xoshiro = Xoshiro())
+        NX, NY, NZ, NT = size(p)
         sq3 = sqrt(3)
-        h = zeros(8)
-        for it=1:NT
-        for iz=1:NZ
-        for iy=1:NY
-        for ix=1:NX
-            randn!(rng,h)
-            p.P[ix,iy,iz,it] = [
-                h[3]+h[8]/sq3  h[1]-im*h[2]   h[4]-im*h[5]
-                h[1]+im*h[2]  -h[3]+h[8]/sq3  h[6]-im*h[7]
-                h[4]+im*h[5]   h[6]+im*h[7]  -2*h[8]/sq3 
-            ]
-        end
-        end
-        end
+        @batch for it = 1:NT
+            for iz = 1:NZ
+                for iy = 1:NY
+                    for ix = 1:NX
+                        for μ = 1:4
+                            #h = SVector{8,Float64}(randn(rng, 8))
+                            h = zeros(8)
+                            if (ix,iy,iz,it,μ) == (1,1,1,1,1)
+                                h[1] = 0.2
+                            end
+                            p[μ][ix,iy,iz,it] = 0.5im * [
+                                h[3]+h[8]/sq3  h[1]-im*h[2]   h[4]-im*h[5]
+                                h[1]+im*h[2]  -h[3]+h[8]/sq3  h[6]-im*h[7]
+                                h[4]+im*h[5]   h[6]+im*h[7]  -2*h[8]/sq3 
+                            ]
+                        end
+                    end
+                end
+            end
         end
 		return nothing
 	end
 
     function trP2(p::Liefield)
-        NX = p.NX
-		NY = p.NY
-		NZ = p.NZ
-		NT = p.NT
+        NX, NY, NZ, NT = size(p)
         space = 8
-        trP2 = zeros(ComplexF64,nthreads()*space)
-        @threads for it=1:NT
-        for iz=1:NZ
-        for iy=1:NY
-        for ix=1:NX
-            trP2[threadid()*space] += p[ix,iy,iz,it][1,1]^2 + p[ix,iy,iz,it][2,2]^2 + p[ix,iy,iz,it][3,3]^2 +
-                    2*p[ix,iy,iz,it][1,2]*p[ix,iy,iz,it][2,1] + 2*p[ix,iy,iz,it][1,3]*p[ix,iy,iz,it][3,1] + 2*p[ix,iy,iz,it][2,3]*p[ix,iy,iz,it][3,2]
-        end
-        end
-        end
+        trP2 = zeros(nthreads()*space)
+        @batch for it = 1:NT
+            for iz = 1:NZ
+                for iy = 1:NY
+                    for ix = 1:NX
+                        for μ = 1:4
+                            trP2[threadid()*space] += real( trAB(p[μ][ix,iy,iz,it]) )
+                        end
+                    end
+                end
+            end
         end 
-		return real(sum(trP2))
+		return sum(trP2)
     end
 
 end

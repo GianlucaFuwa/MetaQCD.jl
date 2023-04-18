@@ -1,0 +1,16 @@
+- HMC doesn't work right still 
+- Test Smearing and MetaD
+
+0.999687
+0.024979
+
+hardcode:
+0.991795
+0.127842
+
+softcode:
+same as hardcode
+
+    ==> problem is not in the staple function!
+
+    other possible error sources: integrator -> updateP! and/or updateU!

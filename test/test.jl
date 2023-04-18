@@ -1,15 +1,13 @@
-#
-using Distributed
-@everywhere using Base.Threads
-@everywhere using StaticArrays
-@everywhere using LinearAlgebra
-@everywhere using Random
-@everywhere using TimerOutputs
-@everywhere using BenchmarkTools
-@everywhere using Polyester
+using Base.Threads
+using StaticArrays
+using LinearAlgebra
+using Random
+using TimerOutputs
+using BenchmarkTools
+using Polyester
 const to = TimerOutput()
-
-U = rand(ComplexF64,3,3,4,16,16,16,16);
+N=16
+U = rand(ComplexF64,3,3,4,N,N,N,N);
 
 U2 = Array{Array{ComplexF64,6},1}(undef,0)
 push!(U2,U[:,:,1,:,:,:,:])
@@ -20,11 +18,11 @@ push!(U2,U[:,:,4,:,:,:,:])
 function vecofmat(U)
     U2 = Array{Array{SMatrix{3,3,ComplexF64,9},4},1}(undef,0)
     for μ=1:4
-        Uμ = Array{SMatrix{3,3,ComplexF64,9},4}(undef,16,16,16,16)
-        for t=1:4
-            for z=1:4
-                for y=1:4
-                    for x=1:4
+        Uμ = Array{SMatrix{3,3,ComplexF64,9},4}(undef,N,N,N,N)
+        for t=1:N
+            for z=1:N
+                for y=1:N
+                    for x=1:N
                         Uμ[x,y,z,t] = U[:,:,μ,x,y,z,t]
                     end
                 end
@@ -36,7 +34,7 @@ function vecofmat(U)
 end
 U3 = vecofmat(U)
 #
-@everywhere function darts_in_circle(N)
+function darts_in_circle(N)
     n = zeros(nthreads()*8)
     @threads for i in 1:N
         if rand()^2+rand()^2<1
@@ -322,6 +320,167 @@ function calc_Sgwils3(U::Array{Array{SMatrix{3,3,ComplexF64,9},4},1})
     end
     end
     return sum(Sg)/3/NV
+end
+
+struct Site_coords{T}
+    x::T
+    y::T
+    z::T
+    t::T
+end 
+
+function Base.:+(s::Site_coords,t::NTuple{4})
+    x,y,z,t = (s.x,s.y,s.z,s.t) .+ t
+    return x,y,z,t
+end
+
+function getcoords(s::Site_coords)
+    return (s.x,s.y,s.z,s.t)
+end
+
+@inline function Base.getindex(U::Array{SMatrix{3,3,ComplexF64,9},4},s::Site_coords)
+    x,y,z,t = getcoords(s)
+    return U[x,y,z,t]
+end
+
+function unit_vector(μ::Int,steps::Int=1)
+    return (steps*(μ==1),steps*(μ==2),steps*(μ==3),steps*(μ==4))
+end
+#=
+function move!(s::Site_coords,stepsx,stepsy,stepsz,stepst)
+    s.x += stepsx
+    s.y += stepsy
+    s.z += stepsz
+    s.t += stepst
+    return nothing
+end
+
+function move!(s::Site_coords,μ::Int64,steps::Int64,lim::Int64)
+    if μ == 1
+        s.x = mod1(s.x+steps,lim)
+    elseif μ == 2
+        s.y = mod1(s.y+steps,lim)
+    elseif μ == 3
+        s.z = mod1(s.z+steps,lim)
+    elseif μ == 4
+        s.t = mod1(s.t+steps,lim)
+    end
+    return nothing
+end
+=#
+function move(s::Site_coords,μ::Int64,steps::Int64,lim::Int64)
+    x,y,z,t = getcoords(s)
+    if μ == 1
+        x = mod1(x+steps,lim)
+    elseif μ == 2
+        y = mod1(y+steps,lim)
+    elseif μ == 3
+        z = mod1(z+steps,lim)
+    elseif μ == 4
+        t = mod1(t+steps,lim)
+    end
+    return Site_coords(x,y,z,t)
+end
+
+function calc_plaq(g::Array{Array{SMatrix{3,3,ComplexF64,9},4},1},μ::Int64,v::Int64,origin::Site_coords)
+    NX = size(U[1],1)
+    NY = size(U[1],2)
+    NZ = size(U[1],3)
+    NT = size(U[1],4)
+    plaq = g[μ][origin] *g[v][move(origin,unit_vector(μ),(NX,NY,NZ,NT))] *
+           g[μ][move(origin,unit_vector(v),(NX,NY,NZ,NT))]'*g[v][origin]'
+    return plaq
+end
+
+function plaquette(g,μ::Int64,ν::Int64,ix,iy,iz,it) 
+    NX,NY,NZ,NT = size(g[1])
+    if μ == 4 && ν == 1
+        it_plu = mod1(it+1,NT)
+        ix_plu = mod1(ix+1,NX)
+        plaq = g[4][ix,iy,iz,it]  * g[1][ix,iy,iz,it_plu]  * g[4][ix_plu,iy,iz,it]' * g[1][ix,iy,iz,it]'
+    elseif μ == 4 && ν == 2
+        it_plu = mod1(it+1,NT); iy_plu = mod1(iy+1,NY)
+        plaq = g[4][ix,iy,iz,it]  * g[2][ix,iy,iz,it_plu]  * g[4][ix,iy_plu,iz,it]' * g[2][ix,iy,iz,it]'
+    elseif μ == 4 && ν == 3
+        it_plu = mod1(it+1,NT); iz_plu = mod1(iz+1,NZ)
+        plaq = g[4][ix,iy,iz,it]  * g[3][ix,iy,iz,it_plu]  * g[4][ix,iy,iz_plu,it]' * g[3][ix,iy,iz,it]'
+    elseif μ == 1 && ν == 2
+        ix_plu = mod1(ix+1,NX); iy_plu = mod1(iy+1,NY)
+        plaq = g[1][ix,iy,iz,it]  * g[2][ix_plu,iy,iz,it]  * g[1][ix,iy_plu,iz,it]' * g[2][ix,iy,iz,it]'
+    elseif μ == 1 && ν == 3
+        ix_plu = mod1(ix+1,NX); iz_plu = mod1(iz+1,NZ)
+        plaq = g[1][ix,iy,iz,it]  * g[3][ix_plu,iy,iz,it]  * g[1][ix,iy,iz_plu,it]' * g[3][ix,iy,iz,it]'
+    elseif μ == 2 && ν == 3  
+        iy_plu = mod1(iy+1,NY); iz_plu = mod1(iz+1,NZ)
+        plaq = g[2][ix,iy,iz,it]  * g[3][ix,iy_plu,iz,it]  * g[2][ix,iy,iz_plu,it]' * g[3][ix,iy,iz,it]'
+    end
+    return plaq
+end
+
+function plaquetteSC(g,μ::Int64,ν::Int64,s::Site_coords) 
+    Nμ = size(g[1],μ)
+    Nν = size(g[2],ν)
+    plaq = g[μ][s] * g[ν][move(s,μ,1,Nμ)] * g[μ][move(s,ν,1,Nν)]' * g[ν][s]'
+    return plaq
+end
+
+function plaquetteSC2(g,μ::Int64,ν::Int64,ix,iy,iz,it) 
+    Nμ = size(g[1],μ)
+    Nν = size(g[2],ν)
+    c = Site_coords(ix,iy,iz,it)
+    c1 = move(c,μ,1,Nμ)
+    c2 = move(c,ν,1,Nν)
+    plaq = g[μ][c] * g[ν][c1] * g[μ][c2]' * g[ν][c]'
+    return plaq
+end
+
+
+function plaquette_trsum(g)
+    space = 8
+    plaq = zeros(ComplexF64,nthreads()*space)
+    NX = size(g[1],1)
+    NY = size(g[1],2)
+    NZ = size(g[1],3)
+    NT = size(g[1],4)
+    @batch for it=1:NT
+    for iz=1:NZ
+    for iy=1:NY; iy_plu = mod1(iy+1,NY); iz_plu = mod1(iz+1,NZ); it_plu = mod1(it+1,NT);
+    for ix=1:NX; ix_plu = mod1(ix+1,NX);
+        plaq[threadid()*space] += tr(g[1][ix,iy,iz,it]*g[2][ix_plu,iy,iz,it]*g[1][ix,iy_plu,iz,it]'*g[2][ix,iy,iz,it]') +
+              tr(g[2][ix,iy,iz,it]*g[3][ix,iy_plu,iz,it]*g[2][ix,iy,iz_plu,it]'*g[3][ix,iy,iz,it]') +
+              tr(g[1][ix,iy,iz,it]*g[3][ix_plu,iy,iz,it]*g[1][ix,iy,iz_plu,it]'*g[3][ix,iy,iz,it]') +
+              tr(g[1][ix,iy,iz,it]*g[4][ix_plu,iy,iz,it]*g[1][ix,iy,iz,it_plu]'*g[4][ix,iy,iz,it]') +
+              tr(g[2][ix,iy,iz,it]*g[4][ix,iy_plu,iz,it]*g[2][ix,iy,iz,it_plu]'*g[4][ix,iy,iz,it]') +
+              tr(g[3][ix,iy,iz,it]*g[4][ix,iy,iz_plu,it]*g[3][ix,iy,iz,it_plu]'*g[4][ix,iy,iz,it]')
+    end
+    end
+    end
+    end
+    return sum(plaq)
+end
+
+function plaquette_trsumSC(g)
+    space = 8
+    plaq = zeros(ComplexF64,nthreads()*space)
+    NX = size(g[1],1)
+    NY = size(g[1],2)
+    NZ = size(g[1],3)
+    NT = size(g[1],4)
+    @batch for it=1:NT
+    for iz=1:NZ
+    for iy=1:NY
+    for ix=1:NX
+        plaq[threadid()*space] += tr(plaquetteSC2(g,1,2,ix,iy,iz,it)) +
+              tr(plaquetteSC2(g,1,3,ix,iy,iz,it)) +
+              tr(plaquetteSC2(g,1,4,ix,iy,iz,it)) +
+              tr(plaquetteSC2(g,2,3,ix,iy,iz,it)) +
+              tr(plaquetteSC2(g,2,4,ix,iy,iz,it)) +
+              tr(plaquetteSC2(g,3,4,ix,iy,iz,it))
+    end
+    end
+    end
+    end
+    return sum(plaq)
 end
 
 function test_inner(U,rng)
