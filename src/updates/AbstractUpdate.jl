@@ -11,7 +11,7 @@ module AbstractUpdate_module
     import ..Verbose_print: Verbose_level,println_verbose2,println_verbose3
     import ..Utils: exp_iQ,gen_SU3_matrix
     import ..Gaugefields: Gaugefield,Temporary_field,Site_coords,
-        staple_eachsite!,calc_GaugeAction,staple,
+        staple_eachsite!,calc_GaugeAction,recalc_GaugeAction!,staple,
         get_Sg,get_CV,get_β,set_Sg!,set_CV!,
         substitute_U!
     import ..Liefields: Liefield,gaussianP!,trP2,clear_P!
@@ -26,8 +26,11 @@ module AbstractUpdate_module
 
     include("./hmc.jl")
     include("./localmc.jl")
+    include("./heatbath.jl")
+    include("./overrelaxation.jl")
+    include("./hbor.jl")
     
-    function Updatemethod(parameters::Params,univ::Univ)
+    function Updatemethod(parameters::Params, univ::Univ)
         updatemethod = Updatemethod(
             univ.U,
             univ.P,
@@ -44,10 +47,13 @@ module AbstractUpdate_module
         U,
         P,
         update_method,
-        ϵ_metro = nothing,
-        Δτ = nothing,
-        hmc_steps = nothing,
-        integrator = nothing,
+        ϵ_metro = 0.1,
+        Δτ = 0.1,
+        hmc_steps = 10,
+        integrator = "Leapfrog",
+        MAXIT = 10^5,
+        numHB = 4,
+        numOR = 1,
         meta_enabled = false,
         )
         if update_method == "HMC"
@@ -64,6 +70,22 @@ module AbstractUpdate_module
                 ϵ_metro,
                 meta_enabled,
             )
+        elseif update_method == "Heatbath"
+            updatemethod = Heatbath_update(
+                U,
+                MAXIT,
+            )
+        elseif update_method == "Overrelaxation"
+            updatemethod = OR_update(
+                U,
+            )
+        elseif update_method == "HBOR"
+            updatemethod = HBOR_update(
+                U,
+                MAXIT, 
+                numHB,
+                numOR,
+            )
         else
             error("update method $(update_method) is not supported")
         end
@@ -71,7 +93,7 @@ module AbstractUpdate_module
         return updatemethod
     end
 
-    function update!(Updatemethod::T,U) where {T<:AbstractUpdate}
+    function update!(Updatemethod::T, U) where {T<:AbstractUpdate}
         error("updatemethod type $(typeof(updatemethod)) is not supported")
     end
 

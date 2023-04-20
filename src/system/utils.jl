@@ -6,6 +6,9 @@ module Utils
     export exp_iQ,
     gen_SU3_matrix,
     proj_onto_SU3,
+    KenneyLaub,
+    SU2_from_SU3,
+    SU3_from_SU2,
     is_SU3,is_su3,
     trAB,
     calc_coefficients_Q,
@@ -23,7 +26,7 @@ module Utils
 
     # Exponential function of iQ ∈ 𝔰𝔲(3), i.e. Projection of Q onto SU(3)
     # From Morningstar & Peardon (2008) arXiv:hep-lat/0311018v1
-    function exp_iQ(Q::Union{SMatrix{3,3,ComplexF64,9},MMatrix{3,3,ComplexF64,9},Matrix{ComplexF64}})
+    function exp_iQ(Q::SMatrix{3,3,ComplexF64,9})
         if norm(Q)>1e-10
             u,w = set_uw(Q)
             f0,f1,f2,_ = set_fj(u,w)
@@ -36,7 +39,7 @@ module Utils
         end
     end
 
-    function set_uw(Q::Union{SMatrix{3,3,ComplexF64,9},MMatrix{3,3,ComplexF64,9},Matrix{ComplexF64}})
+    function set_uw(Q::SMatrix{3,3,ComplexF64,9})
         c0 = 1/3*tr(Q^3)
         c1 = 1/2*tr(Q^2)
         c13r = sqrt(c1/3)
@@ -69,7 +72,7 @@ module Utils
         return f0,f1,f2,ξ0
     end
 
-    function calc_coefficients_Q(Q::Union{SMatrix{3,3,ComplexF64,9},MMatrix{3,3,ComplexF64,9},Matrix{ComplexF64}})
+    function calc_coefficients_Q(Q::SMatrix{3,3,ComplexF64,9})
         u,w = set_uw(Q)
         f0,f1,f2,ξ0 = set_fj(u,w)
         e2iu = exp(2im*u)
@@ -140,38 +143,70 @@ module Utils
     end
 
     function gen_SU2_matrix(rng::Xoshiro, ϵ::Float64)
-        imϵ = im*ϵ
-        r0 = rand(rng) - 0.5
         r1 = rand(rng) - 0.5
         r2 = rand(rng) - 0.5
         r3 = rand(rng) - 0.5
         rnorm = sqrt(r1^2 + r2^2 + r3^2)
-        X = (sign(r0)*sqrt(1-ϵ^2)) * eye2 + imϵ/rnorm*(r1*sigma1 + r2*sigma2 + r3*sigma3)
+        X = sqrt(1-ϵ^2) * eye2 + im*ϵ/rnorm*(r1*sigma1 + r2*sigma2 + r3*sigma3)
         return X
     end
 
-    function SU3_from_SU2(r, i)
+    function SU3_from_SU2(M::SMatrix{2,2,ComplexF64,4}, i)
         R = zeros(ComplexF64, 3, 3)
         if i == 1
-        R[1,1] = r[1,1]
-        R[1,2] = r[1,2]
-        R[2,1] = r[2,1]
-        R[2,2] = r[2,2]
-        R[3,3] = 1.0
+            R[1,1] = M[1,1]
+            R[1,2] = M[1,2]
+            R[2,1] = M[2,1]
+            R[2,2] = M[2,2]
+            R[3,3] = 1.0
         elseif i == 2
-        R[1,1] = r[1,1]
-        R[1,3] = r[1,2]
-        R[3,1] = r[2,1]
-        R[3,3] = r[2,2]
-        R[2,2] = 1.0
+            R[1,1] = M[1,1]
+            R[1,3] = M[1,2]
+            R[3,1] = M[2,1]
+            R[3,3] = M[2,2]
+            R[2,2] = 1.0
         elseif i == 3
-        R[2,2] = r[1,1]
-        R[2,3] = r[1,2]
-        R[3,2] = r[2,1]
-        R[3,3] = r[2,2]
-        R[1,1] = 1.0
+            R[2,2] = M[1,1]
+            R[2,3] = M[1,2]
+            R[3,2] = M[2,1]
+            R[3,3] = M[2,2]
+            R[1,1] = 1.0
         end
         return SMatrix{3,3,ComplexF64}(R)
+    end
+
+    function SU2_from_SU3(M::SMatrix{3,3,ComplexF64,9}, i)
+        if i == 1
+            r11 = M[1,1]
+            r12 = M[1,2]
+            r21 = M[2,1]
+            r22 = M[2,2]
+            R = SMatrix{2,2,ComplexF64}([
+                r11 r21
+                r21 r22
+                ])
+            return R
+        elseif i == 2
+            s11 = M[1,1]
+            s12 = M[1,3]
+            s21 = M[3,1]
+            s22 = M[3,3]
+            S = SMatrix{2,2,ComplexF64}([
+                s11 s21
+                s21 s22
+                ])
+            return S
+        elseif i == 3
+            t11 = M[2,2]
+            t12 = M[2,3]
+            t21 = M[3,2]
+            t22 = M[3,3]
+            T = SMatrix{2,2,ComplexF64}([
+                t11 t21
+                t21 t22
+                ])
+            return T
+        end
     end
 
     function proj_onto_SU2(M)
@@ -191,7 +226,7 @@ module Utils
         return M
     end
 
-    function proj_onto_SU3(M::Union{Matrix,SMatrix{3,3,ComplexF64,9}})
+    function proj_onto_SU3(M::SMatrix{3,3,ComplexF64,9})
         col1 = M[:,1]
         col2 = M[:,2]
         col3 = M[:,3]
@@ -202,6 +237,17 @@ module Utils
         col3 /= norm(col3)
         M_SU3 = [col1 col2 col3]
         return M_SU3 / det(M_SU3)^(1/3)
+    end
+
+    function KenneyLaub(M::SMatrix{3,3,ComplexF64,9})
+        while true
+            X = M' * M
+            M = M/3.0 * (I + 8/3 * inv(M'*M + 1/3*I))
+            if norm(I - X) <= 1e-6
+                break
+            end
+        end
+        M = M / det(M)^(1/3)
     end
 
     function is_SU3(M; prec = 1e-6)
@@ -231,19 +277,19 @@ module Utils
         return nothing
     end
 
-    function Traceless_antihermitian(M::Union{Matrix,SMatrix{3,3,ComplexF64,9}})
+    function Traceless_antihermitian(M::SMatrix{3,3,ComplexF64,9})
         return 0.5*(M - M') - 1/6*tr(M - M')*I
     end
 
-    function Antihermitian(M::Union{Matrix,SMatrix{3,3,ComplexF64,9}})
+    function Antihermitian(M::SMatrix{3,3,ComplexF64,9})
         return 0.5*(M - M')
     end
 
-    function Traceless_hermitian(M::Union{Matrix,SMatrix{3,3,ComplexF64,9}})
+    function Traceless_hermitian(M::SMatrix{3,3,ComplexF64,9})
         return 0.5*(M + M') - 1/6*tr(M + M')*I
     end
 
-    function Hermitian(M::Union{Matrix,SMatrix{3,3,ComplexF64,9}})
+    function Hermitian(M::SMatrix{3,3,ComplexF64,9})
         return 0.5*(M + M')
     end
 

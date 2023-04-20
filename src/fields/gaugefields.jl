@@ -14,7 +14,7 @@ module Gaugefields
 		t::T
 	end 
 	
-	function Base.:+(s::Site_coords,t::NTuple{4})
+	function Base.:+(s::Site_coords, t::NTuple{4})
 		x,y,z,t = (s.x,s.y,s.z,s.t) .+ t
 		return x,y,z,t
 	end
@@ -23,27 +23,27 @@ module Gaugefields
 		return (s.x,s.y,s.z,s.t)
 	end
 	
-	@inline function move(s::Site_coords,μ::Int64,steps::Int64,lim::Int64)
+	@inline function move(s::Site_coords, μ, steps, lim)
 		x,y,z,t = getcoords(s)
 		if μ == 1
-			x = mod1(x+steps,lim)
+			x = mod1(x+steps, lim)
 		elseif μ == 2
-			y = mod1(y+steps,lim)
+			y = mod1(y+steps, lim)
 		elseif μ == 3
-			z = mod1(z+steps,lim)
+			z = mod1(z+steps, lim)
 		elseif μ == 4
-			t = mod1(t+steps,lim)
+			t = mod1(t+steps, lim)
 		end
 		return Site_coords(x,y,z,t)
 	end
 
-	function Base.setindex!(U::Array{SMatrix{3,3,ComplexF64,9},4},v,s::Site_coords)
+	function Base.setindex!(U::Array{SMatrix{3,3,ComplexF64,9},4}, v, s::Site_coords)
 		x,y,z,t = getcoords(s)
 		@inbounds U[x,y,z,t] = v
 		return nothing
 	end
 
-	@inline function Base.getindex(U::Array{SMatrix{3,3,ComplexF64,9},4},s::Site_coords)
+	@inline function Base.getindex(U::Array{SMatrix{3,3,ComplexF64,9},4}, s::Site_coords)
 		x,y,z,t = getcoords(s)
 		@inbounds return U[x,y,z,t] 
 	end

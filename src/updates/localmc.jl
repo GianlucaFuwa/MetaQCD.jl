@@ -20,7 +20,7 @@ function update!(
 	else
 		numaccepts = local_metro_sweep!(U, rng, ϵ)
 	end
-	return numaccepts
+	return numaccepts / U.NV / 4.0
 end
 
 function local_metro!(gfield::Gaugefield, μ::Int64, origin::Site_coords, rng::Xoshiro, ϵ::Float64)

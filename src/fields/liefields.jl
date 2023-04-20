@@ -70,11 +70,13 @@ module Liefields
                 for iy = 1:NY
                     for ix = 1:NX
                         for μ = 1:4
-                            #h = SVector{8,Float64}(randn(rng, 8))
+                            h = SVector{8,Float64}(randn(rng, 8))
+                            #=
                             h = zeros(8)
                             if (ix,iy,iz,it,μ) == (1,1,1,1,1)
                                 h[1] = 0.2
                             end
+                            =#
                             p[μ][ix,iy,iz,it] = 0.5im * [
                                 h[3]+h[8]/sq3  h[1]-im*h[2]   h[4]-im*h[5]
                                 h[1]+im*h[2]  -h[3]+h[8]/sq3  h[6]-im*h[7]

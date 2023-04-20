@@ -88,7 +88,7 @@ function update!(
     trP2_old = trP2(P)
     CV_old = get_CV(U)
 
-    updatemethod.integrator!(U, P, Δτ, steps, Bias=Bias)
+    updatemethod.integrator!(U, P, Δτ, steps, Bias)
 
     Sg_new = calc_GaugeAction(U)
     CV_new = top_charge(Uout_multi[end])
@@ -113,14 +113,14 @@ end
 struct Leapfrog <: Integrator
 end
 
-function (lf::Leapfrog)(U::T, P::Liefield, Δτ, steps; Bias=nothing) where {T <: Gaugefield}
-    updateP!(U, P, Δτ, 0.5, Bias=Bias)
+function (lf::Leapfrog)(U::T, P::Liefield, Δτ, steps, Bias=nothing) where {T <: Gaugefield}
+    updateP!(U, P, Δτ, 0.5, Bias)
     for i = 1:steps-1
         updateU!(U, P, Δτ, 1.0)
-        updateP!(U, P, Δτ, 1.0, Bias=Bias)
+        updateP!(U, P, Δτ, 1.0, Bias)
     end
     updateU!(U, P, Δτ, 1.0)
-    updateP!(U, P, Δτ, 0.5, Bias=Bias)
+    updateP!(U, P, Δτ, 0.5, Bias)
 
     return nothing
 end
@@ -138,13 +138,13 @@ struct OMF2_slow <: Integrator
     end
 end
 
-function (O2S::OMF2_slow)(U::T, P::Liefield, Δτ, steps; Bias=nothing) where {T <: Gaugefield}
+function (O2S::OMF2_slow)(U::T, P::Liefield, Δτ, steps, Bias=nothing) where {T <: Gaugefield}
     for i = 1:steps
-        updateP!(U, P, Δτ, O2S.α, Bias=Bias)
+        updateP!(U, P, Δτ, O2S.α, Bias)
         updateU!(U, P, Δτ, O2S.β)
-        updateP!(U, P, Δτ, O2S.γ, Bias=Bias)
+        updateP!(U, P, Δτ, O2S.γ, Bias)
         updateU!(U, P, Δτ, O2S.β)
-        updateP!(U, P, Δτ, O2S.α, Bias=Bias)
+        updateP!(U, P, Δτ, O2S.α, Bias)
     end
 
     return nothing
@@ -163,18 +163,18 @@ struct OMF2 <: Integrator
     end
 end
 
-function (O2::OMF2)(U::T, P::Liefield, Δτ, steps; Bias=nothing) where {T <: Gaugefield}
-    updateP!(U, P, Δτ, O2.α, Bias=Bias)
+function (O2::OMF2)(U::T, P::Liefield, Δτ, steps, Bias=nothing) where {T <: Gaugefield}
+    updateP!(U, P, Δτ, O2.α, Bias)
     updateU!(U, P, Δτ, O2.β)
-    updateP!(U, P, Δτ, O2.γ, Bias=Bias)
+    updateP!(U, P, Δτ, O2.γ, Bias)
     updateU!(U, P, Δτ, O2.β)
     for i = 1:steps-1
-        updateP!(U, P, Δτ, 2*O2.α, Bias=Bias)
+        updateP!(U, P, Δτ, 2*O2.α, Bias)
         updateU!(U, P, Δτ, O2.β)
-        updateP!(U, P, Δτ, O2.γ, Bias=Bias)
+        updateP!(U, P, Δτ, O2.γ, Bias)
         updateU!(U, P, Δτ, O2.β)
     end
-    updateP!(U, P, Δτ, O2.α, Bias=Bias)
+    updateP!(U, P, Δτ, O2.α, Bias)
 
     return nothing
 end
@@ -198,21 +198,21 @@ struct OMF4_slow <: Integrator
     end
 end
 
-function (O4S::OMF4_slow)(U::T, P::Liefield, Δτ, steps; Bias=nothing) where {T <: Gaugefield}
+function (O4S::OMF4_slow)(U::T, P::Liefield, Δτ, steps, Bias=nothing) where {T <: Gaugefield}
     for i = 1:steps
-        updateP!(U, P, Δτ, O4S.α, Bias=Bias)
+        updateP!(U, P, Δτ, O4S.α, Bias)
         updateU!(U, P, Δτ, O4S.β)
-        updateP!(U, P, Δτ, O4S.γ, Bias=Bias)
+        updateP!(U, P, Δτ, O4S.γ, Bias)
         updateU!(U, P, Δτ, O4S.δ)
 
-        updateP!(U, P, Δτ, O4S.μ, Bias=Bias)
+        updateP!(U, P, Δτ, O4S.μ, Bias)
         updateU!(U, P, Δτ, O4S.ν)
-        updateP!(U, P, Δτ, O4S.μ, Bias=Bias)
+        updateP!(U, P, Δτ, O4S.μ, Bias)
 
         updateU!(U, P, Δτ, O4S.δ)
-        updateP!(U, P, Δτ, O4S.γ, Bias=Bias)
+        updateP!(U, P, Δτ, O4S.γ, Bias)
         updateU!(U, P, Δτ, O4S.β)
-        updateP!(U, P, Δτ, O4S.α, Bias=Bias)
+        updateP!(U, P, Δτ, O4S.α, Bias)
     end
 
     return nothing
@@ -237,34 +237,34 @@ struct OMF4 <: Integrator
     end
 end
 
-function (O4::OMF4)(U::T, P::Liefield, Δτ, steps; Bias=nothing) where {T <: Gaugefield}
-    updateP!(U, P, Δτ, O4.α, Bias=Bias)
+function (O4::OMF4)(U::T, P::Liefield, Δτ, steps, Bias=nothing) where {T <: Gaugefield}
+    updateP!(U, P, Δτ, O4.α, Bias)
     updateU!(U, P, Δτ, O4.β)
-    updateP!(U, P, Δτ, O4.γ, Bias=Bias)
+    updateP!(U, P, Δτ, O4.γ, Bias)
     updateU!(U, P, Δτ, O4.δ)
 
-    updateP!(U, P, Δτ, O4.μ, Bias=Bias)
+    updateP!(U, P, Δτ, O4.μ, Bias)
     updateU!(U, P, Δτ, O4.ν)
-    updateP!(U, P, Δτ, O4.μ, Bias=Bias)
+    updateP!(U, P, Δτ, O4.μ, Bias)
 
     updateU!(U, P, Δτ, O4.δ)
-    updateP!(U, P, Δτ, O4.γ, Bias=Bias)
+    updateP!(U, P, Δτ, O4.γ, Bias)
     updateU!(U, P, Δτ, O4.β)
     for i = 1:steps-1
-        updateP!(U, P, Δτ, 2*O4.α, Bias=Bias)
+        updateP!(U, P, Δτ, 2*O4.α, Bias)
         updateU!(U, P, Δτ, O4.β)
-        updateP!(U, P, Δτ, O4.γ, Bias=Bias)
+        updateP!(U, P, Δτ, O4.γ, Bias)
         updateU!(U, P, Δτ, O4.δ)
 
-        updateP!(U, P, Δτ, O4.μ, Bias=Bias)
+        updateP!(U, P, Δτ, O4.μ, Bias)
         updateU!(U, P, Δτ, O4.ν)
-        updateP!(U, P, Δτ, O4.μ, Bias=Bias)
+        updateP!(U, P, Δτ, O4.μ, Bias)
 
         updateU!(U, P, Δτ, O4.δ)
-        updateP!(U, P, Δτ, O4.γ, Bias=Bias)
+        updateP!(U, P, Δτ, O4.γ, Bias)
         updateU!(U, P, Δτ, O4.β)
     end
-    updateP!(U, P, Δτ, O4.α, Bias=Bias)
+    updateP!(U, P, Δτ, O4.α, Bias)
 
     return nothing
 end
@@ -286,34 +286,31 @@ function updateU!(U::Gaugefield, P::Liefield, Δτ::Float64, fac::Float64)
     return nothing
 end
 
-function updateP!(U::Gaugefield, P::Liefield, Δτ::Float64, fac::Float64; Bias=nothing)
-    ϵ = Δτ*fac
+function updateP!(U::Gaugefield, P::Liefield, Δτ::Float64, fac::Float64, Bias=nothing)
+    ϵ = Δτ * fac
     force = Temporary_field(U)
-    staples = Temporary_field(U)
     if Bias !== nothing
         numlayers, ρ = get_smearparams_for_CV(Bias)
         if numlayers !== 0 || ρ !== 0.0
             smearing = Stoutsmearing(numlayers, ρ)
             Utmp = deepcopy(U)
             Uout_multi, staples_multi, Qs_multi = calc_smearedU(Utmp, smearing)
-            calc_GaugeForce_toplayer!(force, staples, U)
+            calc_GaugeForce_toplayer!(force, U)
             stout_recursion!(force, Uout_multi, staples_multi, Qs_multi, smearing)
             topcharge = top_charge(Utmp, get_kind_of_CV(Bias)) 
             dVdQ = ReturnDerivative(Bias, topcharge)
             ϵ *= dVdQ
         end
     else
-        calc_GaugeForce_toplayer!(force, staples, U)
+        calc_GaugeForce_toplayer!(force, U)
     end
     add_GaugeForce!(P, force, ϵ)
     return nothing
 end
 
-function calc_GaugeForce_toplayer!(Σ::Temporary_field, A::Temporary_field, U::Gaugefield)
+function calc_GaugeForce_toplayer!(Σ::Temporary_field, U::Gaugefield)
     NX, NY, NZ, NT = size(U)
     β = get_β(U)
-
-    #staple_eachsite!(A, U)
 
     @batch for it = 1:NT
         for iz = 1:NZ
@@ -321,9 +318,8 @@ function calc_GaugeForce_toplayer!(Σ::Temporary_field, A::Temporary_field, U::G
                 for ix = 1:NX
                     site = Site_coords(ix,iy,iz,it)
                     for μ = 1:4
-                        stap = staple(U, μ, site)
-                        tmp = U[μ][ix,iy,iz,it] * stap'
-                        #tmp = U[μ][ix,iy,iz,it] * A[μ][ix,iy,iz,it]'
+                        A = staple(U, μ, site)
+                        tmp = U[μ][ix,iy,iz,it] * A'
                         Σ[μ][ix,iy,iz,it] = -β/6 * Traceless_antihermitian(tmp)
                     end
                 end
@@ -340,7 +336,7 @@ function add_GaugeForce!(P::Liefield, force::Temporary_field, ϵ::Float64)
             for iy = 1:NY
                 for ix = 1:NX
                     for μ = 1:4
-                        P[μ][ix,iy,iz,it] += ϵ*force[μ][ix,iy,iz,it] 
+                        P[μ][ix,iy,iz,it] += ϵ * force[μ][ix,iy,iz,it] 
                     end
                 end
             end
