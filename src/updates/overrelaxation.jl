@@ -29,11 +29,11 @@ function OR_sweep!(U::Gaugefield, prefactor, rng)
 
     numaccepts = 0
     for it = 1:NT
-		for iz = 1:NZ
-			for iy = 1:NY
-				for ix = 1:NX
+	for iz = 1:NZ
+	    for iy = 1:NY
+		for ix = 1:NX
                     site = Site_coords(ix,iy,iz,it)
-					for μ = 1:4
+		    for μ = 1:4
                         A = staple(U, μ, site)
 
                         old_link = U[μ][ix,iy,iz,it]
@@ -46,10 +46,10 @@ function OR_sweep!(U::Gaugefield, prefactor, rng)
                             U[μ][ix,iy,iz,it] = new_link
                             numaccepts += 1
                         end
-					end
-				end
-			end
+		    end
 		end
+	    end
 	end
+    end
     return numaccepts
 end
