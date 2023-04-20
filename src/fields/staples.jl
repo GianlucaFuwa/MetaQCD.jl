@@ -30,44 +30,6 @@ function staple_plaq(U::T, μ, site::Site_coords) where {T<:Gaugefield}
     return staple
 end
 
-function staple_plaq(U::T, μ, ix, iy, iz, it) where {T<:Gaugefield}
-    ix_plu = mod1(ix+1, U.NX); ix_min = mod1(ix-1, U.NX)
-    iy_plu = mod1(iy+1, U.NY); iy_min = mod1(iy-1, U.NY)
-    iz_plu = mod1(iz+1, U.NZ); iz_min = mod1(iz-1, U.NZ)
-    it_plu = mod1(it+1, U.NT); it_min = mod1(it-1, U.NT)
-    if μ == 1
-        staple = U[2][ix,iy,iz,it]      * U[1][ix,iy_plu,iz,it] * U[2][ix_plu,iy,iz,it]' +
-                 U[2][ix,iy_min,iz,it]' * U[1][ix,iy_min,iz,it] * U[2][ix_plu,iy_min,iz,it] +
-                 U[3][ix,iy,iz,it]      * U[1][ix,iy,iz_plu,it] * U[3][ix_plu,iy,iz,it]' +
-                 U[3][ix,iy,iz_min,it]' * U[1][ix,iy,iz_min,it] * U[3][ix_plu,iy,iz_min,it] + 
-                 U[4][ix,iy,iz,it]      * U[1][ix,iy,iz,it_plu] * U[4][ix_plu,iy,iz,it]' +
-                 U[4][ix,iy,iz,it_min]' * U[1][ix,iy,iz,it_min] * U[4][ix_plu,iy,iz,it_min]
-    elseif μ == 2
-        staple = U[1][ix,iy,iz,it]      * U[2][ix_plu,iy,iz,it] * U[1][ix,iy_plu,iz,it]' +
-                 U[1][ix_min,iy,iz,it]' * U[2][ix_min,iy,iz,it] * U[1][ix_min,iy_plu,iz,it] +
-                 U[3][ix,iy,iz,it]      * U[2][ix,iy,iz_plu,it] * U[3][ix,iy_plu,iz,it]' +
-                 U[3][ix,iy,iz_min,it]' * U[2][ix,iy,iz_min,it] * U[3][ix,iy_plu,iz_min,it] + 
-                 U[4][ix,iy,iz,it]      * U[2][ix,iy,iz,it_plu] * U[4][ix,iy_plu,iz,it]' +
-                 U[4][ix,iy,iz,it_min]' * U[2][ix,iy,iz,it_min] * U[4][ix,iy_plu,iz,it_min]
-    elseif μ == 3
-        staple = U[1][ix,iy,iz,it]      * U[3][ix_plu,iy,iz,it] * U[1][ix,iy,iz_plu,it]' +
-                 U[1][ix_min,iy,iz,it]' * U[3][ix_min,iy,iz,it] * U[1][ix_min,iy,iz_plu,it] +
-                 U[2][ix,iy,iz,it]      * U[3][ix,iy_plu,iz,it] * U[2][ix,iy,iz_plu,it]' +
-                 U[2][ix,iy_min,iz,it]' * U[3][ix,iy_min,iz,it] * U[2][ix,iy_min,iz_plu,it] + 
-                 U[4][ix,iy,iz,it]      * U[3][ix,iy,iz,it_plu] * U[4][ix,iy,iz_plu,it]' +
-                 U[4][ix,iy,iz,it_min]' * U[3][ix,iy,iz,it_min] * U[4][ix,iy,iz_plu,it_min]
-    elseif μ == 4
-        staple = U[1][ix,iy,iz,it]      * U[4][ix_plu,iy,iz,it] * U[1][ix,iy,iz,it_plu]' +
-                 U[1][ix_min,iy,iz,it]' * U[4][ix_min,iy,iz,it] * U[1][ix_min,iy,iz,it_plu] +
-                 U[2][ix,iy,iz,it]      * U[4][ix,iy_plu,iz,it] * U[2][ix,iy,iz,it_plu]' +
-                 U[2][ix,iy_min,iz,it]' * U[4][ix,iy_min,iz,it] * U[2][ix,iy_min,iz,it_plu] + 
-                 U[3][ix,iy,iz,it]      * U[4][ix,iy,iz_plu,it] * U[3][ix,iy,iz,it_plu]' +
-                 U[3][ix,iy,iz_min,it]' * U[4][ix,iy,iz_min,it] * U[3][ix,iy,iz_min,it_plu]
-    end
-                 
-    return staple          
-end
-
 function staple_rect(U::T, μ, site::Site_coords) where {T<:Gaugefield}
     Nμ = size(U)[μ]
     siteμp = move(site, μ, 1, Nμ)
@@ -139,7 +101,6 @@ function staple_eachsite_plaq!(staples::T1, U::T2) where {T1<:Temporary_field, T
                 for ix = 1:NX
                     site = Site_coords(ix,iy,iz,it)
                     for μ = 1:4
-                        #staples[μ][ix,iy,iz,it] = staple_plaq(U, μ, ix, iy, iz, it)
                         staples[μ][ix,iy,iz,it] = staple_plaq(U, μ, site)
                     end
                 end
