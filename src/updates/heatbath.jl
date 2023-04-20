@@ -32,35 +32,35 @@ function heatbath_sweep!(U::Gaugefield, MAXIT, prefactor, rng::Xoshiro)
 
     numaccepts = 0
     for it = 1:NT
-		for iz = 1:NZ
-			for iy = 1:NY
-				for ix = 1:NX
-                    site = Site_coords(ix,iy,iz,it)
-					for μ = 1:4
-                        A = staple(U, μ, site)
-                        UA = U[μ][ix,iy,iz,it] * A'
-                        subblock = SU2_from_SU3(UA, 1)
-                        R = SU3_from_SU2(
-                            heatbath_SU2(subblock, MAXIT, prefactor, rng), 
-                            1,
-                        )
-                        subblock = SU2_from_SU3(UA, 2)
-                        S = SU3_from_SU2(
-                            heatbath_SU2(subblock, MAXIT, prefactor, rng), 
-                            2,
-                        )
-                        subblock = SU2_from_SU3(UA, 3)
-                        T = SU3_from_SU2(
-                            heatbath_SU2(subblock, MAXIT, prefactor, rng), 
-                            3,
-                        )
-                        U[μ][ix,iy,iz,it] = T * S * R * U[μ][ix,iy,iz,it]
-                        numaccepts += 1
-					end
-				end
-			end
+	for iz = 1:NZ
+	    for iy = 1:NY
+		for ix = 1:NX
+		    site = Site_coords(ix,iy,iz,it)
+		    for μ = 1:4
+			A = staple(U, μ, site)
+			UA = U[μ][ix,iy,iz,it] * A'
+			subblock = SU2_from_SU3(UA, 1)
+			R = SU3_from_SU2(
+			    heatbath_SU2(subblock, MAXIT, prefactor, rng), 
+			    1,
+			)
+			subblock = SU2_from_SU3(UA, 2)
+			S = SU3_from_SU2(
+			    heatbath_SU2(subblock, MAXIT, prefactor, rng), 
+			    2,
+			)
+			subblock = SU2_from_SU3(UA, 3)
+			T = SU3_from_SU2(
+			    heatbath_SU2(subblock, MAXIT, prefactor, rng), 
+			    3,
+			)
+			U[μ][ix,iy,iz,it] = T * S * R * U[μ][ix,iy,iz,it]
+			numaccepts += 1
+		    end
 		end
+	    end
 	end
+    end
     return numaccepts
 end
 
