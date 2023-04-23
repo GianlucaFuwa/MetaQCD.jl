@@ -3,27 +3,53 @@ module Utils
     using Random
     using StaticArrays
 
-    function move(current_site::Site_coord,dir::Int;steps::Int=1)
-        
+    export exp_iQ,
+    gen_SU3_matrix,
+    proj_onto_SU3,
+    KenneyLaub,
+    SU2_from_SU3,
+    SU3_from_SU2,
+    is_SU3,is_su3,
+    trAB,
+    calc_coefficients_Q,
+    Traceless_antihermitian,Traceless_hermitian,Antihermitian,Hermitian
 
-    eye3 = SMatrix{3,3,ComplexF64}([
-        1 0 0
-        0 1 0
-        0 0 1
-    ])
+    function trAB(A, B=A)
+        trAB = 0.0
+        for i = 1:3
+            for j = 1:3
+                trAB += A[i,j]*B[j,i]
+            end
+        end
+        return trAB
+    end 
+
+    function LinearAlgebra.tr(A, B)
+        trace = 0.0
+        for i = 1:3
+            for j = 1:3
+                trace += A[i,j]*B[j,i]
+            end
+        end
+        return trace
+    end
+
     # Exponential function of iQ ∈ 𝔰𝔲(3), i.e. Projection of Q onto SU(3)
     # From Morningstar & Peardon (2008) arXiv:hep-lat/0311018v1
-    function exp_iQ(Q::Union{SMatrix{3,3,ComplexF64,9},MMatrix{3,3,ComplexF64,9},Matrix{ComplexF64}})
+    function exp_iQ(Q::SMatrix{3,3,ComplexF64,9})
         if norm(Q)>1e-10
             u,w = set_uw(Q)
-            f0,f1,f2 = set_fj(u,w)
-            return f0*I + f1*Q + f2*Q^2
+            f0,f1,f2,_ = set_fj(u,w)
+            expiQ = f0*I + f1*Q + f2*Q^2
+            return expiQ
         else
-            return eye3
+            expiQ = SMatrix{3,3,ComplexF64}(I)
+            return expiQ
+
         end
     end
 
-    function set_uw(Q::Union{SMatrix{3,3,ComplexF64,9},MMatrix{3,3,ComplexF64,9},Matrix{ComplexF64}})
+    function set_uw(Q::SMatrix{3,3,ComplexF64,9})
         c0 = 1/3*tr(Q^3)
         c1 = 1/2*tr(Q^2)
         c13r = sqrt(c1/3)
@@ -53,50 +79,195 @@ module Utils
         f0 = h0*fden
         f1 = h1*fden
         f2 = h2*fden
-        return f0,f1,f2
+        return f0,f1,f2,ξ0
     end
 
-    sigma = []
-    s = SMatrix{2,2,ComplexF64}([
+    function calc_coefficients_Q(Q::SMatrix{3,3,ComplexF64,9})
+        u,w = set_uw(Q)
+        f0,f1,f2,ξ0 = set_fj(u,w)
+        e2iu = exp(2im*u)
+        emiu = exp(-im*u)
+        cosw = cos(w)
+        ξ1 = cosw/w^2 - sin(w)/w^3
+
+        r10 = 2*( u + im*(u^2-w^2) )*e2iu +
+            2emiu*( 4u*(2-im*u)*cosw + im*(9u^2+w^2-im*u*(3u^2+w^2))*ξ0 )
+        r11 = 2*(1+2im*u)*e2iu + emiu*( -2*(1-im*u)*cosw + im*(6u+im*(w^2-3u^2))*ξ0 )
+        r12 = 2im*e2iu + im*emiu*( cosw - 3*(1-im*u)*ξ0 )
+        r20 = -2*e2iu + 2im*u*emiu*( cosw + (1+4im*u)*ξ0 +3u^2*ξ1 )
+        r21 = -im*emiu*( cosw + (1+2im*u)*ξ0 - 3u^2*ξ1 )
+        r22 = emiu*( ξ0 -3im*u*ξ1 )
+
+        bdenom = 2*(9u^2-w^2)^2
+        b10 = ( 2u*r10 + (3u^2-w^2)*r20 - 2*(15u^2+w^2)*f0 ) / bdenom
+        b20 = ( r10 - 3u*r20 - 24u*f0 ) / bdenom
+        b11 = ( 2u*r11 + (3u^2-w^2)*r21 - 2*(15u^2+w^2)*f1 ) / bdenom
+        b21 = ( r11 - 3u*r21 - 24u*f1 ) / bdenom
+        b12 = ( 2u*r12 + (3u^2-w^2)*r22 - 2*(15u^2+w^2)*f2 ) / bdenom
+        b22 = ( r12 - 3u*r22 - 24u*f2 ) / bdenom
+
+        return f0, f1, f2, b10, b11, b12, b20, b21, b22
+    end
+
+    const sigma1 = SMatrix{2,2,ComplexF64}([
         0 1
         1 0
     ])
-    push!(sigma,s)
-    s = SMatrix{2,2,ComplexF64}([
-        0 -im
-        im 0
+    const sigma2 = SMatrix{2,2,ComplexF64}([
+        0  -im
+        im  0
     ])
-    push!(sigma,s)
-    s = SMatrix{2,2,ComplexF64}([
-        1 0
+    const sigma3 = SMatrix{2,2,ComplexF64}([
+        1  0
         0 -1
     ])
-    push!(sigma,s)
+    const pauli_vec = [sigma1, sigma2, sigma3]
+    const eye2 = SMatrix{2,2}([
+        1 0
+        0 1
+    ])
+    const eye3 = SMatrix{3,3}([
+        1 0 0
+        0 1 0
+        0 0 1
+    ])
+
 
     # Generator of local Update Proposal Matrices X
     # From Gattringer C. & Lang C.B. (Springer, Berlin Heidelberg 2010)
-    function gen_proposal(rng::Xoshiro,ϵ::Float64)
-        r = rand(rng,4).-0.5
-        t = rand(rng,4).-0.5
-        s = rand(rng,4).-0.5
-        R2 = sign(r[1])*sqrt(1-ϵ^2)*I+im*(ϵ*r[2:end]'/norm(r[2:end])*sigma)
-        S2 = sign(s[1])*sqrt(1-ϵ^2)*I+im*(ϵ*s[2:end]'/norm(s[2:end])*sigma) 
-        T2 = sign(t[1])*sqrt(1-ϵ^2)*I+im*(ϵ*t[2:end]'/norm(t[2:end])*sigma)
+    function gen_SU3_matrix(rng::Xoshiro, ϵ::Float64)
+        R2 = gen_SU2_matrix(rng, ϵ)
+        S2 = gen_SU2_matrix(rng, ϵ)
+        T2 = gen_SU2_matrix(rng, ϵ)
 
-        R,S,T = su3_from_su2(R2,S2,T2)
-        X = R*S*T
+        R = SU3_from_SU2(R2, 1)
+        S = SU3_from_SU2(S2, 2)
+        T = SU3_from_SU2(T2, 3)
+        X = R * S * T
+
         if rand(rng) < 0.5
             return X
-        else 
+        else
             return X'
         end
     end
 
-    function su3_from_su2(R2,S2,T2)
-        R = SMatrix{3,3}([R2[1,1] R2[1,2] 0 ; R2[2,1] R2[2,2] 0 ; 0 0 1])
-        S = SMatrix{3,3}([S2[1,1] 0 S2[1,2] ; 0 1 0 ; S2[2,1] 0 S2[2,2]])
-        T = SMatrix{3,3}([1 0 0 ; 0 T2[1,1] T2[1,2] ; 0 T2[2,1] T2[2,2]])
-        return R,S,T
+    function gen_SU2_matrix(rng::Xoshiro, ϵ::Float64)
+        r1 = rand(rng) - 0.5
+        r2 = rand(rng) - 0.5
+        r3 = rand(rng) - 0.5
+        rnorm = sqrt(r1^2 + r2^2 + r3^2)
+        X = sqrt(1-ϵ^2) * eye2 + im*ϵ/rnorm*(r1*sigma1 + r2*sigma2 + r3*sigma3)
+        return X
+    end
+
+    function SU3_from_SU2(M::SMatrix{2,2,ComplexF64,4}, i)
+        if i == 1
+            return SMatrix{3,3,ComplexF64}([
+                M[1,1] M[1,2] 0.0
+                M[2,1] M[2,2] 0.0
+                0.0000 0.0000 1.0
+                ])
+        elseif i == 2
+            return SMatrix{3,3,ComplexF64}([
+                M[1,1] 0.0 M[1,2]
+                0.0000 1.0 0.0000
+                M[2,1] 0.0 M[2,2]
+                ])
+        elseif i == 3
+            return SMatrix{3,3,ComplexF64}([
+                1.0 0.0000 0.0000
+                0.0 M[1,1] M[1,2]
+                0.0 M[2,1] M[2,2]
+                ])
+        end
+        return SMatrix{3,3,ComplexF64}(R)
+    end
+
+    function SU2_from_SU3(M::SMatrix{3,3,ComplexF64,9}, i)
+        if i == 1
+            return SMatrix{2,2,ComplexF64}([
+                M[1,1] M[1,2]
+                M[2,1] M[2,2]
+                ])
+        elseif i == 2
+            return SMatrix{2,2,ComplexF64}([
+                M[1,1] M[1,3]
+                M[3,1] M[3,3]
+                ])
+        elseif i == 3
+            return SMatrix{2,2,ComplexF64}([
+                M[2,2] M[2,3]
+                M[3,2] M[3,3]
+                ])
+        end
+    end
+
+    function proj_onto_SU2(M)
+        a = M[1,1]*0.5 + conj(M[2,2])*0.5
+        b = M[2,1]*0.5 + conj(M[1,2])*0.5
+        S = SMatrix{2,2}([a -conj(b); b conj(a)])
+        return S
+    end
+
+    function proj_onto_SU2(M)
+        a = M[1,1]*0.5 + conj(M[2,2])*0.5
+        b = M[2,1]*0.5 + conj(M[1,2])*0.5
+        M[1,1] = a
+        M[2,1] = b
+        M[1,2] = -conj(b)
+        M[2,2] = conj(a)
+        return M
+    end
+
+    function proj_onto_SU3(M::SMatrix{3,3,ComplexF64,9})
+        col1 = M[:,1]
+        col2 = M[:,2]
+        col3 = M[:,3]
+        col1 /= norm(col1)
+        col2 -= (col1'*col2)*col1
+        col2 /= norm(col2)
+        col3 -= (col1'*col3)*col1 + (col2'*col3)*col2
+        col3 /= norm(col3)
+        M_SU3 = [col1 col2 col3]
+        return M_SU3 / det(M_SU3)^(1/3)
+    end
+
+    function KenneyLaub(M::SMatrix{3,3,ComplexF64,9})
+        while true
+            X = M' * M
+            if norm(I - X) <= 1e-6
+                break
+            end
+            M = M/3.0 * (I + 8/3 * inv(M'*M + 1/3*I))
+        end
+        M = M / det(M)^(1/3)
+    end
+
+    function is_SU3(M; prec = 1e-6)
+        is_SU3_upto_prec = norm(I - M*M') < prec && abs(1 - det(M)) < prec 
+        return is_SU3_upto_prec
+    end
+
+    function is_su3(M; prec = 1e-6)
+        is_su3_upto_prec = norm(M - M') < prec && abs(tr(M)) < prec
+        return is_su3_upto_prec
+    end
+
+    function Traceless_antihermitian(M::SMatrix{3,3,ComplexF64,9})
+        return 0.5*(M - M') - 1/6*tr(M - M')*I
+    end
+
+    function Antihermitian(M::SMatrix{3,3,ComplexF64,9})
+        return 0.5*(M - M')
+    end
+
+    function Traceless_hermitian(M::SMatrix{3,3,ComplexF64,9})
+        return 0.5*(M + M') - 1/6*tr(M + M')*I
+    end
+
+    function Hermitian(M::SMatrix{3,3,ComplexF64,9})
+        return 0.5*(M + M')
     end
 
 end

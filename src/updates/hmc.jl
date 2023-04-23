@@ -1,150 +1,348 @@
-module HMC
-    using Random 
-    using StaticArrays
-    using LinearAlgebra
-    using Polyester
-    #using Base.Threads
+abstract type Integrator end
 
-    import ..System_parameters:Params
-    import ..Utils:exp_iQ
-    import ..Verbose_print:Verbose_,println_verbose
-    import ..Gaugefields:Gaugefield,calc_Sgwils,recalc_CV!
-    import ..Liefields:Liefield,gaussianP!,trP2
+struct HMC_update <: AbstractUpdate
+    integrator!::Integrator
+    steps::Int64
+    Δτ::Float64
+    U::Gaugefield
+    P::Liefield
+    Utmp::Gaugefield
+    #stoutsmearing::Bool
+    #numsmear::Union{Nothing,Int64}
+    meta_enabled::Bool
 
-    function HMC!(gfield::Gaugefield,pfield::Liefield,ϵ_hmc::Float64,hmc_steps::Int64,metro_test::Bool,rng::Xoshiro,verbose::Verbose)
-        Uold = deepcopy(gfield.U)
+    function HMC_update(integrator, steps, Δτ, U; meta_enabled=false)
+        integrator = getfield(AbstractUpdate_module, Symbol(integrator))
+        #if !stoutsmearing
+        #    numsmear = nothing
+        #end
+        P = Liefield(U)
+        Utmp = similar(U)
+        return new(integrator(), steps, Δτ, U, P, Utmp, meta_enabled)
+    end
+end
 
-        gaussianP!(pfield,rng)
-        Sg_old = gfield.Sg
-        trP2_old = trP2(pfield)
+get_momenta(hmc::HMC_update) = hmc.P
+get_Δτ(hmc::HMC_update) = hmc.Δτ
+get_steps(hmc::HMC_update) = hmc.steps
+get_Utmp(hmc::HMC_update) = hmc.Utmp
+is_meta(hmc::HMC_update) = hmc.meta_enabled
 
-        updateP!(gfield,pfield,ϵ_hmc,0.5)
-        for step = 1:hmc_steps
-            updateU!(gfield,pfield,ϵ_hmc,1.0)
-            updateP!(gfield,pfield,ϵ_hmc,1.0)
-        end
-        updateP!(gfield,pfield,ϵ_hmc,0.5)
+function update!(
+    updatemethod::T,
+    U::Gaugefield,
+    rng::Xoshiro,
+    verbose::Verbose_level;
+    metro_test::Bool = true,
+    ) where {T<:HMC_update}
 
-        Sg_new = calc_Sgwils(gfield)
-        trP2_new = trP2(pfield)
+    P = get_momenta(updatemethod)
+    Δτ = get_Δτ(updatemethod)
+    steps = get_steps(updatemethod)
 
-        ΔH = trP2_old/2 - trP2_new/2  + Sg_old - Sg_new
-        if metro_test
-            accept = rand(rng)≤exp( ΔH )
-            if accept
-            else
-                gfield.U = Uold
+    Uold = deepcopy(U)
+    gaussianP!(P, rng)
+    
+    Sg_old = calc_GaugeAction(U)
+    trP2_old = -trP2(P)
+
+    updatemethod.integrator!(U, P, Δτ, steps)
+
+    Sg_new = calc_GaugeAction(U)
+    trP2_new = -trP2(P)
+
+    ΔP2 = trP2_new - trP2_old
+    ΔSg = Sg_new - Sg_old
+    ΔH = ΔP2  + ΔSg
+    println_verbose2(verbose, "ΔP2 = ", ΔP2)
+    println_verbose2(verbose, "ΔS = ", ΔSg)
+    println_verbose2(verbose, "ΔH = ", ΔH)
+    accept = metro_test ? rand(rng)≤exp(-ΔH) : true
+    if accept
+        U.Sg = Sg_new
+        println_verbose2(verbose, "Accepted")
+    else
+        substitute_U!(U, Uold)
+        println_verbose2(verbose, "Rejected")
+    end
+
+    return accept
+end
+
+function update!(
+    updatemethod::T,
+    U::Gaugefield,
+    rng::Xoshiro,
+    verbose::Verbose_level,
+    Bias::Bias_potential;
+    metro_test::Bool=true,
+    ) where {T<:HMC_update}
+
+    P = get_momenta(updatemethod)
+    Δτ = get_Δτ(updatemethod)
+    steps = get_steps(updatemethod)
+
+    Uold = deepcopy(U)
+    gaussianP!(P, rng)
+
+    Sg_old = calc_GaugeAction(U)
+    trP2_old = trP2(P)
+    CV_old = get_CV(U)
+
+    updatemethod.integrator!(U, P, Δτ, steps, Bias)
+
+    Sg_new = calc_GaugeAction(U)
+    CV_new = top_charge(U, get_kind_of_CV(Bias))
+
+    ΔV = DeltaV(Bias, CV_old, CV_new)
+    ΔH = trP2_new/2 - trP2_old/2  + Sg_new- Sg_old
+    println_verbose2(verbose, "ΔV = ",ΔV)
+    println_verbose2(verbose, "ΔH = ",ΔH)
+    accept = metro_test ? rand(rng)≤exp(-ΔH-ΔV) : true
+    if accept
+        U.Sg = Sg_new 
+        U.CV = CV_new
+        println_verbose2(verbose, "Accepted")
+    else
+        substitute_U!(U, Uold)
+        println_verbose2(verbose, "Rejected")
+    end
+
+    return accept
+end
+
+struct Leapfrog <: Integrator
+end
+
+function (lf::Leapfrog)(U::T, P::Liefield, Δτ, steps, Bias=nothing) where {T <: Gaugefield}
+    updateP!(U, P, Δτ, 0.5, Bias)
+    for i = 1:steps-1
+        updateU!(U, P, Δτ, 1.0)
+        updateP!(U, P, Δτ, 1.0, Bias)
+    end
+    updateU!(U, P, Δτ, 1.0)
+    updateP!(U, P, Δτ, 0.5, Bias)
+
+    return nothing
+end
+
+struct OMF2_slow <: Integrator
+    α::Float64
+    β::Float64
+    γ::Float64
+
+    function OMF2_slow()
+        α = 0.1931833275037836
+        β = 0.5
+        γ = 1.0 - 2.0 * α
+        return new(α, β, γ)
+    end
+end
+
+function (O2S::OMF2_slow)(U::T, P::Liefield, Δτ, steps, Bias=nothing) where {T <: Gaugefield}
+    for i = 1:steps
+        updateP!(U, P, Δτ, O2S.α, Bias)
+        updateU!(U, P, Δτ, O2S.β)
+        updateP!(U, P, Δτ, O2S.γ, Bias)
+        updateU!(U, P, Δτ, O2S.β)
+        updateP!(U, P, Δτ, O2S.α, Bias)
+    end
+
+    return nothing
+end
+
+struct OMF2 <: Integrator
+    α::Float64
+    β::Float64
+    γ::Float64
+
+    function OMF2()
+        α = 0.1931833275037836
+        β = 0.5
+        γ = 1.0 - 2.0 * α
+        return new(α, β, γ)
+    end
+end
+
+function (O2::OMF2)(U::T, P::Liefield, Δτ, steps, Bias=nothing) where {T <: Gaugefield}
+    updateP!(U, P, Δτ, O2.α, Bias)
+    updateU!(U, P, Δτ, O2.β)
+    updateP!(U, P, Δτ, O2.γ, Bias)
+    updateU!(U, P, Δτ, O2.β)
+    for i = 1:steps-1
+        updateP!(U, P, Δτ, 2*O2.α, Bias)
+        updateU!(U, P, Δτ, O2.β)
+        updateP!(U, P, Δτ, O2.γ, Bias)
+        updateU!(U, P, Δτ, O2.β)
+    end
+    updateP!(U, P, Δτ, O2.α, Bias)
+
+    return nothing
+end
+
+struct OMF4_slow <: Integrator
+    α::Float64
+    β::Float64
+    γ::Float64
+    δ::Float64
+    μ::Float64
+    ν::Float64
+
+    function OMF4_slow()
+        α = 0.08398315262876693
+        β = 0.2539785108410595
+        γ = 0.6822365335719091
+        δ = -0.03230286765269967
+        μ = 0.5 - γ - α
+        ν = 1.0 - 2.0 * δ - 2.0 * β
+        return new(α, β, γ, δ, μ, ν)
+    end
+end
+
+function (O4S::OMF4_slow)(U::T, P::Liefield, Δτ, steps, Bias=nothing) where {T <: Gaugefield}
+    for i = 1:steps
+        updateP!(U, P, Δτ, O4S.α, Bias)
+        updateU!(U, P, Δτ, O4S.β)
+        updateP!(U, P, Δτ, O4S.γ, Bias)
+        updateU!(U, P, Δτ, O4S.δ)
+
+        updateP!(U, P, Δτ, O4S.μ, Bias)
+        updateU!(U, P, Δτ, O4S.ν)
+        updateP!(U, P, Δτ, O4S.μ, Bias)
+
+        updateU!(U, P, Δτ, O4S.δ)
+        updateP!(U, P, Δτ, O4S.γ, Bias)
+        updateU!(U, P, Δτ, O4S.β)
+        updateP!(U, P, Δτ, O4S.α, Bias)
+    end
+
+    return nothing
+end
+
+struct OMF4 <: Integrator
+    α::Float64
+    β::Float64
+    γ::Float64
+    δ::Float64
+    μ::Float64
+    ν::Float64
+
+    function OMF4()
+        α = 0.08398315262876693
+        β = 0.2539785108410595
+        γ = 0.6822365335719091
+        δ = -0.03230286765269967
+        μ = 0.5 - γ - α
+        ν = 1.0 - 2.0 * δ - 2.0 * β
+        return new(α, β, γ, δ, μ, ν)
+    end
+end
+
+function (O4::OMF4)(U::T, P::Liefield, Δτ, steps, Bias=nothing) where {T <: Gaugefield}
+    updateP!(U, P, Δτ, O4.α, Bias)
+    updateU!(U, P, Δτ, O4.β)
+    updateP!(U, P, Δτ, O4.γ, Bias)
+    updateU!(U, P, Δτ, O4.δ)
+
+    updateP!(U, P, Δτ, O4.μ, Bias)
+    updateU!(U, P, Δτ, O4.ν)
+    updateP!(U, P, Δτ, O4.μ, Bias)
+
+    updateU!(U, P, Δτ, O4.δ)
+    updateP!(U, P, Δτ, O4.γ, Bias)
+    updateU!(U, P, Δτ, O4.β)
+    for i = 1:steps-1
+        updateP!(U, P, Δτ, 2*O4.α, Bias)
+        updateU!(U, P, Δτ, O4.β)
+        updateP!(U, P, Δτ, O4.γ, Bias)
+        updateU!(U, P, Δτ, O4.δ)
+
+        updateP!(U, P, Δτ, O4.μ, Bias)
+        updateU!(U, P, Δτ, O4.ν)
+        updateP!(U, P, Δτ, O4.μ, Bias)
+
+        updateU!(U, P, Δτ, O4.δ)
+        updateP!(U, P, Δτ, O4.γ, Bias)
+        updateU!(U, P, Δτ, O4.β)
+    end
+    updateP!(U, P, Δτ, O4.α, Bias)
+
+    return nothing
+end
+
+function updateU!(U::Gaugefield, P::Liefield, Δτ::Float64, fac::Float64)
+    NX, NY, NZ, NT = size(U)
+    ϵ = Δτ * fac
+    @batch for it = 1:NT
+        for iz = 1:NZ
+            for iy = 1:NY
+                for ix = 1:NX
+                    for μ = 1:4
+                        U[μ][ix,iy,iz,it] = exp(ϵ*P[μ][ix,iy,iz,it]) * U[μ][ix,iy,iz,it]
+                    end
+                end
             end
-        else
-            println_verbose(verbose,"ΔH = ",ΔH)
         end
+    end 
+    return nothing
+end
 
-        return accept
+function updateP!(U::Gaugefield, P::Liefield, Δτ::Float64, fac::Float64, Bias=nothing)
+    ϵ = Δτ * fac
+    force_toplayer = Temporary_field(U)
+    staples = Temporary_field(U)
+    if Bias !== nothing
+        numlayers, ρ = get_smearparams_for_CV(Bias)
+        if numlayers !== 0 || ρ !== 0.0
+            smearing = Stoutsmearing(numlayers, ρ)
+            Utmp = deepcopy(U)
+            Uout_multi, staples_multi, Qs_multi = calc_smearedU(Utmp, smearing)
+            calc_GaugeForce_toplayer!(force_toplayer, staples, Utmp)
+            force_bottomlayer = stout_recursion(force_toplayer, Uout_multi, staples_multi, Qs_multi, smearing)
+            topcharge = top_charge(Utmp, get_kind_of_CV(Bias)) 
+            dVdQ = ReturnDerivative(Bias, topcharge)
+            ϵ *= dVdQ
+            add_GaugeForce!(P, force_bottomlayer, ϵ)
+        end
+    else
+        calc_GaugeForce_toplayer!(force_toplayer, staples, U)
+        add_GaugeForce!(P, force_toplayer, ϵ)
     end
+    return nothing
+end
 
-    function HMCmeta!(gfield::Gaugefield,pfield::Liefield,ϵ_hmc::Float64,hmc_steps::Int64,metro_test::Bool,rng::Xoshiro,verbose::Verbose)
-        Uold = deepcopy(gfield.U)
+function calc_GaugeForce_toplayer!(Σ::Temporary_field, A::Temporary_field, U::Gaugefield)
+    NX, NY, NZ, NT = size(U)
+    β = get_β(U)
+    staple_eachsite!(A, U)
 
-        gaussianP!(pfield,rng)
-        Sg_old = gfield.Sg
-        trP2_old = trP2(pfield)
-
-        updateP!(gfield,pfield,ϵ_hmc,0.5)
-        for step = 1:hmc_steps
-            updateU!(gfield,pfield,ϵ_hmc,1.0)
-            updateP!(gfield,pfield,ϵ_hmc,1.0)
-        end
-        updateP!(gfield,pfield,ϵ_hmc,0.5)
-
-        Sg_new = calc_Sgwils(gfield)
-        trP2_new = trP2(pfield)
-
-        accept = metro_test ? rand(rng)≤exp( trP2_old/2 - trP2_new/2  + Sg_old - Sg_new ) :  true 
-        if accept
-            recalc_CV!(gfield)
-        else
-            gfield.U = Uold
-        end
-        return accept
-    end
-
-    function updateU!(gfield::Gaugefield,pfield::Liefield,ϵ_hmc::Float64,fac::Float64)
-        NX = gfield.NX
-        NY = gfield.NY
-        NZ = gfield.NZ
-        NT = gfield.NT
-        ϵ = ϵ_hmc*fac
-        @batch per=thread for it=1:NT
-        for iz=1:NZ
-        for iy=1:NY
-        for ix=1:NX
-            for μ=1:4
-                gfield[μ][ix,iy,iz,it] = exp_iQ(ϵ*pfield[ix,iy,iz,it])*gfield[μ][ix,iy,iz,it]
+    @batch for it = 1:NT
+        for iz = 1:NZ
+            for iy = 1:NY
+                for ix = 1:NX
+                    for μ = 1:4
+                        tmp = U[μ][ix,iy,iz,it] * A[μ][ix,iy,iz,it]'
+                        Σ[μ][ix,iy,iz,it] = -β/6 * Traceless_antihermitian(tmp)
+                    end
+                end
             end
         end
-        end
-        end
-        end 
-        return nothing
     end
+    return nothing
+end
 
-    function updateP!(gfield::Gaugefield,pfield::Liefield,ϵ_hmc::Float64,fac::Float64)
-        ϵ = ϵ_hmc*fac
-        add_GaugeForce!(pfield,gfield,ϵ)
-        return nothing
+function add_GaugeForce!(P::Liefield, force::Temporary_field, ϵ::Float64)
+    NX, NY, NZ, NT = size(P)
+    @batch for it = 1:NT
+        for iz = 1:NZ
+            for iy = 1:NY
+                for ix = 1:NX
+                    for μ = 1:4
+                        P[μ][ix,iy,iz,it] += ϵ * force[μ][ix,iy,iz,it] 
+                    end
+                end
+            end
+        end
     end
-
-    function add_GaugeForce!(pfield::Liefield,gfield::Gaugefield,ϵ::Float64)
-        NX = gfield.NX
-		NY = gfield.NY
-		NZ = gfield.NZ
-		NT = gfield.NT
-        β = gfield.β
-
-        @batch per=thread for it=1:NT
-        for iz=1:NZ
-        for iy=1:NY; iy_min = mod1(iy-1,NY); iy_plu = mod1(iy+1,NY); iz_min = mod1(iz-1,NZ); iz_plu = mod1(iz+1,NZ); it_min = mod1(it-1,NT); it_plu = mod1(it+1,NT);
-        for ix=1:NX; ix_min = mod1(ix-1,NX); ix_plu = mod1(ix+1,NX); 
-        staple= gfield[2][ix,iy    ,iz,    it]*gfield[1][ix,iy_plu,iz    ,it]*gfield[2][ix_plu,iy    ,iz    ,it    ]' +
-                gfield[2][ix,iy_min,iz,    it]'*gfield[1][ix,iy_min,iz    ,it]*gfield[2][ix_plu,iy_min,iz    ,it    ] +
-                gfield[3][ix,iy    ,iz    ,it]*gfield[1][ix,iy    ,iz_plu,it]*gfield[3][ix_plu,iy    ,iz    ,it    ]' +
-                gfield[3][ix,iy    ,iz_min,it]'*gfield[1][ix,iy    ,iz_min,it]*gfield[3][ix_plu,iy    ,iz_min,it    ] +
-                gfield[4][ix,iy    ,iz    ,it]*gfield[1][ix,iy    ,iz,it_plu]*gfield[4][ix_plu,iy    ,iz    ,it    ]' +
-                gfield[4][ix,iy    ,iz,it_min]'*gfield[1][ix,iy    ,iz,it_min]*gfield[4][ix_plu,iy    ,iz    ,it_min]
-        force = -β/12*im*( gfield[1][ix,iy,iz,it]*staple' - staple*gfield[1][ix,iy,iz,it] )
-        pfield[ix,iy,iz,it] -= ϵ*force
-
-        staple= gfield[1][ix,iy    ,iz,    it]*gfield[2][ix_plu,iy,iz    ,it    ]*gfield[1][ix,iy_plu,iz    ,it    ]' +
-                gfield[1][ix_min,iy,iz,it    ]'*gfield[2][ix_min,iy,iz    ,it    ]*gfield[1][ix_min,iy_plu,iz,it    ] +
-                gfield[3][ix,iy    ,iz    ,it]*gfield[2][ix,iy    ,iz_plu,it    ]*gfield[3][ix,iy_plu,iz    ,it    ]' +
-                gfield[3][ix,iy    ,iz_min,it]'*gfield[2][ix,iy    ,iz_min,it    ]*gfield[3][ix,iy_plu,iz_min,it    ] +
-                gfield[4][ix,iy    ,iz    ,it]*gfield[2][ix,iy    ,iz    ,it_plu]*gfield[4][ix,iy_plu,iz    ,it    ]' +
-                gfield[4][ix,iy    ,iz,it_min]'*gfield[2][ix,iy    ,iz    ,it_min]*gfield[4][ix,iy_plu,iz    ,it_min]
-        force = -β/12*im*( gfield[2][ix,iy,iz,it]*staple' - staple'*gfield[2][ix,iy,iz,it] )
-        pfield[ix,iy,iz,it] -= ϵ*force
-
-        staple= gfield[1][ix,iy    ,iz,    it]*gfield[3][ix_plu,iy,iz    ,it    ]*gfield[1][ix,iy    ,iz_plu,it    ]' +
-                gfield[1][ix_min,iy,iz,    it]'*gfield[3][ix_min,iy,iz    ,it    ]*gfield[1][ix_min,iy,iz_plu,it    ] +
-                gfield[2][ix,iy    ,iz    ,it]*gfield[3][ix,iy_plu,iz    ,it    ]*gfield[2][ix,iy    ,iz_plu,it    ]' +
-                gfield[2][ix,iy_min,iz    ,it]'*gfield[3][ix,iy_min,iz    ,it    ]*gfield[2][ix,iy_min,iz_plu,it    ] +
-                gfield[4][ix,iy    ,iz    ,it]*gfield[3][ix,iy    ,iz    ,it_plu]*gfield[4][ix,iy    ,iz_plu,it    ]' +
-                gfield[4][ix,iy    ,iz,it_min]'*gfield[3][ix,iy    ,iz    ,it_min]*gfield[4][ix,iy    ,iz_plu,it_min]
-        force = -β/12*im*( gfield[3][ix,iy,iz,it]*staple' - staple'*gfield[3][ix,iy,iz,it] )
-        pfield[ix,iy,iz,it] -= ϵ*force
-
-        staple= gfield[1][ix,iy    ,iz,    it]*gfield[4][ix_plu,iy,iz    ,it    ]*gfield[1][ix,iy    ,iz    ,it_plu]' +
-                gfield[1][ix_min,iy,iz,    it]'*gfield[4][ix_min,iy,iz    ,it    ]*gfield[1][ix_min,iy_min,iz,it_plu] +
-                gfield[2][ix,iy    ,iz    ,it]*gfield[4][ix,iy_plu,iz    ,it    ]*gfield[2][ix,iy    ,iz    ,it_plu]' +
-                gfield[2][ix,iy_min,iz    ,it]'*gfield[4][ix,iy_min,iz    ,it    ]*gfield[2][ix,iy_min,iz    ,it_plu] +
-                gfield[3][ix,iy    ,iz    ,it]*gfield[4][ix,iy    ,iz_plu,it    ]*gfield[3][ix,iy    ,iz    ,it_plu]' +
-                gfield[3][ix,iy    ,iz_min,it]'*gfield[4][ix,iy    ,iz_min,it    ]*gfield[3][ix,iy    ,iz_min,it_plu]
-        force = -β/12*im*( gfield[4][ix,iy,iz,it]*staple' - staple'*gfield[4][ix,iy,iz,it] )
-        pfield[ix,iy,iz,it] -= ϵ*force
-        end
-        end
-        end
-        end
-		return nothing
-	end
-
+    return nothing
 end
