@@ -40,6 +40,7 @@ mutable struct Wilson_loop_measurement <: AbstractMeasurement
 end
 
 function Wilson_loop_measurement(
+    U::Gaugefield,
     params::WilsonLoop_parameters,
     filename = "Wilson_loop.txt")
     return Wilson_loop_measurement(

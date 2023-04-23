@@ -11,11 +11,12 @@ struct HMC_update <: AbstractUpdate
     #numsmear::Union{Nothing,Int64}
     meta_enabled::Bool
 
-    function HMC_update(integrator, steps, Δτ, U, P; meta_enabled=false)
+    function HMC_update(integrator, steps, Δτ, U; meta_enabled=false)
         integrator = getfield(AbstractUpdate_module, Symbol(integrator))
         #if !stoutsmearing
         #    numsmear = nothing
         #end
+        P = Liefield(U)
         Utmp = similar(U)
         return new(integrator(), steps, Δτ, U, P, Utmp, meta_enabled)
     end
@@ -91,7 +92,7 @@ function update!(
     updatemethod.integrator!(U, P, Δτ, steps, Bias)
 
     Sg_new = calc_GaugeAction(U)
-    CV_new = top_charge(Uout_multi[end])
+    CV_new = top_charge(U, get_kind_of_CV(Bias))
 
     ΔV = DeltaV(Bias, CV_old, CV_new)
     ΔH = trP2_new/2 - trP2_old/2  + Sg_new- Sg_old
@@ -288,38 +289,39 @@ end
 
 function updateP!(U::Gaugefield, P::Liefield, Δτ::Float64, fac::Float64, Bias=nothing)
     ϵ = Δτ * fac
-    force = Temporary_field(U)
+    force_toplayer = Temporary_field(U)
+    staples = Temporary_field(U)
     if Bias !== nothing
         numlayers, ρ = get_smearparams_for_CV(Bias)
         if numlayers !== 0 || ρ !== 0.0
             smearing = Stoutsmearing(numlayers, ρ)
             Utmp = deepcopy(U)
             Uout_multi, staples_multi, Qs_multi = calc_smearedU(Utmp, smearing)
-            calc_GaugeForce_toplayer!(force, U)
-            stout_recursion!(force, Uout_multi, staples_multi, Qs_multi, smearing)
+            calc_GaugeForce_toplayer!(force_toplayer, staples, Utmp)
+            force_bottomlayer = stout_recursion(force_toplayer, Uout_multi, staples_multi, Qs_multi, smearing)
             topcharge = top_charge(Utmp, get_kind_of_CV(Bias)) 
             dVdQ = ReturnDerivative(Bias, topcharge)
             ϵ *= dVdQ
+            add_GaugeForce!(P, force_bottomlayer, ϵ)
         end
     else
-        calc_GaugeForce_toplayer!(force, U)
+        calc_GaugeForce_toplayer!(force_toplayer, staples, U)
+        add_GaugeForce!(P, force_toplayer, ϵ)
     end
-    add_GaugeForce!(P, force, ϵ)
     return nothing
 end
 
-function calc_GaugeForce_toplayer!(Σ::Temporary_field, U::Gaugefield)
+function calc_GaugeForce_toplayer!(Σ::Temporary_field, A::Temporary_field, U::Gaugefield)
     NX, NY, NZ, NT = size(U)
     β = get_β(U)
+    staple_eachsite!(A, U)
 
     @batch for it = 1:NT
         for iz = 1:NZ
             for iy = 1:NY
                 for ix = 1:NX
-                    site = Site_coords(ix,iy,iz,it)
                     for μ = 1:4
-                        A = staple(U, μ, site)
-                        tmp = U[μ][ix,iy,iz,it] * A'
+                        tmp = U[μ][ix,iy,iz,it] * A[μ][ix,iy,iz,it]'
                         Σ[μ][ix,iy,iz,it] = -β/6 * Traceless_antihermitian(tmp)
                     end
                 end

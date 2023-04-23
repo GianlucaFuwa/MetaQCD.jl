@@ -1,19 +1,21 @@
 module Parameters_TOML
-        using TOML
+    using TOML
+    using Random: Xoshiro
 
-        import ..System_parameters: Params
-        import ..Parameter_structs: 
-            Print_physical_parameters,
-            Print_meta_parameters,
-            Print_system_parameters,
-            Print_HMCrelated_parameters,
-            Print_smearing_parameters,
-            Print_measurement_parameters
+    import ..System_parameters: Params
+    import ..Parameter_structs: 
+        struct2dict,
+        Print_physical_parameters,
+        Print_meta_parameters,
+        Print_system_parameters,
+        Print_HMCrelated_parameters,
+        Print_smearing_parameters,
+        Print_measurement_parameters
 
-    function set_params_value!(value_Params,values)
+    function set_params_value!(value_Params, values)
         d = struct2dict(values)
         pnames = fieldnames(Params)
-        for (i,pname_i) in enumerate(pnames)
+        for (i, pname_i) in enumerate(pnames)
             if haskey(d,String(pname_i))
                 if d[String(pname_i)] == "nothing" 
                     value_Params[i] = nothing
@@ -60,26 +62,28 @@ module Parameters_TOML
         set_params_value!(value_Params, physical)
         meta = Print_meta_parameters()
         set_params_value!(value_Params, meta)
-        system = Print_HMCrelated_parameters()
+        system = Print_system_parameters()
         set_params_value!(value_Params, system)
-        hmc = Print_measurement_parameters()
+        hmc = Print_HMCrelated_parameters()
         set_params_value!(value_Params, hmc)
+        meas = Print_measurement_parameters()
+        set_params_value!(value_Params, meas)
         smearing = Print_smearing_parameters()
         set_params_value!(value_Params, smearing)
 
-        pos = findfirst(x -> String(x) == "ITERATION_MAX", pnames)
-        value_Params[pos] = 10^5
+        #pos = findfirst(x -> String(x) == "ITERATION_MAX", pnames)
+        #value_Params[pos] = 10^5
 
         pos = findfirst(x -> String(x) == "load_fp", pnames)
         logfilename = parameters["System Settings"]["logfile"]
-        logdir = parameters["System Settings"]["log_dir"]
-        if isdir(log_dir) == false
-            mkdir(log_dir)
+        logdir = parameters["System Settings"]["logdir"]
+        if isdir(logdir) == false
+            mkdir(logdir)
         end
         logfile = pwd() * "/" * logdir * "/" * logfilename
 
-        loadfp = open(logfile, "w")
-        value_Params[pos] = loadfp
+        load_fp = open(logfile, "w")
+        value_Params[pos] = load_fp
 
         measurement_basedir = parameters["System Settings"]["measurement_basedir"]
         measurement_dir = parameters["System Settings"]["measurement_dir"]
@@ -105,6 +109,10 @@ module Parameters_TOML
                         value_Params[i] = valuedir
                     elseif String(pname_i) == "L"
                         value_Params[i] = Tuple(value[String(pname_i)])
+                    elseif String(pname_i) == "CVlims"
+                        value_Params[i] = Tuple(value[String(pname_i)])
+                    elseif String(pname_i) == "randomseeds"
+                        value_Params[i] = Xoshiro.(value[String(pname_i)])
                     else
                         if value[String(pname_i)] == "nothing"
                             value_Params[i] = nothing
@@ -129,7 +137,7 @@ module Parameters_TOML
     end
 
     function parameter_check(p::Params)
-        if p.saveU_format ≠ nothing
+        if p.saveU_format !== nothing
             if isdir(p.saveU_dir) == false
                 mkdir(p.saveU_dir)
             end
@@ -137,16 +145,24 @@ module Parameters_TOML
         end
 
         if p.meta_enabled == true
-            println("Metadynamics are enabled")
+            println("Metadynamics is enabled")
             if p.tempering_enabled == true
                 println("Parallel tempering is enabled")
             end
+        else
+            println("Metadynamics is disabled")
         end
 
         if p.update_method == "HMC"
             println("HMC will be used")
         elseif p.update_method == "Local"
             println("Local updates will be used")
+        elseif p.update_method == "Heatbath"
+            println("Heatbath + Overrelaxation updates will be used")
+        elseif p.update_method == "HB"
+            println("Heatbath updates will be used")
+        elseif p.update_method == "OR"
+            println("Overrelaxation updates will be used")
         else
             error("""
             update_method in [\"Physical Settings\"] = $(p.update_method) is not supported.

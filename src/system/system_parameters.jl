@@ -23,43 +23,56 @@ module System_parameters
     struct Params
         L::NTuple{4,Int64}
 		β::Float64
+        kind_of_gaction::String
         NC::Int64
         Ntherm::Int64
-		Nsweeps::Int64
+		Nsteps::Int64
 		initial::String
 
         meta_enabled::Bool
+        kind_of_CV::Union{Nothing,String}
+		numsmears_for_CV::Union{Nothing,Int64}
+		ρstout_for_CV::Union{Nothing,Float64}
         symmetric::Union{Nothing,Bool}
 		CVlims::Union{Nothing,NTuple{2,Float64}}
 		bin_width::Union{Nothing,Float64}
-		w::Union{Nothing,Float64}
-		k::Union{Nothing,Float64}
-        is_static::Union{Nothing,Vector{Bool}}
+		meta_weight::Union{Nothing,Float64}
+		penalty_weight::Union{Nothing,Float64}
+        is_static::Union{Nothing,Bool,Vector{Bool}}
 
         tempering_enabled::Union{Nothing,Bool}
-        numinstances::Union{Nothing,Int64}
+        numinstances::Int64
         swap_every::Union{Nothing,Int64}
 
         update_method::String
-		ϵ_local::Union{Nothing,Float64}
+		ϵ_metro::Union{Nothing,Float64}
         integrator::Union{Nothing,String}
-        ϵ_hmc::Union{Nothing,Float64}
+        Δτ::Union{Nothing,Float64}
         hmc_steps::Union{Nothing,Int64}
+        MAXIT::Union{Nothing,Int64}
+        numHB::Union{Nothing,Int64}
+        numOR::Union{Nothing,Int64}
 
         measurement_methods::Vector{Dict}
-        measure_every::Int64
-        smearing_type::Union{Nothing,String}
+        smearingtype::Union{Nothing,String}
         numsmear::Union{Nothing,Int64}
         ρ_stout::Union{Nothing,Float64}
 
         verboselevel::Int64
 
-		randomseeds::Union{Xoshiro,Vector{Xoshiro}}
+        saveU_format::Union{String,Nothing}
+        saveU_every::Int64
+        saveU_dir::String
+        loadU_format::Union{String,Nothing}
+        loadU_dir::String
+        loadU_fromfile::Bool
+        loadU_filename::String
+
+		randomseeds::Vector{Xoshiro}
 		logdir::String
 		logfile::String
-		loadfile::IOStream
-        measure_basedir::String
-		measure_dir::String
+		load_fp::IOStream
+        measuredir::String
 		savebias_dir::Union{Nothing,String,Vector{String}}
         biasfiles::Union{Nothing,String,Vector{Union{Nothing,String}}}
         usebiases::Union{Nothing,String,Vector{Union{Nothing,String}}}

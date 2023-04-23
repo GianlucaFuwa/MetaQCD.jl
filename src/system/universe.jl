@@ -1,7 +1,7 @@
 module Universe_module
     import ..System_parameters: Params
-    import ..Verbose_print: Verbose_level,Verbose_1,Verbose_2,Verbose_3
-    import ..Gaugefields: Gaugefield
+    import ..Verbose_print: Verbose_level, Verbose_1, Verbose_2, Verbose_3
+    import ..Gaugefields: Gaugefield, IdentityGauges, RandomGauges
     import ..Liefields: Liefield
     import ..Metadynamics: Bias_potential
 
@@ -10,9 +10,9 @@ module Universe_module
         NC::Int64
         meta_enabled::Bool
         tempering_enabled::Bool
-        U::Union{Gaugefield,Vector{Gaugefield}}
-        P::Union{Nothing,Liefield,Vector{Liefield}}
-        Bias::Union{Nothing,Bias_potential,Vector{Bias_potential}}
+        U::Vector{Gaugefield}
+        Bias::Union{Nothing,Vector{Bias_potential}}
+        numinstances::Int64
         verbose_print::Verbose_level
     end
 
@@ -20,34 +20,46 @@ module Universe_module
         L = p.L
         NC = 3
         meta_enabled = p.meta_enabled
-        
+        tempering_enabled = p.tempering_enabled
+        U = Vector{Gaugefield}(undef, 0)
         if meta_enabled
+            Bias = Vector{Bias_potential}(undef, 0)
             if tempering_enabled
-                U = Vector{Gaugefield}(undef, 0)
-                P = Vector{Liefield}(undef, 0)
-                Bias = Vector{Bias_potential}(undef, 0)
-                for i = 1:p.numinstances
-                    push!(U, Gaugefield(p))
-                    push!(P, Liefield(U[i]))
-                    push!(Bias, Bias_potential(p))
-                    push!(updatemethod, p.updatemethod[i])
+                numinstances = p.numinstances
+                for i = 1:numinstances
+                    if p.initial == "cold"
+                        push!(U, IdentityGauges(L[1], L[2], L[3], L[4], p.β, kind_of_gaction=p.kind_of_gaction))
+                    else
+                        push!(U, RandomGauges(L[1], L[2], L[3], L[4], p.β, kind_of_gaction=p.kind_of_gaction, rng=p.randomseeds[i]))
+                    end
+                    push!(Bias, Bias_potential(p, i))
                 end
             else
-                U = Gaugefield(p)
-                P = Liefield(U)
-                Bias = Bias_potential(p)
+                numinstances = 1
+                if p.initial == "cold"
+                    push!(U, IdentityGauges(L[1], L[2], L[3], L[4], p.β, kind_of_gaction=p.kind_of_gaction))
+                else
+                    push!(U, RandomGauges(L[1], L[2], L[3], L[4], p.β, kind_of_gaction=p.kind_of_gaction, rng=p.randomseeds[1]))
+                end
+                push!(Bias, Bias_potential(p))
             end
         else
+            Bias = nothing
             tempering_enabled = false
-            U = Gaugefield(p)
-            P = Liefield(U)
+            numinstances = 1
+            if p.initial == "cold"
+                push!(U, IdentityGauges(L[1], L[2], L[3], L[4], p.β, kind_of_gaction=p.kind_of_gaction))
+            else
+                push!(U, RandomGauges(L[1], L[2], L[3], L[4], p.β, kind_of_gaction=p.kind_of_gaction, rng=p.randomseeds[1]))
+            end
         end
+
         if p.verboselevel == 1
-            verbose_print = Verbose_1(p.logfile)
+            verbose_print = Verbose_1(p.load_fp)
         elseif p.verboselevel == 2
-            verbose_print = Verbose_2(p.logfile)
+            verbose_print = Verbose_2(p.load_fp)
         elseif p.verboselevel == 3
-            verbose_print = Verbose_3(p.logfile)
+            verbose_print = Verbose_3(p.load_fp)
         end
 
         return Univ(L,
@@ -55,8 +67,8 @@ module Universe_module
             meta_enabled,
             tempering_enabled,
             U,
-            P,
             Bias,
+            numinstances,
             verbose_print)
     end
 

@@ -9,18 +9,20 @@ module Parameter_structs
         Poly_parameters,
         TopCharge_parameters,
         WilsonLoop_parameters,
-        #prepare_measurement_from_dict,
+        prepare_measurement_from_dict,
         construct_Measurement_parameters_from_dict
 
     const important_parameters = [
         "L",
         "β",
+        "kind_of_gaction",
         "update_method",
         "ϵ_metro",
         "hmc_steps",
         "Δτ",
         "meta_enabled",
         "tempering_enabled",
+        "kind_of_CV",
         "numCVsmear",
         "methodname",
         "measurement_basedir",
@@ -53,28 +55,35 @@ module Parameter_structs
     end
 
     Base.@kwdef mutable struct Print_physical_parameters
-        L::Vector{Int64} = [4,4,4,4]
+        L::NTuple{4,Float64} = (4, 4, 4, 4)
         β::Float64 = 5.7
         NC::Int64 = 3
         kind_of_gaction::String = "Wilson"
-        Ntherm::Int64 = 0
+        Ntherm::Int64 = 10
         Nsteps::Int64 = 100
         inital::String = "cold"
-        update_method::String = "HMC"
+        update_method::Vector{String} = ["HMC"]
         meta_enabled::Bool = false
         tempering_enabled::Bool = false
+        numinstances::Int64 = 1
+        MAXIT::Int64 = 10^5
+        numHB::Int64 = 4
+        numOR::Int64 = 1
+        ϵ_metro::Float64 = 0.1
     end
 
     Base.@kwdef mutable struct Print_meta_parameters
         meta_enabled::Bool = false
+        kind_of_CV::String = "Clover"
+		numsmears_for_CV::Int64 = 4
+		ρstout_for_CV::Float64 = 0.125
         tempering_enabled::Bool = false
         symmetric::Bool = false
-        CVlims::NTuple{2,Float64}
-        bin_width::Float64
-        meta_weight::Float64
-        penalty_weight::Float64
-        is_static::Union{Bool,Vector{Bool}}
-        numinstances::Union{Nothing,Int64} = nothing
+        CVlims::NTuple{2,Float64} = (-7, 7)
+        bin_width::Float64 = 1e-2
+        meta_weight::Float64 = 1e-3
+        penalty_weight::Float64 = 1000.0
+        is_static::Union{Bool,Vector{Bool}} = false
         swap_every::Union{Nothing,Int64} = nothing
     end
 
@@ -82,26 +91,31 @@ module Parameter_structs
         log_dir::String = ""
         logfile::String = ""
         verboselevel::Int64 = 1
-        randomseeds::Union{Xoshiro,Vector{Xoshiro}} = Xoshiro(1206)
+        loadU_format::Union{Nothing,String} = nothing
+        loadU_dir::String = ""
+        loadU_fromfile::Bool = false
+        loadU_filename::String = ""
+        saveU_dir::String = ""
+        saveU_format::Union{String,Nothing} = nothing
+        saveU_every::Int64 = 1
+        randomseeds::Vector{Xoshiro} = [Xoshiro(1206)]
         measurement_basedir::String = ""
         measurement_dir::String = ""
         savebias_dir::Union{Nothing,String,Vector{String}} = nothing
         biasfiles::Union{Nothing,String,Vector{Union{Nothing,String}}} = nothing
         usebiases::Union{Nothing,String,Vector{Union{Nothing,String}}} = nothing
         weightfiles::Union{Nothing,String,Vector{String}} = nothing
-        hassmearing::Bool = false
-        ρ_stout::Float64 = 0.125
-        numsmear::Int64 = 1
     end
 
     Base.@kwdef mutable struct Print_HMCrelated_parameters
-        Δτ::Float64 = 0.05
+        Δτ::Float64 = 0.1
+        hmc_steps::Int64 = 10
         integrator::String = "Leapfrog"
-        hmc_steps::Int64 = 20
     end
 
     Base.@kwdef mutable struct Print_smearing_parameters
         hassmearing::Bool = false
+        smearingtype::String = "Stout"
         ρ_stout::Float64 = 0.125
         numsmear::Int64 = 1
     end
@@ -132,7 +146,7 @@ module Parameter_structs
             if haskey(value[i], "methodname")
                 if value[i]["methodname"] == "Topological_charge"
                     hassmearing = true
-                    value_out[i] = transform_topological_charge_measurement!(smear_dict,value[i])
+                    value_out[i] = transform_topological_charge_measurement!(smear_dict, value[i])
                 else
                     value_out[i] = construct_Measurement_parameters_from_dict(value[i])
                 end
@@ -210,8 +224,8 @@ module Parameter_structs
         return hasvalue
     end
 
-    function construct_printable_parameters_fromdict!(x::Dict,physical,meta,system,hmc)
-        for (key,value) in x
+    function construct_printable_parameters_fromdict!(x::Dict, physical, meta, system, hmc)
+        for (key, value) in x
             hasvalue = false
             pname_i = Symbol(key)
             physical_index = findfirst(x -> x==pname_i, printlist_physical)
@@ -245,12 +259,12 @@ module Parameter_structs
     end
 
     function remove_default_values!(x::Dict, defaultsystem)
-        for (key,value) in x
+        for (key, value) in x
             if hasfield(typeof(defaultsystem), Symbol(key))
                 default_value = getfield(defaultsystem,Symbol(key))
                 if value == default_value || string(value) == string(default_value)
                     if check_important_parameters(key) == false
-                        delete!(x,key)
+                        delete!(x, key)
                     end
                 else
                     if value === nothing
@@ -264,17 +278,17 @@ module Parameter_structs
             end
 
             if typeof(value) == Vector{Measurement_parameters}
-                construct_dict_from_measurement!(x,value)
+                construct_dict_from_measurement!(x, value)
             end
         end
     end
 
-    function construct_dict_from_measurement!(x,value)
+    function construct_dict_from_measurement!(x, value)
         measuredic = Dict()
         for measure in value
             methoddic = struct2dict(measure)
             measure_struct_default = typeof(measure)()
-            remove_default_values!(methoddic,measure_struct_default)
+            remove_default_values!(methoddic, measure_struct_default)
             measuredic[methoddic["methodname"]] = methoddic
         end
         x["measurement_methods"] = measuredic
@@ -286,11 +300,11 @@ module Parameter_structs
         system = Print_system_parameters()
         hmc = Print_HMCrelated_parameters()
 
-        for (params,paramsname) in x
-            remove_default_values!(x[params],physical)
-            remove_default_values!(x[params],meta)
-            remove_default_values!(x[params],system)
-            remove_default_values!(x[params],hmc)
+        for (params, paramsname) in x
+            remove_default_values!(x[params], physical)
+            remove_default_values!(x[params], meta)
+            remove_default_values!(x[params], system)
+            remove_default_values!(x[params], hmc)
         end
     end
 

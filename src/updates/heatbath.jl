@@ -21,7 +21,7 @@ function update!(
     
     MAXIT = get_MAXIT(updatemethod)
     prefactor = get_prefactor(updatemethod)
-    numaccepts = heatbath_sweep!(U, MAXIT, prefactor, rng)
+    heatbath_sweep!(U, MAXIT, prefactor, rng)
     recalc_GaugeAction!(U)
 
     return numaccepts / U.NV / 4.0
@@ -30,53 +30,48 @@ end
 function heatbath_sweep!(U::Gaugefield, MAXIT, prefactor, rng::Xoshiro)
     NX, NY, NZ, NT = size(U)
 
-    numaccepts = 0
     for it = 1:NT
-	for iz = 1:NZ
-	    for iy = 1:NY
-		for ix = 1:NX
-		    site = Site_coords(ix,iy,iz,it)
-		    for μ = 1:4
-			A = staple(U, μ, site)
-			UA = U[μ][ix,iy,iz,it] * A'
-			subblock = SU2_from_SU3(UA, 1)
-			R = SU3_from_SU2(
-			    heatbath_SU2(subblock, MAXIT, prefactor, rng), 
-			    1,
-			)
-			subblock = SU2_from_SU3(UA, 2)
-			S = SU3_from_SU2(
-			    heatbath_SU2(subblock, MAXIT, prefactor, rng), 
-			    2,
-			)
-			subblock = SU2_from_SU3(UA, 3)
-			T = SU3_from_SU2(
-			    heatbath_SU2(subblock, MAXIT, prefactor, rng), 
-			    3,
-			)
-			U[μ][ix,iy,iz,it] = T * S * R * U[μ][ix,iy,iz,it]
-			numaccepts += 1
-		    end
+		for iz = 1:NZ
+			for iy = 1:NY
+				for ix = 1:NX
+                    site = Site_coords(ix,iy,iz,it)
+					for μ = 1:4
+                        A = staple(U, μ, site)
+                        UA = U[μ][ix,iy,iz,it] * A'
+
+                        subblock = SU2_from_SU3(UA, 1)
+                        subblock = heatbath_SU2(subblock, MAXIT, prefactor, rng) 
+                        R = SU3_from_SU2(subblock, 1)
+
+                        subblock = SU2_from_SU3(UA, 2)
+                        subblock = heatbath_SU2(subblock, MAXIT, prefactor, rng) 
+                        S = SU3_from_SU2(subblock, 2)
+
+                        subblock = SU2_from_SU3(UA, 3)
+                        subblock = heatbath_SU2(subblock, MAXIT, prefactor, rng) 
+                        T = SU3_from_SU2(subblock, 3)
+
+                        U[μ][ix,iy,iz,it] = T * S * R * U[μ][ix,iy,iz,it]
+					end
+				end
+			end
 		end
-	    end
 	end
-    end
-    return numaccepts
+    return nothing
 end
 
 function heatbath_SU2(A::SMatrix{2,2,ComplexF64,4}, MAXIT, prefactor, rng)
-    r0 = 0.0
-    λ2 = 0.0
+    r0 = 1.0
+    λ2 = 1.0
+    a = real(sqrt(det(A)))
     i = 1
-    while r0^2 > 1.0 - λ2
+    while r0^2 + λ2 > 1.0
         if i > MAXIT
             return SMatrix{2,2,ComplexF64}([
                 1.0 0
                 0 1.0
             ])
         end
-        a = sqrt(det(A))
-        i = 1
 
         r1 = 1.0 - rand(rng)
         x1 = log(r1)
@@ -102,7 +97,7 @@ function heatbath_SU2(A::SMatrix{2,2,ComplexF64,4}, MAXIT, prefactor, rng)
     x2 = vec_norm * sin(2.0*π*φ)
     x3 = absx * cosϑ
     mat = SMatrix{2,2,ComplexF64}([
-        x0+im*x3 x2+im*x1
+        x0+im*x3  x2+im*x1
         -x2+im*x1 x0-im*x3
     ])
     return mat * A/a

@@ -19,7 +19,7 @@ module Metadynamics
 		exceeded_count::Int64
 		fp::Union{Nothing,IOStream}
 		
-		function Bias_potential(p::Params)
+		function Bias_potential(p::Params, instance=1)
 			kind_of_CV = p.kind_of_CV
 			smears_for_CV = p.smears_for_CV
 			ρstout_for_CV = p.ρstout_for_CV
@@ -124,17 +124,17 @@ module Metadynamics
 	function ReturnDerivative(b::Bias_potential, cv::Float64)
 		bin_width = get_binwidth(b)
 
-		num = -ReturnPotential(b, cv+2*bin_width) + 
-			 8*ReturnPotential(b, cv+  bin_width) - 
-			 8*ReturnPotential(b, cv-  bin_width) + 
-			   ReturnPotential(b, cv-2*bin_width)
-		denom = 12*bin_width
-		return num/denom
+		num = -ReturnPotential(b, cv + 2*bin_width) + 
+			 8*ReturnPotential(b, cv + bin_width)   - 
+			 8*ReturnPotential(b, cv - bin_width)   + 
+			   ReturnPotential(b, cv - 2*bin_width)
+		denom = 12 * bin_width
+		return num / denom
 	end
 
 	function DeltaV(b::Bias_potential ,cvold::Float64, cvnew::Float64)
 		dV = ReturnPotential(b,cvnew) - ReturnPotential(b,cvold)
-		dV_sq = b.sq_param*(cvnew^2-cvold^2)
+		dV_sq = b.sq_param * (cvnew^2-cvold^2)
 		return dV + dV_sq
 	end
 

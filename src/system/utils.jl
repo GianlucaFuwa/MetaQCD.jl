@@ -14,7 +14,7 @@ module Utils
     calc_coefficients_Q,
     Traceless_antihermitian,Traceless_hermitian,Antihermitian,Hermitian
 
-    function trAB(A;B=A)
+    function trAB(A, B=A)
         trAB = 0.0
         for i = 1:3
             for j = 1:3
@@ -22,6 +22,16 @@ module Utils
             end
         end
         return trAB
+    end 
+
+    function LinearAlgebra.tr(A, B)
+        trace = 0.0
+        for i = 1:3
+            for j = 1:3
+                trace += A[i,j]*B[j,i]
+            end
+        end
+        return trace
     end
 
     # Exponential function of iQ ∈ 𝔰𝔲(3), i.e. Projection of Q onto SU(3)
@@ -152,60 +162,44 @@ module Utils
     end
 
     function SU3_from_SU2(M::SMatrix{2,2,ComplexF64,4}, i)
-        R = zeros(ComplexF64, 3, 3)
         if i == 1
-            R[1,1] = M[1,1]
-            R[1,2] = M[1,2]
-            R[2,1] = M[2,1]
-            R[2,2] = M[2,2]
-            R[3,3] = 1.0
+            return SMatrix{3,3,ComplexF64}([
+                M[1,1] M[1,2] 0.0
+                M[2,1] M[2,2] 0.0
+                0.0000 0.0000 1.0
+                ])
         elseif i == 2
-            R[1,1] = M[1,1]
-            R[1,3] = M[1,2]
-            R[3,1] = M[2,1]
-            R[3,3] = M[2,2]
-            R[2,2] = 1.0
+            return SMatrix{3,3,ComplexF64}([
+                M[1,1] 0.0 M[1,2]
+                0.0000 1.0 0.0000
+                M[2,1] 0.0 M[2,2]
+                ])
         elseif i == 3
-            R[2,2] = M[1,1]
-            R[2,3] = M[1,2]
-            R[3,2] = M[2,1]
-            R[3,3] = M[2,2]
-            R[1,1] = 1.0
+            return SMatrix{3,3,ComplexF64}([
+                1.0 0.0000 0.0000
+                0.0 M[1,1] M[1,2]
+                0.0 M[2,1] M[2,2]
+                ])
         end
         return SMatrix{3,3,ComplexF64}(R)
     end
 
     function SU2_from_SU3(M::SMatrix{3,3,ComplexF64,9}, i)
         if i == 1
-            r11 = M[1,1]
-            r12 = M[1,2]
-            r21 = M[2,1]
-            r22 = M[2,2]
-            R = SMatrix{2,2,ComplexF64}([
-                r11 r21
-                r21 r22
+            return SMatrix{2,2,ComplexF64}([
+                M[1,1] M[1,2]
+                M[2,1] M[2,2]
                 ])
-            return R
         elseif i == 2
-            s11 = M[1,1]
-            s12 = M[1,3]
-            s21 = M[3,1]
-            s22 = M[3,3]
-            S = SMatrix{2,2,ComplexF64}([
-                s11 s21
-                s21 s22
+            return SMatrix{2,2,ComplexF64}([
+                M[1,1] M[1,3]
+                M[3,1] M[3,3]
                 ])
-            return S
         elseif i == 3
-            t11 = M[2,2]
-            t12 = M[2,3]
-            t21 = M[3,2]
-            t22 = M[3,3]
-            T = SMatrix{2,2,ComplexF64}([
-                t11 t21
-                t21 t22
+            return SMatrix{2,2,ComplexF64}([
+                M[2,2] M[2,3]
+                M[3,2] M[3,3]
                 ])
-            return T
         end
     end
 
@@ -242,10 +236,10 @@ module Utils
     function KenneyLaub(M::SMatrix{3,3,ComplexF64,9})
         while true
             X = M' * M
-            M = M/3.0 * (I + 8/3 * inv(M'*M + 1/3*I))
             if norm(I - X) <= 1e-6
                 break
             end
+            M = M/3.0 * (I + 8/3 * inv(M'*M + 1/3*I))
         end
         M = M / det(M)^(1/3)
     end
@@ -258,23 +252,6 @@ module Utils
     function is_su3(M; prec = 1e-6)
         is_su3_upto_prec = norm(M - M') < prec && abs(tr(M)) < prec
         return is_su3_upto_prec
-    end
-
-    function make_submatrix(UV,i,j)
-        s11 = UV[i,i]
-        s12 = UV[i,j]
-        s21 = UV[j,i]
-        s22 = UV[j,j]
-        return SMatrix{2,2}([s11 s12; s21 s22])
-    end
-
-    function make_submatrix!(S,UV,i,j)
-        s11 = UV[i,i]
-        s12 = UV[i,j]
-        s21 = UV[j,i]
-        s22 = UV[j,j]
-        S = SMatrix{2,2}([s11 s12; s21 s22])
-        return nothing
     end
 
     function Traceless_antihermitian(M::SMatrix{3,3,ComplexF64,9})

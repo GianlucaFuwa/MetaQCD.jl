@@ -19,10 +19,8 @@ function apply_smearing_U(U::T, smearing::Stoutsmearing) where {T<:Gaugefield}
 	Qs_multi = Vector{Temporary_field}(undef, numlayers-1)
 	for i = 1:numlayers
 		Uout_multi[i] = similar(U)
-		if i != numlayers
-			staples_multi[i] = Temporary_field(U)
-			Qs_multi[i] = Temporary_field(U)
-		end
+		staples_multi[i] = Temporary_field(U)
+		Qs_multi[i] = Temporary_field(U)
 	end
 	calc_stout_multi!(Uout_multi, staples_multi, Qs_multi, U, ρ, numlayers)
 	return Uout_multi, staples_multi, Qs_multi
@@ -37,21 +35,12 @@ function calc_stout_multi!(
 	numlayers,
 	) where {T1<:Gaugefield, T2<:Temporary_field}
 
-	Utmp = similar(Uin)
-	staplestmp = Temporary_field(Utmp)
-	Qstmp = Temporary_field(Utmp)
 	U = deepcopy(Uin)
 	for i = 1:numlayers
-		if i != numlayers
-			apply_stout_smearing!(Utmp, U, staplestmp, Qstmp, ρ)
-			Uout_multi[i] = deepcopy(Utmp)
-			staples_multi[i] = deepcopy(staplestmp)
-			Qs_multi[i] = deepcopy(Qstmp)
-			Utmp, U = U, Utmp
-		else
-			apply_stout_smearing!(Uin, U, staplestmp, Qstmp, ρ)
-		end
+		substitute_U!(Uout_multi[i], U)
+		apply_stout_smearing!(U, Uout_multi[i], staples_multi[i], Qs_multi[i], ρ)
 	end
+	substitute_U!(Uin, U)
 	return nothing
 end
 
@@ -79,48 +68,95 @@ function apply_stout_smearing!(Uout::T, U::T, staples::T1, Qs::T1, ρ::Float64) 
 	return nothing
 end
 
+function stout_recursion!(Σcurrent::T1, Uout_multi::Union{Nothing,Vector{T2}}, staples_multi::Union{Nothing,Vector{T1}}, Qs_multi::Union{Nothing,Vector{T1}}, smearing) where {T1<:Temporary_field, T2<:Gaugefield}
+	if Uout_multi === nothing || staples_multi === nothing || Qs_multi === nothing
+		return nothing
+	end
+	numlayers = length(smearing)
+	Σprev = similar(Σcurrent)
+	for i = numlayers:-1:1
+		layer_backprop!(Σprev, Σcurrent, Uout_multi[i], staples_multi[i], Qs_multi[i], ρ)
+		Σcurrent, Σprev = Σprev, Σcurrent
+	end
+	return nothing
+end
+
 """
 Stout-Force recursion \\
 See: hep-lat/0311018 by Morningstar & Peardon \\
 \\
 Σμ = Σμ'⋅exp(iQμ) + iCμ†⋅Λμ - i∑{...}   
 """
-function layer_backprop!(Σprev::T1, Σcurrent::T1, Uprev::T2, staples::T1, Qs::T1, ρ::Float64) where {T1<:Temporary_field, T2<:Gaugefield}
-	Λs = similar(Σprev)
+function layer_backprop!(Σ::T1, Σprime::T1, U::T2, C::T1, Q::T1, ρ::Float64) where {T1<:Temporary_field, T2<:Gaugefield}
+	Λ = similar(Σ)
 
-	staple_eachsite!(Cs, Uprev)
-	calc_Qmatrices!(Qs, Cs, Uprev, ρ)
-	calc_Λmatrices!(Λs, Σprev, Qs, Uprev)
+	staple_eachsite!(C, U)
+	calc_Qmatrices!(Q, C, U, ρ)
+	calc_Λmatrices!(Λ, Σ, Q, U)
 
-	NX, NY, NZ, NT = size(Σcurrent)
+	NX, NY, NZ, NT = size(Σprime)
+	@batch for it = 1:NT
+		for iz = 1:NZ
+			for iy = 1:NY
+				for ix = 1:NX
+					site = Site_coords(ix,iy,iz,it)
+					for μ = 1:4
+						Nμ = size(Σprime)[μ]
+						siteμp = move(site, μ, 1, Nμ)
+						for ν = 1:4
+							if ν == μ
+								continue
+							end
+							Nν = size(Σprime)[ν]
+							siteνp = move(site, μ, 1, Nν)
+							siteνn = move(site, μ, -1 ,Nν)
+							siteμpνn = move(siteμp, ν, -1, Nν)
+							force_sum = 
+								U[ν][siteμp]    * U[μ][siteνp]'  * U[ν][site]'   * Λ[ν][site]   + 
+								U[ν][siteμpνn]' * U[μ][siteνn]'  * Λ[μ][siteνn]  * U[ν][siteνn] + 
+								U[ν][siteμpνn]' * Λ[ν][siteμpνn] * U[μ][siteνn]' * U[ν][siteνn] - 
+								U[ν][siteμpνn]' * U[μ][siteνn]'  * Λ[ν][siteνn]  * U[ν][siteνn] - 
+								Λ[ν][siteμp]    * U[ν][siteμp]   * U[μ][siteνp]' * U[ν][site]'  + 
+								U[ν][siteμp]    * U[μ][siteνp]'  * Λ[μ][siteνp]  * U[ν][site]'
+
+							Σ[μ][ix,iy,iz,it] = 
+								Σprime[μ][ix,iy,iz,it]  * exp_iQ(Q[μ][ix,iy,iz,it]) +
+								im * C[μ][ix,iy,iz,it]' * Λ[μ][ix,iy,iz,it]         -
+								im * ρ * force_sum
+						end
+					end
+				end
+			end
+		end
+	end
+	return nothing
+end
+
+"""
+Γ = Tr(Σ'⋅B1⋅U)⋅Q + Tr(Σ'⋅B2⋅U)⋅Q² 
+	+ f1⋅U⋅Σ' + f2⋅Q⋅U⋅Σ' + f1⋅U⋅Σ'⋅Q \\
+Λ = 1/2⋅(Γ + Γ†) - 1/(2N)⋅Tr(Γ + Γ†)
+"""
+function calc_Λmatrices!(Λ::T1, Σprime::T1, Q::T1, U::T2) where {T1<:Temporary_field, T2<:Gaugefield}
+	NX, NY, NZ, NT = size(M)
 	@batch for it = 1:NT
 		for iz = 1:NZ
 			for iy = 1:NY
 				for ix = 1:NX
 					for μ = 1:4
-						for ν = 1:4
-							if ν == μ
-								continue
-							end
-							Nμ = size(Σcurrent)[μ]
-							Nν = size(Σcurrent)[ν]
-							site = Site_coords(ix,iy,iz,it)
-							siteμp = move(site, μ, 1, Nμ)
-							siteνp = move(site, μ, 1, Nν)
-							siteνn = move(site, μ, -1 ,Nν)
-							siteμpνn = move(siteμp, ν, -1, Nν)
-							force_sum = 
-								Uprev[ν][siteμp] * Uprev[μ][siteνp]' * Uprev[ν][site]' * Λs[ν][site] + 
-								Uprev[ν][siteμpνn]' * Uprev[μ][siteνn]' * Λs[μ][siteνn] * Uprev[ν][siteνn] + 
-								Uprev[ν][siteμpνn]' * Λs[ν][siteμpνn] * Uprev[μ][siteνn]' * Uprev[ν][siteνn] - 
-								Uprev[ν][siteμpνn]' * Uprev[μ][siteνn]' * Λs[ν][siteνn] * Uprev[ν][siteνn] - 
-								Λs[ν][siteμp] * Uprev[ν][siteμp] * Uprev[μ][siteνp]' * Uprev[ν][site]' + 
-								Uprev[ν][siteμp] * Uprev[μ][siteνp]' * Λ[μ][siteνp] * Uprev[ν][site]'
+						Qn = Q[μ][ix,iy,iz,it]
+						trQ2 = trAB(Qn)
+						if trQ2 > 1e-16
+							f0, f1, f2, b10, b11, b12, b20, b21, b22 = calc_coefficients_Q(Qn)
+							UΣ = U[μ][ix,iy,iz,it] * Σprime[μ][ix,iy,iz,it]
+							
+							B1 = b10*I + b11*Qn + b12*Qn^2
+							B2 = b20*I + b21*Qn + b22*Qn^2
 
-							Σprev[μ][ix,iy,iz,it] = 
-								Σcurrent[μ][ix,iy,iz,it] * exp_iQ(Qs[μ][ix,iy,iz,it]) +
-								im * staples[μ][ix,iy,iz,it]' * Λs[μ][ix,iy,iz,it] -
-								im * ρ * force_sum
+							Γ = trAB(UΣ, B1)*Qn  + trAB(UΣ, B2)*Qn^2 +
+								f1*UΣ + f2*Qn*UΣ + f2*UΣ*Qn
+
+							Λ[μ][ix,iy,iz,it] = Traceless_hermitian(Γ)
 						end
 					end
 				end
@@ -136,71 +172,22 @@ function calc_Qmatrices!(Q::T1, staples::T1, U::T2, ρ::Float64) where {T1<:Temp
 		for iz = 1:NZ
 			for iy = 1:NY
 				for ix = 1:NX
-					Ω = staples[1][ix,iy,iz,it] * ρ * U[1][ix,iy,iz,it]'
-					Q[1][ix,iy,iz,it] = -im * Traceless_antihermitian(Ω)
+					Ω = ρ * U[1][ix,iy,iz,it] * staples[1][ix,iy,iz,it]'
+					Q[1][ix,iy,iz,it] = im * Traceless_antihermitian(Ω)
 
-					Ω = staples[2][ix,iy,iz,it] * ρ * U[2][ix,iy,iz,it]'
-					Q[2][ix,iy,iz,it] = -im * Traceless_antihermitian(Ω)
+					Ω = ρ * U[2][ix,iy,iz,it] * staples[2][ix,iy,iz,it]'
+					Q[2][ix,iy,iz,it] = im * Traceless_antihermitian(Ω)
 
-					Ω = staples[3][ix,iy,iz,it] * ρ * U[3][ix,iy,iz,it]'
-					Q[3][ix,iy,iz,it] = -im * Traceless_antihermitian(Ω)
+					Ω = ρ * U[3][ix,iy,iz,it] * staples[3][ix,iy,iz,it]'
+					Q[3][ix,iy,iz,it] = im * Traceless_antihermitian(Ω)
 
-					Ω = staples[4][ix,iy,iz,it] * ρ * U[4][ix,iy,iz,it]'
-					Q[4][ix,iy,iz,it] = -im * Traceless_antihermitian(Ω)
+					Ω = ρ * U[4][ix,iy,iz,it] * staples[4][ix,iy,iz,it]'
+					Q[4][ix,iy,iz,it] = im * Traceless_antihermitian(Ω)
 				end
 			end
 		end
 	end
 
-	return nothing
-end
-
-"""
-Γ = Tr(Σ'⋅B1⋅U)⋅Q + Tr(Σ'⋅B2⋅U)⋅Q² 
-	+ f1⋅U⋅Σ' + f2⋅Q⋅U⋅Σ' + f1⋅U⋅Σ'⋅Q \\
-Λ = 1/2⋅(Γ + Γ†) - 1/(2N)⋅Tr(Γ + Γ†)
-"""
-function calc_Λmatrices!(Λ::T1, Σprev::T1, Q::T1, U::T2) where {T1<:Temporary_field, T2<:Gaugefield}
-	NX, NY, NZ, NT = size(M)
-	@batch for it = 1:NT
-		for iz = 1:NZ
-			for iy = 1:NY
-				for ix = 1:NX
-					for μ = 1:4
-						Qn = Q[μ][ix,iy,iz,it]
-						trQ2 = trAB(Qn)
-						if trQ2 > 1e-16
-							f0, f1, f2, b10, b11, b12, b20, b21, b22 = calc_coefficients_Q(Qn)
-							Un = U[μ][ix,iy,iz,it]
-							Σn = Σprev[μ][ix,iy,iz,it]
-							UnΣn = Un * Σn
-							
-							B1 = b10*I + b11*Qn + b12*Q^2
-							B2 = b20*I + b21*Qn + b22*Q^2
-
-							Γ = trAB(UnΣn, B=B1)*Q +  trAB(UnΣn, B=B2)*Q^2 +
-								f1*UnΣn + f2*Q*UnΣn + f2*UnΣn*Q
-
-							Λ[μ][ix,iy,iz,it] = Traceless_hermitian(Γ)
-						end
-					end
-				end
-			end
-		end
-	end
-	return nothing
-end
-
-function stout_recursion!(Σcurrent::T1, Uout_multi::Union{Nothing,Vector{T2}}, staples_multi::Union{Nothing,T1}, Qs_multi::Union{Nothing,T1}, smearing) where {T1<:Temporary_field, T2<:Gaugefield}
-	if Uout_multi === nothing || staples_multi === nothing || Qs_multi === nothing
-		return nothing
-	end
-	numlayers = length(smearing)
-	Σprev = deepcopy(Σlast)
-	for i = numlayers:-1:2
-		layer_backprop!(Σprev, Σcurrent, Uout_multi[i-1], staples_multi[i-1], Qs_multi[i-1], ρ)
-		Σcurrent, Σprev = Σprev, Σcurrent
-	end
 	return nothing
 end
 

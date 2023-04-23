@@ -27,7 +27,7 @@ function calc_measurement_values(m::Measurement_methods, itrj, U; additional_str
             outputvalue = measure(
                 m.measurements[i],
                 U,
-                additional_string = "itrj " * additional_string,
+                additional_string = "$itrj " * additional_string,
             )
             push!(measurestrings, get_string(outputvalue))
         end
@@ -49,7 +49,7 @@ function Measurement_methods(
         measurement_parameters = construct_Measurement_parameters_from_dict(method)
         intervals[i] = measurement_parameters.measure_every
         filename = measurement_dir * "/" * measurement_parameters.methodname * ".txt"
-        meaasurements[i] = prepare_measurement(U, measurement_parameters, filename)
+        measurements[i] = prepare_measurement(U, measurement_parameters, filename)
         measurement_parameters_set[i] = deepcopy(measurement_parameters)
     end
     

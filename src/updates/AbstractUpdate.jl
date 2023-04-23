@@ -30,28 +30,30 @@ module AbstractUpdate_module
     include("./overrelaxation.jl")
     include("./hbor.jl")
     
-    function Updatemethod(parameters::Params, univ::Univ)
+    function Updatemethod(parameters::Params, univ::Univ, instance=1)
         updatemethod = Updatemethod(
-            univ.U,
-            univ.P,
+            univ.U[instance],
             parameters.update_method,
             parameters.ϵ_metro,
             parameters.Δτ,
             parameters.hmc_steps,
             parameters.integrator,
+            parameters.MAXIT,
+            parameters.numHB,
+            parameters.numOR,
+            parameters.meta_enabled
             )
             return updatemethod
     end
 
     function Updatemethod(
         U,
-        P,
         update_method,
         ϵ_metro = 0.1,
         Δτ = 0.1,
         hmc_steps = 10,
         integrator = "Leapfrog",
-        MAXIT = 10^5,
+        MAXIT = 1,
         numHB = 4,
         numOR = 1,
         meta_enabled = false,
@@ -62,7 +64,6 @@ module AbstractUpdate_module
                 hmc_steps,
                 Δτ,
                 U,
-                P,
                 meta_enabled = meta_enabled,
             )
         elseif update_method == "Local"
@@ -71,15 +72,6 @@ module AbstractUpdate_module
                 meta_enabled,
             )
         elseif update_method == "Heatbath"
-            updatemethod = Heatbath_update(
-                U,
-                MAXIT,
-            )
-        elseif update_method == "Overrelaxation"
-            updatemethod = OR_update(
-                U,
-            )
-        elseif update_method == "HBOR"
             updatemethod = HBOR_update(
                 U,
                 MAXIT, 

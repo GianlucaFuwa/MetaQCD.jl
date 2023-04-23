@@ -221,8 +221,8 @@ module Gaugefields
 		return adj
 	end
 
-	function IdentityGauges(NX, NY, NZ, NT, β; gaction="Wilson")
-		U = Gaugefield(NX, NY, NZ, NT, β, kind_of_gaction = gaction)
+	function IdentityGauges(NX, NY, NZ, NT, β; kind_of_gaction="Wilson")
+		U = Gaugefield(NX, NY, NZ, NT, β, kind_of_gaction = kind_of_gaction)
 		
 		for it = 1:NT
 			for iz = 1:NZ
@@ -239,8 +239,8 @@ module Gaugefields
         return U
     end
 
-    function RandomGauges(NX, NY, NZ, NT, β; gaction="Wilson", rng::Xoshiro=Xoshiro())
-		U = Gaugefield(NX, NY, NZ, NT, β, kind_of_gaction = gaction)
+    function RandomGauges(NX, NY, NZ, NT, β; kind_of_gaction="Wilson", rng::Xoshiro=Xoshiro())
+		U = Gaugefield(NX, NY, NZ, NT, β, kind_of_gaction = kind_of_gaction)
 
 		for it = 1:NT
 			for iz = 1:NZ

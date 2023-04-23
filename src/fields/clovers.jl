@@ -25,3 +25,6 @@ function clover_rect(U::T, μ, ν, site::Site_coords; L1 = 1, L2 = 2) where {T <
     return topright1x2 + topleft1x2 + bottomleft1x2 + bottomright1x2 + 
            topright2x1 + topleft2x1 + bottomleft2x1 + bottomright2x1
 end
+
+function clover_derivative(U::T, μ, ν, site::Site_coords) where {T <: Gaugefield}
+end

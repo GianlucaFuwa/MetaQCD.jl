@@ -30,6 +30,7 @@ mutable struct Polyakov_measurement <: AbstractMeasurement
 end
 
 function Polyakov_measurement(
+    U::Gaugefield,
     params::Poly_parameters,
     filename = "Polyakov.txt")
     return Polyakov_measurement(

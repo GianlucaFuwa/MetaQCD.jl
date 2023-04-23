@@ -10,8 +10,10 @@ struct HBOR_update <: AbstractUpdate
         prefactorOR = U.β / U.NC
         return new(
             MAXIT, 
-            prefactorHB, prefactorOR, 
-            numHB, numOR
+            prefactorHB, 
+            prefactorOR, 
+            numHB, 
+            numOR,
             )
     end
 end

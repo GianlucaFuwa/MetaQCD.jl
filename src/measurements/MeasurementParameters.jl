@@ -1,5 +1,5 @@
 struct2dict(x::T) where {T} = 
-    Dict{String,Any}(string(fn) => getfield(x,fn) for fn ∈ fieldnames(T))
+    Dict{String,Any}(string(fn) => getfield(x, fn) for fn ∈ fieldnames(T))
 
 abstract type Measurement_parameters end
 
@@ -39,7 +39,7 @@ Base.@kwdef mutable struct TopCharge_parameters <: Measurement_parameters
     verbose_level::Int64 = 2
     printvalues::Bool = true
     measure_every::Int64 = 10
-    kinds_of_topologcal_charge::Vector{String} = ["clover"]
+    kinds_of_topological_charge::Vector{String} = ["clover"]
 end
 
 function initialize_measurement_parameters(methodname)
@@ -59,16 +59,21 @@ function initialize_measurement_parameters(methodname)
     return method
 end
 
+function prepare_measurement_from_dict(U, value_i::Dict, filename = "")
+    parameters = construct_Measurement_parameters_from_dict(value_i)
+    return prepare_measurement(U, parameters, filename)
+end
+
 function construct_Measurement_parameters_from_dict(value_i::Dict)
-    @assert haskey(value_i,"methodname") "methodname should be in measurement."
+    @assert haskey(value_i, "methodname") "methodname should be in measurement."
     methodname = value_i["methodname"]
     method = initialize_measurement_parameters(methodname)
     method_dict = struct2dict(method)
-    for (key_ii,value_ii) in value_i
+    for (key_ii, value_ii) in value_i
         if haskey(method_dict,key_ii)
             if typeof(value_ii) !== nothing
-                keytype = typeof(getfield(method,Symbol(key_ii)))
-                setfield!(method,Symbol(key_ii),keytype(value_ii))
+                keytype = typeof(getfield(method, Symbol(key_ii)))
+                setfield!(method, Symbol(key_ii), keytype(value_ii))
             end
         end
     end
@@ -76,24 +81,24 @@ function construct_Measurement_parameters_from_dict(value_i::Dict)
     return value_out
 end
 
-function prepare_measurement(U,measurement_parameters::T,filename="") where {T}
+function prepare_measurement(U, measurement_parameters::T, filename="") where {T}
     if T == Action_parameters
-        filename_input = ifelse(filename == "","Action.txt",filename)
-        measurement = Action_measurement(U,measurement_parameters,filename_input)
+        filename_input = ifelse(filename == "", "Action.txt",filename)
+        measurement = Action_measurement(U, measurement_parameters, filename_input)
     elseif T == Plaq_parameters
-        filename_input = ifelse(filename == "","Plaquette.txt",filename)
-        measurement = Plaquette_measurement(U,measurement_parameters,filename_input)
+        filename_input = ifelse(filename == "", "Plaquette.txt", filename)
+        measurement = Plaquette_measurement(U, measurement_parameters, filename_input)
     elseif T == Poly_parameters
-        filename_input = ifelse(filename == "","Polyakov_loop.txt",filename)
-        measurement = Polyakov_measurement(measurement_parameters,filename_input)
+        filename_input = ifelse(filename == "", "Polyakov_loop.txt", filename)
+        measurement = Polyakov_measurement(U, measurement_parameters, filename_input)
     elseif T == TopCharge_parameters
-        filename_input = ifelse(filename == "","Topological_charge.txt",filename)
-        measurement = Topological_charge_measurement(U,measurement_parameters,filename_input)
+        filename_input = ifelse(filename == "", "Topological_charge.txt", filename)
+        measurement = Topological_charge_measurement(U, measurement_parameters, filename_input)
     elseif T == WilsonLoop_parameters
-        filename_input = ifelse(filename == "","Wilson_loop.txt",filename)
-        measurement = Wilson_loop_measurement(measurement_parameters,filename_input)
+        filename_input = ifelse(filename == "", "Wilson_loop.txt", filename)
+        measurement = Wilson_loop_measurement(U, measurement_parameters, filename_input)
     else
-        error(T," is not supported in measurements")
+        error(T, " is not supported in measurements")
     end
     return measurement
 end

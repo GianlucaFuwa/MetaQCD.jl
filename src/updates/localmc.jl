@@ -23,39 +23,39 @@ function update!(
 	return numaccepts / U.NV / 4.0
 end
 
-function local_metro!(gfield::Gaugefield, μ::Int64, origin::Site_coords, rng::Xoshiro, ϵ::Float64)
+function local_metro!(U::Gaugefield, μ::Int64, origin::Site_coords, rng::Xoshiro, ϵ::Float64)
 	X = gen_SU3_matrix(rng, ϵ)
-	Sg = get_Sg(gfield)
-	ΔSg = local_action_diff(gfield, μ, origin, X)
+	Sg = get_Sg(U)
+	ΔSg = local_action_diff(U, μ, origin, X)
 	accept = rand(rng) ≤ exp(-ΔSg)
 	if accept  
 		#println_verbose3(verbose,"Accepted")
-		gfield.Sg = Sg + ΔSg
-		gfield[μ][origin] = X * gfield[μ][origin]
+		U.Sg = Sg + ΔSg
+		U[μ][origin] = X * U[μ][origin]
 	else
 		#println_verbose3(verbose,"Rejected")
 	end
 	return accept
 end
 
-function local_metro_meta!(gfield::Gaugefield, bias::Bias_potential, μ::Int64, origin::Site_coords, rng::Xoshiro, ϵ::Float64)
+function local_metro_meta!(U::Gaugefield, bias::Bias_potential, μ::Int64, origin::Site_coords, rng::Xoshiro, ϵ::Float64)
 	X = gen_SU3_matrix(rng, ϵ)
-	Sg = get_Sg(gfield)
-	CV = get_CV(gfield)
-	ΔCV = local_cv_diff(gfield, μ, origin, X)
+	Sg = get_Sg(U)
+	CV = get_CV(U)
+	ΔCV = local_cv_diff(U, μ, origin, X)
 	println_verbose3(verbose, "ΔCV = $ΔCV")
 	
-	ΔSg = local_action_diff(gfield, μ, origin, X)
+	ΔSg = local_action_diff(U, μ, origin, X)
 	println_verbose3(verbose, "ΔSg = $ΔSg")
 	ΔV = DeltaV(bias, CV, CV + ΔCV)
 	println_verbose3(verbose, "ΔV = $ΔV")
 	accept = rand(rng) ≤ exp(-ΔSg-ΔV) 
 	if accept 
-		gfield[μ][origin] = X * gfield[μ][origin]
-		gfield.Sg = Sg + ΔSg
-		gfield.CV = CV + ΔCV 
+		U[μ][origin] = X * U[μ][origin]
+		U.Sg = Sg + ΔSg
+		U.CV = CV + ΔCV 
 		println_verbose3(verbose, "Accepted")
-		if ~b.is_static
+		if ~bias.is_static
 			update_bias!(bias, CV + ΔCV)
 		end
 	else
@@ -64,14 +64,15 @@ function local_metro_meta!(gfield::Gaugefield, bias::Bias_potential, μ::Int64, 
 	return accept
 end
 
-function local_metro_sweep!(gfield::Gaugefield, rng::Xoshiro, ϵ::Float64)
+function local_metro_sweep!(U::Gaugefield, rng::Xoshiro, ϵ::Float64)
+	NX, NY, NZ, NT = size(U)
 	numaccepts = 0
-	for it = 1:gfield.NT
-		for iz = 1:gfield.NZ
-			for iy = 1:gfield.NY
-				for ix = 1:gfield.NX
+	for it = 1:NT
+		for iz = 1:NZ
+			for iy = 1:NY
+				for ix = 1:NX
 					for μ = 1:4
-						accept = local_metro!(gfield, μ, Site_coords(ix,iy,iz,it), rng, ϵ)
+						accept = local_metro!(U, μ, Site_coords(ix,iy,iz,it), rng, ϵ)
 						numaccepts += ifelse(accept, 1, 0)
 					end
 				end
@@ -81,14 +82,15 @@ function local_metro_sweep!(gfield::Gaugefield, rng::Xoshiro, ϵ::Float64)
 	return numaccepts
 end
 
-function local_metro_sweep_meta!(gfield::Gaugefield, bias::Bias_potential, rng::Xoshiro, ϵ::Float64)
+function local_metro_sweep_meta!(U::Gaugefield, bias::Bias_potential, rng::Xoshiro, ϵ::Float64)
+	NX, NY, NZ, NT = size(U)
 	numaccepts = 0
-	for it = 1:gfield.NT
-		for iz = 1:gfield.NZ
-			for iy = 1:gfield.NY
-				for ix = 1:gfield.NX
+	for it = 1:NT
+		for iz = 1:NZ
+			for iy = 1:NY
+				for ix = 1:NX
 					for μ = 1:4
-						accept = local_metro_meta!(gfield, bias, μ, Site_coords(ix,iy,iz,it), rng, ϵ)
+						accept = local_metro_meta!(U, bias, μ, Site_coords(ix,iy,iz,it), rng, ϵ)
 						numaccepts += ifelse(accept, 1, 0)
 					end
 				end

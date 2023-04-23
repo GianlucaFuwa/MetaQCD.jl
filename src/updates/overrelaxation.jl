@@ -29,27 +29,27 @@ function OR_sweep!(U::Gaugefield, prefactor, rng)
 
     numaccepts = 0
     for it = 1:NT
-	for iz = 1:NZ
-	    for iy = 1:NY
-		for ix = 1:NX
+		for iz = 1:NZ
+			for iy = 1:NY
+				for ix = 1:NX
                     site = Site_coords(ix,iy,iz,it)
-		    for μ = 1:4
+					for μ = 1:4
                         A = staple(U, μ, site)
 
                         old_link = U[μ][ix,iy,iz,it]
-                        tmp = 1/6 * A
+                        tmp = 1/6 * A'
                         or_mat = KenneyLaub(tmp)
 
-                        new_link = or_mat * old_link' * or_mat
+                        new_link = or_mat' * old_link' * or_mat'
                         ΔS = prefactor * real(tr((new_link - old_link)*A'))
                         if rand(rng) < exp(-ΔS)
                             U[μ][ix,iy,iz,it] = new_link
                             numaccepts += 1
                         end
-		    end
+					end
+				end
+			end
 		end
-	    end
 	end
-    end
     return numaccepts
 end
