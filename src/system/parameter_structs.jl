@@ -18,6 +18,8 @@ module Parameter_structs
         "kind_of_gaction",
         "update_method",
         "ϵ_metro",
+        "multi_hit",
+	    "metro_target_acc",
         "hmc_steps",
         "Δτ",
         "meta_enabled",
@@ -70,6 +72,8 @@ module Parameter_structs
         numHB::Int64 = 4
         numOR::Int64 = 1
         ϵ_metro::Float64 = 0.1
+        multi_hit::Int64 = 1
+	    metro_target_acc::Float64 = 0.5
     end
 
     Base.@kwdef mutable struct Print_meta_parameters
