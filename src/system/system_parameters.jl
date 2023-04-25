@@ -22,22 +22,22 @@ module System_parameters
 
     struct Params
         L::NTuple{4,Int64}
-		β::Float64
+	β::Float64
         kind_of_gaction::String
         NC::Int64
         Ntherm::Int64
-		Nsteps::Int64
-		initial::String
+	Nsteps::Int64
+	initial::String
 
         meta_enabled::Bool
         kind_of_CV::Union{Nothing,String}
-		numsmears_for_CV::Union{Nothing,Int64}
-		ρstout_for_CV::Union{Nothing,Float64}
+	numsmears_for_CV::Union{Nothing,Int64}
+	ρstout_for_CV::Union{Nothing,Float64}
         symmetric::Union{Nothing,Bool}
-		CVlims::Union{Nothing,NTuple{2,Float64}}
-		bin_width::Union{Nothing,Float64}
-		meta_weight::Union{Nothing,Float64}
-		penalty_weight::Union{Nothing,Float64}
+	CVlims::Union{Nothing,NTuple{2,Float64}}
+	bin_width::Union{Nothing,Float64}
+	meta_weight::Union{Nothing,Float64}
+	penalty_weight::Union{Nothing,Float64}
         is_static::Union{Nothing,Bool,Vector{Bool}}
 
         tempering_enabled::Union{Nothing,Bool}
@@ -45,7 +45,9 @@ module System_parameters
         swap_every::Union{Nothing,Int64}
 
         update_method::String
-		ϵ_metro::Union{Nothing,Float64}
+	ϵ_metro::Union{Nothing,Float64}
+	multi_hit::Union{Nothing,Int64}
+	metro_target_acc::Union{Nothing,Float64}
         integrator::Union{Nothing,String}
         Δτ::Union{Nothing,Float64}
         hmc_steps::Union{Nothing,Int64}
@@ -68,12 +70,12 @@ module System_parameters
         loadU_fromfile::Bool
         loadU_filename::String
 
-		randomseeds::Vector{Xoshiro}
-		logdir::String
-		logfile::String
-		load_fp::IOStream
+	randomseeds::Vector{Xoshiro}
+	logdir::String
+	logfile::String
+	load_fp::IOStream
         measuredir::String
-		savebias_dir::Union{Nothing,String,Vector{String}}
+	savebias_dir::Union{Nothing,String,Vector{String}}
         biasfiles::Union{Nothing,String,Vector{Union{Nothing,String}}}
         usebiases::Union{Nothing,String,Vector{Union{Nothing,String}}}
         weightfiles::Union{Nothing,String,Vector{String}}
