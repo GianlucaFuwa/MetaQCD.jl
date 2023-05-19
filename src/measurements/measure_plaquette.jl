@@ -1,22 +1,24 @@
-mutable struct Plaquette_measurement <: AbstractMeasurement
-    filename::Union{Nothing,String}
+import ..Gaugefields: plaquette_trace_sum
+
+mutable struct PlaquetteMeasurement <: AbstractMeasurement
+    filename::Union{Nothing, String}
     factor::Float64
-    verbose_print::Union{Nothing,Verbose_level}
+    verbose_print::Union{Nothing, VerboseLevel}
     printvalues::Bool
 
-    function Plaquette_measurement(
-        U::Gaugefield;
+    function PlaquetteMeasurement(
+        U;
         filename = nothing,
         verbose_level = 2,
         printvalues = false,
     )
         if printvalues
             if verbose_level == 1
-                verbose_print = Verbose_1(filename)
+                verbose_print = Verbose1(filename)
             elseif verbose_level == 2
-                verbose_print = Verbose_2(filename)
+                verbose_print = Verbose2(filename)
             elseif verbose_level == 3
-                verbose_print = Verbose_3(filename)    
+                verbose_print = Verbose3(filename)    
             end
         else
             verbose_print = nothing
@@ -32,8 +34,8 @@ mutable struct Plaquette_measurement <: AbstractMeasurement
     end
 end
 
-function Plaquette_measurement(U::Gaugefield, params::Plaq_parameters, filename)
-    return Plaquette_measurement(
+function PlaquetteMeasurement(U::Gaugefield, params::PlaquetteParameters, filename)
+    return PlaquetteMeasurement(
         U,
         filename = filename,
         verbose_level = params.verbose_level,
@@ -41,14 +43,15 @@ function Plaquette_measurement(U::Gaugefield, params::Plaq_parameters, filename)
     )
 end
 
-function measure(m::M, U; additional_string = "") where {M<:Plaquette_measurement}
-    plaq = plaquette_tracedsum(U) * m.factor
+function measure(m::PlaquetteMeasurement, U; additional_string = "")
+    plaq = plaquette_trace_sum(U) * m.factor
     measurestring = ""
+    
     if m.printvalues
         measurestring = "$additional_string $plaq # plaq"
         println_verbose2(m.verbose_print, measurestring)
     end
 
-    output = Measurement_output(plaq, measurestring)
+    output = MeasurementOutput(plaq, measurestring)
     return output
 end

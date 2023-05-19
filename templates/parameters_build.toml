@@ -1,0 +1,48 @@
+["Physical Settings"]
+L = [4, 4, 4, 4]
+"β" = 5.7
+kind_of_gaction = "wilson"
+Ntherm = 10
+Nsteps = 100
+initial = "cold"
+update_method = "heatbath"
+MAXIT = 10
+numHB = 1
+numOR = 4
+#multi_hit = 5
+#metro_target_acc = 0.5
+
+["Metadynamics Settings"]
+meta_enabled = false
+kind_of_cv = "clover"
+numCVsmear = 4
+symmetric = true
+CVlims = [-7, 7]
+bin_width = 1e-2
+meta_weight = 1e-3
+penalty_weight = 1000
+
+#["HMC related"]
+#"Δτ" = 0.1
+#hmc_steps = 10
+#integrator = "OMF4"
+
+["System Settings"]               
+logdir = "./logs/L4x4x4x4_beta5.7"
+logfile = "Heatbath_test.txt"
+measurement_basedir = "./measurements/L4x4x4x4_beta5.7"
+measurement_dir = "Heatbath_test"
+randomseeds = [1206]
+
+["Measurement set".measurement_methods.Polyakov_loop]
+measure_every = 5
+methodname = "polyakov_loop"
+
+["Measurement set".measurement_methods.Topological_charge]
+measure_every = 5
+kinds_of_topological_charge = ["plaquette", "clover", "improved"]
+methodname = "topological_charge"
+
+["Measurement set".measurement_methods.Plaquette]
+measure_every = 5
+methodname = "plaquette"

@@ -1,16 +1,15 @@
 module MetaQCD
 
-    include("utils.jl")
+    include("../utilities/utils.jl")
     include("../output/verbose.jl")
     include("../output/bridge_format.jl")
-    include("../fields/gaugefields.jl")
+    include("../fields/gauge/gaugefields.jl")
     include("../measurements/AbstractMeasurement.jl")
     include("parameter_structs.jl")
     include("system_parameters.jl")
     include("parameters_TOML.jl")
-    include("../fields/liefields.jl")
     include("../metadynamics/metadynamics.jl")
-    include("../smearing/Abstractsmearing.jl")
+    include("../smearing/AbstractSmearing.jl")
     include("../updates/tempering.jl")
     include("universe.jl")
     include("../updates/AbstractUpdate.jl")
@@ -18,30 +17,38 @@ module MetaQCD
     include("mainrun.jl")
     #include("mainbuild.jl")
 
+    using .BridgeFormat
     using .Utils
-    using .Bridge_format
-    import .Verbose_print: Verbose_1,Verbose_2,Verbose_3
-    import .System_parameters: Params
-    import .Parameters_TOML: construct_Params_from_TOML
-    import .Gaugefields: Site_coords,Gaugefield,Temporary_field,recalc_GaugeAction!,calc_GaugeAction,staple,plaquette,wilsonloop,IdentityGauges,RandomGauges,move,normalize!
-    import .Liefields: Liefield,gaussianP!,trP2
-    import .Abstractsmearing_module: Stoutsmearing,calc_smearedU
-    import .AbstractMeasurement_module: measure,get_value,Plaquette_measurement,Polyakov_measurement,Wilson_loop_measurement,Topological_charge_measurement,Gauge_action_measurement
-    import .Metadynamics: Bias_potential,update_bias!,DeltaV,ReturnPotential,ReturnDerivative
-    import .AbstractUpdate_module: Updatemethod,update!
-    import .Universe_module: Univ
+    using .VerbosePrint
+    
+    import .SystemParameters: Params
+    import .ParametersTOML: construct_params_from_toml
+    import .Gaugefields: Gaugefield, TemporaryField, staple_eachsite!
+    import .Gaugefields: calc_gauge_action, staple, plaquette, plaquette_trace_sum
+    import .Gaugefields: identity_gauges, random_gauges, normalize!, wilsonloop
+    import .Gaugefields: calc_kinetic_energy, gaussian_momenta!, Liefield
+    import .AbstractSmearingModule: StoutSmearing, calc_smearedU
+    import .AbstractMeasurementModule: measure, get_value, PlaquetteMeasurement, top_charge_clover, top_charge_improved, top_charge_plaq
+    import .AbstractMeasurementModule: PolyakovMeasurement, WilsonLoopMeasurement
+    import .AbstractMeasurementModule: TopologicalChargeMeasurement, GaugeActionMeasurement
+    import .Metadynamics: BiasPotential, update_bias!, return_derivative
+    import .AbstractUpdateModule: update!, Updatemethod
+    import .UniverseModule: Univ
     import .Mainrun: run_sim
-    #import .Mainbuild: run_build
 
-    export load_BridgeText!,save_textdata
-    export Verbose_1,Verbose_2,Verbose_3
-    export Site_coords,Gaugefield,Temporary_field,recalc_GaugeAction!,calc_GaugeAction,staple,plaquette,wilsonloop,IdentityGauges,RandomGauges,move,normalize!
-    export Liefield,gaussianP!,trP2
-    export Bias_potential,update_bias!,DeltaV,ReturnPotential,ReturnDerivative
-    export Stoutsmearing,calc_smearedU
-    export Updatemethod,update!
-    export measure,top_charge,get_value,Plaquette_measurement,Polyakov_measurement,Wilson_loop_measurement,Topological_charge_measurement,Gauge_action_measurement
-    export Params,construct_Measurement_parameters_from_TOML
+    export load_BridgeText!, save_textdata
+    export Verbose1, Verbose2, Verbose3
+    export Gaugefield, TemporaryField, recalc_gauge_action!, calc_gauge_action
+    export staple, plaquette, wilsonloop, identity_gauges, random_gauges, move, normalize!
+    export staple_eachsite!
+    export Liefield, gaussian_momenta!, calc_kinetic_energy
+    export BiasPotential, update_bias!, return_potential, return_derivative
+    export StoutSmearing, calc_smearedU
+    export Updatemethod, update!
+    export measure, get_value, PlaquetteMeasurement, PolyakovMeasurement
+    export WilsonLoopMeasurement, TopologicalChargeMeasurement, GaugeActionMeasurement
+    export top_charge_clover, top_charge_improved, top_charge_plaq
+    export Params, construct_measurement_parameters_from_toml
     export Univ
     export run_sim
 

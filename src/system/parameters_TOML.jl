@@ -1,20 +1,17 @@
-module Parameters_TOML
+module ParametersTOML
+    using Random
+    using Unicode
     using TOML
-    using Random: Xoshiro
 
-    import ..System_parameters: Params
-    import ..Parameter_structs: 
-        struct2dict,
-        Print_physical_parameters,
-        Print_meta_parameters,
-        Print_system_parameters,
-        Print_HMCrelated_parameters,
-        Print_smearing_parameters,
-        Print_measurement_parameters
+    import ..ParameterStructs: struct2dict, PrintPhysicalParameters, PrintMetaParameters
+    import ..ParameterStructs: PrintSystemParameters, PrintHMCrelatedParameters
+    import ..ParameterStructs: PrintSmearingParameters, PrintMeasurementParameters
+    import ..SystemParameters: Params
 
     function set_params_value!(value_Params, values)
         d = struct2dict(values)
         pnames = fieldnames(Params)
+
         for (i, pname_i) in enumerate(pnames)
             if haskey(d,String(pname_i))
                 if d[String(pname_i)] == "nothing" 
@@ -24,12 +21,15 @@ module Parameters_TOML
                 end
             end
         end
+
+        return nothing
     end
 
     function show_parameters(parameters)
         for (key, value) in parameters
 
             println("[$(key)]")
+            
             if key == "Measurement set"
                 for (key_i, value_i) in value
                     println("[$(key_i)]")
@@ -37,20 +37,22 @@ module Parameters_TOML
                     println("\t")
                 end
             else
-
                 display(value)
                 println("\t")
             end
+
         end
+
+        return nothing
     end
 
-    function construct_Params_from_TOML(filename::String)
+    function construct_params_from_toml(filename::String)
         parameters = TOML.parsefile(filename)
         println("inputfile: ", pwd() * "/" * filename)
-        construct_Params_from_TOML(parameters)
+        construct_params_from_toml(parameters)
     end
 
-    function construct_Params_from_TOML(parameters)
+    function construct_params_from_toml(parameters)
 
         show_parameters(parameters)
 
@@ -58,17 +60,17 @@ module Parameters_TOML
         numparams = length(pnames)
         value_Params = Vector{Any}(undef, numparams)
 
-        physical = Print_physical_parameters()
+        physical = PrintPhysicalParameters()
         set_params_value!(value_Params, physical)
-        meta = Print_meta_parameters()
+        meta = PrintMetaParameters()
         set_params_value!(value_Params, meta)
-        system = Print_system_parameters()
+        system = PrintSystemParameters()
         set_params_value!(value_Params, system)
-        hmc = Print_HMCrelated_parameters()
+        hmc = PrintHMCrelatedParameters()
         set_params_value!(value_Params, hmc)
-        meas = Print_measurement_parameters()
+        meas = PrintMeasurementParameters()
         set_params_value!(value_Params, meas)
-        smearing = Print_smearing_parameters()
+        smearing = PrintSmearingParameters()
         set_params_value!(value_Params, smearing)
 
         #pos = findfirst(x -> String(x) == "ITERATION_MAX", pnames)
@@ -77,9 +79,11 @@ module Parameters_TOML
         pos = findfirst(x -> String(x) == "load_fp", pnames)
         logfilename = parameters["System Settings"]["logfile"]
         logdir = parameters["System Settings"]["logdir"]
+
         if isdir(logdir) == false
-            mkdir(logdir)
+            mkpath(logdir)
         end
+
         logfile = pwd() * "/" * logdir * "/" * logfilename
 
         load_fp = open(logfile, "w")
@@ -87,11 +91,13 @@ module Parameters_TOML
 
         measurement_basedir = parameters["System Settings"]["measurement_basedir"]
         measurement_dir = parameters["System Settings"]["measurement_dir"]
+
         if isdir(measurement_basedir) == false
-            mkdir(measurement_basedir)
+            mkpath(measurement_basedir)
         end
+
         if isdir(pwd() * "/" * measurement_basedir * "/" * measurement_dir) == false
-            mkdir(pwd() * "/" * measurement_basedir * "/" * measurement_dir)
+            mkpath(pwd() * "/" * measurement_basedir * "/" * measurement_dir)
         end
 
         pos = findfirst(x -> String(x) == "measuredir", pnames)
@@ -112,7 +118,12 @@ module Parameters_TOML
                     elseif String(pname_i) == "CVlims"
                         value_Params[i] = Tuple(value[String(pname_i)])
                     elseif String(pname_i) == "randomseeds"
-                        value_Params[i] = Xoshiro.(value[String(pname_i)])
+                        value_Params[i] = eval(Meta.parse(value[String(pname_i)]))
+                    elseif String(pname_i) == "kind_of_gaction"
+                        value_Params[i] = Unicode.normalize(
+                            value[String(pname_i)], 
+                            casefold = true
+                            )
                     else
                         if value[String(pname_i)] == "nothing"
                             value_Params[i] = nothing
@@ -139,13 +150,15 @@ module Parameters_TOML
     function parameter_check(p::Params)
         if p.saveU_format !== nothing
             if isdir(p.saveU_dir) == false
-                mkdir(p.saveU_dir)
+                mkpath(p.saveU_dir)
             end
+
             println("$(p.saveU_dir) is used for saving configurations")
         end
 
         if p.meta_enabled == true
             println("Metadynamics is enabled")
+
             if p.tempering_enabled == true
                 println("Parallel tempering is enabled")
             end
@@ -153,28 +166,30 @@ module Parameters_TOML
             println("Metadynamics is disabled")
         end
 
-        if p.update_method == "HMC"
+        if Unicode.normalize(p.update_method, casefold = true) == "hmc"
             println("HMC will be used")
-        elseif p.update_method == "Local"
-            println("Local updates will be used")
-        elseif p.update_method == "Heatbath"
+        elseif Unicode.normalize(p.update_method, casefold = true) == "metropolis"
+            println("Metropolis updates will be used")
+        elseif Unicode.normalize(p.update_method, casefold = true) == "heatbath"
             println("Heatbath + Overrelaxation updates will be used")
-        elseif p.update_method == "HB"
+        elseif Unicode.normalize(p.update_method, casefold = true) == "hb"
             println("Heatbath updates will be used")
-        elseif p.update_method == "OR"
+        elseif Unicode.normalize(p.update_method, casefold = true) == "or"
             println("Overrelaxation updates will be used")
         else
             error("""
             update_method in [\"Physical Settings\"] = $(p.update_method) is not supported.
-            Supported methods are 
+            Supported methods are:
             HMC
-            Local
+            Metropolis
+            Heatbath
             """)
         end
 
         logdir = p.logdir
+
         if isdir(logdir) == false
-            mkdir(logdir)
+            mkpath(logdir)
         end
     end
 
@@ -188,6 +203,7 @@ module Parameters_TOML
             end
             push!(valuedic, dic_i)
         end
+        
         return valuedic
     end
 end

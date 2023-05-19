@@ -1,47 +1,49 @@
-struct OR_update <: AbstractUpdate
+struct ORUpdate <: AbstractUpdate
     prefactor::Float64
+    _temporary_for_staples::TemporaryField
 
-    function OR_update(U)
+    function ORUpdate(U)
         prefactor = U.β / U.NC
         return new(prefactor)
     end
 end
 
-get_prefactor(or::OR_update) = or.prefactor
-
 function update!(
     updatemethod::T,
     U::Gaugefield,
-    rng::Xoshiro,
-    verbose::Verbose_level;
+    rng,
+    verbose::VerboseLevel;
     metro_test::Bool = true,
-    ) where {T<:OR_update}
+    ) where {T<:ORUpdate}
     
-    prefactor = get_prefactor(updatemethod)
-    numaccepts = OR_sweep!(U, prefactor, rng)
-    recalc_GaugeAction!(U)
+    prefactor = updatemethod.prefactor
+    _temporary_for_staples = updatemethod._temporary_for_staples
 
-    return numaccepts / U.NV / 4.0
+    numaccepts = OR_sweep!(U, _temporary_for_staples, prefactor, rng)
+    recalc_gauge_action!(U)
+
+    return numaccepts / (U.NV * 4)
 end
 
-function OR_sweep!(U::Gaugefield, prefactor, rng)
+function OR_sweep!(U::Gaugefield, staples::TemporaryField, prefactor, rng)
     NX, NY, NZ, NT = size(U)
-
+    staple_eachsite!(staples, U)
     numaccepts = 0
-    for it = 1:NT
-		for iz = 1:NZ
-			for iy = 1:NY
-				for ix = 1:NX
-                    site = Site_coords(ix,iy,iz,it)
-					for μ = 1:4
-                        A = staple(U, μ, site)
 
+    for it in 1:NT
+		for iz in 1:NZ
+			for iy in 1:NY
+				for ix in 1:NX
+					for μ in 1:4
+                        A = staples[μ][ix,iy,iz,it]
                         old_link = U[μ][ix,iy,iz,it]
+
                         tmp = 1/6 * A'
-                        or_mat = KenneyLaub(tmp)
+                        or_mat = kenney_laub(tmp)
 
                         new_link = or_mat' * old_link' * or_mat'
-                        ΔS = prefactor * real(tr((new_link - old_link)*A'))
+                        ΔS = prefactor * real(tr((new_link - old_link) * A'))
+
                         if rand(rng) < exp(-ΔS)
                             U[μ][ix,iy,iz,it] = new_link
                             numaccepts += 1
@@ -51,5 +53,6 @@ function OR_sweep!(U::Gaugefield, prefactor, rng)
 			end
 		end
 	end
+
     return numaccepts
 end

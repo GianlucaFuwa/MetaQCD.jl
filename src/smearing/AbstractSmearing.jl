@@ -1,44 +1,43 @@
-module Abstractsmearing_module
-    using StaticArrays
+module AbstractSmearingModule
+    #using Base.Threads
     using LinearAlgebra
     using Polyester
-    #using Base.Threads
-
+    using StaticArrays
     using ..Utils
-    import ..Gaugefields: Gaugefield,Site_coords,Temporary_field,staple_eachsite!,move
-    import ..Liefields: Liefield
-    import ..Metadynamics: Bias_potential,ReturnDerivative
 
-    abstract type Abstractsmearing end
+    import ..Gaugefields: Gaugefield, move, SiteCoords, staple_eachsite!, TemporaryField
+    import ..Gaugefields: Liefield
+    import ..Metadynamics: BiasPotential, return_derivative
 
-    struct Nosmearing <: Abstractsmearing end
+    abstract type AbstractSmearing end
+
+    struct NoSmearing <: AbstractSmearing end
 
     include("./stout.jl")
 
     function construct_smearing(smearingparameters, coefficient, numlayers)
         if smearingparameters == "nothing"
-            smearing = Nosmearing()
+            smearing = NoSmearing()
         elseif smearingparameters == "stout"
             @assert coefficient !== nothing "Stout coefficient must be set"
             println("Stout smearing will be used")
-            smearing = Stoutsmearing(numlayers, coefficient)
+            smearing = StoutSmearing(numlayers, coefficient)
         else
             error("Smearing = $smearing is not supported")
         end
+
         return smearing
     end
 
     function calc_smearedU(Uin::Gaugefield, smearing)
         if smearing !== nothing && typeof(smearing) !== Nosmearing
-            Uout_multi, staples_multi, Qs_multi = apply_smearing_U(Uin, smearing)
+            Uout_multi, staples_multi, Qs_multi = apply_smearing(Uin, smearing)
         else
             Uout_multi = nothing
             staples_multi = nothing
             Qs_multi = nothing
         end
+
         return Uout_multi, staples_multi, Qs_multi
     end
-
 end
-
-

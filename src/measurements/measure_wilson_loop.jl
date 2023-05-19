@@ -1,12 +1,14 @@
-mutable struct Wilson_loop_measurement <: AbstractMeasurement
-    filename::Union{Nothing,String}
-    verbose_print::Union{Nothing,Verbose_level}
+import ..Gaugefields: wilsonloop
+
+mutable struct WilsonLoopMeasurement <: AbstractMeasurement
+    filename::Union{Nothing, String}
+    verbose_print::Union{Nothing, VerboseLevel}
     printvalues::Bool
     Tmax::Int64
     Rmax::Int64
     outputvalues::Matrix{Float64}
 
-    function Wilson_loop_measurement(
+    function WilsonLoopMeasurement(
         U;
         filename = nothing,
         verbose_level = 2,
@@ -16,17 +18,17 @@ mutable struct Wilson_loop_measurement <: AbstractMeasurement
     )
         if printvalues
             if verbose_level == 1
-                verbose_print = Verbose_1(filename)
+                verbose_print = Verbose1(filename)
             elseif verbose_level == 2
-                verbose_print = Verbose_2(filename)
+                verbose_print = Verbose2(filename)
             elseif verbose_level == 3
-                verbose_print = Verbose_3(filename)    
+                verbose_print = Verbose3(filename)    
             end
         else
             verbose_print = nothing
         end
 
-        outputvalues = zeros(Float64,Rmax,Tmax)
+        outputvalues = zeros(Float64, Rmax, Tmax)
 
         return new(
             filename,
@@ -39,11 +41,12 @@ mutable struct Wilson_loop_measurement <: AbstractMeasurement
     end
 end
 
-function Wilson_loop_measurement(
+function WilsonLoopMeasurement(
     U::Gaugefield,
-    params::WilsonLoop_parameters,
-    filename = "Wilson_loop.txt")
-    return Wilson_loop_measurement(
+    params::WilsonLoopParameters,
+    filename = "wilson_loop.txt",
+)
+    return WilsonLoopMeasurement(
         U,
         filename = filename,
         verbose_level = params.verbose_level,
@@ -53,20 +56,21 @@ function Wilson_loop_measurement(
     )
 end
 
-function measure(m::M, U; additional_string = "") where {M<:Wilson_loop_measurement}
+function measure(m::WilsonLoopMeasurement, U; additional_string = "")
     measurestring = ""
-    for R = 1:m.Rmax
-        for T = 1:m.Tmax
-            WL = wilsonloop(U, Lμ=R, Lν=T) # NC=3 and 6 associated loop
-            m.outputvalues[R,T] = tr(WL) / U.NV / 18.0
+    
+    for T in 1:m.Tmax
+        for R in 1:m.Rmax
+            WL = wilsonloop(U, R, T) # NC=3 and 6 associated loop
+            m.outputvalues[R,T] = tr(WL) / (U.NV * 18.0)
 
             if m.printvalues
-                measurestring = " $additional_string $R $T $WL # Wilson_loops # R T W(R,T)"
+                measurestring = " $additional_string $R $T $WL # wilson_loops # R T W(R,T)"
                 println_verbose2(m.verbose_print, measurestring)
             end
         end
     end
 
-    output = Measurement_output(m.outputvalues,measurestring)
+    output = MeasurementOutput(m.outputvalues, measurestring)
     return output
 end

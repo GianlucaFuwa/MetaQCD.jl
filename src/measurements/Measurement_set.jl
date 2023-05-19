@@ -8,11 +8,10 @@ function set_parameter_default(method, key, defaultvalue)
     end
 end
 
-struct Measurements_set
+struct MeasurementsSet
     nummeasurements::Int64
     measurements::Vector{AbstractMeasurement}
     measurement_methods::Vector{Dict}
     methodnames::Vector{String}
     baremeasurement_indices::Vector{Int64}
-    
 end

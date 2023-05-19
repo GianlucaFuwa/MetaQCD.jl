@@ -1,106 +1,117 @@
-struct Heatbath_update <: AbstractUpdate
+struct HeatbathUpdate <: AbstractUpdate
     MAXIT::Int64
     prefactor::Float64
+    _temporary_for_staples::TemporaryField
 
-    function Heatbath_update(U, MAXIT)
+    function HeatbathUpdate(U, MAXIT)
         prefactor = U.NC / U.β
-        return new(MAXIT, prefactor)
+        _temporary_for_staples = TemporaryField(U)
+        return new(MAXIT, prefactor, _temporary_for_staples)
     end
 end
 
-get_MAXIT(hb::Heatbath_update) = hb.MAXIT
-get_prefactor(hb::Heatbath_update) = hb.prefactor
-
 function update!(
-    updatemethod::T,
+    updatemethod::HeatbathUpdate,
     U::Gaugefield,
-    rng::Xoshiro,
-    verbose::Verbose_level;
-    metro_test::Bool = true,
-    ) where {T<:Heatbath_update}
+    rng,
+    verbose::VerboseLevel;
+    metro_test = true,
+)
     
-    MAXIT = get_MAXIT(updatemethod)
-    prefactor = get_prefactor(updatemethod)
-    heatbath_sweep!(U, MAXIT, prefactor, rng)
-    recalc_GaugeAction!(U)
+    heatbath_sweep!(
+        U,
+        updatemethod._temporary_for_staples,
+        updatemethod.MAXIT,
+        updatemethod.prefactor,
+        rng,
+    )
+    recalc_gauge_action!(U)
 
-    return numaccepts / U.NV / 4.0
+    return numaccepts / (U.NV * 4)
 end
 
-function heatbath_sweep!(U::Gaugefield, MAXIT, prefactor, rng::Xoshiro)
+const to = TimerOutput()
+
+function heatbath_sweep!(U::Gaugefield, staples::TemporaryField, MAXIT, prefactor, rng)
     NX, NY, NZ, NT = size(U)
 
-    for it = 1:NT
-		for iz = 1:NZ
-			for iy = 1:NY
-				for ix = 1:NX
-                    site = Site_coords(ix,iy,iz,it)
-					for μ = 1:4
-                        A = staple(U, μ, site)
-                        UA = U[μ][ix,iy,iz,it] * A'
+    #staple_eachsite!(staples, U)
 
-                        subblock = SU2_from_SU3(UA, 1)
-                        subblock = heatbath_SU2(subblock, MAXIT, prefactor, rng) 
-                        R = SU3_from_SU2(subblock, 1)
+    for it in 1:NT
+		for iz in 1:NZ
+			for iy in 1:NY
+				for ix in 1:NX
+                    site = SiteCoords(ix, iy, iz, it)
+					for μ in 1:4
+                        link = U[μ][ix,iy,iz,it]
+                        #A_adj = staples[μ][ix,iy,iz,it]'
+                        A_adj = staple(U, μ, site)'
 
-                        subblock = SU2_from_SU3(UA, 2)
-                        subblock = heatbath_SU2(subblock, MAXIT, prefactor, rng) 
-                        S = SU3_from_SU2(subblock, 2)
+                        subblock = make_submatrix(link * A_adj, 1, 2)
+                        tmp = embed_into_SU3(
+                            heatbath_SU2(subblock, MAXIT, prefactor, rng),
+                            1, 2,
+                        )
+                        link = tmp * link
 
-                        subblock = SU2_from_SU3(UA, 3)
-                        subblock = heatbath_SU2(subblock, MAXIT, prefactor, rng) 
-                        T = SU3_from_SU2(subblock, 3)
-
-                        U[μ][ix,iy,iz,it] = T * S * R * U[μ][ix,iy,iz,it]
+                        subblock = make_submatrix(link * A_adj, 1, 3)
+                        tmp = embed_into_SU3(
+                            heatbath_SU2(subblock, MAXIT, prefactor, rng),
+                            1, 3,
+                        )
+                        link = tmp * link
+                        
+                        subblock = make_submatrix(link * A_adj, 2, 3)
+                        tmp = embed_into_SU3(
+                            heatbath_SU2(subblock, MAXIT, prefactor, rng),
+                            2, 3,
+                        )
+                        U[μ][ix,iy,iz,it] = tmp * link
 					end
 				end
 			end
 		end
 	end
+
     return nothing
 end
 
 function heatbath_SU2(A::SMatrix{2,2,ComplexF64,4}, MAXIT, prefactor, rng)
-    r0 = 1.0
-    λ2 = 1.0
-    a = real(sqrt(det(A)))
+    r0 = 1
+    λ2 = 1
+    a_norm = 1 / sqrt(real(det(A))) # Take real of det(A) to avoid λ2 being a complex number
+    V = a_norm * A
     i = 1
-    while r0^2 + λ2 > 1.0
+    
+    while r0^2 + λ2 >= 1
         if i > MAXIT
-            return SMatrix{2,2,ComplexF64}([
-                1.0 0
-                0 1.0
-            ])
+            return eye2
         end
 
-        r1 = 1.0 - rand(rng)
-        x1 = log(r1)
-        r2 = 1.0 - rand(rng)
-        x2 = cos(2.0*pi*r2)^2
-        r3 = 1.0 - rand(rng)
-        x3 = log(r3)
+        r1 = 1 - rand(rng)
+        r2 = 1 - rand(rng)
+        r3 = 1 - rand(rng)
 
-        λ2 = -0.25*prefactor / a * (x1 + x2*x3)
+        λ2 = (-0.25 * prefactor * a_norm) * (log(r1) + cos(2π * r2)^2 * log(r3))
 
         r0 = rand(rng)
         i += 1
     end
 
-    x0 = 1.0 - 2.0*λ2
-    absx = 1.0 - x0^2
+    x0 = 1 - 2 * λ2
+    abs_x = sqrt(1 - x0^2)
 
     φ = rand(rng)
-    cosϑ = 1.0 - 2.0*rand(rng)
-    vec_norm = absx * sqrt(1.0 - cosϑ^2)
+    cosϑ = 1 - 2 * rand(rng)
+    vec_norm = abs_x * sqrt(1 - cosϑ^2)
 
-    x1 = vec_norm * cos(2.0*π*φ)
-    x2 = vec_norm * sin(2.0*π*φ)
-    x3 = absx * cosϑ
-    mat = SMatrix{2,2,ComplexF64}([
-        x0+im*x3  x2+im*x1
+    x1 = vec_norm * cos(2π * φ)
+    x2 = vec_norm * sin(2π * φ)
+    x3 = abs_x * cosϑ
+    
+    mat = @SMatrix [
+        x0+im*x3 x2+im*x1
         -x2+im*x1 x0-im*x3
-    ])
-    return mat * A/a
+    ]
+    return mat * V'
 end
-
-

@@ -1,9 +1,9 @@
-mutable struct Polyakov_measurement <: AbstractMeasurement
-    filename::Union{Nothing,String}
-    verbose_print::Union{Nothing,Verbose_level}
+mutable struct PolyakovMeasurement <: AbstractMeasurement
+    filename::Union{Nothing, String}
+    verbose_print::Union{Nothing, VerboseLevel}
     printvalues::Bool
 
-    function Polyakov_measurement(
+    function PolyakovMeasurement(
         U;
         filename = nothing,
         verbose_level = 2,
@@ -11,11 +11,11 @@ mutable struct Polyakov_measurement <: AbstractMeasurement
     )
         if printvalues
             if verbose_level == 1
-                verbose_print = Verbose_1(filename)
+                verbose_print = Verbose1(filename)
             elseif verbose_level == 2
-                verbose_print = Verbose_2(filename)
+                verbose_print = Verbose2(filename)
             elseif verbose_level == 3
-                verbose_print = Verbose_3(filename)    
+                verbose_print = Verbose3(filename)    
             end
         else
             verbose_print = nothing
@@ -29,11 +29,12 @@ mutable struct Polyakov_measurement <: AbstractMeasurement
     end
 end
 
-function Polyakov_measurement(
+function PolyakovMeasurement(
     U::Gaugefield,
-    params::Poly_parameters,
-    filename = "Polyakov.txt")
-    return Polyakov_measurement(
+    params::PolyakovParameters,
+    filename = "polyakov.txt",
+)
+    return PolyakovMeasurement(
         U,
         filename = filename,
         verbose_level = params.verbose_level,
@@ -41,33 +42,38 @@ function Polyakov_measurement(
     )
 end
 
-function measure(m::M, U; additional_string = "") where {M <: Polyakov_measurement}
-    NX,NY,NZ,_ = size(U)
+function measure(m::PolyakovMeasurement, U; additional_string = "")
+    NX, NY, NZ, _ = size(U)
     poly = polyakov_traced(U) / (NX * NY * NZ)
     measurestring = ""
+
     if m.printvalues
         measurestring = "$additional_string $(real(poly)) $(imag(poly)) # poly"
         println_verbose2(m.verbose_print, measurestring)
     end
     
-    output = Measurement_output(poly, measurestring)
+    output = MeasurementOutput(poly, measurestring)
     return output
 end
 
 function polyakov_traced(U::Gaugefield)
     space = 8
-    poly = zeros(ComplexF64, nthreads()*space)
+    poly = zeros(ComplexF64, nthreads() * space)
     NX, NY, NZ, NT = size(U)
-    @batch for iz = 1:NZ
-        for iy = 1:NY
-            for ix = 1:NX
+
+    for iz in 1:NZ
+        for iy in 1:NY
+            for ix in 1:NX
                 polymat = U[4][ix,iy,iz,1]
-                for t = 1:NT-1
+
+                for t in 1:NT-1
                     polymat *= U[4][ix,iy,iz,1+t]
                 end
-                poly[threadid()*space] += tr(polymat)
+                
+                poly[threadid() * space] += tr(polymat)
             end
         end
     end
+
     return sum(poly)
 end 
