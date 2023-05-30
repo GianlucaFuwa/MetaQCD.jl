@@ -1,5 +1,4 @@
 module ParametersTOML
-    using Random
     using Unicode
     using TOML
 
@@ -117,13 +116,16 @@ module ParametersTOML
                         value_Params[i] = Tuple(value[String(pname_i)])
                     elseif String(pname_i) == "CVlims"
                         value_Params[i] = Tuple(value[String(pname_i)])
-                    elseif String(pname_i) == "randomseeds"
-                        value_Params[i] = eval(Meta.parse(value[String(pname_i)]))
                     elseif String(pname_i) == "kind_of_gaction"
                         value_Params[i] = Unicode.normalize(
                             value[String(pname_i)], 
-                            casefold = true
-                            )
+                            casefold = true,
+                        )
+                    elseif String(pname_i) == "update_method"
+                        value_Params[i] = Unicode.normalize(
+                            value[String(pname_i)], 
+                            casefold = true,
+                        )
                     else
                         if value[String(pname_i)] == "nothing"
                             value_Params[i] = nothing

@@ -1,4 +1,4 @@
-function clover_square(U::Gaugefield, μ, ν, site::SiteCoords, L)
+function clover_square(U, μ, ν, site::SiteCoords, L)
     clover = @SMatrix zeros(ComplexF64, 3, 3)
 
     clover += wilsonloop_top_right(U, μ, ν, site, L, L)
@@ -9,7 +9,7 @@ function clover_square(U::Gaugefield, μ, ν, site::SiteCoords, L)
     return clover
 end
 
-function clover_rect(U::Gaugefield, μ, ν, site::SiteCoords, L1, L2)
+function clover_rect(U, μ, ν, site::SiteCoords, L1, L2)
     clover = @SMatrix zeros(ComplexF64, 3, 3)
 
     clover += wilsonloop_top_right(U, μ, ν, site, L1, L2)

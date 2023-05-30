@@ -1,4 +1,4 @@
-function wilsonloop(U::Gaugefield, μ, ν, site::SiteCoords, Lμ, Lν)
+function wilsonloop(U, μ, ν, site::SiteCoords, Lμ, Lν)
     right = sign(Lμ) == 1
     top = sign(Lν) == 1
 
@@ -14,7 +14,7 @@ function wilsonloop(U::Gaugefield, μ, ν, site::SiteCoords, Lμ, Lν)
 
 end
 
-function wilsonloop_top_right(U::Gaugefield, μ, ν, site::SiteCoords, Lμ, Lν)
+function wilsonloop_top_right(U, μ, ν, site::SiteCoords, Lμ, Lν)
     Nμ = size(U)[μ]
     Nν = size(U)[ν]
     wil = eye3
@@ -42,7 +42,7 @@ function wilsonloop_top_right(U::Gaugefield, μ, ν, site::SiteCoords, Lμ, Lν)
     return wil
 end
 
-function wilsonloop_bottom_left(U::Gaugefield, μ, ν, site::SiteCoords, Lμ, Lν)
+function wilsonloop_bottom_left(U, μ, ν, site::SiteCoords, Lμ, Lν)
     Nμ = size(U)[μ]
     Nν = size(U)[ν]
     wil = eye3
@@ -70,7 +70,7 @@ function wilsonloop_bottom_left(U::Gaugefield, μ, ν, site::SiteCoords, Lμ, L�
     return wil
 end
 
-function wilsonloop_top_left(U::Gaugefield, μ, ν, site::SiteCoords, Lμ, Lν)
+function wilsonloop_top_left(U, μ, ν, site::SiteCoords, Lμ, Lν)
     Nμ = size(U)[μ]
     Nν = size(U)[ν]
     wil = eye3
@@ -98,7 +98,7 @@ function wilsonloop_top_left(U::Gaugefield, μ, ν, site::SiteCoords, Lμ, Lν)
     return wil
 end
 
-function wilsonloop_bottom_right(U::Gaugefield, μ, ν, site::SiteCoords, Lμ, Lν)
+function wilsonloop_bottom_right(U, μ, ν, site::SiteCoords, Lμ, Lν)
     Nμ = size(U)[μ]
     Nν = size(U)[ν]
     wil = eye3
@@ -126,19 +126,18 @@ function wilsonloop_bottom_right(U::Gaugefield, μ, ν, site::SiteCoords, Lμ, L
     return wil
 end
 
-function wilsonloop(U::Gaugefield, Lμ, Lν)
-    space = 8
+function wilsonloop(U, Lμ, Lν)
     NX, NY, NZ, NT = size(U)
-    wil = zeros(Float64, nthreads() * space)
+    wil = 0.0
 
-    @batch for it in 1:NT
+    for it in 1:NT
         for iz in 1:NZ
             for iy in 1:NY
                 for ix in 1:NX
                     site = SiteCoords(ix, iy, iz, it)
                     for μ in 1:3
                         for ν in μ+1:4
-                            wil[threadid() * space] += real(
+                            wil += real(
                                 tr(wilsonloop(U, μ, ν, site, Lμ, Lν))
                             )
                         end
@@ -148,5 +147,5 @@ function wilsonloop(U::Gaugefield, Lμ, Lν)
         end
     end
 
-    return sum(wil)
+    return wil
 end

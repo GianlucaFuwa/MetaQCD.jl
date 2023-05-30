@@ -1,6 +1,4 @@
 module SystemParameters
-    using Random
-
     import ..ParameterStructs: printlist_physical, printlist_meta, printlist_system
     import ..ParameterStructs: printlist_HMCrelated, printlist_measurement
 
@@ -49,6 +47,7 @@ module SystemParameters
         integrator::Union{Nothing, String}
         Δτ::Union{Nothing, Float64}
         hmc_steps::Union{Nothing, Int64}
+        eo::Union{Nothing, Bool}
         MAXIT::Union{Nothing, Int64}
         numHB::Union{Nothing, Int64}
         numOR::Union{Nothing, Int64}
@@ -68,7 +67,7 @@ module SystemParameters
         loadU_fromfile::Bool
         loadU_filename::String
 
-		randomseeds::Vector{Xoshiro}
+		randomseed::Union{Nothing, Int64}
 		logdir::String
 		logfile::String
 		load_fp::IOStream

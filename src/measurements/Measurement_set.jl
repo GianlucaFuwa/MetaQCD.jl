@@ -1,4 +1,4 @@
-import ..Abstractsmearing
+import ..AbstractSmearing
 
 function set_parameter_default(method, key, defaultvalue)
     if haskey(method, key)

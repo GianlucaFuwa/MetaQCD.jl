@@ -2,9 +2,8 @@ module Mainrun
     using Dates
     using DelimitedFiles
     using InteractiveUtils
+    using Random
     using ..VerbosePrint
-    #using Distributed
-    #using Base.Threads: @spawn, nthreads
     
     import ..AbstractMeasurementModule: measure
     import ..AbstractUpdateModule: Updatemethod, update!
@@ -19,7 +18,7 @@ module Mainrun
         filename_head = splitext(filenamein)[1]
         filename = filename_head * ".toml"
         parameters = construct_params_from_toml(filename)
-        rng = parameters.randomseeds
+        Random.seed!(parameters.randomseed)
         
         univ = Univ(parameters)
         println_verbose1(univ.verbose_print, "# ", pwd())
@@ -58,7 +57,6 @@ module Mainrun
                     _, runtime = @timed update!(
                         updatemethod[i],
                         univ.U[i],
-                        rng[i],
                         univ.verbose_print,
                         metro_test = false,
                     )
@@ -88,7 +86,6 @@ module Mainrun
                     accepted, runtime = @timed update!(
                         updatemethod[i],
                         univ.U[i],
-                        rng[i],
                         univ.verbose_print,
                     )
                     numaccepts[i] += accepted
@@ -108,7 +105,6 @@ module Mainrun
                             univ.U[i-1],
                             univ.Bias[i],
                             univ.Bias[i-1],
-                            rng,
                         )
                         numaccepts_temper[i-1] += ifelse(accepted, 1, 0)
                     end

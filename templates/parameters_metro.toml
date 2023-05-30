@@ -6,7 +6,7 @@ Ntherm = 10
 Nsteps = 100
 initial = "cold"
 update_method = "Metropolis"
-multi_hit = 5
+metro_multi_hit = 5
 metro_target_acc = 0.5
 
 ["System Settings"]               

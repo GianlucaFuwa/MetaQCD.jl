@@ -1,74 +1,89 @@
-struct StoutSmearing <: AbstractSmearing
-	numlayers::Int
-	ρ::AbstractFloat
+struct StoutSmearing{T} <: AbstractSmearing
+	numlayers::Int64
+	ρ::Float64
+	Usmeared_multi::Vector{Gaugefield{T}}
+	C_multi::Vector{TemporaryField}
+	Q_multi::Vector{CoeffField}
+	Λ::TemporaryField
+
+	function StoutSmearing(
+		U::Gaugefield{T},
+		numlayers,
+		ρ;
+		recursive = true,
+	) where {T <: AbstractGaugeAction}
+		@assert numlayers >= 0 && ρ >= 0 "number of stout layers and ρ must be >= 0"
+		if numlayers == 0 || ρ == 0
+			return NoSmearing()
+		else
+			Usmeared_multi = Vector{Gaugefield{T}}(undef, numlayers + 1)
+			C_multi = Vector{TemporaryField}(undef, numlayers)
+			Q_multi = Vector{CoeffField}(undef, numlayers)
+			Λ = TemporaryField(U)
+	
+			Usmeared_multi[1] = similar(U)
+	
+			for i in 1:numlayers
+				Usmeared_multi[i+1] = similar(U)
+				C_multi[i] = TemporaryField(U)
+				Q_multi[i] = CoeffField(U)
+			end
+	
+			return new{T}(numlayers, ρ, Usmeared_multi, C_multi, Q_multi, Λ)
+		end
+	end
 end
 
-function Base.length(s::StoutSmearing)
+function Base.length(s::StoutSmearing{T}) where {T}
 	return s.numlayers
 end
 
-function get_ρ(s::StoutSmearing)
-	return s.ρ
+function get_layer(s::StoutSmearing{T}, i) where {T}
+	return s.Usmeared_multi[i]
 end
 
-function apply_smearing(U::Gaugefield, smearing::StoutSmearing)
+function apply_smearing!(
+	smearing::StoutSmearing{T},
+	Uin::Gaugefield{T},
+) where {T <: AbstractGaugeAction}
 	numlayers = length(smearing)
-	ρ = get_ρ(smearing)
-	Uout_multi = Vector{T}(undef, numlayers)
-	staples_multi = Vector{TemporaryField}(undef, numlayers-1)
-	Qs_multi = Vector{TemporaryField}(undef, numlayers-1)
+	ρ = smearing.ρ
+	Uout_multi = smearing.Usmeared_multi
+	C_multi = smearing.C_multi
+	Q_multi = smearing.Q_multi
+
+	substitute_U!(Uout_multi[1], Uin)
 
 	for i in 1:numlayers
-		Uout_multi[i] = similar(U)
-		staples_multi[i] = TemporaryField(U)
-		Qs_multi[i] = TemporaryField(U)
+		apply_stout_smearing!(
+			Uout_multi[i+1],
+			C_multi[i],
+			Q_multi[i],
+			Uout_multi[i],
+			ρ,
+		)
 	end
 
-	calc_stout_multi!(Uout_multi, staples_multi, Qs_multi, U, ρ, numlayers)
-	return Uout_multi, staples_multi, Qs_multi
-end
-
-function calc_stout_multi!(
-	Uout_multi::Vector{Gaugefield}, 
-	staples_multi::Vector{TemporaryField}, 
-	Qs_multi::Vector{TemporaryField}, 
-	Uin::Gaugefield, 
-	ρ, 
-	numlayers,
-) 
-	U = deepcopy(Uin)
-
-	for i in 1:numlayers
-		substitute_U!(Uout_multi[i], U)
-		apply_stout_smearing!(U, Uout_multi[i], staples_multi[i], Qs_multi[i], ρ)
-	end
-
-	substitute_U!(Uin, U)
 	return nothing
 end
 
 function apply_stout_smearing!(
-	Uout::Gaugefield,
-	U::Gaugefield,
-	staples::TemporaryField,
-	Qs::TemporaryField,
+	Uout::Gaugefield{T},
+	C::TemporaryField,
+	Q::CoeffField,
+	U::Gaugefield{T},
 	ρ,
-)
+) where {T <: AbstractGaugeAction}
 	NX, NY, NZ, NT = size(Uout)
-	staple_eachsite!(staples, U)
-	calc_Qmatrices!(Qs, staples, U, ρ)
+	calc_stout_Q!(Q, C, U, ρ)
 	
-	@batch for it in 1:NT
+	for it in 1:NT
 		for iz in 1:NZ
 			for iy in 1:NY
 				for ix in 1:NX
-					Uout[1][ix,iy,iz,it] = exp_iQ(Qs[1][ix,iy,iz,it]) * U[1][ix,iy,iz,it]
-
-					Uout[2][ix,iy,iz,it] = exp_iQ(Qs[2][ix,iy,iz,it]) * U[2][ix,iy,iz,it]
-
-					Uout[3][ix,iy,iz,it] = exp_iQ(Qs[3][ix,iy,iz,it]) * U[3][ix,iy,iz,it]
-
-					Uout[4][ix,iy,iz,it] = exp_iQ(Qs[4][ix,iy,iz,it]) * U[4][ix,iy,iz,it]
+					for μ in 1:4
+						Uout[μ][ix,iy,iz,it] = exp_iQ(Q[μ][ix,iy,iz,it]) * U[μ][ix,iy,iz,it]
+					end
 				end
 			end
 		end
@@ -77,23 +92,32 @@ function apply_stout_smearing!(
 	return nothing
 end
 
-function stout_recursion!(
-	Σcurrent::TemporaryField,
-	Uout_multi::Union{Nothing, Vector{Gaugefield}},
-	staples_multi::Union{Nothing, Vector{TemporaryField}},
-	Qs_multi::Union{Nothing, Vector{TemporaryField}},
-	smearing,
-)
-	if Uout_multi === nothing || staples_multi === nothing || Qs_multi === nothing
-		return nothing
-	end
-
+function stout_backprop!(
+	Σ_current::TemporaryField,
+	Σ_prev::Union{Nothing, TemporaryField},
+	# U_unsmeared::Gaugefield,
+	smearing::StoutSmearing{T},
+) where {T}
+	ρ = smearing.ρ
 	numlayers = length(smearing)
-	Σprev = similar(Σcurrent)
 
-	for i in numlayers:-1:1
-		layer_backprop!(Σprev, Σcurrent, Uout_multi[i], staples_multi[i], Qs_multi[i], ρ)
-		Σcurrent, Σprev = Σprev, Σcurrent
+	Usmeared_multi = smearing.Usmeared_multi
+	C_multi = smearing.C_multi
+	Q_multi = smearing.Q_multi
+	Λ = smearing.Λ
+
+	for i in reverse(1:numlayers)
+		stout_recursion!(
+			Σ_prev,
+			Σ_current,
+			Usmeared_multi[i+1],
+			Usmeared_multi[i],
+			C_multi[i],
+			Q_multi[i],
+			Λ,
+			ρ,
+		)
+		substitute_U!(Σ_current, Σ_prev)
 	end
 
 	return nothing
@@ -105,50 +129,60 @@ See: hep-lat/0311018 by Morningstar & Peardon \\
 \\
 Σμ = Σμ'⋅exp(iQμ) + iCμ†⋅Λμ - i∑{...}   
 """
-function layer_backprop!(
+function stout_recursion!(
 	Σ::TemporaryField,
-	Σprime::TemporaryField,
-	U::Gaugefield,
+	Σ_prime::TemporaryField,
+	U_prime::Gaugefield{T},
+	U::Gaugefield{T},
 	C::TemporaryField,
-	Q::TemporaryField,
+	Q::CoeffField,
+	Λ::TemporaryField,
 	ρ,
-)
-	Λ = similar(Σ)
-	staple_eachsite!(C, U)
-	calc_Qmatrices!(Q, C, U, ρ)
-	calc_Λmatrices!(Λ, Σ, Q, U)
-	NX, NY, NZ, NT = size(Σprime)
+) where {T <: AbstractGaugeAction}
+	NX, NY, NZ, NT = size(Σ_prime)
 
-	@batch for it in 1:NT
+	lmul!(adjoint, Σ_prime, U_prime)
+
+	calc_stout_Λ!(Λ, Σ_prime, Q, U)
+
+	for it in 1:NT
 		for iz in 1:NZ
 			for iy in 1:NY
 				for ix in 1:NX
 					site = SiteCoords(ix, iy, iz, it)
+
 					for μ in 1:4
-						Nμ = size(Σprime)[μ]
+						Nμ = size(Σ_prime)[μ]
 						siteμp = move(site, μ, 1, Nμ)
+						force_sum = @SMatrix zeros(ComplexF64, 3, 3)
+
 						for ν in 1:4
 							if ν == μ
 								continue
 							end
 
-							Nν = size(Σprime)[ν]
-							siteνp = move(site, μ, 1, Nν)
-							siteνn = move(site, μ, -1 ,Nν)
+							Nν = size(Σ_prime)[ν]
+							siteνp = move(site, ν, 1, Nν)
+							siteνn = move(site, ν, -1 ,Nν)
 							siteμpνn = move(siteμp, ν, -1, Nν)
-							force_sum = 
+
+							force_sum += 
 								U[ν][siteμp]    * U[μ][siteνp]'  * U[ν][site]'   * Λ[ν][site]   + 
 								U[ν][siteμpνn]' * U[μ][siteνn]'  * Λ[μ][siteνn]  * U[ν][siteνn] + 
 								U[ν][siteμpνn]' * Λ[ν][siteμpνn] * U[μ][siteνn]' * U[ν][siteνn] - 
 								U[ν][siteμpνn]' * U[μ][siteνn]'  * Λ[ν][siteνn]  * U[ν][siteνn] - 
 								Λ[ν][siteμp]    * U[ν][siteμp]   * U[μ][siteνp]' * U[ν][site]'  + 
 								U[ν][siteμp]    * U[μ][siteνp]'  * Λ[μ][siteνp]  * U[ν][site]'
-
-							Σ[μ][ix,iy,iz,it] = 
-								Σprime[μ][ix,iy,iz,it]  * exp_iQ(Q[μ][ix,iy,iz,it]) +
-								im * C[μ][ix,iy,iz,it]' * Λ[μ][ix,iy,iz,it]         -
-								im * ρ * force_sum
+							
 						end
+
+						link = U[μ][ix,iy,iz,it]
+						Q_mat = Q[μ][ix,iy,iz,it].Q
+						Σ[μ][ix,iy,iz,it] = traceless_antihermitian(
+							link * Σ_prime[μ][ix,iy,iz,it] * exp_iQ(Q_mat) +
+							im * link * C[μ][ix,iy,iz,it]' * Λ[μ][ix,iy,iz,it] -
+							im * ρ * link * force_sum
+						)
 					end
 				end
 			end
@@ -163,66 +197,65 @@ end
 	+ f1⋅U⋅Σ' + f2⋅Q⋅U⋅Σ' + f1⋅U⋅Σ'⋅Q \\
 Λ = 1/2⋅(Γ + Γ†) - 1/(2N)⋅Tr(Γ + Γ†)
 """
-function calc_Λmatrices!(
+function calc_stout_Λ!(
 	Λ::TemporaryField,
 	Σprime::TemporaryField,
-	Q::Gaugefield,
-	U::Gaugefield,
-)
-	NX, NY, NZ, NT = size(M)
+	Q::CoeffField,
+	U::Gaugefield{T},
+) where {T <: AbstractGaugeAction}
+	NX, NY, NZ, NT = size(U)
 
-	@batch for it in 1:NT
+	for it in 1:NT
 		for iz in 1:NZ
 			for iy in 1:NY
 				for ix in 1:NX
 					for μ in 1:4
-						Qn = Q[μ][ix,iy,iz,it]
-						trQ2 = tr(Qn, Qn)
+						q = Q[μ][ix,iy,iz,it]
+						Q_mat = q.Q
+						UΣ = U[μ][ix,iy,iz,it] * Σprime[μ][ix,iy,iz,it]
+						
+						B1_mat = B1(q)
+						B2_mat = B2(q)
 
-						if trQ2 > 1e-16
-							f0, f1, f2, b10, b11, b12, b20, b21, b22 = calc_coefficients(Qn)
-							UΣ = U[μ][ix,iy,iz,it] * Σprime[μ][ix,iy,iz,it]
-							
-							B1 = b10*I + b11*Qn + b12*Qn^2
-							B2 = b20*I + b21*Qn + b22*Qn^2
+						Γ = tr(B1_mat, UΣ) * Q_mat + 
+							tr(B2_mat, UΣ) * Q_mat^2 +
+							q.f1 * UΣ + 
+							q.f2 * Q_mat * UΣ + 
+							q.f2 * UΣ * Q_mat
 
-							Γ = tr(UΣ, B1)*Qn  + tr(UΣ, B2)*Qn^2 +
-								f1*UΣ + f2*Qn*UΣ + f2*UΣ*Qn
-
-							Λ[μ][ix,iy,iz,it] = traceless_hermitian(Γ)
-						end
-
+						Λ[μ][ix,iy,iz,it] = traceless_hermitian(Γ)
 					end
 				end
 			end
 		end
 	end
+
 	return nothing
 end
 
-function calc_Qmatrices!(
-	Q::TemporaryField,
-	staples::TemporaryField,
-	U::Gaugefield,
+function calc_stout_Q!(
+	Q::CoeffField,
+	C::TemporaryField,
+	U::Gaugefield{T},
 	ρ,
-)
-	NX, NY, NZ, NT = size(Q)
+) where {T <: AbstractGaugeAction}
+	NX, NY, NZ, NT = size(U)
+	staple = T()
 
-	@batch for it in 1:NT
+	for it in 1:NT
 		for iz in 1:NZ
 			for iy in 1:NY
 				for ix in 1:NX
-					Ω = ρ * U[1][ix,iy,iz,it] * staples[1][ix,iy,iz,it]'
-					Q[1][ix,iy,iz,it] = im * traceless_antihermitian(Ω)
+					site = SiteCoords(ix, iy, iz, it)
 
-					Ω = ρ * U[2][ix,iy,iz,it] * staples[2][ix,iy,iz,it]'
-					Q[2][ix,iy,iz,it] = im * traceless_antihermitian(Ω)
+					for μ in 1:4
+						Cμ = ρ * staple(U, μ, site)
+						C[μ][ix,iy,iz,it] = Cμ
 
-					Ω = ρ * U[3][ix,iy,iz,it] * staples[3][ix,iy,iz,it]'
-					Q[3][ix,iy,iz,it] = im * traceless_antihermitian(Ω)
-
-					Ω = ρ * U[4][ix,iy,iz,it] * staples[4][ix,iy,iz,it]'
-					Q[4][ix,iy,iz,it] = im * traceless_antihermitian(Ω)
+						Ω = Cμ * U[μ][ix,iy,iz,it]'
+						Q[μ][ix,iy,iz,it] = exp_iQ_coeffs(-im * traceless_antihermitian(Ω))
+					end
+					
 				end
 			end
 		end

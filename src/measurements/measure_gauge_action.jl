@@ -1,5 +1,5 @@
-import ..Gaugefields: gauge_action_wilson, gauge_action_symanzik
-import ..Gaugefields: gauge_action_iwasaki, gauge_action_dbw2
+import ..Gaugefields: WilsonGaugeAction, SymanzikTreeGaugeAction, SymanzikTadGaugeAction
+import ..Gaugefields: IwasakiGaugeAction, DBW2GaugeAction
 
 mutable struct GaugeActionMeasurement <: AbstractMeasurement
     filename::Union{Nothing, String}
@@ -61,19 +61,23 @@ function measure(m::GaugeActionMeasurement, U; additional_string = "")
 
     for (i, methodname) in enumerate(m.GA_methods)
         if methodname == "wilson"
-            Sg_wils = gauge_action_wilson(U) * m.factor
+            Sg_wils = WilsonGaugeAction()(U) * m.factor
             values[i] = Sg_wils
             valuedic["wilson"] = Sg_wils
-        elseif methodname == "symanzik"
-            Sg_symanzik = gauge_action_symanzik(U) * m.factor
-            values[i] = Sg_symanzik
-            valuedic["symanzik"] = Sg_symanzik
+        elseif methodname == "symanzik_tree"
+            Sg_symanzik_tree = SymanzikTreeGaugeAction()(U) * m.factor
+            values[i] = Sg_symanzik_tree
+            valuedic["symanzik_tree"] = Sg_symanzik_tree
+        elseif methodname == "symanzik_tad"
+            Sg_symanzik_tad = SymanzikTadGaugeAction()(U) * m.factor
+            values[i] = Sg_symanzik_tad
+            valuedic["symanzik_tad"] = Sg_symanzik_tad
         elseif methodname == "iwasaki"
-            Sg_iwasaki = gauge_action_symanzik(U) * m.factor
+            Sg_iwasaki = IwasakiGaugeAction()(U) * m.factor
             values[i] = Sg_iwasaki
             valuedic["iwasaki"] = Sg_iwasaki
         elseif methodname == "dbw2"
-            Sg_dbw2 = gauge_action_dbw2(U) * m.factor
+            Sg_dbw2 = DBW2GaugeAction()(U) * m.factor
             values[i] = Sg_dbw2
             valuedic["dbw2"] = Sg_dbw2
         else 
@@ -89,8 +93,10 @@ function measure(m::GaugeActionMeasurement, U; additional_string = "")
         for methodname in m.TC_methods
             if methodname == "wilson"
                 printstring *= "Sg_wilson"
-            elseif methodname == "symanzik"
-                printstring *= "Sg_symanzik"
+            elseif methodname == "symanzik_tree"
+                printstring *= "Sg_symanzik_tree"
+            elseif methodname == "symanzik_tad"
+                printstring *= "Sg_symanzik_tad"
             elseif methodname == "iwasaki"
                 printstring *= "Sg_iwasaki"
             elseif methodname == "dbw2"

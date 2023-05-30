@@ -2,65 +2,93 @@
 Generator of Matrices X ∈ SU(3) near the identity \\
 From Gattringer C. & Lang C.B. (Springer, Berlin Heidelberg 2010)
 """
-function gen_SU3_matrix(rng, ϵ)
-    R2 = gen_SU2_matrix(rng, ϵ)
-    S2 = gen_SU2_matrix(rng, ϵ)
-    T2 = gen_SU2_matrix(rng, ϵ)
+function gen_SU3_matrix(ϵ)
+    R2 = gen_SU2_matrix(ϵ)
+    S2 = gen_SU2_matrix(ϵ)
+    T2 = gen_SU2_matrix(ϵ)
 
-    R = SU3_from_SU2(R2, 1)
-    S = SU3_from_SU2(S2, 2)
-    T = SU3_from_SU2(T2, 3)
-    X = R * S * T
+    R = embed_into_SU3(R2, 1, 2)
+    S = embed_into_SU3(S2, 1, 3)
+    T = embed_into_SU3(T2, 2, 3)
+    out = R * S * T
 
-    if rand(rng) < 0.5
-        return X
+    if rand() < 0.5
+        return out
     else
-        return X'
+        return out'
     end
 end
 
-function gen_SU2_matrix(rng, ϵ)
-    r1 = rand(rng) - 0.5
-    r2 = rand(rng) - 0.5
-    r3 = rand(rng) - 0.5
+function gen_SU2_matrix(ϵ)
+    r1 = rand() - 0.5
+    r2 = rand() - 0.5
+    r3 = rand() - 0.5
     rnorm = sqrt(r1^2 + r2^2 + r3^2)
-    X = sqrt(1 - ϵ^2) * eye2 + 
+    out = sqrt(1 - ϵ^2) * eye2 + 
         im * ϵ/rnorm * (r1 * σ1 + r2 * σ2 + r3 * σ3)
-    return X
+    return out
 end
 
-function embed_into_SU3(M::SMatrix{2,2,T,4}, i, j) where {T}
-    M_SU3 = zeros(ComplexF64, 3, 3)
+function gaussian_su3_matrix()
+    sq3 = sqrt(3)
+    h1 = 0.5 * randn()
+    h2 = 0.5 * randn()
+    h3 = 0.5 * randn()
+    h4 = 0.5 * randn()
+    h5 = 0.5 * randn()
+    h6 = 0.5 * randn()
+    h7 = 0.5 * randn()
+    h8 = 0.5 * randn()
+    out = @SMatrix [
+        im*(h3+h8/sq3) h2+im*h1        h5+im*h4
+        -h2+im*h1      im*(-h3+h8/sq3) h7+im*h6
+        -h5+im*h4      -h7+im*h6       im*(-2*h8/sq3) 
+    ]
+    return out
+end
 
-    for n = 1:3
-        M_SU3[n,n] = 1
+function embed_into_SU3(M::SMatrix{2,2,ComplexF64,4}, i, j)
+    if (i, j) == (1, 2)
+        out = @SMatrix [
+            M[1,1] M[1,2] 0
+            M[2,1] M[2,2] 0
+            0.0000 0.0000 1 
+        ]
+    elseif (i, j) == (2, 3)
+        out = @SMatrix [
+            1 0.0000 0.0000
+            0 M[1,1] M[1,2]
+            0 M[2,1] M[2,2] 
+        ]
+    elseif (i, j) == (1, 3)
+        out = @SMatrix [
+            M[1,1] 0 M[1,2]
+            0.0000 1 0.0000
+            M[2,1] 0 M[2,2] 
+        ]
     end
 
-    M_SU3[i,i] = M[1,1]
-    M_SU3[i,j] = M[1,2]
-    M_SU3[j,i] = M[2,1]
-    M_SU3[j,j] = M[2,2]
-    return SMatrix{3,3,ComplexF64}(M_SU3)
+    return out
 end
 
 function make_submatrix(M::SMatrix{3,3,ComplexF64,9}, i, j)
     α = 0.5 * (M[i,i] + conj(M[j,j]))
     β = 0.5 * (M[j,i] - conj(M[i,j]))
-    M_SU2 = @SMatrix [
+    out = @SMatrix [
         α -conj(β)
         β  conj(α)
     ]
-    return M_SU2
+    return out
 end
 
 function proj_onto_SU2(M::SMatrix{2,2,ComplexF64,4})
     α = 0.5 * (M[1,1] + conj(M[2,2]))
     β = 0.5 * (M[1,2] - conj(M[2,1]))
-    S = @SMatrix [
+    out = @SMatrix [
         α -conj(β)
         β  conj(α)
     ]
-    return S
+    return out
 end
 
 function proj_onto_SU3(M::SMatrix{3,3,ComplexF64,9})
@@ -72,8 +100,9 @@ function proj_onto_SU3(M::SMatrix{3,3,ComplexF64,9})
     col2 /= norm(col2)
     col3 -= (col1' * col3) * col1 + (col2' * col3) * col2
     col3 /= norm(col3)
-    M_SU3 = [col1 col2 col3]
-    return M_SU3 / det(M_SU3)^(1/3)
+    out = [col1 col2 col3]
+    out /= det(out)^(1/3) # make output a little special
+    return out
 end
 
 function kenney_laub(M::SMatrix{3,3,ComplexF64,9})
@@ -84,10 +113,10 @@ function kenney_laub(M::SMatrix{3,3,ComplexF64,9})
             break
         end
 
-        M = M / 3 * (eye3 + 8/3 * inv(M' * M + 1/3 * eye3))
+        M = M/3 * (eye3 + 8/3 * inv(M' * M + 1/3 * eye3))
     end
 
-    M = M / det(M)^(1/3)
+    M /= det(M)^(1/3)
     return M
 end
 
@@ -102,17 +131,21 @@ function is_traceless_antihermitian(M::SMatrix{3,3,ComplexF64,9}, prec = 1e-6)
 end
 
 function traceless_antihermitian(M::SMatrix{3,3,ComplexF64,9})
-    return 0.5 * (M - M') - 1/6 * tr(M - M') * eye3
+    out = 0.5 * (M - M') - 1/6 * tr(M - M') * eye3
+    return out
 end
 
 function antihermitian(M::SMatrix{3,3,ComplexF64,9})
-    return 0.5 * (M - M')
+    out = 0.5 * (M - M')
+    return out
 end
 
 function traceless_hermitian(M::SMatrix{3,3,ComplexF64,9})
-    return 0.5 * (M + M') - 1/6 * tr(M + M') * eye3
+    out = 0.5 * (M + M') - 1/6 * tr(M + M') * eye3
+    return out
 end
 
 function hermitian(M::SMatrix{3,3,ComplexF64,9})
-    return 0.5 * (M + M')
+    out = 0.5 * (M + M')
+    return out
 end

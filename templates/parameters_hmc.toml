@@ -1,22 +1,23 @@
 ["Physical Settings"]
 L = [4, 4, 4, 4]
 "β" = 5.7
-kind_of_gaction = "wilson"
+kind_of_gaction = "Wilson"
 Ntherm = 10
-Nsteps = 100
+Nsteps = 10
 initial = "cold"
-update_method = "heatbath"
-hb_eo = false
-hb_MAXIT = 10
-hb_numHB = 4
-hb_numOR = 0
+update_method = "HMC"
+
+["HMC related"]
+"hmc_Δτ" = 0.1
+hmc_steps = 10
+hmc_integrator = "OMF4"
 
 ["System Settings"]               
 logdir = "./logs/L4x4x4x4_beta5.7"
-logfile = "Heatbath_test.txt"
+logfile = "HMC_test.txt"
 measurement_basedir = "./measurements/L4x4x4x4_beta5.7"
-measurement_dir = "Heatbath_test"
-randomseed = 1206
+measurement_dir = "HMC_test"
+randomseeds = 1206
 
 ["Measurement set".measurement_methods.Polyakov_loop]
 measure_every = 5

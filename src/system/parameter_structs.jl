@@ -1,6 +1,4 @@
 module ParameterStructs
-    using Random
-
     import ..AbstractMeasurementModule: MeasurementParameters
     @enum SmearingMethod NoSmearing = 1 STOUT = 2
 
@@ -71,6 +69,7 @@ module ParameterStructs
         tempering_enabled::Bool = false
         numinstances::Int64 = 1
         swap_every::Union{Nothing, Int64} = nothing
+        eo::Bool = false
         MAXIT::Int64 = 10^5
         numHB::Int64 = 4
         numOR::Int64 = 1
@@ -103,7 +102,7 @@ module ParameterStructs
         saveU_dir::String = ""
         saveU_format::Union{String, Nothing} = nothing
         saveU_every::Int64 = 1
-        randomseeds::Vector{AbstractRNG} = [Xoshiro()]
+        randomseed::Union{Nothing, Int64} = nothing
         measurement_basedir::String = ""
         measurement_dir::String = ""
         savebias_dir::Union{Nothing, String, Vector{String}} = nothing

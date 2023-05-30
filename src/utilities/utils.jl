@@ -3,18 +3,17 @@ module Utils
     using Random
     using StaticArrays
 
-    import LinearAlgebra: tr
-
-    export calc_coefficients, exp_iQ, gen_SU3_matrix, is_SU3, is_su3, gen_SU3_matrix
+    export exp_iQ, exp_iQ_coeffs, exp_iQ_su3, B1, B2, Q
+    export gen_SU3_matrix, is_SU3, is_su3
     export kenney_laub, proj_onto_SU3, make_submatrix, embed_into_SU3, tr
     export antihermitian, hermitian, traceless_antihermitian, traceless_hermitian
-    export eye2, eye3, δ, ε_tensor
-    export get_coords, move, SiteCoords, to_indices
+    export eye2, eye3, δ, ε_tensor, gaussian_su3_matrix
+    export get_coords, move, SiteCoords
 
     const eye3 = @SArray [
-        1 0 0
-        0 1 0
-        0 0 1
+        1.0+0.0im 0.0+0.0im 0.0+0.0im
+        0.0+0.0im 1.0+0.0im 0.0+0.0im
+        0.0+0.0im 0.0+0.0im 1.0+0.0im
     ]
     # Dirac-Basis γ matrices
     const γ1 = @SArray [
@@ -46,8 +45,8 @@ module Utils
     ]
 
     const eye2 = @SArray [
-        1 0
-        0 1
+        1.0+0.0im 0.0+0.0im
+        0.0+0.0im 1.0+0.0im
     ]
 
     const σ1 = @SArray [
@@ -102,12 +101,12 @@ module Utils
 		return iseven(flips) ? 1 : -1
 	end
 
-    function LinearAlgebra.tr(A::SMatrix{3,3,ComplexF64,9}, B::SMatrix{3,3,ComplexF64,9})
-        trace = 0.0
+    function LinearAlgebra.tr(A::AbstractMatrix, B::AbstractMatrix)
+        trace = 0.0 + 0.0im
 
         for i in 1:3
-            for j in 1:3
-                trace += A[i,j] * B[j,i]
+            @simd for j in 1:3
+                @inbounds trace += A[i,j] * B[j,i]
             end
         end
 

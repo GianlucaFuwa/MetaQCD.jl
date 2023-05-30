@@ -1,17 +1,15 @@
 module Gaugefields
-	using Random
+	using Base.Threads: nthreads, threadid, @threads
 	using LinearAlgebra
 	using StaticArrays
 	using Polyester
-	using TimerOutputs
 	using ..Utils
 
-	import Base.Threads: nthreads, threadid
+	abstract type Abstractfield end
+	abstract type AbstractGaugeAction end
 
-	const too = TimerOutput()
-
-	struct Gaugefield
-		U::Vector{Array{SMatrix{3,3,ComplexF64,9},4}}
+	struct Gaugefield{T<:AbstractGaugeAction} <: Abstractfield
+		U::Vector{Array{SMatrix{3, 3, ComplexF64, 9}, 4}}
 		NX::Int64
 		NY::Int64
 		NZ::Int64
@@ -20,30 +18,73 @@ module Gaugefields
 		NC::Int64
 
 		β::Float64
-		kind_of_gaction::String
 		Sg::Base.RefValue{Float64}
 		CV::Base.RefValue{Float64}
 
 		function Gaugefield(NX, NY, NZ, NT, β; kind_of_gaction = "wilson")
-			U = Vector{Array{SMatrix{3,3,ComplexF64,9},4}}(undef, 0)
+			U = Vector{Array{SMatrix{3, 3, ComplexF64, 9}, 4}}(undef, 4)
 
 			for μ = 1:4
-				Uμ = Array{SMatrix{3,3,ComplexF64,9},4}(undef, NX, NY, NZ, NT)
-				fill!(Uμ, SMatrix{3,3,ComplexF64,9}(zeros(3, 3)))
-				push!(U, Uμ)
+				Uμ = Array{SMatrix{3, 3, ComplexF64, 9}, 4}(undef, NX, NY, NZ, NT)
+				U[μ] = Uμ
 			end
 
 			NV = NX * NY * NZ * NT
 
-			type_of_gaction = kind_of_gaction
+			if kind_of_gaction == "wilson"
+				GaugeAction = WilsonGaugeAction()
+			elseif kind_of_gaction == "symanzik_tree"
+				GaugeAction = SymanzikTreeGaugeAction()
+			elseif kind_of_gaction == "symanzik_tadpole"
+				GaugeAction = SymanzikTadGaugeAction()
+			elseif kind_of_gaction == "iwasaki"
+				GaugeAction = IwasakiGaugeAction()
+			elseif kind_of_gaction == "dbw2"
+				GaugeAction = DBW2GaugeAction()
+			else
+				error("Gauge action '$(kind_of_gaction)' not supported")
+			end
+
 			Sg = Base.RefValue{Float64}(0.0)
 			CV = Base.RefValue{Float64}(0.0)
-			return new(U, NX, NY, NZ, NT, NV, 3, β, type_of_gaction, Sg, CV)
+			return new{typeof(GaugeAction)}(U, NX, NY, NZ, NT, NV, 3, β, Sg, CV)
+		end
+
+		function Gaugefield(NX, NY, NZ, NT, β, GaugeAction)
+			U = Vector{Array{SMatrix{3, 3, ComplexF64, 9}, 4}}(undef, 4)
+
+			for μ = 1:4
+				Uμ = Array{SMatrix{3, 3, ComplexF64, 9}, 4}(undef, NX, NY, NZ, NT)
+				U[μ] = Uμ
+			end
+
+			NV = NX * NY * NZ * NT
+
+			Sg = Base.RefValue{Float64}(0.0)
+			CV = Base.RefValue{Float64}(0.0)
+			return new{typeof(GaugeAction)}(U, NX, NY, NZ, NT, NV, 3, β, Sg, CV)
+		end
+
+		function Gaugefield(u::Gaugefield{T}) where {T}
+			NX, NY, NZ, NT = size(u)
+			β = u.β
+			U = Vector{Array{SMatrix{3, 3, ComplexF64, 9}, 4}}(undef, 4)
+
+			for μ = 1:4
+				Uμ = Array{SMatrix{3, 3, ComplexF64, 9}, 4}(undef, NX, NY, NZ, NT)
+				U[μ] = Uμ
+			end
+
+			NV = NX * NY * NZ * NT
+
+			Sg = Base.RefValue{Float64}(0.0)
+			CV = Base.RefValue{Float64}(0.0)
+			return new{T}(U, NX, NY, NZ, NT, NV, 3, β, Sg, CV)
 		end
 	end
 
-	struct TemporaryField
-		U::Vector{Array{SMatrix{3,3,ComplexF64,9},4}}
+	struct TemporaryField <: Abstractfield
+		U::Vector{Array{SMatrix{3, 3, ComplexF64, 9}, 4}}
 		NX::Int64
 		NY::Int64
 		NZ::Int64
@@ -52,12 +93,11 @@ module Gaugefields
 		NC::Int64
 
 		function TemporaryField(NX, NY, NZ, NT)
-			U = Vector{Array{SMatrix{3,3,ComplexF64,9},4}}(undef, 0)
+			U = Vector{Array{SMatrix{3, 3, ComplexF64, 9}, 4}}(undef, 4)
 
 			for μ = 1:4
-				Uμ = Array{SMatrix{3,3,ComplexF64,9},4}(undef, NX, NY, NZ, NT)
-				fill!(Uμ, SMatrix{3,3,ComplexF64,9}(zeros(3, 3)))
-				push!(U, Uμ)
+				Uμ = Array{SMatrix{3, 3, ComplexF64, 9}, 4}(undef, NX, NY, NZ, NT)
+				U[μ] = Uμ
 			end
 			
 			NV = NX * NY * NZ * NT
@@ -65,74 +105,93 @@ module Gaugefields
 			return new(U, NX, NY, NZ, NT, NV, NC)
 		end
 
-		function TemporaryField(U::Gaugefield)
-			NX, NY, NZ, NT = size(U)
+		function TemporaryField(u::Abstractfield)
+			NX, NY, NZ, NT = size(u)
 			return TemporaryField(NX, NY, NZ, NT)
 		end
 	end
 
-	function Base.setindex!(U::Gaugefield, v, μ)
-        @inbounds U.U[μ] = v
-		return nothing
-    end
+	struct CoeffField <: Abstractfield
+		U::Vector{Array{exp_iQ_su3, 4}}
+		NX::Int64
+		NY::Int64
+		NZ::Int64
+		NT::Int64
+		NV::Int64
 
-	@inline function Base.getindex(U::Gaugefield, μ)
-        @inbounds return U.U[μ]
-    end
+		function CoeffField(NX, NY, NZ, NT)
+			U = Vector{Array{exp_iQ_su3, 4}}(undef, 4)
 
-	function Base.setindex!(t::TemporaryField, v, μ)
-		@inbounds t.U[μ] = v
-		return nothing
-	end
+			for μ = 1:4
+				Uμ = Array{exp_iQ_su3, 4}(undef, NX, NY, NZ, NT)
+				U[μ] = Uμ
+			end
+			
+			NV = NX * NY * NZ * NT
+			return new(U, NX, NY, NZ, NT, NV)
+		end
 
-	@inline function Base.getindex(t::TemporaryField, μ)
-		@inbounds return t.U[μ]
-	end
-
-	function Base.getproperty(U::Gaugefield, p::Symbol)
-		if p == :Sg 
-			return getfield(U, :Sg)[]
-		elseif p == :CV
-			return getfield(U, :CV)[]
-		else 
-			return getfield(U, p)
+		function CoeffField(u::Abstractfield)
+			NX, NY, NZ, NT = size(u)
+			return CoeffField(NX, NY, NZ, NT)
 		end
 	end
 
-	function Base.setproperty!(U::Gaugefield, p::Symbol, val)
+	function Base.setindex!(u::Abstractfield, v, μ)
+        @inbounds u.U[μ] = v
+		return nothing
+    end
+
+	@inline function Base.getindex(u::Abstractfield, μ)
+        @inbounds return u.U[μ]
+    end
+
+	function Base.getproperty(u::Gaugefield, p::Symbol)
 		if p == :Sg 
-			getfield(U, :Sg)[] = val
+			return getfield(u, :Sg)[]
 		elseif p == :CV
-			getfield(U, :CV)[] = val
+			return getfield(u, :CV)[]
 		else 
-			setfield!(U, p, val)
+			return getfield(u, p)
+		end
+	end
+
+	function Base.setproperty!(u::Gaugefield, p::Symbol, val)
+		if p == :Sg 
+			getfield(u, :Sg)[] = val
+		elseif p == :CV
+			getfield(u, :CV)[] = val
+		else 
+			setfield!(u, p, val)
 		end
 
 		return nothing
 	end
 
-	function Base.size(U::Gaugefield)
-        return U.NX, U.NY, U.NZ, U.NT
+	function Base.size(u::Abstractfield)
+        return u.NX, u.NY, u.NZ, u.NT
     end
 
-	function Base.size(t::TemporaryField)
-		return t.NX,t.NY,t.NZ,t.NT
+	function Base.similar(u::T) where {T <: Abstractfield}
+		if typeof(u) == TemporaryField
+			uout = T(u)
+		elseif typeof(u) <: Gaugefield
+			uout = Gaugefield(u)
+		elseif typeof(u) == CoeffField
+			uout = T(u)
+		end
+
+		return uout
 	end
 
-	function Base.similar(U::Gaugefield) 
-		Uout = Gaugefield(U.NX, U.NY, U.NZ, U.NT, U.β)
-		return Uout
+	function Base.eltype(::Gaugefield{T}) where {T}
+		return T
 	end
 
-	function Base.similar(t::TemporaryField)
-		tout = TemporaryField(t.NX, t.NY, t.NZ, t.NT)
-		return tout
-	end
-
-	function substitute_U!(a::Gaugefield, b::Gaugefield)
+	function substitute_U!(a::T, b::T) where {T <: Abstractfield}
 		NX, NY, NZ, NT = size(a)
 
-		@batch for it in 1:NT
+		for it in 1:NT
 			for iz in 1:NZ
 				for iy in 1:NY
 					for ix in 1:NX
@@ -152,15 +211,13 @@ module Gaugefields
 		a.Sg, b.Sg = b.Sg, a.Sg
 		a.CV, b.CV = b.CV, a.CV
 
-		@batch for it in 1:NT
+		for it in 1:NT
 		for iz in 1:NZ
 			for iy in 1:NY
 					for ix in 1:NX
 						for μ in 1:4
-							a[μ][ix,iy,iz,it],
-							b[μ][ix,iy,iz,it] = 
-							b[μ][ix,iy,iz,it],
-							a[μ][ix,iy,iz,it]
+							a[μ][ix,iy,iz,it], b[μ][ix,iy,iz,it] =
+								b[μ][ix,iy,iz,it], a[μ][ix,iy,iz,it]
 						end
 					end
 				end
@@ -170,55 +227,55 @@ module Gaugefields
 		return nothing 
 	end
 
-	function identity_gauges(NX, NY, NZ, NT, β; kind_of_gaction = "wilson")
-		U = Gaugefield(NX, NY, NZ, NT, β, kind_of_gaction = kind_of_gaction)
+	function identity_gauges(NX, NY, NZ, NT, β; gaction = "wilson")
+		u = Gaugefield(NX, NY, NZ, NT, β, kind_of_gaction = gaction)
 		
 		for it in 1:NT
 			for iz in 1:NZ
 				for iy in 1:NY
 					for ix in 1:NX
 						for μ in 1:4
-							U[μ][ix,iy,iz,it] = eye3
+							u[μ][ix,iy,iz,it] = eye3
 						end
 					end
 				end
 			end
 		end
 
-        return U
+        return u
     end
 
-    function random_gauges(NX, NY, NZ, NT, β; kind_of_gaction = "wilson", rng = Xoshiro())
-		U = Gaugefield(NX, NY, NZ, NT, β, kind_of_gaction = kind_of_gaction)
+    function random_gauges(NX, NY, NZ, NT, β; gaction = "wilson")
+		u = Gaugefield(NX, NY, NZ, NT, β, kind_of_gaction = gaction)
 
-		@batch for it in 1:NT
+		for it in 1:NT
 			for iz in 1:NZ
 				for iy in 1:NY
 					for ix in 1:NX
 						for μ in 1:4
-							link = SMatrix{3,3,ComplexF64}(rand(rng, ComplexF64, 3, 3))
+							link = @SMatrix rand(ComplexF64, 3, 3)
 							link = proj_onto_SU3(link)
-							U[μ][ix,iy,iz,it] = link
+							u[μ][ix,iy,iz,it] = link
 						end
 					end
 				end
 			end
 		end
 
-		Sg = calc_gauge_action(U)
-		U.Sg = Sg
-        return U
+		Sg = calc_gauge_action(u)
+		u.Sg = Sg
+        return u
     end
 
-	function clear_U!(U::Gaugefield)
-		NX, NY, NZ, NT = size(U)
+	function clear_U!(u::Abstractfield)
+		NX, NY, NZ, NT = size(u)
 
-		@batch for it in 1:NT
+		for it in 1:NT
 			for iz in 1:NZ
 				for iy in 1:NY
 					for ix in 1:NX
 						for μ in 1:4
-							@inbounds U[μ][ix,iy,iz,it] = @SMatrix zeros(ComplexF64, 3, 3)
+							@inbounds u[μ][ix,iy,iz,it] = zero(u[μ][ix,iy,iz,it])
 						end
 					end
 				end
@@ -228,16 +285,16 @@ module Gaugefields
 		return nothing
 	end
 
-	function normalize!(U::Gaugefield)
-		NX, NY, NZ, NT = size(U)
+	function normalize!(u::Gaugefield{<:AbstractGaugeAction})
+		NX, NY, NZ, NT = size(u)
 
- 		@batch for it in 1:NT
+ 		for it in 1:NT
 			for iz in 1:NZ
 				for iy in 1:NY
 					for ix in 1:NX
 						for μ in 1:4
-							link = U[μ][ix,iy,iz,it]
-							U[μ][ix,iy,iz,it] = proj_onto_SU3(link)
+							link = u[μ][ix,iy,iz,it]
+							u[μ][ix,iy,iz,it] = proj_onto_SU3(link)
 						end
 					end
 				end
@@ -247,70 +304,71 @@ module Gaugefields
         return nothing
     end
 
-	include("./wilsonloops.jl")
-
-	function plaquette(U::Gaugefield, μ, ν, site::SiteCoords)
-		Nμ = size(U)[μ]
-		Nν = size(U)[ν]
-		siteμ = move(site, μ, 1, Nμ)
-		siteν = move(site, ν, 1, Nν)
-		plaq = U[μ][site] * U[ν][siteμ] * U[μ][siteν]' * U[ν][site]'
-		return plaq
-	end
-
-	function plaquette_trace_sum(U::Gaugefield)
-		space = 8
-		plaq = zeros(Float64, nthreads() * space)
-		NX, NY, NZ, NT = size(U)
-
-		@batch for it in 1:NT
+	function add!(a::Abstractfield, b::Abstractfield, fac)
+		# there is never a case where one would want to add fields of different sizes
+		@assert size(a) == size(b) "sizes of fields aren't the same"
+		NX, NY, NZ, NT = size(a)
+	
+		for it in 1:NT
 			for iz in 1:NZ
 				for iy in 1:NY
 					for ix in 1:NX
-						site = SiteCoords(ix, iy, iz, it)
-						for μ in 1:3
-							for ν in μ+1:4
-								plaq[threadid() * space] += 
-								real(tr(plaquette(U, μ, ν, site)))
-							end
-						end  
-					end	
-				end
-			end
-		end
-
-		return sum(plaq)
-	end
-
-	function rect_trace_sum(U::Gaugefield)
-		space = 8
-		rect = zeros(Float64, nthreads() * space)
-		NX, NY, NZ, NT = size(U)
-
-		@batch for it in 1:NT
-			for iz in 1:NZ
-				for iy in 1:NY
-					for ix in 1:NX
-						site = SiteCoords(ix, iy, iz, it)
-						for μ in 1:3
-							for ν in μ+1:4
-								rect[threadid()*space] +=
-									real(tr(wilsonloop_top_right(U, μ, ν, site, 1, 2))) +
-									real(tr(wilsonloop_top_right(U, μ, ν, site, 2, 1)))
-							end
-						end 
+						for μ in 1:4
+							a[μ][ix,iy,iz,it] += fac * b[μ][ix,iy,iz,it] 
+						end
 					end
 				end
 			end
 		end
-
-		return sum(rect)
+	
+		return nothing
 	end
 
+	function LinearAlgebra.lmul!(tA, a::Abstractfield, b::Abstractfield; fac = 1)
+		@assert size(a) == size(b) "sizes of fields aren't the same"
+		NX, NY, NZ, NT = size(a)
+	
+		for it in 1:NT
+			for iz in 1:NZ
+				for iy in 1:NY
+					for ix in 1:NX
+						for μ in 1:4
+							a[μ][ix,iy,iz,it] = 
+								fac * tA(b[μ][ix,iy,iz,it]) * a[μ][ix,iy,iz,it]
+						end
+					end
+				end
+			end
+		end
+	
+		return nothing
+	end
+
+	function LinearAlgebra.rmul!(tA, a::Abstractfield, b::Abstractfield; fac = 1)
+		@assert size(a) == size(b) "sizes of fields aren't the same"
+		NX, NY, NZ, NT = size(a)
+	
+		for it in 1:NT
+			for iz in 1:NZ
+				for iy in 1:NY
+					for ix in 1:NX
+						for μ in 1:4
+							a[μ][ix,iy,iz,it] = 
+								fac * a[μ][ix,iy,iz,it] * tA(b[μ][ix,iy,iz,it])
+						end
+					end
+				end
+			end
+		end
+	
+		return nothing
+	end
+
+	include("wilsonloops.jl")
+	include("actions.jl")
 	include("staples.jl")
 	include("clovers.jl")
 	include("fieldstrength.jl")
-	include("actions.jl")
 	include("liefields.jl")
 
 end	

@@ -19,31 +19,30 @@ module UniverseModule
     end
 
     function Univ(p::Params)
-        L = p.L
+        NX, NY, NZ, NT = p.L
         NC = 3
-        meta_enabled = p.meta_enabled
-        tempering_enabled = p.tempering_enabled
         U = Vector{Gaugefield}(undef, 0)
 
-        if meta_enabled
+        if p.meta_enabled
             Bias = Vector{BiasPotential}(undef, 0)
+            tempering_enabled = p.tempering_enabled
+
             if tempering_enabled
                 numinstances = p.numinstances
-                for i in 1:numinstances
 
+                for i in 1:numinstances
                     if p.initial == "cold"
                         push!(U, identity_gauges(
-                            L[1], L[2], L[3], L[4],
+                            NX, NY, NZ, NT,
                             p.β,
                             kind_of_gaction = p.kind_of_gaction,
                         ))
                     else
-                        push!(U,
-                        random_gauges(L[1], L[2], L[3], L[4],
-                        p.β,
-                        kind_of_gaction = p.kind_of_gaction,
-                        rng = p.randomseeds[i],
-                    ))
+                        push!(U, random_gauges(
+                            NX, NY, NZ, NT,
+                            p.β,
+                            kind_of_gaction = p.kind_of_gaction,
+                        ))
                     end
 
                     push!(Bias, BiasPotential(p, i))
@@ -53,16 +52,15 @@ module UniverseModule
 
                 if p.initial == "cold"
                     push!(U, identity_gauges(
-                        L[1], L[2], L[3], L[4],
+                        NX, NY, NZ, NT,
                         p.β,
                         kind_of_gaction = p.kind_of_gaction,
                     ))
-                else
+                elseif p.initial == "hot"
                     push!(U, random_gauges(
-                        L[1], L[2], L[3], L[4],
+                        NX, NY, NZ, NT,
                         p.β,
                         kind_of_gaction = p.kind_of_gaction,
-                        rng = p.randomseeds[1],
                     ))
                 end
 
@@ -75,16 +73,15 @@ module UniverseModule
 
             if p.initial == "cold"
                 push!(U, identity_gauges(
-                    L[1], L[2], L[3], L[4],
+                    NX, NY, NZ, NT,
                     p.β,
                     kind_of_gaction = p.kind_of_gaction,
                 ))
-            else
+            elseif p.initial == "hot"
                 push!(U, random_gauges(
-                    L[1], L[2], L[3], L[4],
+                    NX, NY, NZ, NT,
                     p.β,
                     kind_of_gaction = p.kind_of_gaction,
-                    rng = p.randomseeds[1],
                 ))
             end
 
@@ -99,9 +96,9 @@ module UniverseModule
         end
 
         return Univ(
-            L,
+            p.L,
             NC,
-            meta_enabled,
+            p.meta_enabled,
             tempering_enabled,
             U,
             Bias,

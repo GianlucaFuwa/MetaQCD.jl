@@ -99,11 +99,10 @@ function top_charge(U::Gaugefield, methodname::String)
 end
 
 function top_charge_plaq(U::Gaugefield)
-    space = 8
     NX, NY, NZ, NT = size(U)
-    Qplaq = zeros(Float64, nthreads() * space)
+    Qplaq = 0.0
 
-    @batch for it in 1:NT
+    for it in 1:NT
         for iz in 1:NZ
             for iy in 1:NY
                 for ix in 1:NX
@@ -127,7 +126,7 @@ function top_charge_plaq(U::Gaugefield)
                     C34 = plaquette(U, 3, 4, site)
                     F34 = im * traceless_antihermitian(C34)
 
-                    Qplaq[threadid() * space] += 
+                    Qplaq += 
                         real(tr(F12, F34)) - # minus sign from ε-tensor
                         real(tr(F13, F24)) +
                         real(tr(F14, F23))
@@ -136,16 +135,15 @@ function top_charge_plaq(U::Gaugefield)
         end
     end
     # 1/32 -> 1/4 because of trace symmetry absorbing 8 terms of ε-tensor
-    Qplaq = 1/4π^2 * sum(Qplaq)
+    Qplaq = 1/4π^2 * Qplaq
     return Qplaq
 end
 
 function top_charge_clover(U::Gaugefield)
-    space = 8
     NX, NY, NZ, NT = size(U)
-    Qclover = zeros(Float64, nthreads() * space)
+    Qclover = 0.0
 
-    @batch for it in 1:NT
+    for it in 1:NT
         for iz in 1:NZ
             for iy in 1:NY
                 for ix in 1:NX
@@ -169,7 +167,7 @@ function top_charge_clover(U::Gaugefield)
                     C34 = clover_square(U, 3, 4, site, 1)
                     F34 = im/4 * traceless_antihermitian(C34)
 
-                    Qclover[threadid() * space] += 
+                    Qclover += 
                         real(tr(F12, F34)) - # minus sign from ε-tensor
                         real(tr(F13, F24)) +
                         real(tr(F14, F23))
@@ -178,16 +176,15 @@ function top_charge_clover(U::Gaugefield)
         end
     end
     # 1/32 -> 1/4 because of trace symmetry absorbing 8 terms of ε-tensor
-    Qclover = 1/4π^2 * sum(Qclover)
+    Qclover = 1/4π^2 * Qclover
     return Qclover
 end
 
 function top_charge_rect(U::Gaugefield)
-    space = 8
     NX, NY, NZ, NT = size(U)
-    Qrect = zeros(Float64, nthreads() * space)
+    Qrect = 0.0
 
-    @batch for it in 1:NT
+    for it in 1:NT
         for iz in 1:NZ
             for iy in 1:NY
                 for ix in 1:NX
@@ -211,7 +208,7 @@ function top_charge_rect(U::Gaugefield)
                     C34 = clover_rect(U, 3, 4, site, 1, 2)
                     F34 = im/8 * traceless_antihermitian(C34)
                      
-                    Qrect[threadid() * space] += 
+                    Qrect += 
                         real(tr(F12, F34)) - # minus sign from ε-tensor
                         real(tr(F13, F24)) +
                         real(tr(F14, F23))
@@ -220,7 +217,7 @@ function top_charge_rect(U::Gaugefield)
         end
     end
     # 2/32 -> 2/4 because of trace symmetry absorbing 8 terms of ε-tensor
-    Qrect = 2/4π^2 * sum(Qrect)
+    Qrect = 2/4π^2 * Qrect
     return Qrect
 end
 

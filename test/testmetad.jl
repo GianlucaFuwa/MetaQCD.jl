@@ -1,11 +1,10 @@
 using Random
-using Revise
-include("../src/system/MetaQCD.jl")
-using .MetaQCD
-function SU3testupdate()
+#include("../src/system/MetaQCD.jl")
+#using .MetaQCD
+function SU3testmeta()
     Random.seed!(1206)
 
-    println("SU3testupdate")
+    println("SU3testmeta")
     NX = 4; NY = 4; NZ = 4; NT = 4
     action = "wilson"
     U = random_gauges(NX, NY, NZ, NT, 5.7, gaction = action)
@@ -15,7 +14,7 @@ function SU3testupdate()
     verbose = Verbose2()
 
     update_method = "hmc"
-    meta_enabled = false
+    meta_enabled = true
     metro_ϵ = 0.1
     metro_multi_hit = 1
     metro_target_acc = 0.5
@@ -28,6 +27,27 @@ function SU3testupdate()
     hb_MAXIT = 10
     hb_numHB = 1
     hb_numOR = 4
+
+    bias_kind_of_cv = "clover"
+    bias_numsmear = 5
+    bias_ρstout = 0.125
+    bias_symmetric = true
+    bias_CVlims = (-5, 5)
+    bias_bin_width = 1e-2
+    bias_weight = 1e-2
+    bias_penalty_weight = 1000
+
+    Bias = BiasPotential(
+        U,
+        bias_kind_of_cv,
+        bias_numsmear,
+        bias_ρstout,
+        bias_symmetric,
+        bias_CVlims,
+        bias_bin_width,
+        bias_weight,
+        bias_penalty_weight,
+    )
 
     updatemethod = Updatemethod(
         U,
@@ -47,36 +67,40 @@ function SU3testupdate()
         hb_numOR,
     )
     
-    for itrj = 1:10
-        value, runtime = @timed update!(updatemethod, U, verbose, metro_test=false)
+    for itrj = 1:1
+        value, runtime = @timed update!(
+            updatemethod,
+            U,
+            verbose,
+            Bias = Bias,
+            metro_test = false,
+        )
         normalize!(U)
         println("Elapsed time: $runtime [s]")
     end
 
     numaccepts = 0
-    nsweeps = 1
+    nsweeps = 0
 
     for itrj = 1:nsweeps
-        value, runtime = @timed update!(updatemethod, U, verbose, metro_test=true)
+        value, runtime = @timed update!(
+            updatemethod,
+            U,
+            verbose,
+            Bias = Bias,
+            metro_test = true,
+        )
         normalize!(U)
         println("Elapsed time: $runtime [s]")
         numaccepts += value
     end
     
-    if update_method != "hmc"
-        Sg_final = calc_gauge_action(U)
-    else
-        if typeof(updatemethod.smearing) == NoSmearing
-            Sg_final = calc_gauge_action(U)
-        else
-            calc_smearedU!(updatemethod.smearing, U)
-            fully_smeared_U = updatemethod.smearing.Usmeared_multi[end]
-            Sg_final = calc_gauge_action(fully_smeared_U)
-        end
-    end
+    calc_smearedU!(Bias.smearing, U)
+    fully_smeared_U = Bias.smearing.Usmeared_multi[end]
+    Q_final = top_charge(fully_smeared_U, bias_kind_of_cv)
 
-    println("Thermalized Gauge Action is: ", Sg_final)
+    println("Thermalized charge is: ", Q_final)
     println("Acceptance Rate: ", 100 * numaccepts / nsweeps, " %")
     return nothing
 end
-@time SU3testupdate()
+@time SU3testmeta()
