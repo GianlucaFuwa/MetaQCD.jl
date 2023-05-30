@@ -169,7 +169,7 @@ module Gaugefields
 	end
 
 	function Base.size(u::Abstractfield)
-        return u.NX, u.NY, u.NZ, u.NT
+        return (u.NX, u.NY, u.NZ, u.NT)
     end
 
 	function Base.similar(u::T) where {T <: Abstractfield}
