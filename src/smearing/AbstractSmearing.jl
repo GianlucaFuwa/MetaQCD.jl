@@ -6,8 +6,8 @@ module AbstractSmearingModule
     using TimerOutputs
     using ..Utils
 
-    import ..Gaugefields: AbstractGaugeAction, CoeffField, Gaugefield
-    import ..Gaugefields: staple_eachsite!, substitute_U!, TemporaryField
+    import ..Gaugefields: AbstractGaugeAction, CoeffField, Gaugefield, TemporaryField
+    import ..Gaugefields: leftmul!, staple_eachsite!, substitute_U!
     
     abstract type AbstractSmearing end
 
@@ -29,7 +29,7 @@ module AbstractSmearingModule
         return smearing
     end
 
-    function calc_smearedU!(smearing, Uin::Gaugefield)
+    function calc_smearedU!(smearing, Uin)
         if smearing !== nothing && typeof(smearing) !== NoSmearing
             apply_smearing!(smearing, Uin)
         end

@@ -18,7 +18,7 @@ function staple_eachsite!(staples, U::Gaugefield{T}) where {T}
     return nothing
 end
 
-function staple_plaq(U, μ, site::SiteCoords)
+function staple_plaq(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
     Nμ = size(U)[μ]
     siteμp = move(site, μ, 1, Nμ)
     staple = @SMatrix zeros(ComplexF64, 3, 3)
@@ -39,7 +39,7 @@ function staple_plaq(U, μ, site::SiteCoords)
     return staple
 end
 
-function staple_rect(U, μ, site::SiteCoords)
+function staple_rect(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
     Nμ = size(U)[μ]
     siteμp = move(site, μ, 1, Nμ)
     siteμn = move(site, μ, -1, Nμ)
@@ -105,11 +105,11 @@ function staple_rect(U, μ, site::SiteCoords)
     return staple
 end
 
-function (::WilsonGaugeAction)(U, μ, site::SiteCoords)
+function (::WilsonGaugeAction)(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
     return staple_plaq(U, μ, site)
 end
 
-function (::SymanzikTreeGaugeAction)(U, μ, site::SiteCoords)
+function (::SymanzikTreeGaugeAction)(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
     c1 = -1/12
     c1prime = c1
     staple_p = staple_plaq(U, μ, site)
@@ -117,7 +117,7 @@ function (::SymanzikTreeGaugeAction)(U, μ, site::SiteCoords)
     return (1 - 8c1) * staple_p + c1prime * staple_r
 end
 
-function (::SymanzikTadGaugeAction)(U, μ, site::SiteCoords)
+function (::SymanzikTadGaugeAction)(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
     u0sq = sqrt(plaquette_trace_sum(U))
     c1 = -1/12
     c1prime = c1 / u0sq
@@ -126,7 +126,7 @@ function (::SymanzikTadGaugeAction)(U, μ, site::SiteCoords)
     return (1 - 8c1) * staple_p + c1prime * staple_r
 end
 
-function (::IwasakiGaugeAction)(U, μ, site::SiteCoords)
+function (::IwasakiGaugeAction)(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
     c1 = -0.331
     c1prime = c1
     staple_p = staple_plaq(U, μ, site)
@@ -134,7 +134,7 @@ function (::IwasakiGaugeAction)(U, μ, site::SiteCoords)
     return (1 - 8c1) * staple_p + c1prime * staple_r
 end
 
-function (::DBW2GaugeAction)(U, μ, site::SiteCoords)
+function (::DBW2GaugeAction)(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
     c1 = -1.409
     c1prime = c1
     staple_p = staple_plaq(U, μ, site)

@@ -34,18 +34,18 @@ struct StoutSmearing{T} <: AbstractSmearing
 	end
 end
 
-function Base.length(s::StoutSmearing{T}) where {T}
+function Base.length(s::T) where {T<:StoutSmearing}
 	return s.numlayers
 end
 
-function get_layer(s::StoutSmearing{T}, i) where {T}
+function get_layer(s::T, i) where {T<:StoutSmearing}
 	return s.Usmeared_multi[i]
 end
 
 function apply_smearing!(
-	smearing::StoutSmearing{T},
-	Uin::Gaugefield{T},
-) where {T <: AbstractGaugeAction}
+	smearing,
+	Uin,
+)
 	numlayers = length(smearing)
 	ρ = smearing.ρ
 	Uout_multi = smearing.Usmeared_multi
@@ -68,12 +68,12 @@ function apply_smearing!(
 end
 
 function apply_stout_smearing!(
-	Uout::Gaugefield{T},
-	C::TemporaryField,
-	Q::CoeffField,
-	U::Gaugefield{T},
+	Uout,
+	C,
+	Q,
+	U,
 	ρ,
-) where {T <: AbstractGaugeAction}
+)
 	NX, NY, NZ, NT = size(Uout)
 	calc_stout_Q!(Q, C, U, ρ)
 	
@@ -93,11 +93,10 @@ function apply_stout_smearing!(
 end
 
 function stout_backprop!(
-	Σ_current::TemporaryField,
-	Σ_prev::Union{Nothing, TemporaryField},
-	# U_unsmeared::Gaugefield,
-	smearing::StoutSmearing{T},
-) where {T}
+	Σ_current,
+	Σ_prev,
+	smearing,
+)
 	ρ = smearing.ρ
 	numlayers = length(smearing)
 
@@ -130,18 +129,18 @@ See: hep-lat/0311018 by Morningstar & Peardon \\
 Σμ = Σμ'⋅exp(iQμ) + iCμ†⋅Λμ - i∑{...}   
 """
 function stout_recursion!(
-	Σ::TemporaryField,
-	Σ_prime::TemporaryField,
-	U_prime::Gaugefield{T},
-	U::Gaugefield{T},
-	C::TemporaryField,
-	Q::CoeffField,
-	Λ::TemporaryField,
+	Σ,
+	Σ_prime,
+	U_prime,
+	U,
+	C,
+	Q,
+	Λ,
 	ρ,
-) where {T <: AbstractGaugeAction}
+)
 	NX, NY, NZ, NT = size(Σ_prime)
 
-	lmul!(adjoint, Σ_prime, U_prime)
+	leftmul!(adjoint, Σ_prime, U_prime)
 
 	calc_stout_Λ!(Λ, Σ_prime, Q, U)
 
@@ -177,9 +176,9 @@ function stout_recursion!(
 						end
 
 						link = U[μ][ix,iy,iz,it]
-						Q_mat = Q[μ][ix,iy,iz,it].Q
+						expiQ_mat = exp_iQ(Q[μ][ix,iy,iz,it])
 						Σ[μ][ix,iy,iz,it] = traceless_antihermitian(
-							link * Σ_prime[μ][ix,iy,iz,it] * exp_iQ(Q_mat) +
+							link * Σ_prime[μ][ix,iy,iz,it] * expiQ_mat +
 							im * link * C[μ][ix,iy,iz,it]' * Λ[μ][ix,iy,iz,it] -
 							im * ρ * link * force_sum
 						)
@@ -198,11 +197,11 @@ end
 Λ = 1/2⋅(Γ + Γ†) - 1/(2N)⋅Tr(Γ + Γ†)
 """
 function calc_stout_Λ!(
-	Λ::TemporaryField,
-	Σprime::TemporaryField,
-	Q::CoeffField,
-	U::Gaugefield{T},
-) where {T <: AbstractGaugeAction}
+	Λ,
+	Σprime,
+	Q,
+	U,
+)
 	NX, NY, NZ, NT = size(U)
 
 	for it in 1:NT
@@ -217,8 +216,8 @@ function calc_stout_Λ!(
 						B1_mat = B1(q)
 						B2_mat = B2(q)
 
-						Γ = tr(B1_mat, UΣ) * Q_mat + 
-							tr(B2_mat, UΣ) * Q_mat^2 +
+						Γ = multr(B1_mat, UΣ) * Q_mat + 
+							multr(B2_mat, UΣ) * Q_mat^2 +
 							q.f1 * UΣ + 
 							q.f2 * Q_mat * UΣ + 
 							q.f2 * UΣ * Q_mat
@@ -234,8 +233,8 @@ function calc_stout_Λ!(
 end
 
 function calc_stout_Q!(
-	Q::CoeffField,
-	C::TemporaryField,
+	Q,
+	C,
 	U::Gaugefield{T},
 	ρ,
 ) where {T <: AbstractGaugeAction}

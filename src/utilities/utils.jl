@@ -1,11 +1,12 @@
 module Utils
+    using LoopVectorization
     using LinearAlgebra
     using Random
     using StaticArrays
 
     export exp_iQ, exp_iQ_coeffs, exp_iQ_su3, B1, B2, Q
     export gen_SU3_matrix, is_SU3, is_su3
-    export kenney_laub, proj_onto_SU3, make_submatrix, embed_into_SU3, tr
+    export kenney_laub, proj_onto_SU3, make_submatrix, embed_into_SU3, multr
     export antihermitian, hermitian, traceless_antihermitian, traceless_hermitian
     export eye2, eye3, δ, ε_tensor, gaussian_su3_matrix
     export get_coords, move, SiteCoords
@@ -101,16 +102,20 @@ module Utils
 		return iseven(flips) ? 1 : -1
 	end
 
-    function LinearAlgebra.tr(A::AbstractMatrix, B::AbstractMatrix)
-        trace = 0.0 + 0.0im
-
-        for i in 1:3
-            @simd for j in 1:3
-                @inbounds trace += A[i,j] * B[j,i]
+    function multr(A::SMatrix{3,3,ComplexF64,9}, B::SMatrix{3,3,ComplexF64,9})
+        a = reinterpret(reshape, Float64, A)
+        b = reinterpret(reshape, Float64, B)
+        re = 0.0
+        im = 0.0
+    
+        @turbo for i in 1:3
+            for j in 1:3
+                re += a[1,i,j] * b[1,j,i] - a[2,i,j] * b[2,j,i]
+                im += a[1,i,j] * b[2,j,i] + a[2,i,j] * b[1,j,i]
             end
         end
-
-        return trace
+    
+        return ComplexF64(re, im)
     end
 
     include("exp.jl")

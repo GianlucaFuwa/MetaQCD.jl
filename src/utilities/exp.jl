@@ -51,8 +51,8 @@ end
 function calc_coefficients(Q::SMatrix{3,3,ComplexF64,9})
     u, w = set_uw(Q)
     f0, f1, f2, ξ0 = set_fj(u, w)
-    e2iu = exp(2im * u)
-    emiu = exp(-im * u)
+    e2iu = cis(2u)
+    emiu = cis(-u)
     cosw = cos(w)
     w2 = w^2
     u2 = u^2
@@ -87,7 +87,7 @@ end
 
 function set_uw(Q::SMatrix{3,3,ComplexF64,9})
     c0 = real(det(Q))
-    c1 = 1/2 * real(tr(Q, Q))
+    c1 = 1/2 * real(multr(Q, Q))
     c13r = sqrt(c1 / 3)
     c0max = 2 * c13r^3
     Θ = acos(c0 / c0max)
@@ -109,8 +109,8 @@ function set_fj(u, w)
         ξ0 = sin(w) / w
     end
 
-    e2iu = exp(2im * u)
-    emiu = exp(-im * u)
+    e2iu = cis(2u)
+    emiu = cis(-u)
     cosw = cos(w)
 
     h0 = (u2 - w2) * e2iu + emiu * (8u2 * cosw + 2im * u * (3u2 + w2) * ξ0)

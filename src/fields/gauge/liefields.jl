@@ -55,7 +55,7 @@ function calc_kinetic_energy(p::Liefield)
                 for ix = 1:NX
                     for μ = 1:4
                         H_kin += 
-                            real(tr(p[μ][ix,iy,iz,it], p[μ][ix,iy,iz,it]))
+                            real(multr(p[μ][ix,iy,iz,it], p[μ][ix,iy,iz,it]))
                     end
                 end
             end

@@ -201,7 +201,7 @@ function OR_sweep!(U::Gaugefield{T}, hb; metro_test = true) where {T}
                         or_mat = kenney_laub(tmp)
 
                         new_link = or_mat' * old_link' * or_mat'
-                        ΔS = prefactor * real(tr((new_link - old_link) * A_adj))
+                        ΔS = prefactor * real(multr(new_link - old_link, A_adj))
                         accept = metro_test ? (rand() < exp(-ΔS)) : true
 
                         if accept

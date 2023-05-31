@@ -2,17 +2,20 @@ module UniverseModule
     using ..Utils
     using ..VerbosePrint
 
-    import ..Gaugefields: Gaugefield, identity_gauges, random_gauges
+    import ..Gaugefields: AbstractGaugeAction, Gaugefield, Liefield
+    import ..Gaugefields: DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
+    import ..Gaugefields: SymanzikTreeGaugeAction, WilsonGaugeAction 
+    import ..Gaugefields: identity_gauges, random_gauges
     import ..Gaugefields: Liefield
     import ..Metadynamics: BiasPotential
     import ..SystemParameters: Params
 
-    struct Univ
+    struct Univ{TG}
         L::NTuple{4, Int64}
         NC::Int64
         meta_enabled::Bool
         tempering_enabled::Bool
-        U::Vector{Gaugefield}
+        U::Vector{Gaugefield{TG}}
         Bias::Union{Nothing, Vector{BiasPotential}}
         numinstances::Int64
         verbose_print::VerboseLevel
@@ -21,7 +24,22 @@ module UniverseModule
     function Univ(p::Params)
         NX, NY, NZ, NT = p.L
         NC = 3
-        U = Vector{Gaugefield}(undef, 0)
+
+        if p.kind_of_gaction == "wilson"
+            TG = WilsonGaugeAction
+        elseif p.kind_of_gaction == "symanzik_tree"
+            TG = SymanzikTreeGaugeAction
+        elseif p.kind_of_gaction == "symanzik_tadpole"
+            TG = SymanzikTadGaugeAction
+        elseif p.kind_of_gaction == "iwasaki"
+            TG = IwasakiGaugeAction
+        elseif p.kind_of_gaction == "dbw2"
+            TG = DBW2GaugeAction
+        else
+            error("Gauge action '$(kind_of_gaction)' not supported")
+        end
+
+        U = Vector{Gaugefield{TG}}(undef, 0)
 
         if p.meta_enabled
             Bias = Vector{BiasPotential}(undef, 0)
@@ -35,17 +53,17 @@ module UniverseModule
                         push!(U, identity_gauges(
                             NX, NY, NZ, NT,
                             p.β,
-                            kind_of_gaction = p.kind_of_gaction,
+                            type_of_gaction = TG,
                         ))
                     else
                         push!(U, random_gauges(
                             NX, NY, NZ, NT,
                             p.β,
-                            kind_of_gaction = p.kind_of_gaction,
+                            type_of_gaction = TG,
                         ))
                     end
 
-                    push!(Bias, BiasPotential(p, i))
+                    push!(Bias, BiasPotential(p, U[1], instance = i))
                 end
             else
                 numinstances = 1
@@ -54,17 +72,17 @@ module UniverseModule
                     push!(U, identity_gauges(
                         NX, NY, NZ, NT,
                         p.β,
-                        kind_of_gaction = p.kind_of_gaction,
+                        type_of_gaction = TG,
                     ))
                 elseif p.initial == "hot"
                     push!(U, random_gauges(
                         NX, NY, NZ, NT,
                         p.β,
-                        kind_of_gaction = p.kind_of_gaction,
+                        type_of_gaction = TG,
                     ))
                 end
 
-                push!(Bias, BiasPotential(p))
+                push!(Bias, BiasPotential(p, U[1]))
             end
         else
             Bias = nothing
@@ -75,13 +93,13 @@ module UniverseModule
                 push!(U, identity_gauges(
                     NX, NY, NZ, NT,
                     p.β,
-                    kind_of_gaction = p.kind_of_gaction,
+                    type_of_gaction = TG,
                 ))
             elseif p.initial == "hot"
                 push!(U, random_gauges(
                     NX, NY, NZ, NT,
                     p.β,
-                    kind_of_gaction = p.kind_of_gaction,
+                    type_of_gaction = TG,
                 ))
             end
 
@@ -95,7 +113,7 @@ module UniverseModule
             verbose_print = Verbose3(p.load_fp)
         end
 
-        return Univ(
+        return Univ{TG}(
             p.L,
             NC,
             p.meta_enabled,

@@ -45,7 +45,7 @@ module AbstractUpdateModule
     end
 
     function Updatemethod(
-        U::Gaugefield{T},
+        U,
         update_method,
         meta_enabled = false,
         metro_ϵ = 0.1,
@@ -60,13 +60,13 @@ module AbstractUpdateModule
         hb_MAXIT = 1,
         hb_numHB = 1,
         hb_numOR = 4,
-    ) where {T <: AbstractGaugeAction}
+    )
         if update_method == "hmc"
             updatemethod = HMCUpdate(
+                U,
                 hmc_integrator,
                 hmc_steps,
                 hmc_Δτ,
-                U,
                 numsmear = hmc_numsmear,
                 ρ_stout = hmc_ρstout,
                 meta_enabled = meta_enabled,
@@ -95,7 +95,7 @@ module AbstractUpdateModule
         return updatemethod
     end
 
-    function update!(Updatemethod::T, U) where {T<:AbstractUpdate}
+    function update!(updatemethod::T, U) where {T<:AbstractUpdate}
         error("updatemethod type $(typeof(updatemethod)) is not supported")
     end
 

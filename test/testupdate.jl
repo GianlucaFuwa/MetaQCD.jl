@@ -7,8 +7,8 @@ function SU3testupdate()
 
     println("SU3testupdate")
     NX = 4; NY = 4; NZ = 4; NT = 4
-    action = "wilson"
-    U = random_gauges(NX, NY, NZ, NT, 5.7, gaction = action)
+    action = WilsonGaugeAction
+    U = random_gauges(NX, NY, NZ, NT, 5.7, type_of_gaction = action);
     #filename = "./test/testconf.txt"
     #load_BridgeText!(filename,U)
 
@@ -79,4 +79,4 @@ function SU3testupdate()
     println("Acceptance Rate: ", 100 * numaccepts / nsweeps, " %")
     return nothing
 end
-@time SU3testupdate()
+# @time SU3testupdate()

@@ -1,29 +1,26 @@
 abstract type AbstractIntegrator end
 
-struct HMCUpdate{I, GA, S, M} <: AbstractUpdate
-    integrator!::I
+struct HMCUpdate{TI,TG,TS,TM} <: AbstractUpdate
     steps::Int64
     Δτ::Float64
     P::Liefield
-    _temp_U::Gaugefield{GA}
+    _temp_U::Gaugefield{TG}
     _temp_staple::TemporaryField
     _temp_force::TemporaryField
     _temp_force2::Union{Nothing, TemporaryField} # second force field for smearing
     _temp_fieldstrength::Union{Nothing, Vector{TemporaryField}}
-    smearing::S
-    metadynamics::M
+    smearing::TS
+    metadynamics::TM
 
     function HMCUpdate(
-        integrator::String,
+        U,
+        integrator,
         steps,
-        Δτ,
-        U::Gaugefield{T};
+        Δτ;
         numsmear = 0,
         ρ_stout = 0,
         meta_enabled = false,
-    ) where {T <: AbstractGaugeAction}
-        # turn integrator String into Symbol
-        integrator = getfield(AbstractUpdateModule, Symbol(integrator))()
+    )
         P = Liefield(U)
         _temp_U = similar(U)
 
@@ -44,14 +41,19 @@ struct HMCUpdate{I, GA, S, M} <: AbstractUpdate
 
         smearing = StoutSmearing(U, numsmear, ρ_stout)
 
-        if typeof(smearing) == NoSmearing
+        TI = getfield(AbstractUpdateModule, Symbol(integrator))
+        TG = eltype(U)
+        TS = typeof(smearing)
+        TM = typeof(metadynamics)
+
+        if TS == NoSmearing
             _temp_force2 = nothing
         else
             _temp_force2 = TemporaryField(U)
         end
 
-        return new{typeof(integrator), T, typeof(smearing), typeof(metadynamics)}(
-			integrator, # turn integrator Symbol into AbstractIntegrator/Function
+
+        return new{TI,TG,TS,TM}(
 			steps,
 			Δτ,
 			P,
@@ -67,19 +69,20 @@ struct HMCUpdate{I, GA, S, M} <: AbstractUpdate
 end
 
 function update!(
-    updatemethod::HMCUpdate{I, GA, S, M},
-    U::Gaugefield{GA},
+    updatemethod::HMCUpdate{TI,TG,TS,TM},
+    U,
     verbose::VerboseLevel;
     Bias = nothing,
     metro_test = true,
-) where {I, GA, S, M}
+) where {TI,TG,TS,TM}
     U_old = updatemethod._temp_U
     substitute_U!(U_old, U)
     gaussian_momenta!(updatemethod.P)
     
     trP2_old = -calc_kinetic_energy(updatemethod.P)
 
-    updatemethod.integrator!(
+    integrator! = TI()
+    integrator!(
         U,
         updatemethod,
         Bias,
@@ -87,7 +90,7 @@ function update!(
 
     hmc_smearing = updatemethod.smearing
 
-    if typeof(hmc_smearing) == NoSmearing
+    if TS == NoSmearing
         Sg_old = U.Sg
         Sg_new = calc_gauge_action(U)
     else
@@ -95,8 +98,8 @@ function update!(
         fully_smeared_Uold = hmc_smearing.Usmeared_multi[end]
         Sg_old = calc_gauge_action(fully_smeared_Uold)
         calc_smearedU!(hmc_smearing, U)
-        fully_smeared_U = hmc_smearing.Usmeared_multi[end]
-        Sg_new = calc_gauge_action(fully_smeared_U)
+        fully_smeared_Unew = hmc_smearing.Usmeared_multi[end]
+        Sg_new = calc_gauge_action(fully_smeared_Unew)
     end
 
     trP2_new = -calc_kinetic_energy(updatemethod.P)
@@ -104,7 +107,7 @@ function update!(
     ΔP2 = trP2_new - trP2_old
     ΔSg = Sg_new - Sg_old
 
-    if M == MetaEnabled
+    if TM == MetaEnabled
         CV_old = U.CV
         calc_smearedU!(Bias.smearing, U)
         fully_smeared_U = Bias.smearing.Usmeared_multi[end]
@@ -130,7 +133,7 @@ function update!(
     if accept
         U.Sg = Sg_new
         U.CV = CV_new
-        M == MetaEnabled ? update_bias!(Bias, CV_new) : nothing
+        TM == MetaEnabled ? update_bias!(Bias, CV_new) : nothing
         println_verbose2(verbose, "Accepted")
     else
         substitute_U!(U, U_old)
@@ -142,7 +145,7 @@ end
 
 include("hmc_integrators.jl")
 
-function updateU!(U::Gaugefield, method::HMCUpdate, fac)
+function updateU!(U, method, fac)
     NX, NY, NZ, NT = size(U)
     ϵ = method.Δτ * fac
     P = method.P
@@ -162,7 +165,7 @@ function updateU!(U::Gaugefield, method::HMCUpdate, fac)
     return nothing
 end
 
-function updateP!(U::Gaugefield, method::HMCUpdate{I, GA, S, M}, fac, Bias) where {I, GA, S, M}
+function updateP!(U, method::HMCUpdate{TI,TG,TS,TM}, fac, Bias) where {TI,TG,TS,TM}
     ϵ = method.Δτ * fac
     P = method.P
     staples = method._temp_staple
@@ -170,7 +173,7 @@ function updateP!(U::Gaugefield, method::HMCUpdate{I, GA, S, M}, fac, Bias) wher
     temp_force = method._temp_force2
     gauge_smearing = method.smearing
 
-    if M == MetaEnabled
+    if TM == MetaEnabled
         fieldstrength = method._temp_fieldstrength
         bias_smearing = Bias.smearing
         kind_of_cv = Bias.kind_of_cv
@@ -194,13 +197,13 @@ function updateP!(U::Gaugefield, method::HMCUpdate{I, GA, S, M}, fac, Bias) wher
 end
 
 function calc_dSdU_bare!(
-    dSdU::TemporaryField,
-    temp_force::Union{Nothing, TemporaryField},
-    staples::TemporaryField,
-    U::Gaugefield,
+    dSdU,
+    temp_force,
+    staples,
+    U,
     smearing,
 )
-    if smearing === nothing || typeof(smearing) == NoSmearing
+    if typeof(smearing) == NoSmearing
         calc_dSdU!(dSdU, staples, U)
     else
         calc_smearedU!(smearing, U)
@@ -209,7 +212,6 @@ function calc_dSdU_bare!(
         stout_backprop!(
             dSdU,
             temp_force,
-            # U,
             smearing,
         )
     end
@@ -218,9 +220,9 @@ function calc_dSdU_bare!(
 end
 
 function calc_dSdU!(
-    dSdU::TemporaryField,
-    staples::TemporaryField,
-    U::Gaugefield,
+    dSdU,
+    staples,
+    U,
 )
     NX, NY, NZ, NT = size(U)
     β = U.β
@@ -244,25 +246,23 @@ function calc_dSdU!(
 end
 
 function calc_dQdU_bare!(
-    dQdU::TemporaryField,
-    temp_force::Union{Nothing, TemporaryField},
-    Fμν::Vector{TemporaryField},
-    U::Gaugefield,
+    dQdU,
+    temp_force,
+    F,
+    U,
     kind_of_charge,
-    smearing::AbstractSmearing,
+    smearing,
 )
     if typeof(smearing) == NoSmearing
-        calc_dQdU!(dQdU, Fμν, U, kind_of_charge)
+        calc_dQdU!(dQdU, field_strength, U, kind_of_charge)
 
     else
-        numlayers = length(smearing)
         calc_smearedU!(smearing, U)
         fully_smeared_U = smearing.Usmeared_multi[end]
-        calc_dQdU!(dQdU, Fμν, fully_smeared_U, kind_of_charge)
+        calc_dQdU!(dQdU, F, fully_smeared_U, kind_of_charge)
         stout_backprop!(
             dQdU,
             temp_force,
-            # U,
             smearing,
         )
     end
@@ -271,14 +271,14 @@ function calc_dQdU_bare!(
 end
 
 function calc_dQdU!(
-    dQdU::TemporaryField,
-    Fμν::Vector{TemporaryField},
-    U::Gaugefield,
-    kind_of_charge::String,
+    dQdU,
+    F,
+    U,
+    kind_of_charge,
 )
     NX, NY, NZ, NT = size(U)
 
-    fieldstrength_eachsite!(Fμν, U, kind_of_charge)
+    fieldstrength_eachsite!(F, U, kind_of_charge)
 
     if kind_of_charge == "plaquette"
         ∇trFμνFρσ = ∇trFμνFρσ_plaq
@@ -295,27 +295,27 @@ function calc_dQdU!(
                     site = SiteCoords(ix, iy, iz, it)
 
                     dQdU[1][ix,iy,iz,it] = 1/4π^2 * traceless_antihermitian(
-                        ∇trFμνFρσ(U, Fμν, 1, 2, 3, 4, site) -
-                        ∇trFμνFρσ(U, Fμν, 1, 3, 2, 4, site) +
-                        ∇trFμνFρσ(U, Fμν, 1, 4, 2, 3, site)
+                        ∇trFμνFρσ(U, F, 1, 2, 3, 4, site) -
+                        ∇trFμνFρσ(U, F, 1, 3, 2, 4, site) +
+                        ∇trFμνFρσ(U, F, 1, 4, 2, 3, site)
                     )
                         
                     dQdU[2][ix,iy,iz,it] = -1/4π^2 * traceless_antihermitian(
-                        ∇trFμνFρσ(U, Fμν, 2, 1, 3, 4, site) +
-                        ∇trFμνFρσ(U, Fμν, 2, 4, 1, 3, site) -
-                        ∇trFμνFρσ(U, Fμν, 2, 3, 1, 4, site)
+                        ∇trFμνFρσ(U, F, 2, 1, 3, 4, site) +
+                        ∇trFμνFρσ(U, F, 2, 4, 1, 3, site) -
+                        ∇trFμνFρσ(U, F, 2, 3, 1, 4, site)
                     )
 
                     dQdU[3][ix,iy,iz,it] = 1/4π^2 * traceless_antihermitian(
-                        ∇trFμνFρσ(U, Fμν, 3, 4, 1, 2, site) +
-                        ∇trFμνFρσ(U, Fμν, 3, 1, 2, 4, site) -
-                        ∇trFμνFρσ(U, Fμν, 3, 2, 1, 4, site)
+                        ∇trFμνFρσ(U, F, 3, 4, 1, 2, site) +
+                        ∇trFμνFρσ(U, F, 3, 1, 2, 4, site) -
+                        ∇trFμνFρσ(U, F, 3, 2, 1, 4, site)
                     )
 
                     dQdU[4][ix,iy,iz,it] = -1/4π^2 * traceless_antihermitian(
-                        ∇trFμνFρσ(U, Fμν, 4, 3, 1, 2, site) -
-                        ∇trFμνFρσ(U, Fμν, 4, 2, 1, 3, site) +
-                        ∇trFμνFρσ(U, Fμν, 4, 1, 2, 3, site)
+                        ∇trFμνFρσ(U, F, 4, 3, 1, 2, site) -
+                        ∇trFμνFρσ(U, F, 4, 2, 1, 3, site) +
+                        ∇trFμνFρσ(U, F, 4, 1, 2, 3, site)
                     )
                 end
             end
@@ -329,8 +329,8 @@ end
 Derivative of the F_μν ⋅ F_ρσ term for Field strength tensor given by plaquette
 """
 function ∇trFμνFρσ_plaq(
-    U::Gaugefield,
-    Fμν::Vector{TemporaryField},
+    U,
+    F,
     μ,
     ν,
     ρ,
@@ -345,8 +345,8 @@ function ∇trFμνFρσ_plaq(
     siteμpνn = move(siteμp, ν, -1, Nν)
 
     component = 
-        U[ν][siteμp] * U[μ][siteνp]' * U[ν][site]' * Fμν[ρ][σ][site] +
-        U[ν][siteμpνn]' * U[μ][siteνn]' * Fμν[ρ][σ][siteνn] * U[ν][siteνn] -
+        U[ν][siteμp] * U[μ][siteνp]' * U[ν][site]' * F[ρ][σ][site] +
+        U[ν][siteμpνn]' * U[μ][siteνn]' * F[ρ][σ][siteνn] * U[ν][siteνn] -
 
     return im/2 * component
 end
@@ -355,8 +355,8 @@ end
 Derivative of the F_μν ⋅ F_ρσ term for Field strength tensor given by 1x1-Clover
 """
 function ∇trFμνFρσ_clover(
-    U::Gaugefield,
-    Fμν::Vector{TemporaryField},
+    U,
+    F,
     μ,
     ν,
     ρ,
@@ -372,14 +372,14 @@ function ∇trFμνFρσ_clover(
     siteμpνn = move(siteμp, ν, -1, Nν)
 
     component = 
-        U[ν][siteμp] * U[μ][siteνp]' * U[ν][site]' * Fμν[ρ][σ][site] +
-        U[ν][siteμp] * U[μ][siteνp]' * Fμν[ρ][σ][siteνp] * U[ν][site]' +
-        U[ν][siteμp] * Fμν[ρ][σ][siteμpνp] * U[μ][siteνp]' * U[ν][site]' +
-        Fμν[ρ][σ][siteμp] * U[ν][siteμp] * U[μ][siteνp]' * U[ν][site]' -
-        U[ν][siteμpνn]' * U[μ][siteνn]' * U[ν][siteνn] * Fμν[ρ][σ][site] -
-        U[ν][siteμpνn]' * U[μ][siteνn]' * Fμν[ρ][σ][siteνn] * U[ν][siteνn] -
-        U[ν][siteμpνn]' * Fμν[ρ][σ][siteμpνn] * U[μ][siteνn]' * U[ν][siteνn] -
-        Fμν[ρ][σ][siteμp] * U[ν][siteμpνn]' * U[μ][siteνn]' * U[ν][siteνn]
+        U[ν][siteμp] * U[μ][siteνp]' * U[ν][site]' * F[ρ][σ][site] +
+        U[ν][siteμp] * U[μ][siteνp]' * F[ρ][σ][siteνp] * U[ν][site]' +
+        U[ν][siteμp] * F[ρ][σ][siteμpνp] * U[μ][siteνp]' * U[ν][site]' +
+        F[ρ][σ][siteμp] * U[ν][siteμp] * U[μ][siteνp]' * U[ν][site]' -
+        U[ν][siteμpνn]' * U[μ][siteνn]' * U[ν][siteνn] * F[ρ][σ][site] -
+        U[ν][siteμpνn]' * U[μ][siteνn]' * F[ρ][σ][siteνn] * U[ν][siteνn] -
+        U[ν][siteμpνn]' * F[ρ][σ][siteμpνn] * U[μ][siteνn]' * U[ν][siteνn] -
+        F[ρ][σ][siteμp] * U[ν][siteμpνn]' * U[μ][siteνn]' * U[ν][siteνn]
 
     return im/8 * component
 end

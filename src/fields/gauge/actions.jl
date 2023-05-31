@@ -8,13 +8,13 @@ function calc_gauge_action(u::Gaugefield{T}) where {T}
     return T()(u)
 end
 
-function (::WilsonGaugeAction)(u::Gaugefield)
+function (::WilsonGaugeAction)(u::T) where {T<:Gaugefield}
     P = plaquette_trace_sum(u)
     Sg_wilson = u.β * (6 * u.NV - 1/3 * P)
     return Sg_wilson
 end
 
-function (::SymanzikTreeGaugeAction)(u::Gaugefield)
+function (::SymanzikTreeGaugeAction)(u::T) where {T<:Gaugefield}
     P = plaquette_trace_sum(u)
     R = rect_trace_sum(u)
     Sg_plaq = 6 * u.NV - 1/3 * P
@@ -23,7 +23,7 @@ function (::SymanzikTreeGaugeAction)(u::Gaugefield)
     return Sg_symanzik
 end
 
-function (::SymanzikTadGaugeAction)(u::Gaugefield)
+function (::SymanzikTadGaugeAction)(u::T) where {T<:Gaugefield}
     P = plaquette_trace_sum(u)
     R = rect_trace_sum(u)
     u0sq = sqrt(1/3 * P)
@@ -33,7 +33,7 @@ function (::SymanzikTadGaugeAction)(u::Gaugefield)
     return Sg_symanzik
 end
 
-function (::IwasakiGaugeAction)(u::Gaugefield)
+function (::IwasakiGaugeAction)(u::T) where {T<:Gaugefield}
     P = plaquette_trace_sum(u)
     R = rect_trace_sum(u)
     Sg_plaq = 6 * u.NV - 1/3 * P
@@ -42,7 +42,7 @@ function (::IwasakiGaugeAction)(u::Gaugefield)
     return Sg_iwasaki
 end
 
-function (::DBW2GaugeAction)(u::Gaugefield)
+function (::DBW2GaugeAction)(u::T) where {T<:Gaugefield}
     P = plaquette_trace_sum(u)
     R = rect_trace_sum(u)
     Sg_plaq = 6 * u.NV - 1/3 * P
@@ -51,7 +51,7 @@ function (::DBW2GaugeAction)(u::Gaugefield)
     return Sg_dbw2
 end
 
-function plaquette(u::Gaugefield, μ, ν, site::SiteCoords)
+function plaquette(u::T, μ, ν, site::SiteCoords) where {T<:Gaugefield}
     Nμ = size(u)[μ]
     Nν = size(u)[ν]
     siteμ = move(site, μ, 1, Nμ)
@@ -60,9 +60,9 @@ function plaquette(u::Gaugefield, μ, ν, site::SiteCoords)
     return plaq
 end
 
-function plaquette_trace_sum(u::Gaugefield)
-    plaq = 0.0
+function plaquette_trace_sum(u::T) where {T<:Gaugefield}
     NX, NY, NZ, NT = size(u)
+    plaq = 0.0
 
     for it in 1:NT
         for iz in 1:NZ
@@ -83,9 +83,9 @@ function plaquette_trace_sum(u::Gaugefield)
     return plaq
 end
 
-function rect_trace_sum(u::Gaugefield)
-    rect = 0.0
+function rect_trace_sum(u::T) where {T<:Gaugefield}
     NX, NY, NZ, NT = size(u)
+    rect = 0.0
 
     for it in 1:NT
         for iz in 1:NZ
