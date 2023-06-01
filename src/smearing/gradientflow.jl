@@ -1,3 +1,0 @@
-struct GradientFlow <: Abstractsmearing
-    
-end
