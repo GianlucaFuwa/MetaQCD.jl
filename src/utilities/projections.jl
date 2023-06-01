@@ -66,6 +66,8 @@ function embed_into_SU3(M::SMatrix{2,2,ComplexF64,4}, i, j)
             0.0000 1 0.0000
             M[2,1] 0 M[2,2] 
         ]
+    else
+        out = eye3
     end
 
     return out
