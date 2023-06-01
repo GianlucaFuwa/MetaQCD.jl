@@ -75,7 +75,7 @@ function SU3testupdate()
         end
     end
 
-    println("Thermalized Gauge Action is: ", Sg_final)
+    println("Final Gauge Action is: ", Sg_final)
     println("Acceptance Rate: ", 100 * numaccepts / nsweeps, " %")
     return nothing
 end
