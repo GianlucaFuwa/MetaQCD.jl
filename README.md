@@ -1,3 +1,3 @@
 # MetaQCD.jl
 
-Based on LatticeQCD.jl package by Akio Tomiya et al.
+Inspired by LatticeQCD.jl package by Akio Tomiya et al.
