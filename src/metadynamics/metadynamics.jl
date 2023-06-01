@@ -8,9 +8,9 @@ module Metadynamics
 	struct MetaEnabled end
 	struct MetaDisabled end
 	
-	struct BiasPotential
+	struct BiasPotential{TG}
 		kind_of_cv::String
-		smearing::StoutSmearing{<:AbstractGaugeAction}
+		smearing::StoutSmearing{TG}
 		symmetric::Bool
 
 		CVlims::NTuple{2, Float64}
@@ -24,10 +24,8 @@ module Metadynamics
 		# exceeded_count::Int64
 		fp::Union{Nothing, IOStream}
 		
-		function BiasPotential(p::Params, instance = 1)
-			NX, NY, NZ, NT = p.L
-			_temp_U = Gaugefield(NX, NY, NZ, NT, p.β, kind_of_gaction = p.kind_of_gaction)
-			smearing = StoutSmearing(_temp_U, p.smearing_for_cv, p.ρstout_for_cv)
+		function BiasPotential(p::Params, U::Gaugefield{TG}; instance = 1) where {TG}
+			smearing = StoutSmearing(U, p.smearing_for_cv, p.ρstout_for_cv)
 
 			if instance == 0
 				values = potential_from_file(p, nothing) 
@@ -39,7 +37,7 @@ module Metadynamics
 			# exceeded_count = 0
 			fp = instance == 0 ? nothing : open(p.biasfile[instance], "w")
 
-			return new(
+			return new{TG}(
 				p.kind_of_cv, smearing, p.symmetric,
 				p.CVlims, p.bin_width, p.bias_weight, p.penalty_weight, p.is_static,
 				values, bin_vals, fp,
@@ -47,7 +45,7 @@ module Metadynamics
 		end
 
 		function BiasPotential(
-			U,
+			U::Gaugefield{TG},
 			kind_of_cv,
 			numsmear,
 			ρstout,
@@ -56,7 +54,7 @@ module Metadynamics
 			bin_width,
 			weight,
 			penalty_weight,			
-		)	
+		) where {TG}
 			smearing = StoutSmearing(U, numsmear, ρstout)
 			is_static = false
 			values = zeros(round(Int64, (CVlims[2]-CVlims[1]) / bin_width, RoundNearestTiesAway) + 1)
@@ -64,7 +62,7 @@ module Metadynamics
 			# exceeded_count = 0
 			fp = nothing
 
-			return new(
+			return new{TG}(
 				kind_of_cv, smearing, symmetric,
 				CVlims, bin_width, weight, penalty_weight, is_static,
 				values, bin_vals, fp,
@@ -87,36 +85,36 @@ module Metadynamics
 		end
 	end
 
-	function Base.length(b::BiasPotential)
+	function Base.length(b::T) where {T<:BiasPotential}
 		return length(b.values)
 	end
 
-	function Base.flush(b::BiasPotential)
+	function Base.flush(b::T) where {T<:BiasPotential}
 		if b.fp !== nothing
 			flush(b.fp)
 		end
 	end
 
-	function Base.seekstart(b::BiasPotential)
+	function Base.seekstart(b::T) where {T<:BiasPotential}
 		if b.fp !== nothing
 			seekstart(b.fp)
 		end
 	end
 
-	function Base.setindex!(b::BiasPotential, v, i)
+	function Base.setindex!(b::T, v, i) where {T<:BiasPotential}
 		b.values[i] = v
 	end
 
-	@inline function Base.getindex(b::BiasPotential, i)
+	@inline function Base.getindex(b::T, i) where {T<:BiasPotential}
 		return b.values[i]
 	end
 
-	@inline function index(b::BiasPotential, cv)
+	@inline function index(b::T, cv) where {T<:BiasPotential}
 		grid_index = (cv - b.CVlims[1]) / b.bin_width + 0.5
 		return round(Int64, grid_index, RoundNearestTiesAway)
 	end
 
-	function update_bias!(b::BiasPotential, cv)
+	function update_bias!(b::T, cv) where {T<:BiasPotential}
 		grid_index = index(b, cv)
 
 		if 1 <= grid_index <= length(b.values)
@@ -130,11 +128,11 @@ module Metadynamics
 		return nothing
 	end
 	
-	function (b::BiasPotential)(cv)
+	function (b::BiasPotential{T})(cv) where {T}
 		return return_potential(b, cv)
 	end
 
-	function return_potential(b::BiasPotential, cv)
+	function return_potential(b::T, cv) where {T<:BiasPotential}
 		if b.CVlims[1] <= cv < b.CVlims[2]
 			grid_index = index(b, cv)
 			return b[grid_index]
@@ -147,7 +145,7 @@ module Metadynamics
 	"""
 	Approximate ∂V/∂Q by use of the five-point stencil
 	""" 
-	function ∂V∂Q(b::BiasPotential, cv)
+	function ∂V∂Q(b::T, cv) where {T<:BiasPotential}
 		bin_width = b.bin_width
 		num = -b(cv + 2 * bin_width) + 
 			8 * b(cv + bin_width) - 
