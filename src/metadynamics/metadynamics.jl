@@ -147,7 +147,8 @@ module Metadynamics
 	""" 
 	function ∂V∂Q(b::T, cv) where {T<:BiasPotential}
 		bin_width = b.bin_width
-		num = -b(cv + 2 * bin_width) + 
+		num = 
+			-b(cv + 2 * bin_width) + 
 			8 * b(cv + bin_width) - 
 			8 * b(cv - bin_width) + 
 			b(cv - 2 * bin_width)
