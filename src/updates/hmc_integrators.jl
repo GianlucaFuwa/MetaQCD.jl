@@ -1,7 +1,7 @@
 struct Leapfrog <: AbstractIntegrator
 end
 
-function (lf::Leapfrog)(U::Gaugefield, method::HMCUpdate, Bias)
+function (lf::Leapfrog)(U::T1, method::T2, Bias) where {T1<:Gaugefield, T2<:HMCUpdate}
     updateP!(U, method, 0.5, Bias)
 
     for i = 1:method.steps-1
@@ -27,7 +27,7 @@ struct OMF2Slow <: AbstractIntegrator
     end
 end
 
-function (O2S::OMF2Slow)(U::Gaugefield, method::HMCUpdate, Bias)
+function (O2S::OMF2Slow)(U::T1, method::T2, Bias) where {T1<:Gaugefield, T2<:HMCUpdate}
 
     for i in 1:method.steps
         updateP!(U, method, O2S.α, Bias)
@@ -53,7 +53,7 @@ struct OMF2 <: AbstractIntegrator
     end
 end
 
-function (O2::OMF2)(U::Gaugefield, method::HMCUpdate, Bias)
+function (O2::OMF2)(U::T1, method::T2, Bias) where {T1<:Gaugefield, T2<:HMCUpdate}
     updateP!(U, method, O2.α, Bias)
     updateU!(U, method, O2.β)
     updateP!(U, method, O2.γ, Bias)
@@ -89,7 +89,7 @@ struct OMF4Slow <: AbstractIntegrator
     end
 end
 
-function (O4S::OMF4Slow)(U::Gaugefield, method::HMCUpdate, Bias)
+function (O4S::OMF4Slow)(U::T1, method::T2, Bias) where {T1<:Gaugefield, T2<:HMCUpdate}
 
     for i in 1:method.steps
         updateP!(U, method, O4S.α, Bias)
@@ -129,7 +129,7 @@ struct OMF4 <: AbstractIntegrator
     end
 end
 
-function (O4::OMF4)(U::Gaugefield, method::HMCUpdate, Bias)
+function (O4::OMF4)(U::T1, method::T2, Bias) where {T1<:Gaugefield, T2<:HMCUpdate}
     updateP!(U, method, O4.α, Bias)
     updateU!(U, method, O4.β)
     updateP!(U, method, O4.γ, Bias)

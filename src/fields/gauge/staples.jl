@@ -7,15 +7,54 @@ function staple_eachsite!(staples, U::Gaugefield{T}) where {T}
             for iy in 1:NY
                 for ix in 1:NX
                     site = SiteCoords(ix, iy, iz, it)
+
                     for μ in 1:4
-                        staples[μ][ix,iy,iz,it] = staple(U, μ, site)
+                        @inbounds staples[μ][ix,iy,iz,it] = staple(U, μ, site)
                     end
+
                 end
             end
         end
     end
 
     return nothing
+end
+
+function (::WilsonGaugeAction)(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
+    return staple_plaq(U, μ, site)
+end
+
+function (::SymanzikTreeGaugeAction)(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
+    c1 = -1/12
+    c1prime = c1
+    staple_p = staple_plaq(U, μ, site)
+    staple_r = staple_rect(U, μ, site)
+    return (1 - 8c1) * staple_p + c1prime * staple_r
+end
+
+function (::SymanzikTadGaugeAction)(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
+    u0sq = sqrt(plaquette_trace_sum(U))
+    c1 = -1/12
+    c1prime = c1 / u0sq
+    staple_p = staple_plaq(U, μ, site)
+    staple_r = staple_rect(U, μ, site)
+    return (1 - 8c1) * staple_p + c1prime * staple_r
+end
+
+function (::IwasakiGaugeAction)(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
+    c1 = -0.331
+    c1prime = c1
+    staple_p = staple_plaq(U, μ, site)
+    staple_r = staple_rect(U, μ, site)
+    return (1 - 8c1) * staple_p + c1prime * staple_r
+end
+
+function (::DBW2GaugeAction)(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
+    c1 = -1.409
+    c1prime = c1
+    staple_p = staple_plaq(U, μ, site)
+    staple_r = staple_rect(U, μ, site)
+    return (1 - 8c1) * staple_p + c1prime * staple_r
 end
 
 function staple_plaq(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
@@ -32,8 +71,8 @@ function staple_plaq(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
         siteνp = move(site, ν, 1, Nν)
         siteνn = move(site, ν, -1, Nν)
         siteμpνn = move(siteμp, ν, -1, Nν)
-        staple += U[ν][site] * U[μ][siteνp] * U[ν][siteμp]' +
-                  U[ν][siteνn]' * U[μ][siteνn] * U[ν][siteμpνn]
+        staple += U[ν][site] * U[μ][siteνp] * U[ν][siteμp]'
+        staple += U[ν][siteνn]' * U[μ][siteνn] * U[ν][siteμpνn]
     end
 
     return staple
@@ -103,41 +142,4 @@ function staple_rect(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
     end
 
     return staple
-end
-
-function (::WilsonGaugeAction)(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
-    return staple_plaq(U, μ, site)
-end
-
-function (::SymanzikTreeGaugeAction)(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
-    c1 = -1/12
-    c1prime = c1
-    staple_p = staple_plaq(U, μ, site)
-    staple_r = staple_rect(U, μ, site)
-    return (1 - 8c1) * staple_p + c1prime * staple_r
-end
-
-function (::SymanzikTadGaugeAction)(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
-    u0sq = sqrt(plaquette_trace_sum(U))
-    c1 = -1/12
-    c1prime = c1 / u0sq
-    staple_p = staple_plaq(U, μ, site)
-    staple_r = staple_rect(U, μ, site)
-    return (1 - 8c1) * staple_p + c1prime * staple_r
-end
-
-function (::IwasakiGaugeAction)(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
-    c1 = -0.331
-    c1prime = c1
-    staple_p = staple_plaq(U, μ, site)
-    staple_r = staple_rect(U, μ, site)
-    return (1 - 8c1) * staple_p + c1prime * staple_r
-end
-
-function (::DBW2GaugeAction)(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
-    c1 = -1.409
-    c1prime = c1
-    staple_p = staple_plaq(U, μ, site)
-    staple_r = staple_rect(U, μ, site)
-    return (1 - 8c1) * staple_p + c1prime * staple_r
 end

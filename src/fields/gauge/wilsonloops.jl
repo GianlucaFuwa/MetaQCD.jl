@@ -128,24 +128,27 @@ end
 
 function wilsonloop(U::T, Lμ, Lν) where {T<:Gaugefield}
     NX, NY, NZ, NT = size(U)
-    wil = 0.0
+    spacing = 8
+    wil = zeros(Float64, nthreads() * spacing)
 
-    for it in 1:NT
+    @batch for it in 1:NT
         for iz in 1:NZ
             for iy in 1:NY
                 for ix in 1:NX
                     site = SiteCoords(ix, iy, iz, it)
+
                     for μ in 1:3
                         for ν in μ+1:4
-                            wil += real(
+                            wil[threadid() * spacing] += real(
                                 tr(wilsonloop(U, μ, ν, site, Lμ, Lν))
                             )
                         end
                     end
+
                 end
             end
         end
     end
 
-    return wil
+    return sum(wil)
 end

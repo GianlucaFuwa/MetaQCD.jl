@@ -1,9 +1,21 @@
-struct SiteCoords{T}
-    ix::T
-    iy::T
-    iz::T
-    it::T
-end 
+struct SiteCoords
+    ix::Int64
+    iy::Int64
+    iz::Int64
+    it::Int64
+end
+
+@inline function SiteCoords(i, NX, NY, NZ, NT)
+    ix = (i - 1) % NX + 1
+    ii = div(i - ix, NX)
+
+    iy = ii % NY + 1
+    ii = div(ii - (iy - 1), NY)
+
+    iz = ii % NZ + 1
+    it = div(ii - (iz - 1), NZ) + 1
+    return SiteCoords(ix, iy, iz, it)
+end
 
 @inline function get_coords(s::SiteCoords)
     return (s.ix, s.iy, s.iz, s.it)
@@ -25,7 +37,11 @@ end
     return SiteCoords(ix, iy, iz, it)
 end
 
-function Base.setindex!(U::AbstractArray, v, s::SiteCoords)
+function Base.setindex!(
+    U::Array{SMatrix{3, 3, ComplexF64, 9}, 4},
+    v::SMatrix{3, 3, ComplexF64, 9},
+    s::SiteCoords,
+)
     ix, iy, iz, it = get_coords(s)
     @inbounds U[ix,iy,iz,it] = v
     return nothing

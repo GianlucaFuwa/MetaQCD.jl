@@ -1,6 +1,5 @@
 module ParameterStructs
     import ..AbstractMeasurementModule: MeasurementParameters
-    @enum SmearingMethod NoSmearing = 1 STOUT = 2
 
     import ..AbstractMeasurementModule: construct_measurement_parameters_from_dict
     import ..AbstractMeasurementModule: PlaquetteParameters, PolyakovParameters
@@ -12,20 +11,20 @@ module ParameterStructs
         "β",
         "kind_of_gaction",
         "update_method",
-        "ϵ_metro",
-        "hmc_steps",
-        "Δτ",
         "meta_enabled",
-        "tempering_enabled",
         "kind_of_cv",
         "numCVsmear",
+        "metro_ϵ",
+        "hmc_steps",
+        "hmc_Δτ",
+        "tempering_enabled",
         "methodname",
         "measurement_basedir",
-        "hassmearing",
+        "has_gradient_flow",
         "measurement_dir",
         "kinds_of_topological_charge",
-        "measurements_for_smearing",
-        "smearing_measurements",
+        "measurements_for_flow",
+        "flow_measurements",
     ]
 
     function check_important_parameters(key)
@@ -69,17 +68,16 @@ module ParameterStructs
         tempering_enabled::Bool = false
         numinstances::Int64 = 1
         swap_every::Union{Nothing, Int64} = nothing
-        eo::Bool = false
-        MAXIT::Int64 = 10^5
-        numHB::Int64 = 4
-        numOR::Int64 = 1
-        ϵ_metro::Float64 = 0.1
-        multi_hit::Int64 = 1
+        hb_eo::Bool = false
+        hb_MAXIT::Int64 = 10^5
+        hb_numHB::Int64 = 4
+        hb_numOR::Int64 = 1
+        metro_ϵ::Float64 = 0.1
+        metro_multi_hit::Int64 = 1
         metro_target_acc::Float64 = 0.5
     end
 
     Base.@kwdef mutable struct PrintMetaParameters
-        meta_enabled::Bool = false
         kind_of_cv::String = "clover"
 		numsmears_for_cv::Int64 = 4
 		ρstout_for_cv::Float64 = 0.125
@@ -105,23 +103,32 @@ module ParameterStructs
         randomseed::Union{Nothing, Int64} = nothing
         measurement_basedir::String = ""
         measurement_dir::String = ""
-        savebias_dir::Union{Nothing, String, Vector{String}} = nothing
-        biasfiles::Union{Nothing, String, Vector{Union{Nothing,String}}} = nothing
+        bias_basedir::Union{Nothing, String, Vector{String}} = nothing
+        bias_dir::Union{Nothing, String, Vector{Union{Nothing,String}}} = nothing
         usebiases::Union{Nothing, String, Vector{Union{Nothing,String}}} = nothing
-        weightfiles::Union{Nothing, String, Vector{String}} = nothing
+        hasgradientflow::Bool = false
+        flow_integrator::String = "euler"
+        flow_num::Int64 = 1
+        flow_ϵ::Float64 = 0.1
+        flow_steps::Int64 = 10
+        flow_measure_every::Int64 = 1
     end
 
     Base.@kwdef mutable struct PrintHMCrelatedParameters
-        Δτ::Float64 = 0.1
+        hmc_Δτ::Float64 = 0.1
         hmc_steps::Int64 = 10
-        integrator::String = "Leapfrog"
+        hmc_integrator::String = "Leapfrog"
+        hmc_numsmear::Int64 = 0
+        hmc_ρstout::Float64 = 0.0
     end
 
-    Base.@kwdef mutable struct PrintSmearingParameters
-        hassmearing::Bool = false
-        smearingtype::String = "Stout"
-        ρ_stout::Float64 = 0.125
-        numsmear::Int64 = 1
+    Base.@kwdef mutable struct PrintGradientFlowParameters
+        hasgradientflow::Bool = false
+        flow_integrator::String = "euler"
+        flow_num::Int64 = 1
+        flow_ϵ::Float64 = 0.1
+        flow_steps::Int64 = 10
+        flow_measure_every::Int64 = 1
     end
 
     Base.@kwdef mutable struct PrintMeasurementParameters
@@ -143,17 +150,17 @@ module ParameterStructs
     end
 
     function transform_measurement_dictvec(value)
-        smear_dict = Dict()
+        flow_dict = Dict()
         nummeasure = length(value)
         value_out = Vector{Measurement_parameters}(undef, nummeasure)
-        hassmearing = false
+        hasgradientflow = false
 
         for i in 1:nummeasure
             if haskey(value[i], "methodname")
                 if value[i]["methodname"] == "Topological_charge"
-                    hassmearing = true
+                    hasgradientflow = true
                     value_out[i] = transform_topological_charge_measurement!(
-                        smear_dict,
+                        flow_dict,
                         value[i],
                     )
                 else
@@ -164,26 +171,34 @@ module ParameterStructs
             end
         end
 
-        return value_out, smear_dict, hassmearing
+        return value_out, smear_dict, hasgradientflow
     end
 
-    function transform_topological_charge_measurement!(smear_dict, measurement)
+    function transform_topological_charge_measurement!(flow_dict, measurement)
         @assert haskey(measurement, "methodname") "method name in measurement should be set"
         @assert measurement["methodname"] == "Topological_charge" "function is for top. charge"
 
         measurement_revised = Dict()
 
-        for (key,value) in measurement
-            if key == "numsmear"
-                flow_dict["numsmear"] = value
-            elseif key == "ρ_stout"
-                flow_dict["ρ_stout"] = value
+        for (key, value) in measurement
+            if key == "flow_integrator"
+                flow_dict["flow_integrator"] = value
+            elseif key == "flow_num"
+                flow_dict["flow_num"] = value
+            elseif key == "flow_ϵ"
+                flow_dict["flow_ϵ"] = value
+            elseif key == "flow_steps"
+                flow_dict["flow_steps"] = value
+            elseif key == "flow_measure_every"
+                flow_dict["flow_measure_every"] = value
+            else
+                measurement_revised[key] = value
             end
         end
 
         value_m = construct_Measurement_parameters_from_dict(measurement_revised)
-        smear_dict["measurements_for_smearing"] = Dict()
-        smear_dict["measurements_for_smearing"]["Topological_charge"] = measurement_revised
+        flow_dict["measurements_for_flow"] = Dict()
+        flow_dict["measurements_for_flow"]["Topological_charge"] = measurement_revised
 
         return value_m
     end

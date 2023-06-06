@@ -2,30 +2,30 @@ struct StoutSmearing{T} <: AbstractSmearing
 	numlayers::Int64
 	ρ::Float64
 	Usmeared_multi::Vector{Gaugefield{T}}
-	C_multi::Vector{TemporaryField}
+	C_multi::Vector{Temporaryfield}
 	Q_multi::Vector{CoeffField}
-	Λ::TemporaryField
+	Λ::Temporaryfield
 
 	function StoutSmearing(
 		U::Gaugefield{T},
 		numlayers,
-		ρ;
-		recursive = true,
+		ρ,
 	) where {T <: AbstractGaugeAction}
 		@assert numlayers >= 0 && ρ >= 0 "number of stout layers and ρ must be >= 0"
+		
 		if numlayers == 0 || ρ == 0
 			return NoSmearing()
 		else
 			Usmeared_multi = Vector{Gaugefield{T}}(undef, numlayers + 1)
-			C_multi = Vector{TemporaryField}(undef, numlayers)
+			C_multi = Vector{Temporaryfield}(undef, numlayers)
 			Q_multi = Vector{CoeffField}(undef, numlayers)
-			Λ = TemporaryField(U)
+			Λ = Temporaryfield(U)
 	
 			Usmeared_multi[1] = similar(U)
 	
 			for i in 1:numlayers
 				Usmeared_multi[i+1] = similar(U)
-				C_multi[i] = TemporaryField(U)
+				C_multi[i] = Temporaryfield(U)
 				Q_multi[i] = CoeffField(U)
 			end
 	
@@ -77,12 +77,13 @@ function apply_stout_smearing!(
 	NX, NY, NZ, NT = size(Uout)
 	calc_stout_Q!(Q, C, U, ρ)
 	
-	for it in 1:NT
+	@batch for it in 1:NT
 		for iz in 1:NZ
 			for iy in 1:NY
 				for ix in 1:NX
 					for μ in 1:4
-						Uout[μ][ix,iy,iz,it] = exp_iQ(Q[μ][ix,iy,iz,it]) * U[μ][ix,iy,iz,it]
+						@inbounds Uout[μ][ix,iy,iz,it] = 
+							exp_iQ(Q[μ][ix,iy,iz,it]) * U[μ][ix,iy,iz,it]
 					end
 				end
 			end
@@ -144,13 +145,13 @@ function stout_recursion!(
 
 	calc_stout_Λ!(Λ, Σ_prime, Q, U)
 
-	for it in 1:NT
+	@batch for it in 1:NT
 		for iz in 1:NZ
 			for iy in 1:NY
 				for ix in 1:NX
 					site = SiteCoords(ix, iy, iz, it)
 
-					for μ in 1:4
+					@inbounds for μ in 1:4
 						Nμ = size(Σ_prime)[μ]
 						siteμp = move(site, μ, 1, Nμ)
 						force_sum = @SMatrix zeros(ComplexF64, 3, 3)
@@ -175,11 +176,11 @@ function stout_recursion!(
 							
 						end
 
-						link = U[μ][ix,iy,iz,it]
-						expiQ_mat = exp_iQ(Q[μ][ix,iy,iz,it])
-						Σ[μ][ix,iy,iz,it] = traceless_antihermitian(
-							link * Σ_prime[μ][ix,iy,iz,it] * expiQ_mat +
-							im * link * C[μ][ix,iy,iz,it]' * Λ[μ][ix,iy,iz,it] -
+						link = U[μ][site]
+						expiQ_mat = exp_iQ(Q[μ][site])
+						Σ[μ][site] = traceless_antihermitian(
+							link * Σ_prime[μ][site] * expiQ_mat +
+							im * link * C[μ][site]' * Λ[μ][site] -
 							im * ρ * link * force_sum
 						)
 					end
@@ -204,11 +205,11 @@ function calc_stout_Λ!(
 )
 	NX, NY, NZ, NT = size(U)
 
-	for it in 1:NT
+	@batch for it in 1:NT
 		for iz in 1:NZ
 			for iy in 1:NY
 				for ix in 1:NX
-					for μ in 1:4
+					@inbounds for μ in 1:4
 						q = Q[μ][ix,iy,iz,it]
 						Q_mat = q.Q
 						UΣ = U[μ][ix,iy,iz,it] * Σprime[μ][ix,iy,iz,it]
@@ -237,17 +238,17 @@ function calc_stout_Q!(
 	C,
 	U::Gaugefield{T},
 	ρ,
-) where {T <: AbstractGaugeAction}
+) where {T}
 	NX, NY, NZ, NT = size(U)
 	staple = T()
 
-	for it in 1:NT
+	@batch for it in 1:NT
 		for iz in 1:NZ
 			for iy in 1:NY
 				for ix in 1:NX
 					site = SiteCoords(ix, iy, iz, it)
 
-					for μ in 1:4
+					@inbounds for μ in 1:4
 						Cμ = ρ * staple(U, μ, site)
 						C[μ][ix,iy,iz,it] = Cμ
 

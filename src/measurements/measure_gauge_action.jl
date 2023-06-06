@@ -5,6 +5,7 @@ mutable struct GaugeActionMeasurement <: AbstractMeasurement
     filename::Union{Nothing, String}
     factor::Float64
     verbose_print::Union{Nothing, VerboseLevel}
+    fp::Union{Nothing, IOStream}
     printvalues::Bool
     GA_methods::Vector{String}
 
@@ -16,14 +17,17 @@ mutable struct GaugeActionMeasurement <: AbstractMeasurement
         GA_methods = ["wilson"]
     )
         if printvalues
+            fp = open(filename, "w")
+
             if verbose_level == 1
-                verbose_print = Verbose1(filename)
+                verbose_print = Verbose1()
             elseif verbose_level == 2
-                verbose_print = Verbose2(filename)
+                verbose_print = Verbose2()
             elseif verbose_level == 3
-                verbose_print = Verbose3(filename)    
+                verbose_print = Verbose3()    
             end
         else
+            fp = nothing
             verbose_print = nothing
         end
 
@@ -33,8 +37,9 @@ mutable struct GaugeActionMeasurement <: AbstractMeasurement
             filename,
             factor,
             verbose_print,
+            fp,
             printvalues,
-            GA_methods
+            GA_methods,
         )
     end
 end
@@ -106,6 +111,8 @@ function measure(m::GaugeActionMeasurement, U; additional_string = "")
 
         measurestring = printstring
         println_verbose2(m.verbose_print, measurestring)
+        println(m.fp, measurestring)
+        flush(m.fp)
     end
 
     output = MeasurementOutput(valuedic, measurestring)

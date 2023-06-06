@@ -3,6 +3,7 @@ import ..Gaugefields: wilsonloop
 mutable struct WilsonLoopMeasurement <: AbstractMeasurement
     filename::Union{Nothing, String}
     verbose_print::Union{Nothing, VerboseLevel}
+    fp::Union{Nothing, IOStream}
     printvalues::Bool
     Tmax::Int64
     Rmax::Int64
@@ -17,14 +18,17 @@ mutable struct WilsonLoopMeasurement <: AbstractMeasurement
         Tmax = 4,
     )
         if printvalues
+            fp = open(filename, "w")
+
             if verbose_level == 1
-                verbose_print = Verbose1(filename)
+                verbose_print = Verbose1()
             elseif verbose_level == 2
-                verbose_print = Verbose2(filename)
+                verbose_print = Verbose2()
             elseif verbose_level == 3
-                verbose_print = Verbose3(filename)    
+                verbose_print = Verbose3()    
             end
         else
+            fp = nothing
             verbose_print = nothing
         end
 
@@ -33,6 +37,7 @@ mutable struct WilsonLoopMeasurement <: AbstractMeasurement
         return new(
             filename,
             verbose_print,
+            fp,
             printvalues,
             Tmax,
             Rmax,
@@ -42,10 +47,10 @@ mutable struct WilsonLoopMeasurement <: AbstractMeasurement
 end
 
 function WilsonLoopMeasurement(
-    U::Gaugefield,
+    U::T,
     params::WilsonLoopParameters,
     filename = "wilson_loop.txt",
-)
+) where {T<:Gaugefield}
     return WilsonLoopMeasurement(
         U,
         filename = filename,
@@ -67,6 +72,8 @@ function measure(m::WilsonLoopMeasurement, U; additional_string = "")
             if m.printvalues
                 measurestring = " $additional_string $R $T $WL # wilson_loops # R T W(R,T)"
                 println_verbose2(m.verbose_print, measurestring)
+                println(m.fp, measurestring)
+                flush(m.fp)
             end
         end
     end

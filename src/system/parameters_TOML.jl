@@ -4,7 +4,7 @@ module ParametersTOML
 
     import ..ParameterStructs: struct2dict, PrintPhysicalParameters, PrintMetaParameters
     import ..ParameterStructs: PrintSystemParameters, PrintHMCrelatedParameters
-    import ..ParameterStructs: PrintSmearingParameters, PrintMeasurementParameters
+    import ..ParameterStructs: PrintGradientFlowParameters, PrintMeasurementParameters
     import ..SystemParameters: Params
 
     function set_params_value!(value_Params, values)
@@ -69,8 +69,8 @@ module ParametersTOML
         set_params_value!(value_Params, hmc)
         meas = PrintMeasurementParameters()
         set_params_value!(value_Params, meas)
-        smearing = PrintSmearingParameters()
-        set_params_value!(value_Params, smearing)
+        gradientflow = PrintGradientFlowParameters()
+        set_params_value!(value_Params, gradientflow)
 
         #pos = findfirst(x -> String(x) == "ITERATION_MAX", pnames)
         #value_Params[pos] = 10^5
@@ -103,13 +103,35 @@ module ParametersTOML
         measuredir = pwd() * "/" * measurement_basedir * "/" * measurement_dir
         value_Params[pos] = measuredir
 
+        meta_enabled = parameters["Physical Settings"]["meta_enabled"]
+        pos = findfirst(x -> String(x) == "biasdir", pnames)
+
+        if meta_enabled == true
+            bias_basedir = parameters["System Settings"]["bias_basedir"]
+            bias_dir = parameters["System Settings"]["bias_dir"]
+
+            if isdir(bias_basedir) == false
+                mkpath(bias_basedir)
+            end
+
+            if isdir(pwd() * "/" * bias_basedir * "/" * bias_dir) == false
+                mkpath(pwd() * "/" * bias_basedir * "/" * bias_dir)
+            end
+
+            biasdir = pwd() * "/" * bias_basedir * "/" * bias_dir
+            value_Params[pos] = biasdir
+        else
+            biasdir = nothing
+            value_Params[pos] = biasdir
+        end
+
         for (i, pname_i) in enumerate(pnames)
             for (key, value) in parameters
                 if haskey(value, String(pname_i))
                     if String(pname_i) == "measurement_methods"
                         valuedir = construct_measurement_dir(value[String(pname_i)])
                         value_Params[i] = valuedir
-                    elseif String(pname_i) == "measurements_for_smearing"
+                    elseif String(pname_i) == "measurements_with_flow"
                         valuedir = construct_measurement_dir(value[String(pname_i)])
                         value_Params[i] = valuedir
                     elseif String(pname_i) == "L"
@@ -200,9 +222,11 @@ module ParametersTOML
 
         for (method, methoddic) in x
             dic_i = Dict()
+
             for (key, value) in methoddic
-                    dic_i[key] = value
+                dic_i[key] = value
             end
+
             push!(valuedic, dic_i)
         end
         

@@ -83,9 +83,9 @@ function construct_measurement_parameters_from_dict(value_i::Dict)
     return value_out
 end
 
-function prepare_measurement(U, measurement_parameters::T, filename="") where {T}
+function prepare_measurement(U, measurement_parameters::T, filename = "") where {T}
     if T == ActionParameters
-        filename_input = ifelse(filename == "", "action.txt",filename)
+        filename_input = ifelse(filename == "", "action.txt", filename)
         measurement = GaugeActionMeasurement(U, measurement_parameters, filename_input)
     elseif T == PlaquetteParameters
         filename_input = ifelse(filename == "", "plaquette.txt", filename)

@@ -1,13 +1,13 @@
 using Random
-#include("../src/system/MetaQCD.jl")
-#using .MetaQCD
+include("../src/system/MetaQCD.jl")
+using .MetaQCD
 function SU3testmeta()
     Random.seed!(1206)
 
     println("SU3testmeta")
     NX = 4; NY = 4; NZ = 4; NT = 4
-    action = "wilson"
-    U = random_gauges(NX, NY, NZ, NT, 5.7, gaction = action)
+    action = WilsonGaugeAction
+    U = random_gauges(NX, NY, NZ, NT, 5.7, type_of_gaction = action);
     #filename = "./test/testconf.txt"
     #load_BridgeText!(filename,U)
 
@@ -21,7 +21,7 @@ function SU3testmeta()
     hmc_integrator = "OMF4"
     hmc_Δτ = 0.1
     hmc_steps = 10
-    hmc_numsmear = 5
+    hmc_numsmear = 0
     hmc_ρstout = 0.125
     hb_eo = false
     hb_MAXIT = 10
@@ -30,7 +30,7 @@ function SU3testmeta()
 
     bias_kind_of_cv = "clover"
     bias_numsmear = 5
-    bias_ρstout = 0.125
+    bias_ρstout = 0.12
     bias_symmetric = true
     bias_CVlims = (-5, 5)
     bias_bin_width = 1e-2
@@ -47,7 +47,7 @@ function SU3testmeta()
         bias_bin_width,
         bias_weight,
         bias_penalty_weight,
-    )
+    );
 
     updatemethod = Updatemethod(
         U,
@@ -67,7 +67,7 @@ function SU3testmeta()
         hb_numOR,
     )
     
-    for itrj = 1:1
+    for _ = 1:1
         value, runtime = @timed update!(
             updatemethod,
             U,
@@ -82,7 +82,7 @@ function SU3testmeta()
     numaccepts = 0
     nsweeps = 0
 
-    for itrj = 1:nsweeps
+    for _ = 1:nsweeps
         value, runtime = @timed update!(
             updatemethod,
             U,

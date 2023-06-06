@@ -36,17 +36,16 @@ function update!(
 end
 
 function metro_sweep!(
-	U,
-	metro::MetroUpdate{TG};
+	U::Gaugefield{T},
+	metro;
 	metro_test = true,
-) where {TG}
+) where {T}
 	NX, NY, NZ, NT = size(U)
 	β = U.β
 	ϵ = metro.ϵ[]
 	multi_hit = metro.multi_hit
 	numaccept = 0
-
-	staple = TG()
+	staple = T()
 
 	for it in 1:NT
 		for iz in 1:NZ
@@ -81,24 +80,24 @@ function metro_sweep!(
 end
 
 function metro_sweep_meta!(
-	U,
+	U::Gaugefield{T},
 	Bias,
-	metro::MetroUpdate{TG};
+	metro;
 	metro_test = true,
-) where {TG}
+) where {T}
 	NX, NY, NZ, NT = size(U)
 	β = U.β
 	ϵ = metro.ϵ[]
 	multi_hit = metro.multi_hit
 	numaccept = 0
-
-	staple = TG()
+	staple = T()
 
 	for it in 1:NT
 		for iz in 1:NZ
 			for iy in 1:NY
 				for ix in 1:NX
 					site = SiteCoords(ix, iy, iz, it)
+
 					for μ in 1:4
 
 						for _ in 1:multi_hit
@@ -123,6 +122,7 @@ function metro_sweep_meta!(
 						end
 
 					end
+					
 				end
 			end
 		end

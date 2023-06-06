@@ -16,7 +16,7 @@ module UniverseModule
         meta_enabled::Bool
         tempering_enabled::Bool
         U::Vector{Gaugefield{TG}}
-        Bias::Union{Nothing, Vector{BiasPotential}}
+        Bias::Union{Nothing, Vector{BiasPotential{TG}}}
         numinstances::Int64
         verbose_print::VerboseLevel
     end
@@ -55,12 +55,14 @@ module UniverseModule
                             p.β,
                             type_of_gaction = TG,
                         ))
-                    else
+                    elseif p.initial == "hot"
                         push!(U, random_gauges(
                             NX, NY, NZ, NT,
                             p.β,
                             type_of_gaction = TG,
                         ))
+                    else
+                        error("Initial \"$(p.initial)\" is invalid")
                     end
 
                     push!(Bias, BiasPotential(p, U[1], instance = i))

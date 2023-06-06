@@ -28,3 +28,12 @@ methodname = "topological_charge"
 ["Measurement set".measurement_methods.Plaquette]
 measure_every = 5
 methodname = "plaquette"
+
+[gradientflow_measurements]
+flow_integrator = "euler"
+flow_num = 4
+flow_steps = 10
+"flow_ϵ" = 0.1
+flow_measure_every = 1
+
+    [gradientflow_measurements.measurements_with_flow]

@@ -41,21 +41,26 @@ module SystemParameters
         swap_every::Union{Nothing, Int64}
 
         update_method::String
-		ϵ_metro::Union{Nothing, Float64}
-        multi_hit::Union{Nothing, Int64}
+		metro_ϵ::Union{Nothing, Float64}
+        metro_multi_hit::Union{Nothing, Int64}
         metro_target_acc::Union{Nothing, Float64}
-        integrator::Union{Nothing, String}
-        Δτ::Union{Nothing, Float64}
+        hmc_integrator::Union{Nothing, String}
+        hmc_Δτ::Union{Nothing, Float64}
         hmc_steps::Union{Nothing, Int64}
-        eo::Union{Nothing, Bool}
-        MAXIT::Union{Nothing, Int64}
-        numHB::Union{Nothing, Int64}
-        numOR::Union{Nothing, Int64}
+        hmc_numsmear::Union{Nothing, Int64}
+        hmc_ρstout::Union{Nothing, Float64}
+        hb_eo::Union{Nothing, Bool}
+        hb_MAXIT::Union{Nothing, Int64}
+        hb_numHB::Union{Nothing, Int64}
+        hb_numOR::Union{Nothing, Int64}
 
         measurement_methods::Vector{Dict}
-        smearingtype::Union{Nothing,String}
-        numsmear::Union{Nothing, Int64}
-        ρ_stout::Union{Nothing, Float64}
+        measurements_with_flow::Union{Nothing, Vector{Dict}}
+        flow_integrator::Union{Nothing, String}
+        flow_num::Union{Nothing, Int64}
+        flow_ϵ::Union{Nothing, Float64}
+        flow_steps::Union{Nothing, Int64}
+        flow_measure_every::Union{Nothing, Int64}
 
         verboselevel::Int64
 
@@ -72,10 +77,8 @@ module SystemParameters
 		logfile::String
 		load_fp::IOStream
         measuredir::String
-		savebias_dir::Union{Nothing, String, Vector{String}}
-        biasfiles::Union{Nothing, String, Vector{Union{Nothing, String}}}
+		biasdir::Union{Nothing, String}
         usebiases::Union{Nothing, String, Vector{Union{Nothing, String}}}
-        weightfiles::Union{Nothing, String, Vector{String}}
     end
 
 end

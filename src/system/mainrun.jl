@@ -6,9 +6,10 @@ module Mainrun
     using ..VerbosePrint
     
     import ..AbstractMeasurementModule: measure
-    import ..AbstractUpdateModule: Updatemethod, update!
+    import ..AbstractSmearingModule: GradientFlow
+    import ..AbstractUpdateModule: AbstractUpdate, Updatemethod, update!
     import ..Gaugefields: normalize!
-    import ..MetaQCD: MeasurementMethods, calc_measurement_values
+    import ..MetaQCD: MeasurementMethods, calc_measurements, calc_measurements_flowed
     import ..ParametersTOML: construct_params_from_toml
     import ..UniverseModule: Univ
     import ..TemperingModule: temper!
@@ -22,6 +23,7 @@ module Mainrun
         
         univ = Univ(parameters)
         println_verbose1(univ.verbose_print, "# ", pwd())
+        meta_enabled = parameters.meta_enabled
         numinstances = univ.numinstances
 
         println_verbose1(univ.verbose_print, "# ", Dates.now())
@@ -31,14 +33,50 @@ module Mainrun
         versioninfo = String(take!(io))
         println_verbose1(univ.verbose_print, versioninfo)
 
-        updatemethod = []
+
+        updatemethod = Vector{AbstractUpdate}(undef, numinstances)
+
+
         for i in 1:numinstances
-            push!(updatemethod, Updatemethod(parameters, univ, i))
+            updatemethod[i] = Updatemethod(parameters, univ, i)
         end
 
-        measurements = MeasurementMethods(univ.U[1], parameters.measuredir, parameters.measurement_methods)
+        gradient_flow = GradientFlow(
+            univ.U[1],
+            integrator = parameters.flow_integrator,
+            numflow = parameters.flow_num,
+            steps = parameters.flow_steps,
+            ϵ = parameters.flow_ϵ,
+            measure_every = parameters.flow_measure_every,
+        )
 
-        calc_measurement_values(measurements, 0, univ.U[1])
+        measurements = MeasurementMethods(
+            univ.U[1],
+            parameters.measuredir,
+            parameters.measurement_methods,
+        )
+        measurements_with_flow = MeasurementMethods(
+            univ.U[1],
+            parameters.measuredir,
+            parameters.measurements_with_flow,
+            flow = true,
+        )
+
+        if meta_enabled
+            meta_charge_fp = Vector{IOStream}(undef, numinstances)
+            for i in 1:numinstances
+                meta_charge_fp[i] = open(
+                    parameters.measuredir * "/Meta_charge_$i.txt",
+                    "w",
+                )
+            end
+        else
+            meta_charge_fp = nothing
+        end
+
+
+        calc_measurements(measurements, 0, univ.U[1])
+
         #=
         savedata = Savedata(
             parameters.saveU_format,
@@ -58,6 +96,7 @@ module Mainrun
                         updatemethod[i],
                         univ.U[i],
                         univ.verbose_print,
+                        Bias = univ.Bias[i],
                         metro_test = false,
                     )
                     updatetime += runtime
@@ -78,6 +117,7 @@ module Mainrun
 
         value, runtime_all = @timed begin
             numaccepts = zeros(AbstractFloat, numinstances)
+
             for itrj in 1:parameters.Nsteps
                 println_verbose1(univ.verbose_print, "# itrj = $itrj")
                 updatetime = 0.0
@@ -87,6 +127,7 @@ module Mainrun
                         updatemethod[i],
                         univ.U[i],
                         univ.verbose_print,
+                        Bias = univ.Bias[i],
                     )
                     numaccepts[i] += accepted
                     updatetime += runtime
@@ -109,16 +150,30 @@ module Mainrun
                         numaccepts_temper[i-1] += ifelse(accepted, 1, 0)
                     end
                 end
+
                 #save_gaugefield(savedata, univ.U, itrj)
-                for i in 1:numinstances
-                    measurestrings = calc_measurement_values(measurements, itrj, univ.U[i])
 
-                    if i == 1 
-                        for st in measurestrings
-                            println(univ.verbose_print.fp, st)
-                        end
+                calc_measurements(
+                    measurements,
+                    itrj,
+                    univ.U[1],
+                )
+
+                calc_measurements_flowed(
+                    measurements_with_flow,
+                    gradient_flow,
+                    itrj,
+                    univ.U[1],
+                )
+
+                if meta_enabled
+                    for i in 1:numinstances
+                        println(
+                            meta_charge_fp[i],
+                            "$itrj $(univ.U[i].CV) # metacharge",
+                        )
+                        flush(meta_charge_fp[i])
                     end
-
                 end
 
                 println_verbose1(
@@ -129,33 +184,39 @@ module Mainrun
             end
         end
 
-        if parameters.meta_enabled
-            bias.values = bias_mean ./ parameters.Nsteps
+        if meta_enabled
 
-            open(params.biasfile,"w") do io
-                writedlm(io, [bias.q_vals bias.values])
+            for i in 1:numinstances
+                writedlm(
+                    univ.Bias[i].fp,
+                    [univ.Bias[i].bin_vals univ.Bias[i].values],
+                )
+
+                close(univ.Bias[i].fp)
+
+                println_verbose1(
+                    univ.verbose_print,
+                    "Metapotential $i has been saved in file \"$(univ.Bias[i].fp)\""
+                )
+                #=
+                q_vals = readdlm(
+                    parameters.measuredir * "/Meta_charge_$i.txt",
+                    Float64,
+                    comments = true,
+                )
+
+                weights = calc_weights(q_vals[:,2], univ.Bias[i])
+
+                open(parameters.measuredir * "/Weights_$i.txt", "w") do io
+                    writedlm(io, weights)
+                end
+
+                println_verbose1(
+                    univ.verbose_print,
+                    "Weights $i have been saved"
+                )
+                =#
             end
-
-            println_verbose1(
-                univ.verbose_print,
-                "Metapotential has been saved in file \"$(params.biasfile)\""
-            )
-
-            q_vals = readdlm(
-                pwd()*"/"*params.measure_dir_secondary*"/Continuous_charge.txt",
-                AbstractFloat,
-                comments=true)
-
-            weights = calc_weights(q_vals[:,2], bias)
-
-            open(params.weightfile,"w") do io
-                writedlm(io, weights)
-            end
-
-            println_verbose1(
-                univ.verbose_print,
-                "Weights have been saved in file \"$(params.weightfile)\""
-            )
         end
 
         flush(stdout)

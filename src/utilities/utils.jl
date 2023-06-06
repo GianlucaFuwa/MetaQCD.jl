@@ -8,8 +8,14 @@ module Utils
     export gen_SU3_matrix, is_SU3, is_su3
     export kenney_laub, proj_onto_SU3, make_submatrix, embed_into_SU3, multr
     export antihermitian, hermitian, traceless_antihermitian, traceless_hermitian
-    export eye2, eye3, δ, ε_tensor, gaussian_su3_matrix
+    export zero2, eye2, zero3, eye3, δ, ε_tensor, gaussian_su3_matrix
     export get_coords, move, SiteCoords
+
+    const zero3 = @SArray [
+        0.0+0.0im 0.0+0.0im 0.0+0.0im
+        0.0+0.0im 0.0+0.0im 0.0+0.0im
+        0.0+0.0im 0.0+0.0im 0.0+0.0im
+    ]
 
     const eye3 = @SArray [
         1.0+0.0im 0.0+0.0im 0.0+0.0im
@@ -43,6 +49,11 @@ module Utils
         0 1 0 0
         0 0 -1 0
         0 0 0 -1
+    ]
+
+    const zero2 = @SArray [
+        0.0+0.0im 0.0+0.0im
+        0.0+0.0im 0.0+0.0im
     ]
 
     const eye2 = @SArray [

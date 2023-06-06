@@ -75,7 +75,7 @@ function calc_coefficients(Q::SMatrix{3,3,ComplexF64,9})
         3u2 * ξ1)
     r22 = emiu * (ξ0 - 3im * u * ξ1)
 
-    bdenom = 1 / 2(9u2 - w2)^2
+    bdenom = isapprox(0.0, (9u2 - w2)) ? 0.0 : 1 / 2(9u2 - w2)^2
     b10 = (2u * r10 + (3u2 - w2) * r20 - 2(15u2 + w2) * f0) * bdenom
     b20 = (r10 - 3u * r20 - 24u * f0) * bdenom
     b11 = (2u * r11 + (3u2 - w2) * r21 - 2(15u2 + w2) * f1) * bdenom
@@ -90,7 +90,7 @@ function set_uw(Q::SMatrix{3,3,ComplexF64,9})
     c1 = 1/2 * real(multr(Q, Q))
     c13r = sqrt(c1 / 3)
     c0max = 2 * c13r^3
-    Θ = acos(c0 / c0max)
+    Θ = isinf(c0 / c0max) ? acos(1.0) : acos(c0 / c0max)
 
     u = c13r * cos(Θ/3)
     w = sqrt(c1) * sin(Θ/3)
@@ -113,11 +113,11 @@ function set_fj(u, w)
     emiu = cis(-u)
     cosw = cos(w)
 
-    h0 = (u2 - w2) * e2iu + emiu * (8u2 * cosw + 2im * u * (3u2 + w2) * ξ0)
-    h1 = 2u * e2iu - emiu * (2u * cosw - im * (3u2 - w2) * ξ0)
-    h2 = e2iu - emiu * (cosw + 3im * u * ξ0)
+    h0 = (u2 - w2) * e2iu + emiu * (8u2 * cosw + 2im * u * (3u2 + w2) * ξ0) # 1
+    h1 = 2u * e2iu - emiu * (2u * cosw - im * (3u2 - w2) * ξ0) # 0
+    h2 = e2iu - emiu * (cosw + 3im * u * ξ0) # 0
     
-    fdenom = 1 / (9u2 - w2)
+    fdenom = 1 / (9u2 - w2) # 1
     f0 = h0 * fdenom
     f1 = h1 * fdenom
     f2 = h2 * fdenom

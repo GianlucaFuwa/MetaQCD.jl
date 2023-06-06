@@ -64,18 +64,22 @@ function SU3testupdate()
     end
     
     if update_method != "hmc"
-        Sg_final = calc_gauge_action(U)
+        Sg_final_unsmeared = U.Sg
+        println("Final Gauge Action is: ", Sg_final_unsmeared)
     else
         if typeof(updatemethod.smearing) == NoSmearing
-            Sg_final = calc_gauge_action(U)
+            Sg_final_unsmeared = U.Sg
+            println("Final Gauge Action is: ", Sg_final_unsmeared)
         else
+            Sg_final_unsmeared = U.Sg
+            println("Final Gauge Action is: ", Sg_final_unsmeared)
             calc_smearedU!(updatemethod.smearing, U)
             fully_smeared_U = updatemethod.smearing.Usmeared_multi[end]
-            Sg_final = calc_gauge_action(fully_smeared_U)
+            Sg_final_smeared = calc_gauge_action(fully_smeared_U)
+            println("Final smeared Gauge Action is: ", Sg_final_smeared)
         end
     end
 
-    println("Final Gauge Action is: ", Sg_final)
     println("Acceptance Rate: ", 100 * numaccepts / nsweeps, " %")
     return nothing
 end

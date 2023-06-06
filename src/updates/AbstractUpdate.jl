@@ -7,7 +7,7 @@ module AbstractUpdateModule
     using ..VerbosePrint
 
     import ..SystemParameters: Params
-    import ..Gaugefields: Gaugefield, Liefield, TemporaryField
+    import ..Gaugefields: Gaugefield, Liefield, Temporaryfield
     import ..Gaugefields: AbstractGaugeAction, add!, calc_gauge_action
     import ..Gaugefields: calc_kinetic_energy, fieldstrength_eachsite!
     import ..Gaugefields: gaussian_momenta!, staple_eachsite!, substitute_U!

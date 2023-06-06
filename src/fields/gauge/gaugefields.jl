@@ -54,7 +54,7 @@ module Gaugefields
 		end
 	end
 
-	struct TemporaryField <: Abstractfield
+	struct Temporaryfield <: Abstractfield
 		U::Vector{Array{SMatrix{3, 3, ComplexF64, 9}, 4}}
 		NX::Int64
 		NY::Int64
@@ -63,7 +63,7 @@ module Gaugefields
 		NV::Int64
 		NC::Int64
 
-		function TemporaryField(NX, NY, NZ, NT)
+		function Temporaryfield(NX, NY, NZ, NT)
 			U = Vector{Array{SMatrix{3, 3, ComplexF64, 9}, 4}}(undef, 4)
 
 			for μ = 1:4
@@ -76,9 +76,9 @@ module Gaugefields
 			return new(U, NX, NY, NZ, NT, NV, NC)
 		end
 
-		function TemporaryField(u::Abstractfield)
+		function Temporaryfield(u::Abstractfield)
 			NX, NY, NZ, NT = size(u)
-			return TemporaryField(NX, NY, NZ, NT)
+			return Temporaryfield(NX, NY, NZ, NT)
 		end
 	end
 
@@ -158,14 +158,15 @@ module Gaugefields
 	end
 
 	function substitute_U!(a::T, b::T) where {T <: Abstractfield}
+		@assert size(a) == size(b) "swapped fields need to be of same size"
 		NX, NY, NZ, NT = size(a)
 
-		for it in 1:NT
+		@batch for it in 1:NT
 			for iz in 1:NZ
 				for iy in 1:NY
 					for ix in 1:NX
 						for μ in 1:4
-							a[μ][ix,iy,iz,it] = b[μ][ix,iy,iz,it]
+							@inbounds a[μ][ix,iy,iz,it] = b[μ][ix,iy,iz,it]
 						end
 					end
 				end
@@ -176,16 +177,17 @@ module Gaugefields
 	end
 
 	function swap_U!(a::T, b::T) where {T<:Gaugefield}
+		@assert size(a) == size(b) "swapped fields need to be of same size"
 		NX, NY, NZ, NT = size(a)
 		a.Sg, b.Sg = b.Sg, a.Sg
 		a.CV, b.CV = b.CV, a.CV
 
-		for it in 1:NT
+		@batch for it in 1:NT
 			for iz in 1:NZ
 				for iy in 1:NY
 					for ix in 1:NX
 						for μ in 1:4
-							a[μ][ix,iy,iz,it], b[μ][ix,iy,iz,it] =
+							@inbounds a[μ][ix,iy,iz,it], b[μ][ix,iy,iz,it] =
 								b[μ][ix,iy,iz,it], a[μ][ix,iy,iz,it]
 						end
 					end
@@ -199,12 +201,12 @@ module Gaugefields
 	function identity_gauges(NX, NY, NZ, NT, β; type_of_gaction = WilsonGaugeAction)
 		u = Gaugefield(NX, NY, NZ, NT, β, TG = type_of_gaction)
 		
-		for it in 1:NT
+		@batch for it in 1:NT
 			for iz in 1:NZ
 				for iy in 1:NY
 					for ix in 1:NX
 						for μ in 1:4
-							u[μ][ix,iy,iz,it] = eye3
+							@inbounds u[μ][ix,iy,iz,it] = eye3
 						end
 					end
 				end
@@ -216,7 +218,9 @@ module Gaugefields
 
     function random_gauges(NX, NY, NZ, NT, β; type_of_gaction = WilsonGaugeAction)
 		u = Gaugefield(NX, NY, NZ, NT, β, TG = type_of_gaction)
-		# Use static scheduler to make random elements reproducible
+		# No multithreading to make random elements reproducible
+		# (could also use static scheduler but then we'd have to use @threads,
+		# which doesn't default to non-multithreaded for 1 thread)
 		for it in 1:NT
 			for iz in 1:NZ
 				for iy in 1:NY
@@ -224,7 +228,7 @@ module Gaugefields
 						for μ in 1:4
 							link = @SMatrix rand(ComplexF64, 3, 3)
 							link = proj_onto_SU3(link)
-							u[μ][ix,iy,iz,it] = link
+							@inbounds u[μ][ix,iy,iz,it] = link
 						end
 					end
 				end
@@ -239,7 +243,7 @@ module Gaugefields
 	function clear_U!(u::Abstractfield)
 		NX, NY, NZ, NT = size(u)
 
-		for it in 1:NT
+		@batch for it in 1:NT
 			for iz in 1:NZ
 				for iy in 1:NY
 					for ix in 1:NX
@@ -257,13 +261,12 @@ module Gaugefields
 	function normalize!(u::T) where {T<:Gaugefield}
 		NX, NY, NZ, NT = size(u)
 
- 		for it in 1:NT
+ 		@batch for it in 1:NT
 			for iz in 1:NZ
 				for iy in 1:NY
 					for ix in 1:NX
 						for μ in 1:4
-							link = u[μ][ix,iy,iz,it]
-							u[μ][ix,iy,iz,it] = proj_onto_SU3(link)
+							@inbounds u[μ][ix,iy,iz,it] = proj_onto_SU3(u[μ][ix,iy,iz,it])
 						end
 					end
 				end
@@ -274,14 +277,15 @@ module Gaugefields
     end
 
 	function add!(a::Abstractfield, b::Abstractfield, fac)
+		@assert size(a) == size(b) "added fields need to be of same size"
 		NX, NY, NZ, NT = size(a)
 	
-		for it in 1:NT
+		@batch for it in 1:NT
 			for iz in 1:NZ
 				for iy in 1:NY
 					for ix in 1:NX
 						for μ in 1:4
-							a[μ][ix,iy,iz,it] += fac * b[μ][ix,iy,iz,it] 
+							@inbounds a[μ][ix,iy,iz,it] += fac * b[μ][ix,iy,iz,it] 
 						end
 					end
 				end
@@ -292,14 +296,15 @@ module Gaugefields
 	end
 
 	function leftmul!(tA, a::Abstractfield, b::Abstractfield; fac = 1)
+		@assert size(a) == size(b) "multed fields need to be of same size"
 		NX, NY, NZ, NT = size(a)
 	
-		for it in 1:NT
+		@batch for it in 1:NT
 			for iz in 1:NZ
 				for iy in 1:NY
 					for ix in 1:NX
 						for μ in 1:4
-							a[μ][ix,iy,iz,it] = 
+							@inbounds a[μ][ix,iy,iz,it] = 
 								fac * tA(b[μ][ix,iy,iz,it]) * a[μ][ix,iy,iz,it]
 						end
 					end
@@ -311,14 +316,15 @@ module Gaugefields
 	end
 
 	function rightmul!(tA, a::Abstractfield, b::Abstractfield; fac = 1)
+		@assert size(a) == size(b) "swapped fields need to be of same size"
 		NX, NY, NZ, NT = size(a)
 	
-		for it in 1:NT
+		@batch for it in 1:NT
 			for iz in 1:NZ
 				for iy in 1:NY
 					for ix in 1:NX
 						for μ in 1:4
-							a[μ][ix,iy,iz,it] = 
+							@inbounds a[μ][ix,iy,iz,it] = 
 								fac * a[μ][ix,iy,iz,it] * tA(b[μ][ix,iy,iz,it])
 						end
 					end

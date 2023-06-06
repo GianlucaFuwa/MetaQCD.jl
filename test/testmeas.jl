@@ -36,7 +36,7 @@ function SU3test()
 
     println("==========")
 
-    GA_methods = ["wilson", "symanzik", "iwasaki", "dbw2"]
+    GA_methods = ["wilson", "symanzik_tree", "symanzik_tad", "iwasaki", "dbw2"]
     m_gaction = GaugeActionMeasurement(U, GA_methods=GA_methods)
     @time gaction = get_value(measure(m_gaction, U))
     println("gaction: $gaction")

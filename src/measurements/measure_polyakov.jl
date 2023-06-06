@@ -1,6 +1,7 @@
 mutable struct PolyakovMeasurement <: AbstractMeasurement
     filename::Union{Nothing, String}
     verbose_print::Union{Nothing, VerboseLevel}
+    fp::Union{Nothing, IOStream}
     printvalues::Bool
 
     function PolyakovMeasurement(
@@ -10,20 +11,24 @@ mutable struct PolyakovMeasurement <: AbstractMeasurement
         printvalues = false,
     )
         if printvalues
+            fp = open(filename, "w")
+
             if verbose_level == 1
-                verbose_print = Verbose1(filename)
+                verbose_print = Verbose1()
             elseif verbose_level == 2
-                verbose_print = Verbose2(filename)
+                verbose_print = Verbose2()
             elseif verbose_level == 3
-                verbose_print = Verbose3(filename)    
+                verbose_print = Verbose3()    
             end
         else
+            fp = nothing
             verbose_print = nothing
         end
 
         return new(
             filename,
             verbose_print,
+            fp,
             printvalues,
         )
     end
@@ -50,6 +55,8 @@ function measure(m::PolyakovMeasurement, U; additional_string = "")
     if m.printvalues
         measurestring = "$additional_string $(real(poly)) $(imag(poly)) # poly"
         println_verbose2(m.verbose_print, measurestring)
+        println(m.fp, measurestring)
+        flush(m.fp)
     end
     
     output = MeasurementOutput(poly, measurestring)
@@ -57,11 +64,11 @@ function measure(m::PolyakovMeasurement, U; additional_string = "")
 end
 
 function polyakov_traced(U::Gaugefield)
-    space = 8
-    poly = zeros(ComplexF64, nthreads() * space)
     NX, NY, NZ, NT = size(U)
+    spacing = 8
+    poly = zeros(ComplexF64, nthreads() * spacing)
 
-    for iz in 1:NZ
+    @batch for iz in 1:NZ
         for iy in 1:NY
             for ix in 1:NX
                 polymat = U[4][ix,iy,iz,1]
@@ -70,7 +77,7 @@ function polyakov_traced(U::Gaugefield)
                     polymat *= U[4][ix,iy,iz,1+t]
                 end
                 
-                poly[threadid() * space] += tr(polymat)
+                poly[threadid() * spacing] += tr(polymat)
             end
         end
     end

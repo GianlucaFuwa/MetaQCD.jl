@@ -25,21 +25,25 @@ module Metadynamics
 		fp::Union{Nothing, IOStream}
 		
 		function BiasPotential(p::Params, U::Gaugefield{TG}; instance = 1) where {TG}
-			smearing = StoutSmearing(U, p.smearing_for_cv, p.ρstout_for_cv)
+			smearing = StoutSmearing(U, p.numsmears_for_cv, p.ρstout_for_cv)
 
 			if instance == 0
 				values = potential_from_file(p, nothing) 
 			else
-				values = potential_from_file(p, p.usebias[instance])
+				if p.usebiases === nothing
+					values = potential_from_file(p, nothing)
+				else
+					values = potential_from_file(p, p.usebiases[instance])
+				end
 			end
 
 			bin_vals = range(p.CVlims[1], p.CVlims[2], step = p.bin_width)
 			# exceeded_count = 0
-			fp = instance == 0 ? nothing : open(p.biasfile[instance], "w")
+			fp = instance == 0 ? nothing : open(p.biasdir * "/Stream_$instance.txt", "w")
 
 			return new{TG}(
 				p.kind_of_cv, smearing, p.symmetric,
-				p.CVlims, p.bin_width, p.bias_weight, p.penalty_weight, p.is_static,
+				p.CVlims, p.bin_width, p.meta_weight, p.penalty_weight, p.is_static,
 				values, bin_vals, fp,
 			)
 		end
@@ -73,12 +77,12 @@ module Metadynamics
 	
 	function potential_from_file(p::Params, usebias)
 		if usebias === nothing
-			return zeros(round(Int64, (p.CVlims[2]-p.CVlims[1]) / p.bin_width, RoundNearestTiesAway) + 1)
+			return zero(range(p.CVlims[1], p.CVlims[2], step = p.bin_width))
 		else
 			values = readdlm(usebias, Float64)
 			@assert length(values[:,2]) == round(
 				Int64,
-				(p.CVlims[2]-p.CVlims[1]) / p.bin_width,
+				(p.CVlims[2] - p.CVlims[1]) / p.bin_width,
 				RoundNearestTiesAway,
 			) "Length of passed Metapotential doesn't match parameters"
 			return values[:,2]
@@ -137,7 +141,9 @@ module Metadynamics
 			grid_index = index(b, cv)
 			return b[grid_index]
 		else
-			penalty = b.k * (0.1 + min((cv - b.CVlims[1])^2, (cv - b.CVlims[2])^2))
+			penalty = b.penalty_weight * (
+				0.1 + min((cv - b.CVlims[1])^2, (cv - b.CVlims[2])^2)
+			)
 			return penalty
 		end
 	end

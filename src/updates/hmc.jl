@@ -5,10 +5,10 @@ struct HMCUpdate{TI,TG,TS,TM} <: AbstractUpdate
     Δτ::Float64
     P::Liefield
     _temp_U::Gaugefield{TG}
-    _temp_staple::TemporaryField
-    _temp_force::TemporaryField
-    _temp_force2::Union{Nothing, TemporaryField} # second force field for smearing
-    _temp_fieldstrength::Union{Nothing, Vector{TemporaryField}}
+    _temp_staple::Temporaryfield
+    _temp_force::Liefield
+    _temp_force2::Union{Nothing, Liefield} # second force field for smearing
+    _temp_fieldstrength::Union{Nothing, Vector{Temporaryfield}}
     smearing::TS
     metadynamics::TM
 
@@ -24,15 +24,15 @@ struct HMCUpdate{TI,TG,TS,TM} <: AbstractUpdate
         P = Liefield(U)
         _temp_U = similar(U)
 
-        _temp_staple = TemporaryField(U)
-        _temp_force = TemporaryField(U)
+        _temp_staple = Temporaryfield(U)
+        _temp_force = Liefield(U)
 
         if meta_enabled
             metadynamics = MetaEnabled()
-            _temp_fieldstrength = Vector{TemporaryField}(undef, 4)
+            _temp_fieldstrength = Vector{Temporaryfield}(undef, 4)
 
             for i in 1:4
-                _temp_fieldstrength[i] = TemporaryField(U)
+                _temp_fieldstrength[i] = Temporaryfield(U)
             end
         else
             metadynamics = MetaDisabled()
@@ -46,10 +46,10 @@ struct HMCUpdate{TI,TG,TS,TM} <: AbstractUpdate
         TS = typeof(smearing)
         TM = typeof(metadynamics)
 
-        if TS == NoSmearing
+        if TS == NoSmearing && TM == MetaDisabled
             _temp_force2 = nothing
         else
-            _temp_force2 = TemporaryField(U)
+            _temp_force2 = Liefield(U)
         end
 
 
@@ -150,12 +150,13 @@ function updateU!(U, method, fac)
     ϵ = method.Δτ * fac
     P = method.P
 
-    for it in 1:NT
+    @batch for it in 1:NT
         for iz in 1:NZ
             for iy in 1:NY
                 for ix in 1:NX
                     for μ in 1:4
-                        U[μ][ix,iy,iz,it] = exp_iQ(-im * ϵ * P[μ][ix,iy,iz,it]) * U[μ][ix,iy,iz,it]
+                        @inbounds U[μ][ix,iy,iz,it] = 
+                            exp_iQ(-im * ϵ * P[μ][ix,iy,iz,it]) * U[μ][ix,iy,iz,it]
                     end
                 end
             end
@@ -222,21 +223,25 @@ end
 function calc_dSdU!(
     dSdU,
     staples,
-    U,
-)
+    U::Gaugefield{T},
+) where {T}
     NX, NY, NZ, NT = size(U)
     β = U.β
+    staple = T()
 
-    staple_eachsite!(staples, U)
-
-    for it in 1:NT
+    @batch for it in 1:NT
         for iz in 1:NZ
             for iy in 1:NY
                 for ix in 1:NX
-                    for μ in 1:4
-                        tmp = U[μ][ix,iy,iz,it] * staples[μ][ix,iy,iz,it]'
-                        dSdU[μ][ix,iy,iz,it] = -β/6 * traceless_antihermitian(tmp)
+                    site = SiteCoords(ix, iy, iz, it)
+
+                    @inbounds for μ in 1:4
+                        A = staple(U, μ, site)
+                        staples[μ][site] = A
+                        UA = U[μ][site] * A'
+                        dSdU[μ][site] = -β/6 * traceless_antihermitian(UA)
                     end
+
                 end
             end
         end

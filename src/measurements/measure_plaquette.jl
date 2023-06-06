@@ -4,6 +4,7 @@ mutable struct PlaquetteMeasurement <: AbstractMeasurement
     filename::Union{Nothing, String}
     factor::Float64
     verbose_print::Union{Nothing, VerboseLevel}
+    fp::Union{Nothing, IOStream}
     printvalues::Bool
 
     function PlaquetteMeasurement(
@@ -13,22 +14,27 @@ mutable struct PlaquetteMeasurement <: AbstractMeasurement
         printvalues = false,
     )
         if printvalues
+            fp = open(filename, "w")
+
             if verbose_level == 1
-                verbose_print = Verbose1(filename)
+                verbose_print = Verbose1()
             elseif verbose_level == 2
-                verbose_print = Verbose2(filename)
+                verbose_print = Verbose2()
             elseif verbose_level == 3
-                verbose_print = Verbose3(filename)    
+                verbose_print = Verbose3()    
             end
         else
+            fp = nothing
             verbose_print = nothing
         end
+
         factor = 1 / (6 * U.NV * U.NC)
 
         return new(
             filename,
             factor,
             verbose_print,
+            fp,
             printvalues,
         )
     end
@@ -50,6 +56,8 @@ function measure(m::PlaquetteMeasurement, U; additional_string = "")
     if m.printvalues
         measurestring = "$additional_string $plaq # plaq"
         println_verbose2(m.verbose_print, measurestring)
+        println(m.fp, measurestring)
+        flush(m.fp)
     end
 
     output = MeasurementOutput(plaq, measurestring)

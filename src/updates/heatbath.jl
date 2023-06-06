@@ -20,7 +20,7 @@ end
 
 function update!(
     updatemethod::HeatbathUpdate,
-    U::Gaugefield,
+    U,
     verbose::VerboseLevel;
     metro_test::Bool = true,
 )
@@ -64,7 +64,8 @@ function heatbath_sweep!(U::Gaugefield{T}, hb) where {T}
 			for iy in 1:NY
 				for ix in 1:NX
                     site = SiteCoords(ix, iy, iz, it)
-					for μ in 1:4
+
+					@inbounds for μ in 1:4
                         link = U[μ][ix,iy,iz,it]
                         A_adj = staple(U, μ, site)'
 
@@ -89,6 +90,7 @@ function heatbath_sweep!(U::Gaugefield{T}, hb) where {T}
                         )
                         U[μ][ix,iy,iz,it] = tmp * link
 					end
+
 				end
 			end
 		end
@@ -102,6 +104,7 @@ function heatbath_sweep_eo!(U::Gaugefield{T}, hb) where {T}
     MAXIT = hb.MAXIT
     prefactor = hb.prefactor_HB
     staple = T()
+
     for μ in 1:4
         for eo in 1:2
             @threads :static for it in 1:NT
@@ -193,7 +196,8 @@ function OR_sweep!(U::Gaugefield{T}, hb; metro_test = true) where {T}
 			for iy in 1:NY
 				for ix in 1:NX
                     site = SiteCoords(ix, iy, iz, it)
-					for μ in 1:4
+
+					@inbounds for μ in 1:4
                         A_adj = staple(U, μ, site)'
                         old_link = U[μ][ix,iy,iz,it]
 
@@ -210,6 +214,7 @@ function OR_sweep!(U::Gaugefield{T}, hb; metro_test = true) where {T}
 
                         numaccepts += accept
 					end
+
 				end
 			end
 		end
