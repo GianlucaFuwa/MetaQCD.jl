@@ -15,7 +15,7 @@ logdir = "./logs/L4x4x4x4_beta5.7"
 logfile = "Heatbath_test.txt"
 measurement_basedir = "./measurements/L4x4x4x4_beta5.7"
 measurement_dir = "Heatbath_test"
-randomseeds = "[Xoshiro(1206)]"
+randomseed = 1206
 
 ["Measurement set".measurement_methods.Polyakov_loop]
 measure_every = 5

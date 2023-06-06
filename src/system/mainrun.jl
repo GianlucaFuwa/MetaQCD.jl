@@ -19,6 +19,7 @@ module Mainrun
         filename_head = splitext(filenamein)[1]
         filename = filename_head * ".toml"
         parameters = construct_params_from_toml(filename)
+        
         Random.seed!(parameters.randomseed)
         
         univ = Univ(parameters)
