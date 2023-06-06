@@ -7,8 +7,8 @@ Nsteps = 100
 initial = "cold"
 update_method = "heatbath"
 hb_MAXIT = 10
-hb_numHB = 4
-hb_numOR = 1
+hb_numHB = 1
+hb_numOR = 4
 
 ["System Settings"]               
 logdir = "./logs/L4x4x4x4_beta5.7"
