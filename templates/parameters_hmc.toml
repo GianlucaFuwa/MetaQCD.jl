@@ -26,13 +26,13 @@ hmc_integrator = "OMF4"
 
 ["System Settings"]               
 logdir = "./logs/L4x4x4x4_beta5.7"
-logfile = "test_timing_0606.txt"
+logfile = "test.txt"
 measurement_basedir = "./measurements/L4x4x4x4_beta5.7"
-measurement_dir = "test_timing_0606"
+measurement_dir = "test"
 randomseed = 1206
 verboselevel = 1
 bias_basedir = "./metapotentials/L4x4x4x4_beta5.7"
-bias_dir = "test_timings_0606"
+bias_dir = "test"
 usebiases = "nothing"
 
 ["Measurement set".measurement_methods.Polyakov_loop]
