@@ -20,11 +20,11 @@ function staple_eachsite!(staples, U::Gaugefield{T}) where {T}
     return nothing
 end
 
-function (::WilsonGaugeAction)(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
+function (::WilsonGaugeAction)(U::T, μ, site::SiteCoords) where {T <: Gaugefield}
     return staple_plaq(U, μ, site)
 end
 
-function (::SymanzikTreeGaugeAction)(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
+function (::SymanzikTreeGaugeAction)(U::T, μ, site::SiteCoords) where {T <: Gaugefield}
     c1 = -1/12
     c1prime = c1
     staple_p = staple_plaq(U, μ, site)
@@ -32,7 +32,7 @@ function (::SymanzikTreeGaugeAction)(U::T, μ, site::SiteCoords) where {T<:Gauge
     return (1 - 8c1) * staple_p + c1prime * staple_r
 end
 
-function (::SymanzikTadGaugeAction)(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
+function (::SymanzikTadGaugeAction)(U::T, μ, site::SiteCoords) where {T <: Gaugefield}
     u0sq = sqrt(plaquette_trace_sum(U))
     c1 = -1/12
     c1prime = c1 / u0sq
@@ -41,7 +41,7 @@ function (::SymanzikTadGaugeAction)(U::T, μ, site::SiteCoords) where {T<:Gaugef
     return (1 - 8c1) * staple_p + c1prime * staple_r
 end
 
-function (::IwasakiGaugeAction)(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
+function (::IwasakiGaugeAction)(U::T, μ, site::SiteCoords) where {T <: Gaugefield}
     c1 = -0.331
     c1prime = c1
     staple_p = staple_plaq(U, μ, site)
@@ -49,7 +49,7 @@ function (::IwasakiGaugeAction)(U::T, μ, site::SiteCoords) where {T<:Gaugefield
     return (1 - 8c1) * staple_p + c1prime * staple_r
 end
 
-function (::DBW2GaugeAction)(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
+function (::DBW2GaugeAction)(U::T, μ, site::SiteCoords) where {T <: Gaugefield}
     c1 = -1.409
     c1prime = c1
     staple_p = staple_plaq(U, μ, site)
@@ -57,7 +57,7 @@ function (::DBW2GaugeAction)(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
     return (1 - 8c1) * staple_p + c1prime * staple_r
 end
 
-function staple_plaq(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
+function staple_plaq(U::T, μ, site::SiteCoords) where {T <: Gaugefield}
     Nμ = size(U)[μ]
     siteμp = move(site, μ, 1, Nμ)
     staple = @SMatrix zeros(ComplexF64, 3, 3)
@@ -78,7 +78,7 @@ function staple_plaq(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
     return staple
 end
 
-function staple_rect(U::T, μ, site::SiteCoords) where {T<:Gaugefield}
+function staple_rect(U::T, μ, site::SiteCoords) where {T <: Gaugefield}
     Nμ = size(U)[μ]
     siteμp = move(site, μ, 1, Nμ)
     siteμn = move(site, μ, -1, Nμ)

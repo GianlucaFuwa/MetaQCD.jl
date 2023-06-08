@@ -1,5 +1,4 @@
-# include("../src/system/MetaQCD.jl")
-# using .MetaQCD
+using MetaQCD
 using Random
 
 Random.seed!(1206)

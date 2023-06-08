@@ -45,10 +45,10 @@ mutable struct GaugeActionMeasurement <: AbstractMeasurement
 end
 
 function GaugeActionMeasurement(
-    U::Gaugefield,
+    U::T,
     params::ActionParameters,
     filename = "gauge_action.txt",
-)
+) where {T<:Gaugefield}
     return GaugeActionMeasurement(
         U,
         filename = filename,

@@ -35,10 +35,10 @@ mutable struct PolyakovMeasurement <: AbstractMeasurement
 end
 
 function PolyakovMeasurement(
-    U::Gaugefield,
+    U::T,
     params::PolyakovParameters,
     filename = "polyakov.txt",
-)
+) where {T<:Gaugefield}
     return PolyakovMeasurement(
         U,
         filename = filename,
@@ -63,7 +63,7 @@ function measure(m::PolyakovMeasurement, U; additional_string = "")
     return output
 end
 
-function polyakov_traced(U::Gaugefield)
+function polyakov_traced(U::T) where {T<:Gaugefield}
     NX, NY, NZ, NT = size(U)
     spacing = 8
     poly = zeros(ComplexF64, nthreads() * spacing)

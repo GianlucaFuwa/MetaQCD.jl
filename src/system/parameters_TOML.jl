@@ -103,7 +103,17 @@ module ParametersTOML
         measuredir = pwd() * "/" * measurement_basedir * "/" * measurement_dir
         value_Params[pos] = measuredir
 
-        meta_enabled = parameters["Physical Settings"]["meta_enabled"]
+        try
+            meta_enabled = parameters["Physical Settings"]["meta_enabled"]
+        catch
+            @warn "Metadynamics disabled because not specified"
+        end
+
+        if @isdefined meta_enabled
+        else
+            meta_enabled = false
+        end
+
         pos = findfirst(x -> String(x) == "biasdir", pnames)
 
         if meta_enabled == true
@@ -181,25 +191,25 @@ module ParametersTOML
         end
 
         if p.meta_enabled == true
-            println("Metadynamics is enabled")
+            println("==> Metadynamics is enabled <==")
 
             if p.tempering_enabled == true
-                println("Parallel tempering is enabled")
+                println("\t==> Parallel tempering is enabled <==")
             end
         else
-            println("Metadynamics is disabled")
+            println("==> Metadynamics is disabled <==")
         end
 
         if Unicode.normalize(p.update_method, casefold = true) == "hmc"
-            println("HMC will be used")
+            println("==> HMC will be used <==")
         elseif Unicode.normalize(p.update_method, casefold = true) == "metropolis"
-            println("Metropolis updates will be used")
+            println("==> Metropolis updates will be used <==")
         elseif Unicode.normalize(p.update_method, casefold = true) == "heatbath"
-            println("Heatbath + Overrelaxation updates will be used")
+            println("==> Heatbath + Overrelaxation updates will be used <==")
         elseif Unicode.normalize(p.update_method, casefold = true) == "hb"
-            println("Heatbath updates will be used")
+            println("==> Heatbath updates will be used <==")
         elseif Unicode.normalize(p.update_method, casefold = true) == "or"
-            println("Overrelaxation updates will be used")
+            println("==> Overrelaxation updates will be used <==")
         else
             error("""
             update_method in [\"Physical Settings\"] = $(p.update_method) is not supported.

@@ -16,7 +16,7 @@ module UniverseModule
         meta_enabled::Bool
         tempering_enabled::Bool
         U::Vector{Gaugefield{TG}}
-        Bias::Union{Nothing, Vector{BiasPotential{TG}}}
+        Bias::Union{Vector{Nothing}, Vector{BiasPotential{TG}}}
         numinstances::Int64
         verbose_print::VerboseLevel
     end
@@ -42,7 +42,7 @@ module UniverseModule
         U = Vector{Gaugefield{TG}}(undef, 0)
 
         if p.meta_enabled
-            Bias = Vector{BiasPotential}(undef, 0)
+            Bias = Vector{BiasPotential{TG}}(undef, 0)
             tempering_enabled = p.tempering_enabled
 
             if tempering_enabled
@@ -87,7 +87,7 @@ module UniverseModule
                 push!(Bias, BiasPotential(p, U[1]))
             end
         else
-            Bias = nothing
+            Bias = Vector{Nothing}(undef, 1)
             tempering_enabled = false
             numinstances = 1
 

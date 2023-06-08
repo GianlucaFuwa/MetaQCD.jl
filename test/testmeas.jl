@@ -1,5 +1,4 @@
-include("../src/system/MetaQCD.jl")
-using .MetaQCD
+using MetaQCD
 
 function SU3test()
     println(SU3test)

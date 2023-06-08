@@ -1,6 +1,5 @@
-#include("../src/system/MetaQCD.jl")
-#using .MetaQCD
-# using .MetaQCD.Utils
+using MetaQCD
+using MetaQCD.Utils
 using LinearAlgebra
 using Polyester
 using Base.Threads
@@ -83,17 +82,17 @@ end
 
 function staple_eachsite_s!(staples, U::Gaugefield{T}) where {T}
     NX, NY, NZ, NT = size(U)
+    staple = T()
 
-    for it in 1:NT
-        for iz in 1:NZ
-            for iy in 1:NY
-                for ix in 1:NX
-                    site = SiteCoords(ix, iy, iz, it)
+    for μ in 1:4
+        @batch for it in 1:NT
+            for iz in 1:NZ
+                for iy in 1:NY
+                    for ix in 1:NX
+                        site = SiteCoords(ix, iy, iz, it)
 
-                    for μ in 1:4
                         staples[μ][site] = staple(U, μ, site)
                     end
-
                 end
             end
         end
@@ -104,6 +103,7 @@ end
 
 function staple_eachsite!(staples, U::Gaugefield{T}) where {T}
     NX, NY, NZ, NT = size(U)
+    staple = T()
 
     @batch for it in 1:NT
         for iz in 1:NZ
@@ -112,7 +112,7 @@ function staple_eachsite!(staples, U::Gaugefield{T}) where {T}
                     site = SiteCoords(ix, iy, iz, it)
 
                     for μ in 1:4
-                        staples[μ][ix, iy, iz, it] = staple(U, μ, site)
+                        staples[μ][site] = staple(U, μ, site)
                     end
 
                 end

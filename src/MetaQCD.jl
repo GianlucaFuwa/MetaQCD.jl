@@ -24,7 +24,7 @@ module MetaQCD
     import .ParametersTOML: construct_params_from_toml
     import .Gaugefields: DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
     import .Gaugefields: SymanzikTreeGaugeAction, WilsonGaugeAction
-    import .Gaugefields: Gaugefield, Temporaryfield, staple_eachsite!
+    import .Gaugefields: CoeffField, Gaugefield, Temporaryfield, staple_eachsite!
     import .Gaugefields: calc_gauge_action, plaquette, plaquette_trace_sum
     import .Gaugefields: identity_gauges, random_gauges, normalize!, wilsonloop
     import .Gaugefields: calc_kinetic_energy, gaussian_momenta!, Liefield
@@ -42,7 +42,7 @@ module MetaQCD
     export Verbose1, Verbose2, Verbose3
     export DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
     export SymanzikTreeGaugeAction, WilsonGaugeAction
-    export Gaugefield, Temporaryfield, calc_gauge_action
+    export CoeffField, Gaugefield, Temporaryfield, calc_gauge_action
     export plaquette, wilsonloop, identity_gauges, random_gauges, move, normalize!
     export staple_eachsite!
     export Liefield, gaussian_momenta!, calc_kinetic_energy

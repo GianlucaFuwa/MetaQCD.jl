@@ -1,22 +1,27 @@
-struct StoutSmearing{T} <: AbstractSmearing
+import ..Gaugefields: WilsonGaugeAction
+"""
+Struct StoutSmearing holds all fields relevant to smearing and subsequent recursion. \\
+Since we never actually use the smeared fields in main, they dont have to leave this scope
+"""
+struct StoutSmearing{TG} <: AbstractSmearing
 	numlayers::Int64
 	ρ::Float64
-	Usmeared_multi::Vector{Gaugefield{T}}
+	Usmeared_multi::Vector{Gaugefield{TG}}
 	C_multi::Vector{Temporaryfield}
 	Q_multi::Vector{CoeffField}
 	Λ::Temporaryfield
 
 	function StoutSmearing(
-		U::Gaugefield{T},
+		U::Gaugefield{TG},
 		numlayers,
 		ρ,
-	) where {T <: AbstractGaugeAction}
+	) where {TG <: AbstractGaugeAction}
 		@assert numlayers >= 0 && ρ >= 0 "number of stout layers and ρ must be >= 0"
 		
 		if numlayers == 0 || ρ == 0
 			return NoSmearing()
 		else
-			Usmeared_multi = Vector{Gaugefield{T}}(undef, numlayers + 1)
+			Usmeared_multi = Vector{Gaugefield{TG}}(undef, numlayers + 1)
 			C_multi = Vector{Temporaryfield}(undef, numlayers)
 			Q_multi = Vector{CoeffField}(undef, numlayers)
 			Λ = Temporaryfield(U)
@@ -29,16 +34,16 @@ struct StoutSmearing{T} <: AbstractSmearing
 				Q_multi[i] = CoeffField(U)
 			end
 	
-			return new{T}(numlayers, ρ, Usmeared_multi, C_multi, Q_multi, Λ)
+			return new{TG}(numlayers, ρ, Usmeared_multi, C_multi, Q_multi, Λ)
 		end
 	end
 end
 
-function Base.length(s::T) where {T<:StoutSmearing}
+function Base.length(s::T) where {T <: StoutSmearing}
 	return s.numlayers
 end
 
-function get_layer(s::T, i) where {T<:StoutSmearing}
+function get_layer(s::T, i) where {T <: StoutSmearing}
 	return s.Usmeared_multi[i]
 end
 
@@ -236,11 +241,11 @@ end
 function calc_stout_Q!(
 	Q,
 	C,
-	U::Gaugefield{T},
+	U,
 	ρ,
-) where {T}
+)
 	NX, NY, NZ, NT = size(U)
-	staple = T()
+	staple = WilsonGaugeAction()
 
 	@batch for it in 1:NT
 		for iz in 1:NZ

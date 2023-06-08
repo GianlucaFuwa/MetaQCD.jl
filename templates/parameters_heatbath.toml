@@ -1,9 +1,9 @@
 ["Physical Settings"]
 L = [4, 4, 4, 4]
 "β" = 5.7
-kind_of_gaction = "wilson"
+kind_of_gaction = "dbw2"
 Ntherm = 10
-Nsteps = 100
+Nsteps = 10
 initial = "cold"
 update_method = "heatbath"
 MAXIT = 10

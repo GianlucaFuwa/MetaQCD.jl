@@ -259,8 +259,7 @@ function calc_dQdU_bare!(
     smearing,
 )
     if typeof(smearing) == NoSmearing
-        calc_dQdU!(dQdU, field_strength, U, kind_of_charge)
-
+        calc_dQdU!(dQdU, F, U, kind_of_charge)
     else
         calc_smearedU!(smearing, U)
         fully_smeared_U = smearing.Usmeared_multi[end]
@@ -285,43 +284,39 @@ function calc_dQdU!(
 
     fieldstrength_eachsite!(F, U, kind_of_charge)
 
-    if kind_of_charge == "plaquette"
-        ∇trFμνFρσ = ∇trFμνFρσ_plaq
-    elseif kind_of_charge == "clover"
-        ∇trFμνFρσ = ∇trFμνFρσ_clover
-    else
-        error("topological force for charge type $(kind_of_charge) not supported")
-    end
-
-    for it in 1:NT
+    @batch for it in 1:NT
         for iz in 1:NZ
             for iy in 1:NY
                 for ix in 1:NX
                     site = SiteCoords(ix, iy, iz, it)
 
-                    dQdU[1][ix,iy,iz,it] = 1/4π^2 * traceless_antihermitian(
-                        ∇trFμνFρσ(U, F, 1, 2, 3, 4, site) -
-                        ∇trFμνFρσ(U, F, 1, 3, 2, 4, site) +
-                        ∇trFμνFρσ(U, F, 1, 4, 2, 3, site)
+                    tmp1 = U[1][site] * (
+                        ∇trFμνFρσ_clover(U, F, 1, 2, 3, 4, site) -
+                        ∇trFμνFρσ_clover(U, F, 1, 3, 2, 4, site) +
+                        ∇trFμνFρσ_clover(U, F, 1, 4, 2, 3, site)
                     )
-                        
-                    dQdU[2][ix,iy,iz,it] = -1/4π^2 * traceless_antihermitian(
-                        ∇trFμνFρσ(U, F, 2, 1, 3, 4, site) +
-                        ∇trFμνFρσ(U, F, 2, 4, 1, 3, site) -
-                        ∇trFμνFρσ(U, F, 2, 3, 1, 4, site)
+                    dQdU[1][site] = 1/4π^2 * traceless_antihermitian(tmp1)
+                    
+                    tmp2 = U[2][site] * (
+                        ∇trFμνFρσ_clover(U, F, 2, 3, 1, 4, site) -
+                        ∇trFμνFρσ_clover(U, F, 2, 1, 3, 4, site) -
+                        ∇trFμνFρσ_clover(U, F, 2, 4, 1, 3, site)
                     )
+                    dQdU[2][site] = 1/4π^2 * traceless_antihermitian(tmp2)
 
-                    dQdU[3][ix,iy,iz,it] = 1/4π^2 * traceless_antihermitian(
-                        ∇trFμνFρσ(U, F, 3, 4, 1, 2, site) +
-                        ∇trFμνFρσ(U, F, 3, 1, 2, 4, site) -
-                        ∇trFμνFρσ(U, F, 3, 2, 1, 4, site)
+                    tmp3 = U[3][site] * (
+                        ∇trFμνFρσ_clover(U, F, 3, 1, 2, 4, site) -
+                        ∇trFμνFρσ_clover(U, F, 3, 2, 1, 4, site) +
+                        ∇trFμνFρσ_clover(U, F, 3, 4, 1, 2, site)
                     )
+                    dQdU[3][site] = 1/4π^2 * traceless_antihermitian(tmp3)
 
-                    dQdU[4][ix,iy,iz,it] = -1/4π^2 * traceless_antihermitian(
-                        ∇trFμνFρσ(U, F, 4, 3, 1, 2, site) -
-                        ∇trFμνFρσ(U, F, 4, 2, 1, 3, site) +
-                        ∇trFμνFρσ(U, F, 4, 1, 2, 3, site)
+                    tmp4 = U[4][site] * (
+                        ∇trFμνFρσ_clover(U, F, 4, 2, 1, 3, site) -
+                        ∇trFμνFρσ_clover(U, F, 4, 1, 2, 3, site) -
+                        ∇trFμνFρσ_clover(U, F, 4, 3, 1, 2, site)
                     )
+                    dQdU[4][site] = 1/4π^2 * traceless_antihermitian(tmp4)
                 end
             end
         end
@@ -351,7 +346,7 @@ function ∇trFμνFρσ_plaq(
 
     component = 
         U[ν][siteμp] * U[μ][siteνp]' * U[ν][site]' * F[ρ][σ][site] +
-        U[ν][siteμpνn]' * U[μ][siteνn]' * F[ρ][σ][siteνn] * U[ν][siteνn] -
+        U[ν][siteμpνn]' * U[μ][siteνn]' * F[ρ][σ][siteνn] * U[ν][siteνn]
 
     return im/2 * component
 end
@@ -377,14 +372,14 @@ function ∇trFμνFρσ_clover(
     siteμpνn = move(siteμp, ν, -1, Nν)
 
     component = 
-        U[ν][siteμp] * U[μ][siteνp]' * U[ν][site]' * F[ρ][σ][site] +
-        U[ν][siteμp] * U[μ][siteνp]' * F[ρ][σ][siteνp] * U[ν][site]' +
-        U[ν][siteμp] * F[ρ][σ][siteμpνp] * U[μ][siteνp]' * U[ν][site]' +
-        F[ρ][σ][siteμp] * U[ν][siteμp] * U[μ][siteνp]' * U[ν][site]' -
-        U[ν][siteμpνn]' * U[μ][siteνn]' * U[ν][siteνn] * F[ρ][σ][site] -
-        U[ν][siteμpνn]' * U[μ][siteνn]' * F[ρ][σ][siteνn] * U[ν][siteνn] -
-        U[ν][siteμpνn]' * F[ρ][σ][siteμpνn] * U[μ][siteνn]' * U[ν][siteνn] -
-        F[ρ][σ][siteμp] * U[ν][siteμpνn]' * U[μ][siteνn]' * U[ν][siteνn]
+        U[ν][siteμp]    * U[μ][siteνp]'     * U[ν][site]'     * F[ρ][σ][site] +
+        U[ν][siteμp]    * U[μ][siteνp]'     * F[ρ][σ][siteνp] * U[ν][site]'   +
+        U[ν][siteμp]    * F[ρ][σ][siteμpνp] * U[μ][siteνp]'   * U[ν][site]'   +
+        F[ρ][σ][siteμp] * U[ν][siteμp]      * U[μ][siteνp]'   * U[ν][site]'   -
+        U[ν][siteμpνn]' * U[μ][siteνn]'     * U[ν][siteνn]    * F[ρ][σ][site] -
+        U[ν][siteμpνn]' * U[μ][siteνn]'     * F[ρ][σ][siteνn] * U[ν][siteνn]  -
+        U[ν][siteμpνn]' * F[ρ][σ][siteμpνn] * U[μ][siteνn]'   * U[ν][siteνn]  -
+        F[ρ][σ][siteμp] * U[ν][siteμpνn]'   * U[μ][siteνn]'   * U[ν][siteνn]
 
     return im/8 * component
 end

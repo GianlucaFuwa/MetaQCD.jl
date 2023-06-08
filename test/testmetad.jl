@@ -1,6 +1,5 @@
 using Random
-include("../src/system/MetaQCD.jl")
-using .MetaQCD
+using MetaQCD
 function SU3testmeta()
     Random.seed!(1206)
 

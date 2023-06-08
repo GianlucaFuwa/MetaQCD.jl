@@ -40,7 +40,11 @@ mutable struct PlaquetteMeasurement <: AbstractMeasurement
     end
 end
 
-function PlaquetteMeasurement(U::Gaugefield, params::PlaquetteParameters, filename)
+function PlaquetteMeasurement(
+    U::T,
+    params::PlaquetteParameters,
+    filename,
+) where {T<:Gaugefield}
     return PlaquetteMeasurement(
         U,
         filename = filename,

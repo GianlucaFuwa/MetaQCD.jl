@@ -22,6 +22,7 @@ function update!(
     updatemethod::HeatbathUpdate,
     U,
     verbose::VerboseLevel;
+    Bias = nothing,
     metro_test::Bool = true,
 )
     

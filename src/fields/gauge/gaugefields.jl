@@ -76,7 +76,7 @@ module Gaugefields
 			return new(U, NX, NY, NZ, NT, NV, NC)
 		end
 
-		function Temporaryfield(u::Abstractfield)
+		function Temporaryfield(u::T) where {T <: Abstractfield}
 			NX, NY, NZ, NT = size(u)
 			return Temporaryfield(NX, NY, NZ, NT)
 		end
@@ -102,22 +102,22 @@ module Gaugefields
 			return new(U, NX, NY, NZ, NT, NV)
 		end
 
-		function CoeffField(u::Abstractfield)
+		function CoeffField(u::T) where {T <: Abstractfield}
 			NX, NY, NZ, NT = size(u)
 			return CoeffField(NX, NY, NZ, NT)
 		end
 	end
 
-	function Base.setindex!(u::Abstractfield, v, μ)
+	function Base.setindex!(u::T, v, μ) where {T <: Abstractfield}
         @inbounds u.U[μ] = v
 		return nothing
     end
 
-	@inline function Base.getindex(u::Abstractfield, μ)
+	@inline function Base.getindex(u::T, μ) where {T <: Abstractfield}
         @inbounds return u.U[μ]
     end
 
-	function Base.getproperty(u::T, p::Symbol) where {T<:Gaugefield}
+	function Base.getproperty(u::T, p::Symbol) where {T <: Gaugefield}
 		if p == :Sg 
 			return getfield(u, :Sg)[]
 		elseif p == :CV
@@ -127,7 +127,7 @@ module Gaugefields
 		end
 	end
 
-	function Base.setproperty!(u::T, p::Symbol, val) where {T<:Gaugefield}
+	function Base.setproperty!(u::T, p::Symbol, val) where {T <: Gaugefield}
 		if p == :Sg 
 			getfield(u, :Sg)[] = val
 		elseif p == :CV
@@ -176,7 +176,7 @@ module Gaugefields
 		return nothing 
 	end
 
-	function swap_U!(a::T, b::T) where {T<:Gaugefield}
+	function swap_U!(a::T, b::T) where {T <: Gaugefield}
 		@assert size(a) == size(b) "swapped fields need to be of same size"
 		NX, NY, NZ, NT = size(a)
 		a.Sg, b.Sg = b.Sg, a.Sg
@@ -240,7 +240,7 @@ module Gaugefields
         return u
     end
 
-	function clear_U!(u::Abstractfield)
+	function clear_U!(u::T) where {T <: Abstractfield}
 		NX, NY, NZ, NT = size(u)
 
 		@batch for it in 1:NT
@@ -258,7 +258,7 @@ module Gaugefields
 		return nothing
 	end
 
-	function normalize!(u::T) where {T<:Gaugefield}
+	function normalize!(u::T) where {T <: Gaugefield}
 		NX, NY, NZ, NT = size(u)
 
  		@batch for it in 1:NT
@@ -276,7 +276,7 @@ module Gaugefields
         return nothing
     end
 
-	function add!(a::Abstractfield, b::Abstractfield, fac)
+	function add!(a::T1, b::T2, fac) where {T1, T2 <: Abstractfield}
 		@assert size(a) == size(b) "added fields need to be of same size"
 		NX, NY, NZ, NT = size(a)
 	
@@ -295,7 +295,7 @@ module Gaugefields
 		return nothing
 	end
 
-	function leftmul!(tA, a::Abstractfield, b::Abstractfield; fac = 1)
+	function leftmul!(tA, a::T1, b::T2; fac = 1) where {T1, T2 <: Abstractfield}
 		@assert size(a) == size(b) "multed fields need to be of same size"
 		NX, NY, NZ, NT = size(a)
 	
@@ -315,7 +315,7 @@ module Gaugefields
 		return nothing
 	end
 
-	function rightmul!(tA, a::Abstractfield, b::Abstractfield; fac = 1)
+	function rightmul!(tA, a::T1, b::T2; fac = 1) where {T1, T2 <: Abstractfield}
 		@assert size(a) == size(b) "swapped fields need to be of same size"
 		NX, NY, NZ, NT = size(a)
 	

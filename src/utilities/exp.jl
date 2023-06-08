@@ -87,7 +87,7 @@ end
 
 function set_uw(Q::SMatrix{3,3,ComplexF64,9})
     c0 = real(det(Q))
-    c1 = 1/2 * real(multr(Q, Q))
+    c1 = 0.5 * real(multr(Q, Q))
     c13r = sqrt(c1 / 3)
     c0max = 2 * c13r^3
     Θ = isinf(c0 / c0max) ? acos(1.0) : acos(c0 / c0max)

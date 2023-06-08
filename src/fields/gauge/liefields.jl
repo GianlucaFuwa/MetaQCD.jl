@@ -22,15 +22,15 @@ struct Liefield <: Abstractfield
         return new(U, NX, NY, NZ, NT, NV, 3)
     end
 
-    function Liefield(u::Abstractfield)
+    function Liefield(u::T) where {T<:Abstractfield}
         return Liefield(u.NX, u.NY, u.NZ, u.NT)
     end
 end
 
 function gaussian_momenta!(p::Liefield)
     NX, NY, NZ, NT = size(p)
-    
-    for it in 1:NT
+    # static scheduler to be reproducible
+    @batch for it in 1:NT
         for iz in 1:NZ
             for iy in 1:NY
                 for ix in 1:NX
@@ -47,14 +47,15 @@ end
 
 function calc_kinetic_energy(p::Liefield)
     NX, NY, NZ, NT = size(p)
-    H_kin = 0.0
+    spacing = 8
+    H_kin = zeros(Float64, nthreads() * spacing)
 
-    for it = 1:NT
+    @batch for it = 1:NT
         for iz = 1:NZ
             for iy = 1:NY
                 for ix = 1:NX
                     for μ = 1:4
-                        H_kin += 
+                        H_kin[threadid() * spacing] += 
                             real(multr(p[μ][ix,iy,iz,it], p[μ][ix,iy,iz,it]))
                     end
                 end
@@ -62,5 +63,5 @@ function calc_kinetic_energy(p::Liefield)
         end
     end 
     
-    return H_kin
+    return sum(H_kin)
 end
