@@ -132,13 +132,3 @@ function testderivative()
     return nothing
 end
 @time testderivative()
-        
-
-
-
-
-
-
-
-
-
