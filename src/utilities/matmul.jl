@@ -1,3 +1,5 @@
+# using LoopVectorization
+# using StaticArrays
 # using Test
 #========== 2-fold products ==========#
 @inline function cmatmul_oo!(
