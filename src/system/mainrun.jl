@@ -6,9 +6,13 @@ module Mainrun
     using ..VerbosePrint
     
     import ..AbstractMeasurementModule: measure
-    import ..AbstractSmearingModule: GradientFlow
-    import ..AbstractUpdateModule: AbstractUpdate, Updatemethod, update!
+    import ..AbstractSmearingModule: GradientFlow, Euler, RK2, RK3, RK3W7
+    import ..AbstractUpdateModule: HeatbathUpdate, HMCUpdate, MetroUpdate, Updatemethod
+    import ..AbstractUpdateModule: update!
+    import ..Gaugefields: AbstractGaugeAction, DBW2GaugeAction, IwasakiGaugeAction,
+        SymanzikTreeGaugeAction, SymanzikTadGaugeAction, WilsonGaugeAction
     import ..Gaugefields: normalize!
+    import ..Metadynamics: MetaDisabled, MetaEnabled
     import ..MetaQCD: MeasurementMethods, calc_measurements, calc_measurements_flowed
     import ..ParametersTOML: construct_params_from_toml
     import ..UniverseModule: Univ
@@ -24,8 +28,6 @@ module Mainrun
         
         univ = Univ(parameters)
         println_verbose1(univ.verbose_print, "# ", pwd())
-        meta_enabled = parameters.meta_enabled
-        numinstances = univ.numinstances
 
         println_verbose1(univ.verbose_print, "# ", Dates.now())
         io = IOBuffer()
@@ -34,16 +36,25 @@ module Mainrun
         versioninfo = String(take!(io))
         println_verbose1(univ.verbose_print, versioninfo)
 
+        run_sim!(univ, parameters)
 
-        updatemethod = Vector{AbstractUpdate}(undef, numinstances)
+        return nothing
+    end
+
+    function run_sim!(univ, parameters)
+        U = univ.U
+
+        tmp = Updatemethod(parameters, U[1], instance = 1)
+        updatemethod = Vector{typeof(tmp)}(undef, parameters.numinstances)
+        updatemethod[1] = tmp
 
 
-        for i in 1:numinstances
-            updatemethod[i] = Updatemethod(parameters, univ, i)
+        for i in 2:parameters.numinstances
+            updatemethod[i] = Updatemethod(parameters, U[i], instance = i)
         end
 
         gradient_flow = GradientFlow(
-            univ.U[1],
+            U[1],
             integrator = parameters.flow_integrator,
             numflow = parameters.flow_num,
             steps = parameters.flow_steps,
@@ -52,18 +63,51 @@ module Mainrun
         )
 
         measurements = MeasurementMethods(
-            univ.U[1],
+            U[1],
             parameters.measuredir,
             parameters.measurement_methods,
         )
         measurements_with_flow = MeasurementMethods(
-            univ.U[1],
+            U[1],
             parameters.measuredir,
             parameters.measurements_with_flow,
             flow = true,
         )
 
-        if meta_enabled
+        # savedata = Savedata(
+        #     parameters.saveU_format,
+        #     parameters.saveU_dir,
+        #     parameters.saveU_every,
+        #     parameters.update_method,
+        #     univ.U,
+        # )
+
+        metaqcd!(
+            parameters,
+            univ,
+            updatemethod,
+            gradient_flow,
+            measurements,
+            measurements_with_flow,
+        )
+
+        return nothing
+    end
+
+    function metaqcd!(
+        parameters,
+        univ,
+        updatemethod,
+        gradient_flow,
+        measurements,
+        measurements_with_flow,
+    )
+        U = univ.U
+        Bias = univ.Bias
+
+        numinstances = parameters.numinstances
+
+        if parameters.meta_enabled
             meta_charge_fp = Vector{IOStream}(undef, numinstances)
             for i in 1:numinstances
                 meta_charge_fp[i] = open(
@@ -75,18 +119,8 @@ module Mainrun
             meta_charge_fp = nothing
         end
 
+        calc_measurements(measurements, 0, U[1])
 
-        calc_measurements(measurements, 0, univ.U[1])
-
-        #=
-        savedata = Savedata(
-            parameters.saveU_format,
-            parameters.saveU_dir,
-            parameters.saveU_every,
-            parameters.update_method,
-            univ.U,
-        )
-        =#
         value, runtime_therm = @timed begin
             for itrj in 1:parameters.Ntherm
                 println_verbose1(univ.verbose_print, "# therm itrj = $itrj")
@@ -95,13 +129,13 @@ module Mainrun
                 for i in 1:numinstances
                     _, runtime = @timed update!(
                         updatemethod[i],
-                        univ.U[i],
+                        U[i],
                         univ.verbose_print,
-                        Bias = univ.Bias[i],
+                        Bias = Bias[i],
                         metro_test = false,
                     )
                     updatetime += runtime
-                    normalize!(univ.U[i])
+                    normalize!(U[i])
                 end
 
                 println_verbose1(
@@ -126,13 +160,13 @@ module Mainrun
                 for i in 1:numinstances
                     accepted, runtime = @timed update!(
                         updatemethod[i],
-                        univ.U[i],
+                        U[i],
                         univ.verbose_print,
-                        Bias = univ.Bias[i],
+                        Bias = Bias[i],
                     )
                     numaccepts[i] += accepted
                     updatetime += runtime
-                    normalize!(univ.U[i])
+                    normalize!(U[i])
                 end
 
                 println_verbose1(
@@ -143,10 +177,10 @@ module Mainrun
                 if parameters.tempering_enabled
                     for i in numinstances:-1:2
                         accepted = temper!(
-                            univ.U[i],
-                            univ.U[i-1],
-                            univ.Bias[i],
-                            univ.Bias[i-1],
+                            U[i],
+                            U[i-1],
+                            Bias[i],
+                            Bias[i-1],
                         )
                         numaccepts_temper[i-1] += ifelse(accepted, 1, 0)
                     end
@@ -157,21 +191,21 @@ module Mainrun
                 calc_measurements(
                     measurements,
                     itrj,
-                    univ.U[1],
+                    U[1],
                 )
 
                 calc_measurements_flowed(
                     measurements_with_flow,
                     gradient_flow,
                     itrj,
-                    univ.U[1],
+                    U[1],
                 )
 
-                if meta_enabled
+                if parameters.meta_enabled
                     for i in 1:numinstances
                         println(
                             meta_charge_fp[i],
-                            "$itrj $(univ.U[i].CV) # metacharge",
+                            "$itrj $(U[i].CV) # metacharge",
                         )
                         flush(meta_charge_fp[i])
                     end
@@ -185,19 +219,19 @@ module Mainrun
             end
         end
 
-        if meta_enabled
+        if parameters.meta_enabled
 
             for i in 1:numinstances
                 writedlm(
-                    univ.Bias[i].fp,
-                    [univ.Bias[i].bin_vals univ.Bias[i].values],
+                    Bias[i].fp,
+                    [Bias[i].bin_vals Bias[i].values],
                 )
 
                 close(univ.Bias[i].fp)
 
                 println_verbose1(
                     univ.verbose_print,
-                    "Metapotential $i has been saved in file \"$(univ.Bias[i].fp)\""
+                    "Metapotential $i has been saved in file \"$(Bias[i].fp)\""
                 )
                 #=
                 q_vals = readdlm(

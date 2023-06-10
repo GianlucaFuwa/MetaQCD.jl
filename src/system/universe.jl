@@ -2,15 +2,14 @@ module UniverseModule
     using ..Utils
     using ..VerbosePrint
 
-    import ..Gaugefields: AbstractGaugeAction, Gaugefield, Liefield
-    import ..Gaugefields: DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
-    import ..Gaugefields: SymanzikTreeGaugeAction, WilsonGaugeAction 
+    import ..Gaugefields: Gaugefield, Liefield
+    import ..Gaugefields: AbstractGaugeAction, DBW2GaugeAction, IwasakiGaugeAction,
+        SymanzikTadGaugeAction, SymanzikTreeGaugeAction, WilsonGaugeAction 
     import ..Gaugefields: identity_gauges, random_gauges
-    import ..Gaugefields: Liefield
-    import ..Metadynamics: BiasPotential
+    import ..Metadynamics: BiasPotential, MetaDisabled, MetaEnabled
     import ..SystemParameters: Params
 
-    struct Univ{TG}
+    struct Univ{TG, TM, TV}
         L::NTuple{4, Int64}
         NC::Int64
         meta_enabled::Bool
@@ -18,7 +17,7 @@ module UniverseModule
         U::Vector{Gaugefield{TG}}
         Bias::Union{Vector{Nothing}, Vector{BiasPotential{TG}}}
         numinstances::Int64
-        verbose_print::VerboseLevel
+        verbose_print::TV
     end
 
     function Univ(p::Params)
@@ -39,10 +38,10 @@ module UniverseModule
             error("Gauge action '$(kind_of_gaction)' not supported")
         end
 
-        U = Vector{Gaugefield{TG}}(undef, 0)
-
         if p.meta_enabled
-            Bias = Vector{BiasPotential{TG}}(undef, 0)
+            TM = MetaEnabled
+            U = Vector{Gaugefield{TG}}(undef, p.numinstances)
+            Bias = Vector{BiasPotential{TG}}(undef, p.numinstances)
             tempering_enabled = p.tempering_enabled
 
             if tempering_enabled
@@ -50,17 +49,17 @@ module UniverseModule
 
                 for i in 1:numinstances
                     if p.initial == "cold"
-                        push!(U, identity_gauges(
+                        U[i] = identity_gauges(
                             NX, NY, NZ, NT,
                             p.β,
                             type_of_gaction = TG,
-                        ))
+                        )
                     elseif p.initial == "hot"
-                        push!(U, random_gauges(
+                        U[i] = random_gauges(
                             NX, NY, NZ, NT,
                             p.β,
                             type_of_gaction = TG,
-                        ))
+                        )
                     else
                         error("Initial \"$(p.initial)\" is invalid")
                     end
@@ -69,40 +68,43 @@ module UniverseModule
                 end
             else
                 numinstances = 1
+                U = Vector{Gaugefield{TG}}(undef, 1)
 
                 if p.initial == "cold"
-                    push!(U, identity_gauges(
+                    U[1] = identity_gauges(
                         NX, NY, NZ, NT,
                         p.β,
                         type_of_gaction = TG,
-                    ))
+                    )
                 elseif p.initial == "hot"
-                    push!(U, random_gauges(
+                    U[1] = random_gauges(
                         NX, NY, NZ, NT,
                         p.β,
                         type_of_gaction = TG,
-                    ))
+                    )
                 end
 
-                push!(Bias, BiasPotential(p, U[1]))
+                Bias[1] = BiasPotential(p, U[1])
             end
         else
+            TM = MetaDisabled
+            U = Vector{Gaugefield{TG}}(undef, 1)
             Bias = Vector{Nothing}(undef, 1)
             tempering_enabled = false
             numinstances = 1
 
             if p.initial == "cold"
-                push!(U, identity_gauges(
+                U[1] = identity_gauges(
                     NX, NY, NZ, NT,
                     p.β,
                     type_of_gaction = TG,
-                ))
+                )
             elseif p.initial == "hot"
-                push!(U, random_gauges(
+                U[1] = random_gauges(
                     NX, NY, NZ, NT,
                     p.β,
                     type_of_gaction = TG,
-                ))
+                )
             end
 
         end
@@ -115,7 +117,7 @@ module UniverseModule
             verbose_print = Verbose3(p.load_fp)
         end
 
-        return Univ{TG}(
+        return Univ{TG, TM, typeof(verbose_print)}(
             p.L,
             NC,
             p.meta_enabled,
