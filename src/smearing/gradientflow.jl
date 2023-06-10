@@ -59,13 +59,15 @@ function updateU!(U, Z, ϵ)
             for iy in 1:NY
                 for ix in 1:NX
                     @inbounds for μ in 1:4
-                        U[μ][ix,iy,iz,it] = 
-                            exp_iQ(-im * ϵ * Z[μ][ix,iy,iz,it]) * U[μ][ix,iy,iz,it]
+                        U[μ][ix,iy,iz,it] = cmatmul_oo(
+                            exp_iQ(-im * ϵ * Z[μ][ix,iy,iz,it]),
+                            U[μ][ix,iy,iz,it],
+                        )
                     end
                 end
             end
         end
-    end 
+    end
 
     return nothing
 end
@@ -86,14 +88,14 @@ function calc_Z!(
 
                     @inbounds for μ in 1:4
                         A = staple(U, μ, site)
-                        AU = A * U[μ][site]'
+                        AU = cmatmul_od(A, U[μ][site])
                         Z[μ][site] = ϵ * traceless_antihermitian(AU)
                     end
 
                 end
             end
         end
-    end 
+    end
 
     return nothing
 end
@@ -110,16 +112,15 @@ function updateZ!(U::Gaugefield{T}, Z, ϵ_old, ϵ_new) where {T}
 
                     @inbounds for μ in 1:4
                         A = staple(U, μ, site)
-                        AU = A * U[μ][site]'
-                        Z[μ][site] = ϵ_old * Z[μ][site] + 
+                        AU = cmatmul_od(A, U[μ][site])
+                        Z[μ][site] = ϵ_old * Z[μ][site] +
                             ϵ_new * traceless_antihermitian(AU)
                     end
 
                 end
             end
         end
-    end 
+    end
 
     return nothing
 end
-

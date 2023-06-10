@@ -7,7 +7,7 @@ module AbstractMeasurementModule
     using ..VerbosePrint
 
     import ..AbstractSmearingModule: calc_smearedU!, StoutSmearing
-    import ..Gaugefields: clover_rect, clover_square, Gaugefield, plaquette, wilsonloop
+    import ..Gaugefields: Gaugefield, clover_rect, clover_square, plaquette, wilsonloop
 
     include("MeasurementParameters.jl")
 

@@ -1,9 +1,8 @@
-import .AbstractMeasurementModule: construct_measurement_parameters_from_dict
-import .AbstractMeasurementModule: MeasurementParameters, prepare_measurement
-import .AbstractMeasurementModule: get_string, get_value, measure
-import .AbstractMeasurementModule: AbstractMeasurement, GaugeActionMeasurement
-import .AbstractMeasurementModule: PlaquetteMeasurement, PolyakovMeasurement
-import .AbstractMeasurementModule: TopologicalChargeMeasurement, WilsonLoopMeasurement
+import .AbstractMeasurementModule: AbstractMeasurement, GaugeActionMeasurement,
+    PlaquetteMeasurement, PolyakovMeasurement, TopologicalChargeMeasurement, 
+    WilsonLoopMeasurement, MeasurementParameters
+import .AbstractMeasurementModule: construct_measurement_parameters_from_dict,
+    prepare_measurement, get_string, get_value, measure
 import .AbstractSmearingModule: flow!
 import .Gaugefields: substitute_U!
 

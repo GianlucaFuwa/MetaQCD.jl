@@ -3,6 +3,7 @@ module Gaugefields
 	using LinearAlgebra
 	using StaticArrays
 	using Polyester
+	using Random
 	using ..Utils
 
 	abstract type Abstractfield end
@@ -25,8 +26,7 @@ module Gaugefields
 			U = Vector{Array{SMatrix{3, 3, ComplexF64, 9}, 4}}(undef, 4)
 
 			for μ = 1:4
-				Uμ = Array{SMatrix{3, 3, ComplexF64, 9}, 4}(undef, NX, NY, NZ, NT)
-				U[μ] = Uμ
+				U[μ] = Array{SMatrix{3, 3, ComplexF64, 9}, 4}(undef, NX, NY, NZ, NT)
 			end
 
 			NV = NX * NY * NZ * NT
@@ -42,8 +42,7 @@ module Gaugefields
 			U = Vector{Array{SMatrix{3, 3, ComplexF64, 9}, 4}}(undef, 4)
 
 			for μ = 1:4
-				Uμ = Array{SMatrix{3, 3, ComplexF64, 9}, 4}(undef, NX, NY, NZ, NT)
-				U[μ] = Uμ
+				U[μ] = Array{SMatrix{3, 3, ComplexF64, 9}, 4}(undef, NX, NY, NZ, NT)
 			end
 
 			NV = NX * NY * NZ * NT
@@ -67,10 +66,9 @@ module Gaugefields
 			U = Vector{Array{SMatrix{3, 3, ComplexF64, 9}, 4}}(undef, 4)
 
 			for μ = 1:4
-				Uμ = Array{SMatrix{3, 3, ComplexF64, 9}, 4}(undef, NX, NY, NZ, NT)
-				U[μ] = Uμ
+				U[μ] = Array{SMatrix{3, 3, ComplexF64, 9}, 4}(undef, NX, NY, NZ, NT)
 			end
-			
+
 			NV = NX * NY * NZ * NT
 			NC = 3
 			return new(U, NX, NY, NZ, NT, NV, NC)
@@ -94,10 +92,9 @@ module Gaugefields
 			U = Vector{Array{exp_iQ_su3, 4}}(undef, 4)
 
 			for μ = 1:4
-				Uμ = Array{exp_iQ_su3, 4}(undef, NX, NY, NZ, NT)
-				U[μ] = Uμ
+				U[μ] = Array{exp_iQ_su3, 4}(undef, NX, NY, NZ, NT)
 			end
-			
+
 			NV = NX * NY * NZ * NT
 			return new(U, NX, NY, NZ, NT, NV)
 		end
@@ -118,21 +115,21 @@ module Gaugefields
     end
 
 	function Base.getproperty(u::T, p::Symbol) where {T <: Gaugefield}
-		if p == :Sg 
+		if p == :Sg
 			return getfield(u, :Sg)[]
 		elseif p == :CV
 			return getfield(u, :CV)[]
-		else 
+		else
 			return getfield(u, p)
 		end
 	end
 
 	function Base.setproperty!(u::T, p::Symbol, val) where {T <: Gaugefield}
-		if p == :Sg 
+		if p == :Sg
 			getfield(u, :Sg)[] = val
 		elseif p == :CV
 			getfield(u, :CV)[] = val
-		else 
+		else
 			setfield!(u, p, val)
 		end
 
@@ -165,15 +162,15 @@ module Gaugefields
 			for iz in 1:NZ
 				for iy in 1:NY
 					for ix in 1:NX
-						for μ in 1:4
-							@inbounds a[μ][ix,iy,iz,it] = b[μ][ix,iy,iz,it]
+						@inbounds for μ in 1:4
+							a[μ][ix,iy,iz,it] = b[μ][ix,iy,iz,it]
 						end
 					end
 				end
 			end
 		end
 
-		return nothing 
+		return nothing
 	end
 
 	function swap_U!(a::T, b::T) where {T <: Gaugefield}
@@ -186,8 +183,8 @@ module Gaugefields
 			for iz in 1:NZ
 				for iy in 1:NY
 					for ix in 1:NX
-						for μ in 1:4
-							@inbounds a[μ][ix,iy,iz,it], b[μ][ix,iy,iz,it] =
+						@inbounds for μ in 1:4
+							a[μ][ix,iy,iz,it], b[μ][ix,iy,iz,it] =
 								b[μ][ix,iy,iz,it], a[μ][ix,iy,iz,it]
 						end
 					end
@@ -195,18 +192,18 @@ module Gaugefields
 			end
 		end
 
-		return nothing 
+		return nothing
 	end
 
 	function identity_gauges(NX, NY, NZ, NT, β; type_of_gaction = WilsonGaugeAction)
 		u = Gaugefield(NX, NY, NZ, NT, β, TG = type_of_gaction)
-		
+
 		@batch for it in 1:NT
 			for iz in 1:NZ
 				for iy in 1:NY
 					for ix in 1:NX
-						for μ in 1:4
-							@inbounds u[μ][ix,iy,iz,it] = eye3
+						@inbounds for μ in 1:4
+							u[μ][ix,iy,iz,it] = eye3
 						end
 					end
 				end
@@ -225,10 +222,10 @@ module Gaugefields
 			for iz in 1:NZ
 				for iy in 1:NY
 					for ix in 1:NX
-						for μ in 1:4
+						@inbounds for μ in 1:4
 							link = @SMatrix rand(ComplexF64, 3, 3)
 							link = proj_onto_SU3(link)
-							@inbounds u[μ][ix,iy,iz,it] = link
+							u[μ][ix,iy,iz,it] = link
 						end
 					end
 				end
@@ -247,8 +244,8 @@ module Gaugefields
 			for iz in 1:NZ
 				for iy in 1:NY
 					for ix in 1:NX
-						for μ in 1:4
-							@inbounds u[μ][ix,iy,iz,it] = zero(u[μ][ix,iy,iz,it])
+						@inbounds for μ in 1:4
+							u[μ][ix,iy,iz,it] = zero3
 						end
 					end
 				end
@@ -265,8 +262,8 @@ module Gaugefields
 			for iz in 1:NZ
 				for iy in 1:NY
 					for ix in 1:NX
-						for μ in 1:4
-							@inbounds u[μ][ix,iy,iz,it] = proj_onto_SU3(u[μ][ix,iy,iz,it])
+						@inbounds for μ in 1:4
+							u[μ][ix,iy,iz,it] = proj_onto_SU3(u[μ][ix,iy,iz,it])
 						end
 					end
 				end
@@ -279,59 +276,99 @@ module Gaugefields
 	function add!(a::T1, b::T2, fac) where {T1, T2 <: Abstractfield}
 		@assert size(a) == size(b) "added fields need to be of same size"
 		NX, NY, NZ, NT = size(a)
-	
+
 		@batch for it in 1:NT
 			for iz in 1:NZ
 				for iy in 1:NY
 					for ix in 1:NX
-						for μ in 1:4
-							@inbounds a[μ][ix,iy,iz,it] += fac * b[μ][ix,iy,iz,it] 
+						@inbounds for μ in 1:4
+							a[μ][ix,iy,iz,it] += fac * b[μ][ix,iy,iz,it]
 						end
 					end
 				end
 			end
 		end
-	
+
 		return nothing
 	end
 
-	function leftmul!(tA, a::T1, b::T2; fac = 1) where {T1, T2 <: Abstractfield}
+	function leftmul!(a::T1, b::T2) where {T1 <: Abstractfield, T2 <: Abstractfield}
 		@assert size(a) == size(b) "multed fields need to be of same size"
 		NX, NY, NZ, NT = size(a)
-	
+
 		@batch for it in 1:NT
 			for iz in 1:NZ
 				for iy in 1:NY
 					for ix in 1:NX
-						for μ in 1:4
-							@inbounds a[μ][ix,iy,iz,it] = 
-								fac * tA(b[μ][ix,iy,iz,it]) * a[μ][ix,iy,iz,it]
+						@inbounds for μ in 1:4
+							a[μ][ix,iy,iz,it] =
+                            cmatmul_oo(b[μ][ix,iy,iz,it], a[μ][ix,iy,iz,it])
 						end
 					end
 				end
 			end
 		end
-	
+
 		return nothing
 	end
 
-	function rightmul!(tA, a::T1, b::T2; fac = 1) where {T1, T2 <: Abstractfield}
-		@assert size(a) == size(b) "swapped fields need to be of same size"
+    function leftmul_dagg!(a::T1, b::T2) where {T1 <: Abstractfield, T2 <: Abstractfield}
+		@assert size(a) == size(b) "multed fields need to be of same size"
 		NX, NY, NZ, NT = size(a)
-	
+
 		@batch for it in 1:NT
 			for iz in 1:NZ
 				for iy in 1:NY
 					for ix in 1:NX
-						for μ in 1:4
-							@inbounds a[μ][ix,iy,iz,it] = 
-								fac * a[μ][ix,iy,iz,it] * tA(b[μ][ix,iy,iz,it])
+						@inbounds for μ in 1:4
+							a[μ][ix,iy,iz,it] =
+                                cmatmul_do(b[μ][ix,iy,iz,it], a[μ][ix,iy,iz,it])
 						end
 					end
 				end
 			end
 		end
-	
+
+		return nothing
+	end
+
+	function rightmul!(a::T1, b::T2) where {T1 <: Abstractfield, T2 <: Abstractfield}
+		@assert size(a) == size(b) "multed fields need to be of same size"
+		NX, NY, NZ, NT = size(a)
+
+		@batch for it in 1:NT
+			for iz in 1:NZ
+				for iy in 1:NY
+					for ix in 1:NX
+						@inbounds for μ in 1:4
+							a[μ][ix,iy,iz,it] =
+                            cmatmul_oo(a[μ][ix,iy,iz,it], b[μ][ix,iy,iz,it])
+						end
+					end
+				end
+			end
+		end
+
+		return nothing
+	end
+
+    function rightmul_dagg!(a::T1, b::T2) where {T1 <: Abstractfield, T2 <: Abstractfield}
+		@assert size(a) == size(b) "multed fields need to be of same size"
+		NX, NY, NZ, NT = size(a)
+
+		@batch for it in 1:NT
+			for iz in 1:NZ
+				for iy in 1:NY
+					for ix in 1:NX
+						@inbounds for μ in 1:4
+							a[μ][ix,iy,iz,it] =
+                                cmatmul_od(a[μ][ix,iy,iz,it], b[μ][ix,iy,iz,it])
+						end
+					end
+				end
+			end
+		end
+
 		return nothing
 	end
 
@@ -342,4 +379,4 @@ module Gaugefields
 	include("fieldstrength.jl")
 	include("liefields.jl")
 
-end	
+end

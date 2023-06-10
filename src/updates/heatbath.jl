@@ -9,10 +9,10 @@ struct HeatbathUpdate <: AbstractUpdate
     function HeatbathUpdate(U, eo, MAXIT, numHB, numOR)
         return new(
             eo,
-            MAXIT, 
-            U.NC / U.β, 
-            U.β / U.NC, 
-            numHB, 
+            MAXIT,
+            U.NC / U.β,
+            U.β / U.NC,
+            numHB,
             numOR,
         )
     end
@@ -25,7 +25,7 @@ function update!(
     Bias = nothing,
     metro_test::Bool = true,
 )
-    
+
     for _ in 1:updatemethod.numHB
         if updatemethod.eo
             heatbath_sweep_eo!(
@@ -68,28 +68,28 @@ function heatbath_sweep!(U::Gaugefield{T}, hb) where {T}
 
 					@inbounds for μ in 1:4
                         link = U[μ][ix,iy,iz,it]
-                        A_adj = staple(U, μ, site)'
+                        A = staple(U, μ, site)
 
-                        subblock = make_submatrix(link * A_adj, 1, 2)
+                        subblock = make_submatrix(cmatmul_od(link, A), 1, 2)
                         tmp = embed_into_SU3(
                             heatbath_SU2(subblock, MAXIT, prefactor),
                             1, 2,
                         )
                         link = tmp * link
 
-                        subblock = make_submatrix(link * A_adj, 1, 3)
+                        subblock = make_submatrix(cmatmul_od(link, A), 1, 3)
                         tmp = embed_into_SU3(
                             heatbath_SU2(subblock, MAXIT, prefactor),
                             1, 3,
                         )
                         link = tmp * link
-                        
-                        subblock = make_submatrix(link * A_adj, 2, 3)
+
+                        subblock = make_submatrix(cmatmul_od(link, A), 2, 3)
                         tmp = embed_into_SU3(
                             heatbath_SU2(subblock, MAXIT, prefactor),
                             2, 3,
                         )
-                        U[μ][ix,iy,iz,it] = tmp * link
+                        U[μ][ix,iy,iz,it] = cmatmul_oo(tmp, link)
 					end
 
 				end
@@ -112,31 +112,31 @@ function heatbath_sweep_eo!(U::Gaugefield{T}, hb) where {T}
                 for iz in 1:NZ
                     for iy in 1:NY
                         offset = ((it + iz + iy) & 1) ⊻ eo
-                        for ix in 1+offset:2:NX
+                        @inbounds for ix in 1+offset:2:NX
                             site = SiteCoords(ix, iy, iz, it)
                             link = U[μ][ix,iy,iz,it]
-                            A_adj = staple(U, μ, site)'
+                            A = staple(U, μ, site)
 
-                            subblock = make_submatrix(link * A_adj, 1, 2)
+                            subblock = make_submatrix(cmatmul_od(link, A), 1, 2)
                             tmp = embed_into_SU3(
                                 heatbath_SU2(subblock, MAXIT, prefactor),
                                 1, 2,
                             )
                             link = tmp * link
 
-                            subblock = make_submatrix(link * A_adj, 1, 3)
+                            subblock = make_submatrix(cmatmul_od(link, A), 1, 3)
                             tmp = embed_into_SU3(
                                 heatbath_SU2(subblock, MAXIT, prefactor),
                                 1, 3,
                             )
                             link = tmp * link
-                            
-                            subblock = make_submatrix(link * A_adj, 2, 3)
+
+                            subblock = make_submatrix(cmatmul_od(link, A), 2, 3)
                             tmp = embed_into_SU3(
                                 heatbath_SU2(subblock, MAXIT, prefactor),
                                 2, 3,
                             )
-                            U[μ][ix,iy,iz,it] = tmp * link
+                            U[μ][ix,iy,iz,it] = cmatmul_oo(tmp, link)
                         end
                     end
                 end
@@ -152,7 +152,7 @@ function heatbath_SU2(A, MAXIT, prefactor)
     a_norm = 1 / sqrt(real(det(A)))
     V = a_norm * A
     i = 1
-    
+
     while r0^2 + λ2 >= 1
         if i > MAXIT
             return eye2
@@ -178,7 +178,7 @@ function heatbath_SU2(A, MAXIT, prefactor)
     x1 = vec_norm * cos(2π * φ)
     x2 = vec_norm * sin(2π * φ)
     x3 = abs_x * cosϑ
-    
+
     mat = @SMatrix [
         x0+im*x3 x2+im*x1
         -x2+im*x1 x0-im*x3
@@ -205,7 +205,7 @@ function OR_sweep!(U::Gaugefield{T}, hb; metro_test = true) where {T}
                         tmp = 1/6 * A_adj
                         or_mat = kenney_laub(tmp)
 
-                        new_link = or_mat' * old_link' * or_mat'
+                        new_link = cmatmul_ddd(or_mat, old_link, or_mat)
                         ΔS = prefactor * real(multr(new_link - old_link, A_adj))
                         accept = metro_test ? (rand() < exp(-ΔS)) : true
 

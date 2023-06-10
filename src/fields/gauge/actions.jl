@@ -19,7 +19,7 @@ function (::SymanzikTreeGaugeAction)(U::T) where {T<:Gaugefield}
     R = rect_trace_sum(U)
     Sg_plaq = 6 * U.NV - 1/3 * P
     Sg_rect = 12 * U.NV - 1/3 * R
-    Sg_symanzik = U.β * ((1 + 8/12) * Sg_plaq - 1/12 * Sg_rect) 
+    Sg_symanzik = U.β * ((1 + 8/12) * Sg_plaq - 1/12 * Sg_rect)
     return Sg_symanzik
 end
 
@@ -29,7 +29,7 @@ function (::SymanzikTadGaugeAction)(U::T) where {T<:Gaugefield}
     u0sq = sqrt(1/3 * P)
     Sg_plaq = 6 * U.NV - 1/3 * P
     Sg_rect = 12 * U.NV - 1/3 * R
-    Sg_symanzik = U.β * ((1 + 8/12) * Sg_plaq - 1/12u0sq * Sg_rect) 
+    Sg_symanzik = U.β * ((1 + 8/12) * Sg_plaq - 1/12u0sq * Sg_rect)
     return Sg_symanzik
 end
 
@@ -38,7 +38,7 @@ function (::IwasakiGaugeAction)(U::T) where {T<:Gaugefield}
     R = rect_trace_sum(U)
     Sg_plaq = 6 * U.NV - 1/3 * P
     Sg_rect = 12 * U.NV - 1/3 * R
-    Sg_iwasaki = U.β * ((1 + 8*0.331) * Sg_plaq - 0.331 * Sg_rect) 
+    Sg_iwasaki = U.β * ((1 + 8*0.331) * Sg_plaq - 0.331 * Sg_rect)
     return Sg_iwasaki
 end
 
@@ -47,17 +47,8 @@ function (::DBW2GaugeAction)(U::T) where {T<:Gaugefield}
     R = rect_trace_sum(U)
     Sg_plaq = 6 * U.NV - 1/3 * P
     Sg_rect = 12 * U.NV - 1/3 * R
-    Sg_dbw2 = U.β * ((1 + 8 * 1.409) * Sg_plaq - 1.409 * Sg_rect) 
+    Sg_dbw2 = U.β * ((1 + 8 * 1.409) * Sg_plaq - 1.409 * Sg_rect)
     return Sg_dbw2
-end
-
-function plaquette(U::T, μ, ν, site::SiteCoords) where {T<:Gaugefield}
-    Nμ = size(U)[μ]
-    Nν = size(U)[ν]
-    siteμ = move(site, μ, 1, Nμ)
-    siteν = move(site, ν, 1, Nν)
-    plaq = U[μ][site] * U[ν][siteμ] * U[μ][siteν]' * U[ν][site]'
-    return plaq
 end
 
 function plaquette_trace_sum(U::T) where {T<:Gaugefield}
@@ -71,14 +62,14 @@ function plaquette_trace_sum(U::T) where {T<:Gaugefield}
                 for ix in 1:NX
                     site = SiteCoords(ix, iy, iz, it)
 
-                    for μ in 1:3
+                    @inbounds for μ in 1:3
                         for ν in μ+1:4
-                            plaq[threadid() * spacing] += 
+                            plaq[threadid() * spacing] +=
                                 real(tr(plaquette(U, μ, ν, site)))
                         end
                     end
 
-                end	
+                end
             end
         end
     end
@@ -97,11 +88,11 @@ function rect_trace_sum(U::T) where {T<:Gaugefield}
                 for ix in 1:NX
                     site = SiteCoords(ix, iy, iz, it)
 
-                    for μ in 1:3
+                    @inbounds for μ in 1:3
                         for ν in μ+1:4
                             rect[threadid() * spacing] +=
-                                real(tr(wilsonloop_top_right(U, μ, ν, site, 1, 2))) +
-                                real(tr(wilsonloop_top_right(U, μ, ν, site, 2, 1)))
+                                real(tr(rect_1x2(U, μ, ν, site))) +
+                                real(tr(rect_2x1(U, μ, ν, site)))
                         end
                     end
 
@@ -111,4 +102,57 @@ function rect_trace_sum(U::T) where {T<:Gaugefield}
     end
 
     return sum(rect)
+end
+
+function plaquette(U::T, μ, ν, site::SiteCoords) where {T<:Gaugefield}
+    Nμ = size(U)[μ]
+    Nν = size(U)[ν]
+    siteμp = move(site, μ, 1, Nμ)
+    siteνp = move(site, ν, 1, Nν)
+    plaq = cmatmul_oodd(U[μ][site], U[ν][siteμp], U[μ][siteνp], U[ν][site])
+    return plaq
+end
+
+function rect_2x1(U::T, μ, ν, site::SiteCoords) where {T<:Gaugefield}
+    Nμ = size(U)[μ]
+    Nν = size(U)[ν]
+    siteμp = move(site, μ, 1, Nμ)
+    site2μp = move(siteμp, μ, 1, Nμ)
+    siteμpνp = move(siteμp, ν, 1, Nν)
+    siteνp = move(site, ν, 1, Nν)
+    plaq = cmatmul_oo(
+        cmatmul_oood(U[μ][site], U[μ][siteμp], U[ν][site2μp], U[μ][siteμpνp]),
+        cmatmul_dd(U[μ][siteνp], U[ν][site]),
+    )
+    return plaq
+end
+
+function rect_1x2(U::T, μ, ν, site::SiteCoords) where {T<:Gaugefield}
+    Nμ = size(U)[μ]
+    Nν = size(U)[ν]
+    siteμp = move(site, μ, 1, Nμ)
+    siteμpνp = move(siteμp, ν, 1, Nν)
+    siteνp = move(site, ν, 1, Nν)
+    site2νp = move(siteνp, ν, 1, Nν)
+    plaq = cmatmul_oo(
+        cmatmul_oood(U[μ][site], U[ν][siteμp], U[ν][siteμpνp], U[μ][site2νp]),
+        cmatmul_dd(U[ν][siteνp], U[ν][site]),
+    )
+    return plaq
+end
+
+function plaquette_2x2(U::T, μ, ν, site::SiteCoords) where {T<:Gaugefield}
+    Nμ = size(U)[μ]
+    Nν = size(U)[ν]
+    siteμp = move(site, μ, 1, Nμ)
+    site2μp = move(siteμp, μ, 1, Nμ)
+    site2μpνp = move(site2μp, ν, 1, Nν)
+    siteνp = move(site, ν, 1, Nν)
+    site2νp = move(siteνp, ν, 1, Nν)
+    siteμp2νp =  move(site2νp, μ, 1, Nμ)
+    plaq = cmatmul_oo(
+        cmatmul_oooo(U[μ][site], U[μ][siteμp], U[ν][site2μp], U[ν][site2μpνp]),
+        cmatmul_dddd(U[μ][siteμp2νp], U[μ][site2νp], U[ν][siteνp], U[ν][site]),
+    )
+    return plaq
 end

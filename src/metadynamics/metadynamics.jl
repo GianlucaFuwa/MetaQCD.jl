@@ -1,13 +1,13 @@
 module Metadynamics
 	using ..SystemParameters: Params
-	
+
 	import ..AbstractMeasurementModule: top_charge
 	import ..AbstractSmearingModule: StoutSmearing
 	import ..Gaugefields: AbstractGaugeAction, Gaugefield
 
 	struct MetaEnabled end
 	struct MetaDisabled end
-	
+
 	struct BiasPotential{TG}
 		kind_of_cv::String
 		smearing::StoutSmearing{TG}
@@ -18,17 +18,17 @@ module Metadynamics
 		weight::Float64
 		penalty_weight::Float64
 		is_static::Bool
-		
+
 		values::Vector{Float64}
 		bin_vals::Vector{Float64}
 		# exceeded_count::Int64
 		fp::Union{Nothing, IOStream}
-		
+
 		function BiasPotential(p::Params, U::Gaugefield{TG}; instance = 1) where {TG}
 			smearing = StoutSmearing(U, p.numsmears_for_cv, p.ρstout_for_cv)
 
 			if instance == 0
-				values = potential_from_file(p, nothing) 
+				values = potential_from_file(p, nothing)
 			else
 				if p.usebiases === nothing
 					values = potential_from_file(p, nothing)
@@ -57,7 +57,7 @@ module Metadynamics
 			CVlims,
 			bin_width,
 			weight,
-			penalty_weight,			
+			penalty_weight,
 		) where {TG}
 			smearing = StoutSmearing(U, numsmear, ρstout)
 			is_static = false
@@ -74,7 +74,7 @@ module Metadynamics
 		end
 
 	end
-	
+
 	function potential_from_file(p::Params, usebias)
 		if usebias === nothing
 			return zero(range(p.CVlims[1], p.CVlims[2], step = p.bin_width))
@@ -124,14 +124,14 @@ module Metadynamics
 		if 1 <= grid_index <= length(b.values)
 			for (idx, current_bin) in enumerate(b.bin_vals)
 				b[idx] += b.weight * exp(-0.5(cv - current_bin)^2 / b.bin_width^2)
-			end	
+			end
 		else
 			# b.exceeded_count += 1
 		end
 
 		return nothing
 	end
-	
+
 	function (b::BiasPotential{T})(cv) where {T}
 		return return_potential(b, cv)
 	end
@@ -150,13 +150,13 @@ module Metadynamics
 
 	"""
 	Approximate ∂V/∂Q by use of the five-point stencil
-	""" 
+	"""
 	function ∂V∂Q(b::T, cv) where {T<:BiasPotential}
 		bin_width = b.bin_width
-		num = 
-			-b(cv + 2 * bin_width) + 
-			8 * b(cv + bin_width) - 
-			8 * b(cv - bin_width) + 
+		num =
+			-b(cv + 2 * bin_width) +
+			8 * b(cv + bin_width) -
+			8 * b(cv - bin_width) +
 			b(cv - 2 * bin_width)
 		denom = 12 * bin_width
 		return num / denom

@@ -6,8 +6,8 @@ struct HMCUpdate{TI,TG,TS,TM} <: AbstractUpdate
     P::Liefield
     _temp_U::Gaugefield{TG}
     _temp_staple::Temporaryfield
-    _temp_force::Liefield
-    _temp_force2::Union{Nothing, Liefield} # second force field for smearing
+    _temp_force::Temporaryfield
+    _temp_force2::Union{Nothing, Temporaryfield} # second force field for smearing
     _temp_fieldstrength::Union{Nothing, Vector{Temporaryfield}}
     smearing::TS
     metadynamics::TM
@@ -25,7 +25,7 @@ struct HMCUpdate{TI,TG,TS,TM} <: AbstractUpdate
         _temp_U = similar(U)
 
         _temp_staple = Temporaryfield(U)
-        _temp_force = Liefield(U)
+        _temp_force = Temporaryfield(U)
 
         if meta_enabled
             metadynamics = MetaEnabled()
@@ -49,7 +49,7 @@ struct HMCUpdate{TI,TG,TS,TM} <: AbstractUpdate
         if TS == NoSmearing && TM == MetaDisabled
             _temp_force2 = nothing
         else
-            _temp_force2 = Liefield(U)
+            _temp_force2 = Temporaryfield(U)
         end
 
 
@@ -78,7 +78,7 @@ function update!(
     U_old = updatemethod._temp_U
     substitute_U!(U_old, U)
     gaussian_momenta!(updatemethod.P)
-    
+
     trP2_old = -calc_kinetic_energy(updatemethod.P)
 
     integrator! = TI()
@@ -154,14 +154,16 @@ function updateU!(U, method, fac)
         for iz in 1:NZ
             for iy in 1:NY
                 for ix in 1:NX
-                    for μ in 1:4
-                        @inbounds U[μ][ix,iy,iz,it] = 
-                            exp_iQ(-im * ϵ * P[μ][ix,iy,iz,it]) * U[μ][ix,iy,iz,it]
+                    @inbounds for μ in 1:4
+                        U[μ][ix,iy,iz,it] = cmatmul_oo(
+                            exp_iQ(-im * ϵ * P[μ][ix,iy,iz,it]),
+                            U[μ][ix,iy,iz,it],
+                        )
                     end
                 end
             end
         end
-    end 
+    end
 
     return nothing
 end
@@ -238,7 +240,7 @@ function calc_dSdU!(
                     @inbounds for μ in 1:4
                         A = staple(U, μ, site)
                         staples[μ][site] = A
-                        UA = U[μ][site] * A'
+                        UA = cmatmul_od(U[μ][site], A)
                         dSdU[μ][site] = -β/6 * traceless_antihermitian(UA)
                     end
 
@@ -290,32 +292,32 @@ function calc_dQdU!(
                 for ix in 1:NX
                     site = SiteCoords(ix, iy, iz, it)
 
-                    tmp1 = U[1][site] * (
+                    tmp1 = cmatmul_oo(U[1][site], (
                         ∇trFμνFρσ_clover(U, F, 1, 2, 3, 4, site) -
                         ∇trFμνFρσ_clover(U, F, 1, 3, 2, 4, site) +
                         ∇trFμνFρσ_clover(U, F, 1, 4, 2, 3, site)
-                    )
+                    ))
                     dQdU[1][site] = 1/4π^2 * traceless_antihermitian(tmp1)
-                    
-                    tmp2 = U[2][site] * (
+
+                    tmp2 = cmatmul_oo(U[2][site], (
                         ∇trFμνFρσ_clover(U, F, 2, 3, 1, 4, site) -
                         ∇trFμνFρσ_clover(U, F, 2, 1, 3, 4, site) -
                         ∇trFμνFρσ_clover(U, F, 2, 4, 1, 3, site)
-                    )
+                    ))
                     dQdU[2][site] = 1/4π^2 * traceless_antihermitian(tmp2)
 
-                    tmp3 = U[3][site] * (
+                    tmp3 = cmatmul_oo(U[3][site], (
                         ∇trFμνFρσ_clover(U, F, 3, 1, 2, 4, site) -
                         ∇trFμνFρσ_clover(U, F, 3, 2, 1, 4, site) +
                         ∇trFμνFρσ_clover(U, F, 3, 4, 1, 2, site)
-                    )
+                    ))
                     dQdU[3][site] = 1/4π^2 * traceless_antihermitian(tmp3)
 
-                    tmp4 = U[4][site] * (
+                    tmp4 = cmatmul_oo(U[4][site], (
                         ∇trFμνFρσ_clover(U, F, 4, 2, 1, 3, site) -
                         ∇trFμνFρσ_clover(U, F, 4, 1, 2, 3, site) -
                         ∇trFμνFρσ_clover(U, F, 4, 3, 1, 2, site)
-                    )
+                    ))
                     dQdU[4][site] = 1/4π^2 * traceless_antihermitian(tmp4)
                 end
             end
@@ -344,9 +346,9 @@ function ∇trFμνFρσ_plaq(
     siteνn = move(site, ν, -1, Nν)
     siteμpνn = move(siteμp, ν, -1, Nν)
 
-    component = 
-        U[ν][siteμp] * U[μ][siteνp]' * U[ν][site]' * F[ρ][σ][site] +
-        U[ν][siteμpνn]' * U[μ][siteνn]' * F[ρ][σ][siteνn] * U[ν][siteνn]
+    component =
+        cmatmul_oddo(U[ν][siteμp], U[μ][siteνp], U[ν][site], F[ρ][σ][site]) +
+        cmatmul_ddoo(U[ν][siteμpνn], U[μ][siteνn], F[ρ][σ][siteνn], U[ν][siteνn])
 
     return im/2 * component
 end
@@ -371,15 +373,15 @@ function ∇trFμνFρσ_clover(
     siteμpνp = move(siteμp, ν, 1, Nν)
     siteμpνn = move(siteμp, ν, -1, Nν)
 
-    component = 
-        U[ν][siteμp]    * U[μ][siteνp]'     * U[ν][site]'     * F[ρ][σ][site] +
-        U[ν][siteμp]    * U[μ][siteνp]'     * F[ρ][σ][siteνp] * U[ν][site]'   +
-        U[ν][siteμp]    * F[ρ][σ][siteμpνp] * U[μ][siteνp]'   * U[ν][site]'   +
-        F[ρ][σ][siteμp] * U[ν][siteμp]      * U[μ][siteνp]'   * U[ν][site]'   -
-        U[ν][siteμpνn]' * U[μ][siteνn]'     * U[ν][siteνn]    * F[ρ][σ][site] -
-        U[ν][siteμpνn]' * U[μ][siteνn]'     * F[ρ][σ][siteνn] * U[ν][siteνn]  -
-        U[ν][siteμpνn]' * F[ρ][σ][siteμpνn] * U[μ][siteνn]'   * U[ν][siteνn]  -
-        F[ρ][σ][siteμp] * U[ν][siteμpνn]'   * U[μ][siteνn]'   * U[ν][siteνn]
+    component =
+        cmatmul_oddo(U[ν][siteμp], U[μ][siteνp], U[ν][site], F[ρ][σ][site]) +
+        cmatmul_odod(U[ν][siteμp], U[μ][siteνp], F[ρ][σ][siteνp], U[ν][site]) +
+        cmatmul_oodd(U[ν][siteμp], F[ρ][σ][siteμpνp], U[μ][siteνp], U[ν][site]) +
+        cmatmul_oodd(F[ρ][σ][siteμp], U[ν][siteμp], U[μ][siteνp], U[ν][site]) -
+        cmatmul_ddoo(U[ν][siteμpνn], U[μ][siteνn], U[ν][siteνn], F[ρ][σ][site]) -
+        cmatmul_ddoo(U[ν][siteμpνn], U[μ][siteνn], F[ρ][σ][siteνn], U[ν][siteνn]) -
+        cmatmul_dodo(U[ν][siteμpνn], F[ρ][σ][siteμpνn], U[μ][siteνn], U[ν][siteνn]) -
+        cmatmul_oddo(F[ρ][σ][siteμp], U[ν][siteμpνn], U[μ][siteνn], U[ν][siteνn])
 
     return im/8 * component
 end

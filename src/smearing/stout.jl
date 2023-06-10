@@ -17,7 +17,7 @@ struct StoutSmearing{TG} <: AbstractSmearing
 		ρ,
 	) where {TG <: AbstractGaugeAction}
 		@assert numlayers >= 0 && ρ >= 0 "number of stout layers and ρ must be >= 0"
-		
+
 		if numlayers == 0 || ρ == 0
 			return NoSmearing()
 		else
@@ -25,15 +25,15 @@ struct StoutSmearing{TG} <: AbstractSmearing
 			C_multi = Vector{Temporaryfield}(undef, numlayers)
 			Q_multi = Vector{CoeffField}(undef, numlayers)
 			Λ = Temporaryfield(U)
-	
+
 			Usmeared_multi[1] = similar(U)
-	
+
 			for i in 1:numlayers
 				Usmeared_multi[i+1] = similar(U)
 				C_multi[i] = Temporaryfield(U)
 				Q_multi[i] = CoeffField(U)
 			end
-	
+
 			return new{TG}(numlayers, ρ, Usmeared_multi, C_multi, Q_multi, Λ)
 		end
 	end
@@ -81,20 +81,22 @@ function apply_stout_smearing!(
 )
 	NX, NY, NZ, NT = size(Uout)
 	calc_stout_Q!(Q, C, U, ρ)
-	
+
 	@batch for it in 1:NT
 		for iz in 1:NZ
 			for iy in 1:NY
 				for ix in 1:NX
-					for μ in 1:4
-						@inbounds Uout[μ][ix,iy,iz,it] = 
-							exp_iQ(Q[μ][ix,iy,iz,it]) * U[μ][ix,iy,iz,it]
+					@inbounds for μ in 1:4
+						Uout[μ][ix,iy,iz,it] = cmatmul_oo(
+							exp_iQ(Q[μ][ix,iy,iz,it]),
+                            U[μ][ix,iy,iz,it],
+                        )
 					end
 				end
 			end
 		end
 	end
-	
+
 	return nothing
 end
 
@@ -132,7 +134,7 @@ end
 Stout-Force recursion \\
 See: hep-lat/0311018 by Morningstar & Peardon \\
 \\
-Σμ = Σμ'⋅exp(iQμ) + iCμ†⋅Λμ - i∑{...}   
+Σμ = Σμ'⋅exp(iQμ) + iCμ†⋅Λμ - i∑{...}
 """
 function stout_recursion!(
 	Σ,
@@ -146,7 +148,7 @@ function stout_recursion!(
 )
 	NX, NY, NZ, NT = size(Σ_prime)
 
-	leftmul!(adjoint, Σ_prime, U_prime)
+	leftmul_dagg!(Σ_prime, U_prime)
 
 	calc_stout_Λ!(Λ, Σ_prime, Q, U)
 
@@ -171,22 +173,33 @@ function stout_recursion!(
 							siteνn = move(site, ν, -1 ,Nν)
 							siteμpνn = move(siteμp, ν, -1, Nν)
 
-							force_sum += 
-								U[ν][siteμp]    * U[μ][siteνp]'  * U[ν][site]'   * Λ[ν][site]   + 
-								U[ν][siteμpνn]' * U[μ][siteνn]'  * Λ[μ][siteνn]  * U[ν][siteνn] + 
-								U[ν][siteμpνn]' * Λ[ν][siteμpνn] * U[μ][siteνn]' * U[ν][siteνn] - 
-								U[ν][siteμpνn]' * U[μ][siteνn]'  * Λ[ν][siteνn]  * U[ν][siteνn] - 
-								Λ[ν][siteμp]    * U[ν][siteμp]   * U[μ][siteνp]' * U[ν][site]'  + 
-								U[ν][siteμp]    * U[μ][siteνp]'  * Λ[μ][siteνp]  * U[ν][site]'
-							
+                            force_sum +=
+                                cmatmul_oddo(
+                                    U[ν][siteμp], U[μ][siteνp], U[ν][site], Λ[ν][site]
+                                ) +
+                                cmatmul_ddoo(
+                                    U[ν][siteμpνn], U[μ][siteνn], Λ[μ][siteνn], U[ν][siteνn]
+                                ) +
+                                cmatmul_dodo(
+                                    U[ν][siteμpνn], Λ[ν][siteμpνn], U[μ][siteνn], U[ν][siteνn]
+                                ) +
+                                cmatmul_ddoo(
+                                    U[ν][siteμpνn], U[μ][siteνn], Λ[ν][siteνn], U[ν][siteνn]
+                                ) +
+                                cmatmul_oodd(
+                                    Λ[ν][siteμp], U[ν][siteμp], U[μ][siteνp], U[ν][site]
+                                ) +
+                                cmatmul_odod(
+                                    U[ν][siteμp], U[μ][siteνp], Λ[μ][siteνp], U[ν][site]
+                                )
 						end
 
 						link = U[μ][site]
 						expiQ_mat = exp_iQ(Q[μ][site])
 						Σ[μ][site] = traceless_antihermitian(
-							link * Σ_prime[μ][site] * expiQ_mat +
-							im * link * C[μ][site]' * Λ[μ][site] -
-							im * ρ * link * force_sum
+							cmatmul_ooo(link, Σ_prime[μ][site], expiQ_mat) +
+							im * cmatmul_odo(link, C[μ][site], Λ[μ][site]) -
+							im * ρ * cmatmul_oo(link, force_sum)
 						)
 					end
 				end
@@ -198,7 +211,7 @@ function stout_recursion!(
 end
 
 """
-Γ = Tr(Σ'⋅B1⋅U)⋅Q + Tr(Σ'⋅B2⋅U)⋅Q² 
+Γ = Tr(Σ'⋅B1⋅U)⋅Q + Tr(Σ'⋅B2⋅U)⋅Q²
 	+ f1⋅U⋅Σ' + f2⋅Q⋅U⋅Σ' + f1⋅U⋅Σ'⋅Q \\
 Λ = 1/2⋅(Γ + Γ†) - 1/(2N)⋅Tr(Γ + Γ†)
 """
@@ -217,16 +230,17 @@ function calc_stout_Λ!(
 					@inbounds for μ in 1:4
 						q = Q[μ][ix,iy,iz,it]
 						Q_mat = q.Q
-						UΣ = U[μ][ix,iy,iz,it] * Σprime[μ][ix,iy,iz,it]
-						
+                        Q2_mat = q.Q2
+						UΣ = cmatmul_oo(U[μ][ix,iy,iz,it], Σprime[μ][ix,iy,iz,it])
+
 						B1_mat = B1(q)
 						B2_mat = B2(q)
 
-						Γ = multr(B1_mat, UΣ) * Q_mat + 
-							multr(B2_mat, UΣ) * Q_mat^2 +
-							q.f1 * UΣ + 
-							q.f2 * Q_mat * UΣ + 
-							q.f2 * UΣ * Q_mat
+						Γ = multr(B1_mat, UΣ) * Q_mat +
+							multr(B2_mat, UΣ) * Q2_mat +
+							q.f1 * UΣ +
+							q.f2 * cmatmul_oo(Q_mat, UΣ) +
+							q.f2 * cmatmul_oo(UΣ, Q_mat)
 
 						Λ[μ][ix,iy,iz,it] = traceless_hermitian(Γ)
 					end
@@ -257,10 +271,10 @@ function calc_stout_Q!(
 						Cμ = ρ * staple(U, μ, site)
 						C[μ][ix,iy,iz,it] = Cμ
 
-						Ω = Cμ * U[μ][ix,iy,iz,it]'
+						Ω = cmatmul_od(Cμ, U[μ][ix,iy,iz,it])
 						Q[μ][ix,iy,iz,it] = exp_iQ_coeffs(-im * traceless_antihermitian(Ω))
 					end
-					
+
 				end
 			end
 		end

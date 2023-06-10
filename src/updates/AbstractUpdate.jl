@@ -7,13 +7,12 @@ module AbstractUpdateModule
     using ..VerbosePrint
 
     import ..SystemParameters: Params
-    import ..Gaugefields: Gaugefield, Liefield, Temporaryfield
-    import ..Gaugefields: AbstractGaugeAction, add!, calc_gauge_action
-    import ..Gaugefields: calc_kinetic_energy, fieldstrength_eachsite!
-    import ..Gaugefields: gaussian_momenta!, staple_eachsite!, substitute_U!
-    import ..Metadynamics: BiasPotential, ∂V∂Q, MetaEnabled, MetaDisabled, update_bias!
-    import ..AbstractSmearingModule: AbstractSmearing, calc_smearedU!, get_layer
-    import ..AbstractSmearingModule: NoSmearing, stout_backprop!, StoutSmearing
+    import ..Gaugefields: AbstractGaugeAction, Gaugefield, Liefield, Temporaryfield
+    import ..Gaugefields: add!, calc_gauge_action, calc_kinetic_energy,
+        fieldstrength_eachsite!, gaussian_momenta!, staple_eachsite!, substitute_U!
+    import ..Metadynamics: BiasPotential, MetaEnabled, MetaDisabled, ∂V∂Q, update_bias!
+    import ..AbstractSmearingModule: AbstractSmearing, NoSmearing, StoutSmearing
+    import ..AbstractSmearingModule: calc_smearedU!, get_layer, stout_backprop!
     import ..AbstractMeasurementModule: top_charge
     import ..UniverseModule: Univ
 
@@ -22,10 +21,14 @@ module AbstractUpdateModule
     include("./hmc.jl")
     include("./metropolis.jl")
     include("./heatbath.jl")
-    
-    function Updatemethod(parameters::Params, univ::Univ, instance::Int = 1)
+
+    function Updatemethod(
+        parameters::Params,
+        U;
+        instance = 1,
+    )
         updatemethod = Updatemethod(
-            univ.U[instance],
+            U,
             parameters.update_method,
             parameters.meta_enabled,
             parameters.metro_ϵ,
@@ -61,6 +64,15 @@ module AbstractUpdateModule
         hb_numHB = 1,
         hb_numOR = 4,
     )
+        updatemethod = HMCUpdate(
+            U,
+            hmc_integrator,
+            hmc_steps,
+            hmc_Δτ,
+            numsmear = hmc_numsmear,
+            ρ_stout = hmc_ρstout,
+            meta_enabled = meta_enabled,
+        )
         if update_method == "hmc"
             updatemethod = HMCUpdate(
                 U,
@@ -75,7 +87,7 @@ module AbstractUpdateModule
             updatemethod = MetroUpdate(
                 U,
                 metro_ϵ,
-                metro_multi_hit, 
+                metro_multi_hit,
                 metro_target_acc,
                 meta_enabled,
             )
@@ -84,7 +96,7 @@ module AbstractUpdateModule
             updatemethod = HeatbathUpdate(
                 U,
                 hb_eo,
-                hb_MAXIT, 
+                hb_MAXIT,
                 hb_numHB,
                 hb_numOR,
             )

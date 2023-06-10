@@ -71,8 +71,8 @@ function staple_plaq(U::T, μ, site::SiteCoords) where {T <: Gaugefield}
         siteνp = move(site, ν, 1, Nν)
         siteνn = move(site, ν, -1, Nν)
         siteμpνn = move(siteμp, ν, -1, Nν)
-        staple += U[ν][site] * U[μ][siteνp] * U[ν][siteμp]'
-        staple += U[ν][siteνn]' * U[μ][siteνn] * U[ν][siteμpνn]
+        staple += cmatmul_ood(U[ν][site], U[μ][siteνp], U[ν][siteμp])
+        staple += cmatmul_doo(U[ν][siteνn], U[μ][siteνn], U[ν][siteμpνn])
     end
 
     return staple
@@ -114,8 +114,14 @@ function staple_rect(U::T, μ, site::SiteCoords) where {T <: Gaugefield}
         # ↓     ↑
         # |- → -|
         staple += (
-            U[ν][site] * U[ν][siteνp] * U[μ][site2νp] * U[ν][siteμpνp]' * U[ν][siteμp]' +
-            U[ν][siteνn]' * U[ν][site2νn]' * U[μ][site2νn] * U[ν][siteμp2νn] * U[ν][siteμpνn]
+            cmatmul_oo(
+            cmatmul_ooo(U[ν][site], U[ν][siteνp], U[μ][site2νp]),
+            cmatmul_dd(U[ν][siteμpνp], U[ν][siteμp]),
+            ) +
+            cmatmul_oo(
+                cmatmul_ddo(U[ν][siteνn], U[ν][site2νn], U[μ][site2νn]),
+                cmatmul_oo(U[ν][siteμp2νn], U[ν][siteμpνn]),
+            )
         )
 
         # Second term, same direction from site and siteνn
@@ -124,10 +130,15 @@ function staple_rect(U::T, μ, site::SiteCoords) where {T <: Gaugefield}
         # |-----|- ← -|
         # ↓           ↑
         # |- → -|- → -|
-        staple += (
-            U[ν][site] * U[μ][siteνp] * U[μ][siteμpνp] * U[ν][site2μp]' +
-            U[ν][siteνn]' * U[μ][siteνn] * U[μ][siteμpνn] * U[ν][site2μpνn]
-        ) * U[μ][siteμp]'
+        staple += cmatmul_od(
+            cmatmul_oood(
+                U[ν][site], U[μ][siteνp], U[μ][siteμpνp], U[ν][site2μp]
+            ) +
+            cmatmul_dooo(
+                U[ν][siteνn], U[μ][siteνn], U[μ][siteμpνn], U[ν][site2μpνn]
+            ),
+            U[μ][siteμp],
+        )
 
         # Third term, same direction from siteμn and siteμnνn
         # |- → -|- → -|
@@ -135,9 +146,14 @@ function staple_rect(U::T, μ, site::SiteCoords) where {T <: Gaugefield}
         # |- ← -|-----|
         # ↓           ↑
         # |- → -|- → -|
-        staple += U[μ][siteμn]' * (
-            U[ν][siteμn] * U[μ][siteμnνp] * U[μ][siteνp] * U[ν][siteμp]' +
-            U[ν][siteμnνn]' * U[μ][siteμnνn] * U[μ][siteνn] * U[ν][siteμpνn]
+        staple += cmatmul_do(
+            U[μ][siteμn],
+            cmatmul_oood(
+                U[ν][siteμn], U[μ][siteμnνp], U[μ][siteνp], U[ν][siteμp]
+            ) +
+            cmatmul_dooo(
+                U[ν][siteμnνn], U[μ][siteμnνn], U[μ][siteνn], U[ν][siteμpνn]
+            ),
         )
     end
 

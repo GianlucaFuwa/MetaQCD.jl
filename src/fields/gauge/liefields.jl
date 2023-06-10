@@ -7,16 +7,14 @@ struct Liefield <: Abstractfield
     NZ::Int64
     NT::Int64
     NV::Int64
-    NC::Int64	
+    NC::Int64
 
     function Liefield(NX, NY, NZ, NT)
         NV = NX * NY * NZ * NT
-        U = Vector{Array{SMatrix{3,3,ComplexF64,9},4}}(undef, 0)
+        U = Vector{Array{SMatrix{3,3,ComplexF64,9},4}}(undef, 4)
 
         for μ = 1:4
-            Uμ = Array{SMatrix{3,3,ComplexF64,9},4}(undef, NX, NY, NZ, NT)
-            fill!(Uμ, SMatrix{3,3,ComplexF64,9}(zeros(3, 3)))
-            push!(U, Uμ)
+            U[μ] = Array{SMatrix{3, 3, ComplexF64, 9}, 4}(undef, NX, NY, NZ, NT)
         end
 
         return new(U, NX, NY, NZ, NT, NV, 3)
@@ -48,14 +46,14 @@ end
 function calc_kinetic_energy(p::Liefield)
     NX, NY, NZ, NT = size(p)
     spacing = 8
-    H_kin = zeros(Float64, nthreads() * spacing)
+    ekin = zeros(Float64, nthreads() * spacing)
 
     @batch for it = 1:NT
         for iz = 1:NZ
             for iy = 1:NY
                 for ix = 1:NX
                     for μ = 1:4
-                        H_kin[threadid() * spacing] += 
+                        ekin[threadid() * spacing] += 
                             real(multr(p[μ][ix,iy,iz,it], p[μ][ix,iy,iz,it]))
                     end
                 end
@@ -63,5 +61,5 @@ function calc_kinetic_energy(p::Liefield)
         end
     end 
     
-    return sum(H_kin)
+    return sum(ekin)
 end

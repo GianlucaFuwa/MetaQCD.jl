@@ -18,7 +18,7 @@ mutable struct PolyakovMeasurement <: AbstractMeasurement
             elseif verbose_level == 2
                 verbose_print = Verbose2()
             elseif verbose_level == 3
-                verbose_print = Verbose3()    
+                verbose_print = Verbose3()
             end
         else
             fp = nothing
@@ -58,7 +58,7 @@ function measure(m::PolyakovMeasurement, U; additional_string = "")
         println(m.fp, measurestring)
         flush(m.fp)
     end
-    
+
     output = MeasurementOutput(poly, measurestring)
     return output
 end
@@ -74,13 +74,13 @@ function polyakov_traced(U::T) where {T<:Gaugefield}
                 polymat = U[4][ix,iy,iz,1]
 
                 for t in 1:NT-1
-                    polymat *= U[4][ix,iy,iz,1+t]
+                    polymat = cmatmul_oo(polymat, U[4][ix,iy,iz,1+t])
                 end
-                
+
                 poly[threadid() * spacing] += tr(polymat)
             end
         end
     end
 
     return sum(poly)
-end 
+end

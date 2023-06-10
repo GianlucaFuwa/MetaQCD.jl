@@ -6,9 +6,10 @@ module AbstractSmearingModule
     using TimerOutputs
     using ..Utils
 
-    import ..Gaugefields: AbstractGaugeAction, CoeffField, Gaugefield, Liefield
-    import ..Gaugefields: Temporaryfield, leftmul!, staple_eachsite!, substitute_U!
-    
+    import ..Gaugefields: AbstractGaugeAction, CoeffField, Gaugefield, Liefield,
+        Temporaryfield
+    import ..Gaugefields: leftmul_dagg!, staple_eachsite!, substitute_U!
+
     abstract type AbstractSmearing end
 
     struct NoSmearing <: AbstractSmearing end

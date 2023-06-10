@@ -1,5 +1,5 @@
-import ..Gaugefields: WilsonGaugeAction, SymanzikTreeGaugeAction, SymanzikTadGaugeAction
-import ..Gaugefields: IwasakiGaugeAction, DBW2GaugeAction
+import ..Gaugefields: WilsonGaugeAction, SymanzikTreeGaugeAction, SymanzikTadGaugeAction,
+    IwasakiGaugeAction, DBW2GaugeAction
 
 mutable struct GaugeActionMeasurement <: AbstractMeasurement
     filename::Union{Nothing, String}
