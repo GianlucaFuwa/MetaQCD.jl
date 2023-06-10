@@ -29,9 +29,9 @@ end
 
 exp_iQ(e::exp_iQ_su3) = e.expiQ
 
-B1(e::exp_iQ_su3) = e.b10 * eye3 + e.b11 * e.Q + e.b12 * e.Q^2
+B1(e::exp_iQ_su3) = e.b10 * eye3 + e.b11 * e.Q + e.b12 * e.Q2
 
-B2(e::exp_iQ_su3) = e.b20 * eye3 + e.b21 * e.Q + e.b22 * e.Q^2
+B2(e::exp_iQ_su3) = e.b20 * eye3 + e.b21 * e.Q + e.b22 * e.Q2
 
 """
 Exponential function of Q for traceless-hermitian Q \\
