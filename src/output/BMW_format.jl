@@ -2,7 +2,8 @@ module BMW_format
     using LinearAlgebra
     export save_textdata
     export load_BridgeText!
-    function save_textdata(U, filename)
+
+    function save_bmwdata(U, filename)
         NX,NY,NZ,NT = size(U)
 
         fp = open(filename, "w")
@@ -14,11 +15,7 @@ module BMW_format
                         for μ = 1:4
                             for a = 1:3
                                 for b = 1:3
-                                    i += 1
-                                    rvalue = real(U[μ][ix,iy,iz,it][a,b])
-                                    println(fp, rvalue)
-                                    ivalue = imag(U[μ][ix,iy,iz,it][a,b])
-                                    println(fp, ivalue)
+                                    # TODO
                                 end
                             end
                         end
@@ -43,11 +40,7 @@ module BMW_format
                             link = zeros(ComplexF64,3,3)
                             for a = 1:3
                                 for b = 1:3
-                                    u = readline(fp)
-                                    rvalue = parse(Float64, u)
-                                    u = readline(fp)
-                                    ivalue = parse(Float64, u)
-                                    link[a,b] = rvalue + im*ivalue
+                                    # TODO
                                 end
                             end
                             U[μ][ix,iy,iz,it] = link
