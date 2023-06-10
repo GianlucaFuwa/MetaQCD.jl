@@ -1,1 +1,8 @@
 /Manifest.toml
+alloc-profile.pb.gz
+logs/
+measurements/
+metapotentials/
+templates/
+test/test.jl
+test/testsmearing.jl
