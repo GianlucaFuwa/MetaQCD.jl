@@ -11,6 +11,13 @@ module Utils
     export zero2, eye2, zero3, eye3, δ, ε_tensor, gaussian_su3_matrix
     export get_coords, move, SiteCoords
     export λ, expλ
+    export cmatmul_oo, cmatmul_dd, cmatmul_do, cmatmul_od
+    export cmatmul_ooo, cmatmul_ood, cmatmul_odo, cmatmul_doo, cmatmul_odd,
+        cmatmul_ddo, cmatmul_dod, cmatmul_ddd
+    export cmatmul_oooo, cmatmul_oood, cmatmul_oodo, cmatmul_odoo, cmatmul_dooo,
+        cmatmul_oodd, cmatmul_oddo, cmatmul_ddoo, cmatmul_odod, cmatmul_dood,
+        cmatmul_dodo, cmatmul_oddd, cmatmul_dddo, cmatmul_ddod, cmatmul_dodd,
+        cmatmul_dddd
 
     const zero3 = @SArray [
         0.0+0.0im 0.0+0.0im 0.0+0.0im
@@ -52,38 +59,40 @@ module Utils
         todo .= true
 		first = 1
 		cycles = flips = 0
-		
+
 		while cycles + flips < N
 			first = coalesce(findnext(todo, first), 0)
 			(todo[first] = !todo[first]) && return 0
 			j = p[first]
 			cycles += 1
-			
+
 			while j != first
 				(todo[j] = !todo[j]) && return 0
 				j = p[j]
 				flips += 1
 			end
 		end
-		
+
 		return iseven(flips) ? 1 : -1
 	end
 
-    function multr(A::SMatrix{3,3,ComplexF64,9}, B::SMatrix{3,3,ComplexF64,9})
+    @inline function multr(A::SMatrix{3,3,ComplexF64,9}, B::SMatrix{3,3,ComplexF64,9})
         a = reinterpret(reshape, Float64, A)
         b = reinterpret(reshape, Float64, B)
         re = 0.0
         im = 0.0
-    
+
         @turbo for i in 1:3
             for j in 1:3
                 re += a[1,i,j] * b[1,j,i] - a[2,i,j] * b[2,j,i]
                 im += a[1,i,j] * b[2,j,i] + a[2,i,j] * b[1,j,i]
             end
         end
-    
+
         return ComplexF64(re, im)
     end
+
+    include("matmul.jl")
 
     include("generators.jl")
 
