@@ -347,7 +347,7 @@ function ∇trFμνFρσ_plaq(
     siteμpνn = move(siteμp, ν, -1, Nν)
 
     component =
-        cmatmul_oddo(U[ν][siteμp], U[μ][siteνp], U[ν][site], F[ρ][σ][site]) +
+        cmatmul_oddo(U[ν][siteμp]  , U[μ][siteνp], U[ν][site]     , F[ρ][σ][site]) +
         cmatmul_ddoo(U[ν][siteμpνn], U[μ][siteνn], F[ρ][σ][siteνn], U[ν][siteνn])
 
     return im/2 * component
@@ -374,14 +374,14 @@ function ∇trFμνFρσ_clover(
     siteμpνn = move(siteμp, ν, -1, Nν)
 
     component =
-        cmatmul_oddo(U[ν][siteμp], U[μ][siteνp], U[ν][site], F[ρ][σ][site]) +
-        cmatmul_odod(U[ν][siteμp], U[μ][siteνp], F[ρ][σ][siteνp], U[ν][site]) +
-        cmatmul_oodd(U[ν][siteμp], F[ρ][σ][siteμpνp], U[μ][siteνp], U[ν][site]) +
-        cmatmul_oodd(F[ρ][σ][siteμp], U[ν][siteμp], U[μ][siteνp], U[ν][site]) -
-        cmatmul_ddoo(U[ν][siteμpνn], U[μ][siteνn], U[ν][siteνn], F[ρ][σ][site]) -
-        cmatmul_ddoo(U[ν][siteμpνn], U[μ][siteνn], F[ρ][σ][siteνn], U[ν][siteνn]) -
-        cmatmul_dodo(U[ν][siteμpνn], F[ρ][σ][siteμpνn], U[μ][siteνn], U[ν][siteνn]) -
-        cmatmul_oddo(F[ρ][σ][siteμp], U[ν][siteμpνn], U[μ][siteνn], U[ν][siteνn])
+        cmatmul_oddo(U[ν][siteμp]   , U[μ][siteνp]     , U[ν][site]     , F[ρ][σ][site]) +
+        cmatmul_odod(U[ν][siteμp]   , U[μ][siteνp]     , F[ρ][σ][siteνp], U[ν][site])    +
+        cmatmul_oodd(U[ν][siteμp]   , F[ρ][σ][siteμpνp], U[μ][siteνp]   , U[ν][site])    +
+        cmatmul_oodd(F[ρ][σ][siteμp], U[ν][siteμp]     , U[μ][siteνp]   , U[ν][site])    -
+        cmatmul_ddoo(U[ν][siteμpνn] , U[μ][siteνn]     , U[ν][siteνn]   , F[ρ][σ][site]) -
+        cmatmul_ddoo(U[ν][siteμpνn] , U[μ][siteνn]     , F[ρ][σ][siteνn], U[ν][siteνn])  -
+        cmatmul_dodo(U[ν][siteμpνn] , F[ρ][σ][siteμpνn], U[μ][siteνn]   , U[ν][siteνn])  -
+        cmatmul_oddo(F[ρ][σ][siteμp], U[ν][siteμpνn]   , U[μ][siteνn]   , U[ν][siteνn])
 
     return im/8 * component
 end

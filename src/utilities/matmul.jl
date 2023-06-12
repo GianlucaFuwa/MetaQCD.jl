@@ -1,4 +1,5 @@
 # using LoopVectorization
+# using Random
 # using StaticArrays
 # using Test
 #========== 2-fold products ==========#
@@ -12,8 +13,8 @@
     B = reinterpret(reshape, Float64, Bc)
 
     @turbo for n ∈ Base.Slice(static(1):static(NC)), m ∈ Base.Slice(static(1):static(NC))
-        Cre = zero(T)
-        Cim = zero(T)
+        Cre = zero(Float64)
+        Cim = zero(Float64)
 
         for k ∈ Base.Slice(static(1):static(NC))
             Cre += A[1, m, k] * B[1, k, n] - A[2, m, k] * B[2, k, n]
@@ -41,8 +42,8 @@ end
     B = reinterpret(reshape, Float64, Bc)
 
     @turbo for n ∈ Base.Slice(static(1):static(NC)), m ∈ Base.Slice(static(1):static(NC))
-        Cre = zero(T)
-        Cim = zero(T)
+        Cre = zero(Float64)
+        Cim = zero(Float64)
 
         for k ∈ Base.Slice(static(1):static(NC))
             Cre += A[1, m, k] * B[1, n, k] + A[2, m, k] * B[2, n, k]
@@ -70,8 +71,8 @@ end
     B = reinterpret(reshape, Float64, Bc)
 
     @turbo for n ∈ Base.Slice(static(1):static(NC)), m ∈ Base.Slice(static(1):static(NC))
-        Cre = zero(T)
-        Cim = zero(T)
+        Cre = zero(Float64)
+        Cim = zero(Float64)
 
         for k ∈ Base.Slice(static(1):static(NC))
             Cre += A[1, k, m] * B[1, k, n] + A[2, k, m] * B[2, k, n]
@@ -99,8 +100,8 @@ end
     B = reinterpret(reshape, Float64, Bc)
 
     @turbo for n ∈ Base.Slice(static(1):static(NC)), m ∈ Base.Slice(static(1):static(NC))
-        Cre = zero(T)
-        Cim = zero(T)
+        Cre = zero(Float64)
+        Cim = zero(Float64)
 
         for k ∈ Base.Slice(static(1):static(NC))
             Cre += A[1, k, m] * B[1, n, k] - A[2, k, m] * B[2, n, k]

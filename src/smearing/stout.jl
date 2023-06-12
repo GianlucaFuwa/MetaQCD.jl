@@ -182,10 +182,10 @@ function stout_recursion!(
                                 ) +
                                 cmatmul_dodo(
                                     U[ν][siteμpνn], Λ[ν][siteμpνn], U[μ][siteνn], U[ν][siteνn]
-                                ) +
+                                ) -
                                 cmatmul_ddoo(
                                     U[ν][siteμpνn], U[μ][siteνn], Λ[ν][siteνn], U[ν][siteνn]
-                                ) +
+                                ) -
                                 cmatmul_oodd(
                                     Λ[ν][siteμp], U[ν][siteμp], U[μ][siteνp], U[ν][site]
                                 ) +
@@ -195,7 +195,7 @@ function stout_recursion!(
 						end
 
 						link = U[μ][site]
-						expiQ_mat = exp_iQ(Q[μ][site])
+						expiQ_mat = exp_iQ(Q[μ][ix,iy,iz,it])
 						Σ[μ][site] = traceless_antihermitian(
 							cmatmul_ooo(link, Σ_prime[μ][site], expiQ_mat) +
 							im * cmatmul_odo(link, C[μ][site], Λ[μ][site]) -
@@ -269,9 +269,9 @@ function calc_stout_Q!(
 
 					@inbounds for μ in 1:4
 						Cμ = ρ * staple(U, μ, site)
-						C[μ][ix,iy,iz,it] = Cμ
+						C[μ][site] = Cμ
 
-						Ω = cmatmul_od(Cμ, U[μ][ix,iy,iz,it])
+						Ω = cmatmul_od(Cμ, U[μ][site])
 						Q[μ][ix,iy,iz,it] = exp_iQ_coeffs(-im * traceless_antihermitian(Ω))
 					end
 

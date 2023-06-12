@@ -274,7 +274,6 @@ module Gaugefields
     end
 
 	function add!(a::T1, b::T2, fac) where {T1, T2 <: Abstractfield}
-		@assert size(a) == size(b) "added fields need to be of same size"
 		NX, NY, NZ, NT = size(a)
 
 		@batch for it in 1:NT
@@ -293,7 +292,6 @@ module Gaugefields
 	end
 
 	function leftmul!(a::T1, b::T2) where {T1 <: Abstractfield, T2 <: Abstractfield}
-		@assert size(a) == size(b) "multed fields need to be of same size"
 		NX, NY, NZ, NT = size(a)
 
 		@batch for it in 1:NT
@@ -302,7 +300,7 @@ module Gaugefields
 					for ix in 1:NX
 						@inbounds for μ in 1:4
 							a[μ][ix,iy,iz,it] =
-                            cmatmul_oo(b[μ][ix,iy,iz,it], a[μ][ix,iy,iz,it])
+                                cmatmul_oo(b[μ][ix,iy,iz,it], a[μ][ix,iy,iz,it])
 						end
 					end
 				end
@@ -313,7 +311,6 @@ module Gaugefields
 	end
 
     function leftmul_dagg!(a::T1, b::T2) where {T1 <: Abstractfield, T2 <: Abstractfield}
-		@assert size(a) == size(b) "multed fields need to be of same size"
 		NX, NY, NZ, NT = size(a)
 
 		@batch for it in 1:NT
@@ -333,7 +330,6 @@ module Gaugefields
 	end
 
 	function rightmul!(a::T1, b::T2) where {T1 <: Abstractfield, T2 <: Abstractfield}
-		@assert size(a) == size(b) "multed fields need to be of same size"
 		NX, NY, NZ, NT = size(a)
 
 		@batch for it in 1:NT
@@ -342,7 +338,7 @@ module Gaugefields
 					for ix in 1:NX
 						@inbounds for μ in 1:4
 							a[μ][ix,iy,iz,it] =
-                            cmatmul_oo(a[μ][ix,iy,iz,it], b[μ][ix,iy,iz,it])
+                                cmatmul_oo(a[μ][ix,iy,iz,it], b[μ][ix,iy,iz,it])
 						end
 					end
 				end
@@ -353,7 +349,6 @@ module Gaugefields
 	end
 
     function rightmul_dagg!(a::T1, b::T2) where {T1 <: Abstractfield, T2 <: Abstractfield}
-		@assert size(a) == size(b) "multed fields need to be of same size"
 		NX, NY, NZ, NT = size(a)
 
 		@batch for it in 1:NT

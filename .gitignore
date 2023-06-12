@@ -6,3 +6,4 @@ metapotentials/
 templates/
 test/test.jl
 test/testsmearing.jl
+.vscode/settings.json
