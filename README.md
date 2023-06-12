@@ -6,7 +6,7 @@ Inspired by the LatticeQCD.jl package by Akio Tomiya et al.
 - Set parameters using one of the templates in template folder
   - From shell, do:
   ```
-  julia --threads=auto run.jl paramters.toml
+  julia --threads=auto run.jl parameters.toml
   ```
   or
   - Start Julia:
