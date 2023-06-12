@@ -8,7 +8,7 @@ Inspired by the LatticeQCD.jl package by Akio Tomiya et al.
   ```
   julia --threads=auto run.jl paramters.toml
   ```
-or
+  or
   - Start Julia:
   ```
   julia --threads=auto
