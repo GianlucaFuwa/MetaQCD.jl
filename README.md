@@ -3,12 +3,14 @@
 Inspired by the LatticeQCD.jl package by Akio Tomiya et al.
 
 ## Quick Start:
-1: Set parameters using one of the templates in template folder
+1. Set parameters using one of the templates in template folder
 2. From shell, do:
 ```
 julia --threads=auto run.jl parameters.toml
 ```
+
 or
+
 2. Start Julia:
 ```
 julia --threads=auto
