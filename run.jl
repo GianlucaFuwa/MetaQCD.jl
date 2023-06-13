@@ -1,4 +1,4 @@
-include("./src/system/MetaQCD.jl")
+include("./src/MetaQCD.jl")
 using .MetaQCD
 
 if length(ARGS) == 0
