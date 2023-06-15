@@ -1,5 +1,4 @@
-include("./src/system/MetaQCD.jl")
-using .MetaQCD
+using MetaQCD
 
 if length(ARGS) == 0
     error("""
