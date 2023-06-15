@@ -2,9 +2,9 @@ using Random
 using MetaQCD
 using MetaQCD.Utils
 
-function testderivative()
+function SU3testderivative()
     Random.seed!(1206)
-
+    println("SU3testderivative")
     NX = 8; NY = 8; NZ = 8; NT = 8;
     U = random_gauges(NX, NY, NZ, NT, 5.7, type_of_gaction = SymanzikTreeGaugeAction)
 
@@ -30,7 +30,9 @@ function testderivative()
     site = SiteCoords(2, 3, 1, 2)
     direction = 3
     deltaH = 0.00001
-    
+
+    relerrors = Matrix{Float64}(undef, 4, 8)
+
     for group_direction in 1:8
         # Unsmeared
         Ufwd = deepcopy(U)
@@ -94,6 +96,13 @@ function testderivative()
         ga_symm_diff_smeared = (gaction_new_fwd_smeared - gaction_new_bwd_smeared) / 2deltaH
         tc_symm_diff_smeared = (topcharge_new_fwd_smeared - topcharge_new_bwd_smeared) / 2deltaH
 
+        relerrors[1, group_direction] = (ga_symm_diff - dgaction_proj) / ga_symm_diff
+        relerrors[2, group_direction] =
+            (ga_symm_diff_smeared - dgaction_proj_smeared) / ga_symm_diff_smeared
+        relerrors[3, group_direction] = (tc_symm_diff - dtopcharge_proj) / tc_symm_diff
+        relerrors[4, group_direction] =
+            (tc_symm_diff_smeared - dtopcharge_proj_smeared) / tc_symm_diff_smeared
+
         println("================= Group direction $(group_direction) =================")
 
         # println("gaction before: ", gaction_old)
@@ -129,6 +138,6 @@ function testderivative()
         )
     end
 
-    return nothing
+    return relerrors
 end
-@time testderivative()
+# @time SU3testderivative()

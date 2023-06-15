@@ -1,7 +1,7 @@
 using MetaQCD
 
-function SU3test()
-    println(SU3test)
+function SU3testmeas()
+    println("SU3testmeas")
     NX = 4
     NY = 4
     NZ = 4
@@ -39,5 +39,7 @@ function SU3test()
     m_gaction = GaugeActionMeasurement(U, GA_methods=GA_methods)
     @time gaction = get_value(measure(m_gaction, U))
     println("gaction: $gaction")
+
+    return plaq, poly, topo["plaquette"], topo["clover"], topo["improved"], wilsonloop[1]
 end
-SU3test()
+# SU3test()

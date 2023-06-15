@@ -45,7 +45,7 @@ function SU3testupdate()
         hb_numHB,
         hb_numOR,
     )
-    
+
     for itrj = 1:10
         value, runtime = @timed update!(updatemethod, U, verbose, metro_test=false)
         normalize!(U)
@@ -53,7 +53,7 @@ function SU3testupdate()
     end
 
     numaccepts = 0
-    nsweeps = 1
+    nsweeps = 10
 
     for itrj = 1:nsweeps
         value, runtime = @timed update!(updatemethod, U, verbose, metro_test=true)
@@ -61,7 +61,7 @@ function SU3testupdate()
         println("Elapsed time: $runtime [s]")
         numaccepts += value
     end
-    
+
     if update_method != "hmc"
         Sg_final_unsmeared = U.Sg
         println("Final Gauge Action is: ", Sg_final_unsmeared)
@@ -80,6 +80,6 @@ function SU3testupdate()
     end
 
     println("Acceptance Rate: ", 100 * numaccepts / nsweeps, " %")
-    return nothing
+    return numaccepts / nsweeps
 end
-@time SU3testupdate()
+# @time SU3testupdate()
