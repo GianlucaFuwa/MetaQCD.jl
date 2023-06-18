@@ -8,7 +8,7 @@ module AbstractUpdateModule
 
     import ..SystemParameters: Params
     import ..Gaugefields: AbstractGaugeAction, Gaugefield, Liefield, Temporaryfield
-    import ..Gaugefields: add!, calc_gauge_action, calc_kinetic_energy,
+    import ..Gaugefields: add!, calc_gauge_action, calc_kinetic_energy, normalize!,
         fieldstrength_eachsite!, gaussian_momenta!, staple_eachsite!, substitute_U!
     import ..Metadynamics: BiasPotential, MetaEnabled, MetaDisabled, ∂V∂Q, update_bias!
     import ..AbstractSmearingModule: AbstractSmearing, NoSmearing, StoutSmearing
@@ -24,8 +24,7 @@ module AbstractUpdateModule
 
     function Updatemethod(
         parameters::Params,
-        U;
-        instance = 1,
+        U,
     )
         updatemethod = Updatemethod(
             U,
@@ -64,15 +63,6 @@ module AbstractUpdateModule
         hb_numHB = 1,
         hb_numOR = 4,
     )
-        updatemethod = HMCUpdate(
-            U,
-            hmc_integrator,
-            hmc_steps,
-            hmc_Δτ,
-            numsmear = hmc_numsmear,
-            ρ_stout = hmc_ρstout,
-            meta_enabled = meta_enabled,
-        )
         if update_method == "hmc"
             updatemethod = HMCUpdate(
                 U,
@@ -92,7 +82,6 @@ module AbstractUpdateModule
                 meta_enabled,
             )
         elseif update_method == "heatbath"
-            @assert meta_enabled == false "MetaD can only be used with HMC or Metropolis"
             updatemethod = HeatbathUpdate(
                 U,
                 hb_eo,
