@@ -7,3 +7,5 @@ test/test.jl
 test/testsmearing.jl
 .vscode/settings.json
 run.jl
+dirac/
+src/system/mainrun_mpi.jl
