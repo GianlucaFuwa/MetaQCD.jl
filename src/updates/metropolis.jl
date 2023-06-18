@@ -31,6 +31,7 @@ function update!(
 		numaccepts = metro_sweep!(U, updatemethod, metro_test = metro_test)
 	end
 
+    normalize!(U)
 	adjust_ϵ!(updatemethod, numaccepts)
 	return numaccepts * updatemethod.mnorm
 end
@@ -61,7 +62,7 @@ function metro_sweep!(
 							ΔSg = β/3 * real(tr((X * link - link) * A_adj))
 
 							accept = metro_test ? (rand() ≤ exp(-ΔSg)) : 1
-					
+
 							if accept
 								U.Sg += ΔSg
 								U[μ][origin] = X * U[μ][origin]
@@ -107,11 +108,11 @@ function metro_sweep_meta!(
 
 							CV = U.CV
 							ΔSg = β/3 * real(tr((X * link - link) * A_adj))
-							ΔCV = 1/2π * imag(tr((X * link - link) * A_adj)) 
+							ΔCV = 1/2π * imag(tr((X * link - link) * A_adj))
 							ΔV = Bias(CV + ΔCV) - Bias(CV)
 
 							accept = metro_test ? (rand() ≤ exp(-ΔSg - ΔV)) : 1
-					
+
 							if accept
 								U.Sg += ΔSg
 								U.CV += ΔV
@@ -122,7 +123,7 @@ function metro_sweep_meta!(
 						end
 
 					end
-					
+
 				end
 			end
 		end

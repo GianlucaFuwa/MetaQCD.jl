@@ -50,6 +50,14 @@ function update!(
         )
     end
 
+    if Bias !== nothing
+        calc_smearedU!(Bias.smearing, U)
+        fully_smeared_U = Bias.smearing.Usmeared_multi[end]
+        CV_new = top_charge(fully_smeared_U, Bias.kind_of_cv)
+        U.CV = CV_new
+    end
+
+    normalize!(U)
     numaccepts = updatemethod.numOR == 0 ? 1.0 : numaccepts / (U.NV * 4 * updatemethod.numOR)
     return numaccepts
 end
