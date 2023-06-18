@@ -173,28 +173,6 @@ module Gaugefields
 		return nothing
 	end
 
-	function swap_U!(a::T, b::T) where {T <: Gaugefield}
-		@assert size(a) == size(b) "swapped fields need to be of same size"
-		NX, NY, NZ, NT = size(a)
-		a.Sg, b.Sg = b.Sg, a.Sg
-		a.CV, b.CV = b.CV, a.CV
-
-		@batch for it in 1:NT
-			for iz in 1:NZ
-				for iy in 1:NY
-					for ix in 1:NX
-						@inbounds for μ in 1:4
-							a[μ][ix,iy,iz,it], b[μ][ix,iy,iz,it] =
-								b[μ][ix,iy,iz,it], a[μ][ix,iy,iz,it]
-						end
-					end
-				end
-			end
-		end
-
-		return nothing
-	end
-
 	function identity_gauges(NX, NY, NZ, NT, β; type_of_gaction = WilsonGaugeAction)
 		u = Gaugefield(NX, NY, NZ, NT, β, TG = type_of_gaction)
 
