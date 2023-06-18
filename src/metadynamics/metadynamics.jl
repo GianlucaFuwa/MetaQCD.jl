@@ -1,4 +1,5 @@
 module Metadynamics
+    using Polyester
 	using ..SystemParameters: Params
 
 	import ..AbstractMeasurementModule: top_charge
@@ -24,7 +25,12 @@ module Metadynamics
 		# exceeded_count::Int64
 		fp::Union{Nothing, IOStream}
 
-		function BiasPotential(p::Params, U::Gaugefield{TG}; instance = 1) where {TG}
+		function BiasPotential(
+            p::Params,
+            U::Gaugefield{TG};
+            instance = 1,
+            biasfile = nothing,
+        ) where {TG}
 			smearing = StoutSmearing(U, p.numsmears_for_cv, p.ρstout_for_cv)
 
 			if instance == 0
@@ -39,11 +45,17 @@ module Metadynamics
 
 			bin_vals = range(p.CVlims[1], p.CVlims[2], step = p.bin_width)
 			# exceeded_count = 0
-			fp = instance == 0 ? nothing : open(p.biasdir * "/Stream_$instance.txt", "w")
+            if biasfile === nothing
+                fp = open(p.biasdir * "/Stream_$instance.txt", "w")
+            else
+                fp = open(p.biasdir * "/" * biasfile * ".txt", "w")
+            end
+
+            is_static = instance == 0 ? true : false
 
 			return new{TG}(
 				p.kind_of_cv, smearing, p.symmetric,
-				p.CVlims, p.bin_width, p.meta_weight, p.penalty_weight, p.is_static,
+				p.CVlims, p.bin_width, p.meta_weight, p.penalty_weight, is_static,
 				values, bin_vals, fp,
 			)
 		end
@@ -89,36 +101,40 @@ module Metadynamics
 		end
 	end
 
-	function Base.length(b::T) where {T<:BiasPotential}
+	function Base.length(b::T) where {T <: BiasPotential}
 		return length(b.values)
 	end
 
-	function Base.flush(b::T) where {T<:BiasPotential}
+    function Base.eachindex(b::T) where {T <: BiasPotential}
+        return eachindex(b.values)
+    end
+
+	function Base.flush(b::T) where {T <: BiasPotential}
 		if b.fp !== nothing
 			flush(b.fp)
 		end
 	end
 
-	function Base.seekstart(b::T) where {T<:BiasPotential}
+	function Base.seekstart(b::T) where {T <: BiasPotential}
 		if b.fp !== nothing
 			seekstart(b.fp)
 		end
 	end
 
-	function Base.setindex!(b::T, v, i) where {T<:BiasPotential}
+	function Base.setindex!(b::T, v, i) where {T <: BiasPotential}
 		b.values[i] = v
 	end
 
-	@inline function Base.getindex(b::T, i) where {T<:BiasPotential}
+	@inline function Base.getindex(b::T, i) where {T <: BiasPotential}
 		return b.values[i]
 	end
 
-	@inline function index(b::T, cv) where {T<:BiasPotential}
+	@inline function index(b::T, cv) where {T <: BiasPotential}
 		grid_index = (cv - b.CVlims[1]) / b.bin_width + 0.5
 		return round(Int64, grid_index, RoundNearestTiesAway)
 	end
 
-	function update_bias!(b::T, cv) where {T<:BiasPotential}
+	function update_bias!(b::T, cv) where {T <: BiasPotential}
 		grid_index = index(b, cv)
 
 		if 1 <= grid_index <= length(b.values)
@@ -132,11 +148,11 @@ module Metadynamics
 		return nothing
 	end
 
-	function (b::BiasPotential{T})(cv) where {T}
+	function (b::BiasPotential)(cv)
 		return return_potential(b, cv)
 	end
 
-	function return_potential(b::T, cv) where {T<:BiasPotential}
+	function return_potential(b::T, cv) where {T <: BiasPotential}
 		if b.CVlims[1] <= cv < b.CVlims[2]
 			grid_index = index(b, cv)
 			return b[grid_index]
@@ -148,10 +164,28 @@ module Metadynamics
 		end
 	end
 
+    function add!(a::T1, b::T2) where {T1 <: BiasPotential, T2 <: BiasPotential}
+        @assert length(a) == length(b) "Length mismatch"
+
+        @batch for i in eachindex(a)
+            a[i] += b[i]
+        end
+
+        return nothing
+    end
+
+    function clear!(b::T) where {T <: BiasPotential}
+        @batch for i in eachindex(a)
+            b[i] = 0.0
+        end
+
+        return nothing
+    end
+
 	"""
 	Approximate ∂V/∂Q by use of the five-point stencil
 	"""
-	function ∂V∂Q(b::T, cv) where {T<:BiasPotential}
+	function ∂V∂Q(b::T, cv) where {T <: BiasPotential}
 		bin_width = b.bin_width
 		num =
 			-b(cv + 2 * bin_width) +
