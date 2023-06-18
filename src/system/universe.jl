@@ -4,7 +4,7 @@ module UniverseModule
 
     import ..Gaugefields: Gaugefield, Liefield
     import ..Gaugefields: AbstractGaugeAction, DBW2GaugeAction, IwasakiGaugeAction,
-        SymanzikTadGaugeAction, SymanzikTreeGaugeAction, WilsonGaugeAction 
+        SymanzikTadGaugeAction, SymanzikTreeGaugeAction, WilsonGaugeAction
     import ..Gaugefields: identity_gauges, random_gauges
     import ..Metadynamics: BiasPotential, MetaDisabled, MetaEnabled
     import ..SystemParameters: Params
@@ -16,6 +16,7 @@ module UniverseModule
         tempering_enabled::Bool
         U::Vector{Gaugefield{TG}}
         Bias::Union{Vector{Nothing}, Vector{BiasPotential{TG}}}
+        # CumBias::Union{Nothing, BiasPotential{TG}}
         numinstances::Int64
         verbose_print::TV
     end
@@ -38,6 +39,8 @@ module UniverseModule
             error("Gauge action '$(kind_of_gaction)' not supported")
         end
 
+        # CumBias = nothing
+
         if p.meta_enabled
             TM = MetaEnabled
             U = Vector{Gaugefield{TG}}(undef, p.numinstances)
@@ -45,7 +48,9 @@ module UniverseModule
             tempering_enabled = p.tempering_enabled
 
             if tempering_enabled
+                # cumulative = p.multiple_walkers
                 numinstances = p.numinstances
+                # CumBias = cumulative ? BiasPotential(p, U[1], instance = 1) : nothing
 
                 for i in 1:numinstances
                     if p.initial == "cold"
@@ -64,8 +69,9 @@ module UniverseModule
                         error("Initial \"$(p.initial)\" is invalid")
                     end
 
-                    push!(Bias, BiasPotential(p, U[1], instance = i))
+                    Bias[i] = BiasPotential(p, U[1], instance = i - 1)
                 end
+
             else
                 numinstances = 1
                 U = Vector{Gaugefield{TG}}(undef, 1)
@@ -124,6 +130,7 @@ module UniverseModule
             tempering_enabled,
             U,
             Bias,
+            # CumBias,
             numinstances,
             verbose_print,
         )
