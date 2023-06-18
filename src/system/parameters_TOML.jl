@@ -13,9 +13,9 @@ module ParametersTOML
 
         for (i, pname_i) in enumerate(pnames)
             if haskey(d,String(pname_i))
-                if d[String(pname_i)] == "nothing" 
+                if d[String(pname_i)] == "nothing"
                     value_Params[i] = nothing
-                else 
+                else
                     value_Params[i] = d[String(pname_i)]
                 end
             end
@@ -28,7 +28,7 @@ module ParametersTOML
         for (key, value) in parameters
 
             println("[$(key)]")
-            
+
             if key == "Measurement set"
                 for (key_i, value_i) in value
                     println("[$(key_i)]")
@@ -150,12 +150,12 @@ module ParametersTOML
                         value_Params[i] = Tuple(value[String(pname_i)])
                     elseif String(pname_i) == "kind_of_gaction"
                         value_Params[i] = Unicode.normalize(
-                            value[String(pname_i)], 
+                            value[String(pname_i)],
                             casefold = true,
                         )
                     elseif String(pname_i) == "update_method"
                         value_Params[i] = Unicode.normalize(
-                            value[String(pname_i)], 
+                            value[String(pname_i)],
                             casefold = true,
                         )
                     else
@@ -187,29 +187,15 @@ module ParametersTOML
                 mkpath(p.saveU_dir)
             end
 
-            println("$(p.saveU_dir) is used for saving configurations")
-        end
-
-        if p.meta_enabled == true
-            println("==> Metadynamics is enabled <==")
-
-            if p.tempering_enabled == true
-                println("\t==> Parallel tempering is enabled <==")
-            end
-        else
-            println("==> Metadynamics is disabled <==")
+            println("\t>> $(p.saveU_dir) is used for saving configurations\n")
         end
 
         if Unicode.normalize(p.update_method, casefold = true) == "hmc"
-            println("==> HMC will be used <==")
+            println("\t>> HMC will be used\n")
         elseif Unicode.normalize(p.update_method, casefold = true) == "metropolis"
-            println("==> Metropolis updates will be used <==")
+            println("\t>> Metropolis updates will be used\n")
         elseif Unicode.normalize(p.update_method, casefold = true) == "heatbath"
-            println("==> Heatbath + Overrelaxation updates will be used <==")
-        elseif Unicode.normalize(p.update_method, casefold = true) == "hb"
-            println("==> Heatbath updates will be used <==")
-        elseif Unicode.normalize(p.update_method, casefold = true) == "or"
-            println("==> Overrelaxation updates will be used <==")
+            println("\t>> Heatbath (+ Overrelaxation) updates will be used\n")
         else
             error("""
             update_method in [\"Physical Settings\"] = $(p.update_method) is not supported.
@@ -239,7 +225,7 @@ module ParametersTOML
 
             push!(valuedic, dic_i)
         end
-        
+
         return valuedic
     end
 end
