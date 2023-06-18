@@ -19,7 +19,7 @@ module MetaQCD
     using .BridgeFormat
     using .Utils
     using .VerbosePrint
-    
+
     import .SystemParameters: Params
     import .ParametersTOML: construct_params_from_toml
     import .Gaugefields: DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
@@ -38,6 +38,7 @@ module MetaQCD
     import .UniverseModule: Univ
     import .Mainrun: run_sim
 
+    export construct_params_from_toml
     export load_BridgeText!, save_textdata
     export Verbose1, Verbose2, Verbose3
     export DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
@@ -52,7 +53,7 @@ module MetaQCD
     export measure, get_value, PlaquetteMeasurement, PolyakovMeasurement
     export WilsonLoopMeasurement, TopologicalChargeMeasurement, GaugeActionMeasurement
     export top_charge
-    export Params, construct_measurement_parameters_from_toml
+    export Params, construct_measurement_parameters_from_toml, construct_params_from_toml
     export Univ
     export run_sim
 
