@@ -15,13 +15,17 @@ mutable struct PlaquetteMeasurement <: AbstractMeasurement
     )
         if printvalues
             fp = open(filename, "w")
+            header = ""
+            header *= "itrj\tRe(plaq)"
+
+            println(fp, header)
 
             if verbose_level == 1
                 verbose_print = Verbose1()
             elseif verbose_level == 2
                 verbose_print = Verbose2()
             elseif verbose_level == 3
-                verbose_print = Verbose3()    
+                verbose_print = Verbose3()
             end
         else
             fp = nothing
@@ -56,10 +60,10 @@ end
 function measure(m::PlaquetteMeasurement, U; additional_string = "")
     plaq = plaquette_trace_sum(U) * m.factor
     measurestring = ""
-    
+
     if m.printvalues
-        measurestring = "$additional_string $plaq # plaq"
-        println_verbose2(m.verbose_print, measurestring)
+        measurestring = "$additional_string\t$plaq\t"
+        println_verbose2(m.verbose_print, measurestring, "# plaq")
         println(m.fp, measurestring)
         flush(m.fp)
     end

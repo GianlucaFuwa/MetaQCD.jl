@@ -18,13 +18,21 @@ mutable struct GaugeActionMeasurement <: AbstractMeasurement
     )
         if printvalues
             fp = open(filename, "w")
+            header = ""
+            header *= "itrj"
+
+            for methodname in GA_methods
+                header *= "\t$methodname"
+            end
+
+            println(fp, header)
 
             if verbose_level == 1
                 verbose_print = Verbose1()
             elseif verbose_level == 2
                 verbose_print = Verbose2()
             elseif verbose_level == 3
-                verbose_print = Verbose3()    
+                verbose_print = Verbose3()
             end
         else
             fp = nothing
@@ -46,15 +54,15 @@ end
 
 function GaugeActionMeasurement(
     U::T,
-    params::ActionParameters,
+    params::GaugeActionParameters,
     filename = "gauge_action.txt",
-) where {T<:Gaugefield}
+) where {T <: Gaugefield}
     return GaugeActionMeasurement(
         U,
         filename = filename,
         verbose_level = params.verbose_level,
         printvalues = params.printvalues,
-        GA_methods = params.kinds_of_gauge_action
+        GA_methods = params.kinds_of_gaction,
     )
 end
 
@@ -62,7 +70,7 @@ function measure(m::GaugeActionMeasurement, U; additional_string = "")
     measurestring = ""
     values = zeros(Float64, length(m.GA_methods))
     valuedic = Dict{String, AbstractFloat}()
-    printstring = additional_string
+    printstring = "$additional_string\t"
 
     for (i, methodname) in enumerate(m.GA_methods)
         if methodname == "wilson"
@@ -85,32 +93,18 @@ function measure(m::GaugeActionMeasurement, U; additional_string = "")
             Sg_dbw2 = DBW2GaugeAction()(U) * m.factor
             values[i] = Sg_dbw2
             valuedic["dbw2"] = Sg_dbw2
-        else 
+        else
             error("method $methodname is not supported in gauge action measurement")
         end
     end
 
     if m.printvalues
         for value in values
-            printstring *= "$value "
-        end
-
-        for methodname in m.TC_methods
-            if methodname == "wilson"
-                printstring *= "Sg_wilson"
-            elseif methodname == "symanzik_tree"
-                printstring *= "Sg_symanzik_tree"
-            elseif methodname == "symanzik_tad"
-                printstring *= "Sg_symanzik_tad"
-            elseif methodname == "iwasaki"
-                printstring *= "Sg_iwasaki"
-            elseif methodname == "dbw2"
-                printstring *= "Sg_dbw2"
-            end
+            printstring *= "$value\t"
         end
 
         measurestring = printstring
-        println_verbose2(m.verbose_print, measurestring)
+        println_verbose2(m.verbose_print, measurestring, "# gaction")
         println(m.fp, measurestring)
         flush(m.fp)
     end

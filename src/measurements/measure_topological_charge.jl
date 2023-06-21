@@ -14,13 +14,21 @@ mutable struct TopologicalChargeMeasurement <: AbstractMeasurement
     )
         if printvalues
             fp = open(filename, "w")
+            header = ""
+            header *= "itrj"
+
+            for methodname in TC_methods
+                header *= "\t$methodname"
+            end
+
+            println(fp, header)
 
             if verbose_level == 1
                 verbose_print = Verbose1()
             elseif verbose_level == 2
                 verbose_print = Verbose2()
             elseif verbose_level == 3
-                verbose_print = Verbose3()    
+                verbose_print = Verbose3()
             end
         else
             fp = nothing
@@ -38,10 +46,10 @@ mutable struct TopologicalChargeMeasurement <: AbstractMeasurement
 end
 
 function TopologicalChargeMeasurement(
-        U::Gaugefield,
+        U::T,
         params::TopologicalChargeParameters,
         filename = "topological_charge.txt",
-    )
+    ) where {T <: Gaugefield}
     return TopologicalChargeMeasurement(
         U,
         filename = filename,
@@ -55,7 +63,7 @@ function measure(m::TopologicalChargeMeasurement, U; additional_string = "")
     measurestring = ""
     values = zeros(Float64, length(m.TC_methods))
     valuedic = Dict{String, AbstractFloat}()
-    printstring = additional_string
+    printstring = "$additional_string\t"
 
     for (i, methodname) in enumerate(m.TC_methods)
         Q = top_charge(U, methodname)
@@ -65,23 +73,11 @@ function measure(m::TopologicalChargeMeasurement, U; additional_string = "")
 
     if m.printvalues
         for value in values
-            printstring *= "$(value) "
-        end
-
-        printstring *= "# "
-
-        for methodname in m.TC_methods
-            if methodname == "plaquette"
-                printstring *= "Qplaq "
-            elseif methodname == "clover"
-                printstring *= "Qclover "
-            elseif methodname == "improved"
-                printstring *= "Qimproved"
-            end
+            printstring *= "$value\t"
         end
 
         measurestring = printstring
-        println_verbose2(m.verbose_print, measurestring)
+        println_verbose2(m.verbose_print, measurestring, "# top_charge")
         println(m.fp, measurestring)
         flush(m.fp)
     end
@@ -91,7 +87,7 @@ function measure(m::TopologicalChargeMeasurement, U; additional_string = "")
 end
 
 # Topological charge definitions from: https://arxiv.org/pdf/1708.00696.pdf
-function top_charge(U::T, methodname::String) where {T<:Gaugefield}
+function top_charge(U::T, methodname::String) where {T <: Gaugefield}
     if methodname == "plaquette"
         Q = top_charge_plaq(U)
     elseif methodname == "clover"
@@ -105,7 +101,7 @@ function top_charge(U::T, methodname::String) where {T<:Gaugefield}
     return Q
 end
 
-function top_charge_plaq(U::T) where {T<:Gaugefield}
+function top_charge_plaq(U::T) where {T <: Gaugefield}
     NX, NY, NZ, NT = size(U)
     spacing = 8
     Qplaq = zeros(Float64, nthreads() * spacing)
@@ -134,7 +130,7 @@ function top_charge_plaq(U::T) where {T<:Gaugefield}
                     C34 = plaquette(U, 3, 4, site)
                     F34 = im * traceless_antihermitian(C34)
 
-                    Qplaq[threadid() * spacing] += 
+                    Qplaq[threadid() * spacing] +=
                         real(multr(F12, F34)) - # minus sign from ε-tensor
                         real(multr(F13, F24)) +
                         real(multr(F14, F23))
@@ -147,7 +143,7 @@ function top_charge_plaq(U::T) where {T<:Gaugefield}
     return Qplaq
 end
 
-function top_charge_clover(U::T) where {T<:Gaugefield}
+function top_charge_clover(U::T) where {T <: Gaugefield}
     NX, NY, NZ, NT = size(U)
     spacing = 8
     Qclover = zeros(Float64, nthreads() * spacing)
@@ -162,8 +158,8 @@ function top_charge_clover(U::T) where {T<:Gaugefield}
                     F12 = im/4 * traceless_antihermitian(C12)
 
                     C13 = clover_square(U, 1, 3, site, 1)
-                    F13 = im/4 * traceless_antihermitian(C13) 
-                    
+                    F13 = im/4 * traceless_antihermitian(C13)
+
                     C23 = clover_square(U, 2, 3, site, 1)
                     F23 = im/4 * traceless_antihermitian(C23)
 
@@ -176,7 +172,7 @@ function top_charge_clover(U::T) where {T<:Gaugefield}
                     C34 = clover_square(U, 3, 4, site, 1)
                     F34 = im/4 * traceless_antihermitian(C34)
 
-                    Qclover[threadid() * spacing] += 
+                    Qclover[threadid() * spacing] +=
                         real(multr(F12, F34)) -
                         real(multr(F13, F24)) +
                         real(multr(F14, F23))
@@ -189,7 +185,7 @@ function top_charge_clover(U::T) where {T<:Gaugefield}
     return Qclover
 end
 
-function top_charge_rect(U::T) where {T<:Gaugefield}
+function top_charge_rect(U::T) where {T <: Gaugefield}
     NX, NY, NZ, NT = size(U)
     spacing = 8
     Qrect = zeros(Float64, nthreads() * spacing)
@@ -205,7 +201,7 @@ function top_charge_rect(U::T) where {T<:Gaugefield}
 
                     C13 = clover_rect(U, 1, 3, site, 1, 2)
                     F13 = im/8 * traceless_antihermitian(C13)
-                    
+
                     C23 = clover_rect(U, 2, 3, site, 1, 2)
                     F23 = im/8 * traceless_antihermitian(C23)
 
@@ -217,8 +213,8 @@ function top_charge_rect(U::T) where {T<:Gaugefield}
 
                     C34 = clover_rect(U, 3, 4, site, 1, 2)
                     F34 = im/8 * traceless_antihermitian(C34)
-                     
-                    Qrect[threadid() * spacing] += 
+
+                    Qrect[threadid() * spacing] +=
                         real(multr(F12, F34)) -
                         real(multr(F13, F24)) +
                         real(multr(F14, F23))
@@ -231,7 +227,7 @@ function top_charge_rect(U::T) where {T<:Gaugefield}
     return Qrect
 end
 
-function top_charge_improved(U::T) where {T<:Gaugefield}
+function top_charge_improved(U::T) where {T <: Gaugefield}
     Qclover = top_charge_clover(U)
     Qrect = top_charge_rect(U)
     return 5/3 * Qclover - 1/12 * Qrect

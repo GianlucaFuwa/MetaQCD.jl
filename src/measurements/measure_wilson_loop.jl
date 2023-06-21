@@ -19,13 +19,17 @@ mutable struct WilsonLoopMeasurement <: AbstractMeasurement
     )
         if printvalues
             fp = open(filename, "w")
+            header = ""
+            header *= "itrj\tRe(wilson_loop)\t(in column major)"
+
+            println(fp, header)
 
             if verbose_level == 1
                 verbose_print = Verbose1()
             elseif verbose_level == 2
                 verbose_print = Verbose2()
             elseif verbose_level == 3
-                verbose_print = Verbose3()    
+                verbose_print = Verbose3()
             end
         else
             fp = nothing
@@ -63,15 +67,15 @@ end
 
 function measure(m::WilsonLoopMeasurement, U; additional_string = "")
     measurestring = ""
-    
+
     for T in 1:m.Tmax
         for R in 1:m.Rmax
             WL = wilsonloop(U, R, T) # NC=3 and 6 associated loop
-            m.outputvalues[R,T] = tr(WL) / (U.NV * 18.0)
+            m.outputvalues[R, T] = tr(WL) / (U.NV * 18.0)
 
             if m.printvalues
-                measurestring = " $additional_string $R $T $WL # wilson_loops # R T W(R,T)"
-                println_verbose2(m.verbose_print, measurestring)
+                measurestring = "$additional_string\t$R\t$T\t$WL\t"
+                println_verbose2(m.verbose_print, measurestring, "# wilson_loops")
                 println(m.fp, measurestring)
                 flush(m.fp)
             end

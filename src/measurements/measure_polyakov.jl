@@ -12,6 +12,10 @@ mutable struct PolyakovMeasurement <: AbstractMeasurement
     )
         if printvalues
             fp = open(filename, "w")
+            header = ""
+            header *= "itrj\tRe(poly)\tIm(poly)"
+
+            println(fp, header)
 
             if verbose_level == 1
                 verbose_print = Verbose1()
@@ -53,8 +57,8 @@ function measure(m::PolyakovMeasurement, U; additional_string = "")
     measurestring = ""
 
     if m.printvalues
-        measurestring = "$additional_string $(real(poly)) $(imag(poly)) # poly"
-        println_verbose2(m.verbose_print, measurestring)
+        measurestring = "$additional_string\t$(real(poly))\t$(imag(poly))\t"
+        println_verbose2(m.verbose_print, measurestring, "# poly")
         println(m.fp, measurestring)
         flush(m.fp)
     end
