@@ -1,14 +1,14 @@
-struct2dict(x::T) where {T} = 
+struct2dict(x::T) where {T} =
     Dict{String,Any}(string(fn) => getfield(x, fn) for fn in fieldnames(T))
 
 abstract type MeasurementParameters end
 
-Base.@kwdef mutable struct ActionParameters <: MeasurementParameters
-    methodname::String = "action"
-    kind_of_gaction::String = "plaquette"
-    Verbose_level::Int64 = 2
+Base.@kwdef mutable struct GaugeActionParameters <: MeasurementParameters
+    methodname::String = "gauge_action"
+    verbose_level::Int64 = 2
     printvalues::Bool = true
     measure_every::Int64 = 1
+    kinds_of_gaction::Vector{String} = ["wilson"]
 end
 
 Base.@kwdef mutable struct PlaquetteParameters <: MeasurementParameters
@@ -42,9 +42,17 @@ Base.@kwdef mutable struct TopologicalChargeParameters <: MeasurementParameters
     kinds_of_topological_charge::Vector{String} = ["clover"]
 end
 
+Base.@kwdef mutable struct EnergyDensityParameters <: MeasurementParameters
+    methodname::String = "energy_density"
+    verbose_level::Int64 = 2
+    printvalues::Bool = true
+    measure_every::Int64 = 10
+    kinds_of_energy_density::Vector{String} = ["clover"]
+end
+
 function initialize_measurement_parameters(methodname)
-    if Unicode.normalize(methodname, casefold = true) == "action"
-        method = ActionParameters()
+    if Unicode.normalize(methodname, casefold = true) == "gauge_action"
+        method = GaugeActionParameters()
     elseif Unicode.normalize(methodname, casefold = true) == "plaquette"
         method = PlaquetteParameters()
     elseif Unicode.normalize(methodname, casefold = true) == "polyakov_loop"
@@ -53,7 +61,9 @@ function initialize_measurement_parameters(methodname)
         method = WilsonLoopParameters()
     elseif Unicode.normalize(methodname, casefold = true) == "topological_charge"
         method = TopologicalChargeParameters()
-    else 
+    elseif Unicode.normalize(methodname, casefold = true) == "energy_density"
+        method = EnergyDensityParameters()
+    else
         error("$methodname is not implemented")
     end
     return method
@@ -84,8 +94,8 @@ function construct_measurement_parameters_from_dict(value_i::Dict)
 end
 
 function prepare_measurement(U, measurement_parameters::T, filename = "") where {T}
-    if T == ActionParameters
-        filename_input = ifelse(filename == "", "action.txt", filename)
+    if T == GaugeActionParameters
+        filename_input = ifelse(filename == "", "gauge_action.txt", filename)
         measurement = GaugeActionMeasurement(U, measurement_parameters, filename_input)
     elseif T == PlaquetteParameters
         filename_input = ifelse(filename == "", "plaquette.txt", filename)
@@ -99,6 +109,9 @@ function prepare_measurement(U, measurement_parameters::T, filename = "") where 
     elseif T == WilsonLoopParameters
         filename_input = ifelse(filename == "", "wilson_loop.txt", filename)
         measurement = WilsonLoopMeasurement(U, measurement_parameters, filename_input)
+    elseif T == EnergyDensityParameters
+        filename_input = ifelse(filename == "", "energy_density.txt", filename)
+        measurement = EnergyDensityMeasurement(U, measurement_parameters, filename_input)
     else
         error(T, " is not supported in measurements")
     end

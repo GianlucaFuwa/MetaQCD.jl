@@ -1,6 +1,6 @@
-import .AbstractMeasurementModule: AbstractMeasurement, GaugeActionMeasurement,
-    PlaquetteMeasurement, PolyakovMeasurement, TopologicalChargeMeasurement, 
-    WilsonLoopMeasurement, MeasurementParameters
+import .AbstractMeasurementModule: AbstractMeasurement, EnergyDensityMeasurement,
+    GaugeActionMeasurement, PlaquetteMeasurement, PolyakovMeasurement,
+    TopologicalChargeMeasurement, WilsonLoopMeasurement, MeasurementParameters
 import .AbstractMeasurementModule: construct_measurement_parameters_from_dict,
     prepare_measurement, get_string, get_value, measure
 import .AbstractSmearingModule: flow!
@@ -34,7 +34,7 @@ function MeasurementMethods(
         measurements[i] = prepare_measurement(U, measurement_parameters, filename)
         measurement_parameters_set[i] = deepcopy(measurement_parameters)
     end
-    
+
     return MeasurementMethods(
         measurement_parameters_set,
         measurements,
@@ -95,7 +95,7 @@ function calc_measurements_flowed(
                         additional_string = additional_string,
                     )
                 end
-                
+
             end
         end
 
@@ -108,6 +108,6 @@ function check_for_measurements(itrj, intervals)
     for num in intervals
         (itrj % num == 0) && return true
     end
-    
+
     return false
 end
