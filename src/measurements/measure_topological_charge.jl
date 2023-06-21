@@ -11,14 +11,15 @@ mutable struct TopologicalChargeMeasurement <: AbstractMeasurement
         verbose_level = 2,
         printvalues = false,
         TC_methods = ["clover"],
+        flow = false,
     )
         if printvalues
             fp = open(filename, "w")
             header = ""
-            header *= "itrj"
+            header *= flow ? "itrj\tiflow\ttflow" : "itrj"
 
             for methodname in TC_methods
-                header *= "\t$methodname"
+                header *= "\tQ$(rpad(methodname, 15, " "))"
             end
 
             println(fp, header)
@@ -49,6 +50,7 @@ function TopologicalChargeMeasurement(
         U::T,
         params::TopologicalChargeParameters,
         filename = "topological_charge.txt",
+        flow = false,
     ) where {T <: Gaugefield}
     return TopologicalChargeMeasurement(
         U,
@@ -56,6 +58,7 @@ function TopologicalChargeMeasurement(
         verbose_level = params.verbose_level,
         printvalues = params.printvalues,
         TC_methods = params.kinds_of_topological_charge,
+        flow = flow,
     )
 end
 
@@ -63,7 +66,7 @@ function measure(m::TopologicalChargeMeasurement, U; additional_string = "")
     measurestring = ""
     values = zeros(Float64, length(m.TC_methods))
     valuedic = Dict{String, AbstractFloat}()
-    printstring = "$additional_string\t"
+    printstring = "$additional_string"
 
     for (i, methodname) in enumerate(m.TC_methods)
         Q = top_charge(U, methodname)
@@ -73,11 +76,12 @@ function measure(m::TopologicalChargeMeasurement, U; additional_string = "")
 
     if m.printvalues
         for value in values
-            printstring *= "$value\t"
+            svalue = @sprintf("%.15E", value)
+            printstring *= "\t$svalue"
         end
 
         measurestring = printstring
-        println_verbose2(m.verbose_print, measurestring, "# top_charge")
+        println_verbose2(m.verbose_print, measurestring, "\t# top_charge")
         println(m.fp, measurestring)
         flush(m.fp)
     end

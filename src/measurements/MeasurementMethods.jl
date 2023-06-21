@@ -31,7 +31,7 @@ function MeasurementMethods(
         measurement_parameters = construct_measurement_parameters_from_dict(method)
         intervals[i] = measurement_parameters.measure_every
         filename = measurement_dir * "/" * measurement_parameters.methodname * "$str.txt"
-        measurements[i] = prepare_measurement(U, measurement_parameters, filename)
+        measurements[i] = prepare_measurement(U, measurement_parameters, filename, flow)
         measurement_parameters_set[i] = deepcopy(measurement_parameters)
     end
 
@@ -80,9 +80,9 @@ function calc_measurements_flowed(
     substitute_U!(gradient_flow.Uflow, U)
 
     for iflow in 1:gradient_flow.numflow
-        τ = round(iflow * gradient_flow.ϵ, sigdigits = 3)
+        τ = round(iflow * gradient_flow.ϵ * gradient_flow.steps, sigdigits = 3)
         flow!(gradient_flow)
-        additional_string = "$itrj $iflow $τ "
+        additional_string = "$itrj\t$iflow\t$τ"
 
         if iflow % gradient_flow.measure_every == 0
             for i in 1:m.num_measurements

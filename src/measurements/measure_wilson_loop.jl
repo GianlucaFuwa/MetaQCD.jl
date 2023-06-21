@@ -16,11 +16,17 @@ mutable struct WilsonLoopMeasurement <: AbstractMeasurement
         printvalues = false,
         Rmax = 4,
         Tmax = 4,
+        flow = false,
     )
         if printvalues
             fp = open(filename, "w")
             header = ""
-            header *= "itrj\tRe(wilson_loop)\t(in column major)"
+
+            if flow
+                header *= "itrj\tiflow\ttflow\tRe(wilson_loop)\t(in column major)"
+            else
+                "itrj\tRe(wilson_loop)\t(in column major)"
+            end
 
             println(fp, header)
 
@@ -54,6 +60,7 @@ function WilsonLoopMeasurement(
     U::T,
     params::WilsonLoopParameters,
     filename = "wilson_loop.txt",
+    flow = false,
 ) where {T<:Gaugefield}
     return WilsonLoopMeasurement(
         U,
@@ -62,6 +69,7 @@ function WilsonLoopMeasurement(
         printvalues = params.printvalues,
         Rmax = params.Rmax,
         Tmax = params.Tmax,
+        flow = flow,
     )
 end
 

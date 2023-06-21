@@ -69,9 +69,9 @@ function initialize_measurement_parameters(methodname)
     return method
 end
 
-function prepare_measurement_from_dict(U, value_i::Dict, filename = "")
+function prepare_measurement_from_dict(U, value_i::Dict, filename = "", flow = false)
     parameters = construct_measurement_parameters_from_dict(value_i)
-    return prepare_measurement(U, parameters, filename)
+    return prepare_measurement(U, parameters, filename, flow)
 end
 
 function construct_measurement_parameters_from_dict(value_i::Dict)
@@ -93,25 +93,30 @@ function construct_measurement_parameters_from_dict(value_i::Dict)
     return value_out
 end
 
-function prepare_measurement(U, measurement_parameters::T, filename = "") where {T}
+function prepare_measurement(
+    U,
+    meas_parameters::T,
+    filename = "",
+    flow = false,
+) where {T}
     if T == GaugeActionParameters
         filename_input = ifelse(filename == "", "gauge_action.txt", filename)
-        measurement = GaugeActionMeasurement(U, measurement_parameters, filename_input)
+        measurement = GaugeActionMeasurement(U, meas_parameters, filename_input, flow)
     elseif T == PlaquetteParameters
         filename_input = ifelse(filename == "", "plaquette.txt", filename)
-        measurement = PlaquetteMeasurement(U, measurement_parameters, filename_input)
+        measurement = PlaquetteMeasurement(U, meas_parameters, filename_input, flow)
     elseif T == PolyakovParameters
         filename_input = ifelse(filename == "", "polyakov_loop.txt", filename)
-        measurement = PolyakovMeasurement(U, measurement_parameters, filename_input)
+        measurement = PolyakovMeasurement(U, meas_parameters, filename_input, flow)
     elseif T == TopologicalChargeParameters
         filename_input = ifelse(filename == "", "topological_charge.txt", filename)
-        measurement = TopologicalChargeMeasurement(U, measurement_parameters, filename_input)
+        measurement = TopologicalChargeMeasurement(U, meas_parameters, filename_input, flow)
     elseif T == WilsonLoopParameters
         filename_input = ifelse(filename == "", "wilson_loop.txt", filename)
-        measurement = WilsonLoopMeasurement(U, measurement_parameters, filename_input)
+        measurement = WilsonLoopMeasurement(U, meas_parameters, filename_input, flow)
     elseif T == EnergyDensityParameters
         filename_input = ifelse(filename == "", "energy_density.txt", filename)
-        measurement = EnergyDensityMeasurement(U, measurement_parameters, filename_input)
+        measurement = EnergyDensityMeasurement(U, meas_parameters, filename_input, flow)
     else
         error(T, " is not supported in measurements")
     end

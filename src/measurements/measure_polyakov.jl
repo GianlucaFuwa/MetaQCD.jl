@@ -9,11 +9,19 @@ mutable struct PolyakovMeasurement <: AbstractMeasurement
         filename = nothing,
         verbose_level = 2,
         printvalues = false,
+        flow = false,
     )
         if printvalues
             fp = open(filename, "w")
             header = ""
-            header *= "itrj\tRe(poly)\tIm(poly)"
+
+            if flow
+                header *= "itrj\tiflow\ttflow\t$(rpad("Re(poly)", 17, " "))" *
+                    "\t$(rpad("Im(poly)", 17, " "))"
+            else
+                header *= "itrj\t$(rpad("Re(poly)", 17, " "))" *
+                    "\t$(rpad("Im(poly)", 17, " "))"
+            end
 
             println(fp, header)
 
@@ -42,12 +50,14 @@ function PolyakovMeasurement(
     U::T,
     params::PolyakovParameters,
     filename = "polyakov.txt",
+    flow = false
 ) where {T<:Gaugefield}
     return PolyakovMeasurement(
         U,
         filename = filename,
         verbose_level = params.verbose_level,
         printvalues = params.printvalues,
+        flow = flow,
     )
 end
 
@@ -57,7 +67,9 @@ function measure(m::PolyakovMeasurement, U; additional_string = "")
     measurestring = ""
 
     if m.printvalues
-        measurestring = "$additional_string\t$(real(poly))\t$(imag(poly))\t"
+        poly_re = @sprintf("%.15E", real(poly))
+        poly_im = @sprintf("%.15E", imag(poly))
+        measurestring = "$additional_string\t$poly_re\t$poly_im\t"
         println_verbose2(m.verbose_print, measurestring, "# poly")
         println(m.fp, measurestring)
         flush(m.fp)

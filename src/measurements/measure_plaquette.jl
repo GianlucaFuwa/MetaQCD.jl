@@ -12,11 +12,12 @@ mutable struct PlaquetteMeasurement <: AbstractMeasurement
         filename = nothing,
         verbose_level = 2,
         printvalues = false,
+        flow = false,
     )
         if printvalues
             fp = open(filename, "w")
             header = ""
-            header *= "itrj\tRe(plaq)"
+            header *= flow ? "itrj\tiflow\ttflow\tRe(plaq)" : "itrj\tRe(plaq)"
 
             println(fp, header)
 
@@ -48,12 +49,14 @@ function PlaquetteMeasurement(
     U::T,
     params::PlaquetteParameters,
     filename,
+    flow = false,
 ) where {T<:Gaugefield}
     return PlaquetteMeasurement(
         U,
         filename = filename,
         verbose_level = params.verbose_level,
         printvalues = params.printvalues,
+        flow = flow,
     )
 end
 
@@ -62,7 +65,8 @@ function measure(m::PlaquetteMeasurement, U; additional_string = "")
     measurestring = ""
 
     if m.printvalues
-        measurestring = "$additional_string\t$plaq\t"
+        plaq_str = @sprintf("%.15E", plaq)
+        measurestring = "$additional_string\t$plaq_str\t"
         println_verbose2(m.verbose_print, measurestring, "# plaq")
         println(m.fp, measurestring)
         flush(m.fp)

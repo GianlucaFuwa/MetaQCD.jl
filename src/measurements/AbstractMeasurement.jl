@@ -2,6 +2,7 @@ module AbstractMeasurementModule
     using Base.Threads
     using LinearAlgebra
     using Polyester
+    using Printf
     using Unicode
     using ..Utils
     using ..VerbosePrint

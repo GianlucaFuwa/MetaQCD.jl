@@ -11,14 +11,15 @@ mutable struct EnergyDensityMeasurement <: AbstractMeasurement
         verbose_level = 2,
         printvalues = false,
         ED_methods = ["clover"],
+        flow = false,
     )
         if printvalues
             fp = open(filename, "w")
             header = ""
-            header *= "itrj"
+            header *= flow ? "itrj\tiflow\ttflow" : "itrj"
 
             for methodname in ED_methods
-                header *= "\t$methodname"
+                header *= "\tE$(rpad(methodname, 15, " "))"
             end
 
             println(fp, header)
@@ -49,6 +50,7 @@ function EnergyDensityMeasurement(
         U::T,
         params::EnergyDensityParameters,
         filename = "energy_density.txt",
+        flow = false,
     ) where {T <: Gaugefield}
     return EnergyDensityMeasurement(
         U,
@@ -56,6 +58,7 @@ function EnergyDensityMeasurement(
         verbose_level = params.verbose_level,
         printvalues = params.printvalues,
         ED_methods = params.kinds_of_energy_density,
+        flow = flow,
     )
 end
 
@@ -63,7 +66,7 @@ function measure(m::EnergyDensityMeasurement, U; additional_string = "")
     measurestring = ""
     values = zeros(Float64, length(m.ED_methods))
     valuedic = Dict{String, AbstractFloat}()
-    printstring = "$additional_string\t"
+    printstring = "$additional_string"
 
     for (i, methodname) in enumerate(m.ED_methods)
         E = energy_density(U, methodname)
@@ -73,11 +76,12 @@ function measure(m::EnergyDensityMeasurement, U; additional_string = "")
 
     if m.printvalues
         for value in values
-            printstring *= "$value\t"
+            svalue = @sprintf("%.15E", value)
+            printstring *= "\t$(svalue)"
         end
 
         measurestring = printstring
-        println_verbose2(m.verbose_print, measurestring, "# energy_density")
+        println_verbose2(m.verbose_print, measurestring, "\t# energy_density")
         println(m.fp, measurestring)
         flush(m.fp)
     end

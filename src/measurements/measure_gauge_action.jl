@@ -14,15 +14,16 @@ mutable struct GaugeActionMeasurement <: AbstractMeasurement
         filename = nothing,
         verbose_level = 2,
         printvalues = false,
-        GA_methods = ["wilson"]
+        GA_methods = ["wilson"],
+        flow = false,
     )
         if printvalues
             fp = open(filename, "w")
             header = ""
-            header *= "itrj"
+            header *= flow ? "itrj\tiflow\ttflow" : "itrj"
 
             for methodname in GA_methods
-                header *= "\t$methodname"
+                header *= "\tS$(rpad(methodname, 15, " "))"
             end
 
             println(fp, header)
@@ -56,6 +57,7 @@ function GaugeActionMeasurement(
     U::T,
     params::GaugeActionParameters,
     filename = "gauge_action.txt",
+    flow = false,
 ) where {T <: Gaugefield}
     return GaugeActionMeasurement(
         U,
@@ -63,6 +65,7 @@ function GaugeActionMeasurement(
         verbose_level = params.verbose_level,
         printvalues = params.printvalues,
         GA_methods = params.kinds_of_gaction,
+        flow = flow
     )
 end
 
@@ -100,7 +103,8 @@ function measure(m::GaugeActionMeasurement, U; additional_string = "")
 
     if m.printvalues
         for value in values
-            printstring *= "$value\t"
+            svalue = @sprintf("%.15E", value)
+            printstring *= "$svalue\t"
         end
 
         measurestring = printstring
