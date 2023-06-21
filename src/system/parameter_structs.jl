@@ -32,7 +32,7 @@ module ParameterStructs
 
         if findornot === nothing
             return false
-        else 
+        else
             return true
         end
 
@@ -67,7 +67,7 @@ module ParameterStructs
         meta_enabled::Bool = false
         tempering_enabled::Bool = false
         numinstances::Int64 = 1
-        swap_every::Union{Nothing, Int64} = nothing
+        swap_every::Int64 = 1
         hb_eo::Bool = false
         hb_MAXIT::Int64 = 10^5
         hb_numHB::Int64 = 4
@@ -225,7 +225,7 @@ module ParameterStructs
             setfield!(physical, pname_i, value)
             hasvalue = true
         end
-        
+
         meta_index = findfirst(x -> x==key, printlist_meta)
 
         if meta_index !== nothing
@@ -270,7 +270,7 @@ module ParameterStructs
                 setfield!(physical, pname_i, value)
                 hasvalue = true
             end
-            
+
             meta_index = findfirst(x -> x==pname_i, printlist_meta)
 
             if meta_index !== nothing
