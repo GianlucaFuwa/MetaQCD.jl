@@ -11,9 +11,9 @@ julia --threads=auto run.jl parameters.toml
 
 or
 
-2. Start Julia:
+2. Start Julia (with project):
 ```
-julia --threads=auto
+julia --threads=auto --project
 ```
 3. Import MetaQCD package (this may prompt you to install dependencies):
 ``` julia
