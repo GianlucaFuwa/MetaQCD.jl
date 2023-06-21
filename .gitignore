@@ -8,5 +8,6 @@ alloc-profile.pb.gz
 .vscode/settings.json
 run.jl
 /src/dirac/
+/src/mpi/mpitest.jl
 /src/system/mainrun_mpi.jl
 LocalPreferences.toml
