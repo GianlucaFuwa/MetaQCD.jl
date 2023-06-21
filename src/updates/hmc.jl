@@ -1,10 +1,10 @@
 abstract type AbstractIntegrator end
 
-struct HMCUpdate{TI,TG,TS} <: AbstractUpdate
+struct HMCUpdate{TI, TG, TS, TM} <: AbstractUpdate
     steps::Int64
     Δτ::Float64
     P::Liefield
-    _temp_U::Gaugefield{TG}
+    _temp_U::TG
     _temp_staple::Temporaryfield
     _temp_force::Temporaryfield
     _temp_force2::Union{Nothing, Temporaryfield} # second force field for smearing
@@ -27,19 +27,21 @@ struct HMCUpdate{TI,TG,TS} <: AbstractUpdate
         _temp_force = Temporaryfield(U)
 
         if meta_enabled
+            TM = MetaEnabled
             _temp_fieldstrength = Vector{Temporaryfield}(undef, 4)
 
             for i in 1:4
                 _temp_fieldstrength[i] = Temporaryfield(U)
             end
         else
+            TM = MetaDisabled
             _temp_fieldstrength = nothing
         end
 
         smearing = StoutSmearing(U, numsmear, ρ_stout)
 
         TI = getfield(AbstractUpdateModule, Symbol(integrator))
-        TG = eltype(U)
+        TG = typeof(U)
         TS = typeof(smearing)
 
         if TS == NoSmearing && !meta_enabled
@@ -49,7 +51,7 @@ struct HMCUpdate{TI,TG,TS} <: AbstractUpdate
         end
 
 
-        return new{TI,TG,TS}(
+        return new{TI, TG, TS, TM}(
 			steps,
 			Δτ,
 			P,
@@ -64,12 +66,12 @@ struct HMCUpdate{TI,TG,TS} <: AbstractUpdate
 end
 
 function update!(
-    updatemethod::HMCUpdate{TI,TG,TS},
+    updatemethod::HMCUpdate{TI, TG, TS, TM},
     U,
     verbose::VerboseLevel;
     Bias = nothing,
     metro_test = true,
-) where {TI,TG,TS}
+) where {TI, TG, TS, TM}
     U_old = updatemethod._temp_U
     substitute_U!(U_old, U)
     gaussian_momenta!(updatemethod.P)
@@ -102,7 +104,7 @@ function update!(
     ΔP2 = trP2_new - trP2_old
     ΔSg = Sg_new - Sg_old
 
-    if Bias !== nothing
+    if TM == MetaEnabled && Bias !== nothing
         CV_old = U.CV
         calc_smearedU!(Bias.smearing, U)
         fully_smeared_U = Bias.smearing.Usmeared_multi[end]
@@ -128,7 +130,6 @@ function update!(
     if accept
         U.Sg = Sg_new
         U.CV = CV_new
-        Bias !== nothing ? update_bias!(Bias, CV_new) : nothing
         println_verbose2(verbose, "Accepted")
     else
         substitute_U!(U, U_old)
@@ -165,7 +166,7 @@ function updateU!(U, method, fac)
     return nothing
 end
 
-function updateP!(U, method::HMCUpdate{TI,TG,TS}, fac, Bias) where {TI,TG,TS}
+function updateP!(U, method::HMCUpdate{TI, TG, TS, TM}, fac, Bias) where {TI, TG, TS, TM}
     ϵ = method.Δτ * fac
     P = method.P
     staples = method._temp_staple
@@ -173,7 +174,7 @@ function updateP!(U, method::HMCUpdate{TI,TG,TS}, fac, Bias) where {TI,TG,TS}
     temp_force = method._temp_force2
     gauge_smearing = method.smearing
 
-    if Bias !== nothing
+    if TM == MetaEnabled && Bias !== nothing
         fieldstrength = method._temp_fieldstrength
         bias_smearing = Bias.smearing
         kind_of_cv = Bias.kind_of_cv
