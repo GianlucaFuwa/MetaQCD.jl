@@ -11,7 +11,7 @@ module Mainrun
     import ..AbstractUpdateModule: AbstractUpdate, update!
     import ..Gaugefields: AbstractGaugeAction, DBW2GaugeAction, IwasakiGaugeAction,
         SymanzikTreeGaugeAction, SymanzikTadGaugeAction, WilsonGaugeAction
-    import ..Metadynamics: MetaDisabled, MetaEnabled
+    import ..Metadynamics: MetaDisabled, MetaEnabled, update_bias!
     import ..MetaQCD: MeasurementMethods, calc_measurements, calc_measurements_flowed
     import ..ParametersTOML: construct_params_from_toml
     import ..UniverseModule: Univ
@@ -44,11 +44,11 @@ module Mainrun
     function run_sim!(univ, parameters)
         U = univ.U
 
-        updatemethod = Vector{AbstractUpdate}(undef, parameters.numinstances)
+        updatemethod = Vector{AbstractUpdate}(undef, univ.numinstances)
         updatemethod[1] = Updatemethod(parameters, U[1])
 
 
-        for i in 2:parameters.numinstances
+        for i in 2:univ.numinstances
             updatemethod[i] = HMCUpdate(
                 U[i],
                 parameters.hmc_integrator,
@@ -134,20 +134,21 @@ module Mainrun
                 println_verbose1(univ.verbose_print, "# therm itrj = $itrj")
                 updatetime = 0.0
 
-                for i in 1:numinstances
-                    _, runtime = @timed update!(
-                        updatemethod[i],
-                        U[i],
-                        univ.verbose_print,
-                        Bias = Bias[i],
-                        metro_test = false,
-                    )
-                    updatetime += runtime
+                _, updatetime = @timed begin
+                    for i in 1:numinstances
+                        update!(
+                            updatemethod[i],
+                            U[i],
+                            univ.verbose_print,
+                            Bias = Bias[i],
+                            metro_test = false,
+                        )
+                    end
                 end
 
                 println_verbose1(
                     univ.verbose_print,
-                    ">> Thermalization Update: Elapsed time $(sum(updatetime)) [s]\n"
+                    ">> Thermalization Update: Elapsed time $(updatetime) [s]\n"
                 )
             end
         end
@@ -173,6 +174,7 @@ module Mainrun
                             Bias = Bias[i],
                             metro_test = true,
                         )
+                        Bias[i] !== nothing ? update_bias!(Bias[i], U[i].CV) : nothing
                         numaccepts[i] += accepted
                     end
                 end
@@ -186,7 +188,7 @@ module Mainrun
                     swap_every = parameters.swap_every
                     if itrj % swap_every == 0
                         for i in numinstances:-1:2
-                            accepted =  temper!(
+                            accepted = temper!(
                                 U[i],
                                 U[i-1],
                                 Bias[i],
@@ -197,7 +199,7 @@ module Mainrun
 
                             println_verbose1(
                                 univ.verbose_print,
-                                ">> Swap Acceptance [$i ⇔  $(i-1)] $itrj : ",
+                                ">> Swap Acceptance [$i ⇔  $(i-1)] $itrj:\t",
                                 "$(numaccepts_temper[i-1] * 100 / (itrj / swap_every)) %"
                             )
                         end
@@ -223,7 +225,7 @@ module Mainrun
                     for i in 1:numinstances
                         println_verbose1(
                             meta_charge_fp[i],
-                            "$itrj $(U[i].CV) # metacharge_$i",
+                            "$itrj\t$(U[i].CV)\t# metacharge_$i",
                         )
                         flush(meta_charge_fp[i])
                     end
@@ -232,7 +234,7 @@ module Mainrun
                 for i in 1:numinstances
                     println_verbose1(
                         univ.verbose_print,
-                        ">> Acceptance $i $itrj : ",
+                        ">> Acceptance $i $itrj:\t",
                         numaccepts[i] * 100 / itrj,
                         "%",
                     )
