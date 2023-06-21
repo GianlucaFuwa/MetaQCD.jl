@@ -376,8 +376,8 @@ module Mainbuild
                 if myrank == 0
                     println_verbose1(
                         univ.verbose_print,
-                        ">> Acceptance $i $itrj:\t",
-                        numaccepts[i] * 100 / itrj,
+                        ">> Acceptance rank_$myrank $itrj:\t",
+                        numaccepts * 100 / itrj,
                         "%",
                     )
                     flush(univ.verbose_print.fp)
