@@ -37,5 +37,6 @@ module AbstractMeasurementModule
     include("measure_polyakov.jl")
     include("measure_wilson_loop.jl")
     include("measure_topological_charge.jl")
+    include("measure_energy_density.jl")
 
 end
