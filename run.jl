@@ -1,4 +1,5 @@
-using MetaQCD
+include("./src/MetaQCD.jl")
+using .MetaQCD
 
 if length(ARGS) == 0
     error("""
@@ -8,8 +9,8 @@ if length(ARGS) == 0
     )
 end
 
-function runtest()
+function run()
     run_sim(ARGS[1])
 end
 
-@time runtest()
+@time run()
