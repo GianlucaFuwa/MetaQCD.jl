@@ -45,15 +45,15 @@ module ParametersTOML
         return nothing
     end
 
-    function construct_params_from_toml(filename::String)
+    function construct_params_from_toml(filename::String; show_params = true)
         parameters = TOML.parsefile(filename)
         println("inputfile: ", pwd() * "/" * filename)
-        construct_params_from_toml(parameters)
+        construct_params_from_toml(parameters, show_params = show_params)
     end
 
-    function construct_params_from_toml(parameters)
+    function construct_params_from_toml(parameters; show_params = true)
 
-        show_parameters(parameters)
+        show_params ? show_parameters(parameters) : nothing
 
         pnames = fieldnames(Params)
         numparams = length(pnames)

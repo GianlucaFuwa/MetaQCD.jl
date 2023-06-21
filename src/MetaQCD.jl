@@ -1,5 +1,7 @@
 module MetaQCD
+    using Requires
 
+    include("./mpi/simpleprint.jl")
     include("./utilities/utils.jl")
     include("./output/verbose.jl")
     include("./output/bridge_format.jl")
@@ -14,9 +16,20 @@ module MetaQCD
     include("./system/universe.jl")
     include("./updates/AbstractUpdate.jl")
     include("./measurements/MeasurementMethods.jl")
+
+    function __init__()
+        @require MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195" begin
+            include("./mpi/mpimodule.jl")
+            import .MPIModule: get_comm, get_myrank, get_nprocs, println_rank0
+            export get_comm, get_myrank, get_nprocs, println_rank0
+        end
+    end
+
     include("./system/mainrun.jl")
+    include("./system/mainbuild.jl")
 
     using .BridgeFormat
+    using .Simpleprint
     using .Utils
     using .VerbosePrint
 
@@ -37,6 +50,7 @@ module MetaQCD
     import .AbstractUpdateModule: update!, Updatemethod
     import .UniverseModule: Univ
     import .Mainrun: run_sim
+    import .Mainbuild: run_build
 
     export construct_params_from_toml
     export load_BridgeText!, save_textdata
@@ -55,6 +69,6 @@ module MetaQCD
     export top_charge
     export Params, construct_measurement_parameters_from_toml, construct_params_from_toml
     export Univ
-    export run_sim
+    export run_sim, run_build
 
 end
