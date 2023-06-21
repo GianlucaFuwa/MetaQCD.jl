@@ -377,7 +377,7 @@ module Mainbuild
                     println_verbose1(
                         univ.verbose_print,
                         ">> Acceptance rank_$myrank $itrj:\t",
-                        numaccepts[i] * 100 / itrj,
+                        numaccepts * 100 / itrj,
                         "%",
                     )
                     flush(univ.verbose_print.fp)
