@@ -126,7 +126,7 @@ function energy_density_plaq(U::T) where {T <: Gaugefield}
         end
     end
 
-    Eplaq = -1/U.NV * sum(Eplaq)
+    Eplaq = 1/2U.NV * sum(Eplaq)
     return Eplaq
 end
 
@@ -156,7 +156,7 @@ function energy_density_clover(U::T) where {T <: Gaugefield}
         end
     end
 
-    Eclov = -1/U.NV * sum(Eclov)
+    Eclov = 1/2U.NV * sum(Eclov)
     return Eclov
 end
 
@@ -186,7 +186,7 @@ function energy_density_rect(U::T) where {T <: Gaugefield}
         end
     end
 
-    Erect = -1/U.NV * sum(Erect)
+    Erect = 1/2U.NV * sum(Erect)
     return Erect
 end
 
