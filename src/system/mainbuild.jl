@@ -3,6 +3,7 @@ module Mainbuild
     using DelimitedFiles
     using InteractiveUtils
     using MPI
+    using Printf
     using Random
     using ..VerbosePrint
 
@@ -13,7 +14,7 @@ module Mainbuild
     import ..Gaugefields: AbstractGaugeAction, DBW2GaugeAction, IwasakiGaugeAction,
         SymanzikTreeGaugeAction, SymanzikTadGaugeAction, WilsonGaugeAction
     import ..Gaugefields: normalize!
-    import ..Metadynamics: MetaDisabled, MetaEnabled, update_bias!
+    import ..Metadynamics: MetaDisabled, MetaEnabled, calc_weights, update_bias!
     import ..MetaQCD: MeasurementMethods, calc_measurements, calc_measurements_flowed
     import ..ParametersTOML: construct_params_from_toml
     import ..UniverseModule: Univ
@@ -47,13 +48,13 @@ module Mainbuild
 
         if MPIparallel == true
             fp = (MPI.Comm_rank(MPI.COMM_WORLD) == 0)
-            Random.seed!(parameters.randomseed * MPI.Comm_rank(MPI.COMM_WORLD))
+            Random.seed!(parameters.randomseed * (MPI.Comm_rank(MPI.COMM_WORLD) + 1))
         else
             fp = true
             Random.seed!(parameters.randomseed)
         end
 
-        univ = Univ(parameters, use_mpi = MPIparallel, fp = fp)
+        univ = Univ(parameters, use_mpi = MPIparallel)
         println_verbose1(univ.verbose_print, "# ", pwd())
 
         println_verbose1(univ.verbose_print, "# ", Dates.now())
@@ -72,13 +73,8 @@ module Mainbuild
         U = univ.U
 
         tmp = Updatemethod(parameters, U[1])
-        updatemethod = Vector{typeof(tmp)}(undef, univ.numinstances)
+        updatemethod = Vector{typeof(tmp)}(undef, 1)
         updatemethod[1] = tmp
-
-
-        for i in 2:univ.numinstances
-            updatemethod[i] = Updatemethod(parameters, U[i])
-        end
 
         gradient_flow = GradientFlow(
             U[1],
@@ -89,10 +85,14 @@ module Mainbuild
             measure_every = parameters.flow_measure_every,
         )
 
+        additional_string = MPIparallel ? "_$(MPI.Comm_rank(MPI.COMM_WORLD))" : ""
+
         measurements = MeasurementMethods(
             U[1],
             parameters.measuredir,
             parameters.measurement_methods,
+            cv = true,
+            additional_string = additional_string,
         )
         measurements_with_flow = MeasurementMethods(
             U[1],
@@ -142,32 +142,25 @@ module Mainbuild
     )
         U = univ.U[1]
         Bias = univ.Bias[1]
-        updatem = updatemethod[1]
-
-        meta_charge_fp = open(
-            parameters.measuredir * "/Meta_charge.txt",
-        )
+        update_method = updatemethod[1]
 
         calc_measurements(measurements, 0, U)
 
         value, runtime_therm = @timed begin
-            for itrj in 1:parameters.Ntherm
-                println_verbose1(univ.verbose_print, "# therm itrj = $itrj")
+            println_verbose1(univ.verbose_print, "\n# therm itrj = $itrj")
 
-                _, updatetime = @timed update!(
-                    updatem,
-                    U,
-                    univ.verbose_print,
-                    metro_test = false,
-                )
-                updatetime += runtime
-                normalize!(U)
+            _, updatetime = @timed update!(
+                update_method,
+                U,
+                univ.verbose_print,
+                metro_test = false,
+            )
+            normalize!(U)
 
-                println_verbose1(
-                    univ.verbose_print,
-                    "Thermalization Update: Elapsed time $updatetime [s]"
-                )
-            end
+            println_verbose1(
+                univ.verbose_print,
+                "Thermalization Update: Elapsed time $updatetime [s]\n"
+            )
         end
 
         println_verbose1(
@@ -179,10 +172,10 @@ module Mainbuild
             numaccepts = 0.0
 
             for itrj in 1:parameters.Nsteps
-                println_verbose1(univ.verbose_print, "# itrj = $itrj")
+                println_verbose1(univ.verbose_print, "\n# itrj = $itrj")
 
                 accepted, updatetime = @timed update!(
-                    updatem,
+                    update_method,
                     U,
                     univ.verbose_print,
                     Bias = Bias,
@@ -193,6 +186,11 @@ module Mainbuild
                 println_verbose1(
                     univ.verbose_print,
                     "Update: Elapsed time $updatetime [s]"
+                )
+
+                println_verbose1(
+                    univ.verbose_print,
+                    "Acceptance $itrj : $(numaccepts*100/itrj) %"
                 )
 
                 #save_gaugefield(savedata, univ.U, itrj)
@@ -210,16 +208,7 @@ module Mainbuild
                     U,
                 )
 
-                println(
-                    meta_charge_fp,
-                    "$itrj $(U.CV) # metacharge",
-                )
-                flush(meta_charge_fp)
-
-                println_verbose1(
-                    univ.verbose_print,
-                    "Acceptance $itrj : $(numaccepts*100/itrj) %"
-                )
+                calc_weights(Bias, U.CV, itrj)
                 flush(univ.verbose_print.fp)
             end
         end
@@ -235,24 +224,6 @@ module Mainbuild
             univ.verbose_print,
             "Metapotential has been saved in file \"$(Bias.fp)\""
         )
-        #=
-        q_vals = readdlm(
-            parameters.measuredir * "/Meta_charge_$i.txt",
-            Float64,
-            comments = true,
-        )
-
-        weights = calc_weights(q_vals[:,2], univ.Bias[i])
-
-        open(parameters.measuredir * "/Weights_$i.txt", "w") do io
-            writedlm(io, weights)
-        end
-
-        println_verbose1(
-            univ.verbose_print,
-            "Weights $i have been saved"
-        )
-        =#
 
         flush(stdout)
         flush(univ.verbose_print)
@@ -274,16 +245,9 @@ module Mainbuild
         myrank = MPI.Comm_rank(comm)
         U = univ.U[1]
         Bias = univ.Bias[1]
-        updatem = updatemethod[1]
+        update_method = updatemethod[1]
 
-        meta_charge_fp = Verbose1(open(
-            parameters.measuredir * "/Meta_charge_$(myrank + 1).txt",
-            "w",
-        ))
-
-        if myrank == 0
-            calc_measurements(measurements, 0, U)
-        end
+        calc_measurements(measurements, 0, U)
 
         MPI.Barrier(comm)
 
@@ -294,7 +258,7 @@ module Mainbuild
                 end
 
                 _, updatetime = @timed update!(
-                    updatem,
+                    update_method,
                     U,
                     univ.verbose_print,
                     Bias = Bias,
@@ -329,21 +293,13 @@ module Mainbuild
                 end
 
                 accepted, updatetime = @timed update!(
-                    updatem,
+                    update_method,
                     U,
                     univ.verbose_print,
                     Bias = Bias,
                 )
                 numaccepts += accepted
                 normalize!(U)
-
-                MPI.Barrier(comm)
-
-                CVs = MPI.Allgather(U.CV, comm)
-
-                for cv in CVs
-                    update_bias!(Bias, cv)
-                end
 
                 if myrank == 0
                     println_verbose1(
@@ -352,35 +308,37 @@ module Mainbuild
                     )
 
                     #save_gaugefield(savedata, univ.U, itrj)
+                end
 
-                    calc_measurements(
-                        measurements,
-                        itrj,
-                        U,
-                    )
+                CVs = MPI.Allgather(U.CV, comm)
 
-                    calc_measurements_flowed(
-                        measurements_with_flow,
-                        gradient_flow,
-                        itrj,
-                        U,
-                    )
+                for cv in CVs
+                    update_bias!(Bias, cv)
                 end
 
                 println_verbose1(
-                    meta_charge_fp,
-                    "$itrj\t$(U.CV)\t# metacharge_$(myrank)",
+                    univ.verbose_print,
+                    ">> Acceptance rank_$myrank $itrj:\t$(numaccepts * 100 / itrj)%",
                 )
-                flush(meta_charge_fp)
+                flush(univ.verbose_print.fp)
+
+                MPI.Barrier(comm)
+
+                calc_measurements(
+                    measurements,
+                    itrj,
+                    U,
+                )
+
+                calc_measurements_flowed(
+                    measurements_with_flow,
+                    gradient_flow,
+                    itrj,
+                    U,
+                )
 
                 if myrank == 0
-                    println_verbose1(
-                        univ.verbose_print,
-                        ">> Acceptance rank_$myrank $itrj:\t",
-                        numaccepts * 100 / itrj,
-                        "%",
-                    )
-                    flush(univ.verbose_print.fp)
+                    calc_weights(Bias, U.CV, itrj)
                 end
             end
         end

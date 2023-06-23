@@ -11,7 +11,7 @@ module Mainrun
     import ..AbstractUpdateModule: AbstractUpdate, update!
     import ..Gaugefields: AbstractGaugeAction, DBW2GaugeAction, IwasakiGaugeAction,
         SymanzikTreeGaugeAction, SymanzikTadGaugeAction, WilsonGaugeAction
-    import ..Metadynamics: MetaDisabled, MetaEnabled, update_bias!
+    import ..Metadynamics: MetaDisabled, MetaEnabled, calc_weights, update_bias!
     import ..MetaQCD: MeasurementMethods, calc_measurements, calc_measurements_flowed
     import ..ParametersTOML: construct_params_from_toml
     import ..UniverseModule: Univ
@@ -69,11 +69,24 @@ module Mainrun
             measure_every = parameters.flow_measure_every,
         )
 
-        measurements = MeasurementMethods(
+        measurements = Vector{MeasurementMethods}(undef, parameters.numinstances)
+        measurements[1] = MeasurementMethods(
             U[1],
             parameters.measuredir,
             parameters.measurement_methods,
+            cv = parameters.meta_enabled,
         )
+
+        for i in 2:parameters.numinstances
+            measurements[i] = MeasurementMethods(
+                U[i],
+                parameters.measuredir,
+                Dict[],
+                cv = parameters.meta_enabled,
+                additional_string = "_$i"
+            )
+        end
+
         measurements_with_flow = MeasurementMethods(
             U[1],
             parameters.measuredir,
@@ -116,18 +129,7 @@ module Mainrun
         U = univ.U
         Bias = univ.Bias
 
-        if parameters.meta_enabled
-            meta_charge_fp = Vector{Verbose1}(undef, numinstances)
-            for i in 1:numinstances
-                meta_charge_fp[i] = Verbose1(
-                    parameters.measuredir * "/meta_charge_$i.txt",
-                )
-            end
-        else
-            meta_charge_fp = nothing
-        end
-
-        calc_measurements(measurements, 0, U[1])
+        calc_measurements(measurements[1], 0, U[1])
 
         value, runtime_therm = @timed begin
             for itrj in 1:parameters.Ntherm
@@ -184,6 +186,15 @@ module Mainrun
                     ">> Update: Elapsed time $(sum(updatetime)) [s]"
                 )
 
+                for i in 1:numinstances
+                    println_verbose1(
+                        univ.verbose_print,
+                        ">> Acceptance rank_$i $itrj:\t",
+                        numaccepts[i] * 100 / itrj,
+                        "%",
+                    )
+                end
+
                 if parameters.tempering_enabled
                     swap_every = parameters.swap_every
                     if itrj % swap_every == 0
@@ -208,36 +219,23 @@ module Mainrun
 
                 #save_gaugefield(savedata, univ.U, itrj)
 
-                calc_measurements(
-                    measurements,
-                    itrj,
-                    U[1],
-                )
-
-                calc_measurements_flowed(
-                    measurements_with_flow,
-                    gradient_flow,
-                    itrj,
-                    U[1],
-                )
-
-                if parameters.meta_enabled
-                    for i in 1:numinstances
-                        println_verbose1(
-                            meta_charge_fp[i],
-                            "$itrj\t$(U[i].CV)\t# metacharge_$i",
-                        )
-                        flush(meta_charge_fp[i])
-                    end
-                end
-
                 for i in 1:numinstances
-                    println_verbose1(
-                        univ.verbose_print,
-                        ">> Acceptance $i $itrj:\t",
-                        numaccepts[i] * 100 / itrj,
-                        "%",
+                    calc_measurements(
+                        measurements[i],
+                        itrj,
+                        U[i],
                     )
+
+                    if i == 1
+                        calc_measurements_flowed(
+                            measurements_with_flow,
+                            gradient_flow,
+                            itrj,
+                            U[1],
+                        )
+                    end
+
+                    calc_weights(Bias[i], U[i].CV, itrj)
                 end
 
                 flush(univ.verbose_print.fp)
@@ -252,7 +250,6 @@ module Mainrun
                 )
 
                 close(Bias[i].fp)
-                close(meta_charge_fp[i].fp)
 
                 println_verbose1(
                     univ.verbose_print,
