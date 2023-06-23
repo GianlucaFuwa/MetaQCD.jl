@@ -50,6 +50,21 @@ Base.@kwdef mutable struct EnergyDensityParameters <: MeasurementParameters
     kinds_of_energy_density::Vector{String} = ["clover"]
 end
 
+Base.@kwdef mutable struct MetaChargeParameters <: MeasurementParameters
+    methodname::String = "meta_charge"
+    verbose_level::Int64 = 2
+    printvalues::Bool = true
+    measure_every::Int64 = 1
+end
+
+Base.@kwdef mutable struct MetaWeightParameters <: MeasurementParameters
+    methodname::String = "meta_weight"
+    verbose_level::Int64 = 2
+    printvalues::Bool = true
+    measure_every::Int64 = 1
+    weight_method::Vector{String} = ["kish"]
+end
+
 function initialize_measurement_parameters(methodname)
     if Unicode.normalize(methodname, casefold = true) == "gauge_action"
         method = GaugeActionParameters()
@@ -63,6 +78,8 @@ function initialize_measurement_parameters(methodname)
         method = TopologicalChargeParameters()
     elseif Unicode.normalize(methodname, casefold = true) == "energy_density"
         method = EnergyDensityParameters()
+    elseif Unicode.normalize(methodname, casefold = true) == "meta_charge"
+        method = MetaChargeParameters()
     else
         error("$methodname is not implemented")
     end
@@ -117,8 +134,12 @@ function prepare_measurement(
     elseif T == EnergyDensityParameters
         filename_input = ifelse(filename == "", "energy_density.txt", filename)
         measurement = EnergyDensityMeasurement(U, meas_parameters, filename_input, flow)
+    elseif T == MetaChargeParameters
+        filename_input = ifelse(filename == "", "meta_charge.txt", filename)
+        measurement = MetaChargeMeasurement(U, meas_parameters, filename_input, false)
     else
         error(T, " is not supported in measurements")
     end
+
     return measurement
 end

@@ -66,7 +66,7 @@ function measure(m::EnergyDensityMeasurement, U; additional_string = "")
     measurestring = ""
     values = zeros(Float64, length(m.ED_methods))
     valuedic = Dict{String, AbstractFloat}()
-    printstring = "$additional_string"
+    printstring = "$additional_string\t"
 
     for (i, methodname) in enumerate(m.ED_methods)
         E = energy_density(U, methodname)
@@ -77,11 +77,11 @@ function measure(m::EnergyDensityMeasurement, U; additional_string = "")
     if m.printvalues
         for value in values
             svalue = @sprintf("%.15E", value)
-            printstring *= "\t$(svalue)"
+            printstring *= "$(svalue)\t"
         end
 
         measurestring = printstring
-        println_verbose2(m.verbose_print, measurestring, "\t# energy_density")
+        println_verbose2(m.verbose_print, "$measurestring# energy_density")
         println(m.fp, measurestring)
         flush(m.fp)
     end

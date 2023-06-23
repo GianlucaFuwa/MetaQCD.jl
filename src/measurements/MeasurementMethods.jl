@@ -1,6 +1,7 @@
 import .AbstractMeasurementModule: AbstractMeasurement, EnergyDensityMeasurement,
     GaugeActionMeasurement, PlaquetteMeasurement, PolyakovMeasurement,
-    TopologicalChargeMeasurement, WilsonLoopMeasurement, MeasurementParameters
+    TopologicalChargeMeasurement, WilsonLoopMeasurement, MetaChargeMeasurement,
+    MetaChargeParameters, MeasurementParameters
 import .AbstractMeasurementModule: construct_measurement_parameters_from_dict,
     prepare_measurement, get_string, get_value, measure
 import .AbstractSmearingModule: flow!
@@ -19,20 +20,33 @@ function MeasurementMethods(
     measurement_dir,
     measurement_methods::Vector{Dict};
     flow = false,
+    cv = false,
+    additional_string = "",
 )
-    nummeasurements = length(measurement_methods)
-    measurements = Vector{AbstractMeasurement}(undef, nummeasurements)
-    measurement_parameters_set = Vector{MeasurementParameters}(undef, nummeasurements)
-    intervals = zeros(Int64, nummeasurements)
+    nummeasurements = length(measurement_methods) + cv
+    measurements = Vector{AbstractMeasurement}(undef, nummeasurements + cv)
+    measurement_parameters_set = Vector{MeasurementParameters}(undef, nummeasurements + cv)
+    intervals = zeros(Int64, nummeasurements + cv)
 
     str = flow ? "_flowed" : ""
+    idx = 1
 
     for (i, method) in enumerate(measurement_methods)
         measurement_parameters = construct_measurement_parameters_from_dict(method)
         intervals[i] = measurement_parameters.measure_every
-        filename = measurement_dir * "/" * measurement_parameters.methodname * "$str.txt"
+        filename = measurement_dir * "/" *
+            measurement_parameters.methodname * additional_string * "$str.txt"
         measurements[i] = prepare_measurement(U, measurement_parameters, filename, flow)
         measurement_parameters_set[i] = deepcopy(measurement_parameters)
+        idx += 1
+    end
+
+    if cv == true && flow == false
+        measurement_parameters = MetaChargeParameters()
+        intervals[idx] = measurement_parameters.measure_every
+        filename = measurement_dir * "/meta_charge" * additional_string * ".txt"
+        measurements[idx] = prepare_measurement(U, measurement_parameters, filename, false)
+        measurement_parameters_set[idx] = deepcopy(measurement_parameters)
     end
 
     return MeasurementMethods(

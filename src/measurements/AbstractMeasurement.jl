@@ -39,5 +39,6 @@ module AbstractMeasurementModule
     include("measure_wilson_loop.jl")
     include("measure_topological_charge.jl")
     include("measure_energy_density.jl")
+    include("measure_meta_charge.jl")
 
 end

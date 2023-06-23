@@ -83,7 +83,7 @@ function measure(m::WilsonLoopMeasurement, U; additional_string = "")
 
             if m.printvalues
                 measurestring = "$additional_string\t$R\t$T\t$WL\t"
-                println_verbose2(m.verbose_print, measurestring, "# wilson_loops")
+                println_verbose2(m.verbose_print, "$measurestring# wilson_loops")
                 println(m.fp, measurestring)
                 flush(m.fp)
             end

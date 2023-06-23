@@ -108,7 +108,7 @@ function measure(m::GaugeActionMeasurement, U; additional_string = "")
         end
 
         measurestring = printstring
-        println_verbose2(m.verbose_print, measurestring, "# gaction")
+        println_verbose2(m.verbose_print, "$measurestring# gaction")
         println(m.fp, measurestring)
         flush(m.fp)
     end

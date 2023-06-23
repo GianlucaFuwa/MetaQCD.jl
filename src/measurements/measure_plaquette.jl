@@ -50,7 +50,7 @@ function PlaquetteMeasurement(
     params::PlaquetteParameters,
     filename,
     flow = false,
-) where {T<:Gaugefield}
+) where {T <: Gaugefield}
     return PlaquetteMeasurement(
         U,
         filename = filename,
@@ -67,7 +67,7 @@ function measure(m::PlaquetteMeasurement, U; additional_string = "")
     if m.printvalues
         plaq_str = @sprintf("%.15E", plaq)
         measurestring = "$additional_string\t$plaq_str\t"
-        println_verbose2(m.verbose_print, measurestring, "# plaq")
+        println_verbose2(m.verbose_print, "$measurestring# plaq")
         println(m.fp, measurestring)
         flush(m.fp)
     end

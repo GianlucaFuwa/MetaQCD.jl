@@ -66,7 +66,7 @@ function measure(m::TopologicalChargeMeasurement, U; additional_string = "")
     measurestring = ""
     values = zeros(Float64, length(m.TC_methods))
     valuedic = Dict{String, AbstractFloat}()
-    printstring = "$additional_string"
+    printstring = "$additional_string\t"
 
     for (i, methodname) in enumerate(m.TC_methods)
         Q = top_charge(U, methodname)
@@ -77,11 +77,11 @@ function measure(m::TopologicalChargeMeasurement, U; additional_string = "")
     if m.printvalues
         for value in values
             svalue = @sprintf("%.15E", value)
-            printstring *= "\t$svalue"
+            printstring *= "$svalue\t"
         end
 
         measurestring = printstring
-        println_verbose2(m.verbose_print, measurestring, "\t# top_charge")
+        println_verbose2(m.verbose_print, "$measurestring# top_charge")
         println(m.fp, measurestring)
         flush(m.fp)
     end
