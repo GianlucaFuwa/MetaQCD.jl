@@ -86,7 +86,9 @@ module ParameterStructs
         bin_width::Float64 = 1e-2
         meta_weight::Float64 = 1e-3
         penalty_weight::Float64 = 1000.0
+        wt_factor::Float64 = Inf
         is_static::Union{Bool, Vector{Bool}} = false
+        kinds_of_weights::Vector{String} = ["tiwari"]
     end
 
     Base.@kwdef mutable struct PrintSystemParameters

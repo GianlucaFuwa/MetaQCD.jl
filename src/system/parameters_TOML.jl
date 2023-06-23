@@ -148,6 +148,11 @@ module ParametersTOML
                         value_Params[i] = Tuple(value[String(pname_i)])
                     elseif String(pname_i) == "CVlims"
                         value_Params[i] = Tuple(value[String(pname_i)])
+                    elseif String(pname_i) == "wt_factor"
+                        val = value[String(pname_i)]
+                        num = val == "Inf" ? Inf : val
+                        @assert typeof(num)<:Real && num > 0 "wt_factor must be in (0,Inf]"
+                        value_Params[i] = num
                     elseif String(pname_i) == "kind_of_gaction"
                         value_Params[i] = Unicode.normalize(
                             value[String(pname_i)],

@@ -34,7 +34,9 @@ module SystemParameters
 		bin_width::Union{Nothing, Float64}
 		meta_weight::Union{Nothing, Float64}
 		penalty_weight::Union{Nothing, Float64}
+        wt_factor::Union{Nothing, Float64}
         is_static::Union{Nothing, Bool, Vector{Bool}}
+        kinds_of_weights::Union{Nothing, Vector{String}}
 
         tempering_enabled::Union{Nothing, Bool}
         numinstances::Int64

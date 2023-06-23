@@ -7,11 +7,14 @@ struct BiasPotential{TG} <: AbstractBiasPotential
     bin_width::Float64
     weight::Float64
     penalty_weight::Float64
+    wt_factor::Float64
     is_static::Bool
 
     values::Vector{Float64}
     bin_vals::Vector{Float64}
     fp::Union{Nothing, IOStream}
+    weight_fp::Union{Nothing, IOStream}
+    kinds_of_weights::Union{Nothing, Vector{String}}
 
     function BiasPotential(
         p::Params,
@@ -37,19 +40,37 @@ struct BiasPotential{TG} <: AbstractBiasPotential
         if has_fp == true
             if biasfile === nothing
                 fp = open(p.biasdir * "/Stream_$instance.txt", "w")
+                header = "CV\tV(CV)"
+                println(fp, header)
             else
                 fp = open(p.biasdir * "/" * biasfile * ".txt", "w")
+                header = "CV\tV(CV)"
+                println(fp, header)
             end
+
+            weight_fp = open(p.measuredir * "/meta_weight_$instance.txt", "w")
+            kinds_of_weights = p.kinds_of_weights
+            header = "itrj"
+
+            for name in kinds_of_weights
+                name_str = "weight_$name"
+                header *= "\t$(rpad(name_str, 17, " "))"
+            end
+
+            println(weight_fp, header)
         else
             fp = nothing
+            weight_fp = nothing
+            kinds_of_weights = nothing
         end
 
+        wt_factor = p.wt_factor
         is_static = instance == 0 ? true : p.is_static[instance]
 
         return new{TG}(
             p.kind_of_cv, smearing, p.symmetric,
-            p.CVlims, p.bin_width, p.meta_weight, p.penalty_weight, is_static,
-            values, bin_vals, fp,
+            p.CVlims, p.bin_width, p.meta_weight, p.penalty_weight, wt_factor, is_static,
+            values, bin_vals, fp, weight_fp, kinds_of_weights,
         )
     end
 
@@ -70,11 +91,13 @@ struct BiasPotential{TG} <: AbstractBiasPotential
         bin_vals = range(CVlims[1], CVlims[2], step = bin_width)
         # exceeded_count = 0
         fp = nothing
+        weight_fp = nothing
+        kinds_of_weights = nothing
 
         return new{TG}(
             kind_of_cv, smearing, symmetric,
             CVlims, bin_width, weight, penalty_weight, is_static,
-            values, bin_vals, fp,
+            values, bin_vals, fp, weight_fp, kinds_of_weights,
         )
     end
 end
@@ -112,20 +135,6 @@ end
     return round(Int64, grid_index, RoundNearestTiesAway)
 end
 
-function update_bias!(b::T, cv) where {T <: BiasPotential}
-    grid_index = index(b, cv)
-
-    if 1 <= grid_index <= length(b.values)
-        for (idx, current_bin) in enumerate(b.bin_vals)
-            b[idx] += b.weight * exp(-0.5(cv - current_bin)^2 / b.bin_width^2)
-        end
-    else
-        # b.exceeded_count += 1
-    end
-
-    return nothing
-end
-
 function (b::BiasPotential)(cv)
     return return_potential(b, cv)
 end
@@ -148,18 +157,4 @@ function clear!(b::T) where {T <: BiasPotential}
     end
 
     return nothing
-end
-
-"""
-Approximate ∂V/∂Q by use of the five-point stencil
-"""
-function ∂V∂Q(b::T, cv) where {T <: BiasPotential}
-    bin_width = b.bin_width
-    num =
-        -b(cv + 2 * bin_width) +
-        8 * b(cv + bin_width) -
-        8 * b(cv - bin_width) +
-        b(cv - 2 * bin_width)
-    denom = 12 * bin_width
-    return num / denom
 end
