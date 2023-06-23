@@ -80,7 +80,7 @@ module SystemParameters
 		load_fp::IOStream
         measuredir::String
 		biasdir::Union{Nothing, String}
-        usebiases::Union{Nothing, String, Vector{Union{Nothing, String}}}
+        usebiases::Union{Nothing, Vector{Union{Nothing, String}}}
     end
 
 end

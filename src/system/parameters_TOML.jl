@@ -148,6 +148,15 @@ module ParametersTOML
                         value_Params[i] = Tuple(value[String(pname_i)])
                     elseif String(pname_i) == "CVlims"
                         value_Params[i] = Tuple(value[String(pname_i)])
+                    elseif String(pname_i) == "usebiases"
+                        value_Params[i] = Vector{Union{Nothing, String}}(
+                            value[String(pname_i)]
+                        )
+                        for (idx, entry) in enumerate(value_Params[i])
+                            if entry == "nothing"
+                                value_Params[i][idx] = nothing
+                            end
+                        end
                     elseif String(pname_i) == "wt_factor"
                         val = value[String(pname_i)]
                         num = val == "Inf" ? Inf : val

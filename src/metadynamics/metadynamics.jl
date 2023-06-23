@@ -1,4 +1,5 @@
 module Metadynamics
+    using DelimitedFiles
     using Polyester
     using Printf
     using Statistics
@@ -19,13 +20,11 @@ module Metadynamics
 		if usebias === nothing
 			return zero(range(p.CVlims[1], p.CVlims[2], step = p.bin_width))
 		else
-			values = readdlm(usebias, Float64)
-			@assert length(values[:, 2]) == round(
-				Int64,
-				(p.CVlims[2] - p.CVlims[1]) / p.bin_width,
-				RoundNearestTiesAway,
-			) "Length of passed Metapotential doesn't match parameters"
-			return values[:,2]
+			values = readdlm(usebias, Float64, skipstart = 1)
+			@assert length(values[:, 2]) == length(
+                range(p.CVlims[1], p.CVlims[2], step = p.bin_width)
+            ) "Length of passed Metapotential doesn't match parameters"
+			return values[:, 2]
 		end
 	end
 
