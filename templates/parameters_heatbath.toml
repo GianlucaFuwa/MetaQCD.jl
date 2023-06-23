@@ -1,0 +1,74 @@
+["Physical Settings"]
+L = [12, 12, 12, 12]
+"β" = 5.7
+kind_of_gaction = "wilson"
+Ntherm = 20
+Nsteps = 100
+initial = "cold"
+update_method = "heatbath"
+hb_MAXIT = 10
+hb_numHB = 1
+hb_numOR = 4
+# meta_enabled = true
+# tempering_enabled = true
+# numinstances = 2
+# swap_every = 5
+
+# ["MetaD related"]
+# kind_of_cv = "clover"
+# numsmears_for_cv = 4
+# "ρstout_for_cv" = 0.125
+# symmetric = true
+# CVlims = [-7, 7]
+# bin_width = 1e-2
+# meta_weight = 1e-2
+# penalty_weight = 1000.0
+# is_static = false
+
+["HMC related"]
+"hmc_Δτ" = 0.1
+hmc_steps = 10
+hmc_integrator = "OMF4"
+
+["System Settings"]               
+logdir = "./logs/L12x12x12x12_beta5.7"
+logfile = "test_heatbath.txt"
+measurement_basedir = "./measurements/L12x12x12x12_beta5.7"
+measurement_dir = "test_heatbath"
+randomseed = 1206
+verboselevel = 1
+bias_basedir = "./metapotentials/L12x12x12x12_beta5.7"
+bias_dir = "test"
+usebiases = "nothing"
+
+["Measurement set".measurement_methods.Polyakov_loop]
+measure_every = 5
+methodname = "polyakov_loop"
+
+["Measurement set".measurement_methods.Topological_charge]
+measure_every = 5
+kinds_of_topological_charge = ["plaquette", "clover", "improved"]
+methodname = "topological_charge"
+
+["Measurement set".measurement_methods.Energy_density]
+measure_every = 5
+kinds_of_energy_density = ["plaquette", "clover", "improved"]
+methodname = "energy_density"
+
+["Measurement set".measurement_methods.Plaquette]
+measure_every = 5
+methodname = "plaquette"
+
+["Measurement set".measurement_methods.Gauge_action]
+measure_every = 5
+kinds_of_gaction = ["wilson", "symanzik_tree", "iwasaki", "dbw2"]
+methodname = "gauge_action"
+
+[gradientflow_measurements]
+flow_integrator = "euler"
+flow_num = 4
+flow_steps = 10
+"flow_ϵ" = 0.1
+flow_measure_every = 1
+
+    [gradientflow_measurements.measurements_with_flow]
