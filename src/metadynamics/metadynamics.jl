@@ -29,6 +29,7 @@ module Metadynamics
 	end
 
     function update_bias!(b::T, cv) where {T <: BiasPotential}
+        (b.is_static == true) && return nothing
         grid_index = index(b, cv)
 
         if 1 <= grid_index <= length(b.values)

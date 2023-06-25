@@ -5,7 +5,7 @@ function (eul::Euler)(method::T) where {T<:GradientFlow}
     Uflow = method.Uflow
     force = method.Z
 
-    for _ = 1:method.steps-1
+    for _ = 1:method.steps
         calc_Z!(Uflow, force, method.ϵ)
         updateU!(Uflow, force, 1.0)
     end
@@ -20,7 +20,7 @@ function (rk2::RK2)(method::T) where {T<:GradientFlow}
     Uflow = method.Uflow
     force = method.Z
 
-    for _ = 1:method.steps-1
+    for _ = 1:method.steps
         calc_Z!(Uflow, force, method.ϵ)
         updateU!(Uflow, force, 0.5)
         updateZ!(Uflow, force, -0.5, method.ϵ)
@@ -37,7 +37,7 @@ function (rk3::RK3)(method::T) where {T<:GradientFlow}
     Uflow = method.Uflow
     force = method.Z
 
-    for _ = 1:method.steps-1
+    for _ = 1:method.steps
         calc_Z!(Uflow, force, method.ϵ)
         updateU!(Uflow, force, 0.25)
         updateZ!(Uflow, force, -17/36, 8/9 * method.ϵ)
@@ -56,7 +56,7 @@ function (rk3w7::RK3W7)(method::T) where {T<:GradientFlow}
     Uflow = method.Uflow
     force = method.Z
 
-    for _ = 1:method.steps-1
+    for _ = 1:method.steps
         calc_Z!(Uflow, force, method.ϵ)
         updateU!(Uflow, force, 1/3)
         updateZ!(Uflow, force, -25/48, 15/16 * method.ϵ)
