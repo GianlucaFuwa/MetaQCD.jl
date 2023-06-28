@@ -1,6 +1,6 @@
-function staple_eachsite!(staples, U::Gaugefield{T}) where {T}
+function staple_eachsite!(staples, U::Gaugefield{GA}) where {GA}
     NX, NY, NZ, NT = size(U)
-    staple = T()
+    staple = GA()
 
     for it in 1:NT
         for iz in 1:NZ

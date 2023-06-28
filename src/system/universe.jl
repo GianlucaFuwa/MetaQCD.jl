@@ -14,8 +14,8 @@ module UniverseModule
         NC::Int64
         meta_enabled::Bool
         tempering_enabled::Bool
-        U::Vector{TG}
-        Bias::Vector{TB}
+        U::TG
+        Bias::TB
         numinstances::Int64
         verbose_print::TV
     end
@@ -40,12 +40,12 @@ module UniverseModule
 
         if p.meta_enabled
             TM = MetaEnabled
-            U = Vector{Gaugefield{GA}}(undef, p.numinstances)
-            Bias = Vector{BiasPotential{GA}}(undef, p.numinstances)
             tempering_enabled = p.tempering_enabled
 
             if tempering_enabled && use_mpi == false
                 numinstances = p.numinstances
+                U = Vector{Gaugefield{GA}}(undef, p.numinstances)
+                Bias = Vector{BiasPotential{GA}}(undef, p.numinstances)
 
                 for i in 1:numinstances
                     if p.initial == "cold"
@@ -69,39 +69,37 @@ module UniverseModule
 
             else
                 numinstances = 1
-                U = Vector{Gaugefield{GA}}(undef, 1)
 
                 if p.initial == "cold"
-                    U[1] = identity_gauges(
+                    U = identity_gauges(
                         NX, NY, NZ, NT,
                         p.β,
                         type_of_gaction = GA,
                     )
                 elseif p.initial == "hot"
-                    U[1] = random_gauges(
+                    U = random_gauges(
                         NX, NY, NZ, NT,
                         p.β,
                         type_of_gaction = GA,
                     )
                 end
 
-                Bias[1] = BiasPotential(p, U[1]; has_fp = fp)
+                Bias = BiasPotential(p, U; has_fp = fp)
             end
         else
             TM = MetaDisabled
-            U = Vector{Gaugefield{GA}}(undef, 1)
-            Bias = Vector{Nothing}(undef, 1)
             tempering_enabled = false
             numinstances = 1
+            Bias = nothing
 
             if p.initial == "cold"
-                U[1] = identity_gauges(
+                U = identity_gauges(
                     NX, NY, NZ, NT,
                     p.β,
                     type_of_gaction = GA,
                 )
             elseif p.initial == "hot"
-                U[1] = random_gauges(
+                U = random_gauges(
                     NX, NY, NZ, NT,
                     p.β,
                     type_of_gaction = GA,
@@ -118,7 +116,7 @@ module UniverseModule
             verbose_print = fp == true ? Verbose3(p.load_fp) : Verbose1()
         end
 
-        return Univ{typeof(U[1]), typeof(Bias[1]), TM, typeof(verbose_print)}(
+        return Univ{typeof(U), typeof(Bias), TM, typeof(verbose_print)}(
             p.L,
             NC,
             p.meta_enabled,

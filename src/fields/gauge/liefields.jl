@@ -20,7 +20,7 @@ struct Liefield <: Abstractfield
         return new(U, NX, NY, NZ, NT, NV, 3)
     end
 
-    function Liefield(u::T) where {T<:Abstractfield}
+    function Liefield(u::T) where {T <: Abstractfield}
         return Liefield(u.NX, u.NY, u.NZ, u.NT)
     end
 end
@@ -53,13 +53,13 @@ function calc_kinetic_energy(p::Liefield)
             for iy = 1:NY
                 for ix = 1:NX
                     for μ = 1:4
-                        ekin[threadid() * spacing] += 
+                        ekin[threadid() * spacing] +=
                             real(multr(p[μ][ix,iy,iz,it], p[μ][ix,iy,iz,it]))
                     end
                 end
             end
         end
-    end 
-    
+    end
+
     return sum(ekin)
 end

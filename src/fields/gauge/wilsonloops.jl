@@ -126,7 +126,7 @@ function wilsonloop_bottom_right(U, μ, ν, site::SiteCoords, Lμ, Lν)
     return wil
 end
 
-function wilsonloop(U::T, Lμ, Lν) where {T<:Gaugefield}
+function wilsonloop(U::T, Lμ, Lν) where {T <: Gaugefield}
     NX, NY, NZ, NT = size(U)
     spacing = 8
     wil = zeros(Float64, nthreads() * spacing)

@@ -6,22 +6,18 @@ Since we never actually use the smeared fields in main, they dont have to leave 
 struct StoutSmearing{TG} <: AbstractSmearing
 	numlayers::Int64
 	ρ::Float64
-	Usmeared_multi::Vector{Gaugefield{TG}}
+	Usmeared_multi::Vector{TG}
 	C_multi::Vector{Temporaryfield}
 	Q_multi::Vector{CoeffField}
 	Λ::Temporaryfield
 
-	function StoutSmearing(
-		U::Gaugefield{TG},
-		numlayers,
-		ρ,
-	) where {TG <: AbstractGaugeAction}
+	function StoutSmearing(U::TG, numlayers, ρ) where {TG}
 		@assert numlayers >= 0 && ρ >= 0 "number of stout layers and ρ must be >= 0"
 
 		if numlayers == 0 || ρ == 0
 			return NoSmearing()
 		else
-			Usmeared_multi = Vector{Gaugefield{TG}}(undef, numlayers + 1)
+			Usmeared_multi = Vector{TG}(undef, numlayers + 1)
 			C_multi = Vector{Temporaryfield}(undef, numlayers)
 			Q_multi = Vector{CoeffField}(undef, numlayers)
 			Λ = Temporaryfield(U)
@@ -47,10 +43,7 @@ function get_layer(s::T, i) where {T <: StoutSmearing}
 	return s.Usmeared_multi[i]
 end
 
-function apply_smearing!(
-	smearing,
-	Uin,
-)
+function apply_smearing!(smearing, Uin)
 	numlayers = length(smearing)
 	ρ = smearing.ρ
 	Uout_multi = smearing.Usmeared_multi
@@ -72,13 +65,7 @@ function apply_smearing!(
 	return nothing
 end
 
-function apply_stout_smearing!(
-	Uout,
-	C,
-	Q,
-	U,
-	ρ,
-)
+function apply_stout_smearing!(Uout, C, Q, U, ρ)
 	NX, NY, NZ, NT = size(Uout)
 	calc_stout_Q!(Q, C, U, ρ)
 
@@ -100,11 +87,7 @@ function apply_stout_smearing!(
 	return nothing
 end
 
-function stout_backprop!(
-	Σ_current,
-	Σ_prev,
-	smearing,
-)
+function stout_backprop!(Σ_current, Σ_prev, smearing)
 	ρ = smearing.ρ
 	numlayers = length(smearing)
 
@@ -136,16 +119,7 @@ See: hep-lat/0311018 by Morningstar & Peardon \\
 \\
 Σμ = Σμ'⋅exp(iQμ) + iCμ†⋅Λμ - i∑{...}
 """
-function stout_recursion!(
-	Σ,
-	Σ_prime,
-	U_prime,
-	U,
-	C,
-	Q,
-	Λ,
-	ρ,
-)
+function stout_recursion!(Σ, Σ_prime, U_prime, U, C, Q, Λ, ρ)
 	NX, NY, NZ, NT = size(Σ_prime)
 
 	leftmul_dagg!(Σ_prime, U_prime)
@@ -215,12 +189,7 @@ end
 	+ f1⋅U⋅Σ' + f2⋅Q⋅U⋅Σ' + f1⋅U⋅Σ'⋅Q \\
 Λ = 1/2⋅(Γ + Γ†) - 1/(2N)⋅Tr(Γ + Γ†)
 """
-function calc_stout_Λ!(
-	Λ,
-	Σprime,
-	Q,
-	U,
-)
+function calc_stout_Λ!(Λ, Σprime, Q, U)
 	NX, NY, NZ, NT = size(U)
 
 	@batch for it in 1:NT
@@ -252,12 +221,7 @@ function calc_stout_Λ!(
 	return nothing
 end
 
-function calc_stout_Q!(
-	Q,
-	C,
-	U,
-	ρ,
-)
+function calc_stout_Q!(Q, C, U, ρ)
 	NX, NY, NZ, NT = size(U)
 	staple = WilsonGaugeAction()
 

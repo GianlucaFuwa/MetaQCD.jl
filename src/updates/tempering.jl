@@ -6,12 +6,12 @@ module TemperingModule
     import ..Metadynamics: BiasPotential, update_bias!
 
     function temper!(
-        U1::T,
-        U2::T,
-        bias1::M,
-        bias2::M,
+        U1::TG,
+        U2::TG,
+        bias1::TB,
+        bias2::TB,
         verbose::VerboseLevel,
-    ) where {T <: Gaugefield, M <: BiasPotential}
+    ) where {TG <: Gaugefield, TB <: BiasPotential}
         cv1 = U1.CV
         cv2 = U2.CV
 
@@ -28,8 +28,8 @@ module TemperingModule
 
         if accept_swap
             swap_U!(U1, U2)
-            bias1.is_static ? nothing : update_bias!(bias1, cv2)
-            bias2.is_static ? nothing : update_bias!(bias2, cv1)
+            update_bias!(bias1, cv2)
+            update_bias!(bias2, cv1)
         end
 
         return accept_swap

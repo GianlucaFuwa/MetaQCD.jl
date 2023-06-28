@@ -51,7 +51,7 @@ function PolyakovMeasurement(
     params::PolyakovParameters,
     filename = "polyakov.txt",
     flow = false
-) where {T<:Gaugefield}
+) where {T <: Gaugefield}
     return PolyakovMeasurement(
         U,
         filename = filename,

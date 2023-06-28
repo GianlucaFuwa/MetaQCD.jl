@@ -1,17 +1,11 @@
-struct MetroUpdate{TG} <: AbstractUpdate
+struct MetroUpdate <: AbstractUpdate
 	ϵ::Base.RefValue{Float64}
 	multi_hit::Int64
 	target_acc::Float64
 	mnorm::Float64
 	meta_enabled::Bool
 
-	function MetroUpdate(
-		U::Gaugefield{TG},
-		ϵ,
-		multi_hit,
-		target_acc,
-		meta_enabled,
-	) where {TG}
+	function MetroUpdate(U, ϵ, multi_hit, target_acc, meta_enabled)
 		mnorm = 1 / (U.NV * 4 * multi_hit)
 		m_ϵ = Base.RefValue{Float64}(ϵ)
 
@@ -19,17 +13,11 @@ struct MetroUpdate{TG} <: AbstractUpdate
             @error "Metadynamics is not supported for metropolis yet"
         end
 
-		return new{TG}(m_ϵ, multi_hit, target_acc, mnorm, meta_enabled)
+		return new(m_ϵ, multi_hit, target_acc, mnorm, meta_enabled)
 	end
 end
 
-function update!(
-	updatemethod,
-	U,
-	verbose::VerboseLevel;
-	Bias = nothing,
-	metro_test = true,
-)
+function update!(updatemethod, U, verbose::VerboseLevel; Bias = nothing, metro_test = true)
 	if updatemethod.meta_enabled
 		numaccepts = metro_sweep_meta!(U, Bias, updatemethod, metro_test = true)
 	else
@@ -41,17 +29,13 @@ function update!(
 	return numaccepts * updatemethod.mnorm
 end
 
-function metro_sweep!(
-	U::Gaugefield{T},
-	metro;
-	metro_test = true,
-) where {T}
+function metro_sweep!(U::Gaugefield{GA}, metro; metro_test = true) where {GA}
 	NX, NY, NZ, NT = size(U)
 	β = U.β
 	ϵ = metro.ϵ[]
 	multi_hit = metro.multi_hit
 	numaccept = 0
-	staple = T()
+	staple = GA()
 
 	for it in 1:NT
 		for iz in 1:NZ
@@ -89,17 +73,17 @@ function metro_sweep!(
 end
 
 function metro_sweep_meta!( # TODO
-	U::Gaugefield{T},
+	U::Gaugefield{GA},
 	Bias,
 	metro;
 	metro_test = true,
-) where {T}
+) where {GA}
 	NX, NY, NZ, NT = size(U)
 	β = U.β
 	ϵ = metro.ϵ[]
 	multi_hit = metro.multi_hit
 	numaccept = 0
-	staple = T()
+	staple = GA()
 
 	for it in 1:NT
 		for iz in 1:NZ

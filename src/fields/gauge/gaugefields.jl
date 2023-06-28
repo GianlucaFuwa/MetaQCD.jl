@@ -9,7 +9,7 @@ module Gaugefields
 	abstract type Abstractfield end
 	abstract type AbstractGaugeAction end
 
-	struct Gaugefield{TG} <: Abstractfield
+	struct Gaugefield{GA} <: Abstractfield
 		U::Vector{Array{SMatrix{3, 3, ComplexF64, 9}, 4}}
 		NX::Int64
 		NY::Int64
@@ -22,7 +22,7 @@ module Gaugefields
 		Sg::Base.RefValue{Float64}
 		CV::Base.RefValue{Float64}
 
-		function Gaugefield(NX, NY, NZ, NT, β; TG = WilsonGaugeAction)
+		function Gaugefield(NX, NY, NZ, NT, β; GA = WilsonGaugeAction)
 			U = Vector{Array{SMatrix{3, 3, ComplexF64, 9}, 4}}(undef, 4)
 
 			for μ = 1:4
@@ -33,10 +33,10 @@ module Gaugefields
 
 			Sg = Base.RefValue{Float64}(0.0)
 			CV = Base.RefValue{Float64}(0.0)
-			return new{TG}(U, NX, NY, NZ, NT, NV, 3, β, Sg, CV)
+			return new{GA}(U, NX, NY, NZ, NT, NV, 3, β, Sg, CV)
 		end
 
-		function Gaugefield(u::Gaugefield{TG}) where {TG}
+		function Gaugefield(u::Gaugefield{GA}) where {GA}
 			NX, NY, NZ, NT = size(u)
 			β = u.β
 			U = Vector{Array{SMatrix{3, 3, ComplexF64, 9}, 4}}(undef, 4)
@@ -49,7 +49,7 @@ module Gaugefields
 
 			Sg = Base.RefValue{Float64}(0.0)
 			CV = Base.RefValue{Float64}(0.0)
-			return new{TG}(U, NX, NY, NZ, NT, NV, 3, β, Sg, CV)
+			return new{GA}(U, NX, NY, NZ, NT, NV, 3, β, Sg, CV)
 		end
 	end
 
@@ -114,6 +114,10 @@ module Gaugefields
         @inbounds return u.U[μ]
     end
 
+    function Base.eachindex(u::T) where {T <: Abstractfield}
+        return Base.OneTo(u.NV)
+    end
+
 	function Base.getproperty(u::T, p::Symbol) where {T <: Gaugefield}
 		if p == :Sg
 			return getfield(u, :Sg)[]
@@ -150,8 +154,8 @@ module Gaugefields
 		return uout
 	end
 
-	function Base.eltype(::Gaugefield{TG}) where {TG}
-		return TG
+	function Base.eltype(::Gaugefield{GA}) where {GA}
+		return GA
 	end
 
 	function substitute_U!(a::T, b::T) where {T <: Abstractfield}
@@ -174,7 +178,7 @@ module Gaugefields
 	end
 
 	function identity_gauges(NX, NY, NZ, NT, β; type_of_gaction = WilsonGaugeAction)
-		u = Gaugefield(NX, NY, NZ, NT, β, TG = type_of_gaction)
+		u = Gaugefield(NX, NY, NZ, NT, β, GA = type_of_gaction)
 
 		@batch for it in 1:NT
 			for iz in 1:NZ
@@ -192,7 +196,7 @@ module Gaugefields
     end
 
     function random_gauges(NX, NY, NZ, NT, β; type_of_gaction = WilsonGaugeAction)
-		u = Gaugefield(NX, NY, NZ, NT, β, TG = type_of_gaction)
+		u = Gaugefield(NX, NY, NZ, NT, β, GA = type_of_gaction)
 		# No multithreading to make random elements reproducible
 		# (could also use static scheduler but then we'd have to use @threads,
 		# which doesn't default to non-multithreaded for 1 thread)

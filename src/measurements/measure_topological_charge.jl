@@ -234,5 +234,6 @@ end
 function top_charge_improved(U::T) where {T <: Gaugefield}
     Qclover = top_charge_clover(U)
     Qrect = top_charge_rect(U)
-    return 5/3 * Qclover - 1/12 * Qrect
+    Qimproved = 5/3 * Qclover - 1/12 * Qrect
+    return Qimproved
 end

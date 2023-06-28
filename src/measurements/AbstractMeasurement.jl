@@ -29,7 +29,7 @@ module AbstractMeasurementModule
         return m.outputstring
     end
 
-    function measure(measurement::M, itrj, U) where {M<:AbstractMeasurement}
+    function measure(measurement::M, itrj, U) where {M <: AbstractMeasurement}
         error("measure with a type $M is not supported")
     end
 

@@ -197,13 +197,7 @@ function updateP!(U, method::HMCUpdate{TI, TG, TS, TM}, fac, Bias) where {TI, TG
     return nothing
 end
 
-function calc_dSdU_bare!(
-    dSdU,
-    temp_force,
-    staples,
-    U,
-    smearing,
-)
+function calc_dSdU_bare!(dSdU, temp_force, staples, U, smearing)
     if typeof(smearing) == NoSmearing
         calc_dSdU!(dSdU, staples, U)
     else
@@ -220,14 +214,10 @@ function calc_dSdU_bare!(
     return nothing
 end
 
-function calc_dSdU!(
-    dSdU,
-    staples,
-    U::Gaugefield{T},
-) where {T}
+function calc_dSdU!(dSdU, staples, U::Gaugefield{GA}) where {GA}
     NX, NY, NZ, NT = size(U)
     β = U.β
-    staple = T()
+    staple = GA()
 
     @batch for it in 1:NT
         for iz in 1:NZ
@@ -250,14 +240,7 @@ function calc_dSdU!(
     return nothing
 end
 
-function calc_dQdU_bare!(
-    dQdU,
-    temp_force,
-    F,
-    U,
-    kind_of_charge,
-    smearing,
-)
+function calc_dQdU_bare!(dQdU, temp_force, F, U, kind_of_charge, smearing)
     if typeof(smearing) == NoSmearing
         calc_dQdU!(dQdU, F, U, kind_of_charge)
     else
@@ -274,12 +257,7 @@ function calc_dQdU_bare!(
     return nothing
 end
 
-function calc_dQdU!(
-    dQdU,
-    F,
-    U,
-    kind_of_charge,
-)
+function calc_dQdU!(dQdU, F, U, kind_of_charge)
     NX, NY, NZ, NT = size(U)
 
     fieldstrength_eachsite!(F, U, kind_of_charge)
@@ -328,15 +306,7 @@ end
 """
 Derivative of the F_μν ⋅ F_ρσ term for Field strength tensor given by plaquette
 """
-function ∇trFμνFρσ_plaq(
-    U,
-    F,
-    μ,
-    ν,
-    ρ,
-    σ,
-    site::SiteCoords,
-)
+function ∇trFμνFρσ_plaq(U, F, μ, ν, ρ, σ, site::SiteCoords)
     Nμ = size(U)[μ]
     Nν = size(U)[ν]
     siteμp = move(site, μ, 1, Nμ)
@@ -354,15 +324,7 @@ end
 """
 Derivative of the F_μν ⋅ F_ρσ term for Field strength tensor given by 1x1-Clover
 """
-function ∇trFμνFρσ_clover(
-    U,
-    F,
-    μ,
-    ν,
-    ρ,
-    σ,
-    site::SiteCoords,
-)
+function ∇trFμνFρσ_clover(U, F, μ, ν, ρ, σ, site::SiteCoords)
     Nμ = size(U)[μ]
     Nν = size(U)[ν]
     siteμp = move(site, μ, 1, Nμ)

@@ -61,7 +61,7 @@ function WilsonLoopMeasurement(
     params::WilsonLoopParameters,
     filename = "wilson_loop.txt",
     flow = false,
-) where {T<:Gaugefield}
+) where {T <: Gaugefield}
     return WilsonLoopMeasurement(
         U,
         filename = filename,
