@@ -119,7 +119,7 @@ end
 
 function kenney_laub(M::SMatrix{3,3,ComplexF64,9})
     while true
-        X = M' * M
+        X = cmatmul_do(M, M)
 
         if norm(eye3 - X) <= 1e-6
             break

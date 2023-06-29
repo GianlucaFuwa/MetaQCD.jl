@@ -76,20 +76,21 @@ module Utils
 		return iseven(flips) ? 1 : -1
 	end
 
-    @inline function multr(A::SMatrix{3,3,ComplexF64,9}, B::SMatrix{3,3,ComplexF64,9})
-        a = reinterpret(reshape, Float64, A)
-        b = reinterpret(reshape, Float64, B)
-        re = 0.0
-        im = 0.0
+    @inline function multr(
+        A::SMatrix{NC, NC, Complex{T}, NC2},
+        B::SMatrix{NC, NC, Complex{T}, NC2},
+    ) where {NC, NC2, T}
+        a = reinterpret(reshape, T, A)
+        b = reinterpret(reshape, T, B)
+        re = zero(T)
+        im = zero(T)
 
-        @turbo for i in 1:3
-            for j in 1:3
+        @turbo for i ∈ axes(A, 1), j ∈ axes(B, 2)
                 re += a[1,i,j] * b[1,j,i] - a[2,i,j] * b[2,j,i]
                 im += a[1,i,j] * b[2,j,i] + a[2,i,j] * b[1,j,i]
-            end
         end
 
-        return ComplexF64(re, im)
+        return Complex{T}(re, im)
     end
 
     include("matmul.jl")
