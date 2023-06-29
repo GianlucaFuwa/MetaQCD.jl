@@ -1,4 +1,4 @@
-struct HeatbathUpdate <: AbstractUpdate
+struct HeatbathUpdate <: AbstractUpdate # maybe add eo as type parameter?
     eo::Bool
     MAXIT::Int64
     prefactor_HB::Float64
@@ -43,11 +43,19 @@ function update!(
     numaccepts = 0.0
 
     for _ in 1:updatemethod.numOR
-        numaccepts += OR_sweep!(
-            U,
-            updatemethod,
-            metro_test = metro_test,
-        )
+        if updatemethod.eo
+            numaccepts += OR_sweep_eo!(
+                U,
+                updatemethod,
+                metro_test = metro_test,
+            )
+        else
+            numaccepts += OR_sweep!(
+                U,
+                updatemethod,
+                metro_test = metro_test,
+            )
+        end
     end
 
     if Bias !== nothing
@@ -62,11 +70,11 @@ function update!(
     return numaccepts
 end
 
-function heatbath_sweep!(U::Gaugefield{T}, hb) where {T}
+function heatbath_sweep!(U::Gaugefield{GA}, hb) where {GA}
     NX, NY, NZ, NT = size(U)
     MAXIT = hb.MAXIT
     prefactor = hb.prefactor_HB
-    staple = T()
+    staple = GA()
 
     for it in 1:NT
 		for iz in 1:NZ
@@ -108,49 +116,53 @@ function heatbath_sweep!(U::Gaugefield{T}, hb) where {T}
     return nothing
 end
 
-function heatbath_sweep_eo!(U::Gaugefield{T}, hb) where {T}
+function heatbath_sweep_eo!(U::Gaugefield{GA}, hb) where {GA}
     NX, NY, NZ, NT = size(U)
     MAXIT = hb.MAXIT
     prefactor = hb.prefactor_HB
-    staple = T()
+    staple = GA()
 
-    for μ in 1:4
-        for eo in 1:2
-            @threads :static for it in 1:NT
-                for iz in 1:NZ
-                    for iy in 1:NY
-                        offset = ((it + iz + iy) & 1) ⊻ eo
-                        @inbounds for ix in 1+offset:2:NX
-                            site = SiteCoords(ix, iy, iz, it)
-                            link = U[μ][ix,iy,iz,it]
-                            A = staple(U, μ, site)
+    @threads :static for it in 1:NT
+        for iz in 1:NZ
+            for iy in 1:NY
+                for ix in 1:NX
+                    site = SiteCoords(ix, iy, iz, it)
 
-                            subblock = make_submatrix(cmatmul_od(link, A), 1, 2)
-                            tmp = embed_into_SU3(
-                                heatbath_SU2(subblock, MAXIT, prefactor),
-                                1, 2,
-                            )
-                            link = tmp * link
+                    for μ in 1:4
+                        for sublattice in 1:4
+                            if mod1(ix + iy + iz + it + site[μ], 4) == sublattice
+                                link = U[μ][site]
+                                A = staple(U, μ, site)
 
-                            subblock = make_submatrix(cmatmul_od(link, A), 1, 3)
-                            tmp = embed_into_SU3(
-                                heatbath_SU2(subblock, MAXIT, prefactor),
-                                1, 3,
-                            )
-                            link = tmp * link
+                                subblock = make_submatrix(cmatmul_od(link, A), 1, 2)
+                                tmp = embed_into_SU3(
+                                    heatbath_SU2(subblock, MAXIT, prefactor),
+                                    1, 2,
+                                )
+                                link = tmp * link
 
-                            subblock = make_submatrix(cmatmul_od(link, A), 2, 3)
-                            tmp = embed_into_SU3(
-                                heatbath_SU2(subblock, MAXIT, prefactor),
-                                2, 3,
-                            )
-                            U[μ][ix,iy,iz,it] = cmatmul_oo(tmp, link)
+                                subblock = make_submatrix(cmatmul_od(link, A), 1, 3)
+                                tmp = embed_into_SU3(
+                                    heatbath_SU2(subblock, MAXIT, prefactor),
+                                    1, 3,
+                                )
+                                link = tmp * link
+
+                                subblock = make_submatrix(cmatmul_od(link, A), 2, 3)
+                                tmp = embed_into_SU3(
+                                    heatbath_SU2(subblock, MAXIT, prefactor),
+                                    2, 3,
+                                )
+                                U[μ][site] = cmatmul_oo(tmp, link)
+                            end
                         end
                     end
+
                 end
             end
         end
     end
+
     return nothing
 end
 
@@ -167,10 +179,13 @@ function heatbath_SU2(A, MAXIT, prefactor)
         end
 
         r1 = 1 - rand()
+        x1 = log(r1)
         r2 = 1 - rand()
+        x2 = cos(2π * r2)
         r3 = 1 - rand()
+        x3 = log(r3)
 
-        λ2 = (-0.25 * prefactor * a_norm) * (log(r1) + cos(2π * r2)^2 * log(r3))
+        λ2 = (-0.25 * prefactor * a_norm) * (x1 + x2^2 * x3)
 
         r0 = rand()
         i += 1
@@ -191,14 +206,14 @@ function heatbath_SU2(A, MAXIT, prefactor)
         x0+im*x3 x2+im*x1
         -x2+im*x1 x0-im*x3
     ]
-    return mat * V'
+    return cmatmul_od(mat, V)
 end
 
-function OR_sweep!(U::Gaugefield{T}, hb; metro_test = true) where {T}
+function OR_sweep!(U::Gaugefield{GA}, hb; metro_test = true) where {GA}
     NX, NY, NZ, NT = size(U)
     prefactor = hb.prefactor_OR
     numaccepts = 0
-    staple = T()
+    staple = GA()
 
     for it in 1:NT
 		for iz in 1:NZ
@@ -223,6 +238,48 @@ function OR_sweep!(U::Gaugefield{T}, hb; metro_test = true) where {T}
 
                         numaccepts += accept
 					end
+
+				end
+			end
+		end
+	end
+
+    return numaccepts
+end
+
+function OR_sweep_eo!(U::Gaugefield{GA}, hb; metro_test = true) where {GA}
+    NX, NY, NZ, NT = size(U)
+    prefactor = hb.prefactor_OR
+    numaccepts = 0
+    staple = GA()
+
+    for sublattice in 1:4
+        @batch for it in 1:NT
+            for iz in 1:NZ
+                for iy in 1:NY
+                    for ix in 1:NX
+                        site = SiteCoords(ix, iy, iz, it)
+
+                        for μ in 1:4
+                            if mod1(ix + iy + iz + it + site[μ], 4) == sublattice
+                                A = staple(U, μ, site)
+                                old_link = U[μ][ix,iy,iz,it]
+
+                                tmp = 1/6 * A
+                                or_mat = kenney_laub(tmp)
+
+                                new_link = cmatmul_odo(or_mat, old_link, or_mat)
+                                ΔS = prefactor * real(multr(new_link - old_link, A'))
+                                accept = metro_test ? (rand() < exp(-ΔS)) : true
+
+                                if accept
+                                    U[μ][ix,iy,iz,it] = new_link
+                                end
+
+                                numaccepts += accept
+                            end
+                        end
+                    end
 
 				end
 			end

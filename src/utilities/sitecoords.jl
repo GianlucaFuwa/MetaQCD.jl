@@ -1,11 +1,11 @@
-struct SiteCoords
+struct SiteCoords <: FieldVector{4, Int64}
     ix::Int64
     iy::Int64
     iz::Int64
     it::Int64
 end
 
-@inline function SiteCoords(i, NX, NY, NZ, NT)
+@inline function FlatCoords(i, NX, NY, NZ)
     ix = (i - 1) % NX + 1
     ii = div(i - ix, NX)
 
@@ -17,12 +17,8 @@ end
     return SiteCoords(ix, iy, iz, it)
 end
 
-@inline function get_coords(s::SiteCoords)
-    return (s.ix, s.iy, s.iz, s.it)
-end
-
 @inline function move(s::SiteCoords, μ, steps, lim)
-    ix, iy, iz, it = get_coords(s)
+    ix, iy, iz, it = s
 
     if μ == 1
         ix = mod1(ix + steps, lim)
@@ -33,7 +29,7 @@ end
     elseif μ == 4
         it = mod1(it + steps, lim)
     end
-    
+
     return SiteCoords(ix, iy, iz, it)
 end
 
@@ -42,20 +38,12 @@ function Base.setindex!(
     v::SMatrix{3, 3, ComplexF64, 9},
     s::SiteCoords,
 )
-    ix, iy, iz, it = get_coords(s)
+    ix, iy, iz, it = s
     @inbounds U[ix,iy,iz,it] = v
     return nothing
 end
 
 @inline function Base.getindex(U::AbstractArray, s::SiteCoords)
-    ix, iy, iz, it = get_coords(s)
-    @inbounds return U[ix,iy,iz,it] 
-end
-
-function Base.to_indices(U, s::SiteCoords)
-    return to_indices(U, get_coords(s))
-end
-
-function Base.to_index(U, s::SiteCoords)
-    return Base.to_indices(U, s)
+    ix, iy, iz, it = s
+    @inbounds return U[ix,iy,iz,it]
 end
