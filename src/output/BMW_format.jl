@@ -1,4 +1,4 @@
-module BMW_format
+module BMWFormat
     using LinearAlgebra
     export save_textdata
     export load_BridgeText!
