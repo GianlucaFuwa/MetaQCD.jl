@@ -18,7 +18,7 @@ struct BiasPotential{TG} <: AbstractBiasPotential
 
     function BiasPotential(
         p::Params,
-        U::Gaugefield{TG};
+        U::TG;
         instance = 1,
         biasfile = nothing,
         has_fp::Bool = true,

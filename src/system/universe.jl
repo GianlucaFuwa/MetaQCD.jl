@@ -45,7 +45,7 @@ module UniverseModule
             if tempering_enabled && use_mpi == false
                 numinstances = p.numinstances
                 U = Vector{Gaugefield{GA}}(undef, p.numinstances)
-                Bias = Vector{BiasPotential{GA}}(undef, p.numinstances)
+                Bias = Vector{BiasPotential{Gaugefield{GA}}}(undef, p.numinstances)
 
                 for i in 1:numinstances
                     if p.initial == "cold"
@@ -87,8 +87,9 @@ module UniverseModule
                 Bias = BiasPotential(p, U; has_fp = fp)
             end
         else
+            tempering_enabled = p.tempering_enabled
+            @assert tempering_enabled == false "tempering can only be enabled with MetaD"
             TM = MetaDisabled
-            tempering_enabled = false
             numinstances = 1
             Bias = nothing
 
