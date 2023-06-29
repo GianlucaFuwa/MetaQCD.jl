@@ -4,7 +4,7 @@ end
 function (lf::Leapfrog)(U::T1, method::T2, Bias) where {T1 <: Gaugefield, T2 <: HMCUpdate}
     updateP!(U, method, 0.5, Bias)
 
-    for i = 1:method.steps-1
+    for _ = 1:method.steps-1
         updateU!(U, method, 1.0)
         updateP!(U, method, 1.0, Bias)
     end
@@ -29,7 +29,7 @@ end
 
 function (O2S::OMF2Slow)(U::T1, method::T2, Bias) where {T1 <: Gaugefield, T2 <: HMCUpdate}
 
-    for i in 1:method.steps
+    for _ in 1:method.steps
         updateP!(U, method, O2S.α, Bias)
         updateU!(U, method, O2S.β)
         updateP!(U, method, O2S.γ, Bias)
@@ -59,7 +59,7 @@ function (O2::OMF2)(U::T1, method::T2, Bias) where {T1 <: Gaugefield, T2 <: HMCU
     updateP!(U, method, O2.γ, Bias)
     updateU!(U, method, O2.β)
 
-    for i in 1:method.steps-1
+    for _ in 1:method.steps-1
         updateP!(U, method, 2*O2.α, Bias)
         updateU!(U, method, O2.β)
         updateP!(U, method, O2.γ, Bias)
@@ -91,7 +91,7 @@ end
 
 function (O4S::OMF4Slow)(U::T1, method::T2, Bias) where {T1 <: Gaugefield, T2 <: HMCUpdate}
 
-    for i in 1:method.steps
+    for _ in 1:method.steps
         updateP!(U, method, O4S.α, Bias)
         updateU!(U, method, O4S.β)
         updateP!(U, method, O4S.γ, Bias)
@@ -143,7 +143,7 @@ function (O4::OMF4)(U::T1, method::T2, Bias) where {T1 <: Gaugefield, T2 <: HMCU
     updateP!(U, method, O4.γ, Bias)
     updateU!(U, method, O4.β)
 
-    for i in 1:method.steps-1
+    for _ in 1:method.steps-1
         updateP!(U, method, 2 * O4.α, Bias)
         updateU!(U, method, O4.β)
         updateP!(U, method, O4.γ, Bias)
