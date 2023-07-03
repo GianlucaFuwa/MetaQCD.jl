@@ -8,7 +8,7 @@ function SU3testmeas()
     NT = 4
     U = identity_gauges(NX, NY, NZ, NT, 5.7)
     filename = "./test/testconf.txt"
-    load_BridgeText!(filename, U)
+    loadU_bridge!(U, filename)
 
     m_plaq = PlaquetteMeasurement(U)
     @time plaq = get_value(measure(m_plaq, U))
