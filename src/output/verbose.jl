@@ -40,7 +40,7 @@ module VerbosePrint
         end
     end
 
-    function println_verbose1(v::Verbose3, val...) 
+    function println_verbose1(v::Verbose3, val...)
         println(val...)
 
         if v.fp !== nothing
@@ -50,7 +50,7 @@ module VerbosePrint
         return nothing
     end
 
-    function println_verbose2(v::Verbose3, val...) 
+    function println_verbose2(v::Verbose3, val...)
         println(val...)
 
         if v.fp !== nothing
@@ -60,7 +60,7 @@ module VerbosePrint
         return nothing
     end
 
-    function println_verbose3(v::Verbose3, val...) 
+    function println_verbose3(v::Verbose3, val...)
         println(val...)
 
         if v.fp !== nothing
@@ -70,7 +70,7 @@ module VerbosePrint
         return nothing
     end
 
-    function println_verbose1(v::Verbose2, val...) 
+    function println_verbose1(v::Verbose2, val...)
         println(val...)
 
         if v.fp !== nothing
@@ -80,7 +80,7 @@ module VerbosePrint
         return nothing
     end
 
-    function println_verbose2(v::Verbose2, val...) 
+    function println_verbose2(v::Verbose2, val...)
         println(val...)
 
         if v.fp !== nothing
@@ -90,7 +90,7 @@ module VerbosePrint
         return nothing
     end
 
-    function println_verbose3(v::Verbose2, val...) 
+    function println_verbose3(v::Verbose2, val...)
         return nothing
     end
 
@@ -104,15 +104,15 @@ module VerbosePrint
         return nothing
     end
 
-    function println_verbose2(v::Verbose1, val...) 
+    function println_verbose2(v::Verbose1, val...)
         return nothing
     end
 
-    function println_verbose3(v::Verbose1, val...) 
+    function println_verbose3(v::Verbose1, val...)
         return nothing
     end
 
-    function print_verbose1(v::Verbose3, val...) 
+    function print_verbose1(v::Verbose3, val...)
         print(val...)
 
         if v.fp !== nothing
@@ -122,7 +122,7 @@ module VerbosePrint
         return nothing
     end
 
-    function print_verbose2(v::Verbose3, val...) 
+    function print_verbose2(v::Verbose3, val...)
         print(val...)
 
         if v.fp !== nothing
@@ -132,7 +132,7 @@ module VerbosePrint
         return nothing
     end
 
-    function print_verbose3(v::Verbose3, val...) 
+    function print_verbose3(v::Verbose3, val...)
         print(val...)
 
         if v.fp !== nothing
@@ -142,7 +142,7 @@ module VerbosePrint
         return nothing
     end
 
-    function print_verbose1(v::Verbose2, val...) 
+    function print_verbose1(v::Verbose2, val...)
         print(val...)
 
         if v.fp !== nothing
@@ -152,7 +152,7 @@ module VerbosePrint
         return nothing
     end
 
-    function print_verbose2(v::Verbose2, val...) 
+    function print_verbose2(v::Verbose2, val...)
         print(val...)
 
         if v.fp !== nothing
@@ -162,11 +162,11 @@ module VerbosePrint
         return nothing
     end
 
-    function print_verbose3(v::Verbose2, val...) 
+    function print_verbose3(v::Verbose2, val...)
         return nothing
     end
 
-    function print_verbose1(v::Verbose1, val...) 
+    function print_verbose1(v::Verbose1, val...)
         print(val...)
 
         if v.fp !== nothing
@@ -176,11 +176,11 @@ module VerbosePrint
         return nothing
     end
 
-    function print_verbose2(v::Verbose1, val...) 
+    function print_verbose2(v::Verbose1, val...)
         return nothing
     end
 
-    function print_verbose3(v::Verbose1, val...) 
+    function print_verbose3(v::Verbose1, val...)
         return nothing
     end
 

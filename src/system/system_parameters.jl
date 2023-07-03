@@ -77,7 +77,7 @@ module SystemParameters
 		randomseed::Union{Nothing, Int64}
 		logdir::String
 		logfile::String
-		load_fp::IOStream
+		load_fp::Union{Nothing, IOStream}
         measuredir::String
 		biasdir::Union{Nothing, String}
         usebiases::Union{Nothing, Vector{Union{Nothing, String}}}

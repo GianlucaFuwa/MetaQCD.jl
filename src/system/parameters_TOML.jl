@@ -1,4 +1,5 @@
 module ParametersTOML
+    using MPI
     using Unicode
     using TOML
 
@@ -45,15 +46,15 @@ module ParametersTOML
         return nothing
     end
 
-    function construct_params_from_toml(filename::String; show_params = true)
+    function construct_params_from_toml(filename::String)
+        myrank = MPI.Comm_rank(MPI.COMM_WORLD)
         parameters = TOML.parsefile(filename)
         println("inputfile: ", pwd() * "/" * filename)
-        construct_params_from_toml(parameters, show_params = show_params)
+        construct_params_from_toml(parameters, am_rank0 = (myrank == 0))
     end
 
-    function construct_params_from_toml(parameters; show_params = true)
-
-        show_params ? show_parameters(parameters) : nothing
+    function construct_params_from_toml(parameters; am_rank0 = true)
+        am_rank0 ? show_parameters(parameters) : nothing
 
         pnames = fieldnames(Params)
         numparams = length(pnames)
@@ -80,23 +81,31 @@ module ParametersTOML
         logdir = parameters["System Settings"]["logdir"]
 
         if isdir(logdir) == false
-            mkpath(logdir)
+            am_rank0 ? mkpath(logdir) : nothing
         end
 
         logfile = pwd() * "/" * logdir * "/" * logfilename
 
-        load_fp = open(logfile, "w")
+        if isfile(logfile)
+            overwrite_detected("logfile", am_rank0)
+        end
+
+        load_fp = am_rank0 ? open(logfile, "w") : nothing
         value_Params[pos] = load_fp
 
         measurement_basedir = parameters["System Settings"]["measurement_basedir"]
         measurement_dir = parameters["System Settings"]["measurement_dir"]
 
         if isdir(measurement_basedir) == false
-            mkpath(measurement_basedir)
+            am_rank0 ? mkpath(measurement_basedir) : nothing
         end
 
         if isdir(pwd() * "/" * measurement_basedir * "/" * measurement_dir) == false
-            mkpath(pwd() * "/" * measurement_basedir * "/" * measurement_dir)
+            if am_rank0
+                mkpath(pwd() * "/" * measurement_basedir * "/" * measurement_dir)
+            end
+        else
+            overwrite_detected("measurement", am_rank0)
         end
 
         pos = findfirst(x -> String(x) == "measuredir", pnames)
@@ -121,11 +130,11 @@ module ParametersTOML
             bias_dir = parameters["System Settings"]["bias_dir"]
 
             if isdir(bias_basedir) == false
-                mkpath(bias_basedir)
+                am_rank0 ? mkpath(bias_basedir) : nothing
             end
 
             if isdir(pwd() * "/" * bias_basedir * "/" * bias_dir) == false
-                mkpath(pwd() * "/" * bias_basedir * "/" * bias_dir)
+                am_rank0 ? mkpath(pwd() * "/" * bias_basedir * "/" * bias_dir) : nothing
             end
 
             biasdir = pwd() * "/" * bias_basedir * "/" * bias_dir
@@ -190,26 +199,26 @@ module ParametersTOML
 
         parameters = Params(value_Params...)
 
-        parameter_check(parameters)
+        parameter_check(parameters, do_prints = am_rank0)
 
         return parameters
     end
 
-    function parameter_check(p::Params)
+    function parameter_check(p::Params; do_prints = true)
         if p.saveU_format !== nothing
             if isdir(p.saveU_dir) == false
-                mkpath(p.saveU_dir)
+                do_prints ? mkpath(p.saveU_dir) : nothing
             end
 
             println("\t>> $(p.saveU_dir) is used for saving configurations\n")
         end
 
         if Unicode.normalize(p.update_method, casefold = true) == "hmc"
-            println("\t>> HMC will be used\n")
+            do_prints ? println("\t>> HMC will be used\n") : nothing
         elseif Unicode.normalize(p.update_method, casefold = true) == "metropolis"
-            println("\t>> Metropolis updates will be used\n")
+            do_prints ? println("\t>> Metropolis updates will be used\n") : nothing
         elseif Unicode.normalize(p.update_method, casefold = true) == "heatbath"
-            println("\t>> Heatbath (+ Overrelaxation) updates will be used\n")
+            do_prints ? println("\t>> Heatbath (+ Overrelaxation) updates will be used\n") : nothing
         else
             error("""
             update_method in [\"Physical Settings\"] = $(p.update_method) is not supported.
@@ -223,7 +232,7 @@ module ParametersTOML
         logdir = p.logdir
 
         if isdir(logdir) == false
-            mkpath(logdir)
+            do_prints ? mkpath(logdir) : nothing
         end
     end
 
@@ -242,4 +251,27 @@ module ParametersTOML
 
         return valuedic
     end
+
+    function overwrite_detected(s::String, am_rank0)
+        am_rank0 || return nothing
+
+        println(
+            ">> The provided $s directory or file already exists",
+            " and files might be overwritten\n",
+            ">> Do you want to continue? [y/n]"
+        )
+
+        answer = readline()
+
+        if answer == "y"
+            println(">> Execution proceeds")
+        elseif answer == "n"
+            println(">> Execution cancelled")
+            MPI.Abort(MPI.COMM_WORLD, 1)
+            exit()
+        else
+            overwrite_detected(s, am_rank0)
+        end
+    end
+
 end

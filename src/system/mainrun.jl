@@ -3,6 +3,7 @@ module Mainrun
     using DelimitedFiles
     using InteractiveUtils
     using Random
+    using ..IOModule
     using ..VerbosePrint
 
     import ..AbstractMeasurementModule: measure
@@ -79,6 +80,7 @@ module Mainrun
                 parameters.measuredir,
                 parameters.measurement_methods,
                 cv = parameters.meta_enabled,
+                additional_string = "_0"
             )
 
             for i in 2:parameters.numinstances
@@ -87,7 +89,7 @@ module Mainrun
                     parameters.measuredir,
                     Dict[],
                     cv = parameters.meta_enabled,
-                    additional_string = "_$i"
+                    additional_string = "_$(i-1)"
                 )
             end
 
@@ -162,14 +164,19 @@ module Mainrun
         measurements,
         measurements_with_flow,
     )
+        save_configs = SaveConfigs(
+            parameters.saveU_format,
+            parameters.saveU_dir,
+            parameters.saveU_every,
+            univ.verbose_print
+        )
+
         U = univ.U
         Bias = univ.Bias
 
-        calc_measurements(measurements, 0, U)
-
         value, runtime_therm = @timed begin
             for itrj in 1:parameters.Ntherm
-                println_verbose1(univ.verbose_print, "# therm itrj = $itrj")
+                println_verbose1(univ.verbose_print, "\n# therm itrj = $itrj")
                 updatetime = 0.0
 
                 _, updatetime = @timed update!(
@@ -182,19 +189,18 @@ module Mainrun
 
                 println_verbose1(
                     univ.verbose_print,
-                    ">> Thermalization Update: Elapsed time $(updatetime) [s]\n"
+                    ">> Thermalization Update: Elapsed time $(updatetime) [s]"
                 )
             end
         end
 
         println_verbose1(
             univ.verbose_print,
-            "\t>> Thermalization Elapsed time $(runtime_therm) [s]\n"
+            "\t>> Thermalization Elapsed time $(runtime_therm) [s]"
         )
 
         value, runtime_all = @timed begin
             numaccepts = 0.0
-
             for itrj in 1:parameters.Nsteps
                 println_verbose1(univ.verbose_print, "\n# itrj = $itrj")
 
@@ -220,20 +226,28 @@ module Mainrun
                     "%",
                 )
 
-                #save_gaugefield(savedata, univ.U, itrj)
+                save_gaugefield(save_configs, U, itrj)
 
-                calc_measurements(
+                measurestrings = calc_measurements(
                     measurements,
                     itrj,
                     U,
                 )
 
-                calc_measurements_flowed(
+                measurestrings_flowed = calc_measurements_flowed(
                     measurements_with_flow,
                     gradient_flow,
                     itrj,
                     U,
                 )
+
+                for (i, value) in enumerate(measurestrings)
+                    println(value)
+                end
+
+                for (i, value) in enumerate(measurestrings_flowed)
+                    println(value)
+                end
 
                 Bias !== nothing ? calc_weights(Bias, U.CV, itrj) : nothing
 
@@ -253,31 +267,16 @@ module Mainrun
                 univ.verbose_print,
                 "\t>> Metapotential has been saved in file \"$(Bias.fp)\""
             )
-            #=
-            q_vals = readdlm(
-                parameters.measuredir * "/Meta_charge_$i.txt",
-                Float64,
-                comments = true,
-            )
-
-            weights = calc_weights(q_vals[:,2], univ.Bias[i])
-
-            open(parameters.measuredir * "/Weights_$i.txt", "w") do io
-                writedlm(io, weights)
-            end
-
-            println_verbose1(
-                univ.verbose_print,
-                "Weights $i have been saved"
-            )
-            =#
         end
 
+        println_verbose1(
+            univ.verbose_print,
+            "\n\t>> Total Elapsed time $(runtime_all) [s]\n",
+        )
         flush(stdout)
         flush(univ.verbose_print)
-
-        println_verbose1(univ.verbose_print, "\t>> Total Elapsed time $(runtime_all) [s]\n")
-
+        # close(measurements)
+        # close(measurements_with_flow)
         return nothing
     end
 
@@ -290,15 +289,19 @@ module Mainrun
         measurements_with_flow,
     )
         numinstances = parameters.numinstances
+        save_configs = SaveConfigs(
+            parameters.saveU_format,
+            parameters.saveU_dir,
+            parameters.saveU_every,
+            univ.verbose_print,
+        )
 
         U = univ.U
         Bias = univ.Bias
 
-        calc_measurements(measurements[1], 0, U[1])
-
         value, runtime_therm = @timed begin
             for itrj in 1:parameters.Ntherm
-                println_verbose1(univ.verbose_print, "# therm itrj = $itrj")
+                println_verbose1(univ.verbose_print, "\n# therm itrj = $itrj")
                 updatetime = 0.0
 
                 _, updatetime = @timed begin
@@ -315,14 +318,14 @@ module Mainrun
 
                 println_verbose1(
                     univ.verbose_print,
-                    ">> Thermalization Update: Elapsed time $(updatetime) [s]\n"
+                    ">> Thermalization Update: Elapsed time $(updatetime) [s]"
                 )
             end
         end
 
         println_verbose1(
             univ.verbose_print,
-            "\t>> Thermalization Elapsed time $(runtime_therm) [s]\n"
+            "\t>> Thermalization Elapsed time $(runtime_therm) [s]"
         )
 
         value, runtime_all = @timed begin
@@ -351,11 +354,11 @@ module Mainrun
                     ">> Update: Elapsed time $(sum(updatetime)) [s]"
                 )
 
-                for i in 1:numinstances
+                for (i, value) in enumerate(numaccepts)
                     println_verbose1(
                         univ.verbose_print,
                         ">> Acceptance rank_$i $itrj:\t",
-                        numaccepts[i] * 100 / itrj,
+                        value * 100 / itrj,
                         "%",
                     )
                 end
@@ -381,22 +384,28 @@ module Mainrun
                     end
                 end
 
-                #save_gaugefield(savedata, univ.U, itrj)
+                save_gaugefield(save_configs, U[1], itrj)
 
                 for i in 1:numinstances
-                    calc_measurements(
+                    measurestrings = calc_measurements(
                         measurements[i],
                         itrj,
                         U[i],
                     )
+                    for (i, value) in enumerate(measurestrings)
+                        println(value)
+                    end
 
                     if i == 1
-                        calc_measurements_flowed(
+                        measurestrings_flowed = calc_measurements_flowed(
                             measurements_with_flow,
                             gradient_flow,
                             itrj,
                             U[1],
                         )
+                        for (i, value) in enumerate(measurestrings_flowed)
+                            println(value)
+                        end
                     end
 
                     calc_weights(Bias[i], U[i].CV, itrj)
@@ -419,79 +428,15 @@ module Mainrun
                     univ.verbose_print,
                     "\t>> Metapotential $i has been saved in file \"$(Bias[i].fp)\""
                 )
-                #=
-                q_vals = readdlm(
-                    parameters.measuredir * "/Meta_charge_$i.txt",
-                    Float64,
-                    comments = true,
-                )
-
-                weights = calc_weights(q_vals[:,2], univ.Bias[i])
-
-                open(parameters.measuredir * "/Weights_$i.txt", "w") do io
-                    writedlm(io, weights)
-                end
-
-                println_verbose1(
-                    univ.verbose_print,
-                    "Weights $i have been saved"
-                )
-                =#
             end
         end
 
+        println_verbose1(univ.verbose_print, "\t>> Total Elapsed time $(runtime_all) [s]\n")
         flush(stdout)
         flush(univ.verbose_print)
-
-        println_verbose1(univ.verbose_print, "\t>> Total Elapsed time $(runtime_all) [s]\n")
-
+        # close(measurements)
+        # close(measurements_with_flow)
         return nothing
     end
 
-    mutable struct SaveData
-        issaved::Bool
-        saveU_format::Union{Nothing, String}
-        saveU_dir::String
-        saveU_every::Int64
-        itrjsavecount::Int64
-
-        function SaveData(saveU_format, saveU_dir, saveU_every, update_method, U)
-            itrjsavecount = 0
-
-            if saveU_format !== nothing && update_method != "Fileloading"
-                itrj = 0
-                itrjstring = lpad(itrj, 8, "0")
-                println_verbose1(U, "save gaugefields U every $(saveU_every) trajectory")
-                issaved = true
-            else
-                issaved = false
-            end
-
-            return new(issaved, saveU_format, saveU_dir, saveU_every, itrjsavecount)
-        end
-    end
-    #=
-    function save_gaugefield(savedata::Savedata, U, itrj)
-        if savedata.issaved == false
-            return nothing
-        end
-
-        if itrj % savedata.itrjsavecount == 0
-            savedata.itrjsavecount += 1
-            itrjstring = lpad(itrj, 8, "0")
-            if savedata.saveU_format == "JLD"
-                filename = savedata.saveU_dir * "/conf_$(itrjstring).jld2"
-                saveU(filename, U)
-            elseif savedata.saveU_format == "ILDG"
-                filename = savedata.saveU_dir * "/conf_$(itrjstring).ildg"
-                save_binarydata(U, filename)
-            elseif savedata.saveU_format == "BridgeText"
-                filename = savedata.saveU_dir * "/conf_$(itrjstring).txt"
-                save_textdata(U, filename)
-            else
-                error("$(savedata.saveU_format) is not supported")
-            end
-        end
-    end
-    =#
 end
