@@ -1,34 +1,26 @@
-module JLD2Format
-    using JLD2
-    using Polyester
+function saveU_jld(U, filename)
+    save(filename, "U", U)
+    return nothing
+end
 
-    import ..Gaugefields: Gaugefield
+function loadU_jld!(U, filename)
+    Unew = load(filename, "U")
 
-    function save_U(filename, U::T) where {T <: Gaugefield}
-        save(filename, "U", U)
-        return nothing
-    end
+    @assert Unew.NX == U.NX
+    @assert Unew.NY == U.NY
+    @assert Unew.NZ == U.NZ
+    @assert Unew.NT == U.NT
 
-    function load_U!(filename, U::T) where {T <: Gaugefield}
-        Unew = load(filename, "U")
-
-        @assert Unew.NX == U.NX
-        @assert Unew.NY == U.NY
-        @assert Unew.NZ == U.NZ
-        @assert Unew.NT == U.NT
-
-        @batch for μ in 1:4
-            for ii in eachindex(U)
-                U[μ][ii] = Unew[μ][ii]
-            end
+    for μ in 1:4
+        for ii in eachindex(U)
+            U[μ][ii] = Unew[μ][ii]
         end
-
-        return nothing
     end
 
-    function load_U(filename)
-        Unew = load(filename, "U")
-        return Unew
-    end
+    return nothing
+end
 
+function loadU_jld(filename)
+    Unew = load(filename, "U")
+    return Unew
 end

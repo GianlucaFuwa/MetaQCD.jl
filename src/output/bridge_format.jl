@@ -1,66 +1,60 @@
-module BridgeFormat
-    using LinearAlgebra
-    export load_BridgeText!, save_textdata
+function saveU_bridge(U, filename)
+    NX, NY, NZ, NT = size(U)
+    fp = open(filename, "w")
+    i = 0
 
-    function save_textdata(U, filename)
-        NX, NY, NZ, NT = size(U)
-        fp = open(filename, "w")
-        i = 0
-
-        for it in 1:NT
-            for iz in 1:NZ
-                for iy in 1:NY
-                    for ix in 1:NX
-                        for μ in 1:4
-                            for a in 1:3
-                                for b in 1:3
-                                    i += 1
-                                    rvalue = real(U[μ][ix,iy,iz,it][a,b])
-                                    println(fp, rvalue)
-                                    ivalue = imag(U[μ][ix,iy,iz,it][a,b])
-                                    println(fp, ivalue)
-                                end
+    for it in 1:NT
+        for iz in 1:NZ
+            for iy in 1:NY
+                for ix in 1:NX
+                    for μ in 1:4
+                        for a in 1:3
+                            for b in 1:3
+                                i += 1
+                                rvalue = real(U[μ][ix,iy,iz,it][a,b])
+                                println(fp, rvalue)
+                                ivalue = imag(U[μ][ix,iy,iz,it][a,b])
+                                println(fp, ivalue)
                             end
                         end
                     end
                 end
             end
         end
-
-        close(fp)
-        return nothing
     end
 
-    function load_BridgeText!(initial, U)
-        NX, NY, NZ, NT = size(U)
-        fp = open(initial, "r")
-        numdata = countlines(initial)
-        @assert numdata == 4 * U.NV * 9 * 2 "data shape is wrong"
+    close(fp)
+    return nothing
+end
 
-        for it in 1:NT
-            for iz in 1:NZ
-                for iy in 1:NY
-                    for ix in 1:NX
-                        for μ in 1:4
-                            link = zeros(Complex, 3, 3)
-                            for a in 1:3
-                                for b in 1:3
-                                    u = readline(fp)
-                                    rvalue = parse(Float64, u)
-                                    u = readline(fp)
-                                    ivalue = parse(Float64, u)
-                                    link[a,b] = rvalue + im * ivalue
-                                end
+function loadU_bridge!(U, filename)
+    NX, NY, NZ, NT = size(U)
+    fp = open(filename, "r")
+    numdata = countlines(filename)
+    @assert numdata == 4 * U.NV * 9 * 2 "data shape is wrong"
+
+    for it in 1:NT
+        for iz in 1:NZ
+            for iy in 1:NY
+                for ix in 1:NX
+                    for μ in 1:4
+                        link = zeros(Complex, 3, 3)
+                        for a in 1:3
+                            for b in 1:3
+                                u = readline(fp)
+                                rvalue = parse(Float64, u)
+                                u = readline(fp)
+                                ivalue = parse(Float64, u)
+                                link[a,b] = rvalue + im * ivalue
                             end
-                            U[μ][ix,iy,iz,it] = link
                         end
+                        U[μ][ix,iy,iz,it] = link
                     end
                 end
             end
         end
-
-        close(fp)
-        return nothing
     end
 
+    close(fp)
+    return nothing
 end
