@@ -1,6 +1,6 @@
 import ..Gaugefields: wilsonloop
 
-mutable struct WilsonLoopMeasurement <: AbstractMeasurement
+struct WilsonLoopMeasurement <: AbstractMeasurement
     filename::Union{Nothing, String}
     verbose_print::Union{Nothing, VerboseLevel}
     fp::Union{Nothing, IOStream}
@@ -83,13 +83,13 @@ function measure(m::WilsonLoopMeasurement, U; additional_string = "")
 
             if m.printvalues
                 measurestring = "$additional_string\t$R\t$T\t$WL\t"
-                println_verbose2(m.verbose_print, "$measurestring# wilson_loops")
+                # println_verbose2(m.verbose_print, "$measurestring# wilson_loops")
                 println(m.fp, measurestring)
                 flush(m.fp)
             end
         end
     end
 
-    output = MeasurementOutput(m.outputvalues, measurestring)
+    output = MeasurementOutput(m.outputvalues, measurestring * "# wilson_loops")
     return output
 end

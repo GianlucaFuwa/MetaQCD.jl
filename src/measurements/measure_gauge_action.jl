@@ -1,7 +1,7 @@
 import ..Gaugefields: WilsonGaugeAction, SymanzikTreeGaugeAction, SymanzikTadGaugeAction,
     IwasakiGaugeAction, DBW2GaugeAction
 
-mutable struct GaugeActionMeasurement <: AbstractMeasurement
+struct GaugeActionMeasurement <: AbstractMeasurement
     filename::Union{Nothing, String}
     factor::Float64
     verbose_print::Union{Nothing, VerboseLevel}
@@ -108,11 +108,11 @@ function measure(m::GaugeActionMeasurement, U; additional_string = "")
         end
 
         measurestring = printstring
-        println_verbose2(m.verbose_print, "$measurestring# gaction")
+        # println_verbose2(m.verbose_print, measurestring)
         println(m.fp, measurestring)
         flush(m.fp)
     end
 
-    output = MeasurementOutput(valuedic, measurestring)
+    output = MeasurementOutput(valuedic, measurestring * "# gaction")
     return output
 end

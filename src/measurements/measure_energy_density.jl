@@ -1,4 +1,4 @@
-mutable struct EnergyDensityMeasurement <: AbstractMeasurement
+struct EnergyDensityMeasurement <: AbstractMeasurement
     filename::Union{Nothing, String}
     verbose_print::Union{Nothing, VerboseLevel}
     fp::Union{Nothing, IOStream}
@@ -81,12 +81,12 @@ function measure(m::EnergyDensityMeasurement, U; additional_string = "")
         end
 
         measurestring = printstring
-        println_verbose2(m.verbose_print, "$measurestring# energy_density")
+        # println_verbose2(m.verbose_print, measurestring)
         println(m.fp, measurestring)
         flush(m.fp)
     end
 
-    output = MeasurementOutput(valuedic, measurestring)
+    output = MeasurementOutput(valuedic, measurestring * "# energy_density")
     return output
 end
 
@@ -105,27 +105,16 @@ function energy_density(U::T, methodname::String) where {T <: Gaugefield}
 end
 
 function energy_density_plaq(U::T) where {T <: Gaugefield}
-    NX, NY, NZ, NT = size(U)
     spacing = 8
     Eplaq = zeros(Float64, nthreads() * spacing)
 
-    @batch for it in 1:NT
-        for iz in 1:NZ
-            for iy in 1:NY
-                for ix in 1:NX
-                    site = SiteCoords(ix, iy, iz, it)
+    @batch for site in eachindex(U)
+        for μ in 1:3
+            for ν in μ+1:4
+                Cμν = plaquette(U, μ, ν, site)
+                Fμν = im * traceless_antihermitian(Cμν)
 
-                    for μ in 1:3
-                        for ν in μ+1:4
-                            Cμν = plaquette(U, μ, ν, site)
-                            Fμν = im * traceless_antihermitian(Cμν)
-
-                            Eplaq[threadid() * spacing] +=
-                                real(multr(Fμν, Fμν))
-                        end
-                    end
-
-                end
+                Eplaq[threadid() * spacing] += real(multr(Fμν, Fμν))
             end
         end
     end
@@ -135,27 +124,16 @@ function energy_density_plaq(U::T) where {T <: Gaugefield}
 end
 
 function energy_density_clover(U::T) where {T <: Gaugefield}
-    NX, NY, NZ, NT = size(U)
     spacing = 8
     Eclov = zeros(Float64, nthreads() * spacing)
 
-    @batch for it in 1:NT
-        for iz in 1:NZ
-            for iy in 1:NY
-                for ix in 1:NX
-                    site = SiteCoords(ix, iy, iz, it)
+    @batch for site in eachindex(U)
+        for μ in 1:3
+            for ν in μ+1:4
+                Cμν = clover_square(U, μ, ν, site, 1)
+                Fμν = im/4 * traceless_antihermitian(Cμν)
 
-                    for μ in 1:3
-                        for ν in μ+1:4
-                            Cμν = clover_square(U, μ, ν, site, 1)
-                            Fμν = im/4 * traceless_antihermitian(Cμν)
-
-                            Eclov[threadid() * spacing] +=
-                                real(multr(Fμν, Fμν))
-                        end
-                    end
-
-                end
+                Eclov[threadid() * spacing] += real(multr(Fμν, Fμν))
             end
         end
     end
@@ -165,27 +143,16 @@ function energy_density_clover(U::T) where {T <: Gaugefield}
 end
 
 function energy_density_rect(U::T) where {T <: Gaugefield}
-    NX, NY, NZ, NT = size(U)
     spacing = 8
     Erect = zeros(Float64, nthreads() * spacing)
 
-    @batch for it in 1:NT
-        for iz in 1:NZ
-            for iy in 1:NY
-                for ix in 1:NX
-                    site = SiteCoords(ix, iy, iz, it)
+    @batch for site in eachindex(U)
+        for μ in 1:3
+            for ν in μ+1:4
+                Cμν = clover_rect(U, μ, ν, site, 1, 2)
+                Fμν = im/8 * traceless_antihermitian(Cμν)
 
-                    for μ in 1:3
-                        for ν in μ+1:4
-                            Cμν = clover_rect(U, μ, ν, site, 1, 2)
-                            Fμν = im/8 * traceless_antihermitian(Cμν)
-
-                            Erect[threadid() * spacing] +=
-                                real(multr(Fμν, Fμν))
-                        end
-                    end
-
-                end
+                Erect[threadid() * spacing] += real(multr(Fμν, Fμν))
             end
         end
     end

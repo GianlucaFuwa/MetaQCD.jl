@@ -1,4 +1,4 @@
-mutable struct MetaChargeMeasurement <: AbstractMeasurement
+struct MetaChargeMeasurement <: AbstractMeasurement
     filename::Union{Nothing, String}
     verbose_print::Union{Nothing, VerboseLevel}
     fp::Union{Nothing, IOStream}
@@ -58,11 +58,11 @@ function measure(m::MetaChargeMeasurement, U; additional_string = "")
     if m.printvalues
         cv_str = @sprintf("%.15E", cv)
         measurestring = "$additional_string\t$cv_str\t"
-        println_verbose2(m.verbose_print, "$measurestring# meta_charge")
+        # println_verbose2(m.verbose_print, "$measurestring# meta_charge")
         println(m.fp, measurestring)
         flush(m.fp)
     end
 
-    output = MeasurementOutput(cv, measurestring)
+    output = MeasurementOutput(cv, measurestring * "# meta_charge")
     return output
 end

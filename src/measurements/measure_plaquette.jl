@@ -1,6 +1,6 @@
 import ..Gaugefields: plaquette_trace_sum
 
-mutable struct PlaquetteMeasurement <: AbstractMeasurement
+struct PlaquetteMeasurement <: AbstractMeasurement
     filename::Union{Nothing, String}
     factor::Float64
     verbose_print::Union{Nothing, VerboseLevel}
@@ -67,11 +67,11 @@ function measure(m::PlaquetteMeasurement, U; additional_string = "")
     if m.printvalues
         plaq_str = @sprintf("%.15E", plaq)
         measurestring = "$additional_string\t$plaq_str\t"
-        println_verbose2(m.verbose_print, "$measurestring# plaq")
+        # println_verbose2(m.verbose_print, "$measurestring# plaq")
         println(m.fp, measurestring)
         flush(m.fp)
     end
 
-    output = MeasurementOutput(plaq, measurestring)
+    output = MeasurementOutput(plaq, measurestring * "# plaq")
     return output
 end

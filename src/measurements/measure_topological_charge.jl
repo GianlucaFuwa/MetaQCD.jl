@@ -1,4 +1,4 @@
-mutable struct TopologicalChargeMeasurement <: AbstractMeasurement
+struct TopologicalChargeMeasurement <: AbstractMeasurement
     filename::Union{Nothing, String}
     verbose_print::Union{Nothing, VerboseLevel}
     fp::Union{Nothing, IOStream}
@@ -81,12 +81,12 @@ function measure(m::TopologicalChargeMeasurement, U; additional_string = "")
         end
 
         measurestring = printstring
-        println_verbose2(m.verbose_print, "$measurestring# top_charge")
+        # println_verbose2(m.verbose_print, "$measurestring# top_charge")
         println(m.fp, measurestring)
         flush(m.fp)
     end
 
-    output = MeasurementOutput(valuedic, measurestring)
+    output = MeasurementOutput(valuedic, measurestring * "# top_charge")
     return output
 end
 
@@ -106,41 +106,32 @@ function top_charge(U::T, methodname::String) where {T <: Gaugefield}
 end
 
 function top_charge_plaq(U::T) where {T <: Gaugefield}
-    NX, NY, NZ, NT = size(U)
     spacing = 8
     Qplaq = zeros(Float64, nthreads() * spacing)
 
-    @batch for it in 1:NT
-        for iz in 1:NZ
-            for iy in 1:NY
-                for ix in 1:NX
-                    site = SiteCoords(ix, iy, iz, it)
+    @batch for site in eachindex(U)
+        C12 = plaquette(U, 1, 2, site)
+        F12 = im * traceless_antihermitian(C12)
 
-                    C12 = plaquette(U, 1, 2, site)
-                    F12 = im * traceless_antihermitian(C12)
+        C13 = plaquette(U, 1, 3, site)
+        F13 = im * traceless_antihermitian(C13)
 
-                    C13 = plaquette(U, 1, 3, site)
-                    F13 = im * traceless_antihermitian(C13)
+        C23 = plaquette(U, 2, 3, site)
+        F23 = im * traceless_antihermitian(C23)
 
-                    C23 = plaquette(U, 2, 3, site)
-                    F23 = im * traceless_antihermitian(C23)
+        C14 = plaquette(U, 1, 4, site)
+        F14 = im * traceless_antihermitian(C14)
 
-                    C14 = plaquette(U, 1, 4, site)
-                    F14 = im * traceless_antihermitian(C14)
+        C24 = plaquette(U, 2, 4, site)
+        F24 = im * traceless_antihermitian(C24)
 
-                    C24 = plaquette(U, 2, 4, site)
-                    F24 = im * traceless_antihermitian(C24)
+        C34 = plaquette(U, 3, 4, site)
+        F34 = im * traceless_antihermitian(C34)
 
-                    C34 = plaquette(U, 3, 4, site)
-                    F34 = im * traceless_antihermitian(C34)
-
-                    Qplaq[threadid() * spacing] +=
-                        real(multr(F12, F34)) - # minus sign from ε-tensor
-                        real(multr(F13, F24)) +
-                        real(multr(F14, F23))
-                end
-            end
-        end
+        Qplaq[threadid() * spacing] +=
+            real(multr(F12, F34)) - # minus sign from ε-tensor
+            real(multr(F13, F24)) +
+            real(multr(F14, F23))
     end
     # 1/32 -> 1/4 because of trace symmetry absorbing 8 terms of ε-tensor
     Qplaq = 1/4π^2 * sum(Qplaq)
@@ -148,41 +139,32 @@ function top_charge_plaq(U::T) where {T <: Gaugefield}
 end
 
 function top_charge_clover(U::T) where {T <: Gaugefield}
-    NX, NY, NZ, NT = size(U)
     spacing = 8
     Qclover = zeros(Float64, nthreads() * spacing)
 
-    @batch for it in 1:NT
-        for iz in 1:NZ
-            for iy in 1:NY
-                for ix in 1:NX
-                    site = SiteCoords(ix, iy, iz, it)
+    @batch for site in eachindex(U)
+        C12 = clover_square(U, 1, 2, site, 1)
+        F12 = im/4 * traceless_antihermitian(C12)
 
-                    C12 = clover_square(U, 1, 2, site, 1)
-                    F12 = im/4 * traceless_antihermitian(C12)
+        C13 = clover_square(U, 1, 3, site, 1)
+        F13 = im/4 * traceless_antihermitian(C13)
 
-                    C13 = clover_square(U, 1, 3, site, 1)
-                    F13 = im/4 * traceless_antihermitian(C13)
+        C23 = clover_square(U, 2, 3, site, 1)
+        F23 = im/4 * traceless_antihermitian(C23)
 
-                    C23 = clover_square(U, 2, 3, site, 1)
-                    F23 = im/4 * traceless_antihermitian(C23)
+        C14 = clover_square(U, 1, 4, site, 1)
+        F14 = im/4 * traceless_antihermitian(C14)
 
-                    C14 = clover_square(U, 1, 4, site, 1)
-                    F14 = im/4 * traceless_antihermitian(C14)
+        C24 = clover_square(U, 2, 4, site, 1)
+        F24 = im/4 * traceless_antihermitian(C24)
 
-                    C24 = clover_square(U, 2, 4, site, 1)
-                    F24 = im/4 * traceless_antihermitian(C24)
+        C34 = clover_square(U, 3, 4, site, 1)
+        F34 = im/4 * traceless_antihermitian(C34)
 
-                    C34 = clover_square(U, 3, 4, site, 1)
-                    F34 = im/4 * traceless_antihermitian(C34)
-
-                    Qclover[threadid() * spacing] +=
-                        real(multr(F12, F34)) -
-                        real(multr(F13, F24)) +
-                        real(multr(F14, F23))
-                end
-            end
-        end
+        Qclover[threadid() * spacing] +=
+            real(multr(F12, F34)) -
+            real(multr(F13, F24)) +
+            real(multr(F14, F23))
     end
     # 1/32 -> 1/4 because of trace symmetry absorbing 8 terms of ε-tensor
     Qclover = 1/4π^2 * sum(Qclover)
@@ -190,41 +172,32 @@ function top_charge_clover(U::T) where {T <: Gaugefield}
 end
 
 function top_charge_rect(U::T) where {T <: Gaugefield}
-    NX, NY, NZ, NT = size(U)
     spacing = 8
     Qrect = zeros(Float64, nthreads() * spacing)
 
-    @batch for it in 1:NT
-        for iz in 1:NZ
-            for iy in 1:NY
-                for ix in 1:NX
-                    site = SiteCoords(ix, iy, iz, it)
+    @batch for site in eachindex(U)
+        C12 = clover_rect(U, 1, 2, site, 1, 2)
+        F12 = im/8 * traceless_antihermitian(C12)
 
-                    C12 = clover_rect(U, 1, 2, site, 1, 2)
-                    F12 = im/8 * traceless_antihermitian(C12)
+        C13 = clover_rect(U, 1, 3, site, 1, 2)
+        F13 = im/8 * traceless_antihermitian(C13)
 
-                    C13 = clover_rect(U, 1, 3, site, 1, 2)
-                    F13 = im/8 * traceless_antihermitian(C13)
+        C23 = clover_rect(U, 2, 3, site, 1, 2)
+        F23 = im/8 * traceless_antihermitian(C23)
 
-                    C23 = clover_rect(U, 2, 3, site, 1, 2)
-                    F23 = im/8 * traceless_antihermitian(C23)
+        C14 = clover_rect(U, 1, 4, site, 1, 2)
+        F14 = im/8 * traceless_antihermitian(C14)
 
-                    C14 = clover_rect(U, 1, 4, site, 1, 2)
-                    F14 = im/8 * traceless_antihermitian(C14)
+        C24 = clover_rect(U, 2, 4, site, 1, 2)
+        F24 = im/8 * traceless_antihermitian(C24)
 
-                    C24 = clover_rect(U, 2, 4, site, 1, 2)
-                    F24 = im/8 * traceless_antihermitian(C24)
+        C34 = clover_rect(U, 3, 4, site, 1, 2)
+        F34 = im/8 * traceless_antihermitian(C34)
 
-                    C34 = clover_rect(U, 3, 4, site, 1, 2)
-                    F34 = im/8 * traceless_antihermitian(C34)
-
-                    Qrect[threadid() * spacing] +=
-                        real(multr(F12, F34)) -
-                        real(multr(F13, F24)) +
-                        real(multr(F14, F23))
-                end
-            end
-        end
+        Qrect[threadid() * spacing] +=
+            real(multr(F12, F34)) -
+            real(multr(F13, F24)) +
+            real(multr(F14, F23))
     end
     # 2/32 -> 2/4 because of trace symmetry absorbing 8 terms of ε-tensor
     Qrect = 2/4π^2 * sum(Qrect)
