@@ -2,6 +2,7 @@ alloc-profile.pb.gz
 /logs/
 /measurements/
 /metapotentials/
+/configs/
 /test/test.jl
 /test/testsmearing.jl
 .vscode/settings.json
