@@ -52,24 +52,13 @@ function (::DBW2GaugeAction)(U::T) where {T <: Gaugefield}
 end
 
 function plaquette_trace_sum(U::T) where {T <: Gaugefield}
-    NX, NY, NZ, NT = size(U)
     spacing = 8
     plaq = zeros(Float64, nthreads() * spacing)
 
-    @batch for it in 1:NT
-        for iz in 1:NZ
-            for iy in 1:NY
-                for ix in 1:NX
-                    site = SiteCoords(ix, iy, iz, it)
-
-                    @inbounds for μ in 1:3
-                        for ν in μ+1:4
-                            plaq[threadid() * spacing] +=
-                                real(tr(plaquette(U, μ, ν, site)))
-                        end
-                    end
-
-                end
+    @batch for site in eachindex(U)
+        @inbounds for μ in 1:3
+            for ν in μ+1:4
+                plaq[threadid() * spacing] += real(tr(plaquette(U, μ, ν, site)))
             end
         end
     end
@@ -78,25 +67,15 @@ function plaquette_trace_sum(U::T) where {T <: Gaugefield}
 end
 
 function rect_trace_sum(U::T) where {T <: Gaugefield}
-    NX, NY, NZ, NT = size(U)
     spacing = 8
     rect = zeros(Float64, nthreads() * spacing)
 
-    @batch for it in 1:NT
-        for iz in 1:NZ
-            for iy in 1:NY
-                for ix in 1:NX
-                    site = SiteCoords(ix, iy, iz, it)
-
-                    @inbounds for μ in 1:3
-                        for ν in μ+1:4
-                            rect[threadid() * spacing] +=
-                                real(tr(rect_1x2(U, μ, ν, site))) +
-                                real(tr(rect_2x1(U, μ, ν, site)))
-                        end
-                    end
-
-                end
+    @batch for site in eachindex(U)
+        @inbounds for μ in 1:3
+            for ν in μ+1:4
+                rect[threadid() * spacing] +=
+                    real(tr(rect_1x2(U, μ, ν, site))) +
+                    real(tr(rect_2x1(U, μ, ν, site)))
             end
         end
     end

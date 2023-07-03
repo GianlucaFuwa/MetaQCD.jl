@@ -1,19 +1,9 @@
 function staple_eachsite!(staples, U::Gaugefield{GA}) where {GA}
-    NX, NY, NZ, NT = size(U)
     staple = GA()
 
-    for it in 1:NT
-        for iz in 1:NZ
-            for iy in 1:NY
-                for ix in 1:NX
-                    site = SiteCoords(ix, iy, iz, it)
-
-                    for μ in 1:4
-                        @inbounds staples[μ][ix,iy,iz,it] = staple(U, μ, site)
-                    end
-
-                end
-            end
+    for site in eachindex(U)
+        for μ in 1:4
+            @inbounds staples[μ][site] = staple(U, μ, site)
         end
     end
 

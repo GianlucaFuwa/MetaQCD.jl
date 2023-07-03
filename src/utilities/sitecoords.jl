@@ -1,11 +1,6 @@
-struct SiteCoords <: FieldVector{4, Int64}
-    ix::Int64
-    iy::Int64
-    iz::Int64
-    it::Int64
-end
+const SiteCoords = CartesianIndex{4}
 
-@inline function FlatCoords(i, NX, NY, NZ)
+@inline function linear_coords(i, NX, NY, NZ)
     ix = (i - 1) % NX + 1
     ii = div(i - ix, NX)
 
@@ -18,7 +13,7 @@ end
 end
 
 @inline function move(s::SiteCoords, μ, steps, lim)
-    ix, iy, iz, it = s
+    ix, iy, iz, it = Tuple(s)
 
     if μ == 1
         ix = mod1(ix + steps, lim)
@@ -31,19 +26,4 @@ end
     end
 
     return SiteCoords(ix, iy, iz, it)
-end
-
-function Base.setindex!(
-    U::Array{SMatrix{3, 3, ComplexF64, 9}, 4},
-    v::SMatrix{3, 3, ComplexF64, 9},
-    s::SiteCoords,
-)
-    ix, iy, iz, it = s
-    @inbounds U[ix,iy,iz,it] = v
-    return nothing
-end
-
-@inline function Base.getindex(U::AbstractArray, s::SiteCoords)
-    ix, iy, iz, it = s
-    @inbounds return U[ix,iy,iz,it]
 end

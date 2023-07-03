@@ -36,8 +36,6 @@ module TemperingModule
     end
 
     function swap_U!(a::T, b::T) where {T <: Gaugefield}
-		@assert size(a) == size(b) "swapped fields need to be of same size"
-		NX, NY, NZ, NT = size(a)
         a_Sg_tmp = a.Sg
         a_CV_tmp = a.Sg
 
@@ -46,18 +44,12 @@ module TemperingModule
         b.Sg = a_Sg_tmp
         b.CV = a_CV_tmp
 
-		@batch for it in 1:NT
-			for iz in 1:NZ
-				for iy in 1:NY
-					for ix in 1:NX
-						@inbounds for μ in 1:4
-                            a_tmp = a[μ][ix,iy,iz,it]
-							a[μ][ix,iy,iz,it] = b[μ][ix,iy,iz,it]
-                            b[μ][ix,iy,iz,it] = a_tmp
-						end
-					end
-				end
-			end
+		@batch for site in eachindex(U)
+            @inbounds for μ in 1:4
+                a_tmp = a[μ][site]
+                a[μ][site] = b[μ][site]
+                b[μ][site] = a_tmp
+            end
 		end
 
 		return nothing

@@ -114,10 +114,6 @@ module Gaugefields
         @inbounds return u.U[μ]
     end
 
-    function Base.eachindex(u::T) where {T <: Abstractfield}
-        return Base.OneTo(u.NV)
-    end
-
 	function Base.getproperty(u::T, p::Symbol) where {T <: Gaugefield}
 		if p == :Sg
 			return getfield(u, :Sg)[]
@@ -144,6 +140,14 @@ module Gaugefields
         return (u.NX, u.NY, u.NZ, u.NT)
     end
 
+    function Base.eachindex(u::Abstractfield)
+        return CartesianIndices(size(u))
+    end
+
+    function Base.eachindex(::IndexLinear, u::Abstractfield)
+        return Base.OneTo(u.NV)
+    end
+
 	function Base.similar(u::T) where {T <: Abstractfield}
 		if T <: Gaugefield
 			uout = Gaugefield(u)
@@ -159,20 +163,11 @@ module Gaugefields
 	end
 
 	function substitute_U!(a::T, b::T) where {T <: Abstractfield}
-		@assert size(a) == size(b) "swapped fields need to be of same size"
-		NX, NY, NZ, NT = size(a)
-
-		@batch for it in 1:NT
-			for iz in 1:NZ
-				for iy in 1:NY
-					for ix in 1:NX
-						@inbounds for μ in 1:4
-							a[μ][ix,iy,iz,it] = b[μ][ix,iy,iz,it]
-						end
-					end
-				end
-			end
-		end
+		@batch for site in eachindex(a)
+            @inbounds for μ in 1:4
+                a[μ][site] = b[μ][site]
+            end
+        end
 
 		return nothing
 	end
@@ -180,38 +175,24 @@ module Gaugefields
 	function identity_gauges(NX, NY, NZ, NT, β; type_of_gaction = WilsonGaugeAction)
 		u = Gaugefield(NX, NY, NZ, NT, β, GA = type_of_gaction)
 
-		@batch for it in 1:NT
-			for iz in 1:NZ
-				for iy in 1:NY
-					for ix in 1:NX
-						@inbounds for μ in 1:4
-							u[μ][ix,iy,iz,it] = eye3
-						end
-					end
-				end
-			end
-		end
+		@batch for site in eachindex(u)
+            @inbounds for μ in 1:4
+                u[μ][site] = eye3
+            end
+        end
 
         return u
     end
 
     function random_gauges(NX, NY, NZ, NT, β; type_of_gaction = WilsonGaugeAction)
 		u = Gaugefield(NX, NY, NZ, NT, β, GA = type_of_gaction)
-		# No multithreading to make random elements reproducible
-		# (could also use static scheduler but then we'd have to use @threads,
-		# which doesn't default to non-multithreaded for 1 thread)
-		for it in 1:NT
-			for iz in 1:NZ
-				for iy in 1:NY
-					for ix in 1:NX
-						@inbounds for μ in 1:4
-							link = @SMatrix rand(ComplexF64, 3, 3)
-							link = proj_onto_SU3(link)
-							u[μ][ix,iy,iz,it] = link
-						end
-					end
-				end
-			end
+
+		for site = eachindex(u)
+            @inbounds for μ in 1:4
+                link = @SMatrix rand(ComplexF64, 3, 3)
+                link = proj_onto_SU3(link)
+                u[μ][site] = link
+            end
 		end
 
 		Sg = calc_gauge_action(u)
@@ -220,130 +201,70 @@ module Gaugefields
     end
 
 	function clear_U!(u::T) where {T <: Abstractfield}
-		NX, NY, NZ, NT = size(u)
-
-		@batch for it in 1:NT
-			for iz in 1:NZ
-				for iy in 1:NY
-					for ix in 1:NX
-						@inbounds for μ in 1:4
-							u[μ][ix,iy,iz,it] = zero3
-						end
-					end
-				end
-			end
+		@batch for site in eachindex(u)
+            @inbounds for μ in 1:4
+                u[μ][site] = zero3
+            end
 		end
 
 		return nothing
 	end
 
 	function normalize!(u::T) where {T <: Gaugefield}
-		NX, NY, NZ, NT = size(u)
-
- 		@batch for it in 1:NT
-			for iz in 1:NZ
-				for iy in 1:NY
-					for ix in 1:NX
-						@inbounds for μ in 1:4
-							u[μ][ix,iy,iz,it] = proj_onto_SU3(u[μ][ix,iy,iz,it])
-						end
-					end
-				end
-			end
+ 		@batch for site in eachindex(u)
+            @inbounds for μ in 1:4
+                u[μ][site] = proj_onto_SU3(u[μ][site])
+            end
         end
 
         return nothing
     end
 
-	function add!(a::T1, b::T2, fac) where {T1, T2 <: Abstractfield}
-		NX, NY, NZ, NT = size(a)
-
-		@batch for it in 1:NT
-			for iz in 1:NZ
-				for iy in 1:NY
-					for ix in 1:NX
-						@inbounds for μ in 1:4
-							a[μ][ix,iy,iz,it] += fac * b[μ][ix,iy,iz,it]
-						end
-					end
-				end
-			end
+	function add!(a::Abstractfield, b::Abstractfield, fac)
+		@batch for site in eachindex(a)
+            @inbounds for μ in 1:4
+                a[μ][site] += fac * b[μ][site]
+            end
 		end
 
 		return nothing
 	end
 
-	function leftmul!(a::T1, b::T2) where {T1 <: Abstractfield, T2 <: Abstractfield}
-		NX, NY, NZ, NT = size(a)
-
-		@batch for it in 1:NT
-			for iz in 1:NZ
-				for iy in 1:NY
-					for ix in 1:NX
-						@inbounds for μ in 1:4
-							a[μ][ix,iy,iz,it] =
-                                cmatmul_oo(b[μ][ix,iy,iz,it], a[μ][ix,iy,iz,it])
-						end
-					end
-				end
-			end
+	function leftmul!(a::Abstractfield, b::Abstractfield)
+		@batch for site in eachindex(a)
+            @inbounds for μ in 1:4
+                a[μ][site] = cmatmul_oo(b[μ][site], a[μ][site])
+            end
 		end
 
 		return nothing
 	end
 
-    function leftmul_dagg!(a::T1, b::T2) where {T1 <: Abstractfield, T2 <: Abstractfield}
-		NX, NY, NZ, NT = size(a)
-
-		@batch for it in 1:NT
-			for iz in 1:NZ
-				for iy in 1:NY
-					for ix in 1:NX
-						@inbounds for μ in 1:4
-							a[μ][ix,iy,iz,it] =
-                                cmatmul_do(b[μ][ix,iy,iz,it], a[μ][ix,iy,iz,it])
-						end
-					end
-				end
-			end
+    function leftmul_dagg!(a::Abstractfield, b::Abstractfield)
+		@batch for site in eachindex(a)
+            @inbounds for μ in 1:4
+                a[μ][site] = cmatmul_do(b[μ][site], a[μ][site])
+            end
 		end
 
 		return nothing
 	end
 
-	function rightmul!(a::T1, b::T2) where {T1 <: Abstractfield, T2 <: Abstractfield}
-		NX, NY, NZ, NT = size(a)
-
-		@batch for it in 1:NT
-			for iz in 1:NZ
-				for iy in 1:NY
-					for ix in 1:NX
-						@inbounds for μ in 1:4
-							a[μ][ix,iy,iz,it] =
-                                cmatmul_oo(a[μ][ix,iy,iz,it], b[μ][ix,iy,iz,it])
-						end
-					end
-				end
-			end
+	function rightmul!(a::Abstractfield, b::Abstractfield)
+		@batch for site in eachindex(a)
+            @inbounds for μ in 1:4
+                a[μ][site] = cmatmul_oo(a[μ][site], b[μ][site])
+            end
 		end
 
 		return nothing
 	end
 
-    function rightmul_dagg!(a::T1, b::T2) where {T1 <: Abstractfield, T2 <: Abstractfield}
-		NX, NY, NZ, NT = size(a)
-
-		@batch for it in 1:NT
-			for iz in 1:NZ
-				for iy in 1:NY
-					for ix in 1:NX
-						@inbounds for μ in 1:4
-							a[μ][ix,iy,iz,it] =
-                                cmatmul_od(a[μ][ix,iy,iz,it], b[μ][ix,iy,iz,it])
-						end
-					end
-				end
-			end
+    function rightmul_dagg!(a::Abstractfield, b::Abstractfield)
+		@batch for site in eachindex(a)
+            @inbounds for μ in 1:4
+                a[μ][site] = cmatmul_od(a[μ][site], b[μ][site])
+            end
 		end
 
 		return nothing

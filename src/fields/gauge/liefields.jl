@@ -26,17 +26,9 @@ struct Liefield <: Abstractfield
 end
 
 function gaussian_momenta!(p::Liefield)
-    NX, NY, NZ, NT = size(p)
-    # static scheduler to be reproducible
-    @batch for it in 1:NT
-        for iz in 1:NZ
-            for iy in 1:NY
-                for ix in 1:NX
-                    for μ in 1:4
-                        p[μ][ix,iy,iz,it] = gaussian_su3_matrix()
-                    end
-                end
-            end
+    @batch for site in eachindex(p)
+        for μ in 1:4
+            p[μ][site] = gaussian_su3_matrix()
         end
     end
 
@@ -44,20 +36,12 @@ function gaussian_momenta!(p::Liefield)
 end
 
 function calc_kinetic_energy(p::Liefield)
-    NX, NY, NZ, NT = size(p)
     spacing = 8
     ekin = zeros(Float64, nthreads() * spacing)
 
-    @batch for it = 1:NT
-        for iz = 1:NZ
-            for iy = 1:NY
-                for ix = 1:NX
-                    for μ = 1:4
-                        ekin[threadid() * spacing] +=
-                            real(multr(p[μ][ix,iy,iz,it], p[μ][ix,iy,iz,it]))
-                    end
-                end
-            end
+    @batch for site in eachindex(p)
+        for μ = 1:4
+            ekin[threadid() * spacing] += real(multr(p[μ][site], p[μ][site]))
         end
     end
 

@@ -66,22 +66,12 @@ function apply_smearing!(smearing, Uin)
 end
 
 function apply_stout_smearing!(Uout, C, Q, U, ρ)
-	NX, NY, NZ, NT = size(Uout)
 	calc_stout_Q!(Q, C, U, ρ)
 
-	@batch for it in 1:NT
-		for iz in 1:NZ
-			for iy in 1:NY
-				for ix in 1:NX
-					@inbounds for μ in 1:4
-						Uout[μ][ix,iy,iz,it] = cmatmul_oo(
-							exp_iQ(Q[μ][ix,iy,iz,it]),
-                            U[μ][ix,iy,iz,it],
-                        )
-					end
-				end
-			end
-		end
+	@batch for site in eachindex(U)
+        @inbounds for μ in 1:4
+            Uout[μ][site] = cmatmul_oo(exp_iQ(Q[μ][site]), U[μ][site])
+        end
 	end
 
 	return nothing
@@ -120,65 +110,55 @@ See: hep-lat/0311018 by Morningstar & Peardon \\
 Σμ = Σμ'⋅exp(iQμ) + iCμ†⋅Λμ - i∑{...}
 """
 function stout_recursion!(Σ, Σ_prime, U_prime, U, C, Q, Λ, ρ)
-	NX, NY, NZ, NT = size(Σ_prime)
-
 	leftmul_dagg!(Σ_prime, U_prime)
 
 	calc_stout_Λ!(Λ, Σ_prime, Q, U)
 
-	@batch for it in 1:NT
-		for iz in 1:NZ
-			for iy in 1:NY
-				for ix in 1:NX
-					site = SiteCoords(ix, iy, iz, it)
+	@batch for site in eachindex(Σ)
+        @inbounds for μ in 1:4
+            Nμ = size(Σ_prime)[μ]
+            siteμp = move(site, μ, 1, Nμ)
+            force_sum = @SMatrix zeros(ComplexF64, 3, 3)
 
-					@inbounds for μ in 1:4
-						Nμ = size(Σ_prime)[μ]
-						siteμp = move(site, μ, 1, Nμ)
-						force_sum = @SMatrix zeros(ComplexF64, 3, 3)
+            for ν in 1:4
+                if ν == μ
+                    continue
+                end
 
-						for ν in 1:4
-							if ν == μ
-								continue
-							end
+                Nν = size(Σ_prime)[ν]
+                siteνp = move(site, ν, 1, Nν)
+                siteνn = move(site, ν, -1 ,Nν)
+                siteμpνn = move(siteμp, ν, -1, Nν)
 
-							Nν = size(Σ_prime)[ν]
-							siteνp = move(site, ν, 1, Nν)
-							siteνn = move(site, ν, -1 ,Nν)
-							siteμpνn = move(siteμp, ν, -1, Nν)
+                force_sum +=
+                    cmatmul_oddo(
+                        U[ν][siteμp], U[μ][siteνp], U[ν][site], Λ[ν][site]
+                    ) +
+                    cmatmul_ddoo(
+                        U[ν][siteμpνn], U[μ][siteνn], Λ[μ][siteνn], U[ν][siteνn]
+                    ) +
+                    cmatmul_dodo(
+                        U[ν][siteμpνn], Λ[ν][siteμpνn], U[μ][siteνn], U[ν][siteνn]
+                    ) -
+                    cmatmul_ddoo(
+                        U[ν][siteμpνn], U[μ][siteνn], Λ[ν][siteνn], U[ν][siteνn]
+                    ) -
+                    cmatmul_oodd(
+                        Λ[ν][siteμp], U[ν][siteμp], U[μ][siteνp], U[ν][site]
+                    ) +
+                    cmatmul_odod(
+                        U[ν][siteμp], U[μ][siteνp], Λ[μ][siteνp], U[ν][site]
+                    )
+            end
 
-                            force_sum +=
-                                cmatmul_oddo(
-                                    U[ν][siteμp], U[μ][siteνp], U[ν][site], Λ[ν][site]
-                                ) +
-                                cmatmul_ddoo(
-                                    U[ν][siteμpνn], U[μ][siteνn], Λ[μ][siteνn], U[ν][siteνn]
-                                ) +
-                                cmatmul_dodo(
-                                    U[ν][siteμpνn], Λ[ν][siteμpνn], U[μ][siteνn], U[ν][siteνn]
-                                ) -
-                                cmatmul_ddoo(
-                                    U[ν][siteμpνn], U[μ][siteνn], Λ[ν][siteνn], U[ν][siteνn]
-                                ) -
-                                cmatmul_oodd(
-                                    Λ[ν][siteμp], U[ν][siteμp], U[μ][siteνp], U[ν][site]
-                                ) +
-                                cmatmul_odod(
-                                    U[ν][siteμp], U[μ][siteνp], Λ[μ][siteνp], U[ν][site]
-                                )
-						end
-
-						link = U[μ][site]
-						expiQ_mat = exp_iQ(Q[μ][ix,iy,iz,it])
-						Σ[μ][site] = traceless_antihermitian(
-							cmatmul_ooo(link, Σ_prime[μ][site], expiQ_mat) +
-							im * cmatmul_odo(link, C[μ][site], Λ[μ][site]) -
-							im * ρ * cmatmul_oo(link, force_sum)
-						)
-					end
-				end
-			end
-		end
+            link = U[μ][site]
+            expiQ_mat = exp_iQ(Q[μ][site])
+            Σ[μ][site] = traceless_antihermitian(
+                cmatmul_ooo(link, Σ_prime[μ][site], expiQ_mat) +
+                im * cmatmul_odo(link, C[μ][site], Λ[μ][site]) -
+                im * ρ * cmatmul_oo(link, force_sum)
+            )
+        end
 	end
 
 	return nothing
@@ -190,58 +170,40 @@ end
 Λ = 1/2⋅(Γ + Γ†) - 1/(2N)⋅Tr(Γ + Γ†)
 """
 function calc_stout_Λ!(Λ, Σprime, Q, U)
-	NX, NY, NZ, NT = size(U)
+	@batch for site in eachindex(Λ)
+        @inbounds for μ in 1:4
+            q = Q[μ][site]
+            Q_mat = q.Q
+            Q2_mat = q.Q2
+            UΣ = cmatmul_oo(U[μ][site], Σprime[μ][site])
 
-	@batch for it in 1:NT
-		for iz in 1:NZ
-			for iy in 1:NY
-				for ix in 1:NX
-					@inbounds for μ in 1:4
-						q = Q[μ][ix,iy,iz,it]
-						Q_mat = q.Q
-                        Q2_mat = q.Q2
-						UΣ = cmatmul_oo(U[μ][ix,iy,iz,it], Σprime[μ][ix,iy,iz,it])
+            B1_mat = B1(q)
+            B2_mat = B2(q)
 
-						B1_mat = B1(q)
-						B2_mat = B2(q)
+            Γ = multr(B1_mat, UΣ) * Q_mat +
+                multr(B2_mat, UΣ) * Q2_mat +
+                q.f1 * UΣ +
+                q.f2 * cmatmul_oo(Q_mat, UΣ) +
+                q.f2 * cmatmul_oo(UΣ, Q_mat)
 
-						Γ = multr(B1_mat, UΣ) * Q_mat +
-							multr(B2_mat, UΣ) * Q2_mat +
-							q.f1 * UΣ +
-							q.f2 * cmatmul_oo(Q_mat, UΣ) +
-							q.f2 * cmatmul_oo(UΣ, Q_mat)
-
-						Λ[μ][ix,iy,iz,it] = traceless_hermitian(Γ)
-					end
-				end
-			end
-		end
+            Λ[μ][site] = traceless_hermitian(Γ)
+        end
 	end
 
 	return nothing
 end
 
 function calc_stout_Q!(Q, C, U, ρ)
-	NX, NY, NZ, NT = size(U)
 	staple = WilsonGaugeAction()
 
-	@batch for it in 1:NT
-		for iz in 1:NZ
-			for iy in 1:NY
-				for ix in 1:NX
-					site = SiteCoords(ix, iy, iz, it)
+	@batch for site in eachindex(Q)
+        @inbounds for μ in 1:4
+            Cμ = ρ * staple(U, μ, site)
+            C[μ][site] = Cμ
 
-					@inbounds for μ in 1:4
-						Cμ = ρ * staple(U, μ, site)
-						C[μ][site] = Cμ
-
-						Ω = cmatmul_od(Cμ, U[μ][site])
-						Q[μ][ix,iy,iz,it] = exp_iQ_coeffs(-im * traceless_antihermitian(Ω))
-					end
-
-				end
-			end
-		end
+            Ω = cmatmul_od(Cμ, U[μ][site])
+            Q[μ][site] = exp_iQ_coeffs(-im * traceless_antihermitian(Ω))
+        end
 	end
 
 	return nothing

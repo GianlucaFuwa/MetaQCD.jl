@@ -30,43 +30,33 @@ function update!(updatemethod, U, verbose::VerboseLevel; Bias = nothing, metro_t
 end
 
 function metro_sweep!(U::Gaugefield{GA}, metro; metro_test = true) where {GA}
-	NX, NY, NZ, NT = size(U)
 	β = U.β
 	ϵ = metro.ϵ[]
 	multi_hit = metro.multi_hit
 	numaccept = 0
 	staple = GA()
 
-	for it in 1:NT
-		for iz in 1:NZ
-			for iy in 1:NY
-				for ix in 1:NX
-					site = SiteCoords(ix, iy, iz, it)
-					for μ in 1:4
+	for site in eachindex(U)
+        @inbounds for μ in 1:4
+            for _ in 1:multi_hit
+                X = gen_SU3_matrix(ϵ)
+                link = U[μ][site]
+                XU = cmatmul_oo(X, link)
 
-						for _ in 1:multi_hit
-							X = gen_SU3_matrix(ϵ)
-							link = U[μ][ix,iy,iz,it]
-                            XU = cmatmul_oo(X, link)
+                A_adj = staple(U, μ, site)'
 
-							A_adj = staple(U, μ, site)'
+                ΔSg = β/3 * real(multr((XU - link), A_adj))
 
-							ΔSg = β/3 * real(multr((XU - link), A_adj))
+                accept = metro_test ? (rand() ≤ exp(-ΔSg)) : true
 
-							accept = metro_test ? (rand() ≤ exp(-ΔSg)) : true
+                if accept
+                    U.Sg += ΔSg
+                    U[μ][site] = X * U[μ][site]
+                end
 
-							if accept
-								U.Sg += ΔSg
-								U[μ][site] = X * U[μ][site]
-							end
-
-							numaccept += accept
-						end
-
-					end
-				end
-			end
-		end
+                numaccept += accept
+            end
+        end
 	end
 
 	return numaccept
@@ -78,49 +68,37 @@ function metro_sweep_meta!( # TODO
 	metro;
 	metro_test = true,
 ) where {GA}
-	NX, NY, NZ, NT = size(U)
 	β = U.β
 	ϵ = metro.ϵ[]
 	multi_hit = metro.multi_hit
 	numaccept = 0
 	staple = GA()
 
-	for it in 1:NT
-		for iz in 1:NZ
-			for iy in 1:NY
-				for ix in 1:NX
-					site = SiteCoords(ix, iy, iz, it)
+	for site in eachindex(U)
+        for μ in 1:4
+            for _ in 1:multi_hit
+                X = gen_SU3_matrix(ϵ)
+                link = U[μ][site]
+                XU = cmatmul_oo(X, link)
 
-					for μ in 1:4
+                A_adj = staple(U, μ, site)'
 
-						for _ in 1:multi_hit
-							X = gen_SU3_matrix(ϵ)
-							link = U[μ][ix,iy,iz,it]
-                            XU = cmatmul_oo(X, link)
+                CV = U.CV
+                ΔSg = β/3 * real(multr((XU - link), A_adj))
+                ΔCV = nothing # TODO
+                ΔV = Bias(CV + ΔCV) - Bias(CV)
 
-							A_adj = staple(U, μ, site)'
+                accept = metro_test ? (rand() ≤ exp(-ΔSg - ΔV)) : true
 
-							CV = U.CV
-							ΔSg = β/3 * real(multr((XU - link), A_adj))
-							ΔCV = nothing # TODO
-							ΔV = Bias(CV + ΔCV) - Bias(CV)
+                if accept
+                    U.Sg += ΔSg
+                    U.CV += ΔCV
+                    U[μ][site] = X * U[μ][site]
+                end
 
-							accept = metro_test ? (rand() ≤ exp(-ΔSg - ΔV)) : true
-
-							if accept
-								U.Sg += ΔSg
-								U.CV += ΔCV
-								U[μ][site] = X * U[μ][site]
-							end
-
-							numaccept += accept
-						end
-
-					end
-
-				end
-			end
-		end
+                numaccept += accept
+            end
+        end
 	end
 
 	return numaccepts

@@ -52,20 +52,12 @@ end
 
 
 function updateU!(U, Z, ϵ)
-    NX, NY, NZ, NT = size(U)
-
-    @batch for it in 1:NT
-        for iz in 1:NZ
-            for iy in 1:NY
-                for ix in 1:NX
-                    @inbounds for μ in 1:4
-                        U[μ][ix,iy,iz,it] = cmatmul_oo(
-                            exp_iQ(-im * ϵ * Z[μ][ix,iy,iz,it]),
-                            U[μ][ix,iy,iz,it],
-                        )
-                    end
-                end
-            end
+    @batch for site in eachindex(U)
+        @inbounds for μ in 1:4
+            U[μ][site] = cmatmul_oo(
+                exp_iQ(-im * ϵ * Z[μ][site]),
+                U[μ][site],
+            )
         end
     end
 
@@ -73,23 +65,13 @@ function updateU!(U, Z, ϵ)
 end
 
 function calc_Z!(U, Z, ϵ)
-    NX, NY, NZ, NT = size(U)
     staple = WilsonGaugeAction()
 
-    @batch for it in 1:NT
-        for iz in 1:NZ
-            for iy in 1:NY
-                for ix in 1:NX
-                    site = SiteCoords(ix, iy, iz, it)
-
-                    @inbounds for μ in 1:4
-                        A = staple(U, μ, site)
-                        AU = cmatmul_od(A, U[μ][site])
-                        Z[μ][site] = ϵ * traceless_antihermitian(AU)
-                    end
-
-                end
-            end
+    @batch for site in eachindex(U)
+        @inbounds for μ in 1:4
+            A = staple(U, μ, site)
+            AU = cmatmul_od(A, U[μ][site])
+            Z[μ][site] = ϵ * traceless_antihermitian(AU)
         end
     end
 
@@ -97,24 +79,14 @@ function calc_Z!(U, Z, ϵ)
 end
 
 function updateZ!(U, Z, ϵ_old, ϵ_new)
-    NX, NY, NZ, NT = size(U)
     staple = WilsonGaugeAction()
 
-    @batch for it in 1:NT
-        for iz in 1:NZ
-            for iy in 1:NY
-                for ix in 1:NX
-                    site = SiteCoords(ix, iy, iz, it)
-
-                    @inbounds for μ in 1:4
-                        A = staple(U, μ, site)
-                        AU = cmatmul_od(A, U[μ][site])
-                        Z[μ][site] = ϵ_old * Z[μ][site] +
-                            ϵ_new * traceless_antihermitian(AU)
-                    end
-
-                end
-            end
+    @batch for site in eachindex(U)
+        @inbounds for μ in 1:4
+            A = staple(U, μ, site)
+            AU = cmatmul_od(A, U[μ][site])
+            Z[μ][site] = ϵ_old * Z[μ][site] +
+                ϵ_new * traceless_antihermitian(AU)
         end
     end
 

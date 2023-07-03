@@ -144,22 +144,12 @@ end
 include("hmc_integrators.jl")
 
 function updateU!(U, method, fac)
-    NX, NY, NZ, NT = size(U)
     ϵ = method.Δτ * fac
     P = method.P
 
-    @batch for it in 1:NT
-        for iz in 1:NZ
-            for iy in 1:NY
-                for ix in 1:NX
-                    @inbounds for μ in 1:4
-                        U[μ][ix,iy,iz,it] = cmatmul_oo(
-                            exp_iQ(-im * ϵ * P[μ][ix,iy,iz,it]),
-                            U[μ][ix,iy,iz,it],
-                        )
-                    end
-                end
-            end
+    @batch for site in eachindex(U)
+        @inbounds for μ in 1:4
+            U[μ][site] = cmatmul_oo(exp_iQ(-im * ϵ * P[μ][site]), U[μ][site])
         end
     end
 
@@ -215,25 +205,15 @@ function calc_dSdU_bare!(dSdU, temp_force, staples, U, smearing)
 end
 
 function calc_dSdU!(dSdU, staples, U::Gaugefield{GA}) where {GA}
-    NX, NY, NZ, NT = size(U)
     β = U.β
     staple = GA()
 
-    @batch for it in 1:NT
-        for iz in 1:NZ
-            for iy in 1:NY
-                for ix in 1:NX
-                    site = SiteCoords(ix, iy, iz, it)
-
-                    @inbounds for μ in 1:4
-                        A = staple(U, μ, site)
-                        staples[μ][site] = A
-                        UA = cmatmul_od(U[μ][site], A)
-                        dSdU[μ][site] = -β/6 * traceless_antihermitian(UA)
-                    end
-
-                end
-            end
+    @batch for site in eachindex(U)
+        @inbounds for μ in 1:4
+            A = staple(U, μ, site)
+            staples[μ][site] = A
+            UA = cmatmul_od(U[μ][site], A)
+            dSdU[μ][site] = -β/6 * traceless_antihermitian(UA)
         end
     end
 
@@ -258,46 +238,36 @@ function calc_dQdU_bare!(dQdU, temp_force, F, U, kind_of_charge, smearing)
 end
 
 function calc_dQdU!(dQdU, F, U, kind_of_charge)
-    NX, NY, NZ, NT = size(U)
-
     fieldstrength_eachsite!(F, U, kind_of_charge)
 
-    @batch for it in 1:NT
-        for iz in 1:NZ
-            for iy in 1:NY
-                for ix in 1:NX
-                    site = SiteCoords(ix, iy, iz, it)
+    @batch for site in eachindex(U)
+        tmp1 = cmatmul_oo(U[1][site], (
+            ∇trFμνFρσ_clover(U, F, 1, 2, 3, 4, site) -
+            ∇trFμνFρσ_clover(U, F, 1, 3, 2, 4, site) +
+            ∇trFμνFρσ_clover(U, F, 1, 4, 2, 3, site)
+        ))
+        dQdU[1][site] = 1/4π^2 * traceless_antihermitian(tmp1)
 
-                    tmp1 = cmatmul_oo(U[1][site], (
-                        ∇trFμνFρσ_clover(U, F, 1, 2, 3, 4, site) -
-                        ∇trFμνFρσ_clover(U, F, 1, 3, 2, 4, site) +
-                        ∇trFμνFρσ_clover(U, F, 1, 4, 2, 3, site)
-                    ))
-                    dQdU[1][site] = 1/4π^2 * traceless_antihermitian(tmp1)
+        tmp2 = cmatmul_oo(U[2][site], (
+            ∇trFμνFρσ_clover(U, F, 2, 3, 1, 4, site) -
+            ∇trFμνFρσ_clover(U, F, 2, 1, 3, 4, site) -
+            ∇trFμνFρσ_clover(U, F, 2, 4, 1, 3, site)
+        ))
+        dQdU[2][site] = 1/4π^2 * traceless_antihermitian(tmp2)
 
-                    tmp2 = cmatmul_oo(U[2][site], (
-                        ∇trFμνFρσ_clover(U, F, 2, 3, 1, 4, site) -
-                        ∇trFμνFρσ_clover(U, F, 2, 1, 3, 4, site) -
-                        ∇trFμνFρσ_clover(U, F, 2, 4, 1, 3, site)
-                    ))
-                    dQdU[2][site] = 1/4π^2 * traceless_antihermitian(tmp2)
+        tmp3 = cmatmul_oo(U[3][site], (
+            ∇trFμνFρσ_clover(U, F, 3, 1, 2, 4, site) -
+            ∇trFμνFρσ_clover(U, F, 3, 2, 1, 4, site) +
+            ∇trFμνFρσ_clover(U, F, 3, 4, 1, 2, site)
+        ))
+        dQdU[3][site] = 1/4π^2 * traceless_antihermitian(tmp3)
 
-                    tmp3 = cmatmul_oo(U[3][site], (
-                        ∇trFμνFρσ_clover(U, F, 3, 1, 2, 4, site) -
-                        ∇trFμνFρσ_clover(U, F, 3, 2, 1, 4, site) +
-                        ∇trFμνFρσ_clover(U, F, 3, 4, 1, 2, site)
-                    ))
-                    dQdU[3][site] = 1/4π^2 * traceless_antihermitian(tmp3)
-
-                    tmp4 = cmatmul_oo(U[4][site], (
-                        ∇trFμνFρσ_clover(U, F, 4, 2, 1, 3, site) -
-                        ∇trFμνFρσ_clover(U, F, 4, 1, 2, 3, site) -
-                        ∇trFμνFρσ_clover(U, F, 4, 3, 1, 2, site)
-                    ))
-                    dQdU[4][site] = 1/4π^2 * traceless_antihermitian(tmp4)
-                end
-            end
-        end
+        tmp4 = cmatmul_oo(U[4][site], (
+            ∇trFμνFρσ_clover(U, F, 4, 2, 1, 3, site) -
+            ∇trFμνFρσ_clover(U, F, 4, 1, 2, 3, site) -
+            ∇trFμνFρσ_clover(U, F, 4, 3, 1, 2, site)
+        ))
+        dQdU[4][site] = 1/4π^2 * traceless_antihermitian(tmp4)
     end
 
     return nothing
