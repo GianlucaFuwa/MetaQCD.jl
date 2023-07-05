@@ -10,8 +10,6 @@ module UniverseModule
     import ..SystemParameters: Params
 
     struct Univ{TG, TB, TM, TV}
-        L::NTuple{4, Int64}
-        NC::Int64
         meta_enabled::Bool
         tempering_enabled::Bool
         U::TG
@@ -22,7 +20,6 @@ module UniverseModule
 
     function Univ(p::Params; use_mpi = false, fp = true)
         NX, NY, NZ, NT = p.L
-        NC = 3
 
         if p.kind_of_gaction == "wilson"
             GA = WilsonGaugeAction
@@ -118,8 +115,6 @@ module UniverseModule
         end
 
         return Univ{typeof(U), typeof(Bias), TM, typeof(verbose_print)}(
-            p.L,
-            NC,
             p.meta_enabled,
             tempering_enabled,
             U,

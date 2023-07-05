@@ -211,6 +211,7 @@ module Mainrun
                     Bias = Bias,
                     metro_test = true,
                 )
+
                 Bias !== nothing ? update_bias!(Bias, U.CV) : nothing
                 numaccepts += accepted
 
