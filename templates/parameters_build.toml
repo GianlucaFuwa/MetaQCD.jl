@@ -6,9 +6,9 @@ Ntherm = 10
 Nsteps = 10
 initial = "cold"
 update_method = "HMC"
-meta_enabled = false
+meta_enabled = true
 tempering_enabled = true
-numinstances = 2
+numinstances = 3
 
 ["MetaD related"]
 kind_of_cv = "clover"
@@ -35,7 +35,9 @@ randomseed = 1206
 verboselevel = 1
 bias_basedir = "./metapotentials/L4x4x4x4_beta5.7"
 bias_dir = "test_mpi"
-usebiases = "nothing"
+# usebiases = [
+#     "nothing"
+# ]
 
 ["Measurement set".measurement_methods.Plaquette]
 measure_every = 5

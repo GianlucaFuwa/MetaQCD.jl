@@ -1,19 +1,19 @@
 ["Physical Settings"]
-L = [4, 4, 4, 4]
-"β" = 5.7
+L = [12, 12, 12, 12]
+"β" = 6.0
 kind_of_gaction = "wilson"
-Ntherm = 10
+Ntherm = 20
 Nsteps = 100
 initial = "cold"
-update_method = "Metropolis"
-metro_multi_hit = 5
+update_method = "metropolis"
+metro_multi_hit = 10
 metro_target_acc = 0.5
 "metro_ϵ" = 0.1
 
 ["System Settings"]               
-logdir = "./logs/L4x4x4x4_beta5.7"
+logdir = "./logs/test_metro"
 logfile = "test_metro.txt"
-measurement_basedir = "./measurements/L4x4x4x4_beta5.7"
+measurement_basedir = "./measurements/test_metro"
 measurement_dir = "test_metro"
 randomseed = 1206
 
@@ -23,7 +23,7 @@ methodname = "polyakov_loop"
 
 ["Measurement set".measurement_methods.Topological_charge]
 measure_every = 5
-kinds_of_topological_charge = ["plaquette", "clover", "improved"]
+kinds_of_topological_charge = ["clover"]
 methodname = "topological_charge"
 
 ["Measurement set".measurement_methods.Plaquette]
