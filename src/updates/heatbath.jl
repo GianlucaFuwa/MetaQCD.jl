@@ -1,8 +1,6 @@
 struct HeatbathUpdate <: AbstractUpdate # maybe add eo as type parameter?
     eo::Bool
     MAXIT::Int64
-    prefactor_HB::Float64
-    prefactor_OR::Float64
     numHB::Int64
     numOR::Int64
 
@@ -10,8 +8,6 @@ struct HeatbathUpdate <: AbstractUpdate # maybe add eo as type parameter?
         return new(
             eo,
             MAXIT,
-            3 / U.β,
-            U.β / 3,
             numHB,
             numOR,
         )
@@ -25,17 +21,16 @@ function update!(
     Bias = nothing,
     metro_test::Bool = true,
 )
-
     for _ in 1:updatemethod.numHB
         if updatemethod.eo
             heatbath_sweep_eo!(
                 U,
-                updatemethod,
+                updatemethod.MAXIT,
             )
         else
             heatbath_sweep!(
                 U,
-                updatemethod,
+                updatemethod.MAXIT,
             )
         end
     end
@@ -44,19 +39,19 @@ function update!(
 
     for _ in 1:updatemethod.numOR
         if updatemethod.eo
-            numaccepts += OR_sweep_eo!(
+            numaccepts += overrelaxation_sweep_eo!(
                 U,
-                updatemethod,
-                metro_test = metro_test,
+                metro_test = true,
             )
         else
-            numaccepts += OR_sweep!(
+            numaccepts += overrelaxation_sweep!(
                 U,
-                updatemethod,
-                metro_test = metro_test,
+                metro_test = true,
             )
         end
     end
+
+    normalize!(U)
 
     if Bias !== nothing
         calc_smearedU!(Bias.smearing, U)
@@ -65,21 +60,24 @@ function update!(
         U.CV = CV_new
     end
 
-    normalize!(U)
-    numaccepts = updatemethod.numOR == 0 ? 1.0 : numaccepts / (U.NV * 4 * updatemethod.numOR)
+    if updatemethod.numOR == 0
+        numaccepts = 1.0
+    else
+        numaccepts /= U.NV * 4 * updatemethod.numOR
+    end
+
     return numaccepts
 end
 
-function heatbath_sweep!(U::Gaugefield{GA}, hb) where {GA}
-    MAXIT = hb.MAXIT
-    prefactor = hb.prefactor_HB
+function heatbath_sweep!(U::Gaugefield{GA}, MAXIT) where {GA}
     staple = GA()
+    action_factor = 3 / U.β
 
-    for site in eachindex(U)
-        @inbounds for μ in 1:4
+    @inbounds for μ in 1:4
+        for site in eachindex(U)
             old_link = U[μ][site]
             A = staple(U, μ, site)
-            new_link = heatbath_SU3(old_link, A, MAXIT, prefactor)
+            new_link = heatbath_SU3(old_link, A, MAXIT, action_factor)
             U[μ][site] = new_link
         end
 	end
@@ -87,19 +85,24 @@ function heatbath_sweep!(U::Gaugefield{GA}, hb) where {GA}
     return nothing
 end
 
-function heatbath_sweep_eo!(U::Gaugefield{GA}, hb) where {GA}
-    MAXIT = hb.MAXIT
-    prefactor = hb.prefactor_HB
+function heatbath_sweep_eo!(U::Gaugefield{GA}, MAXIT) where {GA}
+    NX, NY, NZ, NT = size(U)
     staple = GA()
+    action_factor = 3 / U.β
 
-    @threads :static for site in eachindex(u)
-        @inbounds for μ in 1:4
-            for sublattice in 1:4
-                if mod1(ix + iy + iz + it + site[μ], 4) == sublattice
-                    old_link = U[μ][site]
-                    A = staple(U, μ, site)
-                    new_link = heatbath_SU3(old_link, A, MAXIT, prefactor)
-                    U[μ][site] = new_link
+    @inbounds for μ in 1:4
+        for pass in 1:2
+            @threads :static for it in 1:NT
+                for iz in 1:NZ
+                    for iy in 1:NY
+                        for ix in 1+iseven(iy + iz + it + pass):2:NX
+                            site = SiteCoords(ix, iy, iz, it)
+                            old_link = U[μ][site]
+                            A = staple(U, μ, site)
+                            new_link = heatbath_SU3(old_link, A, MAXIT, action_factor)
+                            U[μ][site] = new_link
+                        end
+                    end
                 end
             end
         end
@@ -108,31 +111,31 @@ function heatbath_sweep_eo!(U::Gaugefield{GA}, hb) where {GA}
     return nothing
 end
 
-function heatbath_SU3(old_link, A, MAXIT, prefactor)
+function heatbath_SU3(old_link, A, MAXIT, action_factor)
     subblock = make_submatrix(cmatmul_od(old_link, A), 1, 2)
     tmp = embed_into_SU3(
-        heatbath_SU2(subblock, MAXIT, prefactor),
+        heatbath_SU2(subblock, MAXIT, action_factor),
         1, 2,
     )
     old_link = cmatmul_oo(tmp, old_link)
 
     subblock = make_submatrix(cmatmul_od(old_link, A), 1, 3)
     tmp = embed_into_SU3(
-        heatbath_SU2(subblock, MAXIT, prefactor),
+        heatbath_SU2(subblock, MAXIT, action_factor),
         1, 3,
     )
     old_link = cmatmul_oo(tmp, old_link)
 
     subblock = make_submatrix(cmatmul_od(old_link, A), 2, 3)
     tmp = embed_into_SU3(
-        heatbath_SU2(subblock, MAXIT, prefactor),
+        heatbath_SU2(subblock, MAXIT, action_factor),
         2, 3,
     )
     new_link = cmatmul_oo(tmp, old_link)
     return new_link
 end
 
-function heatbath_SU2(A, MAXIT, prefactor)
+function heatbath_SU2(A, MAXIT, action_factor)
     r0 = 1
     λ2 = 1
     a_norm = 1 / sqrt(real(det(A)))
@@ -151,7 +154,7 @@ function heatbath_SU2(A, MAXIT, prefactor)
         r3 = 1 - rand()
         x3 = log(r3)
 
-        λ2 = (-0.25 * prefactor * a_norm) * (x1 + x2^2 * x3)
+        λ2 = (-0.25 * action_factor * a_norm) * (x1 + x2^2 * x3)
 
         r0 = rand()
         i += 1
@@ -173,95 +176,4 @@ function heatbath_SU2(A, MAXIT, prefactor)
         -x2+im*x1 x0-im*x3
     ]
     return cmatmul_od(mat, V)
-end
-
-function OR_sweep!(U::Gaugefield{GA}, hb; metro_test = true) where {GA}
-    prefactor = hb.prefactor_OR
-    numaccepts = 0
-    staple = GA()
-
-    for site in eachindex(U)
-        @inbounds for μ in 1:4
-            A_adj = staple(U, μ, site)'
-            old_link = U[μ][site]
-            new_link = overrelaxation_subgroups(old_link, A_adj)
-
-            ΔS = prefactor * real(multr(new_link - old_link, A_adj))
-            accept = metro_test ? (rand() < exp(-ΔS)) : true
-
-            if accept
-                U[μ][site] = new_link
-            end
-
-            numaccepts += accept
-        end
-	end
-
-    return numaccepts
-end
-
-function OR_sweep_eo!(U::Gaugefield{GA}, hb; metro_test = true) where {GA}
-    prefactor = hb.prefactor_OR
-    numaccepts = 0
-    staple = GA()
-
-    for sublattice in 1:4
-        @batch for site in eachindex(U)
-            for μ in 1:4
-                if mod1(ix + iy + iz + it + site[μ], 4) == sublattice
-                    A_adj = staple(U, μ, site)'
-                    old_link = U[μ][site]
-                    new_link = overrelaxation_kenneylaub(old_link, A_adj)
-
-                    ΔS = prefactor * real(multr(new_link - old_link, A_adj))
-                    accept = metro_test ? (rand() < exp(-ΔS)) : true
-
-                    if accept
-                        U[μ][site] = new_link
-                    end
-
-                    numaccepts += accept
-                end
-            end
-        end
-	end
-
-    return numaccepts
-end
-
-function overrelaxation_kenneylaub(old_link, A_adj)
-    tmp = 1/6 * A_adj
-    or_mat = kenney_laub(tmp)
-    new_link = cmatmul_ddd(or_mat, old_link, or_mat)
-    return new_link
-end
-
-function overrelaxation_subgroups(old_link, A_adj)
-    subblock = make_submatrix(cmatmul_oo(old_link, A_adj), 1, 2)
-    tmp = embed_into_SU3(
-        overrelaxation_SU2(subblock),
-        1, 2,
-    )
-    old_link = cmatmul_oo(tmp, old_link)
-
-    subblock = make_submatrix(cmatmul_oo(old_link, A_adj), 1, 3)
-    tmp = embed_into_SU3(
-        overrelaxation_SU2(subblock),
-        1, 3,
-    )
-    old_link = cmatmul_oo(tmp, old_link)
-
-    subblock = make_submatrix(cmatmul_oo(old_link, A_adj), 2, 3)
-    tmp = embed_into_SU3(
-        overrelaxation_SU2(subblock),
-        2, 3,
-    )
-    new_link = cmatmul_oo(tmp, old_link)
-    return new_link
-end
-
-function overrelaxation_SU2(subblock)
-    a_norm = 1 / sqrt(real(det(subblock)))
-    V = a_norm * subblock
-    return cmatmul_dd(V, V)
 end

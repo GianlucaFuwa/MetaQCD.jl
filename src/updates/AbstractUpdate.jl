@@ -21,6 +21,7 @@ module AbstractUpdateModule
     include("./hmc.jl")
     include("./metropolis.jl")
     include("./heatbath.jl")
+    include("./overrelaxation.jl")
 
     function Updatemethod(
         parameters::Params,
@@ -38,10 +39,10 @@ module AbstractUpdateModule
             parameters.hmc_Δτ,
             parameters.hmc_numsmear,
             parameters.hmc_ρstout,
-            parameters.hb_eo,
             parameters.hb_MAXIT,
             parameters.hb_numHB,
-            parameters.hb_numOR,
+            parameters.eo,
+            parameters.numOR,
         )
             return updatemethod
     end
@@ -58,10 +59,10 @@ module AbstractUpdateModule
         hmc_Δτ = 0.1,
         hmc_numsmear = 0,
         hmc_ρstout = 0,
-        hb_eo = false,
         hb_MAXIT = 1,
         hb_numHB = 1,
-        hb_numOR = 4,
+        eo = false,
+        numOR = 4,
     )
         if update_method == "hmc"
             updatemethod = HMCUpdate(
@@ -76,18 +77,19 @@ module AbstractUpdateModule
         elseif update_method == "metropolis"
             updatemethod = MetroUpdate(
                 U,
+                eo,
                 metro_ϵ,
                 metro_multi_hit,
                 metro_target_acc,
-                meta_enabled,
+                numOR,
             )
         elseif update_method == "heatbath"
             updatemethod = HeatbathUpdate(
                 U,
-                hb_eo,
+                eo,
                 hb_MAXIT,
                 hb_numHB,
-                hb_numOR,
+                numOR,
             )
         else
             error("update method $(update_method) is not supported")
