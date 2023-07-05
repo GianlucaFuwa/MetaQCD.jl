@@ -68,13 +68,13 @@ module ParameterStructs
         tempering_enabled::Bool = false
         numinstances::Int64 = 1
         swap_every::Int64 = 1
-        hb_eo::Bool = false
         hb_MAXIT::Int64 = 10^5
         hb_numHB::Int64 = 4
-        hb_numOR::Int64 = 1
         metro_ϵ::Float64 = 0.1
         metro_multi_hit::Int64 = 1
         metro_target_acc::Float64 = 0.5
+        eo::Bool = false
+        numOR::Int64 = 0
     end
 
     Base.@kwdef mutable struct PrintMetaParameters

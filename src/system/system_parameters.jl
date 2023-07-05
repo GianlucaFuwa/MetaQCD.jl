@@ -51,10 +51,10 @@ module SystemParameters
         hmc_steps::Union{Nothing, Int64}
         hmc_numsmear::Union{Nothing, Int64}
         hmc_ρstout::Union{Nothing, Float64}
-        hb_eo::Union{Nothing, Bool}
         hb_MAXIT::Union{Nothing, Int64}
         hb_numHB::Union{Nothing, Int64}
-        hb_numOR::Union{Nothing, Int64}
+        eo::Union{Nothing, Bool}
+        numOR::Union{Nothing, Int64}
 
         measurement_methods::Vector{Dict}
         measurements_with_flow::Union{Nothing, Vector{Dict}}

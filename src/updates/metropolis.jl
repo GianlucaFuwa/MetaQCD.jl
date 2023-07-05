@@ -1,111 +1,121 @@
 struct MetroUpdate <: AbstractUpdate
+    eo::Bool
 	ϵ::Base.RefValue{Float64}
 	multi_hit::Int64
 	target_acc::Float64
-	mnorm::Float64
-	meta_enabled::Bool
+    numOR::Int64
 
-	function MetroUpdate(U, ϵ, multi_hit, target_acc, meta_enabled)
-		mnorm = 1 / (U.NV * 4 * multi_hit)
+	function MetroUpdate(U, eo, ϵ, multi_hit, target_acc, numOR)
 		m_ϵ = Base.RefValue{Float64}(ϵ)
-
-        if meta_enabled == true
-            @error "Metadynamics is not supported for metropolis yet"
-        end
-
-		return new(m_ϵ, multi_hit, target_acc, mnorm, meta_enabled)
+		return new(eo, m_ϵ, multi_hit, target_acc, numOR)
 	end
 end
 
 function update!(updatemethod, U, verbose::VerboseLevel; Bias = nothing, metro_test = true)
-	if updatemethod.meta_enabled
-		numaccepts = metro_sweep_meta!(U, Bias, updatemethod, metro_test = true)
+    numOR = updatemethod.numOR
+
+	if updatemethod.eo
+		numaccepts_metro = metro_sweep_eo!(U, updatemethod, metro_test = true)
 	else
-		numaccepts = metro_sweep!(U, updatemethod, metro_test = true)
+		numaccepts_metro = metro_sweep!(U, updatemethod, metro_test = true)
 	end
 
+    numaccepts_metro /= U.NV * 4 * updatemethod.multi_hit
+    adjust_ϵ!(updatemethod, numaccepts_metro)
+
+    numaccepts_or = 0.0
+
+    for _ in 1:numOR
+        if updatemethod.eo
+            numaccepts_or += overrelaxation_sweep_eo!(U, metro_test = true)
+        else
+            numaccepts_or += overrelaxation_sweep!(U, metro_test = true)
+        end
+    end
+
+    numaccepts_or /= numOR > 0 ? U.NV * 4 * numOR : 1.0
     normalize!(U)
-    adjust_ϵ!(updatemethod, numaccepts)
-	return numaccepts * updatemethod.mnorm
+	return numaccepts_metro + numaccepts_or
 end
 
 function metro_sweep!(U::Gaugefield{GA}, metro; metro_test = true) where {GA}
-	β = U.β
 	ϵ = metro.ϵ[]
 	multi_hit = metro.multi_hit
-	numaccept = 0
+	numaccept = 0.0
 	staple = GA()
+    action_factor = -U.β / 3
 
-	for site in eachindex(U)
-        @inbounds for μ in 1:4
+    @inbounds for μ in 1:4
+	    for site in eachindex(U)
+            A_adj = staple(U, μ, site)'
+
             for _ in 1:multi_hit
                 X = gen_SU3_matrix(ϵ)
-                link = U[μ][site]
-                XU = cmatmul_oo(X, link)
+                old_link = U[μ][site]
+                new_link = cmatmul_oo(X, old_link)
 
-                A_adj = staple(U, μ, site)'
+                ΔS = action_factor * real(multr((new_link - old_link), A_adj))
 
-                ΔSg = β/3 * real(multr((XU - link), A_adj))
-
-                accept = metro_test ? (rand() ≤ exp(-ΔSg)) : true
+                accept = metro_test ? (rand() ≤ exp(-ΔS)) : true
 
                 if accept
-                    U.Sg += ΔSg
-                    U[μ][site] = X * U[μ][site]
+                    U[μ][site] = new_link
+                    numaccept += accept
                 end
-
-                numaccept += accept
             end
+
         end
 	end
 
 	return numaccept
 end
 
-function metro_sweep_meta!( # TODO
-	U::Gaugefield{GA},
-	Bias,
-	metro;
-	metro_test = true,
-) where {GA}
-	β = U.β
+function metro_sweep_eo!(U::Gaugefield{GA}, metro; metro_test = true) where {GA}
+    NX, NY, NZ, NT = size(U)
 	ϵ = metro.ϵ[]
 	multi_hit = metro.multi_hit
-	numaccept = 0
-	staple = GA()
+	spacing = 8
+    numaccepts = zeros(Float64, nthreads() * spacing)
+    staple = GA()
+    action_factor = -U.β / 3
 
-	for site in eachindex(U)
-        for μ in 1:4
-            for _ in 1:multi_hit
-                X = gen_SU3_matrix(ϵ)
-                link = U[μ][site]
-                XU = cmatmul_oo(X, link)
+	@inbounds for μ in 1:4
+        for pass in 1:2
+            @threads :static for it in 1:NT
+                for iz in 1:NZ
+                    for iy in 1:NY
+                        for ix in 1+mod(it + iz + iy, pass):2:NX
+                            site = SiteCoords(ix, iy, iz, it)
+                            A_adj = staple(U, μ, site)'
 
-                A_adj = staple(U, μ, site)'
+                            for _ in 1:multi_hit
+                                X = gen_SU3_matrix(ϵ)
+                                link = U[μ][site]
+                                XU = cmatmul_oo(X, link)
 
-                CV = U.CV
-                ΔSg = β/3 * real(multr((XU - link), A_adj))
-                ΔCV = nothing # TODO
-                ΔV = Bias(CV + ΔCV) - Bias(CV)
+                                ΔSg = action_factor * real(multr((XU - link), A_adj))
 
-                accept = metro_test ? (rand() ≤ exp(-ΔSg - ΔV)) : true
+                                accept = metro_test ? (rand() ≤ exp(-ΔSg)) : true
 
-                if accept
-                    U.Sg += ΔSg
-                    U.CV += ΔCV
-                    U[μ][site] = X * U[μ][site]
+                                if accept
+                                    U.Sg += ΔSg
+                                    U[μ][site] = XU
+                                    numaccept[threadid() * spacing] += accept
+                                end
+                            end
+
+                        end
+                    end
                 end
-
-                numaccept += accept
             end
         end
 	end
 
-	return numaccepts
+	return sum(numaccepts)
 end
 
 function adjust_ϵ!(metro, numaccepts)
-	metro.ϵ[] += (numaccepts * metro.mnorm - metro.target_acc) * 0.2
+	metro.ϵ[] += (numaccepts - metro.target_acc) * 0.2
     metro.ϵ[] = min(1.0, metro.ϵ[])
 	return nothing
 end
