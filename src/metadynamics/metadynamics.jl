@@ -1,3 +1,15 @@
+"""
+    Metadynamics
+
+Module containing all things relevant to Metadynamics like the bias potential,
+overloaded methods, the potential derivative (scalar) and the calculation of weights
+
+    BiasPotential{TG} -> Holds the bias potential and its parameters, its I/O and most
+                         importantly the smearing struct necessary for the calculation of
+                         the charge-force
+                         TG specifies the kind of Gaugefield, i.e. gauge action, it is
+                         associated with
+"""
 module Metadynamics
     using DelimitedFiles
     using Polyester

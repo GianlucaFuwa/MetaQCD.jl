@@ -1,3 +1,18 @@
+"""
+    AbstractSmearingModule
+
+Module containing all smearing routines (stout for HMC/MetaD and gradflow for measurements)
+Smearing types are subtypes of AbstractSmearing
+
+    StoutSmearing -> struct holding temporary fields for stout smearing and stout force
+                     recursion and the stout smearing parameters
+                     is parametrized by TG, i.e. the type of Gaugefield and action
+
+    GradientFlow -> struct holding temporary fields for flow and its parameters
+                    is parametrized by the integrator, with supported integrators being
+                    Euler, RK3 and RK3W7
+
+"""
 module AbstractSmearingModule
     using Base.Threads: nthreads, threadid, @threads
     using LinearAlgebra

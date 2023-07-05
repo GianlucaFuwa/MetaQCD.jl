@@ -1,3 +1,14 @@
+"""
+    AbstractMeasurementModule
+
+Module containing all measurement methods and their parameters. Also handles I/O
+
+    MeasurementParameters -> Holds the parameters for each measurement supported, like
+                             the interval of measurement and their methods (for TC and GA)
+
+    MeasurementMethods -> Holds all measurements specified in parameter file and is accessed
+                          in mainrun with 'calc_measurements' and 'calc_measurements_flowed'
+"""
 module AbstractMeasurementModule
     using Base.Threads
     using LinearAlgebra
