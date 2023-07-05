@@ -113,31 +113,30 @@ function proj_onto_SU3(M::SMatrix{3,3,ComplexF64,9})
     col3 -= (col1' * col3) * col1 + (col2' * col3) * col2
     col3 /= norm(col3)
     out = [col1 col2 col3]
-    out /= det(out)^(1/3) # make output a little special
+    out /= det(out)^(1/3)
     return out
 end
 
 function kenney_laub(M::SMatrix{3,3,ComplexF64,9})
-    while true
+    for _ in 1:25
         X = cmatmul_do(M, M)
-
-        if norm(eye3 - X) <= 1e-6
-            break
-        end
-
-        M = cmatmul_oo(M/3, (eye3 + 8/3 * inv(cmatmul_do(M, M) + 1/3 * eye3)))
+        norm(eye3 - X) <= 1e-12 && break
+        M = cmatmul_oo(M/3, (eye3 + 8/3 * inv(X + 1/3 * eye3)))
+        # M_enum = 5eye3 + 10X + cmatmul_oo(X, X)
+        # M_denom = inv(eye3 + 10X + 5cmatmul_oo(X, X))
+        # M = cmatmul_oo(M, cmatmul_oo(M_enum, M_denom))
     end
 
     M /= det(M)^(1/3)
     return M
 end
 
-function is_special_unitary(M::SMatrix{3,3,ComplexF64,9}, prec = 1e-6)
-    is_SU3_upto_prec = norm(eye3 - M * M') < prec && abs(1 - det(M)) < prec
+function is_special_unitary(M::SMatrix{3,3,ComplexF64,9}, prec = 1e-12)
+    is_SU3_upto_prec = norm(eye3 - cmatmul_od(M, M)) < prec && abs(1 - det(M)) < prec
     return is_SU3_upto_prec
 end
 
-function is_traceless_antihermitian(M::SMatrix{3,3,ComplexF64,9}, prec = 1e-6)
+function is_traceless_antihermitian(M::SMatrix{3,3,ComplexF64,9}, prec = 1e-12)
     is_su3_upto_prec = norm(M - M') < prec && abs(tr(M)) < prec
     return is_su3_upto_prec
 end
