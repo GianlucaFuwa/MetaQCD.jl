@@ -69,13 +69,13 @@ function measure(m::PolyakovMeasurement, U; additional_string = "")
     if m.printvalues
         poly_re = @sprintf("%.15E", real(poly))
         poly_im = @sprintf("%.15E", imag(poly))
-        measurestring = "$additional_string\t$poly_re\t$poly_im\t"
+        measurestring = "$additional_string\t$poly_re\t$poly_im"
         # println_verbose2(m.verbose_print, "$measurestring# poly")
         println(m.fp, measurestring)
         flush(m.fp)
     end
 
-    output = MeasurementOutput(poly, measurestring * "# poly")
+    output = MeasurementOutput(poly, measurestring * " # poly")
     return output
 end
 

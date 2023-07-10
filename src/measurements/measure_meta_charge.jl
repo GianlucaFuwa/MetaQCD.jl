@@ -57,12 +57,12 @@ function measure(m::MetaChargeMeasurement, U; additional_string = "")
 
     if m.printvalues
         cv_str = @sprintf("%.15E", cv)
-        measurestring = "$additional_string\t$cv_str\t"
+        measurestring = "$additional_string\t$cv_str"
         # println_verbose2(m.verbose_print, "$measurestring# meta_charge")
         println(m.fp, measurestring)
         flush(m.fp)
     end
 
-    output = MeasurementOutput(cv, measurestring * "# meta_charge")
+    output = MeasurementOutput(cv, measurestring * " # meta_charge")
     return output
 end

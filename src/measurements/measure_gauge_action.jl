@@ -73,7 +73,7 @@ function measure(m::GaugeActionMeasurement, U; additional_string = "")
     measurestring = ""
     values = zeros(Float64, length(m.GA_methods))
     valuedic = Dict{String, AbstractFloat}()
-    printstring = "$additional_string\t"
+    printstring = "$additional_string"
 
     for (i, methodname) in enumerate(m.GA_methods)
         if methodname == "wilson"
@@ -104,7 +104,7 @@ function measure(m::GaugeActionMeasurement, U; additional_string = "")
     if m.printvalues
         for value in values
             svalue = @sprintf("%.15E", value)
-            printstring *= "$svalue\t"
+            printstring *= "\t$svalue"
         end
 
         measurestring = printstring
@@ -113,6 +113,6 @@ function measure(m::GaugeActionMeasurement, U; additional_string = "")
         flush(m.fp)
     end
 
-    output = MeasurementOutput(valuedic, measurestring * "# gaction")
+    output = MeasurementOutput(valuedic, measurestring * " # gaction")
     return output
 end
