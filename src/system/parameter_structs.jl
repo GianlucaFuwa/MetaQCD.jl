@@ -75,6 +75,7 @@ module ParameterStructs
         metro_target_acc::Float64 = 0.5
         eo::Bool = false
         numOR::Int64 = 0
+        parity_update::Bool = false
     end
 
     Base.@kwdef mutable struct PrintMetaParameters
