@@ -56,6 +56,8 @@ module Metadynamics
         return nothing
     end
 
+    update_bias!(::Nothing, cv) = nothing
+
     """
     Approximate ∂V/∂Q by use of the five-point stencil
     """
@@ -74,6 +76,8 @@ module Metadynamics
     Weighting schemes based on the ones compared in \\
     https://pubs.acs.org/doi/pdf/10.1021/acs.jctc.9b00867
     """
+    calc_weights(::Nothing, cv, itrj) = nothing
+
     function calc_weights(b, cv, itrj)
         b === nothing && return nothing
 

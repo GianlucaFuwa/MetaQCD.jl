@@ -9,7 +9,7 @@ module Mainrun
     import ..AbstractMeasurementModule: measure
     import ..AbstractSmearingModule: GradientFlow, Euler, RK2, RK3, RK3W7
     import ..AbstractUpdateModule: HeatbathUpdate, HMCUpdate, MetroUpdate, Updatemethod
-    import ..AbstractUpdateModule: AbstractUpdate, update!
+    import ..AbstractUpdateModule: AbstractUpdate, ParityUpdate, update!, parity_update!
     import ..Gaugefields: AbstractGaugeAction, DBW2GaugeAction, IwasakiGaugeAction,
         SymanzikTreeGaugeAction, SymanzikTadGaugeAction, WilsonGaugeAction
     import ..Metadynamics: MetaDisabled, MetaEnabled, calc_weights, update_bias!
@@ -61,6 +61,8 @@ module Mainrun
         else
             updatemethod = Updatemethod(parameters, U)
         end
+
+        parity = parameters.parity_update ? ParityUpdate(U) : nothing
 
         println("\t>> Updatemethods are set!\n")
 
@@ -125,14 +127,6 @@ module Mainrun
 
         println("\t>> Measurement methods are set!\n")
 
-        # savedata = Savedata(
-        #     parameters.saveU_format,
-        #     parameters.saveU_dir,
-        #     parameters.saveU_every,
-        #     parameters.update_method,
-        #     univ.U,
-        # )
-
         if parameters.tempering_enabled
             metaqcd_PT!(
                 parameters,
@@ -150,6 +144,7 @@ module Mainrun
                 gradient_flow,
                 measurements,
                 measurements_with_flow,
+                parity,
             )
         end
 
@@ -163,6 +158,7 @@ module Mainrun
         gradient_flow,
         measurements,
         measurements_with_flow,
+        parity,
     )
         save_configs = SaveConfigs(
             parameters.saveU_format,
@@ -170,7 +166,6 @@ module Mainrun
             parameters.saveU_every,
             univ.verbose_print
         )
-
         U = univ.U
         Bias = univ.Bias
 
@@ -189,14 +184,14 @@ module Mainrun
 
                 println_verbose1(
                     univ.verbose_print,
-                    ">> Thermalization Update: Elapsed time $(updatetime) [s]"
+                    ">> Therm. Update elapsed time:\t$(updatetime) [s]"
                 )
             end
         end
 
         println_verbose1(
             univ.verbose_print,
-            "\t>> Thermalization Elapsed time $(runtime_therm) [s]"
+            "\t>> Thermalization elapsed time:\t$(runtime_therm) [s]"
         )
 
         value, runtime_all = @timed begin
@@ -212,13 +207,12 @@ module Mainrun
                     metro_test = true,
                 )
 
-                Bias !== nothing ? update_bias!(Bias, U.CV) : nothing
-                numaccepts += accepted
+                if rand() < 0.5
+                    parity_update!(U, parity)
+                end
 
-                println_verbose1(
-                    univ.verbose_print,
-                    ">> Update: Elapsed time $(updatetime) [s]"
-                )
+                update_bias!(Bias, U.CV)
+                numaccepts += accepted
 
                 println_verbose1(
                     univ.verbose_print,
@@ -227,19 +221,30 @@ module Mainrun
                     "%",
                 )
 
+                println_verbose1(
+                    univ.verbose_print,
+                    ">> Update elapsed time:\t$(updatetime) [s]"
+                )
+
                 save_gaugefield(save_configs, U, itrj)
 
-                measurestrings = calc_measurements(
+                measurestrings, meas_time = @timed calc_measurements(
                     measurements,
                     itrj,
                     U,
                 )
 
-                measurestrings_flowed = calc_measurements_flowed(
+                measurestrings_flowed, flowmeas_time = @timed calc_measurements_flowed(
                     measurements_with_flow,
                     gradient_flow,
                     itrj,
                     U,
+                )
+
+                println_verbose1(
+                    univ.verbose_print,
+                    ">> Meas. elapsed time:\t$(meas_time) [s]\n",
+                    ">> FMeas. elapsed time:\t$(flowmeas_time) [s]",
                 )
 
                 for (i, value) in enumerate(measurestrings)
@@ -250,7 +255,7 @@ module Mainrun
                     println(value)
                 end
 
-                Bias !== nothing ? calc_weights(Bias, U.CV, itrj) : nothing
+                calc_weights(Bias, U.CV, itrj)
 
                 flush(univ.verbose_print.fp)
             end
@@ -272,7 +277,7 @@ module Mainrun
 
         println_verbose1(
             univ.verbose_print,
-            "\n\t>> Total Elapsed time $(runtime_all) [s]\n",
+            "\n\t>> Total elapsed time:\t$(convert_from_seconds(runtime_all)) \n",
         )
         flush(stdout)
         flush(univ.verbose_print)
@@ -438,6 +443,14 @@ module Mainrun
         # close(measurements)
         # close(measurements_with_flow)
         return nothing
+    end
+
+    function convert_from_seconds(sec)
+        sec = round(Int, sec, RoundNearestTiesAway)
+        x, seconds = divrem(sec, 60)
+        y, minutes = divrem(x, 60)
+        days, hours = divrem(y, 24)
+        return "$(Day(days)), $(Hour(hours)), $(Minute(minutes)), $(Second(seconds))"
     end
 
 end

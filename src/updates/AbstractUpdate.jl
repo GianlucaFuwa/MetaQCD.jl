@@ -22,6 +22,7 @@ module AbstractUpdateModule
     include("./metropolis.jl")
     include("./heatbath.jl")
     include("./overrelaxation.jl")
+    include("./parity.jl")
 
     function Updatemethod(
         parameters::Params,

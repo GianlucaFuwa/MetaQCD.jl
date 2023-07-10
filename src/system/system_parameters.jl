@@ -55,6 +55,7 @@ module SystemParameters
         hb_numHB::Union{Nothing, Int64}
         eo::Union{Nothing, Bool}
         numOR::Union{Nothing, Int64}
+        parity_update::Bool
 
         measurement_methods::Vector{Dict}
         measurements_with_flow::Union{Nothing, Vector{Dict}}
