@@ -75,7 +75,7 @@ module SystemParameters
         loadU_fromfile::Bool
         loadU_filename::String
 
-		randomseed::Union{Nothing, Int64}
+		randomseed::Int64
 		logdir::String
 		logfile::String
 		load_fp::Union{Nothing, IOStream}

@@ -43,7 +43,14 @@ module Mainbuild
         )
 
         fp = (myrank == 0)
-        Random.seed!(parameters.randomseed * (myrank + 1))
+
+        if parameters.randomseed != 0
+            seed = parameters.randomseed
+            Random.seed!(seed * (myrank + 1))
+        else
+            seed = rand(1:1_000_000_000)
+            Random.seed!(seed)
+        end
 
         univ = Univ(parameters, use_mpi = MPIparallel, fp = fp)
 
@@ -56,6 +63,7 @@ module Mainbuild
             InteractiveUtils.versioninfo(io)
             versioninfo = String(take!(io))
             println_verbose1(univ.verbose_print, versioninfo)
+            println_verbose1(univ.verbose_print, ">> Random seed is: $seed")
         end
 
         run_build!(univ, parameters)

@@ -103,7 +103,7 @@ module ParameterStructs
         saveU_dir::String = ""
         saveU_format::Union{String, Nothing} = nothing
         saveU_every::Int64 = 1
-        randomseed::Union{Nothing, Int64} = nothing
+        randomseed::Int64 = 0
         measurement_basedir::String = ""
         measurement_dir::String = ""
         bias_basedir::Union{Nothing, String, Vector{String}} = nothing

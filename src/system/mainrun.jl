@@ -24,7 +24,13 @@ module Mainrun
         filename = filename_head * ".toml"
         parameters = construct_params_from_toml(filename)
 
-        Random.seed!(parameters.randomseed)
+        if parameters.randomseed != 0
+            seed = parameters.randomseed
+            Random.seed!(seed)
+        else
+            seed = rand(1:1_000_000_000)
+            Random.seed!(seed)
+        end
 
         univ = Univ(parameters)
         println_verbose1(univ.verbose_print, "# ", pwd())
@@ -34,7 +40,7 @@ module Mainrun
         InteractiveUtils.versioninfo(io)
         versioninfo = String(take!(io))
         println_verbose1(univ.verbose_print, versioninfo)
-
+        println_verbose1(univ.verbose_print, ">> Random seed is: $seed")
         println("\t>> Universe is set!\n")
 
         run_sim!(univ, parameters)
