@@ -94,11 +94,12 @@ function calc_measurements_flowed(
     substitute_U!(gradient_flow.Uflow, U)
 
     for iflow in 1:gradient_flow.numflow
-        τ = round(iflow * gradient_flow.ϵ * gradient_flow.steps, sigdigits = 3)
+        τ = round(iflow * gradient_flow.tf, sigdigits = 3)
         flow!(gradient_flow)
-        additional_string = "$itrj\t$iflow\t$τ"
 
         if iflow % gradient_flow.measure_every == 0
+            additional_string = "$itrj\t$iflow\t$τ"
+
             for i in 1:m.num_measurements
                 interval = m.intervals[i]
 

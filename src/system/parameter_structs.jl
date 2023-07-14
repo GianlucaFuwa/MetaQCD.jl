@@ -109,12 +109,7 @@ module ParameterStructs
         bias_basedir::Union{Nothing, String, Vector{String}} = nothing
         bias_dir::Union{Nothing, String, Vector{Union{Nothing,String}}} = nothing
         usebiases::Union{Nothing, String, Vector{Union{Nothing,String}}} = nothing
-        hasgradientflow::Bool = false
-        flow_integrator::String = "euler"
-        flow_num::Int64 = 1
-        flow_ϵ::Float64 = 0.1
-        flow_steps::Int64 = 10
-        flow_measure_every::Int64 = 1
+        overwrite::Bool = false
     end
 
     Base.@kwdef mutable struct PrintHMCrelatedParameters
@@ -129,7 +124,7 @@ module ParameterStructs
         hasgradientflow::Bool = false
         flow_integrator::String = "euler"
         flow_num::Int64 = 1
-        flow_ϵ::Float64 = 0.1
+        flow_tf::Float64 = 0.1
         flow_steps::Int64 = 10
         flow_measure_every::Int64 = 1
     end
@@ -188,8 +183,8 @@ module ParameterStructs
                 flow_dict["flow_integrator"] = value
             elseif key == "flow_num"
                 flow_dict["flow_num"] = value
-            elseif key == "flow_ϵ"
-                flow_dict["flow_ϵ"] = value
+            elseif key == "flow_tf"
+                flow_dict["flow_tf"] = value
             elseif key == "flow_steps"
                 flow_dict["flow_steps"] = value
             elseif key == "flow_measure_every"

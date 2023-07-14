@@ -61,7 +61,7 @@ module SystemParameters
         measurements_with_flow::Union{Nothing, Vector{Dict}}
         flow_integrator::Union{Nothing, String}
         flow_num::Union{Nothing, Int64}
-        flow_ϵ::Union{Nothing, Float64}
+        flow_tf::Union{Nothing, Float64}
         flow_steps::Union{Nothing, Int64}
         flow_measure_every::Union{Nothing, Int64}
 
@@ -82,6 +82,7 @@ module SystemParameters
         measuredir::String
 		biasdir::Union{Nothing, String}
         usebiases::Union{Nothing, Vector{Union{Nothing, String}}}
+        overwrite::Bool
     end
 
 end

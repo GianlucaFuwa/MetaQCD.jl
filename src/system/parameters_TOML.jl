@@ -73,8 +73,7 @@ module ParametersTOML
         gradientflow = PrintGradientFlowParameters()
         set_params_value!(value_Params, gradientflow)
 
-        #pos = findfirst(x -> String(x) == "ITERATION_MAX", pnames)
-        #value_Params[pos] = 10^5
+        overwrite = parameters["System Settings"]["overwrite"]
 
         pos = findfirst(x -> String(x) == "load_fp", pnames)
         logfilename = parameters["System Settings"]["logfile"]
@@ -87,7 +86,7 @@ module ParametersTOML
         logfile = pwd() * "/" * logdir * "/" * logfilename
 
         if isfile(logfile)
-            overwrite_detected("logfile", am_rank0)
+            overwrite ? nothing : overwrite_detected("logfile", am_rank0)
         end
 
         load_fp = am_rank0 ? open(logfile, "w") : nothing
@@ -105,7 +104,7 @@ module ParametersTOML
                 mkpath(pwd() * "/" * measurement_basedir * "/" * measurement_dir)
             end
         else
-            overwrite_detected("measurement", am_rank0)
+            overwrite ? nothing : overwrite_detected("measurement", am_rank0)
         end
 
         pos = findfirst(x -> String(x) == "measuredir", pnames)

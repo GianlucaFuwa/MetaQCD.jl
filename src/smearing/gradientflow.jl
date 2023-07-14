@@ -4,6 +4,7 @@ struct GradientFlow{TI, TG} <: AbstractSmearing
     numflow::Int64
     steps::Int64
     ϵ::Float64
+    tf::Float64
     measure_every::Int64
     Uflow::TG
     Z::Liefield
@@ -16,7 +17,7 @@ function GradientFlow(
     integrator = "euler",
     numflow = 1,
     steps = 1,
-    ϵ = 0.01,
+    tf = 0.12,
     measure_every = 1,
 ) where {TG}
     Z = Liefield(U)
@@ -34,10 +35,13 @@ function GradientFlow(
         error("Gradient flow integrator \"$(integrator)\" not supported")
     end
 
+    ϵ = tf / steps
+
     return GradientFlow{TI, TG}(
         numflow,
         steps,
         ϵ,
+        tf,
         measure_every,
         Uflow,
         Z,

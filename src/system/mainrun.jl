@@ -72,7 +72,7 @@ module Mainrun
                 integrator = parameters.flow_integrator,
                 numflow = parameters.flow_num,
                 steps = parameters.flow_steps,
-                ϵ = parameters.flow_ϵ,
+                tf = parameters.flow_tf,
                 measure_every = parameters.flow_measure_every,
             )
 
@@ -107,7 +107,7 @@ module Mainrun
                 integrator = parameters.flow_integrator,
                 numflow = parameters.flow_num,
                 steps = parameters.flow_steps,
-                ϵ = parameters.flow_ϵ,
+                tf = parameters.flow_tf,
                 measure_every = parameters.flow_measure_every,
             )
 
