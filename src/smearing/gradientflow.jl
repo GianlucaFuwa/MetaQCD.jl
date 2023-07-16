@@ -57,7 +57,7 @@ end
 
 function updateU!(U, Z, ϵ)
     @batch for site in eachindex(U)
-        @inbounds for μ in 1:4
+        for μ in 1:4
             U[μ][site] = cmatmul_oo(
                 exp_iQ(-im * ϵ * Z[μ][site]),
                 U[μ][site],
@@ -72,7 +72,7 @@ function calc_Z!(U, Z, ϵ)
     staple = WilsonGaugeAction()
 
     @batch for site in eachindex(U)
-        @inbounds for μ in 1:4
+        for μ in 1:4
             A = staple(U, μ, site)
             AU = cmatmul_od(A, U[μ][site])
             Z[μ][site] = ϵ * traceless_antihermitian(AU)
@@ -86,7 +86,7 @@ function updateZ!(U, Z, ϵ_old, ϵ_new)
     staple = WilsonGaugeAction()
 
     @batch for site in eachindex(U)
-        @inbounds for μ in 1:4
+        for μ in 1:4
             A = staple(U, μ, site)
             AU = cmatmul_od(A, U[μ][site])
             Z[μ][site] = ϵ_old * Z[μ][site] +

@@ -106,10 +106,7 @@ function top_charge(U::T, methodname::String) where {T <: Gaugefield}
 end
 
 function top_charge_plaq(U::T) where {T <: Gaugefield}
-    spacing = 8
-    Qplaq = zeros(Float64, nthreads() * spacing)
-
-    @batch for site in eachindex(U)
+    @batch threadlocal=0.0::Float64 for site in eachindex(U)
         C12 = plaquette(U, 1, 2, site)
         F12 = im * traceless_antihermitian(C12)
 
@@ -128,21 +125,15 @@ function top_charge_plaq(U::T) where {T <: Gaugefield}
         C34 = plaquette(U, 3, 4, site)
         F34 = im * traceless_antihermitian(C34)
 
-        Qplaq[threadid() * spacing] +=
-            real(multr(F12, F34)) - # minus sign from ε-tensor
-            real(multr(F13, F24)) +
-            real(multr(F14, F23))
+        threadlocal += real(multr(F12, F34)) - real(multr(F13, F24)) + real(multr(F14, F23))
     end
-    # 1/32 -> 1/4 because of trace symmetry absorbing 8 terms of ε-tensor
-    Qplaq = 1/4π^2 * sum(Qplaq)
+
+    Qplaq = 1/4π^2 * sum(threadlocal)
     return Qplaq
 end
 
 function top_charge_clover(U::T) where {T <: Gaugefield}
-    spacing = 8
-    Qclover = zeros(Float64, nthreads() * spacing)
-
-    @batch for site in eachindex(U)
+    @batch threadlocal=0.0::Float64 for site in eachindex(U)
         C12 = clover_square(U, 1, 2, site, 1)
         F12 = im/4 * traceless_antihermitian(C12)
 
@@ -161,21 +152,15 @@ function top_charge_clover(U::T) where {T <: Gaugefield}
         C34 = clover_square(U, 3, 4, site, 1)
         F34 = im/4 * traceless_antihermitian(C34)
 
-        Qclover[threadid() * spacing] +=
-            real(multr(F12, F34)) -
-            real(multr(F13, F24)) +
-            real(multr(F14, F23))
+        threadlocal += real(multr(F12, F34)) - real(multr(F13, F24)) + real(multr(F14, F23))
     end
-    # 1/32 -> 1/4 because of trace symmetry absorbing 8 terms of ε-tensor
-    Qclover = 1/4π^2 * sum(Qclover)
+
+    Qclover = 1/4π^2 * sum(threadlocal)
     return Qclover
 end
 
 function top_charge_rect(U::T) where {T <: Gaugefield}
-    spacing = 8
-    Qrect = zeros(Float64, nthreads() * spacing)
-
-    @batch for site in eachindex(U)
+    @batch threadlocal=0.0::Float64 for site in eachindex(U)
         C12 = clover_rect(U, 1, 2, site, 1, 2)
         F12 = im/8 * traceless_antihermitian(C12)
 
@@ -194,13 +179,10 @@ function top_charge_rect(U::T) where {T <: Gaugefield}
         C34 = clover_rect(U, 3, 4, site, 1, 2)
         F34 = im/8 * traceless_antihermitian(C34)
 
-        Qrect[threadid() * spacing] +=
-            real(multr(F12, F34)) -
-            real(multr(F13, F24)) +
-            real(multr(F14, F23))
+        threadlocal += real(multr(F12, F34)) - real(multr(F13, F24)) + real(multr(F14, F23))
     end
-    # 2/32 -> 2/4 because of trace symmetry absorbing 8 terms of ε-tensor
-    Qrect = 2/4π^2 * sum(Qrect)
+
+    Qrect = 2/4π^2 * sum(threadlocal)
     return Qrect
 end
 

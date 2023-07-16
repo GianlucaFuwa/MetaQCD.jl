@@ -125,12 +125,12 @@ module Gaugefields
 	end
 
 	function Base.setindex!(u::T, v, μ) where {T <: Abstractfield}
-        @inbounds u.U[μ] = v
+        u.U[μ] = v
 		return nothing
     end
 
 	@inline function Base.getindex(u::T, μ) where {T <: Abstractfield}
-        @inbounds return u.U[μ]
+        return u.U[μ]
     end
 
 	function Base.getproperty(u::T, p::Symbol) where {T <: Gaugefield}
@@ -183,7 +183,7 @@ module Gaugefields
 
 	function substitute_U!(a::T, b::T) where {T <: Abstractfield}
 		@batch for site in eachindex(a)
-            @inbounds for μ in 1:4
+            for μ in 1:4
                 a[μ][site] = b[μ][site]
             end
         end
@@ -195,7 +195,7 @@ module Gaugefields
 		u = Gaugefield(NX, NY, NZ, NT, β, GA = type_of_gaction)
 
 		@batch for site in eachindex(u)
-            @inbounds for μ in 1:4
+            for μ in 1:4
                 u[μ][site] = eye3
             end
         end
@@ -207,7 +207,7 @@ module Gaugefields
 		u = Gaugefield(NX, NY, NZ, NT, β, GA = type_of_gaction)
 
 		for site = eachindex(u)
-            @inbounds for μ in 1:4
+            for μ in 1:4
                 link = @SMatrix rand(ComplexF64, 3, 3)
                 link = proj_onto_SU3(link)
                 u[μ][site] = link
@@ -221,7 +221,7 @@ module Gaugefields
 
 	function clear_U!(u::T) where {T <: Abstractfield}
 		@batch for site in eachindex(u)
-            @inbounds for μ in 1:4
+            for μ in 1:4
                 u[μ][site] = zero3
             end
 		end
@@ -231,7 +231,7 @@ module Gaugefields
 
 	function normalize!(u::T) where {T <: Gaugefield}
  		@batch for site in eachindex(u)
-            @inbounds for μ in 1:4
+            for μ in 1:4
                 u[μ][site] = proj_onto_SU3(u[μ][site])
             end
         end
@@ -241,7 +241,7 @@ module Gaugefields
 
 	function add!(a::Abstractfield, b::Abstractfield, fac)
 		@batch for site in eachindex(a)
-            @inbounds for μ in 1:4
+            for μ in 1:4
                 a[μ][site] += fac * b[μ][site]
             end
 		end
@@ -251,7 +251,7 @@ module Gaugefields
 
 	function leftmul!(a::Abstractfield, b::Abstractfield)
 		@batch for site in eachindex(a)
-            @inbounds for μ in 1:4
+            for μ in 1:4
                 a[μ][site] = cmatmul_oo(b[μ][site], a[μ][site])
             end
 		end
@@ -261,7 +261,7 @@ module Gaugefields
 
     function leftmul_dagg!(a::Abstractfield, b::Abstractfield)
 		@batch for site in eachindex(a)
-            @inbounds for μ in 1:4
+            for μ in 1:4
                 a[μ][site] = cmatmul_do(b[μ][site], a[μ][site])
             end
 		end
@@ -271,7 +271,7 @@ module Gaugefields
 
 	function rightmul!(a::Abstractfield, b::Abstractfield)
 		@batch for site in eachindex(a)
-            @inbounds for μ in 1:4
+            for μ in 1:4
                 a[μ][site] = cmatmul_oo(a[μ][site], b[μ][site])
             end
 		end
@@ -281,7 +281,7 @@ module Gaugefields
 
     function rightmul_dagg!(a::Abstractfield, b::Abstractfield)
 		@batch for site in eachindex(a)
-            @inbounds for μ in 1:4
+            for μ in 1:4
                 a[μ][site] = cmatmul_od(a[μ][site], b[μ][site])
             end
 		end

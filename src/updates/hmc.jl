@@ -148,7 +148,7 @@ function updateU!(U, method, fac)
     P = method.P
 
     @batch for site in eachindex(U)
-        @inbounds for μ in 1:4
+        for μ in 1:4
             U[μ][site] = cmatmul_oo(exp_iQ(-im * ϵ * P[μ][site]), U[μ][site])
         end
     end
@@ -209,7 +209,7 @@ function calc_dSdU!(dSdU, staples, U::Gaugefield{GA}) where {GA}
     staple = GA()
 
     @batch for site in eachindex(U)
-        @inbounds for μ in 1:4
+        for μ in 1:4
             A = staple(U, μ, site)
             staples[μ][site] = A
             UA = cmatmul_od(U[μ][site], A)

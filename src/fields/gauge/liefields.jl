@@ -36,14 +36,11 @@ function gaussian_momenta!(p::Liefield)
 end
 
 function calc_kinetic_energy(p::Liefield)
-    spacing = 8
-    ekin = zeros(Float64, nthreads() * spacing)
-
-    @batch for site in eachindex(p)
+    @batch threadlocal=0.0::Float64 for site in eachindex(p)
         for μ = 1:4
-            ekin[threadid() * spacing] += real(multr(p[μ][site], p[μ][site]))
+            threadlocal += real(multr(p[μ][site], p[μ][site]))
         end
     end
 
-    return sum(ekin)
+    return sum(threadlocal)
 end

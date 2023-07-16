@@ -45,7 +45,7 @@ function metro_sweep!(U::Gaugefield{GA}, metro; metro_test = true) where {GA}
 	staple = GA()
     action_factor = -U.β / 3
 
-    @inbounds for μ in 1:4
+    for μ in 1:4
 	    for site in eachindex(U)
             A_adj = staple(U, μ, site)'
 
@@ -79,9 +79,9 @@ function metro_sweep_eo!(U::Gaugefield{GA}, metro; metro_test = true) where {GA}
     staple = GA()
     action_factor = -U.β / 3
 
-	@inbounds for μ in 1:4
+	for μ in 1:4
         for pass in 1:2
-            @threads :static for it in 1:NT
+            @threads for it in 1:NT
                 for iz in 1:NZ
                     for iy in 1:NY
                         for ix in 1+mod(it + iz + iy, pass):2:NX

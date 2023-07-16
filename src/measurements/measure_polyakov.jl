@@ -81,10 +81,8 @@ end
 
 function polyakov_traced(U::T) where {T<:Gaugefield}
     NX, NY, NZ, NT = size(U)
-    spacing = 8
-    poly = zeros(ComplexF64, nthreads() * spacing)
 
-    @batch for iz in 1:NZ
+    @batch threadlocal=zero(ComplexF64)::ComplexF64 for iz in 1:NZ
         for iy in 1:NY
             for ix in 1:NX
                 polymat = U[4][ix,iy,iz,1]
@@ -93,10 +91,10 @@ function polyakov_traced(U::T) where {T<:Gaugefield}
                     polymat = cmatmul_oo(polymat, U[4][ix,iy,iz,1+t])
                 end
 
-                poly[threadid() * spacing] += tr(polymat)
+                threadlocal += tr(polymat)
             end
         end
     end
 
-    return sum(poly)
+    return sum(threadlocal)
 end

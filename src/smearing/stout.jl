@@ -69,7 +69,7 @@ function apply_stout_smearing!(Uout, C, Q, U, ρ)
 	calc_stout_Q!(Q, C, U, ρ)
 
 	@batch for site in eachindex(U)
-        @inbounds for μ in 1:4
+        for μ in 1:4
             Uout[μ][site] = cmatmul_oo(exp_iQ(Q[μ][site]), U[μ][site])
         end
 	end
@@ -115,7 +115,7 @@ function stout_recursion!(Σ, Σ_prime, U_prime, U, C, Q, Λ, ρ)
 	calc_stout_Λ!(Λ, Σ_prime, Q, U)
 
 	@batch for site in eachindex(Σ)
-        @inbounds for μ in 1:4
+        for μ in 1:4
             Nμ = size(Σ_prime)[μ]
             siteμp = move(site, μ, 1, Nμ)
             force_sum = @SMatrix zeros(ComplexF64, 3, 3)
@@ -171,7 +171,7 @@ end
 """
 function calc_stout_Λ!(Λ, Σprime, Q, U)
 	@batch for site in eachindex(Λ)
-        @inbounds for μ in 1:4
+        for μ in 1:4
             q = Q[μ][site]
             Q_mat = q.Q
             Q2_mat = q.Q2
@@ -197,7 +197,7 @@ function calc_stout_Q!(Q, C, U, ρ)
 	staple = WilsonGaugeAction()
 
 	@batch for site in eachindex(Q)
-        @inbounds for μ in 1:4
+        for μ in 1:4
             Cμ = ρ * staple(U, μ, site)
             C[μ][site] = Cμ
 

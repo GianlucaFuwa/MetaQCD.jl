@@ -45,7 +45,7 @@ module TemperingModule
         b.CV = a_CV_tmp
 
 		@batch for site in eachindex(U)
-            @inbounds for μ in 1:4
+            for μ in 1:4
                 a_tmp = a[μ][site]
                 a[μ][site] = b[μ][site]
                 b[μ][site] = a_tmp

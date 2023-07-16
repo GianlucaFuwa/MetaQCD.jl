@@ -15,7 +15,7 @@ function parity_update!(U::Gaugefield{GA}, p::ParityUpdate) where {GA}
     @batch for it in 1:NT
         for iz in 1:NZ
             for iy in 1:NY
-                @inbounds for ix in 1:NX
+                for ix in 1:NX
                     ix_min_0 = mod(-ix-0, NX) + 1
                     ix_min_1 = mod(-ix-1, NX) + 1
                     iy_min_0 = mod(-iy-0, NY) + 1

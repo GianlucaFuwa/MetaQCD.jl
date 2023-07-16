@@ -3,7 +3,7 @@ function staple_eachsite!(staples, U::Gaugefield{GA}) where {GA}
 
     for site in eachindex(U)
         for μ in 1:4
-            @inbounds staples[μ][site] = staple(U, μ, site)
+            staples[μ][site] = staple(U, μ, site)
         end
     end
 

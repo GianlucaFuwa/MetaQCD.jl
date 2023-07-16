@@ -52,35 +52,29 @@ function (::DBW2GaugeAction)(U::T) where {T <: Gaugefield}
 end
 
 function plaquette_trace_sum(U::T) where {T <: Gaugefield}
-    spacing = 8
-    plaq = zeros(Float64, nthreads() * spacing)
-
-    @batch for site in eachindex(U)
-        @inbounds for μ in 1:3
+    @batch threadlocal=0.0::Float64 for site in eachindex(U)
+        for μ in 1:3
             for ν in μ+1:4
-                plaq[threadid() * spacing] += real(tr(plaquette(U, μ, ν, site)))
+                threadlocal += real(tr(plaquette(U, μ, ν, site)))
             end
         end
     end
 
-    return sum(plaq)
+    return sum(threadlocal)
 end
 
 function rect_trace_sum(U::T) where {T <: Gaugefield}
-    spacing = 8
-    rect = zeros(Float64, nthreads() * spacing)
-
-    @batch for site in eachindex(U)
-        @inbounds for μ in 1:3
+    @batch threadlocal=0.0::Float64 for site in eachindex(U)
+        for μ in 1:3
             for ν in μ+1:4
-                rect[threadid() * spacing] +=
+                threadlocal +=
                     real(tr(rect_1x2(U, μ, ν, site))) +
                     real(tr(rect_2x1(U, μ, ν, site)))
             end
         end
     end
 
-    return sum(rect)
+    return sum(threadlocal)
 end
 
 function plaquette(U::T, μ, ν, site::SiteCoords) where {T <: Gaugefield}

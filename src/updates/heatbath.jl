@@ -90,9 +90,9 @@ function heatbath_sweep_eo!(U::Gaugefield{GA}, MAXIT) where {GA}
     staple = GA()
     action_factor = 3 / U.β
 
-    @inbounds for μ in 1:4
+    for μ in 1:4
         for pass in 1:2
-            @threads :static for it in 1:NT
+            @threads for it in 1:NT
                 for iz in 1:NZ
                     for iy in 1:NY
                         for ix in 1+iseven(iy + iz + it + pass):2:NX

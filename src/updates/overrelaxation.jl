@@ -4,7 +4,7 @@ function overrelaxation_sweep!(U::Gaugefield{GA}; metro_test = true) where {GA}
     action_factor = -U.β / 3
 
     for site in eachindex(U)
-        @inbounds for μ in 1:4
+        for μ in 1:4
             A_adj = staple(U, μ, site)'
             old_link = U[μ][site]
             new_link = overrelaxation_subgroups(old_link, A_adj)
@@ -31,7 +31,7 @@ function overrelaxation_sweep_eo!(U::Gaugefield{GA}; metro_test = true) where {G
 
     for μ in 1:4
         for pass in 1:2
-            @batch for it in 1:NT
+            @threads for it in 1:NT
                 for iz in 1:NZ
                     for iy in 1:NY
                         for ix in 1+iseven(iy + iz + it + pass):2:NX

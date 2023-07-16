@@ -124,40 +124,32 @@ function energy_density_plaq(U::T) where {T <: Gaugefield}
 end
 
 function energy_density_clover(U::T) where {T <: Gaugefield}
-    spacing = 8
-    Eclov = zeros(Float64, nthreads() * spacing)
-
-    @batch for site in eachindex(U)
+    @batch threadlocal=0.0::Float64 for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
                 Cμν = clover_square(U, μ, ν, site, 1)
                 Fμν = im/4 * traceless_antihermitian(Cμν)
-
-                Eclov[threadid() * spacing] += real(multr(Fμν, Fμν))
+                threadlocal += real(multr(Fμν, Fμν))
             end
         end
     end
 
-    Eclov = 1/2U.NV * sum(Eclov)
+    Eclov = 1/2U.NV * sum(threadlocal)
     return Eclov
 end
 
 function energy_density_rect(U::T) where {T <: Gaugefield}
-    spacing = 8
-    Erect = zeros(Float64, nthreads() * spacing)
-
-    @batch for site in eachindex(U)
+    @batch threadlocal=0.0::Float64 for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
                 Cμν = clover_rect(U, μ, ν, site, 1, 2)
                 Fμν = im/8 * traceless_antihermitian(Cμν)
-
-                Erect[threadid() * spacing] += real(multr(Fμν, Fμν))
+                threadlocal += real(multr(Fμν, Fμν))
             end
         end
     end
 
-    Erect = 1/2U.NV * sum(Erect)
+    Erect = 1/2U.NV * sum(threadlocal)
     return Erect
 end
 
