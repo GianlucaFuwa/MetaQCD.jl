@@ -5,11 +5,11 @@ module Utils
     using StaticArrays
 
     export exp_iQ, exp_iQ_coeffs, exp_iQ_su3, B1, B2
-    export gen_SU3_matrix, is_SU3, is_su3
+    export gen_SU3_matrix, is_special_unitary, is_traceless_antihermitian
     export kenney_laub, proj_onto_SU3, make_submatrix, embed_into_SU3, multr
     export antihermitian, hermitian, traceless_antihermitian, traceless_hermitian
     export zero2, eye2, zero3, eye3, δ, ε_tensor, gaussian_su3_matrix
-    export get_coords, move, SiteCoords
+    export move, SiteCoords
     export λ, expλ
     export cmatmul_oo, cmatmul_dd, cmatmul_do, cmatmul_od
     export cmatmul_ooo, cmatmul_ood, cmatmul_odo, cmatmul_doo, cmatmul_odd,
