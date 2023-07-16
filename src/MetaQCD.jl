@@ -58,13 +58,13 @@ module MetaQCD
     export plaquette, wilsonloop, identity_gauges, random_gauges, move, normalize!
     export plaquette_trace_sum, staple_eachsite!
     export Liefield, gaussian_momenta!, calc_kinetic_energy
-    export BiasPotential, update_bias!, return_potential
+    export BiasPotential, update_bias!
     export NoSmearing, StoutSmearing, calc_smearedU!, GradientFlow, flow!
     export Updatemethod, update!
     export measure, get_value, PlaquetteMeasurement, PolyakovMeasurement
     export WilsonLoopMeasurement, TopologicalChargeMeasurement, GaugeActionMeasurement
     export top_charge
-    export Params, construct_measurement_parameters_from_toml, construct_params_from_toml
+    export Params, construct_params_from_toml
     export Univ
     export run_sim, run_build
 
