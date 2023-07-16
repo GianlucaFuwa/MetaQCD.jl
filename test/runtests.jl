@@ -1,4 +1,5 @@
 using MetaQCD
+using Aqua
 using Test
 
 include("testmeas.jl")
@@ -19,4 +20,8 @@ include("testupdate.jl")
 
     accrate = SU3testupdate()
     @test accrate == 1
+end
+
+if VERSION >= v"1.9"
+    Aqua.test_all(MetaQCD)
 end
