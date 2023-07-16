@@ -277,7 +277,7 @@ module Mainrun
 
             println_verbose1(
                 univ.verbose_print,
-                "\t>> Metapotential has been saved in file \"$(Bias.fp)\""
+                "\n\t>> Bias potential has been saved in file \"$(Bias.fp)\""
             )
         end
 
@@ -438,12 +438,15 @@ module Mainrun
 
                 println_verbose1(
                     univ.verbose_print,
-                    "\t>> Metapotential $i has been saved in file \"$(Bias[i].fp)\""
+                    "\n\t>> Bias potential $i has been saved in file \"$(Bias[i].fp)\""
                 )
             end
         end
 
-        println_verbose1(univ.verbose_print, "\t>> Total Elapsed time $(runtime_all) [s]\n")
+        println_verbose1(
+            univ.verbose_print,
+            "\n\t>> Total elapsed time:\t$(convert_from_seconds(runtime_all)) \n",
+        )
         flush(stdout)
         flush(univ.verbose_print)
         # close(measurements)

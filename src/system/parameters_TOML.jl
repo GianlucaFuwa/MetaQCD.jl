@@ -73,7 +73,13 @@ module ParametersTOML
         gradientflow = PrintGradientFlowParameters()
         set_params_value!(value_Params, gradientflow)
 
-        overwrite = parameters["System Settings"]["overwrite"]
+        overwrite = true
+
+        try
+            overwrite = parameters["System Settings"]["overwrite"]
+        catch
+            @warn "\"overwrite\" not specified in System Settings; default to true."
+        end
 
         pos = findfirst(x -> String(x) == "load_fp", pnames)
         logfilename = parameters["System Settings"]["logfile"]
@@ -209,7 +215,7 @@ module ParametersTOML
                 do_prints ? mkpath(p.saveU_dir) : nothing
             end
 
-            println("\t>> $(p.saveU_dir) is used for saving configurations\n")
+            println("\t>> configs are saved in $(p.saveU_dir)\n")
         end
 
         if Unicode.normalize(p.update_method, casefold = true) == "hmc"

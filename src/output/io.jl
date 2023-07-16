@@ -33,7 +33,7 @@ module IOModule
             end
 
             if T !== Nothing
-                println_verbose1(vp, ">> Save Gaugefield every $(saveU_every) trajectory")
+                println_verbose1(vp, "\t>> Save config every $(saveU_every) trajectory!")
             end
 
             return new{T}(saveU_format, saveU_dir, saveU_every, itrjsavecount)
