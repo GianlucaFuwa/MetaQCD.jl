@@ -1,3 +1,5 @@
+[![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
+
 # MetaQCD.jl
 
 Inspired by the LatticeQCD.jl package by Akio Tomiya et al.
