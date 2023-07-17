@@ -2,7 +2,7 @@
 
 # MetaQCD.jl
 
-Inspired by the LatticeQCD.jl package by Akio Tomiya et al.
+Inspired by the [LatticeQCD.jl](https://github.com/akio-tomiya/LatticeQCD.jl/tree/master) package by Akio Tomiya et al.
 
 Capable of running [PT-MetaD](https://arxiv.org/abs/2307.04742) simulations of 4D-SU(3) Yang-Mills Theory.
 
