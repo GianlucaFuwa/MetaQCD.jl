@@ -4,7 +4,7 @@
 
 Inspired by the LatticeQCD.jl package by Akio Tomiya et al.
 
-Capable of running PT-MetaD simulations of 4D-SU(3) Yang-Mills Theory as described in arXiv:2307.04742.
+Capable of running [PT-MetaD](https://arxiv.org/abs/2307.04742) simulations of 4D-SU(3) Yang-Mills Theory.
 
 ## Quick Start:
 1. Set parameters using one of the templates in template folder
