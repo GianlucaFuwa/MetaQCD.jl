@@ -1,15 +1,15 @@
 ["Physical Settings"]
 L = [4, 4, 4, 4]
-"β" = 6.0
+"β" = 5.7
 kind_of_gaction = "wilson"
 Ntherm = 1
 Nsteps = 1
 initial = "cold"
 update_method = "HMC"
 meta_enabled = true
-tempering_enabled = true
-numinstances = 2
-swap_every = 5
+# tempering_enabled = true
+# numinstances = 2
+# swap_every = 5
 
 ["MetaD related"]
 kind_of_cv = "clover"
@@ -30,17 +30,18 @@ hmc_steps = 10
 hmc_integrator = "OMF4"
 
 ["System Settings"]               
-logdir = "./logs/L4x4x4x4_beta6.0"
+logdir = "./logs/L4x4x4x4_beta5.7"
 logfile = "test_hmc.txt"
-measurement_basedir = "./measurements/L4x4x4x4_beta6.0"
+measurement_basedir = "./measurements/L4x4x4x4_beta5.7"
 measurement_dir = "test_hmc"
 randomseed = 1206
 verboselevel = 1
-bias_basedir = "./metapotentials/L4x4x4x4_beta6.0"
+bias_basedir = "./metapotentials/L4x4x4x4_beta5.7"
 bias_dir = "test_hmc"
-saveU_dir = "./configs/L4x4x4x4_beta6.0"
+saveU_dir = "./configs/L4x4x4x4_beta5.7"
 saveU_format = "jld"
 saveU_every = 1
+overwrite = false
 
 ["Measurement set".measurement_methods.Polyakov_loop]
 measure_every = 10
@@ -59,7 +60,7 @@ methodname = "plaquette"
 flow_integrator = "euler"
 flow_num = 3
 flow_steps = 1
-"flow_ϵ" = 0.12
+flow_tf = 0.12
 flow_measure_every = 3
 
     [gradientflow_measurements.measurements_with_flow.Topological_charge]

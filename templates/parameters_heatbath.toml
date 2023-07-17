@@ -1,8 +1,8 @@
 ["Physical Settings"]
-L = [12, 12, 12, 12]
-"β" = 6.0
+L = [4, 4, 4, 4]
+"β" = 5.7
 kind_of_gaction = "wilson"
-Ntherm = 10
+Ntherm = 1
 Nsteps = 10
 initial = "cold"
 update_method = "heatbath"
@@ -10,14 +10,16 @@ hb_MAXIT = 10
 hb_numHB = 1
 eo = true
 numOR = 4
+parity_update = false
 
 ["System Settings"]               
-logdir = "./logs/PP/test_kl"
-logfile = "test_kl.txt"
-measurement_basedir = "./measurements/PP/test_kl"
-measurement_dir = "test_kl"
-randomseed = 1206
+logdir = "./logs/L4x4x4x4_beta5.7"
+logfile = "test_heatbath.txt"
+measurement_basedir = "./measurements/L4x4x4x4_beta5.7"
+measurement_dir = "test_heatbath"
+randomseed = 0 # 0 => randomly chosen seed
 verboselevel = 1
+overwrite = true
 
 ["Measurement set".measurement_methods.Polyakov_loop]
 measure_every = 10
@@ -33,11 +35,11 @@ measure_every = 10
 methodname = "plaquette"
 
 [gradientflow_measurements]
-flow_integrator = "rk3"
-flow_num = 7
+flow_integrator = "euler"
+flow_num = 1
 flow_steps = 1
-"flow_ϵ" = 0.12 # tflow is flow_num * flow_steps * flow_ϵ
-flow_measure_every = 7
+flow_tf = 0.12 # total flow time is flow_num * flow_tf
+flow_measure_every = 1
 
     [gradientflow_measurements.measurements_with_flow.Topological_charge]
     measure_every = 10
