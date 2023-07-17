@@ -35,6 +35,7 @@ randomseed = 1206
 verboselevel = 1
 bias_basedir = "./metapotentials/L4x4x4x4_beta5.7"
 bias_dir = "test_mpi"
+overwrite = true
 # usebiases = [
 #     "nothing"
 # ]
@@ -47,7 +48,7 @@ methodname = "plaquette"
 flow_integrator = "euler"
 flow_num = 10
 flow_steps = 10
-"flow_ϵ" = 0.1
+flow_tf = 0.1
 flow_measure_every = 2
 
     [gradientflow_measurements.measurements_with_flow]
