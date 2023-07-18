@@ -17,7 +17,7 @@ struct BiasPotential{TG} <: AbstractBiasPotential
     kinds_of_weights::Union{Nothing, Vector{String}}
 
     function BiasPotential(
-        p::Params,
+        p::ParameterSet,
         U::TG;
         instance = 1,
         biasfile = nothing,

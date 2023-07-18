@@ -40,7 +40,7 @@ struct HMCUpdate{TI, TG, TS, TM} <: AbstractUpdate
 
         smearing = StoutSmearing(U, numsmear, ρ_stout)
 
-        TI = getfield(AbstractUpdateModule, Symbol(integrator))
+        TI = getfield(Updates, Symbol(integrator))
         TG = typeof(U)
         TS = typeof(smearing)
 

@@ -1,12 +1,4 @@
-import .AbstractMeasurementModule: AbstractMeasurement, EnergyDensityMeasurement,
-    GaugeActionMeasurement, PlaquetteMeasurement, PolyakovMeasurement,
-    TopologicalChargeMeasurement, WilsonLoopMeasurement, MetaChargeMeasurement,
-    MetaChargeParameters, MeasurementParameters
-import .AbstractMeasurementModule: construct_measurement_parameters_from_dict,
-    prepare_measurement, get_string, get_value, measure
-import .AbstractSmearingModule: flow!
-import .Gaugefields: substitute_U!
-
+abstract type AbstractMeasurement end
 
 struct MeasurementMethods
     measurement_parameters_set::Vector{MeasurementParameters}

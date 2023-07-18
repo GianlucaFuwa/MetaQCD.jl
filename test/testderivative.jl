@@ -58,25 +58,25 @@ function SU3testderivative()
         gaction_new_bwd_smeared = calc_gauge_action(smearing.Usmeared_multi[end])
         topcharge_new_bwd_smeared = top_charge(smearing.Usmeared_multi[end], "clover")
 
-        MetaQCD.AbstractUpdateModule.calc_dSdU!(
+        MetaQCD.Updates.calc_dSdU!(
             dSdU,
             staples,
             U,
         )
-        MetaQCD.AbstractUpdateModule.calc_dSdU_bare!(
+        MetaQCD.Updates.calc_dSdU_bare!(
             dSdU_smeared,
             temp_force,
             staples,
             U,
             smearing,
         )
-        MetaQCD.AbstractUpdateModule.calc_dQdU!(
+        MetaQCD.Updates.calc_dQdU!(
             dQdU,
             fieldstrength,
             U,
             "clover",
         )
-        MetaQCD.AbstractUpdateModule.calc_dQdU_bare!(
+        MetaQCD.Updates.calc_dQdU_bare!(
             dQdU_smeared,
             temp_force,
             fieldstrength,

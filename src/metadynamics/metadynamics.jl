@@ -15,11 +15,11 @@ module Metadynamics
     using Polyester
     using Printf
     using Statistics
-	using ..SystemParameters: Params
+	using ..Parameters: ParameterSet
 
-	import ..AbstractMeasurementModule: top_charge
-	import ..AbstractSmearingModule: StoutSmearing
-	import ..Gaugefields: AbstractGaugeAction, Gaugefield
+    import ..Gaugefields: AbstractGaugeAction, Gaugefield
+	import ..Measurements: top_charge
+	import ..Smearing: StoutSmearing
 
 	struct MetaEnabled end
 	struct MetaDisabled end
@@ -28,7 +28,7 @@ module Metadynamics
 
     include("biaspotential.jl")
 
-	function potential_from_file(p::Params, usebias)
+	function potential_from_file(p::ParameterSet, usebias)
 		if usebias === nothing
 			return zero(range(p.CVlims[1], p.CVlims[2], step = p.bin_width))
 		else

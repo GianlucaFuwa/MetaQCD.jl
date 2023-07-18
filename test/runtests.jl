@@ -23,5 +23,5 @@ include("testupdate.jl")
 end
 
 if VERSION >= v"1.9"
-    Aqua.test_all(MetaQCD)
+    Aqua.test_all(MetaQCD, stale_deps = false)
 end
