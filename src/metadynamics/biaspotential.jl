@@ -144,14 +144,10 @@ function return_potential(b::T, cv) where {T <: BiasPotential}
         grid_index = index(b, cv)
         return b[grid_index]
     elseif cv < b.CVlims[1]
-        penalty = b[1] + b.penalty_weight * (
-            0.1 + min((cv - b.CVlims[1])^2, (cv - b.CVlims[2])^2)
-        )
+        penalty = b[1] + b.penalty_weight * min((cv - b.CVlims[1])^2, (cv - b.CVlims[2])^2)
         return penalty
     else
-        penalty = b[end] + b.penalty_weight * (
-            0.1 + min((cv - b.CVlims[1])^2, (cv - b.CVlims[2])^2)
-        )
+        penalty= b[end] + b.penalty_weight * min((cv - b.CVlims[1])^2, (cv - b.CVlims[2])^2)
         return penalty
     end
 end
