@@ -109,9 +109,9 @@ module Universe
         if p.verboselevel == 1
             verbose_print = fp == true ? Verbose1(p.load_fp) : Verbose1()
         elseif p.verboselevel == 2
-            verbose_print = fp == true ? Verbose2(p.load_fp) : Verbose1()
+            verbose_print = fp == true ? Verbose2(p.load_fp) : Verbose2()
         elseif p.verboselevel == 3
-            verbose_print = fp == true ? Verbose3(p.load_fp) : Verbose1()
+            verbose_print = fp == true ? Verbose3(p.load_fp) : Verbose3()
         end
 
         return Univ{typeof(U), typeof(Bias), TM, typeof(verbose_print)}(
