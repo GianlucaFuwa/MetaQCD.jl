@@ -12,8 +12,7 @@ module Mainbuild
     import ..Parameters: construct_params_from_toml
     import ..Smearing: GradientFlow
     import ..Universe: Univ
-    import ..Updates: HMCUpdate, Updatemethod
-    import ..Updates: update!, temper!
+    import ..Updates: HMCUpdate, Updatemethod, update!, temper!
 
     function run_build(filenamein::String; MPIparallel = false)
         comm = MPI.COMM_WORLD

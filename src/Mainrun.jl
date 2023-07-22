@@ -11,8 +11,7 @@ module Mainrun
     import ..Parameters: construct_params_from_toml
     import ..Smearing: GradientFlow
     import ..Universe: Univ
-    import ..Updates: HMCUpdate, Updatemethod
-    import ..Updates: parity_update!, update!, temper!
+    import ..Updates: HMCUpdate, Updatemethod, parity_update!, update!, temper!
 
     function run_sim(filenamein::String)
         filename_head = splitext(filenamein)[1]
