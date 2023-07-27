@@ -1,0 +1,73 @@
+["Physical Settings"]
+L = [4, 4, 4, 4]
+"β" = 1.25
+kind_of_gaction = "dbw2"
+Ntherm = 10
+Nsteps = 10
+initial = "cold"
+update_method = "HMC"
+meta_enabled = true
+# tempering_enabled = true
+# numinstances = 2
+# swap_every = 5
+
+["MetaD related"]
+kind_of_cv = "clover"
+numsmears_for_cv = 4
+"ρstout_for_cv" = 0.125
+symmetric = true
+CVlims = [-7, 7]
+bin_width = 1e-2
+meta_weight = 1e-2
+penalty_weight = 1000.0
+wt_factor = "Inf"
+is_static = false
+kinds_of_weights = ["tiwari", "balanced_exp", "branduardi"]
+
+["HMC related"]
+"hmc_Δτ" = 0.1
+hmc_steps = 10
+hmc_integrator = "OMF4"
+
+["System Settings"]               
+logdir = "./logs/L4x4x4x4_beta5.7"
+logfile = "test_hmc.txt"
+measurement_basedir = "./measurements/L4x4x4x4_beta5.7"
+measurement_dir = "test_hmc"
+randomseed = 1206
+verboselevel = 1
+bias_basedir = "./metapotentials/L4x4x4x4_beta5.7"
+bias_dir = "test_hmc"
+saveU_dir = "./configs/L4x4x4x4_beta5.7"
+saveU_format = "jld"
+saveU_every = 10
+overwrite = false
+
+["Measurement set".measurement_methods.Polyakov_loop]
+measure_every = 10
+methodname = "polyakov_loop"
+
+["Measurement set".measurement_methods.Topological_charge]
+measure_every = 10
+kinds_of_topological_charge = ["clover"]
+methodname = "topological_charge"
+
+["Measurement set".measurement_methods.Plaquette]
+measure_every = 10
+methodname = "plaquette"
+
+[gradientflow_measurements]
+flow_integrator = "euler"
+flow_num = 4
+flow_steps = 1
+flow_tf = 0.125
+flow_measure_every = 4
+
+    [gradientflow_measurements.measurements_with_flow.Topological_charge]
+    measure_every = 10
+    methodname = "topological_charge"
+    kinds_of_topological_charge = ["clover"]
+
+    [gradientflow_measurements.measurements_with_flow.Plaquette]
+    measure_every = 10
+    methodname = "plaquette"

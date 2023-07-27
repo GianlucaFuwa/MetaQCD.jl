@@ -1,0 +1,54 @@
+["Physical Settings"]
+L = [4, 4, 4, 4]
+"β" = 5.7
+kind_of_gaction = "wilson"
+Ntherm = 10
+Nsteps = 10
+initial = "cold"
+update_method = "HMC"
+meta_enabled = true
+tempering_enabled = true
+numinstances = 3
+
+["MetaD related"]
+kind_of_cv = "clover"
+numsmears_for_cv = 4
+"ρstout_for_cv" = 0.125
+symmetric = true
+CVlims = [-7, 7]
+bin_width = 1e-2
+meta_weight = 1e-2
+penalty_weight = 1000.0
+is_static = false
+
+["HMC related"]
+"hmc_Δτ" = 0.1
+hmc_steps = 10
+hmc_integrator = "OMF4"
+
+["System Settings"]               
+logdir = "./logs/L4x4x4x4_beta5.7"
+logfile = "test_mpi.txt"
+measurement_basedir = "./measurements/L4x4x4x4_beta5.7"
+measurement_dir = "test_mpi"
+randomseed = 1206
+verboselevel = 1
+bias_basedir = "./metapotentials/L4x4x4x4_beta5.7"
+bias_dir = "test_mpi"
+overwrite = true
+# usebiases = [
+#     "nothing"
+# ]
+
+["Measurement set".measurement_methods.Plaquette]
+measure_every = 5
+methodname = "plaquette"
+
+[gradientflow_measurements]
+flow_integrator = "euler"
+flow_num = 10
+flow_steps = 10
+flow_tf = 0.1
+flow_measure_every = 2
+
+    [gradientflow_measurements.measurements_with_flow]
