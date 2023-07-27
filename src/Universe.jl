@@ -6,10 +6,10 @@ module Universe
     import ..Gaugefields: AbstractGaugeAction, DBW2GaugeAction, IwasakiGaugeAction,
         SymanzikTadGaugeAction, SymanzikTreeGaugeAction, WilsonGaugeAction
     import ..Gaugefields: identity_gauges, random_gauges
-    import ..Metadynamics: BiasPotential, MetaDisabled, MetaEnabled
+    import ..Metadynamics: BiasPotential
     import ..Parameters: ParameterSet
 
-    struct Univ{TG, TB, TM, TV}
+    struct Univ{TG, TB, TV}
         meta_enabled::Bool
         tempering_enabled::Bool
         U::TG
@@ -36,7 +36,6 @@ module Universe
         end
 
         if p.meta_enabled
-            TM = MetaEnabled
             tempering_enabled = p.tempering_enabled
 
             if tempering_enabled && use_mpi == false
@@ -86,7 +85,6 @@ module Universe
         else
             tempering_enabled = p.tempering_enabled
             @assert tempering_enabled == false "tempering can only be enabled with MetaD"
-            TM = MetaDisabled
             numinstances = 1
             Bias = nothing
 
@@ -114,7 +112,7 @@ module Universe
             verbose_print = fp == true ? Verbose3(p.load_fp) : Verbose3()
         end
 
-        return Univ{typeof(U), typeof(Bias), TM, typeof(verbose_print)}(
+        return Univ{typeof(U), typeof(Bias), typeof(verbose_print)}(
             p.meta_enabled,
             tempering_enabled,
             U,

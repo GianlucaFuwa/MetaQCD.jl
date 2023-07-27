@@ -127,6 +127,13 @@ module Mainrun
 
         println("\t>> Measurement methods are set!\n")
 
+        save_configs = SaveConfigs(
+            parameters.saveU_format,
+            parameters.saveU_dir,
+            parameters.saveU_every,
+            univ.verbose_print
+        )
+
         if parameters.tempering_enabled
             metaqcd_PT!(
                 parameters,
@@ -135,6 +142,7 @@ module Mainrun
                 gradient_flow,
                 measurements,
                 measurements_with_flow,
+                save_configs,
             )
         else
             metaqcd!(
@@ -145,6 +153,7 @@ module Mainrun
                 measurements,
                 measurements_with_flow,
                 parity,
+                save_configs,
             )
         end
 
@@ -159,13 +168,8 @@ module Mainrun
         measurements,
         measurements_with_flow,
         parity,
+        save_configs,
     )
-        save_configs = SaveConfigs(
-            parameters.saveU_format,
-            parameters.saveU_dir,
-            parameters.saveU_every,
-            univ.verbose_print
-        )
         U = univ.U
         Bias = univ.Bias
 
@@ -261,7 +265,7 @@ module Mainrun
             end
         end
 
-        if parameters.meta_enabled
+        if univ.Bias !== nothing
             writedlm(
                 Bias.fp,
                 [Bias.bin_vals Bias.values],
@@ -295,13 +299,6 @@ module Mainrun
         measurements_with_flow,
     )
         numinstances = parameters.numinstances
-        save_configs = SaveConfigs(
-            parameters.saveU_format,
-            parameters.saveU_dir,
-            parameters.saveU_every,
-            univ.verbose_print,
-        )
-
         U = univ.U
         Bias = univ.Bias
 

@@ -11,3 +11,4 @@ run.jl
 /src/mpi/mpitest.jl
 /src/system/mainrun_mpi.jl
 LocalPreferences.toml
+/templates/

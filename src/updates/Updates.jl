@@ -100,8 +100,8 @@ module Updates
         return updatemethod
     end
 
-    function update!(updatemethod::T, U) where {T<:AbstractUpdate}
-        error("updatemethod type $(typeof(updatemethod)) is not supported")
+    function update!(::T, U) where {T<:AbstractUpdate}
+        return nothing
     end
 
 end
