@@ -1,6 +1,3 @@
-using Random
-using MetaQCD
-
 function SU3testupdate()
     Random.seed!(1206)
 
@@ -82,4 +79,3 @@ function SU3testupdate()
     println("Acceptance Rate: ", 100 * numaccepts / nsweeps, " %")
     return numaccepts / nsweeps
 end
-# @time SU3testupdate()

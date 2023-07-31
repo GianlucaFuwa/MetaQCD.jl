@@ -11,11 +11,7 @@ function temper!(
     ΔV1 = bias1(cv2) - bias1(cv1)
     ΔV2 = bias2(cv1) - bias2(cv2)
 
-    println_verbose2(
-        verbose,
-        "ΔV1 = ", ΔV1, "\n",
-        "ΔV2 = ", ΔV2, "\n",
-    )
+    println_verbose2(verbose, "ΔV1 = $(ΔV1)", "\n", "ΔV2 = $(ΔV2)")
 
     accept_swap = rand() ≤ exp(ΔV1 + ΔV2)
 
@@ -30,14 +26,14 @@ end
 
 function swap_U!(a::T, b::T) where {T <: Gaugefield}
     a_Sg_tmp = a.Sg
-    a_CV_tmp = a.Sg
+    a_CV_tmp = a.CV
 
     a.Sg = b.Sg
     a.CV = b.CV
     b.Sg = a_Sg_tmp
     b.CV = a_CV_tmp
 
-    @batch for site in eachindex(U)
+    @batch for site in eachindex(a)
         for μ in 1:4
             a_tmp = a[μ][site]
             a[μ][site] = b[μ][site]

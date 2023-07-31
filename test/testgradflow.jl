@@ -1,6 +1,3 @@
-using MetaQCD
-using Random
-
 function testgradflow(NX, NY, NZ, NT)
     Random.seed!(123)
 

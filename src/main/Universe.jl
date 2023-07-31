@@ -2,7 +2,7 @@ module Universe
     using ..Utils
     using ..Output
 
-    import ..Gaugefields: Gaugefield, Liefield
+    import ..Gaugefields: Gaugefield
     import ..Gaugefields: AbstractGaugeAction, DBW2GaugeAction, IwasakiGaugeAction,
         SymanzikTadGaugeAction, SymanzikTreeGaugeAction, WilsonGaugeAction
     import ..Gaugefields: identity_gauges, random_gauges
@@ -45,19 +45,11 @@ module Universe
 
                 for i in 1:numinstances
                     if p.initial == "cold"
-                        U[i] = identity_gauges(
-                            NX, NY, NZ, NT,
-                            p.β,
-                            type_of_gaction = GA,
-                        )
+                        U[i] = identity_gauges(NX, NY, NZ, NT, p.β, type_of_gaction = GA)
                     elseif p.initial == "hot"
-                        U[i] = random_gauges(
-                            NX, NY, NZ, NT,
-                            p.β,
-                            type_of_gaction = GA,
-                        )
+                        U[i] = random_gauges(NX, NY, NZ, NT, p.β, type_of_gaction = GA)
                     else
-                        error("Initial \"$(p.initial)\" is invalid")
+                        error("Only \"hot\" or \"cold\" initial config valid.")
                     end
 
                     Bias[i] = BiasPotential(p, U[1], instance = i - 1, has_fp = fp)
@@ -67,17 +59,11 @@ module Universe
                 numinstances = 1
 
                 if p.initial == "cold"
-                    U = identity_gauges(
-                        NX, NY, NZ, NT,
-                        p.β,
-                        type_of_gaction = GA,
-                    )
+                    U = identity_gauges(NX, NY, NZ, NT, p.β, type_of_gaction = GA)
                 elseif p.initial == "hot"
-                    U = random_gauges(
-                        NX, NY, NZ, NT,
-                        p.β,
-                        type_of_gaction = GA,
-                    )
+                    U = random_gauges(NX, NY, NZ, NT, p.β, type_of_gaction = GA)
+                else
+                    error("Only \"hot\" or \"cold\" initial config valid.")
                 end
 
                 Bias = BiasPotential(p, U; has_fp = fp)
@@ -89,17 +75,9 @@ module Universe
             Bias = nothing
 
             if p.initial == "cold"
-                U = identity_gauges(
-                    NX, NY, NZ, NT,
-                    p.β,
-                    type_of_gaction = GA,
-                )
+                U = identity_gauges(NX, NY, NZ, NT, p.β, type_of_gaction = GA)
             elseif p.initial == "hot"
-                U = random_gauges(
-                    NX, NY, NZ, NT,
-                    p.β,
-                    type_of_gaction = GA,
-                )
+                U = random_gauges(NX, NY, NZ, NT, p.β, type_of_gaction = GA)
             end
 
         end
@@ -121,5 +99,4 @@ module Universe
             verbose_print,
         )
     end
-
 end

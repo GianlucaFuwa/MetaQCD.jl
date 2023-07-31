@@ -104,7 +104,7 @@ function update!(
     ΔP2 = trP2_new - trP2_old
     ΔSg = Sg_new - Sg_old
 
-    if TM == MetaEnabled && Bias !== nothing
+    if Bias !== nothing
         CV_old = U.CV
         calc_smearedU!(Bias.smearing, U)
         fully_smeared_U = Bias.smearing.Usmeared_multi[end]

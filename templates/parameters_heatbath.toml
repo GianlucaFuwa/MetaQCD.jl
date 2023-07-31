@@ -1,5 +1,5 @@
 ["Physical Settings"]
-L = [8, 8, 8, 8]
+L = [28, 28, 28, 28]
 "β" = 5.70
 kind_of_gaction = "wilson"
 Ntherm = 100

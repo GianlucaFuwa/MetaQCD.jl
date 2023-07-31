@@ -52,13 +52,7 @@ function update!(
     end
 
     normalize!(U)
-
-    if Bias !== nothing
-        calc_smearedU!(Bias.smearing, U)
-        fully_smeared_U = Bias.smearing.Usmeared_multi[end]
-        CV_new = top_charge(fully_smeared_U, Bias.kind_of_cv)
-        U.CV = CV_new
-    end
+    U.Sg = calc_gauge_action(U)
 
     if updatemethod.numOR == 0
         numaccepts = 1.0

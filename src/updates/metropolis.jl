@@ -54,12 +54,13 @@ function metro_sweep!(U::Gaugefield{GA}, metro; metro_test = true) where {GA}
                 old_link = U[μ][site]
                 new_link = cmatmul_oo(X, old_link)
 
-                ΔS = action_factor * real(multr((new_link - old_link), A_adj))
+                ΔSg = action_factor * real(multr((new_link - old_link), A_adj))
 
-                accept = metro_test ? (rand() ≤ exp(-ΔS)) : true
+                accept = metro_test ? (rand() ≤ exp(-ΔSg)) : true
 
                 if accept
                     U[μ][site] = new_link
+                    U.Sg += ΔSg
                     numaccept += accept
                 end
             end
@@ -98,8 +99,8 @@ function metro_sweep_eo!(U::Gaugefield{GA}, metro; metro_test = true) where {GA}
                                 accept = metro_test ? (rand() ≤ exp(-ΔSg)) : true
 
                                 if accept
-                                    U.Sg += ΔSg
                                     U[μ][site] = XU
+                                    U.Sg += ΔSg
                                     numaccept[threadid() * spacing] += accept
                                 end
                             end

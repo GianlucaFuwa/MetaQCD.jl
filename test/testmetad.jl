@@ -1,5 +1,3 @@
-using Random
-using MetaQCD
 function SU3testmeta()
     Random.seed!(1206)
 
@@ -65,7 +63,7 @@ function SU3testmeta()
         hb_numHB,
         hb_numOR,
     )
-    
+
     for _ = 1:1
         value, runtime = @timed update!(
             updatemethod,
@@ -93,7 +91,7 @@ function SU3testmeta()
         println("Elapsed time: $runtime [s]")
         numaccepts += value
     end
-    
+
     calc_smearedU!(Bias.smearing, U)
     fully_smeared_U = Bias.smearing.Usmeared_multi[end]
     Q_final = top_charge(fully_smeared_U, bias_kind_of_cv)
@@ -102,4 +100,3 @@ function SU3testmeta()
     println("Acceptance Rate: ", 100 * numaccepts / nsweeps, " %")
     return nothing
 end
-@time SU3testmeta()

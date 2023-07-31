@@ -19,7 +19,7 @@ module Metadynamics
 
     import ..Gaugefields: AbstractGaugeAction, Gaugefield
 	import ..Measurements: top_charge
-	import ..Smearing: StoutSmearing
+	import ..Smearing: StoutSmearing, calc_smearedU!
 
 	struct MetaEnabled end
 	struct MetaDisabled end
@@ -119,5 +119,12 @@ module Metadynamics
     function calc_weight_balanced_exp(b, cv)
         w = exp(b(cv)) / exp(mean(b.values))
         return w
+    end
+
+    function recalc_CV!(U, b::T) where {T <: BiasPotential}
+        calc_smearedU!(b.smearing, U)
+        fully_smeared_U = b.smearing.Usmeared_multi[end]
+        CV_new = top_charge(fully_smeared_U, b.kind_of_cv)
+        return CV_new
     end
 end

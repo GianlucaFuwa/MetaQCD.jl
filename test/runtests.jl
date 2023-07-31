@@ -1,5 +1,7 @@
 using MetaQCD
+using MetaQCD.Utils
 using Aqua
+using Random
 using Test
 
 include("testmeas.jl")

@@ -7,9 +7,9 @@ struct ParityUpdate{TG} <: AbstractUpdate
     end
 end
 
-function parity_update!(U::Gaugefield{GA}, p::ParityUpdate) where {GA}
+function update!(updatemethod::ParityUpdate, U::Gaugefield{GA}) where {GA}
     NX, NY, NZ, NT = size(U)
-    U_bak = p._temp_U
+    U_bak = updatemethod._temp_U
     substitute_U!(U_bak, U)
 
     @batch for it in 1:NT
@@ -33,5 +33,3 @@ function parity_update!(U::Gaugefield{GA}, p::ParityUpdate) where {GA}
 
     return nothing
 end
-
-parity_update!(U, ::Nothing) = nothing

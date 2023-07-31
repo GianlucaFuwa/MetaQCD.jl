@@ -1,7 +1,7 @@
 ["Physical Settings"]
-L = [4, 4, 4, 4]
-"β" = 1.25
-kind_of_gaction = "dbw2"
+L = [8, 8, 8, 8]
+"β" = 6.0
+kind_of_gaction = "wilson"
 Ntherm = 10
 Nsteps = 10
 initial = "cold"

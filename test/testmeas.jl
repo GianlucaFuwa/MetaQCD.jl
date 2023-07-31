@@ -1,5 +1,3 @@
-using MetaQCD
-
 function SU3testmeas()
     println("SU3testmeas")
     NX = 4
@@ -42,4 +40,3 @@ function SU3testmeas()
 
     return plaq, poly, topo["plaquette"], topo["clover"], topo["improved"], wilsonloop[1]
 end
-# SU3test()

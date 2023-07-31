@@ -100,8 +100,7 @@ module Updates
         return updatemethod
     end
 
-    function update!(::T, U) where {T<:AbstractUpdate}
-        return nothing
-    end
+    update!(::T, U) where {T <: AbstractUpdate} = nothing
+    update!(::Nothing, U) = nothing
 
 end

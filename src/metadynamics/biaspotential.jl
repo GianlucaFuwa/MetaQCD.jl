@@ -37,7 +37,7 @@ struct BiasPotential{TG} <: AbstractBiasPotential
 
         bin_vals = range(p.CVlims[1], p.CVlims[2], step = p.bin_width)
 
-        if has_fp == true
+        if has_fp == true && instance > 0
             if biasfile === nothing
                 fp = open(p.biasdir * "/Stream_$instance.txt", "w")
                 header = "CV\tV(CV)"
@@ -128,6 +128,10 @@ end
 
 @inline function Base.getindex(b::T, i) where {T <: BiasPotential}
     return b.values[i]
+end
+
+function Base.lastindex(b::T) where {T <: BiasPotential}
+    return length(b.values)
 end
 
 @inline function index(b::T, cv) where {T <: BiasPotential}

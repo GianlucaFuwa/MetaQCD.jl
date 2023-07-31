@@ -1,7 +1,3 @@
-using Random
-using MetaQCD
-using MetaQCD.Utils
-
 function SU3testderivative()
     Random.seed!(1206)
     println("SU3testderivative")
@@ -140,4 +136,3 @@ function SU3testderivative()
 
     return relerrors
 end
-# @time SU3testderivative()

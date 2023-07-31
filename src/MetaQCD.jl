@@ -8,7 +8,7 @@ module MetaQCD
     include("./measurements/Measurements.jl")
     include("./parameters/Parameters.jl")
     include("./metadynamics/Metadynamics.jl")
-    include("./Universe.jl")
+    include("./main/Universe.jl")
     include("./updates/Updates.jl")
 
     function __init__()
@@ -17,11 +17,11 @@ module MetaQCD
         end
     end
 
-    include("./Mainrun.jl")
-    include("./Mainbuild.jl")
+    include("./main/Mainrun.jl")
 
     using .Output
     using .Utils
+    using .Mainrun
 
     import .Gaugefields: DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
     import .Gaugefields: SymanzikTreeGaugeAction, WilsonGaugeAction
@@ -38,8 +38,6 @@ module MetaQCD
     import .Smearing: NoSmearing, StoutSmearing, GradientFlow, calc_smearedU!, flow!
     import .Updates: update!, Updatemethod
     import .Universe: Univ
-    import .Mainrun: run_sim
-    import .Mainbuild: run_build
 
     export construct_params_from_toml
     export loadU_bridge!, loadU_jld!, saveU_bridge, saveU_jld
