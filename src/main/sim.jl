@@ -69,7 +69,7 @@ function run_sim!(univ::Univ{TG, TB, TV}, parameters) where {TG, TB, TV}
             measurements[i] = MeasurementMethods(
                 U[i],
                 parameters.measuredir,
-                Dict[],
+                parameters.measurement_methods,
                 cv = parameters.meta_enabled,
                 additional_string = "_$(i-1)"
             )
@@ -175,22 +175,18 @@ function metaqcd!(
         for itrj in 1:parameters.Nsteps
             println_verbose1(vp, "\n# itrj = $itrj")
 
-            accepted, updatetime = @timed begin
-                update!(updatemethod, U, vp, Bias = Bias, metro_test = true)
+            _, updatetime = @timed begin
+                numaccepts += update!(updatemethod, U, vp, Bias = Bias, metro_test = true)
                 rand() < 0.5 ? update!(parity, U) : nothing
                 update_bias!(Bias, U.CV)
             end
 
-            numaccepts += accepted
-
             println_verbose1(vp, ">> Acceptance $itrj:\t", numaccepts * 100 / itrj, "%")
-
             println_verbose1(vp, ">> Update elapsed time:\t$(updatetime) [s]")
 
             save_gaugefield(save_configs, U, itrj)
 
             measurestrings, meas_time = @timed calc_measurements(measurements, itrj, U)
-
             measurestrings_flowed, flowmeas_time = @timed calc_measurements_flowed(
                 measurements_with_flow,
                 gradient_flow,
@@ -213,15 +209,8 @@ function metaqcd!(
             end
 
             calc_weights(Bias, U.CV, itrj)
-
             flush(vp.fp)
         end
-    end
-
-    if Bias !== nothing
-        writedlm(Bias.fp, [Bias.bin_vals Bias.values])
-        close(Bias.fp)
-        println_verbose1(vp, "\n\t>> Bias potential has been saved in file \"$(Bias.fp)\"")
     end
 
     println_verbose1(vp, "\n\t>> Total elapsed time:\t$(convert_seconds(runtime_all)) \n")
@@ -304,8 +293,8 @@ function metaqcd_PT!(
             end
 
             if itrj % swap_every == 0
-                # We need to recalculate the CV and for the non-MetaD stream since that is only
-                # done in MetaD-HMC updates
+                # We need to recalculate the CV and for the non-MetaD stream since that is
+                # only done in MetaD-HMC updates
                 if (typeof(updatemethod) <: HMCUpdate) == false
                     recalc_CV!(U[1], Bias[1])
                 end
@@ -347,22 +336,6 @@ function metaqcd_PT!(
             end
 
             flush(vp.fp)
-        end
-    end
-
-    if parameters.meta_enabled
-        for i in 2:numinstances
-            writedlm(
-                Bias[i].fp,
-                [Bias[i].bin_vals Bias[i].values],
-            )
-
-            close(Bias[i].fp)
-
-            println_verbose1(
-                vp,
-                "\n\t>> Bias potential $i has been saved in file \"$(Bias[i].fp)\""
-            )
         end
     end
 

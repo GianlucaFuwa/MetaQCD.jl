@@ -6,7 +6,7 @@ module Universe
     import ..Gaugefields: AbstractGaugeAction, DBW2GaugeAction, IwasakiGaugeAction,
         SymanzikTadGaugeAction, SymanzikTreeGaugeAction, WilsonGaugeAction
     import ..Gaugefields: identity_gauges, random_gauges
-    import ..Metadynamics: BiasPotential
+    import ..Metadynamics: BiasPotential, write_to_file
     import ..Parameters: ParameterSet
 
     struct Univ{TG, TB, TV}
@@ -52,7 +52,8 @@ module Universe
                         error("Only \"hot\" or \"cold\" initial config valid.")
                     end
 
-                    Bias[i] = BiasPotential(p, U[1], instance = i - 1, has_fp = fp)
+                    Bias[i] = BiasPotential(p, U[1]; instance = i - 1, has_fp = fp)
+                    write_to_file(Bias[i]; force = true)
                 end
 
             else
@@ -67,6 +68,7 @@ module Universe
                 end
 
                 Bias = BiasPotential(p, U; has_fp = fp)
+                write_to_file(Bias; force = true)
             end
         else
             tempering_enabled = p.tempering_enabled

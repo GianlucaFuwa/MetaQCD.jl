@@ -16,11 +16,11 @@ mutable struct PolyakovMeasurement <: AbstractMeasurement
             header = ""
 
             if flow
-                header *= "itrj\tiflow\ttflow\t$(rpad("Re(poly)", 17, " "))" *
-                    "\t$(rpad("Im(poly)", 17, " "))"
+                header *= "itrj\tiflow\ttflow\t$(rpad("Re(poly)", 22, " "))" *
+                    "\t$(rpad("Im(poly)", 22, " "))"
             else
-                header *= "itrj\t$(rpad("Re(poly)", 17, " "))" *
-                    "\t$(rpad("Im(poly)", 17, " "))"
+                header *= "$(rpad("itrj", 9, " "))\t$(rpad("Re(poly)", 22, " "))" *
+                    "\t$(rpad("Im(poly)", 22, " "))"
             end
 
             println(fp, header)
@@ -69,7 +69,7 @@ function measure(m::PolyakovMeasurement, U; additional_string = "")
     if m.printvalues
         poly_re = @sprintf("%.15E", real(poly))
         poly_im = @sprintf("%.15E", imag(poly))
-        measurestring = "$additional_string\t$poly_re\t$poly_im"
+        measurestring = "$(rpad(additional_string, 9, " "))\t$poly_re\t$poly_im"
         # println_verbose2(m.verbose_print, "$measurestring# poly")
         println(m.fp, measurestring)
         flush(m.fp)

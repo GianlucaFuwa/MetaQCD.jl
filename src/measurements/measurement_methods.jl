@@ -122,7 +122,6 @@ end
 
 function Base.close(m::MeasurementMethods)
     for meas in m.measurements
-        println(meas)
         if meas.fp !== nothing
             close(meas.fp)
         end

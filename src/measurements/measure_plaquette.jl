@@ -17,7 +17,12 @@ struct PlaquetteMeasurement <: AbstractMeasurement
         if printvalues
             fp = open(filename, "w")
             header = ""
-            header *= flow ? "itrj\tiflow\ttflow\tRe(plaq)" : "itrj\tRe(plaq)"
+
+            if flow
+                header *= "itrj\tiflow\ttflow\tRe(plaq)"
+            else
+                header *= "$(rpad("itrj", 9, " "))\tRe(plaq)"
+            end
 
             println(fp, header)
 
@@ -66,7 +71,7 @@ function measure(m::PlaquetteMeasurement, U; additional_string = "")
 
     if m.printvalues
         plaq_str = @sprintf("%.15E", plaq)
-        measurestring = "$additional_string\t$plaq_str"
+        measurestring = "$(rpad(additional_string, 9, " "))\t$plaq_str"
         # println_verbose2(m.verbose_print, "$measurestring# plaq")
         println(m.fp, measurestring)
         flush(m.fp)

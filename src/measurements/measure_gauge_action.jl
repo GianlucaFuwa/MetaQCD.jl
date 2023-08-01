@@ -20,10 +20,10 @@ struct GaugeActionMeasurement <: AbstractMeasurement
         if printvalues
             fp = open(filename, "w")
             header = ""
-            header *= flow ? "itrj\tiflow\ttflow" : "itrj"
+            header *= flow ? "itrj\tiflow\ttflow" : rpad("itrj", 9, " ")
 
             for methodname in GA_methods
-                header *= "\tS$(rpad(methodname, 15, " "))"
+                header *= "\tS$(rpad(methodname, 22, " "))"
             end
 
             println(fp, header)
@@ -73,7 +73,7 @@ function measure(m::GaugeActionMeasurement, U; additional_string = "")
     measurestring = ""
     values = zeros(Float64, length(m.GA_methods))
     valuedic = Dict{String, AbstractFloat}()
-    printstring = "$additional_string"
+    printstring = rpad(additional_string, 9, " ")
 
     for (i, methodname) in enumerate(m.GA_methods)
         if methodname == "wilson"

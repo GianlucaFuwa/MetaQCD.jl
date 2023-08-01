@@ -12,7 +12,7 @@ struct BiasPotential{TG} <: AbstractBiasPotential
 
     values::Vector{Float64}
     bin_vals::Vector{Float64}
-    fp::Union{Nothing, IOStream}
+    fp::Union{Nothing, String}
     weight_fp::Union{Nothing, IOStream}
     kinds_of_weights::Union{Nothing, Vector{String}}
 
@@ -20,41 +20,31 @@ struct BiasPotential{TG} <: AbstractBiasPotential
         p::ParameterSet,
         U::TG;
         instance = 1,
-        biasfile = nothing,
         has_fp::Bool = true,
     ) where {TG}
         smearing = StoutSmearing(U, p.numsmears_for_cv, p.ρstout_for_cv)
 
         if instance == 0
             values = potential_from_file(p, nothing)
+        elseif p.usebiases !== nothing && instance > length(p.usebiases)
+            values = potential_from_file(p, nothing)
+        elseif p.usebiases === nothing
+            values = potential_from_file(p, nothing)
         else
-            if p.usebiases === nothing
-                values = potential_from_file(p, nothing)
-            else
-                values = potential_from_file(p, p.usebiases[instance])
-            end
+            values = potential_from_file(p, p.usebiases[instance])
         end
 
         bin_vals = range(p.CVlims[1], p.CVlims[2], step = p.bin_width)
 
         if has_fp == true && instance > 0
-            if biasfile === nothing
-                fp = open(p.biasdir * "/Stream_$instance.txt", "w")
-                header = "CV\tV(CV)"
-                println(fp, header)
-            else
-                fp = open(p.biasdir * "/" * biasfile * ".txt", "w")
-                header = "CV\tV(CV)"
-                println(fp, header)
-            end
-
+            fp = p.biasdir * "/stream_$instance.txt"
             weight_fp = open(p.measuredir * "/meta_weight_$instance.txt", "w")
             kinds_of_weights = p.kinds_of_weights
-            header = "itrj"
+            header = rpad("itrj", 9, " ")
 
             for name in kinds_of_weights
                 name_str = "weight_$name"
-                header *= "\t$(rpad(name_str, 17, " "))"
+                header *= "\t$(rpad(name_str, 22, " "))"
             end
 
             println(weight_fp, header)
@@ -110,18 +100,6 @@ function Base.eachindex(b::T) where {T <: BiasPotential}
     return eachindex(b.values)
 end
 
-function Base.flush(b::T) where {T <: BiasPotential}
-    if b.fp !== nothing
-        flush(b.fp)
-    end
-end
-
-function Base.seekstart(b::T) where {T <: BiasPotential}
-    if b.fp !== nothing
-        seekstart(b.fp)
-    end
-end
-
 function Base.setindex!(b::T, v, i) where {T <: BiasPotential}
     b.values[i] = v
 end
@@ -139,10 +117,6 @@ end
     return round(Int64, grid_index, RoundNearestTiesAway)
 end
 
-function (b::BiasPotential)(cv)
-    return return_potential(b, cv)
-end
-
 function return_potential(b::T, cv) where {T <: BiasPotential}
     if b.CVlims[1] <= cv < b.CVlims[2]
         grid_index = index(b, cv)
@@ -154,6 +128,10 @@ function return_potential(b::T, cv) where {T <: BiasPotential}
         penalty= b[end] + b.penalty_weight * min((cv - b.CVlims[1])^2, (cv - b.CVlims[2])^2)
         return penalty
     end
+end
+
+function (b::BiasPotential)(cv)
+    return return_potential(b, cv)
 end
 
 function clear!(b::T) where {T <: BiasPotential}

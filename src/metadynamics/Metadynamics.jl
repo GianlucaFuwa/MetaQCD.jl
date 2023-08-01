@@ -28,103 +28,81 @@ module Metadynamics
 
     include("biaspotential.jl")
 
-	function potential_from_file(p::ParameterSet, usebias)
-		if usebias === nothing
-			return zero(range(p.CVlims[1], p.CVlims[2], step = p.bin_width))
-		else
-			values = readdlm(usebias, Float64, skipstart = 1)
-			@assert length(values[:, 2]) == length(
+    function potential_from_file(p::ParameterSet, usebias)
+        if usebias === nothing
+            return zero(range(p.CVlims[1], p.CVlims[2], step = p.bin_width))
+        else
+            values, _ = readdlm(usebias, Float64, header = true)
+            @assert length(values[:, 2]) == length(
                 range(p.CVlims[1], p.CVlims[2], step = p.bin_width)
             ) "Length of passed Metapotential doesn't match parameters"
-			return values[:, 2]
-		end
-	end
+            return values[:, 2]
+        end
+    end
 
-    function update_bias!(b::T, cv) where {T <: BiasPotential}
-        (b.is_static == true) && return nothing
-        grid_index = index(b, cv)
+    """
+    Update bias potential .txt file by creating temporary io where the new valus are \\
+    written, which then substitutes the old file
+    """
+    function write_to_file(b::T; force = false) where {T <: BiasPotential}
+        # If the potential is static we dont have to write it apart from the the time it
+        # is initialized, so we introduce a "force" keyword to overwrite the static-ness
+        (b.is_static && !force) && return nothing
+        (b.fp === nothing) && return nothing
+        (tmppath, tmpio) = mktemp()
+        println(tmpio, "$(rpad("CV", 7))\t$(rpad("V(CV)", 7))")
 
-        if 1 <= grid_index <= length(b.values)
-            for (idx, current_bin) in enumerate(b.bin_vals)
-                wt = exp(-b[idx] / b.wt_factor)
-                b[idx] += b.weight * wt * exp(-0.5(cv - current_bin)^2 / b.bin_width^2)
-            end
-        else
-            # b.exceeded_count += 1
+        for i in eachindex(b)
+            println(tmpio, "$(rpad(b.bin_vals[i], 7, "0"))\t$(rpad(b.values[i], 7, "0"))")
         end
 
+        close(tmpio)
+        mv(tmppath, b.fp, force = true)
         return nothing
     end
 
-    update_bias!(::Nothing, cv) = nothing
+    write_to_file(::Nothing; force = false) = nothing
+
+    function update_bias!(b::T, values; write = true) where {T <: BiasPotential}
+        (b.is_static == true) && return nothing
+
+        for cv in values
+            grid_index = index(b, cv)
+
+            if 1 <= grid_index <= length(b.values)
+                for (idx, current_bin) in enumerate(b.bin_vals)
+                    wt = exp(-b[idx] / b.wt_factor)
+                    b[idx] += b.weight * wt * exp(-0.5(cv - current_bin)^2 / b.bin_width^2)
+                end
+            else
+                # b.exceeded_count += 1
+            end
+        end
+
+        write && write_to_file(b)
+        return nothing
+    end
+
+    update_bias!(::Nothing, cv; write = true) = nothing
 
     """
     Approximate ∂V/∂Q by use of the five-point stencil
     """
     function ∂V∂Q(b::T, cv) where {T <: BiasPotential}
-        bin_width = b.bin_width
-        num =
-            -b(cv + 2 * bin_width) +
-            8 * b(cv + bin_width) -
-            8 * b(cv - bin_width) +
-            b(cv - 2 * bin_width)
-        denom = 12 * bin_width
+        bw = b.bin_width
+        num = -b(cv + 2bw) + 8b(cv + bw) - 8b(cv - bw) + b(cv - 2bw)
+        denom = 12bw
         return num / denom
-    end
-
-    """
-    Weighting schemes based on the ones compared in \\
-    https://pubs.acs.org/doi/pdf/10.1021/acs.jctc.9b00867
-    """
-    calc_weights(::Nothing, cv, itrj) = nothing
-
-    function calc_weights(b, cv, itrj)
-        b === nothing && return nothing
-
-        printstring = "$itrj\t"
-
-        if b.weight_fp !== nothing
-            for method in b.kinds_of_weights
-                w = calc_weight(b, cv, method)
-                w_str = @sprintf("%.15E", w)
-                printstring *= "$w_str\t"
-            end
-
-            println(b.weight_fp, printstring)
-            flush(b.weight_fp)
-        end
-
-        return nothing
-    end
-
-    function calc_weight(b::T, cv, weight_method) where {T <: BiasPotential}
-        if weight_method == "tiwari" # average over exp(V) in denom
-            w = calc_weight_tiwari(b, cv)
-        elseif weight_method == "balanced_exp" # average over V in denom
-            w = calc_weight_balanced_exp(b, cv)
-        elseif weight_method == "branduardi" # constant bias
-            w = exp(b(cv))
-        else
-            error("MetaD weighting method \"$weight_method\" not supported")
-        end
-
-        return w
-    end
-
-    function calc_weight_tiwari(b, cv)
-        w = exp(b(cv)) / mean(exp.(b.values))
-        return w
-    end
-
-    function calc_weight_balanced_exp(b, cv)
-        w = exp(b(cv)) / exp(mean(b.values))
-        return w
     end
 
     function recalc_CV!(U, b::T) where {T <: BiasPotential}
         calc_smearedU!(b.smearing, U)
         fully_smeared_U = b.smearing.Usmeared_multi[end]
         CV_new = top_charge(fully_smeared_U, b.kind_of_cv)
-        return CV_new
+        U.CV = CV_new
+        return nothing
     end
+
+    include("weights.jl")
+
 end

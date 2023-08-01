@@ -137,9 +137,7 @@ function build!(
 
             CVs = MPI.Allgather(U.CV, comm)
 
-            for cv in CVs
-                update_bias!(Bias, cv)
-            end
+            update_bias!(Bias, CVs; write = (myrank == 0))
 
             acceptances = MPI.Allgather(numaccepts, comm)
 

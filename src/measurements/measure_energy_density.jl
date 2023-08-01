@@ -16,10 +16,10 @@ struct EnergyDensityMeasurement <: AbstractMeasurement
         if printvalues
             fp = open(filename, "w")
             header = ""
-            header *= flow ? "itrj\tiflow\ttflow" : "itrj"
+            header *= flow ? "itrj\tiflow\ttflow" : rpad("itrj", 9, " ")
 
             for methodname in ED_methods
-                header *= "\tE$(rpad(methodname, 15, " "))"
+                header *= "\tE$(rpad(methodname, 22, " "))"
             end
 
             println(fp, header)
@@ -66,7 +66,7 @@ function measure(m::EnergyDensityMeasurement, U; additional_string = "")
     measurestring = ""
     values = zeros(Float64, length(m.ED_methods))
     valuedic = Dict{String, AbstractFloat}()
-    printstring = "$additional_string"
+    printstring = rpad(additional_string, 9, " ")
 
     for (i, methodname) in enumerate(m.ED_methods)
         E = energy_density(U, methodname)

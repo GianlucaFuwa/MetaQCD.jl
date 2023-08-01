@@ -16,10 +16,10 @@ struct TopologicalChargeMeasurement <: AbstractMeasurement
         if printvalues
             fp = open(filename, "w")
             header = ""
-            header *= flow ? "itrj\tiflow\ttflow" : "itrj"
+            header *= flow ? "itrj\tiflow\ttflow" : rpad("itrj", 9, " ")
 
             for methodname in TC_methods
-                header *= "\tQ$(rpad(methodname, 15, " "))"
+                header *= "\tQ$(rpad(methodname, 22, " "))"
             end
 
             println(fp, header)
@@ -66,7 +66,7 @@ function measure(m::TopologicalChargeMeasurement, U; additional_string = "")
     measurestring = ""
     values = zeros(Float64, length(m.TC_methods))
     valuedic = Dict{String, AbstractFloat}()
-    printstring = "$additional_string"
+    printstring = rpad(additional_string, 9, " ")
 
     for (i, methodname) in enumerate(m.TC_methods)
         Q = top_charge(U, methodname)

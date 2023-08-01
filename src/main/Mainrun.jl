@@ -8,7 +8,7 @@ module Mainrun
 
     import ..Gaugefields: normalize!
     import ..Measurements: MeasurementMethods, calc_measurements, calc_measurements_flowed
-    import ..Metadynamics: calc_weights, recalc_CV!, update_bias!
+    import ..Metadynamics: calc_weights, recalc_CV!, update_bias!, write_to_file
     import ..Parameters: construct_params_from_toml
     import ..Smearing: GradientFlow
     import ..Universe: Univ
