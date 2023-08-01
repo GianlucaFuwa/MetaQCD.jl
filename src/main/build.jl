@@ -130,13 +130,13 @@ function build!(
         for itrj in 1:parameters.Nsteps
             println_verbose0(vp, "\n# itrj = $itrj")
 
-            accepted, updatetime = @timed update!(update_method, U, vp, Bias = Bias)
-            numaccepts += accepted
+            _, updatetime = @timed begin
+                numaccepts += update!(update_method, U, vp, Bias = Bias)
+            end
 
             println_verbose0(vp, "Update: Elapsed time $(updatetime) [s]")
 
             CVs = MPI.Allgather(U.CV, comm)
-
             update_bias!(Bias, CVs; write = (myrank == 0))
 
             acceptances = MPI.Allgather(numaccepts, comm)
@@ -176,10 +176,6 @@ function build!(
     end
 
     if myrank == 0
-        writedlm(Bias.fp, [Bias.bin_vals Bias.values])
-
-        println_verbose1(vp, "\nCum. Metapotential has been saved in file \"$(Bias.fp)\"")
-        close(Bias.fp)
         println_verbose1(vp, "\n\t>> Total Elapsed time $(runtime_all) [s]")
         flush(univ.verbose_print)
         flush(stdout)
