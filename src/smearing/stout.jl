@@ -53,13 +53,7 @@ function apply_smearing!(smearing, Uin)
 	substitute_U!(Uout_multi[1], Uin)
 
 	for i in 1:numlayers
-		apply_stout_smearing!(
-			Uout_multi[i+1],
-			C_multi[i],
-			Q_multi[i],
-			Uout_multi[i],
-			ρ,
-		)
+		apply_stout_smearing!(Uout_multi[i+1], C_multi[i], Q_multi[i], Uout_multi[i], ρ)
 	end
 
 	return nothing
@@ -131,24 +125,12 @@ function stout_recursion!(Σ, Σ_prime, U_prime, U, C, Q, Λ, ρ)
                 siteμpνn = move(siteμp, ν, -1, Nν)
 
                 force_sum +=
-                    cmatmul_oddo(
-                        U[ν][siteμp], U[μ][siteνp], U[ν][site], Λ[ν][site]
-                    ) +
-                    cmatmul_ddoo(
-                        U[ν][siteμpνn], U[μ][siteνn], Λ[μ][siteνn], U[ν][siteνn]
-                    ) +
-                    cmatmul_dodo(
-                        U[ν][siteμpνn], Λ[ν][siteμpνn], U[μ][siteνn], U[ν][siteνn]
-                    ) -
-                    cmatmul_ddoo(
-                        U[ν][siteμpνn], U[μ][siteνn], Λ[ν][siteνn], U[ν][siteνn]
-                    ) -
-                    cmatmul_oodd(
-                        Λ[ν][siteμp], U[ν][siteμp], U[μ][siteνp], U[ν][site]
-                    ) +
-                    cmatmul_odod(
-                        U[ν][siteμp], U[μ][siteνp], Λ[μ][siteνp], U[ν][site]
-                    )
+                    cmatmul_oddo(U[ν][siteμp], U[μ][siteνp], U[ν][site], Λ[ν][site]) +
+                    cmatmul_ddoo(U[ν][siteμpνn], U[μ][siteνn], Λ[μ][siteνn], U[ν][siteνn]) +
+                    cmatmul_dodo(U[ν][siteμpνn], Λ[ν][siteμpνn], U[μ][siteνn], U[ν][siteνn]) -
+                    cmatmul_ddoo(U[ν][siteμpνn], U[μ][siteνn], Λ[ν][siteνn], U[ν][siteνn]) -
+                    cmatmul_oodd(Λ[ν][siteμp], U[ν][siteμp], U[μ][siteνp], U[ν][site]) +
+                    cmatmul_odod(U[ν][siteμp], U[μ][siteνp], Λ[μ][siteνp], U[ν][site])
             end
 
             link = U[μ][site]
@@ -194,11 +176,9 @@ function calc_stout_Λ!(Λ, Σprime, Q, U)
 end
 
 function calc_stout_Q!(Q, C, U, ρ)
-	staple = WilsonGaugeAction()
-
 	@batch for site in eachindex(Q)
         for μ in 1:4
-            Cμ = ρ * staple(U, μ, site)
+            Cμ = ρ * staple(WilsonGaugeAction(), U, μ, site)
             C[μ][site] = Cμ
 
             Ω = cmatmul_od(Cμ, U[μ][site])

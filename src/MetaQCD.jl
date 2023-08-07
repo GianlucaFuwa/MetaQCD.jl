@@ -25,7 +25,7 @@ module MetaQCD
 
     import .Gaugefields: DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
     import .Gaugefields: SymanzikTreeGaugeAction, WilsonGaugeAction
-    import .Gaugefields: CoeffField, Gaugefield, Temporaryfield, staple_eachsite!
+    import .Gaugefields: CoeffField, Gaugefield, Temporaryfield, staple, staple_eachsite!
     import .Gaugefields: calc_gauge_action, plaquette, plaquette_trace_sum
     import .Gaugefields: identity_gauges, random_gauges, normalize!, wilsonloop
     import .Gaugefields: calc_kinetic_energy, gaussian_momenta!, Liefield

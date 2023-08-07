@@ -1,5 +1,7 @@
 abstract type AbstractIntegrator end
 
+include("hmc_integrators.jl")
+
 struct HMCUpdate{TI, TG, TS, TM} <: AbstractUpdate
     steps::Int64
     Δτ::Float64
@@ -10,6 +12,7 @@ struct HMCUpdate{TI, TG, TS, TM} <: AbstractUpdate
     _temp_force2::Union{Nothing, Temporaryfield} # second force field for smearing
     _temp_fieldstrength::Union{Nothing, Vector{Temporaryfield}}
     smearing::TS
+    fp::Union{Nothing, IOStream}
 
     function HMCUpdate(
         U,
@@ -19,7 +22,11 @@ struct HMCUpdate{TI, TG, TS, TM} <: AbstractUpdate
         numsmear = 0,
         ρ_stout = 0,
         meta_enabled = false,
+        verboselevel = 1,
+        logdir = "",
     )
+        GA = eltype(U)
+        @assert GA != SymanzikTadGaugeAction "Tadpole improved actions not supported in HMC"
         P = Liefield(U)
         _temp_U = similar(U)
 
@@ -50,6 +57,18 @@ struct HMCUpdate{TI, TG, TS, TM} <: AbstractUpdate
             _temp_force2 = Temporaryfield(U)
         end
 
+        if verboselevel >= 2
+            fp = open(logdir * "/hmc_$(GA)_$(TI)_logs.txt", "w")
+            println(
+                fp,
+                rpad("ΔSg", 22, " "), "\t",
+                rpad("ΔP2", 22, " "), "\t",
+                rpad("ΔV", 22, " "), "\t",
+                rpad("ΔH", 22, " "),
+            )
+        else
+            fp = nothing
+        end
 
         return new{TI, TG, TS, TM}(
 			steps,
@@ -61,6 +80,7 @@ struct HMCUpdate{TI, TG, TS, TM} <: AbstractUpdate
             _temp_force2,
             _temp_fieldstrength,
             smearing,
+            fp,
 		)
     end
 end
@@ -79,11 +99,7 @@ function update!(
     trP2_old = -calc_kinetic_energy(updatemethod.P)
 
     integrator! = TI()
-    integrator!(
-        U,
-        updatemethod,
-        Bias,
-    )
+    integrator!(U, updatemethod, Bias)
 
     hmc_smearing = updatemethod.smearing
 
@@ -118,13 +134,17 @@ function update!(
 
     ΔH = ΔP2 + ΔSg + ΔV
 
-    println_verbose2(
-        verbose,
-        "ΔP2 = ", ΔP2, "\n",
-        "ΔS = ", ΔSg, "\n",
-        "ΔBias = ", ΔV, "\n",
-        "ΔH = ", ΔH,
-    )
+    if typeof(verbose) != Verbose1
+        println(
+            updatemethod.fp,
+            rpad(@sprintf("%.15E", ΔSg), 22, " "), "\t",
+            rpad(@sprintf("%.15E", ΔP2), 22, " "), "\t",
+            rpad(@sprintf("%.15E", ΔV), 22, " "), "\t",
+            rpad(@sprintf("%.15E", ΔH), 22, " "),
+        )
+        flush(updatemethod.fp)
+    end
+
     accept = metro_test ? rand() ≤ exp(-ΔH) : true
 
     if accept
@@ -140,8 +160,6 @@ function update!(
 
     return accept
 end
-
-include("hmc_integrators.jl")
 
 function updateU!(U, method, fac)
     ϵ = method.Δτ * fac
@@ -168,14 +186,7 @@ function updateP!(U, method::HMCUpdate{TI, TG, TS, TM}, fac, Bias) where {TI, TG
         fieldstrength = method._temp_fieldstrength
         bias_smearing = Bias.smearing
         kind_of_cv = Bias.kind_of_cv
-        calc_dQdU_bare!(
-            force,
-            temp_force,
-            fieldstrength,
-            U,
-            kind_of_cv,
-            bias_smearing,
-        )
+        calc_dQdU_bare!(force, temp_force, fieldstrength, U, kind_of_cv, bias_smearing)
         fully_smeared_U = get_layer(bias_smearing, length(bias_smearing))
         cv = top_charge(fully_smeared_U, kind_of_cv)
         ϵ_bias = ϵ * ∂V∂Q(Bias, cv)
@@ -194,19 +205,14 @@ function calc_dSdU_bare!(dSdU, temp_force, staples, U, smearing)
         calc_smearedU!(smearing, U)
         fully_smeared_U = smearing.Usmeared_multi[end]
         calc_dSdU!(dSdU, staples, fully_smeared_U)
-        stout_backprop!(
-            dSdU,
-            temp_force,
-            smearing,
-        )
+        stout_backprop!(dSdU, temp_force, smearing)
     end
 
     return nothing
 end
 
-function calc_dSdU!(dSdU, staples, U::Gaugefield{GA}) where {GA}
+function calc_dSdU!(dSdU, staples, U::Gaugefield)
     β = U.β
-    staple = GA()
 
     @batch for site in eachindex(U)
         for μ in 1:4
@@ -227,11 +233,7 @@ function calc_dQdU_bare!(dQdU, temp_force, F, U, kind_of_charge, smearing)
         calc_smearedU!(smearing, U)
         fully_smeared_U = smearing.Usmeared_multi[end]
         calc_dQdU!(dQdU, F, fully_smeared_U, kind_of_charge)
-        stout_backprop!(
-            dQdU,
-            temp_force,
-            smearing,
-        )
+        stout_backprop!(dQdU, temp_force, smearing)
     end
 
     return nothing

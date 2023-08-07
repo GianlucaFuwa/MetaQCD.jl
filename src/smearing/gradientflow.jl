@@ -37,15 +37,7 @@ function GradientFlow(
 
     ϵ = tf / steps
 
-    return GradientFlow{TI, TG}(
-        numflow,
-        steps,
-        ϵ,
-        tf,
-        measure_every,
-        Uflow,
-        Z,
-    )
+    return GradientFlow{TI, TG}(numflow, steps, ϵ, tf, measure_every, Uflow, Z)
 end
 
 function flow!(method::GradientFlow{TI, TG}) where {TI, TG}
@@ -58,10 +50,7 @@ end
 function updateU!(U, Z, ϵ)
     @batch for site in eachindex(U)
         for μ in 1:4
-            U[μ][site] = cmatmul_oo(
-                exp_iQ(-im * ϵ * Z[μ][site]),
-                U[μ][site],
-            )
+            U[μ][site] = cmatmul_oo(exp_iQ(-im * ϵ * Z[μ][site]), U[μ][site])
         end
     end
 
@@ -69,11 +58,9 @@ function updateU!(U, Z, ϵ)
 end
 
 function calc_Z!(U, Z, ϵ)
-    staple = WilsonGaugeAction()
-
     @batch for site in eachindex(U)
         for μ in 1:4
-            A = staple(U, μ, site)
+            A = staple(WilsonGaugeAction(), U, μ, site)
             AU = cmatmul_od(A, U[μ][site])
             Z[μ][site] = ϵ * traceless_antihermitian(AU)
         end
@@ -83,14 +70,11 @@ function calc_Z!(U, Z, ϵ)
 end
 
 function updateZ!(U, Z, ϵ_old, ϵ_new)
-    staple = WilsonGaugeAction()
-
     @batch for site in eachindex(U)
         for μ in 1:4
-            A = staple(U, μ, site)
+            A = staple(WilsonGaugeAction(), U, μ, site)
             AU = cmatmul_od(A, U[μ][site])
-            Z[μ][site] = ϵ_old * Z[μ][site] +
-                ϵ_new * traceless_antihermitian(AU)
+            Z[μ][site] = ϵ_old * Z[μ][site] + ϵ_new * traceless_antihermitian(AU)
         end
     end
 

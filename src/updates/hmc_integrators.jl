@@ -1,5 +1,4 @@
-struct Leapfrog <: AbstractIntegrator
-end
+struct Leapfrog <: AbstractIntegrator end
 
 function (lf::Leapfrog)(U::T1, method::T2, Bias) where {T1 <: Gaugefield, T2 <: HMCUpdate}
     updateP!(U, method, 0.5, Bias)

@@ -18,8 +18,8 @@ module Measurements
     using ..Output
     using ..Utils
 
-    import ..Gaugefields: Gaugefield, clover_rect, clover_square, plaquette, wilsonloop,
-        substitute_U!
+    import ..Gaugefields: Gaugefield, calc_gauge_action, clover_rect, clover_square,
+        plaquette, wilsonloop, substitute_U!
     import ..Smearing: StoutSmearing, calc_smearedU!, flow!
 
     include("./measurement_parameters.jl")

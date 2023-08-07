@@ -10,11 +10,13 @@ function staple_eachsite!(staples, U::Gaugefield{GA}) where {GA}
     return nothing
 end
 
-function (::WilsonGaugeAction)(U::T, μ, site::SiteCoords) where {T <: Gaugefield}
+staple(U::Gaugefield{GA}, μ, site) where {GA} = staple(GA(), U, μ, site)
+
+function staple(::WilsonGaugeAction, U, μ, site)
     return staple_plaq(U, μ, site)
 end
 
-function (::SymanzikTreeGaugeAction)(U::T, μ, site::SiteCoords) where {T <: Gaugefield}
+function staple(::SymanzikTreeGaugeAction, U, μ, site)
     c1 = -1/12
     c1prime = c1
     staple_p = staple_plaq(U, μ, site)
@@ -22,16 +24,16 @@ function (::SymanzikTreeGaugeAction)(U::T, μ, site::SiteCoords) where {T <: Gau
     return (1 - 8c1) * staple_p + c1prime * staple_r
 end
 
-function (::SymanzikTadGaugeAction)(U::T, μ, site::SiteCoords) where {T <: Gaugefield}
-    u0sq = sqrt(plaquette_trace_sum(U))
+function staple(::SymanzikTadGaugeAction, U, μ, site)
+    # u0sq = sqrt(plaquette_trace_sum(U))
     c1 = -1/12
-    c1prime = c1 / u0sq
+    # c1prime = c1 / u0sq
     staple_p = staple_plaq(U, μ, site)
     staple_r = staple_rect(U, μ, site)
     return (1 - 8c1) * staple_p + c1prime * staple_r
 end
 
-function (::IwasakiGaugeAction)(U::T, μ, site::SiteCoords) where {T <: Gaugefield}
+function staple(::IwasakiGaugeAction, U, μ, site)
     c1 = -0.331
     c1prime = c1
     staple_p = staple_plaq(U, μ, site)
@@ -39,7 +41,7 @@ function (::IwasakiGaugeAction)(U::T, μ, site::SiteCoords) where {T <: Gaugefie
     return (1 - 8c1) * staple_p + c1prime * staple_r
 end
 
-function (::DBW2GaugeAction)(U::T, μ, site::SiteCoords) where {T <: Gaugefield}
+function staple(::DBW2GaugeAction, U, μ, site)
     c1 = -1.409
     c1prime = c1
     staple_p = staple_plaq(U, μ, site)
@@ -47,7 +49,7 @@ function (::DBW2GaugeAction)(U::T, μ, site::SiteCoords) where {T <: Gaugefield}
     return (1 - 8c1) * staple_p + c1prime * staple_r
 end
 
-function staple_plaq(U::T, μ, site::SiteCoords) where {T <: Gaugefield}
+function staple_plaq(U, μ, site)
     Nμ = size(U)[μ]
     siteμp = move(site, μ, 1, Nμ)
     staple = @SMatrix zeros(ComplexF64, 3, 3)
@@ -68,7 +70,7 @@ function staple_plaq(U::T, μ, site::SiteCoords) where {T <: Gaugefield}
     return staple
 end
 
-function staple_rect(U::T, μ, site::SiteCoords) where {T <: Gaugefield}
+function staple_rect(U, μ, site)
     Nμ = size(U)[μ]
     siteμp = move(site, μ, 1, Nμ)
     siteμn = move(site, μ, -1, Nμ)
@@ -103,15 +105,13 @@ function staple_rect(U::T, μ, site::SiteCoords) where {T <: Gaugefield}
         # |-   -|
         # ↓     ↑
         # |- → -|
-        staple += (
-            cmatmul_oo(
+        staple += cmatmul_oo(
             cmatmul_ooo(U[ν][site], U[ν][siteνp], U[μ][site2νp]),
             cmatmul_dd(U[ν][siteμpνp], U[ν][siteμp]),
-            ) +
-            cmatmul_oo(
-                cmatmul_ddo(U[ν][siteνn], U[ν][site2νn], U[μ][site2νn]),
-                cmatmul_oo(U[ν][siteμp2νn], U[ν][siteμpνn]),
-            )
+        )
+        staple += cmatmul_oo(
+            cmatmul_ddo(U[ν][siteνn], U[ν][site2νn], U[μ][site2νn]),
+            cmatmul_oo(U[ν][siteμp2νn], U[ν][siteμpνn]),
         )
 
         # Second term, same direction from site and siteνn
@@ -121,12 +121,8 @@ function staple_rect(U::T, μ, site::SiteCoords) where {T <: Gaugefield}
         # ↓           ↑
         # |- → -|- → -|
         staple += cmatmul_od(
-            cmatmul_oood(
-                U[ν][site], U[μ][siteνp], U[μ][siteμpνp], U[ν][site2μp]
-            ) +
-            cmatmul_dooo(
-                U[ν][siteνn], U[μ][siteνn], U[μ][siteμpνn], U[ν][site2μpνn]
-            ),
+            cmatmul_oood(U[ν][site], U[μ][siteνp], U[μ][siteμpνp], U[ν][site2μp]) +
+            cmatmul_dooo(U[ν][siteνn], U[μ][siteνn], U[μ][siteμpνn], U[ν][site2μpνn]),
             U[μ][siteμp],
         )
 
@@ -138,12 +134,8 @@ function staple_rect(U::T, μ, site::SiteCoords) where {T <: Gaugefield}
         # |- → -|- → -|
         staple += cmatmul_do(
             U[μ][siteμn],
-            cmatmul_oood(
-                U[ν][siteμn], U[μ][siteμnνp], U[μ][siteνp], U[ν][siteμp]
-            ) +
-            cmatmul_dooo(
-                U[ν][siteμnνn], U[μ][siteμnνn], U[μ][siteνn], U[ν][siteμpνn]
-            ),
+            cmatmul_oood(U[ν][siteμn], U[μ][siteμnνp], U[μ][siteνp], U[ν][siteμp]) +
+            cmatmul_dooo(U[ν][siteμnνn], U[μ][siteμnνn], U[μ][siteνn], U[ν][siteμpνn]),
         )
     end
 

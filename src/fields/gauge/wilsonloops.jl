@@ -127,18 +127,13 @@ function wilsonloop_bottom_right(U, μ, ν, site::SiteCoords, Lμ, Lν)
 end
 
 function wilsonloop(U::T, Lμ, Lν) where {T <: Gaugefield}
-    spacing = 8
-    wil = zeros(Float64, nthreads() * spacing)
-
-    @batch for site in eachindex(U)
+    @batch threadlocal=0.0::Float64 for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
-                wil[threadid() * spacing] += real(
-                    tr(wilsonloop(U, μ, ν, site, Lμ, Lν))
-                )
+                threadlocal += real(tr(wilsonloop(U, μ, ν, site, Lμ, Lν)))
             end
         end
     end
 
-    return sum(wil)
+    return sum(threadlocal)
 end

@@ -11,7 +11,7 @@ struct MetroUpdate <: AbstractUpdate
 	end
 end
 
-function update!(updatemethod, U, verbose::VerboseLevel; Bias = nothing, metro_test = true)
+function update!(updatemethod, U, ::VerboseLevel; Bias = nothing, metro_test = true)
     numOR = updatemethod.numOR
 
 	if updatemethod.eo
@@ -38,11 +38,10 @@ function update!(updatemethod, U, verbose::VerboseLevel; Bias = nothing, metro_t
 	return numaccepts_metro + numaccepts_or
 end
 
-function metro_sweep!(U::Gaugefield{GA}, metro; metro_test = true) where {GA}
+function metro_sweep!(U::Gaugefield, metro; metro_test = true)
 	ϵ = metro.ϵ[]
 	multi_hit = metro.multi_hit
 	numaccept = 0.0
-	staple = GA()
     action_factor = -U.β / 3
 
     for μ in 1:4
@@ -71,13 +70,12 @@ function metro_sweep!(U::Gaugefield{GA}, metro; metro_test = true) where {GA}
 	return numaccept
 end
 
-function metro_sweep_eo!(U::Gaugefield{GA}, metro; metro_test = true) where {GA}
+function metro_sweep_eo!(U::Gaugefield, metro; metro_test = true)
     NX, NY, NZ, NT = size(U)
 	ϵ = metro.ϵ[]
 	multi_hit = metro.multi_hit
 	spacing = 8
     numaccepts = zeros(Float64, nthreads() * spacing)
-    staple = GA()
     action_factor = -U.β / 3
 
 	for μ in 1:4
@@ -117,6 +115,5 @@ end
 
 function adjust_ϵ!(metro, numaccepts)
 	metro.ϵ[] += (numaccepts - metro.target_acc) * 0.2
-    metro.ϵ[] = min(1.0, metro.ϵ[])
 	return nothing
 end

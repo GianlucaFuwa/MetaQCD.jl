@@ -23,7 +23,7 @@ module Smearing
 
     import ..Gaugefields: AbstractGaugeAction, CoeffField, Gaugefield, Liefield,
         Temporaryfield
-    import ..Gaugefields: leftmul_dagg!, staple_eachsite!, substitute_U!
+    import ..Gaugefields: leftmul_dagg!, staple, staple_eachsite!, substitute_U!
 
     abstract type AbstractSmearing end
 
@@ -50,7 +50,7 @@ module Smearing
         if typeof(smearing) <: StoutSmearing
             apply_smearing!(smearing, Uin)
         elseif typeof(smearing) <: GradientFlow
-            flow!(smearing, Uin)
+            flow!(smearing)
         end
 
         return nothing

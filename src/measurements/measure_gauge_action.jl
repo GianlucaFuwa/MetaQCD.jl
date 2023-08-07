@@ -77,23 +77,23 @@ function measure(m::GaugeActionMeasurement, U; additional_string = "")
 
     for (i, methodname) in enumerate(m.GA_methods)
         if methodname == "wilson"
-            Sg_wils = WilsonGaugeAction()(U) * m.factor
+            Sg_wils = calc_gauge_action(WilsonGaugeAction(), U) * m.factor
             values[i] = Sg_wils
             valuedic["wilson"] = Sg_wils
         elseif methodname == "symanzik_tree"
-            Sg_symanzik_tree = SymanzikTreeGaugeAction()(U) * m.factor
+            Sg_symanzik_tree = calc_gauge_action(SymanzikTreeGaugeAction(), U) * m.factor
             values[i] = Sg_symanzik_tree
             valuedic["symanzik_tree"] = Sg_symanzik_tree
         elseif methodname == "symanzik_tad"
-            Sg_symanzik_tad = SymanzikTadGaugeAction()(U) * m.factor
+            Sg_symanzik_tad = calc_gauge_action(SymanzikTadGaugeAction(), U) * m.factor
             values[i] = Sg_symanzik_tad
             valuedic["symanzik_tad"] = Sg_symanzik_tad
         elseif methodname == "iwasaki"
-            Sg_iwasaki = IwasakiGaugeAction()(U) * m.factor
+            Sg_iwasaki = calc_gauge_action(IwasakiGaugeAction(), U) * m.factor
             values[i] = Sg_iwasaki
             valuedic["iwasaki"] = Sg_iwasaki
         elseif methodname == "dbw2"
-            Sg_dbw2 = DBW2GaugeAction()(U) * m.factor
+            Sg_dbw2 = calc_gauge_action(DBW2GaugeAction(), U) * m.factor
             values[i] = Sg_dbw2
             valuedic["dbw2"] = Sg_dbw2
         else

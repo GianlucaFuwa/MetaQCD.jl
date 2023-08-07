@@ -1,5 +1,4 @@
-struct Euler <: AbstractIntegrator
-end
+struct Euler <: AbstractIntegrator end
 
 function (eul::Euler)(method::T) where {T <: GradientFlow}
     Uflow = method.Uflow
@@ -13,8 +12,7 @@ function (eul::Euler)(method::T) where {T <: GradientFlow}
     return nothing
 end
 
-struct RK2 <: AbstractIntegrator
-end
+struct RK2 <: AbstractIntegrator end
 
 function (rk2::RK2)(method::T) where {T <: GradientFlow}
     Uflow = method.Uflow
@@ -30,8 +28,7 @@ function (rk2::RK2)(method::T) where {T <: GradientFlow}
     return nothing
 end
 
-struct RK3 <: AbstractIntegrator
-end
+struct RK3 <: AbstractIntegrator end
 
 function (rk3::RK3)(method::T) where {T <: GradientFlow}
     Uflow = method.Uflow
@@ -49,8 +46,7 @@ function (rk3::RK3)(method::T) where {T <: GradientFlow}
     return nothing
 end
 
-struct RK3W7 <: AbstractIntegrator
-end
+struct RK3W7 <: AbstractIntegrator end
 
 function (rk3w7::RK3W7)(method::T) where {T <: GradientFlow}
     Uflow = method.Uflow

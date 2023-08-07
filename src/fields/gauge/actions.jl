@@ -4,17 +4,15 @@ struct SymanzikTadGaugeAction <: AbstractGaugeAction end
 struct IwasakiGaugeAction <: AbstractGaugeAction end
 struct DBW2GaugeAction <: AbstractGaugeAction end
 
-function calc_gauge_action(U::Gaugefield{GA}) where {GA}
-    return GA()(U)
-end
+calc_gauge_action(U::Gaugefield{GA}) where {GA} = calc_gauge_action(GA(), U)
 
-function (::WilsonGaugeAction)(U::T) where {T <: Gaugefield}
+function calc_gauge_action(::WilsonGaugeAction, U)
     P = plaquette_trace_sum(U)
     Sg_wilson = U.β * (6 * U.NV - 1/3 * P)
     return Sg_wilson
 end
 
-function (::SymanzikTreeGaugeAction)(U::T) where {T <: Gaugefield}
+function calc_gauge_action(::SymanzikTreeGaugeAction, U)
     P = plaquette_trace_sum(U)
     R = rect_trace_sum(U)
     Sg_plaq = 6 * U.NV - 1/3 * P
@@ -23,17 +21,17 @@ function (::SymanzikTreeGaugeAction)(U::T) where {T <: Gaugefield}
     return Sg_symanzik
 end
 
-function (::SymanzikTadGaugeAction)(U::T) where {T <: Gaugefield}
+function calc_gauge_action(::SymanzikTadGaugeAction, U)
     P = plaquette_trace_sum(U)
     R = rect_trace_sum(U)
-    u0sq = sqrt(1/3 * P)
+    u0sq = sqrt(1/(6 * U.NV * U.NC) * P)
     Sg_plaq = 6 * U.NV - 1/3 * P
     Sg_rect = 12 * U.NV - 1/3 * R
     Sg_symanzik = U.β * ((1 + 8/12) * Sg_plaq - 1/12u0sq * Sg_rect)
     return Sg_symanzik
 end
 
-function (::IwasakiGaugeAction)(U::T) where {T <: Gaugefield}
+function calc_gauge_action(::IwasakiGaugeAction, U)
     P = plaquette_trace_sum(U)
     R = rect_trace_sum(U)
     Sg_plaq = 6 * U.NV - 1/3 * P
@@ -42,7 +40,7 @@ function (::IwasakiGaugeAction)(U::T) where {T <: Gaugefield}
     return Sg_iwasaki
 end
 
-function (::DBW2GaugeAction)(U::T) where {T <: Gaugefield}
+function calc_gauge_action(::DBW2GaugeAction, U)
     P = plaquette_trace_sum(U)
     R = rect_trace_sum(U)
     Sg_plaq = 6 * U.NV - 1/3 * P
@@ -51,7 +49,7 @@ function (::DBW2GaugeAction)(U::T) where {T <: Gaugefield}
     return Sg_dbw2
 end
 
-function plaquette_trace_sum(U::T) where {T <: Gaugefield}
+function plaquette_trace_sum(U)
     @batch threadlocal=0.0::Float64 for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
@@ -63,7 +61,7 @@ function plaquette_trace_sum(U::T) where {T <: Gaugefield}
     return sum(threadlocal)
 end
 
-function rect_trace_sum(U::T) where {T <: Gaugefield}
+function rect_trace_sum(U)
     @batch threadlocal=0.0::Float64 for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
@@ -77,7 +75,7 @@ function rect_trace_sum(U::T) where {T <: Gaugefield}
     return sum(threadlocal)
 end
 
-function plaquette(U::T, μ, ν, site::SiteCoords) where {T <: Gaugefield}
+function plaquette(U, μ, ν, site)
     Nμ = size(U)[μ]
     Nν = size(U)[ν]
     siteμp = move(site, μ, 1, Nμ)
@@ -86,7 +84,7 @@ function plaquette(U::T, μ, ν, site::SiteCoords) where {T <: Gaugefield}
     return plaq
 end
 
-function rect_2x1(U::T, μ, ν, site::SiteCoords) where {T <: Gaugefield}
+function rect_2x1(U, μ, ν, site)
     Nμ = size(U)[μ]
     Nν = size(U)[ν]
     siteμp = move(site, μ, 1, Nμ)
@@ -100,7 +98,7 @@ function rect_2x1(U::T, μ, ν, site::SiteCoords) where {T <: Gaugefield}
     return plaq
 end
 
-function rect_1x2(U::T, μ, ν, site::SiteCoords) where {T <: Gaugefield}
+function rect_1x2(U, μ, ν, site)
     Nμ = size(U)[μ]
     Nν = size(U)[ν]
     siteμp = move(site, μ, 1, Nμ)
@@ -114,7 +112,7 @@ function rect_1x2(U::T, μ, ν, site::SiteCoords) where {T <: Gaugefield}
     return plaq
 end
 
-function plaquette_2x2(U::T, μ, ν, site::SiteCoords) where {T <: Gaugefield}
+function plaquette_2x2(U, μ, ν, site)
     Nμ = size(U)[μ]
     Nν = size(U)[ν]
     siteμp = move(site, μ, 1, Nμ)

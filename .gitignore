@@ -12,3 +12,4 @@ run.jl
 /src/system/mainrun_mpi.jl
 LocalPreferences.toml
 /templates/
+stability.jl

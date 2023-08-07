@@ -1,6 +1,5 @@
-function overrelaxation_sweep!(U::Gaugefield{GA}; metro_test = true) where {GA}
+function overrelaxation_sweep!(U::Gaugefield; metro_test = true)
     numaccepts = 0
-    staple = GA()
     action_factor = -U.β / 3
 
     for site in eachindex(U)
@@ -23,11 +22,10 @@ function overrelaxation_sweep!(U::Gaugefield{GA}; metro_test = true) where {GA}
     return numaccepts
 end
 
-function overrelaxation_sweep_eo!(U::Gaugefield{GA}; metro_test = true) where {GA}
+function overrelaxation_sweep_eo!(U::Gaugefield; metro_test = true)
     NX, NY, NZ, NT = size(U)
     spacing = 8
     numaccepts = zeros(Float64, nthreads() * spacing)
-    staple = GA()
     action_factor = -U.β / 3
 
     for μ in 1:4

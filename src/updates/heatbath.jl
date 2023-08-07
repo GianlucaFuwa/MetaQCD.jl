@@ -5,33 +5,22 @@ struct HeatbathUpdate <: AbstractUpdate # maybe add eo as type parameter?
     numOR::Int64
 
     function HeatbathUpdate(U, eo, MAXIT, numHB, numOR)
-        return new(
-            eo,
-            MAXIT,
-            numHB,
-            numOR,
-        )
+        return new(eo, MAXIT, numHB, numOR)
     end
 end
 
 function update!(
     updatemethod::HeatbathUpdate,
     U,
-    verbose::VerboseLevel;
+    ::VerboseLevel;
     Bias = nothing,
     metro_test::Bool = true,
 )
     for _ in 1:updatemethod.numHB
         if updatemethod.eo
-            heatbath_sweep_eo!(
-                U,
-                updatemethod.MAXIT,
-            )
+            heatbath_sweep_eo!(U, updatemethod.MAXIT)
         else
-            heatbath_sweep!(
-                U,
-                updatemethod.MAXIT,
-            )
+            heatbath_sweep!(U, updatemethod.MAXIT)
         end
     end
 
@@ -39,15 +28,9 @@ function update!(
 
     for _ in 1:updatemethod.numOR
         if updatemethod.eo
-            numaccepts += overrelaxation_sweep_eo!(
-                U,
-                metro_test = true,
-            )
+            numaccepts += overrelaxation_sweep_eo!(U, metro_test = true)
         else
-            numaccepts += overrelaxation_sweep!(
-                U,
-                metro_test = true,
-            )
+            numaccepts += overrelaxation_sweep!(U, metro_test = true)
         end
     end
 
@@ -63,8 +46,7 @@ function update!(
     return numaccepts
 end
 
-function heatbath_sweep!(U::Gaugefield{GA}, MAXIT) where {GA}
-    staple = GA()
+function heatbath_sweep!(U::Gaugefield, MAXIT)
     action_factor = 3 / U.β
 
     @inbounds for μ in 1:4
@@ -79,9 +61,8 @@ function heatbath_sweep!(U::Gaugefield{GA}, MAXIT) where {GA}
     return nothing
 end
 
-function heatbath_sweep_eo!(U::Gaugefield{GA}, MAXIT) where {GA}
+function heatbath_sweep_eo!(U::Gaugefield, MAXIT)
     NX, NY, NZ, NT = size(U)
-    staple = GA()
     action_factor = 3 / U.β
 
     for μ in 1:4
@@ -107,24 +88,15 @@ end
 
 function heatbath_SU3(old_link, A, MAXIT, action_factor)
     subblock = make_submatrix(cmatmul_od(old_link, A), 1, 2)
-    tmp = embed_into_SU3(
-        heatbath_SU2(subblock, MAXIT, action_factor),
-        1, 2,
-    )
+    tmp = embed_into_SU3(heatbath_SU2(subblock, MAXIT, action_factor), 1, 2)
     old_link = cmatmul_oo(tmp, old_link)
 
     subblock = make_submatrix(cmatmul_od(old_link, A), 1, 3)
-    tmp = embed_into_SU3(
-        heatbath_SU2(subblock, MAXIT, action_factor),
-        1, 3,
-    )
+    tmp = embed_into_SU3(heatbath_SU2(subblock, MAXIT, action_factor), 1, 3)
     old_link = cmatmul_oo(tmp, old_link)
 
     subblock = make_submatrix(cmatmul_od(old_link, A), 2, 3)
-    tmp = embed_into_SU3(
-        heatbath_SU2(subblock, MAXIT, action_factor),
-        2, 3,
-    )
+    tmp = embed_into_SU3(heatbath_SU2(subblock, MAXIT, action_factor), 2, 3)
     new_link = cmatmul_oo(tmp, old_link)
     return new_link
 end

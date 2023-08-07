@@ -77,7 +77,7 @@ struct BiasPotential{TG} <: AbstractBiasPotential
     ) where {TG}
         smearing = StoutSmearing(U, numsmear, ρstout)
         is_static = false
-        values = zeros(round(Int64, (CVlims[2]-CVlims[1]) / bin_width, RoundNearestTiesAway) + 1)
+        values = zeros(round(Int64, (CVlims[2]-CVlims[1]) / bin_width) + 1)
         bin_vals = range(CVlims[1], CVlims[2], step = bin_width)
         # exceeded_count = 0
         fp = nothing

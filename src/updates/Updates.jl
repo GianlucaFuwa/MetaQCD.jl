@@ -3,12 +3,13 @@ module Updates
     using LinearAlgebra
     using StaticArrays
     using Polyester
+    using Printf
     using ..Output
     using ..Utils
 
     import ..Gaugefields: AbstractGaugeAction, Gaugefield, Liefield, Temporaryfield
     import ..Gaugefields: add!, calc_gauge_action, calc_kinetic_energy, normalize!,
-        fieldstrength_eachsite!, gaussian_momenta!, staple_eachsite!, substitute_U!
+        fieldstrength_eachsite!, gaussian_momenta!, staple, staple_eachsite!, substitute_U!
     import ..Measurements: top_charge
     import ..Metadynamics: BiasPotential, MetaEnabled, MetaDisabled, ∂V∂Q, update_bias!
     import ..Parameters: ParameterSet
@@ -32,6 +33,8 @@ module Updates
         updatemethod = Updatemethod(
             U,
             parameters.update_method,
+            parameters.verboselevel,
+            parameters.logdir,
             parameters.meta_enabled,
             parameters.metro_ϵ,
             parameters.metro_multi_hit,
@@ -52,6 +55,8 @@ module Updates
     function Updatemethod(
         U,
         update_method,
+        verboselevel = 1,
+        logdir = "",
         meta_enabled = false,
         metro_ϵ = 0.1,
         metro_multi_hit = 1,
@@ -75,6 +80,8 @@ module Updates
                 numsmear = hmc_numsmear,
                 ρ_stout = hmc_ρstout,
                 meta_enabled = meta_enabled,
+                verboselevel = verboselevel,
+                logdir = logdir,
             )
         elseif update_method == "metropolis"
             updatemethod = MetroUpdate(

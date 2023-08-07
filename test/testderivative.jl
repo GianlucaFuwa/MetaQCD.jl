@@ -2,7 +2,7 @@ function SU3testderivative()
     Random.seed!(1206)
     println("SU3testderivative")
     NX = 8; NY = 8; NZ = 8; NT = 8;
-    U = random_gauges(NX, NY, NZ, NT, 5.7, type_of_gaction = SymanzikTreeGaugeAction)
+    U = random_gauges(NX, NY, NZ, NT, 5.7, type_of_gaction = DBW2GaugeAction)
 
     gaction_old = calc_gauge_action(U)
     topcharge_old = top_charge(U, "clover")
