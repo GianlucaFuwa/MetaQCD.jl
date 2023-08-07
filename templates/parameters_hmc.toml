@@ -1,7 +1,7 @@
 ["Physical Settings"]
 L = [8, 8, 8, 8]
 "β" = 5.70
-kind_of_gaction = "symanzik_tadpole"
+kind_of_gaction = "wilson"
 Ntherm = 10
 Nsteps = 100
 initial = "cold"
