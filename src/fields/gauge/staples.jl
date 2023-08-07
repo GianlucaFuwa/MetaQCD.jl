@@ -1,15 +1,3 @@
-function staple_eachsite!(staples, U::Gaugefield{GA}) where {GA}
-    staple = GA()
-
-    for site in eachindex(U)
-        for μ in 1:4
-            staples[μ][site] = staple(U, μ, site)
-        end
-    end
-
-    return nothing
-end
-
 staple(U::Gaugefield{GA}, μ, site) where {GA} = staple(GA(), U, μ, site)
 
 function staple(::WilsonGaugeAction, U, μ, site)
@@ -140,4 +128,14 @@ function staple_rect(U, μ, site)
     end
 
     return staple
+end
+
+function staple_eachsite!(staples, U)
+    @batch for site in eachindex(U)
+        for μ in 1:4
+            staples[μ][site] = staple(U, μ, site)
+        end
+    end
+
+    return nothing
 end
