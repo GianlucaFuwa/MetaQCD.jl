@@ -54,11 +54,11 @@ struct GaugeActionMeasurement <: AbstractMeasurement
 end
 
 function GaugeActionMeasurement(
-    U::T,
+    U::Gaugefield,
     params::GaugeActionParameters,
     filename = "gauge_action.txt",
     flow = false,
-) where {T <: Gaugefield}
+)
     return GaugeActionMeasurement(
         U,
         filename = filename,
@@ -69,7 +69,7 @@ function GaugeActionMeasurement(
     )
 end
 
-function measure(m::GaugeActionMeasurement, U; additional_string = "")
+function measure(m::GaugeActionMeasurement, U; additional_string="")
     measurestring = ""
     values = zeros(Float64, length(m.GA_methods))
     valuedic = Dict{String, AbstractFloat}()

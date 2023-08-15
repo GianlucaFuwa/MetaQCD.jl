@@ -19,15 +19,15 @@ module Mainrun
     """
     So we don't have to type "if myrank == 0" all the time...
     """
-    function println_rank0(val...)
+    function println_rank0(args...)
         if MPI.Comm_rank(MPI.COMM_WORLD) == 0
-            println(v, val...)
+            println(v, args...)
         end
     end
 
-    function println_verbose0(v::T, val...) where {T <: VerboseLevel}
+    function println_verbose0(v::T, args...) where {T<:VerboseLevel}
         if MPI.Comm_rank(MPI.COMM_WORLD) == 0
-            println_verbose1(v, val...)
+            println_verbose1(v, args...)
         end
     end
 

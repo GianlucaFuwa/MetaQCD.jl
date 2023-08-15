@@ -2,14 +2,15 @@ module Universe
     using ..Utils
     using ..Output
 
-    import ..Gaugefields: Gaugefield
+    import ..Gaugefields: Gaugefield, Plaquette, Clover
     import ..Gaugefields: AbstractGaugeAction, DBW2GaugeAction, IwasakiGaugeAction,
         SymanzikTadGaugeAction, SymanzikTreeGaugeAction, WilsonGaugeAction
     import ..Gaugefields: identity_gauges, random_gauges
-    import ..Metadynamics: BiasPotential, write_to_file
+    import ..Metadynamics: BiasPotential, get_cvtype_from_parameters, write_to_file
     import ..Parameters: ParameterSet
+    import ..Smearing: NoSmearing, StoutSmearing
 
-    struct Univ{TG, TB, TV}
+    struct Univ{TG,TB,TV}
         meta_enabled::Bool
         tempering_enabled::Bool
         U::TG
@@ -18,7 +19,7 @@ module Universe
         verbose_print::TV
     end
 
-    function Univ(p::ParameterSet; use_mpi = false, fp = true)
+    function Univ(p::ParameterSet; use_mpi=false, fp=true)
         NX, NY, NZ, NT = p.L
 
         if p.kind_of_gaction == "wilson"
@@ -40,35 +41,40 @@ module Universe
 
             if tempering_enabled && use_mpi == false
                 numinstances = p.numinstances
-                U = Vector{Gaugefield{GA}}(undef, p.numinstances)
-                Bias = Vector{BiasPotential{Gaugefield{GA}}}(undef, p.numinstances)
+                TG = Gaugefield{GA}
+                TCV = get_cvtype_from_parameters(p)
+                cvsmearing = get_cvsmearing_from_parameters(p)
+                TS = cvsmearing==NoSmearing ? cvsmearing : cvsmearing{TG}
+                TB = BiasPotential{TCV,TG,TS}
+                U = Vector{TG}(undef, p.numinstances)
+                Bias = Vector{TB}(undef, p.numinstances)
 
                 for i in 1:numinstances
                     if p.initial == "cold"
-                        U[i] = identity_gauges(NX, NY, NZ, NT, p.β, type_of_gaction = GA)
+                        U[i] = identity_gauges(NX, NY, NZ, NT, p.beta, type_of_gaction=GA)
                     elseif p.initial == "hot"
-                        U[i] = random_gauges(NX, NY, NZ, NT, p.β, type_of_gaction = GA)
+                        U[i] = random_gauges(NX, NY, NZ, NT, p.beta, type_of_gaction=GA)
                     else
                         error("Only \"hot\" or \"cold\" initial config valid.")
                     end
 
-                    Bias[i] = BiasPotential(p, U[1]; instance = i - 1, has_fp = fp)
-                    write_to_file(Bias[i]; force = true)
+                    Bias[i] = BiasPotential(p, U[1]; instance=i-1, has_fp=fp)
+                    write_to_file(Bias[i]; force=true)
                 end
 
             else
                 numinstances = 1
 
                 if p.initial == "cold"
-                    U = identity_gauges(NX, NY, NZ, NT, p.β, type_of_gaction = GA)
+                    U = identity_gauges(NX, NY, NZ, NT, p.beta, type_of_gaction=GA)
                 elseif p.initial == "hot"
-                    U = random_gauges(NX, NY, NZ, NT, p.β, type_of_gaction = GA)
+                    U = random_gauges(NX, NY, NZ, NT, p.beta, type_of_gaction=GA)
                 else
                     error("Only \"hot\" or \"cold\" initial config valid.")
                 end
 
-                Bias = BiasPotential(p, U; has_fp = fp)
-                write_to_file(Bias; force = true)
+                Bias = BiasPotential(p, U; has_fp=fp)
+                write_to_file(Bias; force=fp)
             end
         else
             tempering_enabled = p.tempering_enabled
@@ -77,9 +83,9 @@ module Universe
             Bias = nothing
 
             if p.initial == "cold"
-                U = identity_gauges(NX, NY, NZ, NT, p.β, type_of_gaction = GA)
+                U = identity_gauges(NX, NY, NZ, NT, p.beta, type_of_gaction=GA)
             elseif p.initial == "hot"
-                U = random_gauges(NX, NY, NZ, NT, p.β, type_of_gaction = GA)
+                U = random_gauges(NX, NY, NZ, NT, p.beta, type_of_gaction=GA)
             end
 
         end
@@ -100,5 +106,15 @@ module Universe
             numinstances,
             verbose_print,
         )
+    end
+
+    function get_cvsmearing_from_parameters(p::ParameterSet)
+        if p.numsmears_for_cv == 0 || p.rhostout_for_cv == 0
+            return NoSmearing
+        elseif p.numsmears_for_cv > 0 && p.rhostout_for_cv > 0
+            return StoutSmearing
+        else
+            error("numsmears_for_cv and rhostout_for_cv must be >0")
+        end
     end
 end

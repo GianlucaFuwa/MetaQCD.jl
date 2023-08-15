@@ -6,7 +6,7 @@ struct EnergyDensityMeasurement <: AbstractMeasurement
     ED_methods::Vector{String}
 
     function EnergyDensityMeasurement(
-        U;
+        ::Gaugefield;
         filename = nothing,
         verbose_level = 2,
         printvalues = false,
@@ -47,11 +47,11 @@ struct EnergyDensityMeasurement <: AbstractMeasurement
 end
 
 function EnergyDensityMeasurement(
-        U::T,
+        U::Gaugefield,
         params::EnergyDensityParameters,
         filename = "energy_density.txt",
         flow = false,
-    ) where {T <: Gaugefield}
+)
     return EnergyDensityMeasurement(
         U,
         filename = filename,
@@ -62,7 +62,7 @@ function EnergyDensityMeasurement(
     )
 end
 
-function measure(m::EnergyDensityMeasurement, U; additional_string = "")
+function measure(m::EnergyDensityMeasurement, U; additional_string="")
     measurestring = ""
     values = zeros(Float64, length(m.ED_methods))
     valuedic = Dict{String, AbstractFloat}()
@@ -90,13 +90,13 @@ function measure(m::EnergyDensityMeasurement, U; additional_string = "")
     return output
 end
 
-function energy_density(U::T, methodname::String) where {T <: Gaugefield}
+function energy_density(U::T, methodname::String) where {T<:Gaugefield}
     if methodname == "plaquette"
-        E = energy_density_plaq(U)
+        E = energy_density(Plaquette(), U)
     elseif methodname == "clover"
-        E = energy_density_clover(U)
+        E = energy_density(Clover(), U)
     elseif methodname == "improved"
-        E = energy_density_improved(U)
+        E = energy_density(Improved(), U)
     else
         error("Energy density method '$(methodname)' not supported")
     end
@@ -104,7 +104,7 @@ function energy_density(U::T, methodname::String) where {T <: Gaugefield}
     return E
 end
 
-function energy_density_plaq(U::T) where {T <: Gaugefield}
+function energy_density(::Plaquette, U::Gaugefield)
     spacing = 8
     Eplaq = zeros(Float64, nthreads() * spacing)
 
@@ -123,7 +123,7 @@ function energy_density_plaq(U::T) where {T <: Gaugefield}
     return Eplaq
 end
 
-function energy_density_clover(U::T) where {T <: Gaugefield}
+function energy_density(::Clover, U::Gaugefield)
     @batch threadlocal=0.0::Float64 for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
@@ -138,7 +138,13 @@ function energy_density_clover(U::T) where {T <: Gaugefield}
     return Eclov
 end
 
-function energy_density_rect(U::T) where {T <: Gaugefield}
+function energy_density(::Improved, U::Gaugefield)
+    Eclover = energy_density(Clover(), U)
+    Erect = energy_density_rect(U)
+    return 5/3 * Eclover - 1/12 * Erect
+end
+
+function energy_density_rect(U::Gaugefield)
     @batch threadlocal=0.0::Float64 for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
@@ -151,10 +157,4 @@ function energy_density_rect(U::T) where {T <: Gaugefield}
 
     Erect = 1/2U.NV * sum(threadlocal)
     return Erect
-end
-
-function energy_density_improved(U::T) where {T <: Gaugefield}
-    Eclover = energy_density_clover(U)
-    Erect = energy_density_rect(U)
-    return 5/3 * Eclover - 1/12 * Erect
 end

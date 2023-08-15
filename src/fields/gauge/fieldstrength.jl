@@ -1,22 +1,22 @@
 abstract type AbstractFieldstrength end
 
-struct PlaquetteFieldstrength <: AbstractFieldstrength end
-struct CloverFieldstrength <: AbstractFieldstrength end
-struct ImprovedFieldstrength <: AbstractFieldstrength end
+struct Plaquette <: AbstractFieldstrength end
+struct Clover <: AbstractFieldstrength end
+struct Improved <: AbstractFieldstrength end
 
-function fieldstrength_eachsite!(F::Vector{Temporaryfield}, U, name)
-    if name == "plaquette"
-        fieldstrength_eachsite_plaq!(F, U)
-    elseif name == "clover"
-        fieldstrength_eachsite_clover!(F, U)
-    #elseif name == "improved"
-    #    fieldstrength_eachsite_improved!(Fμν, u)
+function fieldstrength_eachsite!(F::Vector{Temporaryfield}, kind_of_fs::String)
+    if kind_of_fs == "plaquette"
+        fieldstrength_eachsite!(Plaquette(), F)
+    elseif kind_of_fs == "clover"
+        fieldstrength_eachsite!(Clover(), F)
+    else
+        error("kind of fieldstrength \"$(kind_of_fs)\" not supported")
     end
 
     return nothing
 end
 
-function fieldstrength_eachsite_plaq!(F::Vector{Temporaryfield}, U)
+function fieldstrength_eachsite!(::Plaquette, F::Vector{Temporaryfield}, U)
     @batch for site in eachindex(U)
         C12 = plaquette(U, 1, 2, site)
         F[1][2][site] = im * traceless_antihermitian(C12)
@@ -40,25 +40,25 @@ function fieldstrength_eachsite_plaq!(F::Vector{Temporaryfield}, U)
     return nothing
 end
 
-function fieldstrength_eachsite_clover!(Fμν::Vector{Temporaryfield}, U)
+function fieldstrength_eachsite!(::Clover, F::Vector{Temporaryfield}, U)
     @batch for site in eachindex(U)
         C12 = clover_square(U, 1, 2, site, 1)
-        Fμν[1][2][site] = im/4 * traceless_antihermitian(C12)
+        F[1][2][site] = im/4 * traceless_antihermitian(C12)
 
         C13 = clover_square(U, 1, 3, site, 1)
-        Fμν[1][3][site] = im/4 * traceless_antihermitian(C13)
+        F[1][3][site] = im/4 * traceless_antihermitian(C13)
 
         C14 = clover_square(U, 1, 4, site, 1)
-        Fμν[1][4][site] = im/4 * traceless_antihermitian(C14)
+        F[1][4][site] = im/4 * traceless_antihermitian(C14)
 
         C23 = clover_square(U, 2, 3, site, 1)
-        Fμν[2][3][site] = im/4 * traceless_antihermitian(C23)
+        F[2][3][site] = im/4 * traceless_antihermitian(C23)
 
         C24 = clover_square(U, 2, 4, site, 1)
-        Fμν[2][4][site] = im/4 * traceless_antihermitian(C24)
+        F[2][4][site] = im/4 * traceless_antihermitian(C24)
 
         C34 = clover_square(U, 3, 4, site, 1)
-        Fμν[3][4][site] = im/4 * traceless_antihermitian(C34)
+        F[3][4][site] = im/4 * traceless_antihermitian(C34)
     end
 
     return nothing

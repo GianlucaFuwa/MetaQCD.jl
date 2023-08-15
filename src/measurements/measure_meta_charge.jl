@@ -42,7 +42,7 @@ function MetaChargeMeasurement(
     params::MetaChargeParameters,
     filename,
     ::Bool,
-) where {T <: Gaugefield}
+) where {T<:Gaugefield}
     return MetaChargeMeasurement(
         U,
         filename = filename,
@@ -51,7 +51,7 @@ function MetaChargeMeasurement(
     )
 end
 
-function measure(m::MetaChargeMeasurement, U; additional_string = "")
+function measure(m::MetaChargeMeasurement, U; additional_string="")
     cv = U.CV
     measurestring = ""
 

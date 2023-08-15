@@ -49,12 +49,7 @@ function MeasurementMethods(
     )
 end
 
-function calc_measurements(
-    m::MeasurementMethods,
-    itrj,
-    U;
-    additional_string = "",
-)
+function calc_measurements(m::MeasurementMethods, itrj, U; str="")
     measurestrings = String[]
     check_for_measurements(itrj, m.intervals) || return measurestrings
 
@@ -62,12 +57,8 @@ function calc_measurements(
         interval = m.intervals[i]
 
         if itrj % interval == 0
-            outputvalue = measure(
-                m.measurements[i],
-                U,
-                additional_string = "$itrj " * additional_string,
-            )
-            push!(measurestrings, get_string(outputvalue))
+            outputvalue = measure(m.measurements[i], U, additional_string="$itrj")
+            push!(measurestrings, get_string(outputvalue)*str)
         end
 
     end
@@ -75,12 +66,7 @@ function calc_measurements(
     return measurestrings
 end
 
-function calc_measurements_flowed(
-    m::MeasurementMethods,
-    gradient_flow,
-    itrj,
-    U;
-)
+function calc_measurements_flowed(m::MeasurementMethods, gradient_flow, itrj, U; str="")
     measurestrings = String[]
     check_for_measurements(itrj, m.intervals) || return measurestrings
     substitute_U!(gradient_flow.Uflow, U)
@@ -101,7 +87,7 @@ function calc_measurements_flowed(
                         gradient_flow.Uflow,
                         additional_string = additional_string,
                     )
-                    push!(measurestrings, get_string(outputvalue))
+                    push!(measurestrings, get_string(outputvalue)*str)
                 end
 
             end

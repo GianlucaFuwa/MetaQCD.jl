@@ -2,7 +2,7 @@ function SU3testderivative()
     Random.seed!(1206)
     println("SU3testderivative")
     NX = 8; NY = 8; NZ = 8; NT = 8;
-    U = random_gauges(NX, NY, NZ, NT, 5.7, type_of_gaction = DBW2GaugeAction)
+    U = random_gauges(NX, NY, NZ, NT, 5.7, type_of_gaction=WilsonGaugeAction)
 
     gaction_old = calc_gauge_action(U)
     topcharge_old = top_charge(U, "clover")
@@ -34,53 +34,30 @@ function SU3testderivative()
         Ufwd = deepcopy(U)
         Ufwd[direction][site] = expλ(group_direction, deltaH) * Ufwd[direction][site]
         gaction_new_fwd = calc_gauge_action(Ufwd)
-        topcharge_new_fwd = top_charge(Ufwd, "clover")
+        topcharge_new_fwd = top_charge(Clover(), Ufwd)
 
         Ubwd = deepcopy(U)
         Ubwd[direction][site] = expλ(group_direction, -deltaH) * Ubwd[direction][site]
         gaction_new_bwd = calc_gauge_action(Ubwd)
-        topcharge_new_bwd = top_charge(Ubwd, "clover")
+        topcharge_new_bwd = top_charge(Clover(), Ubwd)
 
         # Smeared
         Ufwd = deepcopy(U)
         Ufwd[direction][site] = expλ(group_direction, deltaH) * Ufwd[direction][site]
         calc_smearedU!(smearing, Ufwd)
         gaction_new_fwd_smeared = calc_gauge_action(smearing.Usmeared_multi[end])
-        topcharge_new_fwd_smeared = top_charge(smearing.Usmeared_multi[end], "clover")
+        topcharge_new_fwd_smeared = top_charge(Clover(), smearing.Usmeared_multi[end])
 
         Ubwd = deepcopy(U)
         Ubwd[direction][site] = expλ(group_direction, -deltaH) * Ubwd[direction][site]
         calc_smearedU!(smearing, Ubwd)
         gaction_new_bwd_smeared = calc_gauge_action(smearing.Usmeared_multi[end])
-        topcharge_new_bwd_smeared = top_charge(smearing.Usmeared_multi[end], "clover")
+        topcharge_new_bwd_smeared = top_charge(Clover(), smearing.Usmeared_multi[end])
 
-        MetaQCD.Updates.calc_dSdU!(
-            dSdU,
-            staples,
-            U,
-        )
-        MetaQCD.Updates.calc_dSdU_bare!(
-            dSdU_smeared,
-            temp_force,
-            staples,
-            U,
-            smearing,
-        )
-        MetaQCD.Updates.calc_dQdU!(
-            dQdU,
-            fieldstrength,
-            U,
-            "clover",
-        )
-        MetaQCD.Updates.calc_dQdU_bare!(
-            dQdU_smeared,
-            temp_force,
-            fieldstrength,
-            U,
-            "clover",
-            smearing,
-        )
-
+        calc_dSdU_bare!(dSdU, staples, U, nothing, NoSmearing())
+        calc_dSdU_bare!(dSdU_smeared, staples, U, temp_force, smearing)
+        calc_dQdU_bare!(dQdU, fieldstrength, U, Clover())
+        calc_dQdU_bare!(dQdU_smeared, fieldstrength, U, temp_force, Clover(), smearing)
 
         dgaction_proj = real(multr(im * λ(group_direction), dSdU[direction][site]))
         dtopcharge_proj = real(multr(im * λ(group_direction), dQdU[direction][site]))
@@ -135,4 +112,48 @@ function SU3testderivative()
     end
 
     return relerrors
+end
+
+function calc_dQdU_bare!(dQdU, F, U, temp_force, kind_of_charge, smearing)
+    calc_smearedU!(smearing, U)
+    fully_smeared_U = smearing.Usmeared_multi[end]
+    calc_dQdU_bare!(dQdU, F, fully_smeared_U, kind_of_charge)
+    stout_backprop!(dQdU, temp_force, smearing)
+    return nothing
+end
+
+function calc_dQdU_bare!(dQdU, F, U, kind_of_charge)
+    fieldstrength_eachsite!(kind_of_charge, F, U)
+
+    @batch for site in eachindex(U)
+        tmp1 = cmatmul_oo(U[1][site], (
+            ∇trFμνFρσ(kind_of_charge, U, F, 1, 2, 3, 4, site) -
+            ∇trFμνFρσ(kind_of_charge, U, F, 1, 3, 2, 4, site) +
+            ∇trFμνFρσ(kind_of_charge, U, F, 1, 4, 2, 3, site)
+        ))
+        dQdU[1][site] = 1/4π^2 * traceless_antihermitian(tmp1)
+
+        tmp2 = cmatmul_oo(U[2][site], (
+            ∇trFμνFρσ(kind_of_charge, U, F, 2, 3, 1, 4, site) -
+            ∇trFμνFρσ(kind_of_charge, U, F, 2, 1, 3, 4, site) -
+            ∇trFμνFρσ(kind_of_charge, U, F, 2, 4, 1, 3, site)
+        ))
+        dQdU[2][site] = 1/4π^2 * traceless_antihermitian(tmp2)
+
+        tmp3 = cmatmul_oo(U[3][site], (
+            ∇trFμνFρσ(kind_of_charge, U, F, 3, 1, 2, 4, site) -
+            ∇trFμνFρσ(kind_of_charge, U, F, 3, 2, 1, 4, site) +
+            ∇trFμνFρσ(kind_of_charge, U, F, 3, 4, 1, 2, site)
+        ))
+        dQdU[3][site] = 1/4π^2 * traceless_antihermitian(tmp3)
+
+        tmp4 = cmatmul_oo(U[4][site], (
+            ∇trFμνFρσ(kind_of_charge, U, F, 4, 2, 1, 3, site) -
+            ∇trFμνFρσ(kind_of_charge, U, F, 4, 1, 2, 3, site) -
+            ∇trFμνFρσ(kind_of_charge, U, F, 4, 3, 1, 2, site)
+        ))
+        dQdU[4][site] = 1/4π^2 * traceless_antihermitian(tmp4)
+    end
+
+    return nothing
 end

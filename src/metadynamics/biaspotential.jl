@@ -1,6 +1,6 @@
-struct BiasPotential{TG} <: AbstractBiasPotential
-    kind_of_cv::String
-    smearing::StoutSmearing{TG}
+struct BiasPotential{TCV,TG,TS} <: AbstractBiasPotential
+    kind_of_cv::TCV
+    smearing::TS
     symmetric::Bool
 
     CVlims::NTuple{2, Float64}
@@ -10,31 +10,25 @@ struct BiasPotential{TG} <: AbstractBiasPotential
     wt_factor::Float64
     is_static::Bool
 
-    values::Vector{Float64}
     bin_vals::Vector{Float64}
+    values::Vector{Float64}
     fp::Union{Nothing, String}
     weight_fp::Union{Nothing, IOStream}
     kinds_of_weights::Union{Nothing, Vector{String}}
 
-    function BiasPotential(
-        p::ParameterSet,
-        U::TG;
-        instance = 1,
-        has_fp::Bool = true,
-    ) where {TG}
-        smearing = StoutSmearing(U, p.numsmears_for_cv, p.ρstout_for_cv)
+    function BiasPotential(p::ParameterSet, U::TG; instance=1, has_fp=true) where {TG}
+        TCV = get_cvtype_from_parameters(p)
+        smearing = StoutSmearing(U, p.numsmears_for_cv, p.rhostout_for_cv)
 
         if instance == 0
-            values = potential_from_file(p, nothing)
+            bin_vals, values = potential_from_file(p, nothing)
         elseif p.usebiases !== nothing && instance > length(p.usebiases)
-            values = potential_from_file(p, nothing)
+            bin_vals, values = potential_from_file(p, nothing)
         elseif p.usebiases === nothing
-            values = potential_from_file(p, nothing)
+            bin_vals, values = potential_from_file(p, nothing)
         else
-            values = potential_from_file(p, p.usebiases[instance])
+            bin_vals, values = potential_from_file(p, p.usebiases[instance])
         end
-
-        bin_vals = range(p.CVlims[1], p.CVlims[2], step = p.bin_width)
 
         if has_fp == true && instance > 0
             fp = p.biasdir * "/stream_$instance.txt"
@@ -57,10 +51,10 @@ struct BiasPotential{TG} <: AbstractBiasPotential
         wt_factor = p.wt_factor
         is_static = instance == 0 ? true : p.is_static[instance]
 
-        return new{TG}(
-            p.kind_of_cv, smearing, p.symmetric,
-            p.CVlims, p.bin_width, p.meta_weight, p.penalty_weight, wt_factor, is_static,
-            values, bin_vals, fp, weight_fp, kinds_of_weights,
+        return new{TCV,TG,typeof(smearing)}(
+            TCV(), smearing, p.symmetric,
+            p.cvlims, p.bin_width, p.meta_weight, p.penalty_weight, wt_factor, is_static,
+            bin_vals, values, fp, weight_fp, kinds_of_weights,
         )
     end
 
@@ -84,7 +78,7 @@ struct BiasPotential{TG} <: AbstractBiasPotential
         weight_fp = nothing
         kinds_of_weights = nothing
 
-        return new{TG}(
+        return new{typeof(kind_of_cv),TG,typeof(smearing)}(
             kind_of_cv, smearing, symmetric,
             CVlims, bin_width, weight, penalty_weight, is_static,
             values, bin_vals, fp, weight_fp, kinds_of_weights,
@@ -92,52 +86,64 @@ struct BiasPotential{TG} <: AbstractBiasPotential
     end
 end
 
-function Base.length(b::T) where {T <: BiasPotential}
-    return length(b.values)
-end
+(b::BiasPotential)(cv) = return_potential(b, cv)
 
-function Base.eachindex(b::T) where {T <: BiasPotential}
-    return eachindex(b.values)
-end
+Base.length(b::BiasPotential) = length(b.values)
+Base.eachindex(b::BiasPotential) = eachindex(b.values)
+Base.lastindex(b::BiasPotential) = length(b.values)
 
-function Base.setindex!(b::T, v, i) where {T <: BiasPotential}
+function Base.setindex!(b::T, v, i) where {T<:BiasPotential}
     b.values[i] = v
 end
 
-@inline function Base.getindex(b::T, i) where {T <: BiasPotential}
+@inline function Base.getindex(b::T, i) where {T<:BiasPotential}
     return b.values[i]
 end
 
-function Base.lastindex(b::T) where {T <: BiasPotential}
-    return length(b.values)
+@inline function kind_of_cv(::BiasPotential{TCV,TG,TS}) where {TCV,TG,TS}
+    return TCV()
 end
 
-@inline function index(b::T, cv) where {T <: BiasPotential}
-    grid_index = (cv - b.CVlims[1]) / b.bin_width + 0.5
-    return round(Int64, grid_index, RoundNearestTiesAway)
+@inline function index(b::T, cv) where {T<:BiasPotential}
+    idx = (cv - b.CVlims[1]) / b.bin_width + 0.5
+    return round(Int64, idx, RoundNearestTiesAway)
 end
 
-function return_potential(b::T, cv) where {T <: BiasPotential}
-    if b.CVlims[1] <= cv < b.CVlims[2]
-        grid_index = index(b, cv)
-        return b[grid_index]
+function return_potential(b::T, cv) where {T<:BiasPotential}
+    if b.CVlims[1] <= cv < b.CVlims[2]-b.bin_width
+        idx = index(b, cv)
+        interpolation_constant = (cv - b.bin_vals[idx]) / b.bin_width
+        return b[idx] * (1 - interpolation_constant) + interpolation_constant * b[idx+1]
     elseif cv < b.CVlims[1]
         penalty = b[1] + b.penalty_weight * min((cv - b.CVlims[1])^2, (cv - b.CVlims[2])^2)
         return penalty
     else
-        penalty= b[end] + b.penalty_weight * min((cv - b.CVlims[1])^2, (cv - b.CVlims[2])^2)
+        penalty = b[end] + b.penalty_weight * min((cv - b.CVlims[1])^2, (cv - b.CVlims[2]+b.bin_width)^2)
         return penalty
     end
 end
 
-function (b::BiasPotential)(cv)
-    return return_potential(b, cv)
-end
-
-function clear!(b::T) where {T <: BiasPotential}
+function clear!(b::T) where {T<:BiasPotential}
     @batch for i in eachindex(b)
         b[i] = 0.0
     end
 
+    return nothing
+end
+
+function write_to_file(b::T; force=false) where {T<:BiasPotential}
+    # If the potential is static we dont have to write it apart from the the time it
+    # is initialized, so we introduce a "force" keyword to overwrite the static-ness
+    (b.is_static && !force) && return nothing
+    (b.fp === nothing) && return nothing
+    (tmppath, tmpio) = mktemp() # open temporary file at arbitrary location in storage
+    println(tmpio, "$(rpad("CV", 7))\t$(rpad("V(CV)", 7))")
+
+    for i in eachindex(b)
+        println(tmpio, "$(rpad(b.bin_vals[i], 7, "0"))\t$(rpad(b.values[i], 7, "0"))")
+    end
+
+    close(tmpio)
+    mv(tmppath, b.fp, force = true) # replace bias file with temporary file
     return nothing
 end

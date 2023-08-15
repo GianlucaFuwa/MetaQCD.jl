@@ -28,6 +28,8 @@ function SU3testupdate()
     updatemethod = Updatemethod(
         U,
         update_method,
+        1,
+        "",
         meta_enabled,
         metro_ϵ,
         metro_multi_hit,
@@ -44,7 +46,7 @@ function SU3testupdate()
     )
 
     for itrj = 1:10
-        value, runtime = @timed update!(updatemethod, U, verbose, metro_test=false)
+        _, runtime = @timed update!(updatemethod, U, verbose, metro_test=false)
         normalize!(U)
         println("Elapsed time: $runtime [s]")
     end

@@ -1,13 +1,10 @@
 struct ParityUpdate{TG} <: AbstractUpdate
     _temp_U::TG
 
-    function ParityUpdate(U::TG) where {TG}
-        _temp_U = similar(U)
-        return new{TG}(_temp_U)
-    end
+    ParityUpdate(U::TG) where {TG} = new{TG}(similar(U))
 end
 
-function update!(updatemethod::ParityUpdate, U::Gaugefield{GA}) where {GA}
+function update!(updatemethod::ParityUpdate, U)
     NX, NY, NZ, NT = size(U)
     U_bak = updatemethod._temp_U
     substitute_U!(U_bak, U)
@@ -31,5 +28,6 @@ function update!(updatemethod::ParityUpdate, U::Gaugefield{GA}) where {GA}
         end
     end
 
+    U.CV *= -1
     return nothing
 end

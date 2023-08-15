@@ -1,8 +1,7 @@
+import ..Gaugefields: SymanzikTadGaugeAction
 abstract type AbstractIntegrator end
 
-include("hmc_integrators.jl")
-
-struct HMCUpdate{TI, TG, TS, TM} <: AbstractUpdate
+struct HMCUpdate{TI,TG,TS,TM} <: AbstractUpdate
     steps::Int64
     Δτ::Float64
     P::Liefield
@@ -70,7 +69,7 @@ struct HMCUpdate{TI, TG, TS, TM} <: AbstractUpdate
             fp = nothing
         end
 
-        return new{TI, TG, TS, TM}(
+        return new{TI,TG,TS,TM}(
 			steps,
 			Δτ,
 			P,
@@ -85,11 +84,13 @@ struct HMCUpdate{TI, TG, TS, TM} <: AbstractUpdate
     end
 end
 
+include("hmc_integrators.jl")
+
 function update!(
-    updatemethod::HMCUpdate{TI, TG, TS, TM},
+    updatemethod::HMCUpdate{TI,TG,TS,TM},
     U,
     verbose::VerboseLevel;
-    Bias = nothing,
+    bias = nothing,
     metro_test = true,
 ) where {TI, TG, TS, TM}
     U_old = updatemethod._temp_U
@@ -98,8 +99,7 @@ function update!(
 
     trP2_old = -calc_kinetic_energy(updatemethod.P)
 
-    integrator! = TI()
-    integrator!(U, updatemethod, Bias)
+    evolve!(TI(), U, updatemethod, bias)
 
     hmc_smearing = updatemethod.smearing
 
@@ -120,21 +120,19 @@ function update!(
     ΔP2 = trP2_new - trP2_old
     ΔSg = Sg_new - Sg_old
 
-    if Bias !== nothing
-        CV_old = U.CV
-        calc_smearedU!(Bias.smearing, U)
-        fully_smeared_U = Bias.smearing.Usmeared_multi[end]
-        CV_new = top_charge(fully_smeared_U, Bias.kind_of_cv)
-        ΔV = Bias(CV_new) - Bias(CV_old)
-    else
+    if bias === nothing
         CV_old = U.CV
         CV_new = CV_old
         ΔV = 0
+    else
+        CV_old = calc_CV(U_old, bias)
+        CV_new = calc_CV(U, bias)
+        ΔV = bias(CV_new) - bias(CV_old)
     end
 
     ΔH = ΔP2 + ΔSg + ΔV
 
-    if typeof(verbose) != Verbose1
+    if updatemethod.fp !== nothing
         println(
             updatemethod.fp,
             rpad(@sprintf("%.15E", ΔSg), 22, " "), "\t",
@@ -157,7 +155,6 @@ function update!(
     end
 
     normalize!(U)
-
     return accept
 end
 
@@ -174,44 +171,36 @@ function updateU!(U, method, fac)
     return nothing
 end
 
-function updateP!(U, method::HMCUpdate{TI, TG, TS, TM}, fac, Bias) where {TI, TG, TS, TM}
+function updateP!(U, method::HMCUpdate{TI,TG,TS,TM}, fac, bias) where {TI,TG,TS,TM}
     ϵ = method.Δτ * fac
     P = method.P
     staples = method._temp_staple
     force = method._temp_force
     temp_force = method._temp_force2
-    gauge_smearing = method.smearing
+    smearing = method.smearing
 
-    if TM == MetaEnabled && Bias !== nothing
+    if bias !== nothing
         fieldstrength = method._temp_fieldstrength
-        bias_smearing = Bias.smearing
-        kind_of_cv = Bias.kind_of_cv
-        calc_dQdU_bare!(force, temp_force, fieldstrength, U, kind_of_cv, bias_smearing)
-        fully_smeared_U = get_layer(bias_smearing, length(bias_smearing))
-        cv = top_charge(fully_smeared_U, kind_of_cv)
-        ϵ_bias = ϵ * ∂V∂Q(Bias, cv)
-        add!(P, force, ϵ_bias)
+        calc_dVdU_bare!(force, fieldstrength, U, temp_force, bias)
+        add!(P, force, ϵ)
     end
 
-    calc_dSdU_bare!(force, temp_force, staples, U, gauge_smearing)
+    calc_dSdU_bare!(force, staples, U, temp_force, smearing)
     add!(P, force, ϵ)
     return nothing
 end
 
-function calc_dSdU_bare!(dSdU, temp_force, staples, U, smearing)
-    if typeof(smearing) == NoSmearing
-        calc_dSdU!(dSdU, staples, U)
-    else
-        calc_smearedU!(smearing, U)
-        fully_smeared_U = smearing.Usmeared_multi[end]
-        calc_dSdU!(dSdU, staples, fully_smeared_U)
-        stout_backprop!(dSdU, temp_force, smearing)
-    end
+calc_dSdU_bare!(dSdU, staples, U, ::Any, ::NoSmearing) = calc_dSdU!(dSdU, staples, U)
 
+function calc_dSdU_bare!(dSdU, staples, U, temp_force, smearing)
+    calc_smearedU!(smearing, U)
+    fully_smeared_U = smearing.Usmeared_multi[end]
+    calc_dSdU!(dSdU, staples, fully_smeared_U)
+    stout_backprop!(dSdU, temp_force, smearing)
     return nothing
 end
 
-function calc_dSdU!(dSdU, staples, U::Gaugefield)
+function calc_dSdU!(dSdU, staples, U)
     β = U.β
 
     @batch for site in eachindex(U)
@@ -226,50 +215,52 @@ function calc_dSdU!(dSdU, staples, U::Gaugefield)
     return nothing
 end
 
-function calc_dQdU_bare!(dQdU, temp_force, F, U, kind_of_charge, smearing)
-    if typeof(smearing) == NoSmearing
-        calc_dQdU!(dQdU, F, U, kind_of_charge)
-    else
-        calc_smearedU!(smearing, U)
-        fully_smeared_U = smearing.Usmeared_multi[end]
-        calc_dQdU!(dQdU, F, fully_smeared_U, kind_of_charge)
-        stout_backprop!(dQdU, temp_force, smearing)
-    end
+function calc_dVdU_bare!(dVdU, F, U, temp_force, bias)
+    smearing = bias.smearing
+    cv = calc_CV(U, bias)
+    bias_derivative = ∂V∂Q(bias, cv)
 
+    if typeof(smearing) == NoSmearing
+        calc_dVdU!(kind_of_cv(bias), dVdU, F, U, bias_derivative)
+    else
+        fully_smeared_U = smearing.Usmeared_multi[end]
+        calc_dVdU!(kind_of_cv(bias), dVdU, F, fully_smeared_U, bias_derivative)
+        stout_backprop!(dVdU, temp_force, smearing)
+    end
     return nothing
 end
 
-function calc_dQdU!(dQdU, F, U, kind_of_charge)
-    fieldstrength_eachsite!(F, U, kind_of_charge)
+function calc_dVdU!(kind_of_charge, dVdU, F, U, bias_derivative)
+    fieldstrength_eachsite!(kind_of_charge, F, U)
 
     @batch for site in eachindex(U)
         tmp1 = cmatmul_oo(U[1][site], (
-            ∇trFμνFρσ_clover(U, F, 1, 2, 3, 4, site) -
-            ∇trFμνFρσ_clover(U, F, 1, 3, 2, 4, site) +
-            ∇trFμνFρσ_clover(U, F, 1, 4, 2, 3, site)
+            ∇trFμνFρσ(kind_of_charge, U, F, 1, 2, 3, 4, site) -
+            ∇trFμνFρσ(kind_of_charge, U, F, 1, 3, 2, 4, site) +
+            ∇trFμνFρσ(kind_of_charge, U, F, 1, 4, 2, 3, site)
         ))
-        dQdU[1][site] = 1/4π^2 * traceless_antihermitian(tmp1)
+        dVdU[1][site] = bias_derivative * 1/4π^2 * traceless_antihermitian(tmp1)
 
         tmp2 = cmatmul_oo(U[2][site], (
-            ∇trFμνFρσ_clover(U, F, 2, 3, 1, 4, site) -
-            ∇trFμνFρσ_clover(U, F, 2, 1, 3, 4, site) -
-            ∇trFμνFρσ_clover(U, F, 2, 4, 1, 3, site)
+            ∇trFμνFρσ(kind_of_charge, U, F, 2, 3, 1, 4, site) -
+            ∇trFμνFρσ(kind_of_charge, U, F, 2, 1, 3, 4, site) -
+            ∇trFμνFρσ(kind_of_charge, U, F, 2, 4, 1, 3, site)
         ))
-        dQdU[2][site] = 1/4π^2 * traceless_antihermitian(tmp2)
+        dVdU[2][site] = bias_derivative * 1/4π^2 * traceless_antihermitian(tmp2)
 
         tmp3 = cmatmul_oo(U[3][site], (
-            ∇trFμνFρσ_clover(U, F, 3, 1, 2, 4, site) -
-            ∇trFμνFρσ_clover(U, F, 3, 2, 1, 4, site) +
-            ∇trFμνFρσ_clover(U, F, 3, 4, 1, 2, site)
+            ∇trFμνFρσ(kind_of_charge, U, F, 3, 1, 2, 4, site) -
+            ∇trFμνFρσ(kind_of_charge, U, F, 3, 2, 1, 4, site) +
+            ∇trFμνFρσ(kind_of_charge, U, F, 3, 4, 1, 2, site)
         ))
-        dQdU[3][site] = 1/4π^2 * traceless_antihermitian(tmp3)
+        dVdU[3][site] = bias_derivative * 1/4π^2 * traceless_antihermitian(tmp3)
 
         tmp4 = cmatmul_oo(U[4][site], (
-            ∇trFμνFρσ_clover(U, F, 4, 2, 1, 3, site) -
-            ∇trFμνFρσ_clover(U, F, 4, 1, 2, 3, site) -
-            ∇trFμνFρσ_clover(U, F, 4, 3, 1, 2, site)
+            ∇trFμνFρσ(kind_of_charge, U, F, 4, 2, 1, 3, site) -
+            ∇trFμνFρσ(kind_of_charge, U, F, 4, 1, 2, 3, site) -
+            ∇trFμνFρσ(kind_of_charge, U, F, 4, 3, 1, 2, site)
         ))
-        dQdU[4][site] = 1/4π^2 * traceless_antihermitian(tmp4)
+        dVdU[4][site] = bias_derivative * 1/4π^2 * traceless_antihermitian(tmp4)
     end
 
     return nothing
@@ -278,7 +269,7 @@ end
 """
 Derivative of the F_μν ⋅ F_ρσ term for Field strength tensor given by plaquette
 """
-function ∇trFμνFρσ_plaq(U, F, μ, ν, ρ, σ, site::SiteCoords)
+function ∇trFμνFρσ(::Plaquette, U, F, μ, ν, ρ, σ, site)
     Nμ = size(U)[μ]
     Nν = size(U)[ν]
     siteμp = move(site, μ, 1, Nμ)
@@ -296,7 +287,7 @@ end
 """
 Derivative of the F_μν ⋅ F_ρσ term for Field strength tensor given by 1x1-Clover
 """
-function ∇trFμνFρσ_clover(U, F, μ, ν, ρ, σ, site::SiteCoords)
+function ∇trFμνFρσ(::Clover, U, F, μ, ν, ρ, σ, site)
     Nμ = size(U)[μ]
     Nν = size(U)[ν]
     siteμp = move(site, μ, 1, Nμ)

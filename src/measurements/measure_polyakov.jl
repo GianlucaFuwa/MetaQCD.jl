@@ -4,13 +4,7 @@ mutable struct PolyakovMeasurement <: AbstractMeasurement
     fp::Union{Nothing, IOStream}
     printvalues::Bool
 
-    function PolyakovMeasurement(
-        U;
-        filename = nothing,
-        verbose_level = 2,
-        printvalues = false,
-        flow = false,
-    )
+    function PolyakovMeasurement(U; filename=nothing, verbose_level=2, printvalues=false, flow=false)
         if printvalues
             fp = open(filename, "w")
             header = ""
@@ -37,21 +31,11 @@ mutable struct PolyakovMeasurement <: AbstractMeasurement
             verbose_print = nothing
         end
 
-        return new(
-            filename,
-            verbose_print,
-            fp,
-            printvalues,
-        )
+        return new(filename, verbose_print, fp, printvalues)
     end
 end
 
-function PolyakovMeasurement(
-    U::T,
-    params::PolyakovParameters,
-    filename = "polyakov.txt",
-    flow = false
-) where {T <: Gaugefield}
+function PolyakovMeasurement(U, params::PolyakovParameters, filename="polyakov.txt", flow=false)
     return PolyakovMeasurement(
         U,
         filename = filename,
@@ -61,7 +45,7 @@ function PolyakovMeasurement(
     )
 end
 
-function measure(m::PolyakovMeasurement, U; additional_string = "")
+function measure(m::PolyakovMeasurement, U; additional_string="")
     NX, NY, NZ, _ = size(U)
     poly = polyakov_traced(U) / (NX * NY * NZ)
     measurestring = ""
@@ -79,7 +63,7 @@ function measure(m::PolyakovMeasurement, U; additional_string = "")
     return output
 end
 
-function polyakov_traced(U::T) where {T<:Gaugefield}
+function polyakov_traced(U)
     NX, NY, NZ, NT = size(U)
 
     @batch threadlocal=zero(ComplexF64)::ComplexF64 for iz in 1:NZ

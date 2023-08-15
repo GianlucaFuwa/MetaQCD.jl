@@ -51,7 +51,7 @@ function TopologicalChargeMeasurement(
         params::TopologicalChargeParameters,
         filename = "topological_charge.txt",
         flow = false,
-    ) where {T <: Gaugefield}
+    ) where {T<:Gaugefield}
     return TopologicalChargeMeasurement(
         U,
         filename = filename,
@@ -62,7 +62,7 @@ function TopologicalChargeMeasurement(
     )
 end
 
-function measure(m::TopologicalChargeMeasurement, U; additional_string = "")
+function measure(m::TopologicalChargeMeasurement, U; additional_string="")
     measurestring = ""
     values = zeros(Float64, length(m.TC_methods))
     valuedic = Dict{String, AbstractFloat}()
@@ -91,13 +91,13 @@ function measure(m::TopologicalChargeMeasurement, U; additional_string = "")
 end
 
 # Topological charge definitions from: https://arxiv.org/pdf/1708.00696.pdf
-function top_charge(U::T, methodname::String) where {T <: Gaugefield}
+function top_charge(U::Gaugefield, methodname::String)
     if methodname == "plaquette"
-        Q = top_charge_plaq(U)
+        Q = top_charge(Plaquette(), U)
     elseif methodname == "clover"
-        Q = top_charge_clover(U)
+        Q = top_charge(Clover(), U)
     elseif methodname == "improved"
-        Q = top_charge_improved(U)
+        Q = top_charge(Improved(), U)
     else
         error("Topological charge method '$(methodname)' not supported")
     end
@@ -105,7 +105,7 @@ function top_charge(U::T, methodname::String) where {T <: Gaugefield}
     return Q
 end
 
-function top_charge_plaq(U::T) where {T <: Gaugefield}
+function top_charge(::Plaquette, U)
     @batch threadlocal=0.0::Float64 for site in eachindex(U)
         C12 = plaquette(U, 1, 2, site)
         F12 = im * traceless_antihermitian(C12)
@@ -132,7 +132,7 @@ function top_charge_plaq(U::T) where {T <: Gaugefield}
     return Qplaq
 end
 
-function top_charge_clover(U::T) where {T <: Gaugefield}
+function top_charge(::Clover, U)
     @batch threadlocal=0.0::Float64 for site in eachindex(U)
         C12 = clover_square(U, 1, 2, site, 1)
         F12 = im/4 * traceless_antihermitian(C12)
@@ -159,7 +159,14 @@ function top_charge_clover(U::T) where {T <: Gaugefield}
     return Qclover
 end
 
-function top_charge_rect(U::T) where {T <: Gaugefield}
+function top_charge(::Improved, U)
+    Qclover = top_charge(Clover(), U)
+    Qrect = top_charge_rect(U)
+    Qimproved = 5/3 * Qclover - 1/12 * Qrect
+    return Qimproved
+end
+
+function top_charge_rect(U)
     @batch threadlocal=0.0::Float64 for site in eachindex(U)
         C12 = clover_rect(U, 1, 2, site, 1, 2)
         F12 = im/8 * traceless_antihermitian(C12)
@@ -184,11 +191,4 @@ function top_charge_rect(U::T) where {T <: Gaugefield}
 
     Qrect = 2/4π^2 * sum(threadlocal)
     return Qrect
-end
-
-function top_charge_improved(U::T) where {T <: Gaugefield}
-    Qclover = top_charge_clover(U)
-    Qrect = top_charge_rect(U)
-    Qimproved = 5/3 * Qclover - 1/12 * Qrect
-    return Qimproved
 end

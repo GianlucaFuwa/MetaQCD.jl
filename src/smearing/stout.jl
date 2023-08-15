@@ -103,14 +103,13 @@ See: hep-lat/0311018 by Morningstar & Peardon \\
 \\
 Σμ = Σμ'⋅exp(iQμ) + iCμ†⋅Λμ - i∑{...}
 """
-function stout_recursion!(Σ, Σ_prime, U_prime, U, C, Q, Λ, ρ)
-	leftmul_dagg!(Σ_prime, U_prime)
-
-	calc_stout_Λ!(Λ, Σ_prime, Q, U)
+function stout_recursion!(Σ, Σ′, U′, U, C, Q, Λ, ρ)
+	leftmul_dagg!(Σ′, U′)
+	calc_stout_Λ!(Λ, Σ′, Q, U)
 
 	@batch for site in eachindex(Σ)
         for μ in 1:4
-            Nμ = size(Σ_prime)[μ]
+            Nμ = size(Σ′)[μ]
             siteμp = move(site, μ, 1, Nμ)
             force_sum = @SMatrix zeros(ComplexF64, 3, 3)
 
@@ -119,7 +118,7 @@ function stout_recursion!(Σ, Σ_prime, U_prime, U, C, Q, Λ, ρ)
                     continue
                 end
 
-                Nν = size(Σ_prime)[ν]
+                Nν = size(Σ′)[ν]
                 siteνp = move(site, ν, 1, Nν)
                 siteνn = move(site, ν, -1 ,Nν)
                 siteμpνn = move(siteμp, ν, -1, Nν)
@@ -136,7 +135,7 @@ function stout_recursion!(Σ, Σ_prime, U_prime, U, C, Q, Λ, ρ)
             link = U[μ][site]
             expiQ_mat = exp_iQ(Q[μ][site])
             Σ[μ][site] = traceless_antihermitian(
-                cmatmul_ooo(link, Σ_prime[μ][site], expiQ_mat) +
+                cmatmul_ooo(link, Σ′[μ][site], expiQ_mat) +
                 im * cmatmul_odo(link, C[μ][site], Λ[μ][site]) -
                 im * ρ * cmatmul_oo(link, force_sum)
             )
@@ -151,22 +150,22 @@ end
 	+ f1⋅U⋅Σ' + f2⋅Q⋅U⋅Σ' + f1⋅U⋅Σ'⋅Q \\
 Λ = 1/2⋅(Γ + Γ†) - 1/(2N)⋅Tr(Γ + Γ†)
 """
-function calc_stout_Λ!(Λ, Σprime, Q, U)
+function calc_stout_Λ!(Λ, Σ′, Q, U)
 	@batch for site in eachindex(Λ)
         for μ in 1:4
             q = Q[μ][site]
             Q_mat = q.Q
             Q2_mat = q.Q2
-            UΣ = cmatmul_oo(U[μ][site], Σprime[μ][site])
+            UΣ′ = cmatmul_oo(U[μ][site], Σ′[μ][site])
 
             B1_mat = B1(q)
             B2_mat = B2(q)
 
-            Γ = multr(B1_mat, UΣ) * Q_mat +
-                multr(B2_mat, UΣ) * Q2_mat +
-                q.f1 * UΣ +
-                q.f2 * cmatmul_oo(Q_mat, UΣ) +
-                q.f2 * cmatmul_oo(UΣ, Q_mat)
+            Γ = multr(B1_mat, UΣ′) * Q_mat +
+                multr(B2_mat, UΣ′) * Q2_mat +
+                q.f1 * UΣ′ +
+                q.f2 * cmatmul_oo(Q_mat, UΣ′) +
+                q.f2 * cmatmul_oo(UΣ′, Q_mat)
 
             Λ[μ][site] = traceless_hermitian(Γ)
         end

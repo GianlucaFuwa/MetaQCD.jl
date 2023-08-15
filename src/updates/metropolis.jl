@@ -5,19 +5,19 @@ struct MetroUpdate <: AbstractUpdate
 	target_acc::Float64
     numOR::Int64
 
-	function MetroUpdate(U, eo, ϵ, multi_hit, target_acc, numOR)
+	function MetroUpdate(::Gaugefield, eo, ϵ, multi_hit, target_acc, numOR)
 		m_ϵ = Base.RefValue{Float64}(ϵ)
 		return new(eo, m_ϵ, multi_hit, target_acc, numOR)
 	end
 end
 
-function update!(updatemethod, U, ::VerboseLevel; Bias = nothing, metro_test = true)
+function update!(updatemethod::MetroUpdate, U, ::VerboseLevel; kwargs...)
     numOR = updatemethod.numOR
 
 	if updatemethod.eo
-		numaccepts_metro = metro_sweep_eo!(U, updatemethod, metro_test = true)
+		numaccepts_metro = metro_sweep_eo!(U, updatemethod, metro_test=true)
 	else
-		numaccepts_metro = metro_sweep!(U, updatemethod, metro_test = true)
+		numaccepts_metro = metro_sweep!(U, updatemethod, metro_test=true)
 	end
 
     numaccepts_metro /= U.NV * 4 * updatemethod.multi_hit
@@ -27,9 +27,9 @@ function update!(updatemethod, U, ::VerboseLevel; Bias = nothing, metro_test = t
 
     for _ in 1:numOR
         if updatemethod.eo
-            numaccepts_or += overrelaxation_sweep_eo!(U, metro_test = true)
+            numaccepts_or += overrelaxation_sweep_eo!(U, metro_test=true)
         else
-            numaccepts_or += overrelaxation_sweep!(U, metro_test = true)
+            numaccepts_or += overrelaxation_sweep!(U, metro_test=true)
         end
     end
 
@@ -38,7 +38,7 @@ function update!(updatemethod, U, ::VerboseLevel; Bias = nothing, metro_test = t
 	return numaccepts_metro + numaccepts_or
 end
 
-function metro_sweep!(U::Gaugefield, metro; metro_test = true)
+function metro_sweep!(U, metro; metro_test = true)
 	ϵ = metro.ϵ[]
 	multi_hit = metro.multi_hit
 	numaccept = 0.0
@@ -70,7 +70,7 @@ function metro_sweep!(U::Gaugefield, metro; metro_test = true)
 	return numaccept
 end
 
-function metro_sweep_eo!(U::Gaugefield, metro; metro_test = true)
+function metro_sweep_eo!(U, metro; metro_test = true)
     NX, NY, NZ, NT = size(U)
 	ϵ = metro.ϵ[]
 	multi_hit = metro.multi_hit

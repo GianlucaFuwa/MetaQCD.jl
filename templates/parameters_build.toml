@@ -1,44 +1,41 @@
 ["Physical Settings"]
 L = [4, 4, 4, 4]
-"β" = 5.7
+beta = 5.7
 kind_of_gaction = "wilson"
-Ntherm = 10
-Nsteps = 10
+numtherm = 10
+numsteps = 10
 initial = "cold"
 update_method = "HMC"
+
+["MetaD Settings"]
 meta_enabled = true
 tempering_enabled = true
-numinstances = 3
-
-["MetaD related"]
+numinstances = 2
 kind_of_cv = "clover"
 numsmears_for_cv = 4
-"ρstout_for_cv" = 0.125
+rhostout_for_cv = 0.12
 symmetric = true
-CVlims = [-7, 7]
+cvlims = [-7, 7]
 bin_width = 1e-2
 meta_weight = 1e-2
 penalty_weight = 1000.0
 is_static = false
 
-["HMC related"]
-"hmc_Δτ" = 0.1
-hmc_steps = 10
+["HMC Settings"]
+hmc_deltatau = 0.2
+hmc_steps = 5
 hmc_integrator = "OMF4"
 
 ["System Settings"]               
-logdir = "./logs/L4x4x4x4_beta5.7"
+logdir = "./logs/L4x4x4x4_wilson_beta5.7"
 logfile = "test_mpi.txt"
-measurement_basedir = "./measurements/L4x4x4x4_beta5.7"
+measurement_basedir = "./measurements/L4x4x4x4_wilson_beta5.7"
 measurement_dir = "test_mpi"
 randomseed = 1206
 verboselevel = 1
-bias_basedir = "./metapotentials/L4x4x4x4_beta5.7"
+bias_basedir = "./metapotentials/L4x4x4x4_wilson_beta5.7"
 bias_dir = "test_mpi"
 overwrite = true
-# usebiases = [
-#     "nothing"
-# ]
 
 ["Measurement set".measurement_methods.Plaquette]
 measure_every = 5

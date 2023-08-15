@@ -50,6 +50,7 @@ function calc_gauge_action(::DBW2GaugeAction, U)
 end
 
 function plaquette_trace_sum(U)
+    plaq = 0.0
     @batch threadlocal=0.0::Float64 for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
@@ -57,11 +58,12 @@ function plaquette_trace_sum(U)
             end
         end
     end
-
-    return sum(threadlocal)
+    plaq += sum(threadlocal)
+    return plaq
 end
 
 function rect_trace_sum(U)
+    rect = 0.0
     @batch threadlocal=0.0::Float64 for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
@@ -71,8 +73,8 @@ function rect_trace_sum(U)
             end
         end
     end
-
-    return sum(threadlocal)
+    rect += sum(threadlocal)
+    return rect
 end
 
 function plaquette(U, μ, ν, site)

@@ -1,4 +1,4 @@
-function overrelaxation_sweep!(U::Gaugefield; metro_test = true)
+function overrelaxation_sweep!(U; metro_test=true)
     numaccepts = 0
     action_factor = -U.β / 3
 
@@ -22,7 +22,7 @@ function overrelaxation_sweep!(U::Gaugefield; metro_test = true)
     return numaccepts
 end
 
-function overrelaxation_sweep_eo!(U::Gaugefield; metro_test = true)
+function overrelaxation_sweep_eo!(U; metro_test=true)
     NX, NY, NZ, NT = size(U)
     spacing = 8
     numaccepts = zeros(Float64, nthreads() * spacing)

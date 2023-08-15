@@ -10,8 +10,9 @@ module Updates
     import ..Gaugefields: AbstractGaugeAction, Gaugefield, Liefield, Temporaryfield
     import ..Gaugefields: add!, calc_gauge_action, calc_kinetic_energy, normalize!,
         fieldstrength_eachsite!, gaussian_momenta!, staple, staple_eachsite!, substitute_U!
-    import ..Measurements: top_charge
-    import ..Metadynamics: BiasPotential, MetaEnabled, MetaDisabled, ∂V∂Q, update_bias!
+    import ..Gaugefields: Plaquette, Clover
+    import ..Metadynamics: BiasPotential, MetaEnabled, MetaDisabled, calc_CV, ∂V∂Q
+    import ..Metadynamics: kind_of_cv, update_bias!
     import ..Parameters: ParameterSet
     import ..Smearing: AbstractSmearing, NoSmearing, StoutSmearing
     import ..Smearing: calc_smearedU!, get_layer, stout_backprop!
@@ -36,18 +37,18 @@ module Updates
             parameters.verboselevel,
             parameters.logdir,
             parameters.meta_enabled,
-            parameters.metro_ϵ,
+            parameters.metro_epsilon,
             parameters.metro_multi_hit,
             parameters.metro_target_acc,
             parameters.hmc_integrator,
             parameters.hmc_steps,
-            parameters.hmc_Δτ,
+            parameters.hmc_deltatau,
             parameters.hmc_numsmear,
-            parameters.hmc_ρstout,
-            parameters.hb_MAXIT,
-            parameters.hb_numHB,
+            parameters.hmc_rhostout,
+            parameters.hb_maxit,
+            parameters.numheatbath,
             parameters.eo,
-            parameters.numOR,
+            parameters.numorelax,
         )
             return updatemethod
     end
@@ -61,7 +62,7 @@ module Updates
         metro_ϵ = 0.1,
         metro_multi_hit = 1,
         metro_target_acc = 0.5,
-        hmc_integrator = "leapfrog",
+        hmc_integrator = "Leapfrog",
         hmc_steps = 10,
         hmc_Δτ = 0.1,
         hmc_numsmear = 0,
@@ -107,7 +108,7 @@ module Updates
         return updatemethod
     end
 
-    update!(::T, U) where {T <: AbstractUpdate} = nothing
+    update!(::T, U) where {T<:AbstractUpdate} = nothing
     update!(::Nothing, U) = nothing
 
 end

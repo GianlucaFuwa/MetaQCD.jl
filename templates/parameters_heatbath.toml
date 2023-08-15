@@ -1,24 +1,24 @@
 ["Physical Settings"]
 L = [8, 8, 8, 8]
-"β" = 5.70
+beta = 5.70
 kind_of_gaction = "wilson"
-Ntherm = 10
-Nsteps = 10
+numtherm = 10
+numsteps = 10
 initial = "cold"
 update_method = "heatbath"
-hb_MAXIT = 10
-hb_numHB = 1
+hb_maxit = 10
+numheatbath = 1
 eo = true
-numOR = 4
+numorelax = 4
 parity_update = true
 
 ["System Settings"]               
-logdir = "./logs/L8x8x8x8_beta5.7"
-logfile = "test_wilson.txt"
-measurement_basedir = "./measurements/L8x8x8x8_beta5.7"
-measurement_dir = "test_wilson"
+logdir = "./logs/L8x8x8x8_wilson_beta5.7/test_heatbath"
+logfile = "logs.txt"
+measurement_basedir = "./measurements/L8x8x8x8_wilson_beta5.7/test_heatbath"
+measurement_dir = "raw_data"
 randomseed = 0 # 0 => randomly chosen seed
-verboselevel = 2
+verboselevel = 1
 overwrite = true
 
 ["Measurement set".measurement_methods.Polyakov_loop]

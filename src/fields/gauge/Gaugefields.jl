@@ -41,26 +41,10 @@ module Gaugefields
 		Sg::Base.RefValue{Float64}
 		CV::Base.RefValue{Float64}
 
-		function Gaugefield(NX, NY, NZ, NT, β; GA = WilsonGaugeAction)
+		function Gaugefield(NX, NY, NZ, NT, β; GA=WilsonGaugeAction)
 			U = Vector{Array{SMatrix{3, 3, ComplexF64, 9}, 4}}(undef, 4)
 
-			for μ = 1:4
-				U[μ] = Array{SMatrix{3, 3, ComplexF64, 9}, 4}(undef, NX, NY, NZ, NT)
-			end
-
-			NV = NX * NY * NZ * NT
-
-			Sg = Base.RefValue{Float64}(0.0)
-			CV = Base.RefValue{Float64}(0.0)
-			return new{GA}(U, NX, NY, NZ, NT, NV, 3, β, Sg, CV)
-		end
-
-		function Gaugefield(u::Gaugefield{GA}) where {GA}
-			NX, NY, NZ, NT = size(u)
-			β = u.β
-			U = Vector{Array{SMatrix{3, 3, ComplexF64, 9}, 4}}(undef, 4)
-
-			for μ = 1:4
+			for μ in 1:4
 				U[μ] = Array{SMatrix{3, 3, ComplexF64, 9}, 4}(undef, NX, NY, NZ, NT)
 			end
 
@@ -71,6 +55,8 @@ module Gaugefields
 			return new{GA}(U, NX, NY, NZ, NT, NV, 3, β, Sg, CV)
 		end
 	end
+
+	Gaugefield(U::Gaugefield{GA}) where {GA} = Gaugefield(U.NX, U.NY, U.NZ, U.NT, U.β; GA=GA)
 
 	struct Temporaryfield <: Abstractfield
 		U::Vector{Array{SMatrix{3, 3, ComplexF64, 9}, 4}}
@@ -84,7 +70,7 @@ module Gaugefields
 		function Temporaryfield(NX, NY, NZ, NT)
 			U = Vector{Array{SMatrix{3, 3, ComplexF64, 9}, 4}}(undef, 4)
 
-			for μ = 1:4
+			for μ in 1:4
 				U[μ] = Array{SMatrix{3, 3, ComplexF64, 9}, 4}(undef, NX, NY, NZ, NT)
 			end
 
@@ -92,12 +78,9 @@ module Gaugefields
 			NC = 3
 			return new(U, NX, NY, NZ, NT, NV, NC)
 		end
-
-		function Temporaryfield(u::T) where {T <: Abstractfield}
-			NX, NY, NZ, NT = size(u)
-			return Temporaryfield(NX, NY, NZ, NT)
-		end
 	end
+
+	Temporaryfield(u::Abstractfield) = Temporaryfield(u.NX, u.NY, u.NZ, u.NT)
 
 	struct CoeffField <: Abstractfield
 		U::Vector{Array{exp_iQ_su3, 4}}
@@ -110,30 +93,32 @@ module Gaugefields
 		function CoeffField(NX, NY, NZ, NT)
 			U = Vector{Array{exp_iQ_su3, 4}}(undef, 4)
 
-			for μ = 1:4
+			for μ in 1:4
 				U[μ] = Array{exp_iQ_su3, 4}(undef, NX, NY, NZ, NT)
 			end
 
 			NV = NX * NY * NZ * NT
 			return new(U, NX, NY, NZ, NT, NV)
 		end
-
-		function CoeffField(u::T) where {T <: Abstractfield}
-			NX, NY, NZ, NT = size(u)
-			return CoeffField(NX, NY, NZ, NT)
-		end
 	end
 
-	function Base.setindex!(u::T, v, μ) where {T <: Abstractfield}
+	CoeffField(u::Abstractfield) = CoeffField(u.NX, u.NY, u.NZ, u.NT)
+
+	Base.size(u::Abstractfield) = (u.NX, u.NY, u.NZ, u.NT)
+    Base.eachindex(u::Abstractfield) = CartesianIndices(size(u))
+    Base.eachindex(::IndexLinear, u::Abstractfield) = Base.OneTo(u.NV)
+	Base.eltype(::Gaugefield{GA}) where {GA} = GA
+
+	function Base.setindex!(u::Abstractfield, v, μ)
         u.U[μ] = v
 		return nothing
     end
 
-	@inline function Base.getindex(u::T, μ) where {T <: Abstractfield}
+	@inline function Base.getindex(u::Abstractfield, μ)
         return u.U[μ]
     end
 
-	function Base.getproperty(u::T, p::Symbol) where {T <: Gaugefield}
+	function Base.getproperty(u::Gaugefield, p::Symbol)
 		if p == :Sg
 			return getfield(u, :Sg)[]
 		elseif p == :CV
@@ -143,7 +128,7 @@ module Gaugefields
 		end
 	end
 
-	function Base.setproperty!(u::T, p::Symbol, val) where {T <: Gaugefield}
+	function Base.setproperty!(u::Gaugefield, p::Symbol, val)
 		if p == :Sg
 			getfield(u, :Sg)[] = val
 		elseif p == :CV
@@ -155,19 +140,7 @@ module Gaugefields
 		return nothing
 	end
 
-	function Base.size(u::Abstractfield)
-        return (u.NX, u.NY, u.NZ, u.NT)
-    end
-
-    function Base.eachindex(u::Abstractfield)
-        return CartesianIndices(size(u))
-    end
-
-    function Base.eachindex(::IndexLinear, u::Abstractfield)
-        return Base.OneTo(u.NV)
-    end
-
-	function Base.similar(u::T) where {T <: Abstractfield}
+	function Base.similar(u::T) where {T<:Abstractfield}
 		if T <: Gaugefield
 			uout = Gaugefield(u)
 		else
@@ -175,10 +148,6 @@ module Gaugefields
 		end
 
 		return uout
-	end
-
-	function Base.eltype(::Gaugefield{GA}) where {GA}
-		return GA
 	end
 
 	function substitute_U!(a::T, b::T) where {T <: Abstractfield}
@@ -191,8 +160,8 @@ module Gaugefields
 		return nothing
 	end
 
-	function identity_gauges(NX, NY, NZ, NT, β; type_of_gaction = WilsonGaugeAction)
-		u = Gaugefield(NX, NY, NZ, NT, β, GA = type_of_gaction)
+	function identity_gauges(NX, NY, NZ, NT, β; type_of_gaction=WilsonGaugeAction)
+		u = Gaugefield(NX, NY, NZ, NT, β, GA=type_of_gaction)
 
 		@batch for site in eachindex(u)
             for μ in 1:4
@@ -203,8 +172,8 @@ module Gaugefields
         return u
     end
 
-    function random_gauges(NX, NY, NZ, NT, β; type_of_gaction = WilsonGaugeAction)
-		u = Gaugefield(NX, NY, NZ, NT, β, GA = type_of_gaction)
+    function random_gauges(NX, NY, NZ, NT, β; type_of_gaction=WilsonGaugeAction)
+		u = Gaugefield(NX, NY, NZ, NT, β, GA=type_of_gaction)
 
 		for site = eachindex(u)
             for μ in 1:4
@@ -219,7 +188,7 @@ module Gaugefields
         return u
     end
 
-	function clear_U!(u::T) where {T <: Abstractfield}
+	function clear_U!(u::Abstractfield)
 		@batch for site in eachindex(u)
             for μ in 1:4
                 u[μ][site] = zero3
@@ -229,7 +198,7 @@ module Gaugefields
 		return nothing
 	end
 
-	function normalize!(u::T) where {T <: Gaugefield}
+	function normalize!(u::Gaugefield)
  		@batch for site in eachindex(u)
             for μ in 1:4
                 u[μ][site] = proj_onto_SU3(u[μ][site])

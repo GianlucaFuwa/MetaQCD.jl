@@ -23,7 +23,7 @@ function calc_weights(b, cv, itrj)
     return nothing
 end
 
-function calc_weight(b::T, cv, weight_method) where {T <: BiasPotential}
+function calc_weight(b::T, cv, weight_method) where {T<:BiasPotential}
     if weight_method == "tiwari" # average over exp(V) in denom
         w = calc_weight_tiwari(b, cv)
     elseif weight_method == "balanced_exp" # average over V in denom

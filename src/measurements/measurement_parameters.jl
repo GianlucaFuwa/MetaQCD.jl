@@ -86,7 +86,7 @@ function initialize_measurement_parameters(methodname)
     return method
 end
 
-function prepare_measurement_from_dict(U, value_i::Dict, filename = "", flow = false)
+function prepare_measurement_from_dict(U, value_i::Dict, filename="", flow=false)
     parameters = construct_measurement_parameters_from_dict(value_i)
     return prepare_measurement(U, parameters, filename, flow)
 end

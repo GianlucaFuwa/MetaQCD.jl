@@ -1,4 +1,4 @@
-function run_build(filenamein::String; MPIparallel = false)
+function run_build(filenamein::String; MPIparallel=false)
     comm = MPI.COMM_WORLD
     myrank = MPI.Comm_rank(comm)
 
@@ -29,7 +29,7 @@ function run_build(filenamein::String; MPIparallel = false)
         Random.seed!(seed)
     end
 
-    univ = Univ(parameters, use_mpi = MPIparallel, fp = fp)
+    univ = Univ(parameters, use_mpi=MPIparallel, fp=fp)
 
     if myrank == 0
         println_verbose1(univ.verbose_print, "# ", pwd())
@@ -109,11 +109,11 @@ function build!(
     MPI.Barrier(comm)
 
     value, runtime_therm = @timed begin
-        for itrj in 1:parameters.Ntherm
+        for itrj in 1:parameters.numtherm
             println_verbose0(vp, "\n# therm itrj = $itrj")
 
             _, updatetime = @timed begin
-                update!(update_method, U, vp, Bias = Bias, metro_test = false)
+                update!(update_method, U, vp, bias=nothing, metro_test=false)
             end
 
             println_verbose0(vp, "Thermalization Update: Elapsed time $(updatetime) [s]")
@@ -127,17 +127,17 @@ function build!(
     value, runtime_all = @timed begin
         numaccepts = 0.0
 
-        for itrj in 1:parameters.Nsteps
+        for itrj in 1:parameters.numsteps
             println_verbose0(vp, "\n# itrj = $itrj")
 
             _, updatetime = @timed begin
-                numaccepts += update!(update_method, U, vp, Bias = Bias)
+                numaccepts += update!(update_method, U, vp, bias=Bias)
             end
 
             println_verbose0(vp, "Update: Elapsed time $(updatetime) [s]")
 
             CVs = MPI.Allgather(U.CV, comm)
-            update_bias!(Bias, CVs; write = (myrank == 0))
+            update_bias!(Bias, CVs, myrank==0)
 
             acceptances = MPI.Allgather(numaccepts, comm)
 

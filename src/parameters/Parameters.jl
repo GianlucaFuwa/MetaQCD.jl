@@ -67,7 +67,7 @@ module Parameters
         set_params_value!(value_Params, meta)
         system = PrintSystemParameters()
         set_params_value!(value_Params, system)
-        hmc = PrintHMCrelatedParameters()
+        hmc = PrintHMCParameters()
         set_params_value!(value_Params, hmc)
         meas = PrintMeasurementParameters()
         set_params_value!(value_Params, meas)
@@ -119,7 +119,7 @@ module Parameters
         value_Params[pos] = measuredir
 
         try
-            meta_enabled = parameters["Physical Settings"]["meta_enabled"]
+            meta_enabled = parameters["MetaD Settings"]["meta_enabled"]
         catch
             @warn "Metadynamics disabled because not specified"
         end
@@ -161,7 +161,7 @@ module Parameters
                         value_Params[i] = valuedir
                     elseif String(pname_i) == "L"
                         value_Params[i] = Tuple(value[String(pname_i)])
-                    elseif String(pname_i) == "CVlims"
+                    elseif String(pname_i) == "cvlims"
                         value_Params[i] = Tuple(value[String(pname_i)])
                     elseif String(pname_i) == "usebiases"
                         value_Params[i] = Vector{Union{Nothing, String}}(

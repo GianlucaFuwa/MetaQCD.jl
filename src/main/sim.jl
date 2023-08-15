@@ -27,7 +27,7 @@ function run_sim(filenamein::String)
     return nothing
 end
 
-function run_sim!(univ::Univ{TG, TB, TV}, parameters) where {TG, TB, TV}
+function run_sim!(univ, parameters)
     U = univ.U
 
     if univ.tempering_enabled
@@ -36,7 +36,7 @@ function run_sim!(univ::Univ{TG, TB, TV}, parameters) where {TG, TB, TV}
             U[1],
             parameters.hmc_integrator,
             parameters.hmc_steps,
-            parameters.hmc_Δτ,
+            parameters.hmc_deltatau,
             meta_enabled = true,
         )
         parity = parameters.parity_update ? ParityUpdate(U[1]) : nothing
@@ -57,30 +57,53 @@ function run_sim!(univ::Univ{TG, TB, TV}, parameters) where {TG, TB, TV}
             measure_every = parameters.flow_measure_every,
         )
         measurements = Vector{MeasurementMethods}(undef, parameters.numinstances)
+        measurements_with_flow = Vector{MeasurementMethods}(undef, parameters.numinstances)
         measurements[1] = MeasurementMethods(
             U[1],
             parameters.measuredir,
             parameters.measurement_methods,
             cv = parameters.meta_enabled,
-            additional_string = "_0"
+            additional_string = "_1",
         )
-
-        for i in 2:parameters.numinstances
-            measurements[i] = MeasurementMethods(
-                U[i],
-                parameters.measuredir,
-                parameters.measurement_methods,
-                cv = parameters.meta_enabled,
-                additional_string = "_$(i-1)"
-            )
-        end
-
-        measurements_with_flow = MeasurementMethods(
+        measurements_with_flow[1] = MeasurementMethods(
             U[1],
             parameters.measuredir,
             parameters.measurements_with_flow,
             flow = true,
+            additional_string = "_1",
         )
+        for i in 2:parameters.numinstances
+            if parameters.measure_on_all
+                measurements[i] = MeasurementMethods(
+                    U[i],
+                    parameters.measuredir,
+                    parameters.measurement_methods,
+                    cv = parameters.meta_enabled,
+                    additional_string = "_$i",
+                )
+                measurements_with_flow[i] = MeasurementMethods(
+                    U[i],
+                    parameters.measuredir,
+                    parameters.measurements_with_flow,
+                    flow = true,
+                    additional_string = "_$i",
+                )
+            else
+                measurements[i] = MeasurementMethods(
+                    U[i],
+                    parameters.measuredir,
+                    Dict[],
+                    cv = parameters.meta_enabled,
+                    additional_string = "_$i",
+                )
+                measurements_with_flow[i] = MeasurementMethods(
+                    U[i],
+                    parameters.measuredir,
+                    Dict[],
+                    additional_string = "_$i",
+                )
+            end
+        end
     else
         gradient_flow = GradientFlow(
             U,
@@ -156,12 +179,12 @@ function metaqcd!(
     vp = univ.verbose_print
 
     value, runtime_therm = @timed begin
-        for itrj in 1:parameters.Ntherm
+        for itrj in 1:parameters.numtherm
             println_verbose1(vp, "\n# therm itrj = $itrj")
             updatetime = 0.0
 
             _, updatetime = @timed begin
-                update!(updatemethod, U, vp, Bias = Bias, metro_test = false)
+                update!(updatemethod, U, vp, bias=nothing, metro_test=false)
             end
 
             println_verbose1(vp, ">> Therm. Update elapsed time:\t$(updatetime) [s]")
@@ -169,16 +192,17 @@ function metaqcd!(
     end
 
     println_verbose1(vp, "\t>> Thermalization elapsed time:\t$(runtime_therm) [s]")
+    recalc_CV!(U, Bias) # need to recalc cv since it was not updated during therm
 
     value, runtime_all = @timed begin
         numaccepts = 0.0
-        for itrj in 1:parameters.Nsteps
+        for itrj in 1:parameters.numsteps
             println_verbose1(vp, "\n# itrj = $itrj")
 
             _, updatetime = @timed begin
-                numaccepts += update!(updatemethod, U, vp, Bias = Bias, metro_test = true)
+                numaccepts += update!(updatemethod, U, vp, bias=Bias, metro_test=true)
                 rand() < 0.5 ? update!(parity, U) : nothing
-                update_bias!(Bias, U.CV)
+                update_bias!(Bias, U.CV, true)
             end
 
             println_verbose1(vp, ">> Acceptance $itrj:\t", numaccepts * 100 / itrj, "%")
@@ -237,17 +261,19 @@ function metaqcd_PT!(
     Bias = univ.Bias
     vp = univ.verbose_print
     swap_every = parameters.swap_every
+    rank0_updates = parameters.non_metadynamics_updates
+    measure_on_all = parameters.measure_on_all
 
     value, runtime_therm = @timed begin
-        for itrj in 1:parameters.Ntherm
+        for itrj in 1:parameters.numtherm
             println_verbose1(vp, "\n# therm itrj = $itrj")
             updatetime = 0.0
-
+            # thermalize without bias potential contribution, since it's a waste of time
             _, updatetime = @timed begin
-                update!(updatemethod, U[1], vp, Bias = Bias[1], metro_test = false)
+                update!(updatemethod, U[1], vp, bias=nothing, metro_test=false)
 
                 for i in 2:numinstances
-                    update!(updatemethod_pt, U[i], vp, Bias = Bias[i], metro_test = false)
+                    update!(updatemethod_pt, U[i], vp, bias=nothing, metro_test=false)
                 end
             end
 
@@ -256,22 +282,22 @@ function metaqcd_PT!(
     end
 
     println_verbose1(vp, "\t>> Thermalization Elapsed time $(runtime_therm) [s]")
+    for i in 2:numinstances
+        recalc_CV!(U[i], Bias[i]) # need to recalc cv since it was not updated during therm
+    end
 
     value, runtime_all = @timed begin
         numaccepts = zeros(numinstances)
-        numaccepts_temper = numinstances > 1 ? zeros(Int64, numinstances - 1) : nothing
+        numaccepts_temper = numinstances > 1 ? zeros(Int64, numinstances-1) : nothing
 
-        for itrj in 1:parameters.Nsteps
+        for itrj in 1:parameters.numsteps
             println_verbose1(vp, "\n# itrj = $itrj")
-
             _, updatetime = @timed begin
-                numaccepts[1] += update!(
-                    updatemethod,
-                    U[1],
-                    vp,
-                    Bias = Bias[1],
-                    metro_test = true,
-                )
+                tmp = 0.0
+                for _ in 1:rank0_updates
+                    tmp += update!(updatemethod, U[1], vp, bias=Bias[1], metro_test=true)
+                end
+                numaccepts[1] += tmp/rank0_updates
                 rand() < 0.5 ? update!(parity, U[1]) : nothing
 
                 for i in 2:numinstances
@@ -279,10 +305,10 @@ function metaqcd_PT!(
                         updatemethod_pt,
                         U[i],
                         vp,
-                        Bias = Bias[i],
+                        bias = Bias[i],
                         metro_test = true,
                     )
-                    update_bias!(Bias[i], U[i].CV)
+                    update_bias!(Bias[i], U[i].CV, true)
                 end
             end
 
@@ -314,18 +340,19 @@ function metaqcd_PT!(
             save_gaugefield(save_configs, U[1], itrj)
 
             for i in 1:numinstances
-                measurestrings = calc_measurements(measurements[i], itrj, U[i])
+                measurestrings = calc_measurements(measurements[i], itrj, U[i]; str="$i")
 
                 for value in measurestrings
                     println(value)
                 end
 
-                if i == 1
+                if i == 1 || measure_on_all
                     measurestrings_flowed = calc_measurements_flowed(
-                        measurements_with_flow,
+                        measurements_with_flow[i],
                         gradient_flow,
                         itrj,
-                        U[1],
+                        U[i],
+                        str = "$i"
                     )
                     for value in measurestrings_flowed
                         println(value)

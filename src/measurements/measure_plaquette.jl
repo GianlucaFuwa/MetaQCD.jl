@@ -7,13 +7,7 @@ struct PlaquetteMeasurement <: AbstractMeasurement
     fp::Union{Nothing, IOStream}
     printvalues::Bool
 
-    function PlaquetteMeasurement(
-        U;
-        filename = nothing,
-        verbose_level = 2,
-        printvalues = false,
-        flow = false,
-    )
+    function PlaquetteMeasurement(U; filename=nothing, verbose_level=2, printvalues=false, flow=false)
         if printvalues
             fp = open(filename, "w")
             header = ""
@@ -40,22 +34,11 @@ struct PlaquetteMeasurement <: AbstractMeasurement
 
         factor = 1 / (6 * U.NV * U.NC)
 
-        return new(
-            filename,
-            factor,
-            verbose_print,
-            fp,
-            printvalues,
-        )
+        return new(filename, factor, verbose_print, fp, printvalues)
     end
 end
 
-function PlaquetteMeasurement(
-    U::T,
-    params::PlaquetteParameters,
-    filename,
-    flow = false,
-) where {T <: Gaugefield}
+function PlaquetteMeasurement(U, params::PlaquetteParameters, filename, flow=false)
     return PlaquetteMeasurement(
         U,
         filename = filename,
@@ -65,7 +48,7 @@ function PlaquetteMeasurement(
     )
 end
 
-function measure(m::PlaquetteMeasurement, U; additional_string = "")
+function measure(m::PlaquetteMeasurement, U; additional_string="")
     plaq = plaquette_trace_sum(U) * m.factor
     measurestring = ""
 

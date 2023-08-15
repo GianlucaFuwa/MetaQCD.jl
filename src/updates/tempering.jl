@@ -1,20 +1,12 @@
-function temper!(
-    U1::TG,
-    U2::TG,
-    bias1::TB,
-    bias2::TB,
-    verbose::VerboseLevel,
-) where {TG <: Gaugefield, TB <: BiasPotential}
+function temper!(U1, U2, bias1, bias2, verbose::VerboseLevel)
     cv1 = U1.CV
     cv2 = U2.CV
-
     ΔV1 = bias1(cv2) - bias1(cv1)
     ΔV2 = bias2(cv1) - bias2(cv2)
 
     println_verbose2(verbose, "ΔV1 = $(ΔV1)", "\n", "ΔV2 = $(ΔV2)")
 
     accept_swap = rand() ≤ exp(ΔV1 + ΔV2)
-
     if accept_swap
         swap_U!(U1, U2)
         update_bias!(bias1, cv2)
@@ -24,7 +16,7 @@ function temper!(
     return accept_swap
 end
 
-function swap_U!(a::T, b::T) where {T <: Gaugefield}
+function swap_U!(a, b)
     a_Sg_tmp = a.Sg
     a_CV_tmp = a.CV
 

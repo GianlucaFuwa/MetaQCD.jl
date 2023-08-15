@@ -1,6 +1,6 @@
 struct Euler <: AbstractIntegrator end
 
-function (eul::Euler)(method::T) where {T <: GradientFlow}
+function flow!(::Euler, method::GradientFlow)
     Uflow = method.Uflow
     force = method.Z
 
@@ -14,7 +14,7 @@ end
 
 struct RK2 <: AbstractIntegrator end
 
-function (rk2::RK2)(method::T) where {T <: GradientFlow}
+function flow!(::RK2, method::GradientFlow)
     Uflow = method.Uflow
     force = method.Z
 
@@ -30,7 +30,7 @@ end
 
 struct RK3 <: AbstractIntegrator end
 
-function (rk3::RK3)(method::T) where {T <: GradientFlow}
+function flow!(::RK3, method::GradientFlow)
     Uflow = method.Uflow
     force = method.Z
 
@@ -48,7 +48,7 @@ end
 
 struct RK3W7 <: AbstractIntegrator end
 
-function (rk3w7::RK3W7)(method::T) where {T <: GradientFlow}
+function flow!(::RK3W7, method::GradientFlow)
     Uflow = method.Uflow
     force = method.Z
 

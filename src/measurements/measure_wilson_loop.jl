@@ -43,25 +43,11 @@ struct WilsonLoopMeasurement <: AbstractMeasurement
         end
 
         outputvalues = zeros(Float64, Rmax, Tmax)
-
-        return new(
-            filename,
-            verbose_print,
-            fp,
-            printvalues,
-            Tmax,
-            Rmax,
-            outputvalues,
-        )
+        return new(filename, verbose_print, fp, printvalues, Tmax, Rmax, outputvalues)
     end
 end
 
-function WilsonLoopMeasurement(
-    U::T,
-    params::WilsonLoopParameters,
-    filename = "wilson_loop.txt",
-    flow = false,
-) where {T <: Gaugefield}
+function WilsonLoopMeasurement(U, params::WilsonLoopParameters, filename="wilson_loop.txt", flow=false)
     return WilsonLoopMeasurement(
         U,
         filename = filename,
@@ -73,7 +59,7 @@ function WilsonLoopMeasurement(
     )
 end
 
-function measure(m::WilsonLoopMeasurement, U; additional_string = "")
+function measure(m::WilsonLoopMeasurement, U; additional_string="")
     measurestring = ""
 
     for T in 1:m.Tmax

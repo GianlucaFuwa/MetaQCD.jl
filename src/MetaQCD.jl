@@ -24,11 +24,12 @@ module MetaQCD
     using .Mainrun
 
     import .Gaugefields: DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
-    import .Gaugefields: SymanzikTreeGaugeAction, WilsonGaugeAction
+    import .Gaugefields: SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
     import .Gaugefields: CoeffField, Gaugefield, Temporaryfield, staple, staple_eachsite!
     import .Gaugefields: calc_gauge_action, plaquette, plaquette_trace_sum
     import .Gaugefields: identity_gauges, random_gauges, normalize!, wilsonloop
     import .Gaugefields: calc_kinetic_energy, gaussian_momenta!, Liefield
+    import .Gaugefields: substitute_U!, fieldstrength_eachsite!
     import .Measurements: measure, get_value, PlaquetteMeasurement, top_charge
     import .Measurements: PolyakovMeasurement, WilsonLoopMeasurement
     import .Measurements: TopologicalChargeMeasurement, GaugeActionMeasurement
@@ -36,21 +37,22 @@ module MetaQCD
     import .Metadynamics: BiasPotential, update_bias!
     import .Parameters: ParameterSet, construct_params_from_toml
     import .Smearing: NoSmearing, StoutSmearing, GradientFlow, calc_smearedU!, flow!
-    import .Updates: update!, Updatemethod
+    import .Smearing: stout_backprop!
+    import .Updates: update!, Updatemethod, calc_dSdU_bare!, calc_dVdU_bare!, ∇trFμνFρσ
     import .Universe: Univ
 
     export construct_params_from_toml
     export loadU_bridge!, loadU_jld!, saveU_bridge, saveU_jld
     export Verbose1, Verbose2, Verbose3
     export DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
-    export SymanzikTreeGaugeAction, WilsonGaugeAction
+    export SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
     export CoeffField, Gaugefield, Temporaryfield, calc_gauge_action
     export plaquette, wilsonloop, identity_gauges, random_gauges, move, normalize!
-    export plaquette_trace_sum, staple_eachsite!
+    export plaquette_trace_sum, substitute_U!, staple_eachsite!, fieldstrength_eachsite!
     export Liefield, gaussian_momenta!, calc_kinetic_energy
     export BiasPotential, update_bias!
-    export NoSmearing, StoutSmearing, calc_smearedU!, GradientFlow, flow!
-    export Updatemethod, update!
+    export NoSmearing, StoutSmearing, calc_smearedU!, GradientFlow, flow!, stout_backprop!
+    export Updatemethod, update!, calc_dSdU_bare!, calc_dVdU_bare!, ∇trFμνFρσ
     export measure, get_value, PlaquetteMeasurement, PolyakovMeasurement
     export WilsonLoopMeasurement, TopologicalChargeMeasurement, GaugeActionMeasurement
     export top_charge

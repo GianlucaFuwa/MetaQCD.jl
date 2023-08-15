@@ -1,6 +1,6 @@
 abstract type AbstractIntegrator end
 
-struct GradientFlow{TI, TG} <: AbstractSmearing
+struct GradientFlow{TI,TG} <: AbstractSmearing
     numflow::Int64
     steps::Int64
     ϵ::Float64
@@ -12,14 +12,7 @@ end
 
 include("gradientflow_integrators.jl")
 
-function GradientFlow(
-    U::TG;
-    integrator = "euler",
-    numflow = 1,
-    steps = 1,
-    tf = 0.12,
-    measure_every = 1,
-) where {TG}
+function GradientFlow(U::TG; integrator="euler", numflow=1, steps=1, tf=0.12, measure_every=1) where {TG}
     Z = Liefield(U)
     Uflow = similar(U)
 
@@ -36,16 +29,10 @@ function GradientFlow(
     end
 
     ϵ = tf / steps
-
-    return GradientFlow{TI, TG}(numflow, steps, ϵ, tf, measure_every, Uflow, Z)
+    return GradientFlow{TI,TG}(numflow, steps, ϵ, tf, measure_every, Uflow, Z)
 end
 
-function flow!(method::GradientFlow{TI, TG}) where {TI, TG}
-    integrator! = TI()
-    integrator!(method)
-    return nothing
-end
-
+flow!(method::GradientFlow{TI,TG}) where {TI,TG} = flow!(TI(), method)
 
 function updateU!(U, Z, ϵ)
     @batch for site in eachindex(U)

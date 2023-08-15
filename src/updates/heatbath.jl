@@ -4,18 +4,10 @@ struct HeatbathUpdate <: AbstractUpdate # maybe add eo as type parameter?
     numHB::Int64
     numOR::Int64
 
-    function HeatbathUpdate(U, eo, MAXIT, numHB, numOR)
-        return new(eo, MAXIT, numHB, numOR)
-    end
+    HeatbathUpdate(::Gaugefield, eo, MAXIT, numHB, numOR) = new(eo, MAXIT, numHB, numOR)
 end
 
-function update!(
-    updatemethod::HeatbathUpdate,
-    U,
-    ::VerboseLevel;
-    Bias = nothing,
-    metro_test::Bool = true,
-)
+function update!(updatemethod::HeatbathUpdate, U, ::VerboseLevel; kwargs...)
     for _ in 1:updatemethod.numHB
         if updatemethod.eo
             heatbath_sweep_eo!(U, updatemethod.MAXIT)
@@ -28,9 +20,9 @@ function update!(
 
     for _ in 1:updatemethod.numOR
         if updatemethod.eo
-            numaccepts += overrelaxation_sweep_eo!(U, metro_test = true)
+            numaccepts += overrelaxation_sweep_eo!(U, metro_test=true)
         else
-            numaccepts += overrelaxation_sweep!(U, metro_test = true)
+            numaccepts += overrelaxation_sweep!(U, metro_test=true)
         end
     end
 
@@ -46,7 +38,7 @@ function update!(
     return numaccepts
 end
 
-function heatbath_sweep!(U::Gaugefield, MAXIT)
+function heatbath_sweep!(U, MAXIT)
     action_factor = 3 / U.β
 
     @inbounds for μ in 1:4
@@ -61,7 +53,7 @@ function heatbath_sweep!(U::Gaugefield, MAXIT)
     return nothing
 end
 
-function heatbath_sweep_eo!(U::Gaugefield, MAXIT)
+function heatbath_sweep_eo!(U, MAXIT)
     NX, NY, NZ, NT = size(U)
     action_factor = 3 / U.β
 

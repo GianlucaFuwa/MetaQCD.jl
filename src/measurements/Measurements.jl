@@ -20,6 +20,7 @@ module Measurements
 
     import ..Gaugefields: Gaugefield, calc_gauge_action, clover_rect, clover_square,
         plaquette, wilsonloop, substitute_U!
+    import ..Gaugefields: Plaquette, Clover, Improved
     import ..Smearing: StoutSmearing, calc_smearedU!, flow!
 
     include("./measurement_parameters.jl")

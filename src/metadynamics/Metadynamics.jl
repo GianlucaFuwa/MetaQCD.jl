@@ -12,14 +12,15 @@ overloaded methods, the potential derivative (scalar) and the calculation of wei
 """
 module Metadynamics
     using DelimitedFiles
+    using MPI
     using Polyester
     using Printf
     using Statistics
 	using ..Parameters: ParameterSet
 
-    import ..Gaugefields: AbstractGaugeAction, Gaugefield
+    import ..Gaugefields: AbstractGaugeAction, Gaugefield, Plaquette, Clover
 	import ..Measurements: top_charge
-	import ..Smearing: StoutSmearing, calc_smearedU!
+	import ..Smearing: NoSmearing, StoutSmearing, calc_smearedU!
 
 	struct MetaEnabled end
 	struct MetaDisabled end
@@ -28,42 +29,16 @@ module Metadynamics
 
     include("biaspotential.jl")
 
-    function potential_from_file(p::ParameterSet, usebias)
-        if usebias === nothing
-            return zero(range(p.CVlims[1], p.CVlims[2], step = p.bin_width))
-        else
-            values, _ = readdlm(usebias, Float64, header = true)
-            @assert length(values[:, 2]) == length(
-                range(p.CVlims[1], p.CVlims[2], step = p.bin_width)
-            ) "Length of passed Metapotential doesn't match parameters"
-            return values[:, 2]
-        end
-    end
+    update_bias!(::Nothing, args...) = nothing
 
-    """
-    Update bias potential .txt file by creating temporary io where the new valus are \\
-    written, which then substitutes the old file
-    """
-    function write_to_file(b::T; force = false) where {T <: BiasPotential}
-        # If the potential is static we dont have to write it apart from the the time it
-        # is initialized, so we introduce a "force" keyword to overwrite the static-ness
-        (b.is_static && !force) && return nothing
-        (b.fp === nothing) && return nothing
-        (tmppath, tmpio) = mktemp()
-        println(tmpio, "$(rpad("CV", 7))\t$(rpad("V(CV)", 7))")
-
-        for i in eachindex(b)
-            println(tmpio, "$(rpad(b.bin_vals[i], 7, "0"))\t$(rpad(b.values[i], 7, "0"))")
-        end
-
-        close(tmpio)
-        mv(tmppath, b.fp, force = true)
+    function update_bias!(b::BiasPotential, values, write)
+        update_bias!(b, values)
+        b.symmetric && update_bias!(b, -values)
+        write && write_to_file(b)
         return nothing
     end
 
-    write_to_file(::Nothing; force = false) = nothing
-
-    function update_bias!(b::T, values; write = true) where {T <: BiasPotential}
+    function update_bias!(b, values)
         (b.is_static == true) && return nothing
 
         for cv in values
@@ -79,28 +54,61 @@ module Metadynamics
             end
         end
 
-        write && write_to_file(b)
         return nothing
     end
-
-    update_bias!(::Nothing, cv; write = true) = nothing
 
     """
     Approximate ∂V/∂Q by use of the five-point stencil
     """
-    function ∂V∂Q(b::T, cv) where {T <: BiasPotential}
+    function ∂V∂Q(b::T, cv) where {T<:BiasPotential}
         bw = b.bin_width
-        num = -b(cv + 2bw) + 8b(cv + bw) - 8b(cv - bw) + b(cv - 2bw)
+        num = -b(cv+2bw) + 8b(cv+bw) - 8b(cv-bw) + b(cv-2bw)
         denom = 12bw
         return num / denom
     end
 
-    function recalc_CV!(U, b::T) where {T <: BiasPotential}
-        calc_smearedU!(b.smearing, U)
-        fully_smeared_U = b.smearing.Usmeared_multi[end]
-        CV_new = top_charge(fully_smeared_U, b.kind_of_cv)
+    recalc_CV!(::Gaugefield, ::Nothing) = nothing
+
+    function recalc_CV!(U, b::BiasPotential)
+        CV_new = calc_CV(U, b)
         U.CV = CV_new
         return nothing
+    end
+
+    function calc_CV(U, ::BiasPotential{TCV,TG,TS}) where {TCV,TG,TS<:NoSmearing}
+        return top_charge(TCV(), U)
+    end
+
+    function calc_CV(U, b::BiasPotential{TCV,TG,TS}) where {TCV,TG,TS}
+        calc_smearedU!(b.smearing, U)
+        fully_smeared_U = b.smearing.Usmeared_multi[end]
+        CV_new = top_charge(TCV(), fully_smeared_U)
+        return CV_new
+    end
+
+    write_to_file(::Nothing; kwargs...) = nothing
+
+    function potential_from_file(p::ParameterSet, usebias)
+        if usebias === nothing
+            bin_vals = range(p.cvlims[1], p.cvlims[2], step = p.bin_width)
+            values = zero(bin_vals)
+            return bin_vals, values
+        else
+            values, _ = readdlm(usebias, Float64, header=true)
+            bin_vals = range(p.cvlims[1], p.cvlims[2], step = p.bin_width)
+            @assert length(values[:, 2])==length(bin_vals) "your bias doesn't match parameters"
+            return bin_vals, values[:, 2]
+        end
+    end
+
+    function get_cvtype_from_parameters(p::ParameterSet)
+        if p.kind_of_cv == "plaquette"
+            return Plaquette
+        elseif p.kind_of_cv == "clover"
+            return Clover
+        else
+            error("kind of cv \"$(p.kind_of_cv)\" not supported")
+        end
     end
 
     include("weights.jl")

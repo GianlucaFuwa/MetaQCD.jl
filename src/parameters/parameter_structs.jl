@@ -55,39 +55,42 @@ end
 
 Base.@kwdef mutable struct PrintPhysicalParameters
     L::NTuple{4, Int64} = (4, 4, 4, 4)
-    β::Float64 = 5.7
+    beta::Float64 = 5.7
     NC::Int64 = 3
     kind_of_gaction::String = "wilson"
-    Ntherm::Int64 = 10
-    Nsteps::Int64 = 100
+    numtherm::Int64 = 10
+    numsteps::Int64 = 100
     inital::String = "cold"
     update_method::Vector{String} = ["HMC"]
-    meta_enabled::Bool = false
-    tempering_enabled::Bool = false
-    numinstances::Int64 = 1
-    swap_every::Int64 = 1
-    hb_MAXIT::Int64 = 10^5
-    hb_numHB::Int64 = 4
-    metro_ϵ::Float64 = 0.1
+    hb_maxit::Int64 = 10^5
+    numheatbath::Int64 = 4
+    metro_epsilon::Float64 = 0.1
     metro_multi_hit::Int64 = 1
     metro_target_acc::Float64 = 0.5
     eo::Bool = false
-    numOR::Int64 = 0
+    numorelax::Int64 = 0
     parity_update::Bool = false
 end
 
 Base.@kwdef mutable struct PrintMetaParameters
+    meta_enabled::Bool = false
+    tempering_enabled::Bool = false
+    numinstances::Int64 = 1
+    swap_every::Int64 = 1
+    non_metadynamics_updates::Int64 = 1
+    measure_on_all::Bool = false
     kind_of_cv::String = "clover"
     numsmears_for_cv::Int64 = 4
-    ρstout_for_cv::Float64 = 0.125
+    rhostout_for_cv::Float64 = 0.125
     symmetric::Bool = false
-    CVlims::NTuple{2, Float64} = (-7, 7)
+    cvlims::NTuple{2, Float64} = (-7, 7)
     bin_width::Float64 = 1e-2
     meta_weight::Float64 = 1e-3
     penalty_weight::Float64 = 1000.0
     wt_factor::Float64 = Inf
     is_static::Union{Bool, Vector{Bool}} = false
     kinds_of_weights::Vector{String} = ["tiwari"]
+    usebiases::Union{Nothing, String, Vector{Union{Nothing,String}}} = nothing
 end
 
 Base.@kwdef mutable struct PrintSystemParameters
@@ -106,16 +109,15 @@ Base.@kwdef mutable struct PrintSystemParameters
     measurement_dir::String = ""
     bias_basedir::Union{Nothing, String, Vector{String}} = nothing
     bias_dir::Union{Nothing, String, Vector{Union{Nothing,String}}} = nothing
-    usebiases::Union{Nothing, String, Vector{Union{Nothing,String}}} = nothing
     overwrite::Bool = false
 end
 
-Base.@kwdef mutable struct PrintHMCrelatedParameters
-    hmc_Δτ::Float64 = 0.1
+Base.@kwdef mutable struct PrintHMCParameters
+    hmc_deltatau::Float64 = 0.1
     hmc_steps::Int64 = 10
     hmc_integrator::String = "Leapfrog"
     hmc_numsmear::Int64 = 0
-    hmc_ρstout::Float64 = 0.0
+    hmc_rhostout::Float64 = 0.0
 end
 
 Base.@kwdef mutable struct PrintGradientFlowParameters
@@ -134,7 +136,7 @@ end
 const printlist_physical = generate_printlist(PrintPhysicalParameters)
 const printlist_meta = generate_printlist(PrintMetaParameters)
 const printlist_system = generate_printlist(PrintSystemParameters)
-const printlist_HMCrelated = generate_printlist(PrintHMCrelatedParameters)
+const printlist_hmc = generate_printlist(PrintHMCParameters)
 const printlist_measurement = generate_printlist(PrintMeasurementParameters)
 
 abstract type SmearingParameters end
@@ -236,7 +238,7 @@ function construct_printable_parameters_fromdict!(
         hasvalue = true
     end
 
-    hmc_index = findfirst(x -> x==key, printlist_HMCrelated)
+    hmc_index = findfirst(x -> x==key, printlist_hmc)
 
     if hmc_index !== nothing
         setfield!(hmc, pname_i, value)
@@ -281,7 +283,7 @@ function construct_printable_parameters_fromdict!(
             hasvalue = true
         end
 
-        hmc_index = findfirst(x -> x==pname_i, printlist_HMCrelated)
+        hmc_index = findfirst(x -> x==pname_i, printlist_hmc)
 
         if hmc_index !== nothing
             setfield!(hmc, pname_i, value)
@@ -343,7 +345,7 @@ function remove_default_values!(x::Dict)
     physical = Print_physical_parameters()
     meta = Print_meta_parameters()
     system = Print_system_parameters()
-    hmc = Print_HMCrelated_parameters()
+    hmc = Print_hmc_parameters()
 
     for (params, paramsname) in x
         remove_default_values!(x[params], physical)

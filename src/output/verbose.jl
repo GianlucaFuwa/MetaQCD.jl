@@ -36,6 +36,13 @@ function InteractiveUtils.versioninfo(v::VerboseLevel)
     end
 end
 
+print_verbose1(::Nothing, val...) = nothing
+print_verbose2(::Nothing, val...) = nothing
+print_verbose3(::Nothing, val...) = nothing
+println_verbose1(::Nothing, val...) = nothing
+println_verbose2(::Nothing, val...) = nothing
+println_verbose3(::Nothing, val...) = nothing
+
 function println_verbose1(v::Verbose3, val...)
     println(val...)
 
@@ -86,7 +93,7 @@ function println_verbose2(v::Verbose2, val...)
     return nothing
 end
 
-function println_verbose3(v::Verbose2, val...)
+function println_verbose3(::Verbose2, val...)
     return nothing
 end
 
@@ -100,11 +107,11 @@ function println_verbose1(v::Verbose1, val...)
     return nothing
 end
 
-function println_verbose2(v::Verbose1, val...)
+function println_verbose2(::Verbose1, val...)
     return nothing
 end
 
-function println_verbose3(v::Verbose1, val...)
+function println_verbose3(::Verbose1, val...)
     return nothing
 end
 
@@ -158,7 +165,7 @@ function print_verbose2(v::Verbose2, val...)
     return nothing
 end
 
-function print_verbose3(v::Verbose2, val...)
+function print_verbose3(::Verbose2, val...)
     return nothing
 end
 
@@ -172,10 +179,10 @@ function print_verbose1(v::Verbose1, val...)
     return nothing
 end
 
-function print_verbose2(v::Verbose1, val...)
+function print_verbose2(::Verbose1, val...)
     return nothing
 end
 
-function print_verbose3(v::Verbose1, val...)
+function print_verbose3(::Verbose1, val...)
     return nothing
 end

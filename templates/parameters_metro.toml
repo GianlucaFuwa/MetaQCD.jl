@@ -1,21 +1,22 @@
 ["Physical Settings"]
-L = [4, 4, 4, 4]
-"β" = 5.7
+L = [8, 8, 8, 8]
+beta = 5.70
 kind_of_gaction = "wilson"
-Ntherm = 20
-Nsteps = 100
+numtherm = 10
+numsteps = 10
 initial = "cold"
 update_method = "metropolis"
 metro_multi_hit = 10
 metro_target_acc = 0.5
-"metro_ϵ" = 0.1
+metro_epsilon = 0.1
 
 ["System Settings"]               
-logdir = "./logs/L4x4x4x4_beta5.7"
-logfile = "test_metro.txt"
-measurement_basedir = "./measurements/L4x4x4x4_beta5.7"
-measurement_dir = "test_metro"
+logdir = "./logs/L8x8x8x8_wilson_beta5.7/test_metro"
+logfile = "logs.txt"
+measurement_basedir = "./measurements/L8x8x8x8_wilson_beta5.7/test_metro"
+measurement_dir = "raw_data"
 randomseed = 0
+verboselevel = 1
 overwrite = true
 
 ["Measurement set".measurement_methods.Polyakov_loop]
