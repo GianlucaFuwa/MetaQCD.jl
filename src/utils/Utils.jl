@@ -4,7 +4,7 @@ module Utils
     using Random
     using StaticArrays
 
-    export exp_iQ, exp_iQ_coeffs, exp_iQ_su3, B1, B2
+    export exp_iQ, exp_iQ_coeffs, exp_iQ_su3, get_B₁, get_B₂, get_Q, get_Q²
     export gen_SU3_matrix, is_special_unitary, is_traceless_antihermitian
     export kenney_laub, proj_onto_SU3, make_submatrix, embed_into_SU3, multr
     export antihermitian, hermitian, traceless_antihermitian, traceless_hermitian

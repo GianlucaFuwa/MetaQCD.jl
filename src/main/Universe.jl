@@ -6,7 +6,7 @@ module Universe
     import ..Gaugefields: AbstractGaugeAction, DBW2GaugeAction, IwasakiGaugeAction,
         SymanzikTadGaugeAction, SymanzikTreeGaugeAction, WilsonGaugeAction
     import ..Gaugefields: identity_gauges, random_gauges
-    import ..Metadynamics: BiasPotential, get_cvtype_from_parameters, write_to_file
+    import ..BiasModule: Bias, get_cvtype_from_parameters, write_to_file
     import ..Parameters: ParameterSet
     import ..Smearing: NoSmearing, StoutSmearing
 
@@ -14,7 +14,7 @@ module Universe
         meta_enabled::Bool
         tempering_enabled::Bool
         U::TG
-        Bias::TB
+        bias::TB
         numinstances::Int64
         verbose_print::TV
     end
@@ -36,18 +36,18 @@ module Universe
             error("Gauge action '$(kind_of_gaction)' not supported")
         end
 
-        if p.meta_enabled
+        if p.kind_of_bias != "none"
             tempering_enabled = p.tempering_enabled
 
             if tempering_enabled && use_mpi == false
                 numinstances = p.numinstances
                 TG = Gaugefield{GA}
-                TCV = get_cvtype_from_parameters(p)
-                cvsmearing = get_cvsmearing_from_parameters(p)
-                TS = cvsmearing==NoSmearing ? cvsmearing : cvsmearing{TG}
-                TB = BiasPotential{TCV,TG,TS}
+                # TCV = get_cvtype_from_parameters(p)
+                # cvsmearing = get_cvsmearing_from_parameters(p)
+                # TS = cvsmearing==NoSmearing ? cvsmearing : cvsmearing{TG}
+                TB = Bias
                 U = Vector{TG}(undef, p.numinstances)
-                Bias = Vector{TB}(undef, p.numinstances)
+                bias = Vector{TB}(undef, p.numinstances)
 
                 for i in 1:numinstances
                     if p.initial == "cold"
@@ -58,10 +58,8 @@ module Universe
                         error("Only \"hot\" or \"cold\" initial config valid.")
                     end
 
-                    Bias[i] = BiasPotential(p, U[1]; instance=i-1, has_fp=fp)
-                    write_to_file(Bias[i]; force=true)
+                    bias[i] = Bias(p, U[1]; instance=i-1, has_fp=fp)
                 end
-
             else
                 numinstances = 1
 
@@ -73,14 +71,13 @@ module Universe
                     error("Only \"hot\" or \"cold\" initial config valid.")
                 end
 
-                Bias = BiasPotential(p, U; has_fp=fp)
-                write_to_file(Bias; force=fp)
+                bias = Bias(p, U; has_fp=fp)
             end
         else
             tempering_enabled = p.tempering_enabled
-            @assert tempering_enabled == false "tempering can only be enabled with MetaD"
+            @assert tempering_enabled == false "tempering can only be enabled with bias"
             numinstances = 1
-            Bias = nothing
+            bias = nothing
 
             if p.initial == "cold"
                 U = identity_gauges(NX, NY, NZ, NT, p.beta, type_of_gaction=GA)
@@ -102,7 +99,7 @@ module Universe
             p.meta_enabled,
             tempering_enabled,
             U,
-            Bias,
+            bias,
             numinstances,
             verbose_print,
         )

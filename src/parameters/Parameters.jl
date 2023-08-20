@@ -63,8 +63,8 @@ module Parameters
 
         physical = PrintPhysicalParameters()
         set_params_value!(value_Params, physical)
-        meta = PrintMetaParameters()
-        set_params_value!(value_Params, meta)
+        bias = PrintBiasParameters()
+        set_params_value!(value_Params, bias)
         system = PrintSystemParameters()
         set_params_value!(value_Params, system)
         hmc = PrintHMCParameters()
@@ -119,19 +119,19 @@ module Parameters
         value_Params[pos] = measuredir
 
         try
-            meta_enabled = parameters["MetaD Settings"]["meta_enabled"]
+            kind_of_bias = parameters["Bias Settings"]["kind_of_bias"]
         catch
-            @warn "Metadynamics disabled because not specified"
+            @warn "Bias disabled because not specified"
         end
 
-        if @isdefined meta_enabled
+        if @isdefined kind_of_bias
         else
-            meta_enabled = false
+            kind_of_bias = "none"
         end
 
         pos = findfirst(x -> String(x) == "biasdir", pnames)
 
-        if meta_enabled == true
+        if kind_of_bias != "none"
             bias_basedir = parameters["System Settings"]["bias_basedir"]
             bias_dir = parameters["System Settings"]["bias_dir"]
 
@@ -172,10 +172,10 @@ module Parameters
                                 value_Params[i][idx] = nothing
                             end
                         end
-                    elseif String(pname_i) == "wt_factor"
+                    elseif String(pname_i) == "biasfactor"
                         val = value[String(pname_i)]
                         num = val == "Inf" ? Inf : val
-                        @assert typeof(num)<:Real && num > 0 "wt_factor must be in (0,Inf]"
+                        @assert typeof(num)<:Real && num > 1 "wt_factor must be in (1,Inf]"
                         value_Params[i] = num
                     elseif String(pname_i) == "kind_of_gaction"
                         value_Params[i] = Unicode.normalize(
@@ -205,12 +205,12 @@ module Parameters
 
         parameters = ParameterSet(value_Params...)
 
-        parameter_check(parameters, do_prints = am_rank0)
+        parameter_check(parameters, do_prints=am_rank0)
 
         return parameters
     end
 
-    function parameter_check(p::ParameterSet; do_prints = true)
+    function parameter_check(p::ParameterSet; do_prints=true)
         if p.saveU_format !== nothing
             if isdir(p.saveU_dir) == false
                 do_prints ? mkpath(p.saveU_dir) : nothing
@@ -219,11 +219,11 @@ module Parameters
             println("\t>> configs are saved in $(p.saveU_dir)\n")
         end
 
-        if Unicode.normalize(p.update_method, casefold = true) == "hmc"
+        if Unicode.normalize(p.update_method, casefold=true) == "hmc"
             do_prints ? println("\t>> HMC will be used\n") : nothing
-        elseif Unicode.normalize(p.update_method, casefold = true) == "metropolis"
+        elseif Unicode.normalize(p.update_method, casefold=true) == "metropolis"
             do_prints ? println("\t>> Metropolis updates will be used\n") : nothing
-        elseif Unicode.normalize(p.update_method, casefold = true) == "heatbath"
+        elseif Unicode.normalize(p.update_method, casefold=true) == "heatbath"
             do_prints ? println("\t>> Heatbath (+ Overrelaxation) updates will be used\n") : nothing
         else
             error("""

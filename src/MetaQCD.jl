@@ -7,7 +7,7 @@ module MetaQCD
     include("./smearing/Smearing.jl")
     include("./measurements/Measurements.jl")
     include("./parameters/Parameters.jl")
-    include("./metadynamics/Metadynamics.jl")
+    include("./bias/Bias.jl")
     include("./main/Universe.jl")
     include("./updates/Updates.jl")
 
@@ -23,6 +23,7 @@ module MetaQCD
     using .Utils
     using .Mainrun
 
+    import .BiasModule: Bias, update_bias!
     import .Gaugefields: DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
     import .Gaugefields: SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
     import .Gaugefields: CoeffField, Gaugefield, Temporaryfield, staple, staple_eachsite!
@@ -34,7 +35,6 @@ module MetaQCD
     import .Measurements: PolyakovMeasurement, WilsonLoopMeasurement
     import .Measurements: TopologicalChargeMeasurement, GaugeActionMeasurement
     import .Measurements: MetaChargeMeasurement
-    import .Metadynamics: BiasPotential, update_bias!
     import .Parameters: ParameterSet, construct_params_from_toml
     import .Smearing: NoSmearing, StoutSmearing, GradientFlow, calc_smearedU!, flow!
     import .Smearing: stout_backprop!
@@ -50,7 +50,7 @@ module MetaQCD
     export plaquette, wilsonloop, identity_gauges, random_gauges, move, normalize!
     export plaquette_trace_sum, substitute_U!, staple_eachsite!, fieldstrength_eachsite!
     export Liefield, gaussian_momenta!, calc_kinetic_energy
-    export BiasPotential, update_bias!
+    export Bias, update_bias!
     export NoSmearing, StoutSmearing, calc_smearedU!, GradientFlow, flow!, stout_backprop!
     export Updatemethod, update!, calc_dSdU_bare!, calc_dVdU_bare!, ∇trFμνFρσ
     export measure, get_value, PlaquetteMeasurement, PolyakovMeasurement

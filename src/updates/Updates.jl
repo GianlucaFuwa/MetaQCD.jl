@@ -11,8 +11,8 @@ module Updates
     import ..Gaugefields: add!, calc_gauge_action, calc_kinetic_energy, normalize!,
         fieldstrength_eachsite!, gaussian_momenta!, staple, staple_eachsite!, substitute_U!
     import ..Gaugefields: Plaquette, Clover
-    import ..Metadynamics: BiasPotential, MetaEnabled, MetaDisabled, calc_CV, ∂V∂Q
-    import ..Metadynamics: kind_of_cv, update_bias!
+    import ..BiasModule: Bias, BiasEnabled, BiasDisabled, calc_CV, ∂V∂Q
+    import ..BiasModule: kind_of_cv, update_bias!
     import ..Parameters: ParameterSet
     import ..Smearing: AbstractSmearing, NoSmearing, StoutSmearing
     import ..Smearing: calc_smearedU!, get_layer, stout_backprop!
@@ -36,7 +36,7 @@ module Updates
             parameters.update_method,
             parameters.verboselevel,
             parameters.logdir,
-            parameters.meta_enabled,
+            parameters.kind_of_bias,
             parameters.metro_epsilon,
             parameters.metro_multi_hit,
             parameters.metro_target_acc,
@@ -58,7 +58,7 @@ module Updates
         update_method,
         verboselevel = 1,
         logdir = "",
-        meta_enabled = false,
+        kind_of_bias = "none",
         metro_ϵ = 0.1,
         metro_multi_hit = 1,
         metro_target_acc = 0.5,
@@ -80,7 +80,7 @@ module Updates
                 hmc_Δτ,
                 numsmear = hmc_numsmear,
                 ρ_stout = hmc_ρstout,
-                meta_enabled = meta_enabled,
+                bias_enabled = kind_of_bias=="none",
                 verboselevel = verboselevel,
                 logdir = logdir,
             )

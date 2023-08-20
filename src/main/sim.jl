@@ -37,7 +37,7 @@ function run_sim!(univ, parameters)
             parameters.hmc_integrator,
             parameters.hmc_steps,
             parameters.hmc_deltatau,
-            meta_enabled = true,
+            bias_enabled = true,
         )
         parity = parameters.parity_update ? ParityUpdate(U[1]) : nothing
     else
@@ -175,7 +175,7 @@ function metaqcd!(
     save_configs,
 )
     U = univ.U
-    Bias = univ.Bias
+    bias = univ.bias
     vp = univ.verbose_print
 
     value, runtime_therm = @timed begin
@@ -192,7 +192,7 @@ function metaqcd!(
     end
 
     println_verbose1(vp, "\t>> Thermalization elapsed time:\t$(runtime_therm) [s]")
-    recalc_CV!(U, Bias) # need to recalc cv since it was not updated during therm
+    recalc_CV!(U, bias) # need to recalc cv since it was not updated during therm
 
     value, runtime_all = @timed begin
         numaccepts = 0.0
@@ -200,9 +200,9 @@ function metaqcd!(
             println_verbose1(vp, "\n# itrj = $itrj")
 
             _, updatetime = @timed begin
-                numaccepts += update!(updatemethod, U, vp, bias=Bias, metro_test=true)
+                numaccepts += update!(updatemethod, U, vp, bias=bias, metro_test=true)
                 rand() < 0.5 ? update!(parity, U) : nothing
-                update_bias!(Bias, U.CV, true)
+                update_bias!(bias, U.CV, itrj, true)
             end
 
             println_verbose1(vp, ">> Acceptance $itrj:\t", numaccepts * 100 / itrj, "%")
@@ -232,7 +232,7 @@ function metaqcd!(
                 println(value)
             end
 
-            calc_weights(Bias, U.CV, itrj)
+            calc_weights(bias, U.CV, itrj)
             flush(vp.fp)
         end
     end
@@ -258,7 +258,7 @@ function metaqcd_PT!(
 )
     numinstances = parameters.numinstances
     U = univ.U
-    Bias = univ.Bias
+    bias = univ.bias
     vp = univ.verbose_print
     swap_every = parameters.swap_every
     rank0_updates = parameters.non_metadynamics_updates
@@ -283,7 +283,7 @@ function metaqcd_PT!(
 
     println_verbose1(vp, "\t>> Thermalization Elapsed time $(runtime_therm) [s]")
     for i in 2:numinstances
-        recalc_CV!(U[i], Bias[i]) # need to recalc cv since it was not updated during therm
+        recalc_CV!(U[i], bias[i]) # need to recalc cv since it was not updated during therm
     end
 
     value, runtime_all = @timed begin
@@ -295,7 +295,7 @@ function metaqcd_PT!(
             _, updatetime = @timed begin
                 tmp = 0.0
                 for _ in 1:rank0_updates
-                    tmp += update!(updatemethod, U[1], vp, bias=Bias[1], metro_test=true)
+                    tmp += update!(updatemethod, U[1], vp, bias=bias[1], metro_test=true)
                 end
                 numaccepts[1] += tmp/rank0_updates
                 rand() < 0.5 ? update!(parity, U[1]) : nothing
@@ -305,10 +305,10 @@ function metaqcd_PT!(
                         updatemethod_pt,
                         U[i],
                         vp,
-                        bias = Bias[i],
+                        bias = bias[i],
                         metro_test = true,
                     )
-                    update_bias!(Bias[i], U[i].CV, true)
+                    update_bias!(bias[i], U[i].CV, itrj, true)
                 end
             end
 
@@ -322,11 +322,11 @@ function metaqcd_PT!(
                 # We need to recalculate the CV and for the non-MetaD stream since that is
                 # only done in MetaD-HMC updates
                 if (typeof(updatemethod) <: HMCUpdate) == false
-                    recalc_CV!(U[1], Bias[1])
+                    recalc_CV!(U[1], bias[1])
                 end
 
                 for i in numinstances:-1:2
-                    accepted = temper!(U[i], U[i-1], Bias[i], Bias[i-1], vp)
+                    accepted = temper!(U[i], U[i-1], bias[i], bias[i-1], vp)
                     numaccepts_temper[i-1] += accepted
 
                     println_verbose1(
@@ -359,7 +359,7 @@ function metaqcd_PT!(
                     end
                 end
 
-                calc_weights(Bias[i], U[i].CV, itrj)
+                calc_weights(bias[i], U[i].CV, itrj)
             end
 
             flush(vp.fp)

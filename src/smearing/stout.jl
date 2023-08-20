@@ -17,7 +17,7 @@ struct StoutSmearing{TG} <: AbstractSmearing
 		if numlayers == 0 || ρ == 0
 			return NoSmearing()
 		else
-			Usmeared_multi = Vector{TG}(undef, numlayers + 1)
+			Usmeared_multi = Vector{TG}(undef, numlayers+1)
 			C_multi = Vector{Temporaryfield}(undef, numlayers)
 			Q_multi = Vector{CoeffField}(undef, numlayers)
 			Λ = Temporaryfield(U)
@@ -154,18 +154,18 @@ function calc_stout_Λ!(Λ, Σ′, Q, U)
 	@batch for site in eachindex(Λ)
         for μ in 1:4
             q = Q[μ][site]
-            Q_mat = q.Q
-            Q2_mat = q.Q2
+            Qₘ = get_Q(q)
+            Q² = get_Q²(q)
             UΣ′ = cmatmul_oo(U[μ][site], Σ′[μ][site])
 
-            B1_mat = B1(q)
-            B2_mat = B2(q)
+            B₁ = get_B₁(q)
+            B₂ = get_B₂(q)
 
-            Γ = multr(B1_mat, UΣ′) * Q_mat +
-                multr(B2_mat, UΣ′) * Q2_mat +
-                q.f1 * UΣ′ +
-                q.f2 * cmatmul_oo(Q_mat, UΣ′) +
-                q.f2 * cmatmul_oo(UΣ′, Q_mat)
+            Γ = multr(B₁, UΣ′) * Qₘ +
+                multr(B₂, UΣ′) * Q² +
+                q.f₁ * UΣ′ +
+                q.f₂ * cmatmul_oo(Qₘ, UΣ′) +
+                q.f₂ * cmatmul_oo(UΣ′, Qₘ)
 
             Λ[μ][site] = traceless_hermitian(Γ)
         end

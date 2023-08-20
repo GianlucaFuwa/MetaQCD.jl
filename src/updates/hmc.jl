@@ -1,7 +1,7 @@
 import ..Gaugefields: SymanzikTadGaugeAction
 abstract type AbstractIntegrator end
 
-struct HMCUpdate{TI,TG,TS,TM} <: AbstractUpdate
+struct HMCUpdate{TI,TG,TS,TB} <: AbstractUpdate
     steps::Int64
     Δτ::Float64
     P::Liefield
@@ -20,7 +20,7 @@ struct HMCUpdate{TI,TG,TS,TM} <: AbstractUpdate
         Δτ;
         numsmear = 0,
         ρ_stout = 0,
-        meta_enabled = false,
+        bias_enabled = false,
         verboselevel = 1,
         logdir = "",
     )
@@ -32,15 +32,15 @@ struct HMCUpdate{TI,TG,TS,TM} <: AbstractUpdate
         _temp_staple = Temporaryfield(U)
         _temp_force = Temporaryfield(U)
 
-        if meta_enabled
-            TM = MetaEnabled
+        if bias_enabled
+            TB = BiasEnabled
             _temp_fieldstrength = Vector{Temporaryfield}(undef, 4)
 
             for i in 1:4
                 _temp_fieldstrength[i] = Temporaryfield(U)
             end
         else
-            TM = MetaDisabled
+            TB = BiasDisabled
             _temp_fieldstrength = nothing
         end
 
@@ -69,7 +69,7 @@ struct HMCUpdate{TI,TG,TS,TM} <: AbstractUpdate
             fp = nothing
         end
 
-        return new{TI,TG,TS,TM}(
+        return new{TI,TG,TS,TB}(
 			steps,
 			Δτ,
 			P,
@@ -87,12 +87,12 @@ end
 include("hmc_integrators.jl")
 
 function update!(
-    updatemethod::HMCUpdate{TI,TG,TS,TM},
+    updatemethod::HMCUpdate{TI,TG,TS,TB},
     U,
     verbose::VerboseLevel;
     bias = nothing,
     metro_test = true,
-) where {TI, TG, TS, TM}
+) where {TI,TG,TS,TB}
     U_old = updatemethod._temp_U
     substitute_U!(U_old, U)
     gaussian_momenta!(updatemethod.P)
@@ -171,7 +171,7 @@ function updateU!(U, method, fac)
     return nothing
 end
 
-function updateP!(U, method::HMCUpdate{TI,TG,TS,TM}, fac, bias) where {TI,TG,TS,TM}
+function updateP!(U, method::HMCUpdate, fac, bias)
     ϵ = method.Δτ * fac
     P = method.P
     staples = method._temp_staple

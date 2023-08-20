@@ -6,15 +6,10 @@ import ..Measurements: TopologicalChargeParameters, WilsonLoopParameters
 
 const important_parameters = [
     "L",
-    "β",
+    "beta",
     "kind_of_gaction",
     "update_method",
-    "meta_enabled",
-    "kind_of_cv",
-    "numCVsmear",
-    "metro_ϵ",
-    "hmc_steps",
-    "hmc_Δτ",
+    "kind_of_bias",
     "tempering_enabled",
     "methodname",
     "measurement_basedir",
@@ -72,25 +67,38 @@ Base.@kwdef mutable struct PrintPhysicalParameters
     parity_update::Bool = false
 end
 
-Base.@kwdef mutable struct PrintMetaParameters
-    meta_enabled::Bool = false
+Base.@kwdef mutable struct PrintBiasParameters
+    kind_of_bias::String = "none"
+    kind_of_cv::String = "clover"
+    numsmears_for_cv::Int64 = 4
+    rhostout_for_cv::Float64 = 0.125
+    is_static::Union{Bool, Vector{Bool}} = false
+    symmetric::Bool = false
+    stride::Int64 = 1
+    cvlims::NTuple{2, Float64} = (-7, 7)
+    biasfactor::Float64 = Inf
+    kinds_of_weights::Vector{String} = ["tiwari"]
+    usebiases::Union{Nothing, String, Vector{Union{Nothing,String}}} = nothing
+    # metadynamics specific
+    bin_width::Float64 = 1e-2
+    meta_weight::Float64 = 1e-3
+    penalty_weight::Float64 = 1000.0
+    # opes specific
+    barrier::Float64 = 30.0
+    sigma0::Float64 = 0.1
+    sigma_min::Float64 = 1e-6
+    fixed_sigma::Bool = false
+    adaptive_sigma_stride::Int64 = 10stride
+    no_Z::Bool = false
+    opes_epsilon::Float64 = exp(-barrier/(1-1/biasfactor))
+    threshold::Float64 = 1.0
+    cutoff::Float64 = sqrt(2barrier/(1-1/biasfactor))
+    # tempering specific
     tempering_enabled::Bool = false
     numinstances::Int64 = 1
     swap_every::Int64 = 1
     non_metadynamics_updates::Int64 = 1
     measure_on_all::Bool = false
-    kind_of_cv::String = "clover"
-    numsmears_for_cv::Int64 = 4
-    rhostout_for_cv::Float64 = 0.125
-    symmetric::Bool = false
-    cvlims::NTuple{2, Float64} = (-7, 7)
-    bin_width::Float64 = 1e-2
-    meta_weight::Float64 = 1e-3
-    penalty_weight::Float64 = 1000.0
-    wt_factor::Float64 = Inf
-    is_static::Union{Bool, Vector{Bool}} = false
-    kinds_of_weights::Vector{String} = ["tiwari"]
-    usebiases::Union{Nothing, String, Vector{Union{Nothing,String}}} = nothing
 end
 
 Base.@kwdef mutable struct PrintSystemParameters
@@ -134,7 +142,7 @@ Base.@kwdef mutable struct PrintMeasurementParameters
 end
 
 const printlist_physical = generate_printlist(PrintPhysicalParameters)
-const printlist_meta = generate_printlist(PrintMetaParameters)
+const printlist_bias = generate_printlist(PrintBiasParameters)
 const printlist_system = generate_printlist(PrintSystemParameters)
 const printlist_hmc = generate_printlist(PrintHMCParameters)
 const printlist_measurement = generate_printlist(PrintMeasurementParameters)
@@ -205,7 +213,7 @@ function construct_printable_parameters_fromdict!(
     key,
     value,
     physical,
-    meta,
+    bias,
     system,
     hmc,
 )
@@ -224,10 +232,10 @@ function construct_printable_parameters_fromdict!(
         hasvalue = true
     end
 
-    meta_index = findfirst(x -> x==key, printlist_meta)
+    bias_index = findfirst(x -> x==key, printlist_bias)
 
-    if meta_index !== nothing
-        setfield!(meta, pname_i, value)
+    if bias_index !== nothing
+        setfield!(bias, pname_i, value)
         hasvalue = true
     end
 
@@ -255,7 +263,7 @@ end
 function construct_printable_parameters_fromdict!(
     x::Dict,
     physical,
-    meta,
+    bias,
     system,
     hmc
 )
@@ -269,10 +277,10 @@ function construct_printable_parameters_fromdict!(
             hasvalue = true
         end
 
-        meta_index = findfirst(x -> x==pname_i, printlist_meta)
+        bias_index = findfirst(x -> x==pname_i, printlist_bias)
 
-        if meta_index !== nothing
-            setfield!(meta, pname_i, value)
+        if bias_index !== nothing
+            setfield!(bias, pname_i, value)
             hasvalue = true
         end
 
@@ -343,13 +351,13 @@ end
 
 function remove_default_values!(x::Dict)
     physical = Print_physical_parameters()
-    meta = Print_meta_parameters()
+    bias = Print_bias_parameters()
     system = Print_system_parameters()
     hmc = Print_hmc_parameters()
 
     for (params, paramsname) in x
         remove_default_values!(x[params], physical)
-        remove_default_values!(x[params], meta)
+        remove_default_values!(x[params], bias)
         remove_default_values!(x[params], system)
         remove_default_values!(x[params], hmc)
     end

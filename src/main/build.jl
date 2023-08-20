@@ -101,7 +101,7 @@ function build!(
     comm = MPI.COMM_WORLD
     myrank = MPI.Comm_rank(comm)
     U = univ.U
-    Bias = univ.Bias
+    bias = univ.bias
     vp = univ.verbose_print
 
     calc_measurements(measurements, 0, U)
@@ -131,13 +131,13 @@ function build!(
             println_verbose0(vp, "\n# itrj = $itrj")
 
             _, updatetime = @timed begin
-                numaccepts += update!(update_method, U, vp, bias=Bias)
+                numaccepts += update!(update_method, U, vp, bias=bias)
             end
 
             println_verbose0(vp, "Update: Elapsed time $(updatetime) [s]")
 
             CVs = MPI.Allgather(U.CV, comm)
-            update_bias!(Bias, CVs, myrank==0)
+            update_bias!(bias, CVs, itrj, myrank==0)
 
             acceptances = MPI.Allgather(numaccepts, comm)
 
@@ -170,7 +170,7 @@ function build!(
                     println(value)
                 end
 
-                calc_weights(Bias, U.CV, itrj)
+                calc_weights(bias, U.CV, itrj)
             end
         end
     end
