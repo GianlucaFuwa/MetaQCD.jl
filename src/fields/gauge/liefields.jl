@@ -1,5 +1,3 @@
-# Using mathematical (traceless-antihermitian) definition of 𝔰𝔲(3)
-# This struct is not needed as we have Temporaryfield already, but it's nice for verbosity
 struct Liefield <: Abstractfield
     U::Vector{Array{SMatrix{3,3,ComplexF64,9},4}}
     NX::Int64

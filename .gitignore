@@ -13,3 +13,6 @@ run.jl
 LocalPreferences.toml
 /templates/
 stability.jl
+/src/utils/algebra.jl
+plot.jl
+plot_opes.jl

@@ -59,10 +59,10 @@ function SU3testderivative()
         calc_dQdU_bare!(dQdU, fieldstrength, U, Clover())
         calc_dQdU_bare!(dQdU_smeared, fieldstrength, U, temp_force, Clover(), smearing)
 
-        dgaction_proj = real(multr(im * λ(group_direction), dSdU[direction][site]))
-        dtopcharge_proj = real(multr(im * λ(group_direction), dQdU[direction][site]))
-        dgaction_proj_smeared = real(multr(im * λ(group_direction), dSdU_smeared[direction][site]))
-        dtopcharge_proj_smeared = real(multr(im * λ(group_direction), dQdU_smeared[direction][site]))
+        dgaction_proj = real(multr(im * λ[group_direction], dSdU[direction][site]))
+        dtopcharge_proj = real(multr(im * λ[group_direction], dQdU[direction][site]))
+        dgaction_proj_smeared = real(multr(im * λ[group_direction], dSdU_smeared[direction][site]))
+        dtopcharge_proj_smeared = real(multr(im * λ[group_direction], dQdU_smeared[direction][site]))
 
         ga_symm_diff = (gaction_new_fwd - gaction_new_bwd) / 2deltaH
         tc_symm_diff = (topcharge_new_fwd - topcharge_new_bwd) / 2deltaH

@@ -20,39 +20,38 @@ function gen_SU3_matrix(ϵ)
 end
 
 function gen_SU2_matrix(ϵ)
-    r1 = rand() - 0.5
-    r2 = rand() - 0.5
-    r3 = rand() - 0.5
-    rnorm = sqrt(r1^2 + r2^2 + r3^2)
-    out = sqrt(1 - ϵ^2) * eye2 +
-        im * ϵ/rnorm * (r1 * σ1 + r2 * σ2 + r3 * σ3)
+    r₁ = rand() - 0.5
+    r₂ = rand() - 0.5
+    r₃ = rand() - 0.5
+    rnorm = sqrt(r₁^2 + r₂^2 + r₃^2)
+    out = sqrt(1 - ϵ^2) * eye2 + im * ϵ/rnorm * (r₁ * σ₁ + r₂ * σ₂ + r₃ * σ₃)
     return out
 end
 
 function gaussian_su3_matrix()
     sq3 = sqrt(3)
-    h1 = 0.5 * randn(Float64)
-    h2 = 0.5 * randn(Float64)
-    h3 = 0.5 * randn(Float64)
-    h4 = 0.5 * randn(Float64)
-    h5 = 0.5 * randn(Float64)
-    h6 = 0.5 * randn(Float64)
-    h7 = 0.5 * randn(Float64)
-    h8 = 0.5 * randn(Float64)
+    h₁ = 0.5 * randn(Float64)
+    h₂ = 0.5 * randn(Float64)
+    h₃ = 0.5 * randn(Float64)
+    h₄ = 0.5 * randn(Float64)
+    h₅ = 0.5 * randn(Float64)
+    h₆ = 0.5 * randn(Float64)
+    h₇ = 0.5 * randn(Float64)
+    h₈ = 0.5 * randn(Float64)
     out = @SMatrix [
-        im*(h3+h8/sq3) h2+im*h1        h5+im*h4
-        -h2+im*h1      im*(-h3+h8/sq3) h7+im*h6
-        -h5+im*h4      -h7+im*h6       im*(-2*h8/sq3)
+        im*(h₃+h₈/sq3) h₂+im*h₁        h₅+im*h₄
+        -h₂+im*h₁      im*(-h₃+h₈/sq3) h₇+im*h₆
+        -h₅+im*h₄      -h₇+im*h₆       im*(-2*h₈/sq3)
     ]
     return out
 end
 
-function gaussian_su3_matrix(h1, h2, h3, h4, h5, h6, h7, h8)
+function gaussian_su3_matrix(h₁, h₂, h₃, h₄, h₅, h₆, h₇, h₈)
     sq3 = sqrt(3)
     out = @SMatrix [
-        0.5im*(h3+h8/sq3) 0.5h2+0.5im*h1     0.5h5+0.5im*h4
-        -0.5h2+0.5im*h1   0.5im*(-h3+h8/sq3) 0.5h7+0.5im*h6
-        -0.5h5+0.5im*h4   -0.5h7+0.5im*h6    0.5im*(-2*h8/sq3)
+        0.5im*(h₃+h₈/sq3) 0.5h₂+0.5im*h₁     0.5h₅+0.5im*h₄
+        -0.5h₂+0.5im*h₁   0.5im*(-h₃+h₈/sq3) 0.5h₇+0.5im*h₆
+        -0.5h₅+0.5im*h₄   -0.5h₇+0.5im*h₆    0.5im*(-2*h₈/sq3)
     ]
     return out
 end

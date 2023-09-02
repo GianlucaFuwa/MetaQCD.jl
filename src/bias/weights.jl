@@ -2,11 +2,9 @@
 Weighting schemes based on the ones compared in \\
 https://pubs.acs.org/doi/pdf/10.1021/acs.jctc.9b00867
 """
-calc_weights(::Nothing, cv, itrj) = nothing
+calc_weights(::Nothing, args...) = nothing
 
 function calc_weights(b, cv, itrj)
-    b===nothing && return nothing
-
     printstring = "$(rpad(itrj, 9, " "))\t"
 
     if b.weight_fp !== nothing

@@ -1,118 +1,98 @@
 # Dirac-Basis γ matrices
-const γ1 = @SArray [
-    0 0 0 1 
+const γ₁ = @SArray [
+    0 0 0 1
     0 0 1 0
     0 -1 0 0
     -1 0 0 0
 ]
 
-const γ2 = @SArray [
-    0 0 0 -im 
+const γ₂ = @SArray [
+    0 0 0 -im
     0 0 im 0
     0 im 0 0
     -im 0 0 0
 ]
 
-const γ3 = @SArray [
-    0 0 1 0 
+const γ₃ = @SArray [
+    0 0 1 0
     0 0 0 -1
     -1 0 0 0
     0 1 0 0
 ]
 
-const γ4 = @SArray [
-    1 0 0 0 
+const γ₄ = @SArray [
+    1 0 0 0
     0 1 0 0
     0 0 -1 0
     0 0 0 -1
 ]
 
-const σ1 = @SArray [
+const σ₁ = @SArray [
         0 1
         1 0
 ]
 
-const σ2 = @SArray [
+const σ₂ = @SArray [
     0  -im
     im  0
 ]
 
-const σ3 = @SArray [
+const σ₃ = @SArray [
     1  0
     0 -1
 ]
 
-const λ1 = @SArray [
+const λ₁ = @SArray [
     0.0+0.0im 1.0+0.0im 0.0+0.0im
     1.0+0.0im 0.0+0.0im 0.0+0.0im
     0.0+0.0im 0.0+0.0im 0.0+0.0im
 ]
 
-const λ2 = @SArray [
+const λ₂ = @SArray [
     0.0+0.0im 0.0-1.0im 0.0+0.0im
     0.0+1.0im 0.0+0.0im 0.0+0.0im
     0.0+0.0im 0.0+0.0im 0.0+0.0im
 ]
 
-const λ3 = @SArray [
+const λ₃ = @SArray [
     1.0+0.0im 0.0+0.0im 0.0+0.0im
     0.0+0.0im -1.0+0.0im 0.0+0.0im
     0.0+0.0im 0.0+0.0im 0.0+0.0im
 ]
 
-const λ4 = @SArray [
+const λ₄ = @SArray [
     0.0+0.0im 0.0+0.0im 1.0+0.0im
     0.0+0.0im 0.0+0.0im 0.0+0.0im
     1.0+0.0im 0.0+0.0im 0.0+0.0im
 ]
 
-const λ5 = @SArray [
+const λ₅ = @SArray [
     0.0+0.0im 0.0+0.0im 0.0-1.0im
     0.0+0.0im 0.0+0.0im 0.0+0.0im
     0.0+1.0im 0.0+0.0im 0.0+0.0im
 ]
 
-const λ6 = @SArray [
+const λ₆ = @SArray [
     0.0+0.0im 0.0+0.0im 0.0+0.0im
     0.0+0.0im 0.0+0.0im 1.0+0.0im
     0.0+0.0im 1.0+0.0im 0.0+0.0im
 ]
 
-const λ7 = @SArray [
+const λ₇ = @SArray [
     0.0+0.0im 0.0+0.0im 0.0+0.0im
     0.0+0.0im 0.0+0.0im 0.0-1.0im
     0.0+0.0im 0.0+1.0im 0.0+0.0im
 ]
 
-const λ8 = @SArray [
+const λ₈ = @SArray [
     1/sqrt(3) 0.0+0.0im 0.0+0.0im
     0.0+0.0im 1/sqrt(3) 0.0+0.0im
     0.0+0.0im 0.0+0.0im -2/sqrt(3)
 ]
 
-function λ(i)
-    if i == 1
-        return λ1
-    elseif i == 2
-        return λ2
-    elseif i == 3
-        return λ3
-    elseif i == 4
-        return λ4
-    elseif i == 5
-        return λ5
-    elseif i == 6
-        return λ6
-    elseif i == 7
-        return λ7
-    elseif i == 8
-        return λ8
-    else 
-        return zero3
-    end
-end
+const λ = (λ₁, λ₂, λ₃, λ₄, λ₅, λ₆, λ₇, λ₈)
 
-function expλ1(α)
+function expλ₁(α)
     φ = 0.5 * α
     sinφ = sin(φ)
     cosφ = cos(φ)
@@ -125,7 +105,7 @@ function expλ1(α)
     return out
 end
 
-function expλ2(α)
+function expλ₂(α)
     φ = 0.5 * α
     sinφ = sin(φ)
     cosφ = cos(φ)
@@ -138,7 +118,7 @@ function expλ2(α)
     return out
 end
 
-function expλ3(α)
+function expλ₃(α)
     φ = 0.5 * α
     expiφ = cis(φ)
 
@@ -150,7 +130,7 @@ function expλ3(α)
     return out
 end
 
-function expλ4(α)
+function expλ₄(α)
     φ = 0.5 * α
     sinφ = sin(φ)
     cosφ = cos(φ)
@@ -163,7 +143,7 @@ function expλ4(α)
     return out
 end
 
-function expλ5(α)
+function expλ₅(α)
     φ = 0.5 * α
     sinφ = sin(φ)
     cosφ = cos(φ)
@@ -176,7 +156,7 @@ function expλ5(α)
     return out
 end
 
-function expλ6(α)
+function expλ₆(α)
     φ = 0.5 * α
     sinφ = sin(φ)
     cosφ = cos(φ)
@@ -189,7 +169,7 @@ function expλ6(α)
     return out
 end
 
-function expλ7(α)
+function expλ₇(α)
     φ = 0.5 * α
     sinφ = sin(φ)
     cosφ = cos(φ)
@@ -202,7 +182,7 @@ function expλ7(α)
     return out
 end
 
-function expλ8(α)
+function expλ₈(α)
     φ = 0.5/sqrt(3) * α
     expiφ = cis(φ)
 
@@ -216,22 +196,22 @@ end
 
 function expλ(i, α)
     if i == 1
-        return expλ1(α)
+        return expλ₁(α)
     elseif i == 2
-        return expλ2(α)
+        return expλ₂(α)
     elseif i == 3
-        return expλ3(α)
+        return expλ₃(α)
     elseif i == 4
-        return expλ4(α)
+        return expλ₄(α)
     elseif i == 5
-        return expλ5(α)
+        return expλ₅(α)
     elseif i == 6
-        return expλ6(α)
+        return expλ₆(α)
     elseif i == 7
-        return expλ7(α)
+        return expλ₇(α)
     elseif i == 8
-        return expλ8(α)
-    else 
+        return expλ₈(α)
+    else
         return eye3
     end
 end
