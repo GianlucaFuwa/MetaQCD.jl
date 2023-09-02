@@ -4,20 +4,15 @@ mutable struct OPES <: AbstractBias
     is_first_step::Bool
     after_calculate::Bool
 
-    is_static::Bool
     symmetric::Bool
     counter::Int64
     stride::Int64
+    cvlims::NTuple{2, Float64}
 
     biasfactor::Float64
     bias_prefactor::Float64
 
     σ₀::Float64
-    adaptive_σ::Bool
-    adaptive_σ_stride::Int64
-    adaptive_counter::Int64
-    s̄::Float64 # running average
-    S::Float64 # approx. bandwidth
     σ_min::Float64
     fixed_σ::Bool
 
@@ -33,98 +28,100 @@ mutable struct OPES <: AbstractBias
     cutoff²::Float64
     penalty::Float64
 
-    nker::Int64
-    kernels::Vector{Kernel}
-    nδker::Int64
-    δkernels::Vector{Kernel}
-
     old_sum_weights::Float64
     old_Z::Float64
     old_KDEnorm::Float64
 
-    function OPES(p::ParameterSet; verbose=Verbose1(), instance=1)
-        println_verbose1(verbose, ">> Setting OPES instance $(instance)...")
-        is_first_step = true
-        after_calculate = false
+    nker::Int64
+    kernels::Vector{Kernel}
+    nδker::Int64
+    δkernels::Vector{Kernel}
+end
 
-        is_static = p.is_static
-        symmetric = p.symmetric
-        counter = 1
-        stride = p.stride
-        println_verbose1(verbose, "\t>> STRIDE = $(stride)")
+function OPES(p::ParameterSet; verbose=Verbose1(), instance=1)
+    println_verbose1(verbose, ">> Setting OPES instance $(instance)...")
+    is_first_step = true
+    after_calculate = false
 
-        barrier = p.barrier
-        println_verbose1(verbose, "\t>> BARRIER = $(barrier)")
-        @assert barrier >= 0 "BARRIER must be > 0"
-        biasfactor = p.biasfactor===nothing ? barrier : p.biasfactor
-        println_verbose1(verbose, "\t>> BIASFACTOR = $(biasfactor)")
-        @assert biasfactor > 1 "BIASFACTOR must be > 1"
-        bias_prefactor = 1 - 1/biasfactor
+    symmetric = p.symmetric
+    counter = 1
+    stride = p.stride
+    cvlims = p.cvlims
 
-        σ₀ = p.sigma0
-        print_verbose1(verbose, "\t>> SIGMA0 = $(σ₀)")
-        @assert σ₀ >= 0 "SIGMA0 must be >= 0"
-        adaptive_σ = σ₀==0.0
-        if adaptive_σ
-            println_verbose1(verbose, " → ADAPTIVE_SIGMA enabled")
-            adaptive_σ_stride = p.adaptive_σ_stride===nothing ? 10stride : p.adaptive_sigma_stride
-            println_verbose1(verbose, "\t>> ADAPTIVE_SIGMA_STRIDE = $(adaptive_σ_stride)")
-            @assert adaptive_σ_stride > 0 "ADAPTIVE_SIGMA_STRIDE must be > 0 if enabled"
-            adaptive_counter = 0
-        else
-            println_verbose1(verbose, " → ADAPTIVE_SIGMA enabled")
-            adaptive_σ_stride = p.adaptive_σ_stride
-            println_verbose1(verbose, "\t>> ADAPTIVE_SIGMA_STRIDE = $(adaptive_σ_stride)")
-            @assert adaptive_σ_stride > 0 "ADAPTIVE_SIGMA_STRIDE must be > 0 if enabled"
-            adaptive_counter = 0
-        end
+    barrier = p.barrier
+    biasfactor = p.biasfactor===0.0 ? barrier : p.biasfactor
+    bias_prefactor = 1 - 1/biasfactor
 
-        s̄ = 0.0
-        S = 0.0
-        σ_min = p.sigma_min
-        print_verbose1(verbose, "\t>> SIGMA_MIN = $(σ_min)")
-        @assert σ_min >= 0 "SIGMA_MIN must be > 0"
-        fixed_σ = p.fixed_sigma
-        print_verbose1(verbose, "\t>> FIXED_SIGMA = $(fixed_σ)")
+    σ₀ = p.sigma0
+    σ_min = p.sigma_min
+    fixed_σ = p.fixed_sigma
 
-        ϵ = p.opes_epsilon===nothing ? exp(-barrier/bias_prefactor) : p.opes_epsilon
-        sum_weights = ϵ^bias_prefactor
-        sum_weights² = sum_weights^2
-        current_bias = 0.0
-        no_Z = p.no_Z
-        print_verbose1(verbose, "\t>> NO_Z = $(Z)")
-        Z = 1.0
-        KDEnorm = sum_weights
+    ϵ = p.opes_epsilon===0.0 ? exp(-barrier/bias_prefactor) : p.opes_epsilon
+    sum_weights = ϵ^bias_prefactor
+    sum_weights² = sum_weights^2
+    current_bias = 0.0
+    no_Z = p.no_Z
+    Z = 1.0
+    KDEnorm = sum_weights
 
-        threshold = p.threshold===nothing ? 1.0 : p.threshold
-        print_verbose1(verbose, "\t>> THRESHOLD = $(threshold)")
-        @assert threshold > 0 "THRESHOLD must be > 0"
-        cutoff = p.cutoff===nothing ? sqrt(2barrier/bias_prefactor) : p.cutoff
-        print_verbose1(verbose, "\t>> CUTOFF = $(cutoff)")
-        @assert cutoff > 0 "CUTOFF must be > 0"
-        cutoff² = cutoff²
-        penalty = exp(-0.5cutoff²)
+    threshold = p.threshold
+    cutoff = p.cutoff===0.0 ? sqrt(2barrier/bias_prefactor) : p.cutoff
+    cutoff² = cutoff^2
+    penalty = exp(-0.5cutoff²)
 
-        nker = 0
-        kernels = Vector{Kernel}(undef, 1000)
-        nδker = 0
-        δkernels = Vector{Kernel}(undef, 2)
-
-        old_sum_weights = sum_weights
-        old_Z = Z
-        old_KDEnorm = KDEnorm
-
-        return new(
-            is_first_step, after_calculate,
-            is_static, symmetric, counter, stride,
-            biasfactor, bias_prefactor,
-            σ₀, adaptive_σ, adaptive_σ_stride, adaptive_counter, s̄, S, σ_min, fixed_σ,
-            ϵ, sum_weights, sum_weights², current_bias, no_Z, Z, KDEnorm,
-            threshold, cutoff², penalty,
-            nker, kernels, nδker, δkernels,
-            old_sum_weights, old_Z, old_KDEnorm,
-        )
+    nker = 0
+    kernels = Vector{Kernel}(undef, 1000)
+    nδker = 0
+    δkernels = Vector{Kernel}(undef, 2)
+    if (p.usebiases!==nothing) && (0<instance<=length(p.usebiases))
+        println_verbose1(verbose, "\t>> Getting state from $(p.usebiases[instance])")
+        kernels, state = opes_from_file(p.usebiases[instance])
+        nker = length(kernels)
+        println_verbose1(verbose, "\t>> NKER = $(nker)")
+        println_verbose1(verbose, "\t>> COUNTER = $(counter)")
+        is_first_step = false
+        counter = Int64(state["counter "])
+        biasfactor = state["biasfactor "]
+        σ₀ = state["sigma0 "]
+        ϵ = state["epsilon "]
+        sum_weights = state["sum_weights "]
+        Z = state["Z "]
+        threshold = state["threshold "]
+        cutoff² = state["cutoff "]^2
+        penalty = state["penalty "]
     end
+
+    println_verbose1(verbose, "\t>> STRIDE = $(stride)")
+    @assert stride>0 "STRIDE must be >0"
+    println_verbose1(verbose, "\t>> CVLIMS = $(cvlims)")
+    @assert cvlims[1]<cvlims[2] "CVLIMS[1] must be <CVLIMS[2]"
+    println_verbose1(verbose, "\t>> BARRIER = $(barrier)")
+    @assert barrier >= 0 "BARRIER must be > 0"
+    println_verbose1(verbose, "\t>> BIASFACTOR = $(biasfactor)")
+    @assert biasfactor > 1 "BIASFACTOR must be > 1"
+    println_verbose1(verbose, "\t>> SIGMA0 = $(σ₀)")
+    @assert σ₀ >= 0 "SIGMA0 must be >= 0"
+    println_verbose1(verbose, "\t>> SIGMA_MIN = $(σ_min)")
+    @assert σ_min >= 0 "SIGMA_MIN must be > 0"
+    println_verbose1(verbose, "\t>> FIXED_SIGMA = $(fixed_σ)")
+    println_verbose1(verbose, "\t>> EPSILON = $(ϵ)")
+    @assert ϵ > 0 "EPSILON must be > 0, maybe your BARRIER is to high?"
+    println_verbose1(verbose, "\t>> NO_Z = $(no_Z)")
+    println_verbose1(verbose, "\t>> THRESHOLD = $(threshold)")
+    @assert threshold > 0 "THRESHOLD must be > 0"
+    println_verbose1(verbose, "\t>> CUTOFF = $(cutoff)")
+    @assert cutoff > 0 "CUTOFF must be > 0"
+
+    return OPES(
+        is_first_step, after_calculate,
+        symmetric, counter, stride, cvlims,
+        biasfactor, bias_prefactor,
+        σ₀, σ_min, fixed_σ,
+        ϵ, sum_weights, sum_weights², current_bias, no_Z, Z, KDEnorm,
+        threshold, cutoff², penalty,
+        sum_weights, Z, KDEnorm,
+        nker, kernels, nδker, δkernels,
+    )
 end
 
 get_kernels(o::OPES) = o.kernels
@@ -133,8 +130,6 @@ eachkernel(o::OPES) = view(o.kernels, 1:o.nker)
 eachδkernel(o::OPES) = view(o.δkernels, 1:o.nδker)
 
 function update!(o::OPES, cv, itrj)
-    o.is_static && return nothing
-
     calculate!(o, cv)
     update_opes!(o, cv, itrj)
 
@@ -152,23 +147,7 @@ function update_opes!(o::OPES, cv, itrj)
         return nothing
     end
 
-    kernels = get_kernels(o)
-    δkernels = get_δkernels(o)
-
-    # update variance if adaptive_σ
-    if o.adaptive_σ
-        o.adaptive_counter += 1
-        τ = o.adaptive_σ_stride
-        if o.adaptive_counter < o.adaptive_σ_stride
-            τ = o.adaptive_counter
-        end
-        diff = cv - o.s̄
-        o.s̄ += diff / τ
-        o.S += diff * (s-o.s̄)
-        (o.adaptive_counter<o.adaptive_σ_stride && o.counter==1) && return nothing
-    end
-
-    itrj%o.stride != 0 && return nothing
+    (itrj%o.stride != 0 || !in_bounds(cv, o.cvlims...)) && return nothing
     o.old_KDEnorm = o.KDEnorm
     old_nker = o.nker
 
@@ -184,16 +163,6 @@ function update_opes!(o::OPES, cv, itrj)
 
     # if needed rescale sigma and height
     σ = o.σ₀
-    if adaptive_σ
-        factor = o.biasfactor
-        if o.counter == 2
-            o.S *= factor
-            o.σ₀ = sqrt(o.S / o.adaptive_counter / factor)
-            o.σ₀ = max(o.σ₀, o.σ_min)
-        end
-        σ = sqrt(o.S / o.adaptive_counter / factor)
-        σ = max(σ, o.σ_min)
-    end
 
     if !o.fixed_σ
         s_rescaling = (3neff/4)^(-1/5)
@@ -206,7 +175,7 @@ function update_opes!(o::OPES, cv, itrj)
     height *= (o.σ₀/σ)
 
     # add new kernel
-    add_kernel!(o, height, s, σ)
+    add_kernel!(o, height, cv, σ)
 
     # update Z
     if !o.no_Z
@@ -214,20 +183,23 @@ function update_opes!(o::OPES, cv, itrj)
         # uprob = old_uprob + δ_uprob
         # and we also need to consider that in the new sum there are some new centers
         # and some disappeared ones
+        cutoff² = o.cutoff²
+        penalty = o.penalty
         sum_uprob = 0.0
         δsum_uprob = 0.0
         for kernel in eachkernel(o)
             for δkernel in eachδkernel(o)
                 # take away contribution from kernels that are gone, and add new ones
                 sgn = sign(δkernel.height)
-                δsum_uprob += δkernel(kernel.center) + sgn*kernel(δkernel.center)
+                δsum_uprob += δkernel(kernel.center, cutoff², penalty) +
+                              sgn*kernel(δkernel.center, cutoff², penalty)
             end
         end
         for δkernel in eachδkernel(o)
             for δδkernel in eachδkernel(o)
                 # now subtract the δ_uprob added before, but not needed
                 sgn = sign(δkernel.height)
-                δsum_uprob -= sgn*δδkernel(δkernel.center)
+                δsum_uprob -= sgn*δδkernel(δkernel.center, cutoff², penalty)
             end
         end
 
@@ -239,18 +211,33 @@ function update_opes!(o::OPES, cv, itrj)
 end
 
 function (o::OPES)(cv)
-    calculate!(o, cv)
-    return o.current_bias
+    lb, ub = o.cvlims
+
+    if !in_bounds(cv, lb, ub)
+        bounds_penalty = 1000
+        which_bound, dist² = findmin((cv - lb)^2, (cv - ub)^2)
+        nearest_bound = which_bound==1 ? lb : ub
+        calculate!(o, nearest_bound)
+        return o.current_bias + bounds_penalty*dist²
+    else
+        calculate!(o, cv)
+        return o.current_bias
+    end
 end
 
 function calculate!(o::OPES, cv)
     o.is_first_step && return nothing
+    cutoff² = o.cutoff²
+    penalty = o.penalty
 
     prob = 0.0
     for kernel in eachkernel(o)
-        prob += kernel(cv)
+        prob += kernel(cv, cutoff², penalty)
+        if prob > 1e10
+            error("prob = $prob is dangerously high, something probably went wrong")
+        end
     end
-    prob /= o.KDEnorm
+    prob /= o.sum_weights
 
     current_bias = o.bias_prefactor * log(prob/o.Z + o.ϵ)
     o.current_bias = current_bias
@@ -259,24 +246,33 @@ function calculate!(o::OPES, cv)
 end
 
 function ∂V∂Q(o::OPES, cv)
+    cutoff² = o.cutoff²
+    penalty = o.penalty
+
+    prob = 0.0
     deriv = 0.0
     for kernel in eachkernel(o)
-        deriv += derivative(kernel, cv)
+        prob += kernel(cv, cutoff², penalty)
+        deriv += derivative(kernel, cv, cutoff², penalty)
     end
-    deriv /= o.KDEnorm
-    return deriv
+    prob /= o.sum_weights
+    deriv /= o.sum_weights
+
+    Z = o.Z
+    out = o.bias_prefactor / (prob/Z+o.ϵ) * deriv/Z
+    return out
 end
 
 function add_kernel!(o::OPES, height, cv, σ)
     kernels = get_kernels(o)
     δkernels = get_δkernels(o)
-    new_kernel = Kernel(height, cv, σ, o.cutoff², o.penalty)
+    new_kernel = Kernel(height, cv, σ)
 
     taker_i = get_mergeable_kernel(cv, kernels, o.threshold, o.nker)
 
     if taker_i < o.nker+1
         δkernels[1] = -1 * kernels[taker_i]
-        kernels[taker_i] = kernels[taker_i] + new_kernel
+        kernels[taker_i] = merge(kernels[taker_i], new_kernel)
         δkernels[2] = kernels[taker_i]
         o.nδker = 2
     else
@@ -285,8 +281,10 @@ function add_kernel!(o::OPES, height, cv, σ)
             o.nker += 1
         else
             kernels[o.nker+1] = new_kernel
-            o.nδker = 1
+            o.nker += 1
         end
+        δkernels[1] = new_kernel
+        o.nδker = 1
     end
 
     return nothing
@@ -306,39 +304,53 @@ function get_mergeable_kernel(cv, kernels, threshold, nker)
     return taker_i
 end
 
-const state_header = "# counter biasfactor sigma0 epsilon sum_weights " *
-    "Z threshold cutoff penalty"
-const kernel_header = "# height center sigma"
+const state_vars = [
+    "counter ",
+    "biasfactor ",
+    "sigma0 ",
+    "epsilon ",
+    "sum_weights ",
+    "Z ",
+    "threshold ",
+    "cutoff ",
+    "penalty ",
+]
+const kernel_vars = [
+    "height ",
+    "center ",
+    "sigma ",
+]
 
 function write_to_file(o::OPES, filename)
     (tmppath, tmpio) = mktemp()
-    println(tmpio, state_header)
-    state_str = "$(o.counter)\t$(o.biasfactor)\t$(o.σ₀)\t$(o.ϵ)\t$(o.sum_weights)\t$(o.Z)" *
-        "\t$(o.threshold)\t$(√o.cutoff²)\t$(o.penalty)"
+    println(tmpio, "# ", state_vars...)
+    state_str = "$(o.counter) $(o.biasfactor) $(o.σ₀) $(o.ϵ) $(o.sum_weights) $(o.Z)" *
+        " $(o.threshold) $(√o.cutoff²) $(o.penalty)"
     println(tmpio, state_str)
-    println(tmpio, kernel_header)
+    println(tmpio, "# ", kernel_vars...)
 
     for kernel in eachkernel(o)
-        kernel_str = "$(kernel.height)\t$(kernel.center)\t$(kernel.σ)"
+        kernel_str = "$(kernel.height) $(kernel.center) $(kernel.σ)"
         println(tmpio, kernel_str)
     end
 
     close(tmpio)
-    mv(tmppath, filename*".txt", force=true)
+    mv(tmppath, filename, force=true)
     return nothing
 end
 
-function opes_from_file(p::ParameterSet, usebias)
+function opes_from_file(usebias)
+    usebias === nothing && return nothing, nothing
     # state is stored in header, which is always read as a string so we have to parse it
     kernel_data, state_data = readdlm(usebias, comments=true, header=true)
     state_parse = [parse(Float64, state_param) for state_param in state_data]
-    cutoff² = state_parse[end-1]
-    penalty = state_parse[end]
+    state_dict =
+        Dict{String, Any}(state_vars[i] => state_parse[i] for i in eachindex(state_vars))
 
-    kernels = Vector{Kernel}(undef, size(kernels, 1))
+    kernels = Vector{Kernel}(undef, size(kernel_data, 1))
     for i in axes(kernel_data, 1)
-        kernels[i] = Kernel(kernel_data[i,:]..., cutoff², penalty)
+        kernels[i] = Kernel(view(kernel_data, i, 1:3)...)
     end
 
-    return kernels, state_parse...
+    return kernels, state_dict
 end

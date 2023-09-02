@@ -30,7 +30,7 @@ end
 function run_sim!(univ, parameters)
     U = univ.U
 
-    if univ.tempering_enabled
+    if parameters.tempering_enabled
         updatemethod = Updatemethod(parameters, U[1])
         updatemethod_pt = HMCUpdate(
             U[1],
@@ -47,7 +47,7 @@ function run_sim!(univ, parameters)
 
     println("\t>> Updatemethods are set!\n")
 
-    if univ.tempering_enabled
+    if parameters.tempering_enabled
         gradient_flow = GradientFlow(
             U[1],
             integrator = parameters.flow_integrator,
@@ -62,7 +62,7 @@ function run_sim!(univ, parameters)
             U[1],
             parameters.measuredir,
             parameters.measurement_methods,
-            cv = parameters.meta_enabled,
+            cv = true,
             additional_string = "_1",
         )
         measurements_with_flow[1] = MeasurementMethods(
@@ -78,7 +78,7 @@ function run_sim!(univ, parameters)
                     U[i],
                     parameters.measuredir,
                     parameters.measurement_methods,
-                    cv = parameters.meta_enabled,
+                    cv = true,
                     additional_string = "_$i",
                 )
                 measurements_with_flow[i] = MeasurementMethods(
@@ -93,7 +93,7 @@ function run_sim!(univ, parameters)
                     U[i],
                     parameters.measuredir,
                     Dict[],
-                    cv = parameters.meta_enabled,
+                    cv = true,
                     additional_string = "_$i",
                 )
                 measurements_with_flow[i] = MeasurementMethods(
@@ -117,7 +117,7 @@ function run_sim!(univ, parameters)
             U,
             parameters.measuredir,
             parameters.measurement_methods,
-            cv = parameters.meta_enabled,
+            cv = parameters.kind_of_bias!="none",
         )
         measurements_with_flow = MeasurementMethods(
             U,

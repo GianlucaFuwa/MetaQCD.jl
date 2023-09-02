@@ -160,7 +160,18 @@ module Gaugefields
 		return nothing
 	end
 
-	function identity_gauges(NX, NY, NZ, NT, β; type_of_gaction=WilsonGaugeAction)
+    function initial_gauges(initial, args...; type_of_gaction=WilsonGaugeAction)
+        if initial == "cold"
+            return identity_gauges(args..., type_of_gaction)
+        elseif initial == "hot"
+            return random_gauges(args..., type_of_gaction)
+        else
+            error("Only cold or hot inital configs supported")
+        end
+    end
+
+
+	function identity_gauges(NX, NY, NZ, NT, β, type_of_gaction)
 		u = Gaugefield(NX, NY, NZ, NT, β, GA=type_of_gaction)
 
 		@batch for site in eachindex(u)
@@ -172,7 +183,7 @@ module Gaugefields
         return u
     end
 
-    function random_gauges(NX, NY, NZ, NT, β; type_of_gaction=WilsonGaugeAction)
+    function random_gauges(NX, NY, NZ, NT, β, type_of_gaction)
 		u = Gaugefield(NX, NY, NZ, NT, β, GA=type_of_gaction)
 
 		for site = eachindex(u)

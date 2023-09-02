@@ -79,20 +79,20 @@ Base.@kwdef mutable struct PrintBiasParameters
     biasfactor::Float64 = Inf
     kinds_of_weights::Vector{String} = ["tiwari"]
     usebiases::Union{Nothing, String, Vector{Union{Nothing,String}}} = nothing
+    write_bias_every::Int64 = 1
     # metadynamics specific
     bin_width::Float64 = 1e-2
     meta_weight::Float64 = 1e-3
     penalty_weight::Float64 = 1000.0
     # opes specific
-    barrier::Float64 = 30.0
+    barrier::Float64 = 0.0
     sigma0::Float64 = 0.1
     sigma_min::Float64 = 1e-6
     fixed_sigma::Bool = false
-    adaptive_sigma_stride::Int64 = 10stride
     no_Z::Bool = false
-    opes_epsilon::Float64 = exp(-barrier/(1-1/biasfactor))
+    opes_epsilon::Float64 = 0.0
     threshold::Float64 = 1.0
-    cutoff::Float64 = sqrt(2barrier/(1-1/biasfactor))
+    cutoff::Float64 = 0.0
     # tempering specific
     tempering_enabled::Bool = false
     numinstances::Int64 = 1
@@ -123,6 +123,7 @@ end
 Base.@kwdef mutable struct PrintHMCParameters
     hmc_deltatau::Float64 = 0.1
     hmc_steps::Int64 = 10
+    hmc_friction::Float64 = π/2
     hmc_integrator::String = "Leapfrog"
     hmc_numsmear::Int64 = 0
     hmc_rhostout::Float64 = 0.0

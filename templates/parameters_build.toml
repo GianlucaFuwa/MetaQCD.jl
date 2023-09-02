@@ -1,25 +1,31 @@
 ["Physical Settings"]
-L = [4, 4, 4, 4]
-beta = 5.7
+L = [8, 8, 8, 8]
+beta = 6.0
 kind_of_gaction = "wilson"
 numtherm = 10
-numsteps = 10
+numsteps = 1000
 initial = "cold"
 update_method = "HMC"
 
-["MetaD Settings"]
-meta_enabled = true
-tempering_enabled = true
-numinstances = 2
+["Bias Settings"]
+# bias parameters
+kind_of_bias = "opes"
 kind_of_cv = "clover"
 numsmears_for_cv = 4
 rhostout_for_cv = 0.12
-symmetric = true
-cvlims = [-7, 7]
-bin_width = 1e-2
-meta_weight = 1e-2
-penalty_weight = 1000.0
 is_static = false
+symmetric = true
+stride = 1
+cvlims = [-6, 6]
+biasfactor = "Inf"
+# usebiases = ["./metapotentials/L8x8x8x8_wilson_beta6.0/test_build/stream_1.txt"]
+# metadynamics specific parameters
+bin_width = 0.01
+meta_weight = 0.02
+penalty_weight = 1000
+# opes specific parameters
+barrier = 40
+sigma0 = 0.1
 
 ["HMC Settings"]
 hmc_deltatau = 0.2
@@ -27,14 +33,14 @@ hmc_steps = 5
 hmc_integrator = "OMF4"
 
 ["System Settings"]               
-logdir = "./logs/L4x4x4x4_wilson_beta5.7"
-logfile = "test_mpi.txt"
-measurement_basedir = "./measurements/L4x4x4x4_wilson_beta5.7"
-measurement_dir = "test_mpi"
+logdir = "./logs/L8x8x8x8_wilson_beta6.0"
+logfile = "test_build.txt"
+measurement_basedir = "./measurements/L8x8x8x8_wilson_beta6.0"
+measurement_dir = "test_build"
 randomseed = 1206
 verboselevel = 1
-bias_basedir = "./metapotentials/L4x4x4x4_wilson_beta5.7"
-bias_dir = "test_mpi"
+bias_basedir = "./metapotentials/L8x8x8x8_wilson_beta6.0"
+bias_dir = "test_build"
 overwrite = true
 
 ["Measurement set".measurement_methods.Plaquette]

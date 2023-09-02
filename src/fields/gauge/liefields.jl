@@ -23,10 +23,23 @@ end
 
 Liefield(u::Abstractfield) = Liefield(u.NX, u.NY, u.NZ, u.NT)
 
-function gaussian_momenta!(p::Liefield)
+function gaussian_momenta!(p::Liefield, ϕ)
+    cosϕ = cos(ϕ)
+    sinϕ = sin(ϕ)
+
     @threads for site in eachindex(p)
         for μ in 1:4
-            p[μ][site] = gaussian_su3_matrix()
+            p[μ][site] = cosϕ*p[μ][site] + sinϕ*gaussian_su3_matrix()
+        end
+    end
+
+    return nothing
+end
+
+function flip_momenta!(p::Liefield)
+    @batch for site in eachindex(p)
+        for μ in 1:4
+            p[μ][site] *= -1
         end
     end
 

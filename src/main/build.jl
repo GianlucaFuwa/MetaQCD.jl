@@ -13,7 +13,7 @@ function run_build(filenamein::String; MPIparallel=false)
     parameters = construct_params_from_toml(filenamein)
     MPI.Barrier(comm)
 
-    @assert parameters.meta_enabled == true "meta_enabled has to be true in build"
+    @assert parameters.kind_of_bias != "none" "bias has to be enabled in build"
 
     (parameters.is_static == true) && @warn(
         "Stream_$idx is static, which is probably not wanted"

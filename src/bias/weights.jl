@@ -5,7 +5,7 @@ https://pubs.acs.org/doi/pdf/10.1021/acs.jctc.9b00867
 calc_weights(::Nothing, cv, itrj) = nothing
 
 function calc_weights(b, cv, itrj)
-    b === nothing && return nothing
+    b===nothing && return nothing
 
     printstring = "$(rpad(itrj, 9, " "))\t"
 
@@ -23,11 +23,11 @@ function calc_weights(b, cv, itrj)
     return nothing
 end
 
-function calc_weight(b::AbstractBias, cv, weight_method)
+function calc_weight(b, cv, weight_method)
     if weight_method == "tiwari" # average over exp(V) in denom
-        w = calc_weight_tiwari(b, cv)
+        w = calc_weight_tiwari(b.bias, cv)
     elseif weight_method == "balanced_exp" # average over V in denom
-        w = calc_weight_balanced_exp(b, cv)
+        w = calc_weight_balanced_exp(b.bias, cv)
     elseif weight_method == "branduardi" # constant bias
         w = exp(b(cv))
     else
@@ -37,12 +37,36 @@ function calc_weight(b::AbstractBias, cv, weight_method)
     return w
 end
 
-function calc_weight_tiwari(b, cv)
-    w = exp(b(cv)) / mean(exp.(b.values))
+function calc_weight_tiwari(m::Metadynamics, cv)
+    norm = mean(exp.(m.values))
+    w = exp(m(cv)) / norm
     return w
 end
 
-function calc_weight_balanced_exp(b, cv)
-    w = exp(b(cv)) / exp(mean(b.values))
+function calc_weight_tiwari(o::OPES, cv)
+    norm = 0.0
+    for kernel in eachkernel(o)
+        norm += exp(o(kernel.center))
+    end
+    norm /= o.nker
+
+    w = exp(o(cv)) / norm
+    return w
+end
+
+function calc_weight_balanced_exp(m::Metadynamics, cv)
+    norm = exp(mean(m.values))
+    w = exp(m(cv)) / norm
+    return w
+end
+
+function calc_weight_balanced_exp(o::OPES, cv)
+    norm = 0.0
+    for kernel in eachkernel(o)
+        norm += o(kernel.center)
+    end
+    norm /= o.nker
+
+    w = exp(o(cv)) / exp(norm)
     return w
 end

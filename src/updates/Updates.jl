@@ -8,7 +8,7 @@ module Updates
     using ..Utils
 
     import ..Gaugefields: AbstractGaugeAction, Gaugefield, Liefield, Temporaryfield
-    import ..Gaugefields: add!, calc_gauge_action, calc_kinetic_energy, normalize!,
+    import ..Gaugefields: add!, calc_gauge_action, calc_kinetic_energy, clear_U!, normalize!,
         fieldstrength_eachsite!, gaussian_momenta!, staple, staple_eachsite!, substitute_U!
     import ..Gaugefields: Plaquette, Clover
     import ..BiasModule: Bias, BiasEnabled, BiasDisabled, calc_CV, ∂V∂Q
@@ -43,6 +43,7 @@ module Updates
             parameters.hmc_integrator,
             parameters.hmc_steps,
             parameters.hmc_deltatau,
+            parameters.hmc_friction,
             parameters.hmc_numsmear,
             parameters.hmc_rhostout,
             parameters.hb_maxit,
@@ -65,6 +66,7 @@ module Updates
         hmc_integrator = "Leapfrog",
         hmc_steps = 10,
         hmc_Δτ = 0.1,
+        hmc_friction = π/2,
         hmc_numsmear = 0,
         hmc_ρstout = 0,
         hb_MAXIT = 1,
@@ -78,9 +80,10 @@ module Updates
                 hmc_integrator,
                 hmc_steps,
                 hmc_Δτ,
+                hmc_friction,
                 numsmear = hmc_numsmear,
                 ρ_stout = hmc_ρstout,
-                bias_enabled = kind_of_bias=="none",
+                bias_enabled = kind_of_bias!="none",
                 verboselevel = verboselevel,
                 logdir = logdir,
             )

@@ -3,8 +3,7 @@ function SU3testupdate()
 
     println("SU3testupdate")
     NX = 4; NY = 4; NZ = 4; NT = 4
-    action = WilsonGaugeAction
-    U = random_gauges(NX, NY, NZ, NT, 5.7, type_of_gaction = action);
+    U = random_gauges(NX, NY, NZ, NT, 5.7, WilsonGaugeAction);
     #filename = "./test/testconf.txt"
     #load_BridgeText!(filename,U)
 
@@ -17,6 +16,7 @@ function SU3testupdate()
     metro_target_acc = 0.5
     hmc_integrator = "OMF4"
     hmc_Δτ = 0.1
+    hmc_friction = π/2
     hmc_steps = 10
     hmc_numsmear = 5
     hmc_ρstout = 0.125
@@ -37,6 +37,7 @@ function SU3testupdate()
         hmc_integrator,
         hmc_steps,
         hmc_Δτ,
+        hmc_friction,
         hmc_numsmear,
         hmc_ρstout,
         hb_eo,

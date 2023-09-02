@@ -1,8 +1,8 @@
 struct Metadynamics <: AbstractBias
-    is_static::Bool
     symmetric::Bool
+    stride::Int64
+    cvlims::NTuple{2, Float64}
 
-    CVlims::NTuple{2, Float64}
     biasfactor::Float64
     bin_width::Float64
     weight::Float64
@@ -11,9 +11,12 @@ struct Metadynamics <: AbstractBias
     bin_vals::Vector{Float64}
     values::Vector{Float64}
 
-    function Metadynamics(p::ParameterSet; instance=1)
-        is_static = instance == 0 ? true : p.is_static[instance]
+    function Metadynamics(p::ParameterSet; verbose=Verbose1(), instance=1)
+        println_verbose1(verbose, ">> Setting MetaD instance $(instance)...")
         symmetric = p.symmetric
+        stride = p.stride
+        println_verbose1(verbose, "\t>> STRIDE = $(stride)")
+        @assert stride>0 "STRIDE must be >0"
 
         if instance == 0
             bin_vals, values = metad_from_file(p, nothing)
@@ -25,11 +28,25 @@ struct Metadynamics <: AbstractBias
             bin_vals, values = metad_from_file(p, p.usebiases[instance])
         end
 
-        biasfactor = p.biasfactor
+        println_verbose1(verbose, "\t>> CVLIMS = $(p.cvlims)")
+        @assert issorted(p.cvlims) "CVLIMS must be sorted from low to high"
 
+        println_verbose1(verbose, "\t>> BIN_WIDTH = $(p.bin_width)")
+        @assert p.bin_width > 0 "BIN_WIDTH must be > 0"
+
+        println_verbose1(verbose, "\t>> META_WEIGHT = $(p.meta_weight)")
+        @assert p.meta_weight > 0 "META_WEIGHT must be > 0, try \"is_static=true\""
+
+        println_verbose1(verbose, "\t>> PENALTY_WEIGHT = $(p.penalty_weight)")
+
+        biasfactor = p.biasfactor
+        println_verbose1(verbose, "\t>> BIASFACTOR = $(biasfactor)")
+        @assert biasfactor > 1 "BIASFACTOR must be > 1"
+
+        println_verbose1(verbose)
         return new(
-            is_static, symmetric,
-            p.cvlims, p.bin_width, p.meta_weight, p.penalty_weight, biasfactor,
+            symmetric, stride,
+            p.cvlims, biasfactor, p.bin_width, p.meta_weight, p.penalty_weight,
             bin_vals, values,
         )
     end
@@ -48,14 +65,12 @@ end
 end
 
 @inline function index(m::Metadynamics, cv)
-    idx = (cv - m.CVlims[1]) / m.bin_width + 0.5
+    idx = (cv - m.cvlims[1]) / m.bin_width + 0.5
     return round(Int64, idx, RoundNearestTiesAway)
 end
 
-function update!(m::Metadynamics, cv, itrj)
-    (m.is_static==true || itrj%m.stride!=0) && return nothing
-
-    if in_bounds(cv, m.CVlims)
+function update!(m::Metadynamics, cv, args...)
+    if in_bounds(cv, m.cvlims)
         for (idx, current_bin) in enumerate(m.bin_vals)
             wt = exp(-m[idx] / m.biasfactor)
             m[idx] += m.weight * wt * exp(-0.5(cv - current_bin)^2 / m.bin_width^2)
@@ -63,7 +78,7 @@ function update!(m::Metadynamics, cv, itrj)
     end
 
     if m.symmetric
-        if in_bounds(cv, m.CVlims)
+        if in_bounds(cv, m.cvlims)
             for (idx, current_bin) in enumerate(m.bin_vals)
                 wt = exp(-m[idx] / m.biasfactor)
                 m[idx] += m.weight * wt * exp(-0.5(-cv - current_bin)^2 / m.bin_width^2)
@@ -79,16 +94,17 @@ end
 function return_potential(m::Metadynamics, cv)
     bw = m.bin_width
     pen = m.penalty_weight
+    lb, ub = m.cvlims
 
-    if in_bounds(cv, m.CVlims)
+    if in_bounds(cv, lb, ub)
         idx = index(m, cv)
         interpolation_constant = (cv - m.bin_vals[idx]) / bw
         return m[idx] * (1 - interpolation_constant) + interpolation_constant * m[idx+1]
-    elseif cv < m.CVlims[1]
-        penalty = m[1] + pen * min((cv - m.CVlims[1])^2, (cv - m.CVlims[2])^2)
+    elseif cv < lb
+        penalty = m[1] + pen * (cv - lb)^2
         return penalty
     else
-        penalty = m[end] + pen * min((cv - m.CVlims[1])^2, (cv - m.CVlims[2]+bw)^2)
+        penalty = m[end] + pen * (cv - ub+bw)^2
         return penalty
     end
 end
@@ -123,13 +139,15 @@ end
 
 function metad_from_file(p::ParameterSet, usebias)
     if usebias === nothing
-        bin_vals = range(p.cvlims[1], p.cvlims[2], step = p.bin_width)
+        bin_vals = range(p.cvlims[1], p.cvlims[2], step=p.bin_width)
         values = zero(bin_vals)
+        println("\t>> initialized as zeros")
         return bin_vals, values
     else
         values, _ = readdlm(usebias, Float64, header=true)
-        bin_vals = range(p.cvlims[1], p.cvlims[2], step = p.bin_width)
+        bin_vals = range(p.cvlims[1], p.cvlims[2], step=p.bin_width)
         @assert length(values[:, 2])==length(bin_vals) "your bias doesn't match parameters"
+        println("\t>> initialized from \"$(usebias)\"")
         return bin_vals, values[:, 2]
     end
 end

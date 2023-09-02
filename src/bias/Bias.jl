@@ -1,14 +1,16 @@
 """
     BiasModule
 
-Module containing all things relevant to Metadynamics like the bias potential,
-overloaded methods, the potential derivative (scalar) and the calculation of weights
+Module containing all things relevant to enhanced sampling
 
-    BiasPotential{TG} -> Holds the bias potential and its parameters, its I/O and most
+    Bias{TCV,TS,TB} -> Holds the bias potential and its base parameters, its I/O and most
                          importantly the smearing struct necessary for the calculation of
                          the charge-force
-                         TG specifies the kind of Gaugefield, i.e. gauge action, it is
-                         associated with
+                         TCV: kind of cv (i.e. the kind of topological charge),
+                         TS:  type of smearing (NoSmearing or StoutSmearing),
+                         TB:  type of bias (MetaD or OPES)
+    Metadynamics -> Holds parameters specific to MetaD-biasing
+    OPES -> Holds parameters specific to OPES-biasing
 """
 module BiasModule
     using DelimitedFiles
@@ -16,6 +18,7 @@ module BiasModule
     using Printf
     using Statistics
 	using ..Parameters: ParameterSet
+    using ..Output
 
     import ..Gaugefields: AbstractGaugeAction, Gaugefield, Plaquette, Clover
 	import ..Measurements: top_charge
@@ -29,6 +32,7 @@ module BiasModule
     struct Bias{TCV,TS,TB}
         kind_of_cv::TCV
         smearing::TS
+        is_static::Bool
         bias::TB
         biasfile::Union{Nothing, String}
         write_bias_every::Int64
@@ -38,9 +42,10 @@ module BiasModule
         function Bias(p::ParameterSet, U; verbose=nothing, instance=1, has_fp=true)
             TCV = get_cvtype_from_parameters(p)
             smearing = StoutSmearing(U, p.numsmears_for_cv, p.rhostout_for_cv)
+            is_static = instance==0 ? true : p.is_static[instance]
 
             if p.kind_of_bias == "metad"
-                bias = Metadynamics(p; instance=instance)
+                bias = Metadynamics(p; instance=instance, verbose=verbose)
             elseif p.kind_of_bias == "opes"
                 bias = OPES(p; instance=instance, verbose=verbose)
             else
@@ -66,17 +71,19 @@ module BiasModule
             end
 
             write_bias_every = p.write_bias_every===nothing ? 0 : p.write_bias_every
-            print_verbose1(verbose, "\t>> WRITE_BIAS_EVERY = $(write_bias_every)")
-            @assert (write_state_every==0) || (write_state_every>=p.stride)
+            println_verbose1(verbose, "\t>> WRITE_BIAS_EVERY = $(write_bias_every)")
+            @assert (write_bias_every==0) || (write_bias_every>=p.stride)
+            println_verbose1(verbose)
 
             return new{TCV,typeof(smearing),typeof(bias)}(
-                TCV(),
-                smearing,
+                TCV(), smearing, is_static,
                 bias, biasfile, write_bias_every,
                 kinds_of_weights, weight_fp,
             )
         end
     end
+
+    (b::Bias)(cv) = b.bias(cv)
 
     include("metadynamics.jl")
     include("opes.jl")
@@ -84,6 +91,8 @@ module BiasModule
     update_bias!(::Nothing, args...) = nothing
 
     function update_bias!(b::Bias, values, itrj, write)
+        b.is_static && return nothing
+
         for cv in values
             update!(b.bias, cv, itrj)
         end
@@ -116,6 +125,8 @@ module BiasModule
         return CV_new
     end
 
+    ∂V∂Q(b::Bias, cv) = ∂V∂Q(b.bias, cv)
+
     function get_cvtype_from_parameters(p::ParameterSet)
         if p.kind_of_cv == "plaquette"
             return Plaquette
@@ -128,8 +139,8 @@ module BiasModule
 
     kind_of_cv(b::Bias) = b.kind_of_cv
 
-    function in_bounds(cv, bounds)
-        bounds[1] <= cv <= bounds[2] && return true
+    function in_bounds(cv, lb, ub)
+        lb <= cv <= ub && return true
         return false
     end
 

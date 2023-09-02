@@ -4,6 +4,7 @@ abstract type AbstractIntegrator end
 struct HMCUpdate{TI,TG,TS,TB} <: AbstractUpdate
     steps::Int64
     Δτ::Float64
+    ϕ::Float64
     P::Liefield
     _temp_U::TG
     _temp_staple::Temporaryfield
@@ -17,7 +18,8 @@ struct HMCUpdate{TI,TG,TS,TB} <: AbstractUpdate
         U,
         integrator,
         steps,
-        Δτ;
+        Δτ,
+        ϕ;
         numsmear = 0,
         ρ_stout = 0,
         bias_enabled = false,
@@ -27,6 +29,7 @@ struct HMCUpdate{TI,TG,TS,TB} <: AbstractUpdate
         GA = eltype(U)
         @assert GA != SymanzikTadGaugeAction "Tadpole improved actions not supported in HMC"
         P = Liefield(U)
+        clear_U!(P)
         _temp_U = similar(U)
 
         _temp_staple = Temporaryfield(U)
@@ -50,7 +53,7 @@ struct HMCUpdate{TI,TG,TS,TB} <: AbstractUpdate
         TG = typeof(U)
         TS = typeof(smearing)
 
-        if TS == NoSmearing && !meta_enabled
+        if TS == NoSmearing && !bias_enabled
             _temp_force2 = nothing
         else
             _temp_force2 = Temporaryfield(U)
@@ -72,6 +75,7 @@ struct HMCUpdate{TI,TG,TS,TB} <: AbstractUpdate
         return new{TI,TG,TS,TB}(
 			steps,
 			Δτ,
+            ϕ,
 			P,
 			_temp_U,
             _temp_staple,
@@ -95,7 +99,7 @@ function update!(
 ) where {TI,TG,TS,TB}
     U_old = updatemethod._temp_U
     substitute_U!(U_old, U)
-    gaussian_momenta!(updatemethod.P)
+    gaussian_momenta!(updatemethod.P, updatemethod.ϕ)
 
     trP2_old = -calc_kinetic_energy(updatemethod.P)
 
@@ -151,6 +155,7 @@ function update!(
         println_verbose2(verbose, "Accepted")
     else
         substitute_U!(U, U_old)
+        updatemethod.ϕ!=π/2 && flip_momenta!(updatemethod.P)
         println_verbose2(verbose, "Rejected")
     end
 
@@ -190,6 +195,11 @@ function updateP!(U, method::HMCUpdate, fac, bias)
     return nothing
 end
 
+"""
+Calculate the gauge force for a molecular dynamics step, i.e. the derivative of the
+gauge action w.r.t. the bare/unsmeared field U. \\
+Needs the additional field "temp_force" to be a TemporaryField when doing recursion
+"""
 calc_dSdU_bare!(dSdU, staples, U, ::Any, ::NoSmearing) = calc_dSdU!(dSdU, staples, U)
 
 function calc_dSdU_bare!(dSdU, staples, U, temp_force, smearing)
@@ -215,6 +225,11 @@ function calc_dSdU!(dSdU, staples, U)
     return nothing
 end
 
+"""
+Calculate the bias force for a molecular dynamics step, i.e. the derivative of the
+bias potential w.r.t. the bare/unsmeared field U. \\
+Needs the additional field "temp_force" to be a TemporaryField when doing recursion
+"""
 function calc_dVdU_bare!(dVdU, F, U, temp_force, bias)
     smearing = bias.smearing
     cv = calc_CV(U, bias)
@@ -267,7 +282,7 @@ function calc_dVdU!(kind_of_charge, dVdU, F, U, bias_derivative)
 end
 
 """
-Derivative of the F_μν ⋅ F_ρσ term for Field strength tensor given by plaquette
+Derivative of the FμνFρσ term for Field strength tensor given by plaquette
 """
 function ∇trFμνFρσ(::Plaquette, U, F, μ, ν, ρ, σ, site)
     Nμ = size(U)[μ]
@@ -285,7 +300,7 @@ function ∇trFμνFρσ(::Plaquette, U, F, μ, ν, ρ, σ, site)
 end
 
 """
-Derivative of the F_μν ⋅ F_ρσ term for Field strength tensor given by 1x1-Clover
+Derivative of the FμνFρσ term for Field strength tensor given by 1x1-Clover
 """
 function ∇trFμνFρσ(::Clover, U, F, μ, ν, ρ, σ, site)
     Nμ = size(U)[μ]

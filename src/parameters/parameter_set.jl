@@ -31,6 +31,7 @@ struct ParameterSet
     biasfactor::Union{Nothing, Float64}
     kinds_of_weights::Union{Nothing, Vector{String}}
     usebiases::Union{Nothing, Vector{Union{Nothing, String}}}
+    write_bias_every::Union{Nothing, Int64}
     # metadynamics specific parameters
     bin_width::Union{Nothing, Float64}
     meta_weight::Union{Nothing, Float64}
@@ -40,7 +41,6 @@ struct ParameterSet
     sigma0::Union{Nothing, Float64}
     sigma_min::Union{Nothing, Float64}
     fixed_sigma::Union{Nothing, Bool}
-    adaptive_sigma_stride::Union{Nothing, Int64}
     no_Z::Union{Nothing, Bool}
     opes_epsilon::Union{Nothing, Float64}
     threshold::Union{Nothing, Float64}
@@ -60,6 +60,7 @@ struct ParameterSet
     metro_target_acc::Union{Nothing, Float64}
     hmc_integrator::Union{Nothing, String}
     hmc_deltatau::Union{Nothing, Float64}
+    hmc_friction::Union{Nothing, Float64}
     hmc_steps::Union{Nothing, Int64}
     hmc_numsmear::Union{Nothing, Int64}
     hmc_rhostout::Union{Nothing, Float64}
