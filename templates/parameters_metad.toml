@@ -30,17 +30,17 @@ usebiases = [
 hmc_deltatau = 0.2
 hmc_steps = 5
 hmc_integrator = "OMF4"
-# hmc_friction = 0.19634954084936207
+hmc_friction = 0.39269908169872414
 
 ["System Settings"]               
 logdir = "./logs/L16x16x16x16_dbw2_beta1.25"
-logfile = "tau1_nofriction.txt"
+logfile = "tau1_phipidiv8.txt"
 measurement_basedir = "./measurements/L16x16x16x16_dbw2_beta1.25"
-measurement_dir = "tau1_nofriction"
+measurement_dir = "tau1_phipidiv8"
 randomseed = 1206
 verboselevel = 1
 bias_basedir = "./metapotentials/L16x16x16x16_dbw2_beta1.25"
-bias_dir = "tau1_nofriction"
+bias_dir = "tau1_phipidiv8"
 overwrite = true
 
 ["Measurement set".measurement_methods.Plaquette]

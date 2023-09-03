@@ -1,21 +1,3 @@
-"""
-    Gaugefields
-
-Module containing all subtypes of the abstract type 'Abstractfield' and their methods:
-
-    Gaugefield{GA} -> struct holding all gauge links, the lattice size, the coupling;
-                      keeps track of the current gauge action and CV for MetaD
-                      and is parametrized by the kind of gauge action 'GA'
-                      GA is in itself an empty struct that is used as a functor for action
-                      and staple calculation
-
-    Temporaryfield -> also defined on all gauge link sites, but only used for internally
-                      used fields, like staples, forces etc.
-
-    CoeffField -> holds matrix-exp. coefficients for use in stout-smearing (recursion)
-
-    Liefield -> same as Temporaryfield with different name for verbosity, used in HMC
-"""
 module Gaugefields
 	using Base.Threads: nthreads, threadid, @threads
 	using LinearAlgebra
@@ -27,6 +9,18 @@ module Gaugefields
 	abstract type Abstractfield end
 	abstract type AbstractGaugeAction end
 
+"""
+    Gaugefield(NX, NY, NZ, NT, β; GA=WilsonGaugeAction)
+    Gaugefield(U::Gaugefield{GA}) where {GA}
+
+Creates a Gaugefield, i.e. an array of link-variables (SU3 matrices) of size
+`4 × NX × NY × NZ × NT` with coupling parameter `β` and gauge action `GA` or a copy of `U`
+# Supported gauge actions
+`WilsonGaugeAction` \\
+`SymanzikTreeGaugeAction` (Lüscher-Weisz) \\
+`IwasakiGaugeAction` \\
+`DBW2GaugeAction`
+"""
 	struct Gaugefield{GA} <: Abstractfield
         # Vector of 4D-Arrays performs better than 5D-Array for some reason
 		U::Vector{Array{SMatrix{3, 3, ComplexF64, 9}, 4}}
@@ -58,6 +52,13 @@ module Gaugefields
 
 	Gaugefield(U::Gaugefield{GA}) where {GA} = Gaugefield(U.NX, U.NY, U.NZ, U.NT, U.β; GA=GA)
 
+"""
+    Temporaryfield(NX, NY, NZ, NT)
+    Temporaryfield(u::Abstractfield)
+
+Creates a Temporaryfield, i.e. an array of 3-by-3 matrices of size `4 × NX × NY × NZ × NT`
+or of the same size as `u`
+"""
 	struct Temporaryfield <: Abstractfield
 		U::Vector{Array{SMatrix{3, 3, ComplexF64, 9}, 4}}
 		NX::Int64
@@ -82,6 +83,14 @@ module Gaugefields
 
 	Temporaryfield(u::Abstractfield) = Temporaryfield(u.NX, u.NY, u.NZ, u.NT)
 
+"""
+    CoeffField(NX, NY, NZ, NT)
+    CoeffField(u::Abstractfield)
+
+Creates a CoeffField, i.e. an array of `exp_iQ_su3` objects of size `4 × NX × NY × NZ × NT`
+or of the same size as `u`. The objects hold the `Q`-matrices and all the exponential
+parameters needed for stout-force recursion
+"""
 	struct CoeffField <: Abstractfield
 		U::Vector{Array{exp_iQ_su3, 4}}
 		NX::Int64
@@ -223,6 +232,16 @@ module Gaugefields
 		@batch for site in eachindex(a)
             for μ in 1:4
                 a[μ][site] += fac * b[μ][site]
+            end
+		end
+
+		return nothing
+	end
+
+    function mul!(u::Abstractfield, α::Number)
+        @batch for site in eachindex(a)
+            for μ in 1:4
+                u[μ][site] *= α
             end
 		end
 

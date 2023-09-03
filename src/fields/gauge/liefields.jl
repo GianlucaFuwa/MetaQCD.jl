@@ -1,3 +1,11 @@
+"""
+    Liefield(NX, NY, NZ, NT)
+    Liefield(u::Abstractfield)
+
+Creates a Liefield, i.e. an array of 3-by-3 matrices of size `4 × NX × NY × NZ × NT`
+or of the same size as `u`. Essentially the same as `TemporaryField`, but used for verbosity
+in HMC
+"""
 struct Liefield <: Abstractfield
     U::Vector{Array{SMatrix{3,3,ComplexF64,9},4}}
     NX::Int64

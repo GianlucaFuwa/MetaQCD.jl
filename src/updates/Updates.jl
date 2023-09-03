@@ -9,7 +9,7 @@ module Updates
 
     import ..Gaugefields: AbstractGaugeAction, Gaugefield, Liefield, Temporaryfield
     import ..Gaugefields: add!, calc_gauge_action, calc_kinetic_energy, clear_U!, normalize!,
-        fieldstrength_eachsite!, gaussian_momenta!, staple, staple_eachsite!, substitute_U!
+        fieldstrength_eachsite!, gaussian_momenta!, mul!, staple, staple_eachsite!, substitute_U!
     import ..Gaugefields: Plaquette, Clover
     import ..BiasModule: Bias, BiasEnabled, BiasDisabled, calc_CV, ∂V∂Q
     import ..BiasModule: kind_of_cv, update_bias!

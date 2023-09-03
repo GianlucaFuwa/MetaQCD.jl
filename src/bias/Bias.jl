@@ -1,17 +1,3 @@
-"""
-    BiasModule
-
-Module containing all things relevant to enhanced sampling
-
-    Bias{TCV,TS,TB} -> Holds the bias potential and its base parameters, its I/O and most
-                         importantly the smearing struct necessary for the calculation of
-                         the charge-force
-                         TCV: kind of cv (i.e. the kind of topological charge),
-                         TS:  type of smearing (NoSmearing or StoutSmearing),
-                         TB:  type of bias (MetaD or OPES)
-    Metadynamics -> Holds parameters specific to MetaD-biasing
-    OPES -> Holds parameters specific to OPES-biasing
-"""
 module BiasModule
     using DelimitedFiles
     using Polyester
@@ -24,11 +10,21 @@ module BiasModule
 	import ..Measurements: top_charge
 	import ..Smearing: NoSmearing, StoutSmearing, calc_smearedU!
 
-	struct BiasEnabled end
+	struct BiasEnabled end # probably unnecessary
 	struct BiasDisabled end
 
     abstract type AbstractBias end
 
+    """
+        Bias(p::ParameterSet, U::Gaugefield; verbose=nothing, instance=1, has_fp=true)
+
+    Container that holds general parameters of bias enhanced sampling, like the kind of CV,
+    its smearing and filenames/-pointers relevant to the bias. Also holds the specific kind
+    of bias (`Metadynamics` or `OPES` for now). \\
+    The `instance` keyword is used in case of PT-MetaD and multiple walkers assign the
+    correct `usebias` to each stream. `has_fp` indicates whether the stream prints to file
+    at any point, since only rank 0 should print in case of MPI usage.
+    """
     struct Bias{TCV,TS,TB}
         kind_of_cv::TCV
         smearing::TS

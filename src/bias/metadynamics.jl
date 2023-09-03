@@ -1,3 +1,21 @@
+"""
+    Metadynamics(p::ParameterSet; verbose=Verbose1(), instance=1)
+
+Create an instance of a Metadynamics bias using the parameters given in `p`. \\
+`verbose` is used to print all parameters out as they are explicitly defined in the
+constructor.
+
+# Specifiable parameters
+`symmetric::Bool = true` - If `true`, the bias is built symmetrically by updating for both cv and
+-cv at every update-iteration \\
+`stride::Int64 = 1` - Number of iterations between updates; must be >0 \\
+`cvlims::NTuple{2, Float64} = (-6, 6)` - Minimum and maximum of the explorable cv-space;
+must be ordered \\
+`biasfactor::Float64 = Inf` - Biasfactor for well-tempered Metadynamics; must be >1 \\
+`bin_width::Float64 = 0.1` - Width of bins in histogram; must be >0 \\
+`weight::Float64 = 0.01` - (Starting) Height of added Gaussians; must be positive \\
+`penalty_weight::Float64 = 1000` - Penalty when cv is outside of `cvlims`; must be positive \\
+"""
 struct Metadynamics <: AbstractBias
     symmetric::Bool
     stride::Int64
@@ -42,8 +60,6 @@ struct Metadynamics <: AbstractBias
         biasfactor = p.biasfactor
         println_verbose1(verbose, "\t>> BIASFACTOR = $(biasfactor)")
         @assert biasfactor > 1 "BIASFACTOR must be > 1"
-
-        println_verbose1(verbose)
         return new(
             symmetric, stride,
             p.cvlims, biasfactor, p.bin_width, p.meta_weight, p.penalty_weight,

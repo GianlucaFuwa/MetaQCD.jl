@@ -155,7 +155,7 @@ function update!(
         println_verbose2(verbose, "Accepted")
     else
         substitute_U!(U, U_old)
-        updatemethod.ϕ!=π/2 && flip_momenta!(updatemethod.P)
+        updatemethod.ϕ!=π/2 && mul!(updatemethod.P, -1) # flip momenta if rejected
         println_verbose2(verbose, "Rejected")
     end
 

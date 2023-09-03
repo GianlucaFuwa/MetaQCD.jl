@@ -1,5 +1,29 @@
 include("opes_kernel.jl")
 
+"""
+    OPES(p::ParameterSet; verbose=Verbose1(), instance=1)
+
+Create an instance of a OPES bias using the parameters given in `p`. \\
+`verbose` is used to print all parameters out as they are explicitly defined in the
+constructor.
+
+# Specifiable parameters
+`symmetric::Bool = true` - If `true`, the bias is built symmetrically by updating for both cv and
+-cv at every update-iteration \\
+`stride::Int64 = 1` - Number of iterations between updates; must be >0 \\
+`cvlims::NTuple{2, Float64} = (-6, 6)` - Minimum and maximum of the explorable cv-space;
+must be ordered \\
+`barrier::Float64 = 30` - Estimate of height of action barriers \\
+`biasfactor::Float64 = Inf` - Biasfactor for well-tempered OPES; must be >1 \\
+`σ₀::Float64 = 0.1` - (Starting) width of kernels; must be >0 \\
+`σ_min::Float64 = 1e-6` - Minimum width of kernels; must be >0 \\
+`fixed_σ::Bool = true` - If `true`, width if kernels decreases iteratively \\
+`ϵ::Float64 = exp(-barrier/(1-1/biasfactor))` - Determines maximum height of bias; must be >0 \\
+`no_Z::Bool = false` - If `false` normalization factor `Z` is dynamically adjusted \\
+`threshold::Float64 = 1.0` - Threshold distance for kernel merging; must be >0 \\
+`cutoff::Float64 = sqrt(2barrier/(1-1/biasfactor))` - Cutoff value for kernels; must be >0 \\
+`penalty::Float64 = exp(-0.5cutoff²)` - Penalty for being outside kernel cutoff; must be >0 \\
+"""
 mutable struct OPES <: AbstractBias
     is_first_step::Bool
     after_calculate::Bool
