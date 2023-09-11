@@ -239,7 +239,7 @@ parameters needed for stout-force recursion
 	end
 
     function mul!(u::Abstractfield, α::Number)
-        @batch for site in eachindex(a)
+        @batch for site in eachindex(u)
             for μ in 1:4
                 u[μ][site] *= α
             end
