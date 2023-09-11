@@ -19,15 +19,46 @@ module Universe
 
     function Univ(p::ParameterSet; use_mpi=false, fp=true)
         NX, NY, NZ, NT = p.L
+        verbose_print = get_verboseprint_from_parameters(p, fp)
+        GA = get_gaugeaction_from_parameters(p)
 
-        if p.verboselevel == 1
-            verbose_print = fp==true ? Verbose1(p.load_fp) : Verbose1()
-        elseif p.verboselevel == 2
-            verbose_print = fp==true ? Verbose2(p.load_fp) : Verbose2()
-        elseif p.verboselevel == 3
-            verbose_print = fp==true ? Verbose3(p.load_fp) : Verbose3()
+        if p.kind_of_bias != "none"
+            if p.tempering_enabled && use_mpi == false
+                numinstances = p.numinstances
+                U₁ = initial_gauges(p.initial, NX, NY, NZ, NT, p.beta, type_of_gaction=GA)
+                bias₁ = Bias(p, U₁; instance=0, verbose=verbose_print, has_fp=fp)
+
+                U = Vector{typeof(U₁)}(undef, numinstances)
+                bias = Vector{typeof(bias₁)}(undef, numinstances)
+
+                bias[1] = bias₁
+                U[1] = U₁
+                for i in 2:numinstances
+                    U[i] = initial_gauges(p.initial, NX, NY, NZ, NT, p.beta, type_of_gaction=GA)
+                    vb = fp ? verbose_print : nothing
+                    bias[i] = Bias(p, U[i]; verbose=vb, instance=i-1, has_fp=fp)
+                end
+            else
+                numinstances = 1
+                U = initial_gauges(p.initial, NX, NY, NZ, NT, p.beta, type_of_gaction=GA)
+                bias = Bias(p, U; verbose=verbose_print)
+            end
+        else
+            @assert p.tempering_enabled == false "tempering can only be enabled with bias"
+            numinstances = 1
+            U = initial_gauges(p.initial, NX, NY, NZ, NT, p.beta, type_of_gaction=GA)
+            bias = nothing
         end
 
+        return Univ{typeof(U), typeof(bias), typeof(verbose_print)}(
+            U,
+            bias,
+            numinstances,
+            verbose_print,
+        )
+    end
+
+    function get_gaugeaction_from_parameters(p::ParameterSet)
         if p.kind_of_gaction=="wilson"
             GA = WilsonGaugeAction
         elseif p.kind_of_gaction=="symanzik_tree"
@@ -42,46 +73,20 @@ module Universe
             error("Gauge action '$(kind_of_gaction)' not supported")
         end
 
-        U = initial_gauges(p.initial, NX, NY, NZ, NT, p.beta, type_of_gaction=GA)
-
-        if p.kind_of_bias != "none"
-            if p.tempering_enabled && use_mpi == false
-                numinstances = p.numinstances
-                bias = Bias(p, U; instance=i-1, verbose=verbose_print, has_fp=fp)
-
-                U = Vector{typeof(U)}(undef, numinstances)
-                bias = Vector{typeof(bias)}(undef, numinstances)
-
-                for i in 2:numinstances
-                    U[i] = deepcopy(U₁)
-                    vb = fp ? verbose_print : nothing
-                    bias[i] = Bias(p, U[1]; verbose=vb, instance=i-1, has_fp=fp)
-                end
-            else
-                numinstances = 1
-                bias = Bias(p, U; verbose=verbose_print)
-            end
-        else
-            @assert p.tempering_enabled == false "tempering can only be enabled with bias"
-            numinstances = 1
-            bias = nothing
-        end
-
-        return Univ{typeof(U), typeof(bias), typeof(verbose_print)}(
-            U,
-            bias,
-            numinstances,
-            verbose_print,
-        )
+        return GA
     end
 
-    function get_cvsmearing_from_parameters(p::ParameterSet)
-        if p.numsmears_for_cv==0 || p.rhostout_for_cv==0
-            return NoSmearing
-        elseif p.numsmears_for_cv>0 && p.rhostout_for_cv>0
-            return StoutSmearing
+    function get_verboseprint_from_parameters(p::ParameterSet, fp)
+        if p.verboselevel == 1
+            verbose_print = fp==true ? Verbose1(p.load_fp) : Verbose1()
+        elseif p.verboselevel == 2
+            verbose_print = fp==true ? Verbose2(p.load_fp) : Verbose2()
+        elseif p.verboselevel == 3
+            verbose_print = fp==true ? Verbose3(p.load_fp) : Verbose3()
         else
-            error("numsmears_for_cv and rhostout_for_cv must be >0")
+            error("Verbose level can only be 1, 2 or 3. Now it's $(p.verboselevel)")
         end
+
+        return verbose_print
     end
 end

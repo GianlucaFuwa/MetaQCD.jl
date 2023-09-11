@@ -37,6 +37,7 @@ function run_sim!(univ, parameters)
             parameters.hmc_integrator,
             parameters.hmc_steps,
             parameters.hmc_deltatau,
+            parameters.hmc_friction,
             bias_enabled = true,
         )
         parity = parameters.parity_update ? ParityUpdate(U[1]) : nothing
@@ -288,26 +289,20 @@ function metaqcd_PT!(
 
     value, runtime_all = @timed begin
         numaccepts = zeros(numinstances)
-        numaccepts_temper = numinstances > 1 ? zeros(Int64, numinstances-1) : nothing
+        numaccepts_temper = zeros(Int64, numinstances-1)
 
         for itrj in 1:parameters.numsteps
             println_verbose1(vp, "\n# itrj = $itrj")
             _, updatetime = @timed begin
                 tmp = 0.0
                 for _ in 1:rank0_updates
-                    tmp += update!(updatemethod, U[1], vp, bias=bias[1], metro_test=true)
+                    tmp += update!(updatemethod, U[1], vp, bias=nothing)
                 end
                 numaccepts[1] += tmp/rank0_updates
                 rand() < 0.5 ? update!(parity, U[1]) : nothing
 
                 for i in 2:numinstances
-                    numaccepts[i] += update!(
-                        updatemethod_pt,
-                        U[i],
-                        vp,
-                        bias = bias[i],
-                        metro_test = true,
-                    )
+                    numaccepts[i] += update!(updatemethod_pt, U[i], vp, bias=bias[i])
                     update_bias!(bias[i], U[i].CV, itrj, true)
                 end
             end
@@ -326,7 +321,7 @@ function metaqcd_PT!(
                 end
 
                 for i in numinstances:-1:2
-                    accepted = temper!(U[i], U[i-1], bias[i], bias[i-1], vp)
+                    accepted = temper!(U[i], U[i-1], bias[i], bias[i-1], itrj, vp)
                     numaccepts_temper[i-1] += accepted
 
                     println_verbose1(

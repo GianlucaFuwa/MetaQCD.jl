@@ -11,7 +11,6 @@ run.jl
 /src/mpi/mpitest.jl
 /src/system/mainrun_mpi.jl
 LocalPreferences.toml
-/templates/
 stability.jl
 /src/utils/algebra.jl
 plot.jl

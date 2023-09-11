@@ -1,0 +1,68 @@
+["Physical Settings"]
+L = [16, 16, 16, 16]
+beta = 1.25
+kind_of_gaction = "dbw2"
+numtherm = 20
+numsteps = 100
+initial = "cold"
+update_method = "heatbath"
+numheatbath = 1
+numorelax = 4
+
+["Bias Settings"]
+# general bias parameters
+kind_of_bias = "metad"
+kind_of_cv = "clover"
+numsmears_for_cv = 4
+rhostout_for_cv = 0.12
+is_static = true
+symmetric = true
+stride = 1
+cvlims = [-5, 5]
+biasfactor = "Inf"
+# metadynamics specific parameters
+bin_width = 0.02
+meta_weight = 0.01
+penalty_weight = 1000
+usebiases = [
+    "./metapotentials/L16x16x16x16_dbw2_beta1.25/ssa.txt",
+]
+# tempering specific parameters
+tempering_enabled = true
+numinstances = 2
+swap_every = 1
+non_metadynamics_updates = 10
+measure_on_all = true
+
+["HMC Settings"]
+hmc_deltatau = 0.2
+hmc_steps = 5
+hmc_integrator = "OMF4"
+hmc_friction = 0.7853981633974483
+
+["System Settings"]               
+logdir = "./logs/L16x16x16x16_dbw2_beta1.25"
+logfile = "tau1_phipidiv8_pt.txt"
+measurement_basedir = "./measurements/L16x16x16x16_dbw2_beta1.25"
+measurement_dir = "tau1_phipidiv8_pt"
+randomseed = 1206
+verboselevel = 1
+bias_basedir = "./metapotentials/L16x16x16x16_dbw2_beta1.25"
+bias_dir = "tau1_phipidiv8_pt"
+overwrite = true
+
+["Measurement set".measurement_methods.Plaquette]
+measure_every = 10
+methodname = "plaquette"
+
+[gradientflow_measurements]
+flow_integrator = "euler"
+flow_num = 30
+flow_steps = 1
+flow_tf = 0.12
+flow_measure_every = 30
+
+    [gradientflow_measurements.measurements_with_flow.Topological_charge]
+    measure_every = 10
+    kinds_of_topological_charge = ["clover"]
+    methodname = "topological_charge"

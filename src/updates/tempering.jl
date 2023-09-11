@@ -1,4 +1,4 @@
-function temper!(U1, U2, bias1, bias2, verbose::VerboseLevel)
+function temper!(U1, U2, bias1, bias2, itrj, verbose::VerboseLevel)
     cv1 = U1.CV
     cv2 = U2.CV
     ΔV1 = bias1(cv2) - bias1(cv1)
@@ -9,8 +9,8 @@ function temper!(U1, U2, bias1, bias2, verbose::VerboseLevel)
     accept_swap = rand() ≤ exp(ΔV1 + ΔV2)
     if accept_swap
         swap_U!(U1, U2)
-        update_bias!(bias1, cv2)
-        update_bias!(bias2, cv1)
+        update_bias!(bias1, cv2, itrj, true)
+        update_bias!(bias2, cv1, itrj, true)
     end
 
     return accept_swap
