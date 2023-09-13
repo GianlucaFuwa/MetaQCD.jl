@@ -49,7 +49,7 @@ function run_sim!(univ, parameters)
     println("\t>> Updatemethods are set!\n")
 
     if parameters.tempering_enabled
-        gradient_flow = GradientFlow(
+        gflow = GradientFlow(
             U[1],
             integrator = parameters.flow_integrator,
             numflow = parameters.flow_num,
@@ -106,7 +106,7 @@ function run_sim!(univ, parameters)
             end
         end
     else
-        gradient_flow = GradientFlow(
+        gflow = GradientFlow(
             U,
             integrator = parameters.flow_integrator,
             numflow = parameters.flow_num,
@@ -143,7 +143,7 @@ function run_sim!(univ, parameters)
             univ,
             updatemethod,
             updatemethod_pt,
-            gradient_flow,
+            gflow,
             measurements,
             measurements_with_flow,
             parity,
@@ -154,7 +154,7 @@ function run_sim!(univ, parameters)
             parameters,
             univ,
             updatemethod,
-            gradient_flow,
+            gflow,
             measurements,
             measurements_with_flow,
             parity,
@@ -169,7 +169,7 @@ function metaqcd!(
     parameters,
     univ,
     updatemethod,
-    gradient_flow,
+    gflow,
     measurements,
     measurements_with_flow,
     parity,
@@ -179,7 +179,7 @@ function metaqcd!(
     bias = univ.bias
     vp = univ.verbose_print
 
-    value, runtime_therm = @timed begin
+    _, runtime_therm = @timed begin
         for itrj in 1:parameters.numtherm
             println_verbose1(vp, "\n# therm itrj = $itrj")
             updatetime = 0.0
@@ -195,7 +195,7 @@ function metaqcd!(
     println_verbose1(vp, "\t>> Thermalization elapsed time:\t$(runtime_therm) [s]")
     recalc_CV!(U, bias) # need to recalc cv since it was not updated during therm
 
-    value, runtime_all = @timed begin
+    _, runtime_all = @timed begin
         numaccepts = 0.0
         for itrj in 1:parameters.numsteps
             println_verbose1(vp, "\n# itrj = $itrj")
@@ -206,34 +206,19 @@ function metaqcd!(
                 update_bias!(bias, U.CV, itrj, true)
             end
 
-            println_verbose1(vp, ">> Acceptance $itrj:\t", numaccepts * 100 / itrj, "%")
+            print_acceptance_rates(numaccepts, itrj, vp)
             println_verbose1(vp, ">> Update elapsed time:\t$(updatetime) [s]")
 
             save_gaugefield(save_configs, U, itrj)
 
-            measurestrings, meas_time = @timed calc_measurements(measurements, itrj, U)
-            measurestrings_flowed, flowmeas_time = @timed calc_measurements_flowed(
-                measurements_with_flow,
-                gradient_flow,
-                itrj,
-                U,
-            )
-
+            _, mtime = @timed calc_measurements(measurements, U, itrj)
+            _, fmtime = @timed calc_measurements_flowed(measurements_with_flow, gflow, U, itrj)
+            calc_weights(bias, U.CV, itrj)
             println_verbose1(
                 vp,
-                ">> Meas. elapsed time:\t$(meas_time) [s]\n",
-                ">> FMeas. elapsed time:\t$(flowmeas_time) [s]",
+                ">> Meas. elapsed time:\t$(mtime) [s]\n",
+                ">> FMeas. elapsed time:\t$(fmtime) [s]",
             )
-
-            for value in measurestrings
-                println(value)
-            end
-
-            for value in measurestrings_flowed
-                println(value)
-            end
-
-            calc_weights(bias, U.CV, itrj)
             flush(vp.fp)
         end
     end
@@ -241,8 +226,6 @@ function metaqcd!(
     println_verbose1(vp, "\n\t>> Total elapsed time:\t$(convert_seconds(runtime_all)) \n")
     flush(stdout)
     flush(vp)
-    # close(measurements)
-    # close(measurements_with_flow)
     return nothing
 end
 
@@ -251,7 +234,7 @@ function metaqcd_PT!(
     univ,
     updatemethod,
     updatemethod_pt,
-    gradient_flow,
+    gflow,
     measurements,
     measurements_with_flow,
     parity,
@@ -264,6 +247,8 @@ function metaqcd_PT!(
     swap_every = parameters.swap_every
     rank0_updates = parameters.non_metadynamics_updates
     measure_on_all = parameters.measure_on_all
+    # if rank0 uses hmc then we must not do metro tests during thermalization
+    uses_hmc = typeof(updatemethod)<:HMCUpdate
 
     value, runtime_therm = @timed begin
         for itrj in 1:parameters.numtherm
@@ -271,7 +256,9 @@ function metaqcd_PT!(
             updatetime = 0.0
             # thermalize without bias potential contribution, since it's a waste of time
             _, updatetime = @timed begin
-                update!(updatemethod, U[1], vp, bias=nothing, metro_test=false)
+                for _ in 1:rank0_updates
+                    update!(updatemethod, U[1], vp, bias=nothing, metro_test=!uses_hmc)
+                end
 
                 for i in 2:numinstances
                     update!(updatemethod_pt, U[i], vp, bias=nothing, metro_test=false)
@@ -283,9 +270,7 @@ function metaqcd_PT!(
     end
 
     println_verbose1(vp, "\t>> Thermalization Elapsed time $(runtime_therm) [s]")
-    for i in 2:numinstances
-        recalc_CV!(U[i], bias[i]) # need to recalc cv since it was not updated during therm
-    end
+    recalc_CV!(U, bias) # need to recalc cv since it was not updated during therm
 
     value, runtime_all = @timed begin
         numaccepts = zeros(numinstances)
@@ -299,7 +284,8 @@ function metaqcd_PT!(
                     tmp += update!(updatemethod, U[1], vp, bias=nothing)
                 end
                 numaccepts[1] += tmp/rank0_updates
-                rand() < 0.5 ? update!(parity, U[1]) : nothing
+                rand()<0.5 && update!(parity, U[1])
+                recalc_CV!(U[1], bias[1])
 
                 for i in 2:numinstances
                     numaccepts[i] += update!(updatemethod_pt, U[i], vp, bias=bias[i])
@@ -308,55 +294,20 @@ function metaqcd_PT!(
             end
 
             println_verbose1(vp, ">> Update: Elapsed time $(sum(updatetime)) [s]")
+            print_acceptance_rates(numaccepts, itrj, vp)
 
-            for (i, value) in enumerate(numaccepts)
-                println_verbose1(vp, ">> Acceptance $i $itrj:\t$(value * 100 / itrj) %")
-            end
-
-            if itrj % swap_every == 0
-                # We need to recalculate the CV and for the non-MetaD stream since that is
-                # only done in MetaD-HMC updates
-                if (typeof(updatemethod) <: HMCUpdate) == false
-                    recalc_CV!(U[1], bias[1])
-                end
-
-                for i in numinstances:-1:2
-                    accepted = temper!(U[i], U[i-1], bias[i], bias[i-1], itrj, vp)
-                    numaccepts_temper[i-1] += accepted
-
-                    println_verbose1(
-                        vp,
-                        ">> Swap Acceptance [$i ⇔  $(i-1)] $itrj:\t",
-                        "$(numaccepts_temper[i-1] * 100 / (itrj / swap_every)) %"
-                    )
-                end
-            end
+            temper!(U, bias, numaccepts_temper, swap_every, itrj, vp; recalc=!uses_hmc)
 
             save_gaugefield(save_configs, U[1], itrj)
 
-            for i in 1:numinstances
-                measurestrings = calc_measurements(measurements[i], itrj, U[i]; str="$i")
-
-                for value in measurestrings
-                    println(value)
-                end
-
-                if i == 1 || measure_on_all
-                    measurestrings_flowed = calc_measurements_flowed(
-                        measurements_with_flow[i],
-                        gradient_flow,
-                        itrj,
-                        U[i],
-                        str = "$i"
-                    )
-                    for value in measurestrings_flowed
-                        println(value)
-                    end
-                end
-
-                calc_weights(bias[i], U[i].CV, itrj)
-            end
-
+            _, mtime = @timed calc_measurements(measurements, U, itrj)
+            _, fmtime = @timed calc_measurements_flowed(measurements_with_flow, gflow, U, itrj, measure_on_all)
+            calc_weights(bias, [U[i].CV for i in 1:numinstances], itrj)
+            println_verbose1(
+                vp,
+                ">> Meas. elapsed time:\t$(mtime) [s]\n",
+                ">> FMeas. elapsed time:\t$(fmtime) [s]",
+            )
             flush(vp.fp)
         end
     end
@@ -364,7 +315,5 @@ function metaqcd_PT!(
     println_verbose1(vp, "\n\t>> Total elapsed time:\t$(convert_seconds(runtime_all)) \n")
     flush(stdout)
     flush(vp)
-    # close(measurements)
-    # close(measurements_with_flow)
     return nothing
 end

@@ -1,38 +1,38 @@
 ["Physical Settings"]
-L = [8, 8, 8, 8]
-beta = 5.70
+L = [12, 12, 12, 12]
+beta = 6.3188
 kind_of_gaction = "wilson"
-numtherm = 10
-numsteps = 10
+numtherm = 20
+numsteps = 100
 initial = "cold"
 update_method = "hmc"
 parity_update = false
 
 ["HMC Settings"]
-hmc_deltatau = 0.2
-hmc_steps = 5
+hmc_deltatau = 0.02
+hmc_steps = 50
 hmc_integrator = "OMF4"
 
 ["System Settings"]               
-logdir = "./logs/L8x8x8x8_wilson_beta5.7/test_hmc"
+logdir = "./logs/hmc_stability/wilson_dtau0.02"
 logfile = "logs.txt"
-measurement_basedir = "./measurements/L8x8x8x8_wilson_beta5.7/test_hmc"
+measurement_basedir = "./measurements/hmc_stability/wilson_dtau0.02"
 measurement_dir = "raw_data"
-randomseed = 0 # 0 => randomly chosen seed
+randomseed = 1206 # 0 => randomly chosen seed
 verboselevel = 2
 overwrite = true
 
-["Measurement set".measurement_methods.Polyakov_loop]
-measure_every = 100
-methodname = "polyakov_loop"
+# ["Measurement set".measurement_methods.Polyakov_loop]
+# measure_every = 100
+# methodname = "polyakov_loop"
 
-["Measurement set".measurement_methods.Topological_charge]
-measure_every = 100
-kinds_of_topological_charge = ["clover"]
-methodname = "topological_charge"
+# ["Measurement set".measurement_methods.Topological_charge]
+# measure_every = 100
+# kinds_of_topological_charge = ["clover"]
+# methodname = "topological_charge"
 
 ["Measurement set".measurement_methods.Plaquette]
-measure_every = 100
+measure_every = 10
 methodname = "plaquette"
 
 [gradientflow_measurements]

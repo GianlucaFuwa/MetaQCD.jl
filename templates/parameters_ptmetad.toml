@@ -2,12 +2,13 @@
 L = [16, 16, 16, 16]
 beta = 1.25
 kind_of_gaction = "dbw2"
-numtherm = 20
-numsteps = 100
+numtherm = 1
+numsteps = 2
 initial = "cold"
 update_method = "heatbath"
 numheatbath = 1
 numorelax = 4
+eo = true
 
 ["Bias Settings"]
 # general bias parameters
@@ -31,14 +32,14 @@ usebiases = [
 tempering_enabled = true
 numinstances = 2
 swap_every = 1
-non_metadynamics_updates = 10
+non_metadynamics_updates = 1
 measure_on_all = true
 
 ["HMC Settings"]
 hmc_deltatau = 0.2
 hmc_steps = 5
 hmc_integrator = "OMF4"
-hmc_friction = 0.7853981633974483
+hmc_friction = 0.39269908169872414
 
 ["System Settings"]               
 logdir = "./logs/L16x16x16x16_dbw2_beta1.25"

@@ -104,11 +104,11 @@ function build!(
     bias = univ.bias
     vp = univ.verbose_print
 
-    calc_measurements(measurements, 0, U)
+    calc_measurements(measurements, U, 0)
 
     MPI.Barrier(comm)
 
-    value, runtime_therm = @timed begin
+    _, runtime_therm = @timed begin
         for itrj in 1:parameters.numtherm
             println_verbose0(vp, "\n# therm itrj = $itrj")
 
@@ -124,7 +124,7 @@ function build!(
 
     println_verbose0(vp, "Thermalization Elapsed time $(runtime_therm) [s]")
 
-    value, runtime_all = @timed begin
+    _, runtime_all = @timed begin
         numaccepts = 0.0
 
         for itrj in 1:parameters.numsteps
@@ -142,36 +142,15 @@ function build!(
             acceptances = MPI.Allgather(numaccepts, comm)
 
             if myrank == 0
-                for (i, value) in enumerate(acceptances)
-                    println_verbose1(
-                        univ.verbose_print,
-                        ">> Acceptance rank_$i $itrj:\t$(value * 100 / itrj)%",
-                    )
-                end
-                flush(univ.verbose_print)
+                print_acceptance_rates(acceptances, itrj, vp)
+                flush(vp)
             end
 
             MPI.Barrier(comm)
 
-            measurestrings = calc_measurements(measurements, itrj, U)
-            measurestrings_flowed = calc_measurements_flowed(
-                measurements_with_flow,
-                gradient_flow,
-                itrj,
-                U,
-            )
-
-            if myrank == 0
-                for value in measurestrings
-                    println(value)
-                end
-
-                for value in measurestrings_flowed
-                    println(value)
-                end
-
-                calc_weights(bias, U.CV, itrj)
-            end
+            calc_measurements(measurements, U, itrj)
+            calc_measurements_flowed(measurements_with_flow, gradient_flow, U, itrj)
+            calc_weights(bias, U.CV, itrj)
         end
     end
 
@@ -182,6 +161,5 @@ function build!(
     end
 
     MPI.Finalize()
-
     return nothing
 end

@@ -12,6 +12,7 @@ Module containing all measurement methods and their parameters. Also handles I/O
 module Measurements
     using Base.Threads
     using LinearAlgebra
+    using MPI
     using Polyester
     using Printf
     using Unicode
@@ -33,16 +34,11 @@ module Measurements
         MeasurementOutput(value, str) = new{typeof(value)}(value, str)
     end
 
-    function get_value(m::MeasurementOutput)
-        return m.value
-    end
+    get_value(m::MeasurementOutput) = m.value
+    get_string(m::MeasurementOutput) = m.outputstring
 
-    function get_string(m::MeasurementOutput)
-        return m.outputstring
-    end
-
-    function measure(measurement::M, itrj, U) where {M <: AbstractMeasurement}
-        error("measure with a type $M is not supported")
+    function measure(::M, args...) where {M <: AbstractMeasurement}
+        error("measurement with a type $M is not supported")
     end
 
     include("measure_gauge_action.jl")

@@ -35,10 +35,11 @@ module BiasModule
         kinds_of_weights::Union{Nothing, Vector{String}}
         weight_fp::Union{Nothing, IOStream}
 
-        function Bias(p::ParameterSet, U; verbose=nothing, instance=1, has_fp=true)
+        function Bias(p::ParameterSet, U; verbose=Verbose1(), instance=1, has_fp=true)
             TCV = get_cvtype_from_parameters(p)
             smearing = StoutSmearing(U, p.numsmears_for_cv, p.rhostout_for_cv)
             is_static = instance==0 ? true : p.is_static[instance]
+            println_verbose1(verbose, ">> Bias is $(ifelse(is_static, "static", "dynamic"))")
 
             if p.kind_of_bias == "metad"
                 bias = Metadynamics(p; instance=instance, verbose=verbose)
@@ -66,10 +67,14 @@ module BiasModule
                 weight_fp = nothing
             end
 
+            println_verbose1(verbose, "\t>> BIASFILE = $(biasfile)")
             write_bias_every = p.write_bias_every===nothing ? 0 : p.write_bias_every
             println_verbose1(verbose, "\t>> WRITE_BIAS_EVERY = $(write_bias_every)")
             @assert (write_bias_every==0) || (write_bias_every>=p.stride)
             println_verbose1(verbose)
+
+            # write to file after construction to make sure nothing went wrong
+            biasfile!==nothing && write_to_file(bias, biasfile)
 
             return new{TCV,typeof(smearing),typeof(bias)}(
                 TCV(), smearing, is_static,
@@ -93,20 +98,22 @@ module BiasModule
             update!(b.bias, cv, itrj)
         end
 
-        if b.biasfile !== nothing
-            # If the potential is static we dont have to write it apart from the the time it
-            # is initialized, so we introduce a "force" keyword to overwrite the static-ness
-            (b.is_static && !write) && return nothing
-            write_to_file(b.bias, b.biasfile)
-        end
+        (b.biasfile!==nothing && write) && write_to_file(b.bias, b.biasfile)
         return nothing
     end
 
     recalc_CV!(::Gaugefield, ::Nothing) = nothing
 
-    function recalc_CV!(U, b::Bias)
+    function recalc_CV!(U::Gaugefield, b::Bias)
         CV_new = calc_CV(U, b)
         U.CV = CV_new
+        return nothing
+    end
+
+    function recalc_CV!(U::Vector{TG}, b::Vector{TB}) where {TG<:Gaugefield, TB<:Bias}
+        for i in eachindex(U)
+            recalc_CV!(U[i], b[i])
+        end
         return nothing
     end
 

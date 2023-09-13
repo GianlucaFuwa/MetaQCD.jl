@@ -31,6 +31,14 @@ module Mainrun
         end
     end
 
+    function print_acceptance_rates(numaccepts, itrj, verbose)
+        for (i, value) in enumerate(numaccepts)
+            println_verbose1(verbose, ">> Acceptance $i:\t$(100value / itrj) %")
+        end
+
+        return nothing
+    end
+
     """
     Convenience-function to convert execution time from seconds to days
     """

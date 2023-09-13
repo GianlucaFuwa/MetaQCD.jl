@@ -4,7 +4,15 @@ https://pubs.acs.org/doi/pdf/10.1021/acs.jctc.9b00867
 """
 calc_weights(::Nothing, args...) = nothing
 
-function calc_weights(b, cv, itrj)
+function calc_weights(b::Vector{TB}, cv, itrj) where {TB<:Bias}
+    for i in eachindex(b)
+        i>1 && calc_weights(b[i], cv[i], itrj)
+    end
+
+    return nothing
+end
+
+function calc_weights(b::Bias, cv, itrj)
     printstring = "$(rpad(itrj, 9, " "))\t"
 
     if b.weight_fp !== nothing

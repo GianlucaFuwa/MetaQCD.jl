@@ -3,7 +3,7 @@ L = [16, 16, 16, 16]
 beta = 1.25
 kind_of_gaction = "dbw2"
 numtherm = 20
-numsteps = 10000
+numsteps = 500
 initial = "cold"
 update_method = "HMC"
 
@@ -30,17 +30,17 @@ usebiases = [
 hmc_deltatau = 0.2
 hmc_steps = 5
 hmc_integrator = "OMF4"
-hmc_friction = 0.39269908169872414
+# hmc_friction = 0.1
 
 ["System Settings"]               
 logdir = "./logs/L16x16x16x16_dbw2_beta1.25"
-logfile = "tau1_phipidiv8.txt"
+logfile = "tau1_phi01.txt"
 measurement_basedir = "./measurements/L16x16x16x16_dbw2_beta1.25"
-measurement_dir = "tau1_phipidiv8"
+measurement_dir = "tau1_phi01"
 randomseed = 1206
 verboselevel = 1
 bias_basedir = "./metapotentials/L16x16x16x16_dbw2_beta1.25"
-bias_dir = "tau1_phipidiv8"
+bias_dir = "tau1_phi01"
 overwrite = true
 
 ["Measurement set".measurement_methods.Plaquette]
@@ -55,6 +55,6 @@ flow_tf = 0.12
 flow_measure_every = 30
 
     [gradientflow_measurements.measurements_with_flow.Topological_charge]
-    measure_every = 10
+    measure_every = 100
     kinds_of_topological_charge = ["clover"]
     methodname = "topological_charge"

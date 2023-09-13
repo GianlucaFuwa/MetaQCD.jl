@@ -3,7 +3,7 @@ L = [8, 8, 8, 8]
 beta = 6.0
 kind_of_gaction = "wilson"
 numtherm = 10
-numsteps = 1000
+numsteps = 10
 initial = "cold"
 update_method = "HMC"
 

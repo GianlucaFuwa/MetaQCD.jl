@@ -49,24 +49,51 @@ function MeasurementMethods(
     )
 end
 
-function calc_measurements(m::MeasurementMethods, itrj, U; str="")
+function calc_measurements(m::Vector{MeasurementMethods}, U, itrj)
+    for i in eachindex(m)
+        calc_measurements(m[i], U[i], itrj; str="$i")
+    end
+    return nothing
+end
+
+function calc_measurements(m::MeasurementMethods, U, itrj; str="")
+    comm = MPI.COMM_WORLD
     measurestrings = String[]
     check_for_measurements(itrj, m.intervals) || return measurestrings
 
     for i in 1:m.num_measurements
         interval = m.intervals[i]
 
-        if itrj % interval == 0
-            outputvalue = measure(m.measurements[i], U, additional_string="$itrj")
-            push!(measurestrings, get_string(outputvalue)*str)
+        if itrj%interval == 0
+            out = measure(m.measurements[i], U, additional_string="$itrj")
+            push!(measurestrings, get_string(out)*str)
         end
 
     end
-
+    MPI.Comm_rank(comm)==0 && println.(measurestrings)
     return measurestrings
 end
 
-function calc_measurements_flowed(m::MeasurementMethods, gradient_flow, itrj, U; str="")
+function calc_measurements_flowed(
+    m::Vector{MeasurementMethods},
+    gflow,
+    U,
+    itrj,
+    measure_on_all = false,
+)
+    if measure_on_all
+        for i in eachindex(m)
+            calc_measurements_flowed(m[i], gflow, U[i], itrj; str="$i")
+        end
+    else
+        calc_measurements_flowed(m[1], gflow, U[1], itrj; str="1")
+    end
+
+    return nothing
+end
+
+function calc_measurements_flowed(m::MeasurementMethods, gradient_flow, U, itrj; str="")
+    comm = MPI.COMM_WORLD
     measurestrings = String[]
     check_for_measurements(itrj, m.intervals) || return measurestrings
     substitute_U!(gradient_flow.Uflow, U)
@@ -75,32 +102,32 @@ function calc_measurements_flowed(m::MeasurementMethods, gradient_flow, itrj, U;
         τ = round(iflow * gradient_flow.tf, sigdigits = 3)
         flow!(gradient_flow)
 
-        if iflow % gradient_flow.measure_every == 0
+        if iflow%gradient_flow.measure_every == 0
             additional_string = "$itrj\t$iflow\t$τ"
 
             for i in 1:m.num_measurements
                 interval = m.intervals[i]
 
-                if itrj % interval == 0
-                    outputvalue = measure(
+                if itrj%interval == 0
+                    out = measure(
                         m.measurements[i],
                         gradient_flow.Uflow,
                         additional_string = additional_string,
                     )
-                    push!(measurestrings, get_string(outputvalue)*str)
+                    push!(measurestrings, get_string(out)*str)
                 end
 
             end
         end
 
     end
-
+    MPI.Comm_rank(comm)==0 && println.(measurestrings)
     return measurestrings
 end
 
 function check_for_measurements(itrj, intervals)
     for num in intervals
-        (itrj % num == 0) && return true
+        (itrj%num == 0) && return true
     end
 
     return false
