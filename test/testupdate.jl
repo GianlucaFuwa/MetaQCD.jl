@@ -2,21 +2,21 @@ function SU3testupdate()
     Random.seed!(1206)
 
     println("SU3testupdate")
-    NX = 4; NY = 4; NZ = 4; NT = 4
-    U = random_gauges(NX, NY, NZ, NT, 5.7, WilsonGaugeAction);
+    NX = 12; NY = 12; NZ = 12; NT = 12
+    U = random_gauges(NX, NY, NZ, NT, 6.0, WilsonGaugeAction);
     #filename = "./test/testconf.txt"
     #load_BridgeText!(filename,U)
 
     verbose = Verbose2()
 
     update_method = "hmc"
-    meta_enabled = false
+    kind_of_bias = "none"
     metro_ϵ = 0.1
     metro_multi_hit = 1
     metro_target_acc = 0.5
     hmc_integrator = "OMF4"
     hmc_Δτ = 0.1
-    hmc_friction = π/2
+    hmc_friction = π/4
     hmc_steps = 10
     hmc_numsmear = 5
     hmc_ρstout = 0.125
@@ -30,7 +30,7 @@ function SU3testupdate()
         update_method,
         1,
         "",
-        meta_enabled,
+        kind_of_bias,
         metro_ϵ,
         metro_multi_hit,
         metro_target_acc,
@@ -40,24 +40,22 @@ function SU3testupdate()
         hmc_friction,
         hmc_numsmear,
         hmc_ρstout,
-        hb_eo,
         hb_MAXIT,
         hb_numHB,
+        hb_eo,
         hb_numOR,
-    )
+    );
 
-    for itrj = 1:10
+    for _ = 1:10
         _, runtime = @timed update!(updatemethod, U, verbose, metro_test=false)
-        normalize!(U)
         println("Elapsed time: $runtime [s]")
     end
 
     numaccepts = 0
     nsweeps = 10
 
-    for itrj = 1:nsweeps
+    for _ = 1:nsweeps
         value, runtime = @timed update!(updatemethod, U, verbose, metro_test=true)
-        normalize!(U)
         println("Elapsed time: $runtime [s]")
         numaccepts += value
     end

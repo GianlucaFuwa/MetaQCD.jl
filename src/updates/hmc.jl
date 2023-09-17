@@ -59,7 +59,7 @@ struct HMCUpdate{TI,TG,TS,TB} <: AbstractUpdate
             _temp_force2 = Temporaryfield(U)
         end
 
-        if verboselevel >= 2
+        if verboselevel>=2 && logdir!=""
             fp = open(logdir * "/hmc_$(GA)_$(TI)_logs.txt", "w")
             println(
                 fp,
