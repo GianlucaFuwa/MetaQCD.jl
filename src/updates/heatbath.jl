@@ -41,11 +41,12 @@ end
 function heatbath_sweep!(U, MAXIT)
     action_factor = 3 / U.β
 
-    @inbounds for μ in 1:4
+    for μ in 1:4
         for site in eachindex(U)
             old_link = U[μ][site]
             A = staple(U, μ, site)
-            new_link = heatbath_SU3(old_link, A, MAXIT, action_factor)
+            rng = Random.default_rng()
+            new_link = heatbath_SU3(old_link, A, MAXIT, action_factor, rng)
             U[μ][site] = new_link
         end
 	end
@@ -66,7 +67,8 @@ function heatbath_sweep_eo!(U, MAXIT)
                             site = SiteCoords(ix, iy, iz, it)
                             old_link = U[μ][site]
                             A = staple(U, μ, site)
-                            new_link = heatbath_SU3(old_link, A, MAXIT, action_factor)
+                            rng = Random.default_rng()
+                            new_link = heatbath_SU3(old_link, A, MAXIT, action_factor, rng)
                             U[μ][site] = new_link
                         end
                     end
@@ -78,22 +80,23 @@ function heatbath_sweep_eo!(U, MAXIT)
     return nothing
 end
 
-function heatbath_SU3(old_link, A, MAXIT, action_factor)
+function heatbath_SU3(old_link, A, MAXIT, action_factor, rng)
     subblock = make_submatrix(cmatmul_od(old_link, A), 1, 2)
-    tmp = embed_into_SU3(heatbath_SU2(subblock, MAXIT, action_factor), 1, 2)
+    tmp = embed_into_SU3(heatbath_SU2(subblock, MAXIT, action_factor, rng), 1, 2)
     old_link = cmatmul_oo(tmp, old_link)
 
     subblock = make_submatrix(cmatmul_od(old_link, A), 1, 3)
-    tmp = embed_into_SU3(heatbath_SU2(subblock, MAXIT, action_factor), 1, 3)
+    tmp = embed_into_SU3(heatbath_SU2(subblock, MAXIT, action_factor, rng), 1, 3)
     old_link = cmatmul_oo(tmp, old_link)
 
     subblock = make_submatrix(cmatmul_od(old_link, A), 2, 3)
-    tmp = embed_into_SU3(heatbath_SU2(subblock, MAXIT, action_factor), 2, 3)
+    tmp = embed_into_SU3(heatbath_SU2(subblock, MAXIT, action_factor, rng), 2, 3)
     new_link = cmatmul_oo(tmp, old_link)
     return new_link
 end
 
-function heatbath_SU2(A, MAXIT, action_factor)
+function heatbath_SU2(A, MAXIT, action_factor, rng)
+    # need to define rng here to make it thread safe for some reason
     r0 = 1
     λ2 = 1
     a_norm = 1 / sqrt(real(det(A)))
@@ -105,24 +108,24 @@ function heatbath_SU2(A, MAXIT, action_factor)
             return eye2
         end
 
-        r1 = 1 - rand()
+        r1 = 1 - rand(rng)
         x1 = log(r1)
-        r2 = 1 - rand()
+        r2 = 1 - rand(rng)
         x2 = cos(2π * r2)
-        r3 = 1 - rand()
+        r3 = 1 - rand(rng)
         x3 = log(r3)
 
         λ2 = (-0.25 * action_factor * a_norm) * (x1 + x2^2 * x3)
 
-        r0 = rand()
+        r0 = rand(rng)
         i += 1
     end
 
-    x0 = 1 - 2 * λ2
+    x0 = 1 - 2*λ2
     abs_x = sqrt(1 - x0^2)
 
-    φ = rand()
-    cosϑ = 1 - 2 * rand()
+    φ = rand(rng)
+    cosϑ = 1 - 2*rand(rng)
     vec_norm = abs_x * sqrt(1 - cosϑ^2)
 
     x1 = vec_norm * cos(2π * φ)

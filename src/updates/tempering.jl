@@ -5,7 +5,7 @@ function temper!(
     swap_every,
     itrj,
     verbose::VerboseLevel;
-    recalc = true
+    recalc = false,
 ) where {TG<:Gaugefield, TB<:Bias}
     itrj%swap_every!=0 && return nothing
     numinstances = length(U)
@@ -20,21 +20,23 @@ function temper!(
         cv2 = U2.CV
         ΔV1 = bias1(cv2) - bias1(cv1)
         ΔV2 = bias2(cv1) - bias2(cv2)
+        acc_prob = exp(-ΔV1-ΔV2)
+        println_verbose1(verbose, ">> ΔV$(i) = $(ΔV1)", "\t", "ΔV$(i-1) = $(ΔV2)")
 
-        println_verbose2(verbose, "ΔV1 = $(ΔV1)", "\n", "ΔV2 = $(ΔV2)")
-
-        accept_swap = rand() ≤ exp(ΔV1 + ΔV2)
-        if accept_swap
+        if rand() ≤ acc_prob
+            println("# swap accepted")
             numaccepts_temper[i-1] += 1
             swap_U!(U1, U2)
             update_bias!(bias1, cv2, itrj, true)
             update_bias!(bias2, cv1, itrj, true)
+        else
+            println("# swap rejected")
         end
 
         println_verbose1(
             verbose,
             ">> Swap Acceptance [$i ⇔  $(i-1)]:\t",
-            "$(numaccepts_temper[i-1] * 100 / (itrj / swap_every)) %"
+            "$(numaccepts_temper[i-1]*100 / (itrj/swap_every)) %"
         )
     end
 

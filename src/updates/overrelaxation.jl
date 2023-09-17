@@ -25,7 +25,7 @@ end
 function overrelaxation_sweep_eo!(U; metro_test=true)
     NX, NY, NZ, NT = size(U)
     spacing = 8
-    numaccepts = zeros(Float64, nthreads() * spacing)
+    numaccepts = zeros(Float64, nthreads()*spacing)
     action_factor = -U.β / 3
 
     for μ in 1:4
@@ -45,7 +45,7 @@ function overrelaxation_sweep_eo!(U; metro_test=true)
                             if accept
                                 U[μ][site] = new_link
                                 U.Sg += ΔSg
-                                numaccepts[threadid() * spacing] += accept
+                                numaccepts[threadid()*spacing] += accept
                             end
                         end
                     end

@@ -3,7 +3,8 @@ module Output
     using LinearAlgebra
 
     export VerboseLevel, Verbose1, Verbose2, Verbose3
-    export println_verbose1, println_verbose2, println_verbose3
+    export print_verbose1, print_verbose2, print_verbose3,
+        println_verbose1, println_verbose2, println_verbose3
     export SaveConfigs, loadU_bridge!, loadU_jld!, save_gaugefield, saveU_bridge, saveU_jld
 
     include("verbose.jl")

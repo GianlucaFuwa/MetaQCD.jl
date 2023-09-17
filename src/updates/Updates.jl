@@ -4,6 +4,7 @@ module Updates
     using StaticArrays
     using Polyester
     using Printf
+    using Random
     using ..Output
     using ..Utils
 

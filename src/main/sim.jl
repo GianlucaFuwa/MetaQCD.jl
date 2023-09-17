@@ -192,7 +192,7 @@ function metaqcd!(
         end
     end
 
-    println_verbose1(vp, "\t>> Thermalization elapsed time:\t$(runtime_therm) [s]")
+    println_verbose1(vp, "\t>> Thermalization elapsed time:\t$(runtime_therm) [s]\n#")
     recalc_CV!(U, bias) # need to recalc cv since it was not updated during therm
 
     _, runtime_all = @timed begin
@@ -202,7 +202,7 @@ function metaqcd!(
 
             _, updatetime = @timed begin
                 numaccepts += update!(updatemethod, U, vp, bias=bias, metro_test=true)
-                rand() < 0.5 ? update!(parity, U) : nothing
+                rand()<0.5 ? update!(parity, U) : nothing
                 update_bias!(bias, U.CV, itrj, true)
             end
 
@@ -217,7 +217,8 @@ function metaqcd!(
             println_verbose1(
                 vp,
                 ">> Meas. elapsed time:\t$(mtime) [s]\n",
-                ">> FMeas. elapsed time:\t$(fmtime) [s]",
+                ">> FMeas. elapsed time:\t$(fmtime) [s]\n",
+                "#",
             )
             flush(vp.fp)
         end
@@ -247,7 +248,7 @@ function metaqcd_PT!(
     swap_every = parameters.swap_every
     rank0_updates = parameters.non_metadynamics_updates
     measure_on_all = parameters.measure_on_all
-    # if rank0 uses hmc then we must not do metro tests during thermalization
+    # if stream 1 uses hmc then we have to recalc the CV before tempering
     uses_hmc = typeof(updatemethod)<:HMCUpdate
 
     value, runtime_therm = @timed begin
@@ -257,15 +258,13 @@ function metaqcd_PT!(
             # thermalize without bias potential contribution, since it's a waste of time
             _, updatetime = @timed begin
                 for _ in 1:rank0_updates
-                    update!(updatemethod, U[1], vp, bias=nothing, metro_test=!uses_hmc)
-                end
-
-                for i in 2:numinstances
-                    update!(updatemethod_pt, U[i], vp, bias=nothing, metro_test=false)
+                    for i in 1:numinstances
+                        update!(updatemethod, U[i], vp, bias=nothing, metro_test=!uses_hmc)
+                    end
                 end
             end
 
-            println_verbose1(vp, ">> Thermalization Update: Elapsed time $(updatetime) [s]")
+            println_verbose1(vp, ">> Thermalization Update: Elapsed time $(updatetime) [s]\n#")
         end
     end
 
@@ -285,7 +284,6 @@ function metaqcd_PT!(
                 end
                 numaccepts[1] += tmp/rank0_updates
                 rand()<0.5 && update!(parity, U[1])
-                recalc_CV!(U[1], bias[1])
 
                 for i in 2:numinstances
                     numaccepts[i] += update!(updatemethod_pt, U[i], vp, bias=bias[i])
@@ -306,7 +304,8 @@ function metaqcd_PT!(
             println_verbose1(
                 vp,
                 ">> Meas. elapsed time:\t$(mtime) [s]\n",
-                ">> FMeas. elapsed time:\t$(fmtime) [s]",
+                ">> FMeas. elapsed time:\t$(fmtime) [s]\n",
+                "#",
             )
             flush(vp.fp)
         end

@@ -29,7 +29,7 @@ struct HMCUpdate{TI,TG,TS,TB} <: AbstractUpdate
         GA = eltype(U)
         @assert GA != SymanzikTadGaugeAction "Tadpole improved actions not supported in HMC"
         P = Liefield(U)
-        clear_U!(P)
+        gaussian_momenta!(P, π/2)
         _temp_U = similar(U)
 
         _temp_staple = Temporaryfield(U)
