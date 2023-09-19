@@ -5,7 +5,8 @@
 Inspired by the [LatticeQCD.jl](https://github.com/akio-tomiya/LatticeQCD.jl/tree/master) package by Akio Tomiya et al.
 
 ## Features:
-- Simulations of 4D-SU(3) Yang-Mills (Pure Gauge) theory with and without Metadynamics
+- Simulations of 4D-SU(3) Yang-Mills (Pure Gauge) theory
+- [Metadynamics](https://www.researchgate.net/publication/224908601_Metadynamics_A_method_to_simulate_rare_events_and_reconstruct_the_free_energy_in_biophysics_chemistry_and_material_science)
 - [PT-MetaD](https://arxiv.org/abs/2307.04742)
 - Several update algorithms (HMC, Metropolis, Heatbath, Overrelaxation)
 - Several symplectic integrators for HMC (Leapfrog, OMF2, OMF4) -> Case sensititve in parameter-files
