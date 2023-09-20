@@ -2,7 +2,7 @@ function SU3testupdate()
     Random.seed!(1206)
 
     println("SU3testupdate")
-    NX = 12; NY = 12; NZ = 12; NT = 12
+    NX = 4; NY = 4; NZ = 4; NT = 4
     U = random_gauges(NX, NY, NZ, NT, 6.0, WilsonGaugeAction);
     #filename = "./test/testconf.txt"
     #load_BridgeText!(filename,U)
