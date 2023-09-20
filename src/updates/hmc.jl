@@ -6,6 +6,7 @@ struct HMCUpdate{TI,TG,TS,TB} <: AbstractUpdate
     Δτ::Float64
     ϕ::Float64
     P::Liefield
+    _temp_P::Union{Nothing, Liefield} # second momenum field for GHMC
     _temp_U::TG
     _temp_staple::Temporaryfield
     _temp_force::Temporaryfield
@@ -30,8 +31,8 @@ struct HMCUpdate{TI,TG,TS,TB} <: AbstractUpdate
         @assert GA != SymanzikTadGaugeAction "Tadpole improved actions not supported in HMC"
         P = Liefield(U)
         gaussian_momenta!(P, π/2)
+        _temp_P = ϕ==π/2 ? nothing : Liefield(U)
         _temp_U = similar(U)
-
         _temp_staple = Temporaryfield(U)
         _temp_force = Temporaryfield(U)
 
@@ -77,6 +78,7 @@ struct HMCUpdate{TI,TG,TS,TB} <: AbstractUpdate
 			Δτ,
             ϕ,
 			P,
+            _temp_P,
 			_temp_U,
             _temp_staple,
             _temp_force,
@@ -98,8 +100,10 @@ function update!(
     metro_test = true,
 ) where {TI,TG,TS,TB}
     U_old = updatemethod._temp_U
+    P_old = updatemethod._temp_P
     substitute_U!(U_old, U)
     gaussian_momenta!(updatemethod.P, updatemethod.ϕ)
+    P_old!==nothing && substitute_U!(P_old, P)
 
     trP2_old = -calc_kinetic_energy(updatemethod.P)
 
@@ -155,7 +159,11 @@ function update!(
         println_verbose2(verbose, "Accepted")
     else
         substitute_U!(U, U_old)
-        updatemethod.ϕ!=π/2 && mul!(updatemethod.P, -1) # flip momenta if rejected
+
+        if P_old !== nothing# flip momenta if rejected
+            substitute_U!(updatemethod.P, P_old)
+            mul!(updatemethod.P, -1)
+        end
         println_verbose2(verbose, "Rejected")
     end
 

@@ -5,7 +5,7 @@ alloc-profile.pb.gz
 /configs/
 /test/test.jl
 /test/testsmearing.jl
-.vscode/settings.json
+.vscode/
 run.jl
 /src/dirac/
 /src/mpi/mpitest.jl
@@ -15,3 +15,4 @@ stability.jl
 /src/utils/algebra.jl
 plot.jl
 plot_opes.jl
+.VSCodeCounter/

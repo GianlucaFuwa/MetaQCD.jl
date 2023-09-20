@@ -187,6 +187,15 @@ module Parameters
                             value[String(pname_i)],
                             casefold = true,
                         )
+                    elseif String(pname_i) == "randomseed"
+                        val = value[String(pname_i)]
+                        if typeof(val) == Int64
+                            value_Params[i] = UInt64(val)
+                        elseif typeof(val) == Vector{String}
+                            value_Params[i] = [parse(UInt64, v) for v in val]
+                        else
+                            value_Params[i] = val
+                        end
                     else
                         if value[String(pname_i)] == "nothing"
                             value_Params[i] = nothing

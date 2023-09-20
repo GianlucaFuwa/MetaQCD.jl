@@ -188,11 +188,13 @@ function metaqcd!(
                 update!(updatemethod, U, vp, bias=nothing, metro_test=false)
             end
 
-            println_verbose1(vp, ">> Therm. Update elapsed time:\t$(updatetime) [s]")
+            println_verbose1(vp, ">> Therm. Update elapsed time:\t$(updatetime) [s]\n#")
         end
     end
 
-    println_verbose1(vp, "\t>> Thermalization elapsed time:\t$(runtime_therm) [s]\n#")
+    println_verbose1(vp, "\t>> Thermalization elapsed time:\t$(runtime_therm) [s]\n")
+    # load in config and recalculate gauge action if given
+    load_gaugefield!(U, parameters, vp) && (U.Sg = calc_gauge_action(U))
     recalc_CV!(U, bias) # need to recalc cv since it was not updated during therm
 
     _, runtime_all = @timed begin
@@ -209,7 +211,7 @@ function metaqcd!(
             print_acceptance_rates(numaccepts, itrj, vp)
             println_verbose1(vp, ">> Update elapsed time:\t$(updatetime) [s]")
 
-            save_gaugefield(save_configs, U, itrj)
+            save_gaugefield(save_configs, U, vp, itrj)
 
             _, mtime = @timed calc_measurements(measurements, U, itrj)
             _, fmtime = @timed calc_measurements_flowed(measurements_with_flow, gflow, U, itrj)
@@ -269,6 +271,8 @@ function metaqcd_PT!(
     end
 
     println_verbose1(vp, "\t>> Thermalization Elapsed time $(runtime_therm) [s]")
+    # load in config and recalculate gauge action if given
+    load_gaugefield!(U[1], parameters, vp) && (U[1].Sg = calc_gauge_action(U[1]))
     recalc_CV!(U, bias) # need to recalc cv since it was not updated during therm
 
     value, runtime_all = @timed begin
@@ -296,7 +300,7 @@ function metaqcd_PT!(
 
             temper!(U, bias, numaccepts_temper, swap_every, itrj, vp; recalc=!uses_hmc)
 
-            save_gaugefield(save_configs, U[1], itrj)
+            save_gaugefield(save_configs, U[1], vp, itrj)
 
             _, mtime = @timed calc_measurements(measurements, U, itrj)
             _, fmtime = @timed calc_measurements_flowed(measurements_with_flow, gflow, U, itrj, measure_on_all)

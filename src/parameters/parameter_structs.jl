@@ -112,7 +112,7 @@ Base.@kwdef mutable struct PrintSystemParameters
     saveU_dir::String = ""
     saveU_format::Union{String, Nothing} = nothing
     saveU_every::Int64 = 1
-    randomseed::Int64 = 0
+    randomseed::Union{UInt64, Vector{UInt64}} = 0x0000000000000000
     measurement_basedir::String = ""
     measurement_dir::String = ""
     bias_basedir::Union{Nothing, String, Vector{String}} = nothing

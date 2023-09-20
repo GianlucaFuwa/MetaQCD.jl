@@ -48,7 +48,7 @@ function loadU_bridge!(U, filename)
                                 link[a,b] = rvalue + im * ivalue
                             end
                         end
-                        U[μ][ix,iy,iz,it] = link
+                        U[μ][ix,iy,iz,it] = SMatrix{3,3,ComplexF64,9}(link)
                     end
                 end
             end

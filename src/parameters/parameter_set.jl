@@ -88,7 +88,7 @@ struct ParameterSet
     loadU_fromfile::Bool
     loadU_filename::String
 
-    randomseed::Int64
+    randomseed::Union{UInt64, Vector{UInt64}}
     logdir::String
     logfile::String
     load_fp::Union{Nothing, IOStream}
