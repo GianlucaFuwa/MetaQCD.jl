@@ -103,7 +103,7 @@ function update!(
     P_old = updatemethod._temp_P
     substitute_U!(U_old, U)
     gaussian_momenta!(updatemethod.P, updatemethod.ϕ)
-    P_old!==nothing && substitute_U!(P_old, P)
+    P_old!==nothing && substitute_U!(P_old, updatemethod.P)
 
     trP2_old = -calc_kinetic_energy(updatemethod.P)
 
