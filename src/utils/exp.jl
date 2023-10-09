@@ -75,12 +75,12 @@ function calc_coefficients(Q::SMatrix{3,3,ComplexF64,9})
     bdenom = isapprox(0.0, 9u² - w²) ? 0.0 : 1 / 2(9u² - w²)^2
 
     if signflip
-        b₁₀ = conj((2u*r₁₀ + (3u² - w²) * r₂₀ - 2(15u² + w²) * f₀)) * bdenom
-        b₂₀ = -conj((r₁₀ - 3u*r₂₀ - 24u*f₀)) * bdenom
-        b₁₁ = -conj((2u*r₁₁ + (3u² - w²) * r₂₁ - 2(15u² + w²) * f₁)) * bdenom
-        b₂₁ = conj((r₁₁ - 3u*r₂₁ - 24u*f₁)) * bdenom
-        b₁₂ = conj((2u*r₁₂ + (3u² - w²) * r₂₂ - 2(15u² + w²) * f₂)) * bdenom
-        b₂₂ = -conj((r₁₂ - 3u*r₂₂ - 24u*f₂)) * bdenom
+        b₁₀ = conj((2u*r₁₀ + (3u² - w²) * r₂₀ - 2(15u² + w²) * conj(f₀))) * bdenom
+        b₂₀ = -conj((r₁₀ - 3u*r₂₀ - 24u*conj(f₀))) * bdenom
+        b₁₁ = -conj((2u*r₁₁ + (3u² - w²) * r₂₁ - 2(15u² + w²) * -conj(f₁))) * bdenom
+        b₂₁ = conj((r₁₁ - 3u*r₂₁ - 24u*conj(f₁))) * bdenom
+        b₁₂ = conj((2u*r₁₂ + (3u² - w²) * r₂₂ - 2(15u² + w²) * -conj(f₂))) * bdenom
+        b₂₂ = -conj((r₁₂ - 3u*r₂₂ - 24u*conj(f₂))) * bdenom
     else
         b₁₀ = (2u*r₁₀ + (3u² - w²) * r₂₀ - 2(15u² + w²) * f₀) * bdenom
         b₂₀ = (r₁₀ - 3u*r₂₀ - 24u*f₀) * bdenom
