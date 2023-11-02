@@ -41,7 +41,7 @@ function Bias(p::ParameterSet, U; verbose=Verbose1(), instance=1, has_fp=true)
     TCV = get_cvtype_from_parameters(p)
     smearing = StoutSmearing(U, p.numsmears_for_cv, p.rhostout_for_cv)
     is_static = instance==0 ? true : p.is_static[instance]
-    sstr = is_static ? "STATIC" : "DYNAMIC"
+    sstr = (is_static || p.kind_of_bias=="parametric") ? "STATIC" : "DYNAMIC"
     println_verbose1(verbose, ">> Bias $instance is $sstr")
 
     if p.kind_of_bias ∈ ["metad", "metadynamics"]
@@ -69,6 +69,7 @@ function Bias(p::ParameterSet, U; verbose=Verbose1(), instance=1, has_fp=true)
     elseif (has_fp==true) && (instance>0) && (p.kind_of_bias=="parametric")
         weight_fp = open(p.measuredir * "/meta_weight_$instance.txt", "w")
         kinds_of_weights = ["branduardi"]
+        @info "Parametric Bias is always STATIC"
         @info "Weight-type defaults to \"branduardi\", i.e. exp(V(Qᵢ)) on parametric bias"
         biasfile = nothing
     else
