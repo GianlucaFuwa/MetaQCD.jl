@@ -59,7 +59,7 @@ end
 function Updatemethod(
     U,
     update_method,
-    verbose = nothing,
+    verbose,
     verboselevel = 1,
     logdir = "",
     kind_of_bias = "none",

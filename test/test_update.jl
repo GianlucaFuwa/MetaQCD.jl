@@ -9,18 +9,18 @@ function SU3testupdate()
 
     verbose = Verbose2()
 
-    update_method = "heatbath"
+    update_method = "hmc"
     kind_of_bias = "none"
     metro_ϵ = 0.1
     metro_numhits = 1
     metro_target_acc = 0.5
     hmc_integrator = "OMF4"
-    hmc_Δτ = 0.1
+    hmc_trajectory = 1
     hmc_friction = π/2
-    hmc_steps = 10
+    hmc_steps = 5
     hmc_numsmear = 5
     hmc_ρstout = 0.12
-    hb_eo = true
+    hb_eo = false
     hb_MAXIT = 10
     numheatbath = 1
     or_algorithm = "kenney-laub"
@@ -29,6 +29,7 @@ function SU3testupdate()
     updatemethod = Updatemethod(
         U,
         update_method,
+        verbose,
         1,
         "",
         kind_of_bias,
@@ -37,7 +38,7 @@ function SU3testupdate()
         metro_target_acc,
         hmc_integrator,
         hmc_steps,
-        hmc_Δτ,
+        hmc_trajectory,
         hmc_friction,
         hmc_numsmear,
         hmc_ρstout,

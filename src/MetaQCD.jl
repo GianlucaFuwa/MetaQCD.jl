@@ -44,6 +44,7 @@ import .Parameters: ParameterSet, construct_params_from_toml
 import .Smearing: Euler, RK2, RK3, RK3W7, GradientFlow, NoSmearing, StoutSmearing
 import .Smearing: calc_smearedU!, flow!, stout_backprop!
 import .Updates: Updatemethod, Heatbath, HMC, Metropolis
+import .Updates: Leapfrog, OMF2, OMF2Slow, OMF4, OMF4Slow
 import .Updates: Overrelaxation, Subgroups, KenneyLaub
 import .Updates: calc_dSdU_bare!, calc_dVdU_bare!, evolve!, update!, ∇trFμνFρσ
 import .Universe: Univ
@@ -63,6 +64,7 @@ export ParameterSet, construct_params_from_toml
 export Euler, RK2, RK3, RK3W7, GradientFlow, NoSmearing, StoutSmearing
 export calc_smearedU!, flow!, stout_backprop!
 export Updatemethod, Heatbath, HMC, Metropolis
+export Leapfrog, OMF2, OMF2Slow, OMF4, OMF4Slow
 export Overrelaxation, Subgroups, KenneyLaub
 export calc_dSdU_bare!, calc_dVdU_bare!, evolve!, update!, ∇trFμνFρσ
 export NoSmearing, StoutSmearing, calc_smearedU!, GradientFlow, flow!, stout_backprop!

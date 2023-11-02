@@ -1,9 +1,6 @@
 function run_build(filenamein::String; MPIparallel=false)
-    comm = MPI.COMM_WORLD
-    myrank = MPI.Comm_rank(comm)
-
     if myrank == 0
-        println("\t>> MPI enabled with $(MPI.Comm_size(comm)) procs\n")
+        println("\t>> MPI enabled with $(comm_size) procs\n")
         ext = splitext(filenamein)[end]
         @assert (ext == ".toml") """
             input file format \"$ext\" not supported. Use TOML format
@@ -40,8 +37,8 @@ end
 
 function run_build!(univ, parameters)
     U = univ.U
-
-    updatemethod = Updatemethod(parameters, U)
+    UM_verbose = (myrank==0) ? univ.verbose_print : nothing
+    updatemethod = Updatemethod(parameters, U, UM_verbose)
 
     gradient_flow = GradientFlow(
         U,
@@ -52,7 +49,7 @@ function run_build!(univ, parameters)
         measure_every = parameters.flow_measure_every,
     )
 
-    additional_string = "_$(MPI.Comm_rank(MPI.COMM_WORLD))"
+    additional_string = "_$(myrank)"
 
     measurements = MeasurementMethods(
         U,
@@ -88,15 +85,9 @@ function build!(
     measurements,
     measurements_with_flow,
 )
-    comm = MPI.COMM_WORLD
-    myrank = MPI.Comm_rank(comm)
     U = univ.U
     bias = univ.bias
     vp = univ.verbose_print
-
-    calc_measurements(measurements, U, 0)
-
-    MPI.Barrier(comm)
 
     _, runtime_therm = @timed begin
         for itrj in 1:parameters.numtherm
@@ -109,6 +100,8 @@ function build!(
             println_verbose0(vp, "Thermalization Update: Elapsed time $(updatetime) [s]")
         end
     end
+
+    recalc_CV!(U, bias) # need to recalc cv since it was not updated during therm
 
     MPI.Barrier(comm)
 
@@ -150,6 +143,5 @@ function build!(
         flush(stdout)
     end
 
-    MPI.Finalize()
     return nothing
 end

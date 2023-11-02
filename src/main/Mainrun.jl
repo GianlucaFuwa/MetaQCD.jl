@@ -17,17 +17,22 @@ import ..Updates: HMC, ParityUpdate, Updatemethod, update!, temper!
 
 export run_build, run_sim
 
+MPI.Initialized() || MPI.Init()
+const comm = MPI.COMM_WORLD
+const myrank = MPI.Comm_rank(comm)
+const comm_size = MPI.Comm_size(comm)
+
 """
 So we don't have to type "if myrank == 0" all the time...
 """
 function println_rank0(v::VerboseLevel, args...)
-    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+    if myrank == 0
         println(v, args...)
     end
 end
 
 function println_verbose0(v::VerboseLevel, args...)
-    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+    if myrank == 0
         println_verbose1(v, args...)
     end
 end

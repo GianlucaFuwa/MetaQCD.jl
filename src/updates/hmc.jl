@@ -35,7 +35,7 @@ struct HMC{TI,TG,TS,TB} <: AbstractUpdate
         println_verbose1(verbose, "\t>> TRAJECTORY LENGTH = $(trajectory)")
         println_verbose1(verbose, "\t>> STEPS = $(steps)")
         println_verbose1(verbose, "\t>> STEP LENGTH = $(Δτ)")
-        println_verbose1(verbose, "\t>> INTEGRATOR = $(TI)")
+        println_verbose1(verbose, "\t>> FRICTION = $(friction)")
 
         P = Liefield(U)
         gaussian_momenta!(P, π/2)
@@ -48,7 +48,9 @@ struct HMC{TI,TG,TS,TB} <: AbstractUpdate
         TS = typeof(smearing)
         force2 = (TS==NoSmearing && !bias_enabled) ? nothing : Temporaryfield(U)
 
-        if TS != NoSmearing
+        if TS == NoSmearing
+            println_verbose1(verbose, "\t>> NO ACTION SMEARING")
+        else
             println_verbose1(verbose, "\t>> ACTION SMEARING = (ρ = $(ρ_stout), n = $(numsmear))")
         end
 

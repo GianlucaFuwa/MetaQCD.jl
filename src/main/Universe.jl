@@ -31,10 +31,11 @@ function Univ(p::ParameterSet; use_mpi=false, fp=true)
     InteractiveUtils.versioninfo(io)
     versioninfo = String(take!(io))
     fp && println_verbose1(verbose_print, versioninfo)
-
-    fp && println_verbose1(verbose_print, ">> PHYSICAL PARAMS: L = $NX×$NX×$NX×$NX, β = $β\n")
-
     GA = get_gaugeaction_from_parameters(p)
+
+    fp && println_verbose1(
+        verbose_print,
+        ">> PHYSICAL PARAMS: L = $NX×$NX×$NX×$NX, GaugeAction = $(GA), β = $β\n")
 
     if p.kind_of_bias != "none"
         if p.tempering_enabled && use_mpi == false
