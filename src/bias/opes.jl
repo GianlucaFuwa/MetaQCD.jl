@@ -101,8 +101,6 @@ function OPES(p::ParameterSet; verbose=Verbose1(), instance=1)
         println_verbose1(verbose, "\t>> Getting state from $(p.usebiases[instance])")
         kernels, state = opes_from_file(p.usebiases[instance])
         nker = length(kernels)
-        println_verbose1(verbose, "\t>> NKER = $(nker)")
-        println_verbose1(verbose, "\t>> COUNTER = $(counter)")
         is_first_step = false
         counter = Int64(state["counter"])
         biasfactor = state["biasfactor"]
@@ -115,6 +113,9 @@ function OPES(p::ParameterSet; verbose=Verbose1(), instance=1)
         penalty = state["penalty"]
     end
 
+    println_verbose1(verbose, "\t>> NKER = $(nker)")
+    println_verbose1(verbose, "\t>> COUNTER = $(counter)")
+    @assert counter>0 "COUNTER must be ≥0"
     println_verbose1(verbose, "\t>> STRIDE = $(stride)")
     @assert stride>0 "STRIDE must be >0"
     println_verbose1(verbose, "\t>> CVLIMS = $(cvlims)")
@@ -133,7 +134,7 @@ function OPES(p::ParameterSet; verbose=Verbose1(), instance=1)
     println_verbose1(verbose, "\t>> NO_Z = $(no_Z)")
     println_verbose1(verbose, "\t>> THRESHOLD = $(threshold)")
     @assert threshold > 0 "THRESHOLD must be > 0"
-    println_verbose1(verbose, "\t>> CUTOFF = $(cutoff)")
+    println_verbose1(verbose, "\t>> CUTOFF = $(sqrt(cutoff²))")
     @assert cutoff > 0 "CUTOFF must be > 0"
 
     return OPES(
@@ -343,9 +344,9 @@ const kernel_header = "#$(rpad("height", 20))\t$(rpad("center", 20))\t$(rpad("si
 
 function write_to_file(o::OPES, filename)
     (tmppath, tmpio) = mktemp()
-    print(tmpio, "#"); [print(tmpio, "$(var)\t") for var in state_vars]; println(tmpio, "\n")
+    print(tmpio, "#"); [print(tmpio, "$(var)\t") for var in state_vars]; println(tmpio, "")
     state_str = "$(o.counter)\t$(o.biasfactor)\t$(o.σ₀)\t$(o.ϵ)\t$(o.sum_weights)\t$(o.Z)" *
-        "\t$(o.threshold)\t$(√o.cutoff²)\t$(o.penalty)"
+        "\t$(o.threshold)\t$(√o.cutoff²)\t$(o.penalty)\n"
     println(tmpio, state_str)
     println(tmpio, kernel_header)
 
