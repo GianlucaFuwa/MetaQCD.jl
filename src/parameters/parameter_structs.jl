@@ -1,9 +1,3 @@
-import ..Measurements: MeasurementParameters
-import ..Measurements: construct_measurement_parameters_from_dict
-import ..Measurements: PlaquetteParameters, PolyakovParameters
-import ..Measurements: prepare_measurement_from_dict
-import ..Measurements: TopologicalChargeParameters, WilsonLoopParameters
-
 const important_parameters = [
     "L",
     "beta",
@@ -37,17 +31,6 @@ function struct2dict(x::T) where {T}
     return dict
 end
 
-function generate_printlist(x::Type)
-    pnames = fieldnames(x)
-    plist = String[]
-
-    for i in eachindex(pnames)
-        push!(plist, String(pnames[i]))
-    end
-
-    return plist
-end
-
 Base.@kwdef mutable struct PrintPhysicalParameters
     L::NTuple{4, Int64} = (4, 4, 4, 4)
     beta::Float64 = 5.7
@@ -60,9 +43,10 @@ Base.@kwdef mutable struct PrintPhysicalParameters
     hb_maxit::Int64 = 10^5
     numheatbath::Int64 = 4
     metro_epsilon::Float64 = 0.1
-    metro_multi_hit::Int64 = 1
+    metro_numhits::Int64 = 1
     metro_target_acc::Float64 = 0.5
-    eo::Bool = false
+    eo::Bool = true
+    or_algorithm::String = "subgroups"
     numorelax::Int64 = 0
     parity_update::Bool = false
 end
@@ -93,6 +77,10 @@ Base.@kwdef mutable struct PrintBiasParameters
     opes_epsilon::Float64 = 0.0
     threshold::Float64 = 1.0
     cutoff::Float64 = 0.0
+    # for parametric
+    bias_Q::Float64 = 0.0
+    bias_A::Float64 = 0.0
+    bias_Z::Float64 = 0.0
     # tempering specific
     tempering_enabled::Bool = false
     numinstances::Int64 = 1
@@ -121,7 +109,7 @@ Base.@kwdef mutable struct PrintSystemParameters
 end
 
 Base.@kwdef mutable struct PrintHMCParameters
-    hmc_deltatau::Float64 = 0.1
+    hmc_trajectory::Float64 = 1
     hmc_steps::Int64 = 10
     hmc_friction::Float64 = π/2
     hmc_integrator::String = "Leapfrog"
@@ -135,233 +123,9 @@ Base.@kwdef mutable struct PrintGradientFlowParameters
     flow_num::Int64 = 1
     flow_tf::Float64 = 0.1
     flow_steps::Int64 = 10
-    flow_measure_every::Int64 = 1
+    flow_measure_every::Union{Int64, Vector{Int64}} = 1
 end
 
 Base.@kwdef mutable struct PrintMeasurementParameters
     measurement_method::Vector{Dict} = Dict[]
-end
-
-const printlist_physical = generate_printlist(PrintPhysicalParameters)
-const printlist_bias = generate_printlist(PrintBiasParameters)
-const printlist_system = generate_printlist(PrintSystemParameters)
-const printlist_hmc = generate_printlist(PrintHMCParameters)
-const printlist_measurement = generate_printlist(PrintMeasurementParameters)
-
-abstract type SmearingParameters end
-
-Base.@kwdef mutable struct NoSmearingParameters <: SmearingParameters end
-
-Base.@kwdef mutable struct MeasurementParameterSet
-    measurement_methods::Vector{MeasurementParameters} = []
-end
-
-function transform_measurement_dictvec(value)
-    flow_dict = Dict()
-    nummeasure = length(value)
-    value_out = Vector{Measurement_parameters}(undef, nummeasure)
-    hasgradientflow = false
-
-    for i in 1:nummeasure
-        if haskey(value[i], "methodname")
-            if value[i]["methodname"] == "Topological_charge"
-                hasgradientflow = true
-                value_out[i] = transform_topological_charge_measurement!(
-                    flow_dict,
-                    value[i],
-                )
-            else
-                value_out[i] = construct_Measurement_parameters_from_dict(value[i])
-            end
-        else
-            error("method name in measurement should be set")
-        end
-    end
-
-    return value_out, smear_dict, hasgradientflow
-end
-
-function transform_topological_charge_measurement!(flow_dict, measurement)
-    @assert haskey(measurement, "methodname") "method name in measurement should be set"
-    @assert measurement["methodname"] == "Topological_charge" "function is for top. charge"
-
-    measurement_revised = Dict()
-
-    for (key, value) in measurement
-        if key == "flow_integrator"
-            flow_dict["flow_integrator"] = value
-        elseif key == "flow_num"
-            flow_dict["flow_num"] = value
-        elseif key == "flow_tf"
-            flow_dict["flow_tf"] = value
-        elseif key == "flow_steps"
-            flow_dict["flow_steps"] = value
-        elseif key == "flow_measure_every"
-            flow_dict["flow_measure_every"] = value
-        else
-            measurement_revised[key] = value
-        end
-    end
-
-    value_m = construct_Measurement_parameters_from_dict(measurement_revised)
-    flow_dict["measurements_for_flow"] = Dict()
-    flow_dict["measurements_for_flow"]["Topological_charge"] = measurement_revised
-
-    return value_m
-end
-
-function construct_printable_parameters_fromdict!(
-    key,
-    value,
-    physical,
-    bias,
-    system,
-    hmc,
-)
-    if key == "L"
-        value = collect(value)
-    elseif key == "r"
-        value = Float64(value)
-    end
-
-    hasvalue = false
-    pname_i = Symbol(key)
-    physical_index = findfirst(x -> x==key, printlist_physical)
-
-    if physical_index !== nothing
-        setfield!(physical, pname_i, value)
-        hasvalue = true
-    end
-
-    bias_index = findfirst(x -> x==key, printlist_bias)
-
-    if bias_index !== nothing
-        setfield!(bias, pname_i, value)
-        hasvalue = true
-    end
-
-    system_index = findfirst(x -> x==key, printlist_system)
-
-    if system_index !== nothing
-        setfield!(system, pname_i, value)
-        hasvalue = true
-    end
-
-    hmc_index = findfirst(x -> x==key, printlist_hmc)
-
-    if hmc_index !== nothing
-        setfield!(hmc, pname_i, value)
-        hasvalue = true
-    end
-
-    if hasvalue == false
-        @warn "$(key) is not used"
-    end
-
-    return hasvalue
-end
-
-function construct_printable_parameters_fromdict!(
-    x::Dict,
-    physical,
-    bias,
-    system,
-    hmc
-)
-    for (key, value) in x
-        hasvalue = false
-        pname_i = Symbol(key)
-        physical_index = findfirst(x -> x==pname_i, printlist_physical)
-
-        if physical_index !== nothing
-            setfield!(physical, pname_i, value)
-            hasvalue = true
-        end
-
-        bias_index = findfirst(x -> x==pname_i, printlist_bias)
-
-        if bias_index !== nothing
-            setfield!(bias, pname_i, value)
-            hasvalue = true
-        end
-
-        system_index = findfirst(x -> x==pname_i, printlist_system)
-
-        if system_index !== nothing
-            setfield!(system, pname_i, value)
-            hasvalue = true
-        end
-
-        hmc_index = findfirst(x -> x==pname_i, printlist_hmc)
-
-        if hmc_index !== nothing
-            setfield!(hmc, pname_i, value)
-            hasvalue = true
-        end
-
-        if hasvalue == false
-            @warn "$(pname_i) is not used"
-        end
-    end
-
-    return nothing
-end
-
-function remove_default_values!(x::Dict, defaultsystem)
-    for (key, value) in x
-        if hasfield(typeof(defaultsystem), Symbol(key))
-            default_value = getfield(defaultsystem,Symbol(key))
-
-            if value == default_value || string(value) == string(default_value)
-                if check_important_parameters(key) == false
-                    delete!(x, key)
-                end
-            else
-                if value === nothing
-                    x[key] = "nothing"
-                end
-            end
-
-        else
-            if value === nothing
-                x[key] = "nothing"
-            end
-        end
-
-        if typeof(value) == Vector{Measurement_parameters}
-            construct_dict_from_measurement!(x, value)
-        end
-    end
-
-    return nothing
-end
-
-function construct_dict_from_measurement!(x, value)
-    measuredic = Dict()
-
-    for measure in value
-        methoddic = struct2dict(measure)
-        measure_struct_default = typeof(measure)()
-        remove_default_values!(methoddic, measure_struct_default)
-        measuredic[methoddic["methodname"]] = methoddic
-    end
-
-    x["measurement_methods"] = measuredic
-    return nothing
-end
-
-function remove_default_values!(x::Dict)
-    physical = Print_physical_parameters()
-    bias = Print_bias_parameters()
-    system = Print_system_parameters()
-    hmc = Print_hmc_parameters()
-
-    for (params, paramsname) in x
-        remove_default_values!(x[params], physical)
-        remove_default_values!(x[params], bias)
-        remove_default_values!(x[params], system)
-        remove_default_values!(x[params], hmc)
-    end
-
-    return nothing
 end

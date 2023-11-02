@@ -36,22 +36,11 @@ struct TopologicalChargeMeasurement <: AbstractMeasurement
             verbose_print = nothing
         end
 
-        return new(
-            filename,
-            verbose_print,
-            fp,
-            printvalues,
-            TC_methods,
-        )
+        return new(filename, verbose_print, fp, printvalues, TC_methods)
     end
 end
 
-function TopologicalChargeMeasurement(
-        U::T,
-        params::TopologicalChargeParameters,
-        filename = "topological_charge.txt",
-        flow = false,
-    ) where {T<:Gaugefield}
+function TopologicalChargeMeasurement(U, params::TopologicalChargeParameters, filename, flow=false)
     return TopologicalChargeMeasurement(
         U,
         filename = filename,
@@ -162,7 +151,7 @@ end
 function top_charge(::Improved, U)
     Qclover = top_charge(Clover(), U)
     Qrect = top_charge_rect(U)
-    Qimproved = 5/3 * Qclover - 1/12 * Qrect
+    Qimproved = 5/3*Qclover - 1/12*Qrect
     return Qimproved
 end
 

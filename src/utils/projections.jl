@@ -12,7 +12,7 @@ function gen_SU3_matrix(ϵ)
     T = embed_into_SU3(T2, 2, 3)
     out = cmatmul_ooo(R, S, T)
 
-    if rand() < 0.5
+    if rand(Float64) < 0.5
         return out
     else
         return out'
@@ -20,9 +20,9 @@ function gen_SU3_matrix(ϵ)
 end
 
 function gen_SU2_matrix(ϵ)
-    r₁ = rand() - 0.5
-    r₂ = rand() - 0.5
-    r₃ = rand() - 0.5
+    r₁ = rand(Float64) - 0.5
+    r₂ = rand(Float64) - 0.5
+    r₃ = rand(Float64) - 0.5
     rnorm = sqrt(r₁^2 + r₂^2 + r₃^2)
     out = sqrt(1 - ϵ^2) * eye2 + im * ϵ/rnorm * (r₁ * σ₁ + r₂ * σ₂ + r₃ * σ₃)
     return out
@@ -30,14 +30,14 @@ end
 
 function gaussian_su3_matrix()
     sq3 = sqrt(3)
-    h₁ = 0.5 * randn(Float64)
-    h₂ = 0.5 * randn(Float64)
-    h₃ = 0.5 * randn(Float64)
-    h₄ = 0.5 * randn(Float64)
-    h₅ = 0.5 * randn(Float64)
-    h₆ = 0.5 * randn(Float64)
-    h₇ = 0.5 * randn(Float64)
-    h₈ = 0.5 * randn(Float64)
+    h₁ = 0.5randn(Float64)
+    h₂ = 0.5randn(Float64)
+    h₃ = 0.5randn(Float64)
+    h₄ = 0.5randn(Float64)
+    h₅ = 0.5randn(Float64)
+    h₆ = 0.5randn(Float64)
+    h₇ = 0.5randn(Float64)
+    h₈ = 0.5randn(Float64)
     out = @SMatrix [
         im*(h₃+h₈/sq3) h₂+im*h₁        h₅+im*h₄
         -h₂+im*h₁      im*(-h₃+h₈/sq3) h₇+im*h₆
@@ -46,15 +46,17 @@ function gaussian_su3_matrix()
     return out
 end
 
-function gaussian_su3_matrix(h₁, h₂, h₃, h₄, h₅, h₆, h₇, h₈)
-    sq3 = sqrt(3)
-    out = @SMatrix [
-        0.5im*(h₃+h₈/sq3) 0.5h₂+0.5im*h₁     0.5h₅+0.5im*h₄
-        -0.5h₂+0.5im*h₁   0.5im*(-h₃+h₈/sq3) 0.5h₇+0.5im*h₆
-        -0.5h₅+0.5im*h₄   -0.5h₇+0.5im*h₆    0.5im*(-2*h₈/sq3)
-    ]
-    return out
-end
+# function gaussian_su3_matrix(params)
+#     randn!(params)
+#     h₁, h₂, h₃, h₄, h₅, h₆, h₇, h₈ = 0.5params
+#     sq3 = sqrt(3)
+#     out = @SMatrix [
+#         im*(h₃+h₈/sq3) h₂+im*h₁        h₅+im*h₄
+#         -h₂+im*h₁      im*(-h₃+h₈/sq3) h₇+im*h₆
+#         -h₅+im*h₄      -h₇+im*h₆       im*(-2*h₈/sq3)
+#     ]
+#     return out
+# end
 
 function embed_into_SU3(M::SMatrix{2,2,ComplexF64,4}, i, j)
     if (i, j) == (1, 2)
@@ -131,13 +133,18 @@ function kenney_laub(M::SMatrix{3,3,ComplexF64,9})
 end
 
 function is_special_unitary(M::SMatrix{3,3,ComplexF64,9}, prec = 1e-12)
-    is_SU3_upto_prec = norm(eye3 - cmatmul_od(M, M)) < prec && abs(1 - det(M)) < prec
-    return is_SU3_upto_prec
+    is_SU3 = norm(eye3 - cmatmul_od(M, M)) < prec && abs(1 - det(M)) < prec
+    return is_SU3
 end
 
 function is_traceless_antihermitian(M::SMatrix{3,3,ComplexF64,9}, prec = 1e-12)
-    is_su3_upto_prec = norm(M - M') < prec && abs(tr(M)) < prec
-    return is_su3_upto_prec
+    is_TA = norm(M + M') < prec && abs(tr(M)) < prec
+    return is_TA
+end
+
+function is_traceless_hermitian(M::SMatrix{3,3,ComplexF64,9}, prec = 1e-12)
+    is_TH = norm(M - M') < prec && abs(tr(M)) < prec
+    return is_TH
 end
 
 function traceless_antihermitian(M::SMatrix{3,3,ComplexF64,9})

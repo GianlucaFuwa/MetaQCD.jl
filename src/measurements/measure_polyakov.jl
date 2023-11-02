@@ -35,7 +35,7 @@ mutable struct PolyakovMeasurement <: AbstractMeasurement
     end
 end
 
-function PolyakovMeasurement(U, params::PolyakovParameters, filename="polyakov.txt", flow=false)
+function PolyakovMeasurement(U, params::PolyakovParameters, filename, flow=false)
     return PolyakovMeasurement(
         U,
         filename = filename,

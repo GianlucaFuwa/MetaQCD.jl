@@ -12,9 +12,9 @@ struct StoutSmearing{TG} <: AbstractSmearing
 	Λ::Temporaryfield
 
 	function StoutSmearing(U::TG, numlayers, ρ) where {TG}
-		@assert numlayers >= 0 && ρ >= 0 "number of stout layers and ρ must be >= 0"
+		@assert numlayers>=0 && ρ>=0 "number of stout layers and ρ must be >= 0"
 
-		if numlayers == 0 || ρ == 0
+		if numlayers==0 || ρ==0
 			return NoSmearing()
 		else
 			Usmeared_multi = Vector{TG}(undef, numlayers+1)
@@ -35,63 +35,50 @@ struct StoutSmearing{TG} <: AbstractSmearing
 	end
 end
 
-function Base.length(s::T) where {T <: StoutSmearing}
+function Base.length(s::StoutSmearing)
 	return s.numlayers
 end
 
-function get_layer(s::T, i) where {T <: StoutSmearing}
+function get_layer(s::StoutSmearing, i)
 	return s.Usmeared_multi[i]
 end
 
 function apply_smearing!(smearing, Uin)
 	numlayers = length(smearing)
 	ρ = smearing.ρ
-	Uout_multi = smearing.Usmeared_multi
-	C_multi = smearing.C_multi
-	Q_multi = smearing.Q_multi
+	Usmeared = smearing.Usmeared_multi
+	C = smearing.C_multi
+	Q = smearing.Q_multi
 
-	substitute_U!(Uout_multi[1], Uin)
+	substitute_U!(Usmeared[1], Uin)
 
 	for i in 1:numlayers
-		apply_stout_smearing!(Uout_multi[i+1], C_multi[i], Q_multi[i], Uout_multi[i], ρ)
+		apply_stout_smearing!(Usmeared[i+1], C[i], Q[i], Usmeared[i], ρ)
 	end
 
 	return nothing
 end
 
 function apply_stout_smearing!(Uout, C, Q, U, ρ)
-	calc_stout_Q!(Q, C, U, ρ)
-
 	@batch for site in eachindex(U)
         for μ in 1:4
-            Uout[μ][site] = cmatmul_oo(exp_iQ(Q[μ][site]), U[μ][site])
+			Qμ = calc_stout_Q!(Q, C, U, site, μ, ρ)
+            Uout[μ][site] = cmatmul_oo(exp_iQ(Qμ), U[μ][site])
         end
 	end
 
 	return nothing
 end
 
-function stout_backprop!(Σ_current, Σ_prev, smearing)
-	ρ = smearing.ρ
-	numlayers = length(smearing)
-
-	Usmeared_multi = smearing.Usmeared_multi
-	C_multi = smearing.C_multi
-	Q_multi = smearing.Q_multi
+function stout_backprop!(Σ′, Σ, smearing)
+	Usmeared = smearing.Usmeared_multi
+	C = smearing.C_multi
+	Q = smearing.Q_multi
 	Λ = smearing.Λ
 
-	for i in reverse(1:numlayers)
-		stout_recursion!(
-			Σ_prev,
-			Σ_current,
-			Usmeared_multi[i+1],
-			Usmeared_multi[i],
-			C_multi[i],
-			Q_multi[i],
-			Λ,
-			ρ,
-		)
-		substitute_U!(Σ_current, Σ_prev)
+	for i in reverse(1:length(smearing))
+		stout_recursion!(Σ, Σ′, Usmeared[i+1], Usmeared[i], C[i], Q[i], Λ, smearing.ρ)
+		substitute_U!(Σ′, Σ)
 	end
 
 	return nothing
@@ -99,9 +86,7 @@ end
 
 """
 Stout-Force recursion \\
-See: hep-lat/0311018 by Morningstar & Peardon \\
-\\
-Σμ = Σμ'⋅exp(iQμ) + iCμ†⋅Λμ - i∑{...}
+See [hep-lat/0311018] by Morningstar & Peardon
 """
 function stout_recursion!(Σ, Σ′, U′, U, C, Q, Λ, ρ)
 	leftmul_dagg!(Σ′, U′)
@@ -145,45 +130,36 @@ function stout_recursion!(Σ, Σ′, U′, U, C, Q, Λ, ρ)
 	return nothing
 end
 
-"""
-Γ = Tr(Σ'⋅B1⋅U)⋅Q + Tr(Σ'⋅B2⋅U)⋅Q²
-	+ f1⋅U⋅Σ' + f2⋅Q⋅U⋅Σ' + f1⋅U⋅Σ'⋅Q \\
-Λ = 1/2⋅(Γ + Γ†) - 1/(2N)⋅Tr(Γ + Γ†)
-"""
 function calc_stout_Λ!(Λ, Σ′, Q, U)
 	@batch for site in eachindex(Λ)
         for μ in 1:4
-            q = Q[μ][site]
-            Qₘ = get_Q(q)
-            Q² = get_Q²(q)
-            UΣ′ = cmatmul_oo(U[μ][site], Σ′[μ][site])
+			q = Q[μ][site]
+			Qₘ = get_Q(q)
+			Q² = get_Q²(q)
+			UΣ′ = cmatmul_oo(U[μ][site], Σ′[μ][site])
 
-            B₁ = get_B₁(q)
-            B₂ = get_B₂(q)
+			B₁ = get_B₁(q)
+			B₂ = get_B₂(q)
 
-            Γ = multr(B₁, UΣ′) * Qₘ +
-                multr(B₂, UΣ′) * Q² +
-                q.f₁ * UΣ′ +
-                q.f₂ * cmatmul_oo(Qₘ, UΣ′) +
-                q.f₂ * cmatmul_oo(UΣ′, Qₘ)
+			Γ = multr(B₁, UΣ′) * Qₘ +
+				multr(B₂, UΣ′) * Q² +
+				q.f₁ * UΣ′ +
+				q.f₂ * cmatmul_oo(Qₘ, UΣ′) +
+				q.f₂ * cmatmul_oo(UΣ′, Qₘ)
 
-            Λ[μ][site] = traceless_hermitian(Γ)
-        end
+			Λ[μ][site] = traceless_hermitian(Γ)
+		end
 	end
 
 	return nothing
 end
 
-function calc_stout_Q!(Q, C, U, ρ)
-	@batch for site in eachindex(Q)
-        for μ in 1:4
-            Cμ = ρ * staple(WilsonGaugeAction(), U, μ, site)
-            C[μ][site] = Cμ
+function calc_stout_Q!(Q, C, U, site, μ, ρ)
+	Cμ = ρ * staple(WilsonGaugeAction(), U, μ, site)
+	C[μ][site] = Cμ
 
-            Ω = cmatmul_od(Cμ, U[μ][site])
-            Q[μ][site] = exp_iQ_coeffs(-im * traceless_antihermitian(Ω))
-        end
-	end
-
-	return nothing
+	Ω = cmatmul_od(Cμ, U[μ][site])
+	Qμ = exp_iQ_coeffs(-im * traceless_antihermitian(Ω))
+	Q[μ][site] = Qμ
+	return Qμ
 end

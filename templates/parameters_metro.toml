@@ -1,9 +1,9 @@
 ["Physical Settings"]
-L = [8, 8, 8, 8]
-beta = 5.70
+L = [12, 12, 12, 12]
+beta = 6.0
 kind_of_gaction = "wilson"
-numtherm = 10
-numsteps = 10
+numtherm = 50
+numsteps = 100
 initial = "cold"
 update_method = "metropolis"
 metro_multi_hit = 10
@@ -11,32 +11,35 @@ metro_target_acc = 0.5
 metro_epsilon = 0.1
 
 ["System Settings"]               
-logdir = "./logs/L8x8x8x8_wilson_beta5.7/test_metro"
+logdir = "./logs/L12x12x12x12_wilson_beta6.0/test_metro"
 logfile = "logs.txt"
-measurement_basedir = "./measurements/L8x8x8x8_wilson_beta5.7/test_metro"
+measurement_basedir = "./measurements/L12x12x12x12_wilson_beta6.0/test_metro"
 measurement_dir = "raw_data"
 randomseed = 0
 verboselevel = 1
 overwrite = true
 
 ["Measurement set".measurement_methods.Polyakov_loop]
-measure_every = 5
+measure_every = 10
 methodname = "polyakov_loop"
 
 ["Measurement set".measurement_methods.Topological_charge]
-measure_every = 5
+measure_every = 10
 kinds_of_topological_charge = ["clover"]
 methodname = "topological_charge"
 
 ["Measurement set".measurement_methods.Plaquette]
-measure_every = 5
+measure_every = 10
 methodname = "plaquette"
 
 [gradientflow_measurements]
 flow_integrator = "euler"
-flow_num = 4
+flow_num = 7
 flow_steps = 1
-flow_tf = 0.1
-flow_measure_every = 1
+flow_tf = 0.23
+flow_measure_every = 7
 
-    [gradientflow_measurements.measurements_with_flow]
+    [gradientflow_measurements.measurements_with_flow.Topological_charge]
+    measure_every = 10
+    kinds_of_topological_charge = ["clover"]
+    methodname = "topological_charge"

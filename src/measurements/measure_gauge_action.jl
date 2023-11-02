@@ -42,23 +42,11 @@ struct GaugeActionMeasurement <: AbstractMeasurement
 
         factor = 1 / (U.NV * 6 * U.β)
 
-        return new(
-            filename,
-            factor,
-            verbose_print,
-            fp,
-            printvalues,
-            GA_methods,
-        )
+        return new(filename, factor, verbose_print, fp, printvalues, GA_methods)
     end
 end
 
-function GaugeActionMeasurement(
-    U::Gaugefield,
-    params::GaugeActionParameters,
-    filename = "gauge_action.txt",
-    flow = false,
-)
+function GaugeActionMeasurement(U, params::GaugeActionParameters, filename, flow=false)
     return GaugeActionMeasurement(
         U,
         filename = filename,

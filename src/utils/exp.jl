@@ -1,3 +1,4 @@
+using Base.Math: isinf_real
 # convenient struct to store exponential coefficients
 struct exp_iQ_su3
     Q::SMatrix{3,3,ComplexF64,9}
@@ -18,8 +19,7 @@ function exp_iQ_su3()
     Q = @SMatrix zeros(ComplexF64, 3, 3)
     Q² = @SMatrix zeros(ComplexF64, 3, 3)
     expiQ = @SMatrix zeros(ComplexF64, 3, 3)
-    vals = @SVector zeros(ComplexF64, 9)
-    return exp_iQ_su3(Q, Q², expiQ, vals...)
+    return exp_iQ_su3(Q, Q², expiQ, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 end
 
 exp_iQ(e::exp_iQ_su3) = e.expiQ
@@ -36,14 +36,14 @@ From Morningstar & Peardon (2008) arXiv:hep-lat/0311018v1
 function exp_iQ(Q::SMatrix{3,3,ComplexF64,9})
     u, w, signflip = set_uw(Q)
     f₀, f₁, f₂, _ = set_fj(u, w, signflip)
-    mat = f₀ * eye3 + f₁ * Q + f₂ * cmatmul_oo(Q, Q)
+    mat = f₀*eye3 + f₁*Q + f₂*cmatmul_oo(Q, Q)
     return mat
 end
 
 function exp_iQ_coeffs(Q::SMatrix{3,3,ComplexF64,9})
     f₀, f₁, f₂, b₁₀, b₁₁, b₁₂, b₂₀, b₂₁, b₂₂ = calc_coefficients(Q)
     Q² = cmatmul_oo(Q, Q)
-    mat = f₀ * eye3 + f₁ * Q + f₂ * Q²
+    mat = f₀*eye3 + f₁*Q + f₂*Q²
     return exp_iQ_su3(Q, Q², mat, f₀, f₁, f₂, b₁₀, b₁₁, b₁₂, b₂₀, b₂₁, b₂₂)
 end
 
@@ -53,13 +53,13 @@ function calc_coefficients(Q::SMatrix{3,3,ComplexF64,9})
     e²ⁱᵘ = cis(2u)
     e⁻ⁱᵘ = cis(-u)
     cosw = cos(w)
-    w² = w^2
-    u² = u^2
+    w² = w*w
+    u² = u*u
 
-    if abs(w) <= 1e-1
+    if abs(w) <= 0.2
         ξ₁ = -1/3 + w²/30 * (1 - w²/28 * (1 - w²/54))
     else
-        ξ₁ = cosw/w² - sin(w)/w^3
+        ξ₁ = cosw/w² - sin(w)/(w²*w)
     end
 
     r₁₀ = 2(u + im * (u² - w²)) * e²ⁱᵘ +
@@ -94,16 +94,13 @@ function calc_coefficients(Q::SMatrix{3,3,ComplexF64,9})
 end
 
 function set_fj(u, w, signflip)
-    w² = w^2
-    u² = u^2
+    w² = w*w
+    u² = u*u
     #if abs(w) <= 0.05
     #    w² = w²
     #    ξ₀ = 1 + 1/6 * w² * (1 - 1/20 * w² * (1 - 1/42 * w²))
-    if isapprox(0.0, abs(w))
-        ξ₀ = 1.0
-    else
-        ξ₀ = sin(w)/w
-    end
+    # end
+    ξ₀ = iszero(w) ? one(w) : (isinf_real(w) ? zero(w) : sin(w)/(w))
 
     e²ⁱᵘ = cis(2u)
     e⁻ⁱᵘ = cis(-u)
@@ -144,11 +141,11 @@ end
 
 function set_uw(Q::SMatrix{3,3,ComplexF64,9})
     c₀_bare = real(det(Q))
-    signflip = c₀_bare < 0
+    signflip = c₀_bare<0
     c₀ = abs(c₀_bare)
-    c₁ = 0.5 * real(multr(Q, Q))
+    c₁ = 0.5*real(multr(Q, Q))
     c₁_3r = sqrt(c₁/3)
-    c₀ᵐᵃˣ = 2 * c₁_3r^3
+    c₀ᵐᵃˣ = 2*(c₁_3r*c₁_3r*c₁_3r)
     Θ = isnan(c₀/c₀ᵐᵃˣ) ? acos(1.0) : acos(min(1.0, c₀/c₀ᵐᵃˣ))
 
     u = c₁_3r * cos(Θ/3)

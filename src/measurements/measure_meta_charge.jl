@@ -4,12 +4,7 @@ struct MetaChargeMeasurement <: AbstractMeasurement
     fp::Union{Nothing, IOStream}
     printvalues::Bool
 
-    function MetaChargeMeasurement(
-        U;
-        filename = nothing,
-        verbose_level = 2,
-        printvalues = false,
-    )
+    function MetaChargeMeasurement(U; filename=nothing, verbose_level=2, printvalues=false)
         if printvalues
             fp = open(filename, "w")
             header = "$(rpad("itrj", 9, " "))\tmeta_charge"
@@ -28,21 +23,11 @@ struct MetaChargeMeasurement <: AbstractMeasurement
             verbose_print = nothing
         end
 
-        return new(
-            filename,
-            verbose_print,
-            fp,
-            printvalues,
-        )
+        return new(filename, verbose_print, fp, printvalues)
     end
 end
 
-function MetaChargeMeasurement(
-    U::T,
-    params::MetaChargeParameters,
-    filename,
-    ::Bool,
-) where {T<:Gaugefield}
+function MetaChargeMeasurement(U, params::MetaChargeParameters, filename, ::Bool)
     return MetaChargeMeasurement(
         U,
         filename = filename,

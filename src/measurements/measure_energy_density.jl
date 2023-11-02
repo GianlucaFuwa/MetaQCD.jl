@@ -36,22 +36,11 @@ struct EnergyDensityMeasurement <: AbstractMeasurement
             verbose_print = nothing
         end
 
-        return new(
-            filename,
-            verbose_print,
-            fp,
-            printvalues,
-            ED_methods,
-        )
+        return new(filename, verbose_print, fp, printvalues, ED_methods)
     end
 end
 
-function EnergyDensityMeasurement(
-        U::Gaugefield,
-        params::EnergyDensityParameters,
-        filename = "energy_density.txt",
-        flow = false,
-)
+function EnergyDensityMeasurement(U, params::EnergyDensityParameters, filename, flow=false)
     return EnergyDensityMeasurement(
         U,
         filename = filename,

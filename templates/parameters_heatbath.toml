@@ -1,23 +1,24 @@
 ["Physical Settings"]
-L = [16, 16, 16, 16]
-beta = 1.25
-kind_of_gaction = "dbw2"
-numtherm = 20
-numsteps = 1000
+L = [12, 12, 12, 12]
+beta = 6.0
+kind_of_gaction = "wilson"
+numtherm = 50
+numsteps = 100
 initial = "cold"
 update_method = "heatbath"
 hb_maxit = 10
 numheatbath = 1
 eo = true
+or_algorithm = "subgroups"
 numorelax = 4
 parity_update = true
 
 ["System Settings"]               
-logdir = "./logs/L16x16x16x16_dbw2_beta1.25/test_heatbath"
+logdir = "./logs/L12x12x12x12_wilson_beta6.0/test_heatbath"
 logfile = "logs.txt"
-measurement_basedir = "./measurements/L16x16x16x16_dbw2_beta1.25/test_heatbath"
+measurement_basedir = "./measurements/L12x12x12x12_wilson_beta6.0/test_heatbath"
 measurement_dir = "raw_data"
-randomseed = 0 # 0 => randomly chosen seed
+randomseed = 123
 verboselevel = 1
 overwrite = true
 
@@ -36,10 +37,10 @@ methodname = "plaquette"
 
 [gradientflow_measurements]
 flow_integrator = "euler"
-flow_num = 4
+flow_num = 7
 flow_steps = 1
 flow_tf = 0.12 # total flow time is flow_num * flow_tf
-flow_measure_every = 4
+flow_measure_every = 7
 
     [gradientflow_measurements.measurements_with_flow.Topological_charge]
     measure_every = 10

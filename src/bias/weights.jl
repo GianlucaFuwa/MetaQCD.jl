@@ -29,6 +29,8 @@ function calc_weights(b::Bias, cv, itrj)
     return nothing
 end
 
+calc_weight(b::Parametric, cv, args...) = exp(b(cv))
+
 function calc_weight(b, cv, weight_method)
     if weight_method == "tiwari" # average over exp(V) in denom
         w = calc_weight_tiwari(b.bias, cv)

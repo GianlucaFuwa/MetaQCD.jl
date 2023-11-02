@@ -15,8 +15,8 @@ function run_build(filenamein::String; MPIparallel=false)
 
     @assert parameters.kind_of_bias != "none" "bias has to be enabled in build"
 
-    (parameters.is_static == true) && @warn(
-        "Stream_$idx is static, which is probably not wanted"
+    (parameters.is_static==true) && @warn(
+        "Stream_$(myrank+1) is static, which is probably not wanted"
     )
 
     fp = (myrank == 0)
@@ -25,23 +25,13 @@ function run_build(filenamein::String; MPIparallel=false)
         seed = parameters.randomseed
         Random.seed!(seed * (myrank + 1))
     else
-        seed = rand(1:1_000_000_000)
+        seed = rand(UInt64)
         Random.seed!(seed)
     end
 
     univ = Univ(parameters, use_mpi=MPIparallel, fp=fp)
 
-    if myrank == 0
-        println_verbose1(univ.verbose_print, "# ", pwd())
-
-        println_verbose1(univ.verbose_print, "# ", Dates.now())
-        io = IOBuffer()
-
-        InteractiveUtils.versioninfo(io)
-        versioninfo = String(take!(io))
-        println_verbose1(univ.verbose_print, versioninfo)
-        println_verbose1(univ.verbose_print, ">> Random seed is: $seed")
-    end
+    println_verbose0(univ.verbose_print, ">> Random seed is: $seed")
 
     run_build!(univ, parameters)
 

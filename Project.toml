@@ -1,7 +1,7 @@
 name = "MetaQCD"
 uuid = "31f46e0f-f1ce-4e94-be20-2bb7f09e036f"
 authors = ["GianlucaFuwa <gianlucafuwa@gmail.com> and contributors"]
-version = "1.0.0-DEV"
+version = "1.0.0"
 
 [deps]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"

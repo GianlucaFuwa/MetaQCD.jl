@@ -110,32 +110,27 @@ function construct_measurement_parameters_from_dict(value_i::Dict)
     return value_out
 end
 
-function prepare_measurement(
-    U,
-    meas_parameters::T,
-    filename = "",
-    flow = false,
-) where {T}
+function prepare_measurement(U, meas_parameters::T, filename="", flow=false) where {T}
     if T == GaugeActionParameters
-        filename_input = ifelse(filename == "", "gauge_action.txt", filename)
+        filename_input = ifelse(filename=="", "gauge_action.txt", filename)
         measurement = GaugeActionMeasurement(U, meas_parameters, filename_input, flow)
     elseif T == PlaquetteParameters
-        filename_input = ifelse(filename == "", "plaquette.txt", filename)
+        filename_input = ifelse(filename=="", "plaquette.txt", filename)
         measurement = PlaquetteMeasurement(U, meas_parameters, filename_input, flow)
     elseif T == PolyakovParameters
-        filename_input = ifelse(filename == "", "polyakov_loop.txt", filename)
+        filename_input = ifelse(filename=="", "polyakov_loop.txt", filename)
         measurement = PolyakovMeasurement(U, meas_parameters, filename_input, flow)
     elseif T == TopologicalChargeParameters
-        filename_input = ifelse(filename == "", "topological_charge.txt", filename)
+        filename_input = ifelse(filename=="", "topological_charge.txt", filename)
         measurement = TopologicalChargeMeasurement(U, meas_parameters, filename_input, flow)
     elseif T == WilsonLoopParameters
-        filename_input = ifelse(filename == "", "wilson_loop.txt", filename)
+        filename_input = ifelse(filename=="", "wilson_loop.txt", filename)
         measurement = WilsonLoopMeasurement(U, meas_parameters, filename_input, flow)
     elseif T == EnergyDensityParameters
-        filename_input = ifelse(filename == "", "energy_density.txt", filename)
+        filename_input = ifelse(filename=="", "energy_density.txt", filename)
         measurement = EnergyDensityMeasurement(U, meas_parameters, filename_input, flow)
     elseif T == MetaChargeParameters
-        filename_input = ifelse(filename == "", "meta_charge.txt", filename)
+        filename_input = ifelse(filename=="", "meta_charge.txt", filename)
         measurement = MetaChargeMeasurement(U, meas_parameters, filename_input, false)
     else
         error(T, " is not supported in measurements")

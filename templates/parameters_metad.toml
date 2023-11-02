@@ -1,9 +1,9 @@
 ["Physical Settings"]
-L = [16, 16, 16, 16]
-beta = 1.25
-kind_of_gaction = "dbw2"
+L = [12, 12, 12, 12]
+beta = 6.0
+kind_of_gaction = "wilson"
 numtherm = 20
-numsteps = 500
+numsteps = 100
 initial = "cold"
 update_method = "HMC"
 
@@ -22,9 +22,9 @@ biasfactor = "Inf"
 bin_width = 0.02
 meta_weight = 0.01
 penalty_weight = 1000
-usebiases = [
-    "./metapotentials/L16x16x16x16_dbw2_beta1.25/ssa.txt",
-]
+# usebiases = [
+#     "./metapotentials/L16x16x16x16_dbw2_beta1.25/dummy.txt",
+# ]
 
 ["HMC Settings"]
 hmc_deltatau = 0.2
@@ -33,14 +33,14 @@ hmc_integrator = "OMF4"
 # hmc_friction = 0.1
 
 ["System Settings"]               
-logdir = "./logs/L16x16x16x16_dbw2_beta1.25"
-logfile = "tau1_phi01.txt"
-measurement_basedir = "./measurements/L16x16x16x16_dbw2_beta1.25"
-measurement_dir = "tau1_phi01"
-randomseed = 1206
+logdir = "./logs/L12x12x12x12_wilson_beta6.0/test_metad"
+logfile = "logs.txt"
+measurement_basedir = "./measurements/L12x12x12x12_wilson_beta6.0/test_metad"
+measurement_dir = "raw_data"
+randomseed = 123
 verboselevel = 1
-bias_basedir = "./metapotentials/L16x16x16x16_dbw2_beta1.25"
-bias_dir = "tau1_phi01"
+bias_basedir = "./metapotentials/L12x12x12x12_wilson_beta6.0/test_metad"
+bias_dir = "bias"
 overwrite = true
 
 ["Measurement set".measurement_methods.Plaquette]
@@ -49,12 +49,12 @@ methodname = "plaquette"
 
 [gradientflow_measurements]
 flow_integrator = "euler"
-flow_num = 30
+flow_num = 7
 flow_steps = 1
 flow_tf = 0.12
-flow_measure_every = 30
+flow_measure_every = 7
 
     [gradientflow_measurements.measurements_with_flow.Topological_charge]
-    measure_every = 100
+    measure_every = 10
     kinds_of_topological_charge = ["clover"]
     methodname = "topological_charge"

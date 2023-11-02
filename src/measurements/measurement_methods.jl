@@ -14,8 +14,10 @@ function MeasurementMethods(
     flow = false,
     cv = false,
     additional_string = "",
+    verbose = nothing,
 )
     nummeasurements = length(measurement_methods) + cv
+    println_verbose1(verbose, "\t>> NUMBER OF OBSERVABLES = $(nummeasurements)")
     measurements = Vector{AbstractMeasurement}(undef, nummeasurements + cv)
     measurement_parameters_set = Vector{MeasurementParameters}(undef, nummeasurements + cv)
     intervals = zeros(Int64, nummeasurements + cv)
@@ -24,8 +26,10 @@ function MeasurementMethods(
     idx = 1
 
     for (i, method) in enumerate(measurement_methods)
-        measurement_parameters = construct_measurement_parameters_from_dict(method)
+        print_verbose1(verbose, "\t>> OBSERVABLE $i: $(method["methodname"]) →  ")
+        measurement_parameters = construct_measurement_parameters_from_dict(method) # TODO
         intervals[i] = measurement_parameters.measure_every
+        println_verbose1(verbose, "every $(intervals[i]) updates")
         filename = measurement_dir * "/" *
             measurement_parameters.methodname * additional_string * "$str.txt"
         measurements[i] = prepare_measurement(U, measurement_parameters, filename, flow)
@@ -33,13 +37,16 @@ function MeasurementMethods(
         idx += 1
     end
 
-    if cv == true && flow == false
+    if cv==true && flow==false
+        println_verbose1(verbose, "\t>> OBSERVABLE $idx: meta_charge →  every 1 updates")
         measurement_parameters = MetaChargeParameters()
         intervals[idx] = measurement_parameters.measure_every
         filename = measurement_dir * "/meta_charge" * additional_string * ".txt"
         measurements[idx] = prepare_measurement(U, measurement_parameters, filename, false)
         measurement_parameters_set[idx] = deepcopy(measurement_parameters)
     end
+
+    println_verbose1(verbose, "")
 
     return MeasurementMethods(
         measurement_parameters_set,
@@ -102,7 +109,7 @@ function calc_measurements_flowed(m::MeasurementMethods, gradient_flow, U, itrj;
         τ = round(iflow * gradient_flow.tf, sigdigits = 3)
         flow!(gradient_flow)
 
-        if iflow%gradient_flow.measure_every == 0
+        if iflow ∈ gradient_flow.measure_at
             additional_string = "$itrj\t$iflow\t$τ"
 
             for i in 1:m.num_measurements

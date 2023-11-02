@@ -1,9 +1,9 @@
 ["Physical Settings"]
-L = [8, 8, 8, 8]
+L = [12, 12, 12, 12]
 beta = 6.0
 kind_of_gaction = "wilson"
-numtherm = 10
-numsteps = 10
+numtherm = 20
+numsteps = 100
 initial = "cold"
 update_method = "HMC"
 
@@ -18,11 +18,10 @@ symmetric = true
 stride = 1
 cvlims = [-6, 6]
 biasfactor = "Inf"
-# usebiases = ["./metapotentials/L8x8x8x8_wilson_beta6.0/test_build/stream_1.txt"]
 # metadynamics specific parameters
 bin_width = 0.01
 meta_weight = 0.02
-penalty_weight = 1000
+penalty_weight = 100
 # opes specific parameters
 barrier = 40
 sigma0 = 0.1
@@ -33,25 +32,28 @@ hmc_steps = 5
 hmc_integrator = "OMF4"
 
 ["System Settings"]               
-logdir = "./logs/L8x8x8x8_wilson_beta6.0"
-logfile = "test_build.txt"
-measurement_basedir = "./measurements/L8x8x8x8_wilson_beta6.0"
-measurement_dir = "test_build"
-randomseed = 1206
+logdir = "./logs/L12x12x12x12_wilson_beta6.0/test_build"
+logfile = "logs.txt"
+measurement_basedir = "./measurements/L12x12x12x12_wilson_beta6.0/test_build"
+measurement_dir = "raw_data"
+randomseed = 123
 verboselevel = 1
-bias_basedir = "./metapotentials/L8x8x8x8_wilson_beta6.0"
-bias_dir = "test_build"
+bias_basedir = "./metapotentials/L12x12x12x12_wilson_beta6.0/test_build"
+bias_dir = "bias"
 overwrite = true
 
 ["Measurement set".measurement_methods.Plaquette]
-measure_every = 5
+measure_every = 10
 methodname = "plaquette"
 
 [gradientflow_measurements]
 flow_integrator = "euler"
-flow_num = 10
-flow_steps = 10
-flow_tf = 0.1
-flow_measure_every = 2
+flow_num = 7
+flow_steps = 1
+flow_tf = 0.12
+flow_measure_every = 7
 
-    [gradientflow_measurements.measurements_with_flow]
+    [gradientflow_measurements.measurements_with_flow.Topological_charge]
+    measure_every = 10
+    kinds_of_topological_charge = ["clover"]
+    methodname = "topological_charge"

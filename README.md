@@ -14,6 +14,27 @@ Inspired by the [LatticeQCD.jl](https://github.com/akio-tomiya/LatticeQCD.jl/tre
 - Improved Gauge actions (Symanzik tree, Iwasaki, DBW2)
 - Improved Topological charge definitions (clover, rectangle clover-improved)
 
+## Installation:
+The package in not in the general registry. So you will have to:
+1. Clone this repository onto your machine.
+2. Open Julia in the directory which you cloned the repo into, with the project specific environment. This can either be done by starting Julia with the command line argument "--project" or by activating the environment within an opened Julia instance via the package manager:
+``` julia
+using Pkg
+Pkg.activate(".")
+```
+Or you can switch to package manager mode by typing "]" and then do
+``` julia
+pkg> activate .
+```
+3. Instantiate the project to install all the dependencies using the package manager:
+``` julia
+Pkg.instantiate()
+```
+or
+``` julia
+pkg> instantiate
+```
+
 ## Quick Start:
 1. Set parameters using one of the templates in template folder
 2. From shell, do:
@@ -49,9 +70,10 @@ Base.@kwdef mutable struct PrintPhysicalParameters
     hb_maxit::Int64 = 10^5
     numheatbath::Int64 = 4
     metro_epsilon::Float64 = 0.1
-    metro_multi_hit::Int64 = 1
+    metro_numhits::Int64 = 1
     metro_target_acc::Float64 = 0.5
-    eo::Bool = false
+    eo::Bool = true
+    or_algorithm::String = "subgroups"
     numorelax::Int64 = 0
     parity_update::Bool = false
 end
@@ -82,6 +104,10 @@ Base.@kwdef mutable struct PrintBiasParameters
     opes_epsilon::Float64 = 0.0
     threshold::Float64 = 1.0
     cutoff::Float64 = 0.0
+    # for parametric
+    bias_Q::Float64 = 0.0
+    bias_A::Float64 = 0.0
+    bias_Z::Float64 = 0.0
     # tempering specific
     tempering_enabled::Bool = false
     numinstances::Int64 = 1
@@ -101,7 +127,7 @@ Base.@kwdef mutable struct PrintSystemParameters
     saveU_dir::String = ""
     saveU_format::Union{String, Nothing} = nothing
     saveU_every::Int64 = 1
-    randomseed::Int64 = 0
+    randomseed::Union{UInt64, Vector{UInt64}} = 0x0000000000000000
     measurement_basedir::String = ""
     measurement_dir::String = ""
     bias_basedir::Union{Nothing, String, Vector{String}} = nothing
@@ -110,7 +136,7 @@ Base.@kwdef mutable struct PrintSystemParameters
 end
 
 Base.@kwdef mutable struct PrintHMCParameters
-    hmc_deltatau::Float64 = 0.1
+    hmc_trajectory::Float64 = 1
     hmc_steps::Int64 = 10
     hmc_friction::Float64 = π/2
     hmc_integrator::String = "Leapfrog"
@@ -124,6 +150,6 @@ Base.@kwdef mutable struct PrintGradientFlowParameters
     flow_num::Int64 = 1
     flow_tf::Float64 = 0.1
     flow_steps::Int64 = 10
-    flow_measure_every::Int64 = 1
+    flow_measure_every::Union{Int64, Vector{Int64}} = 1
 end
 ```

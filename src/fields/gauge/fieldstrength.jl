@@ -4,11 +4,11 @@ struct Plaquette <: AbstractFieldstrength end
 struct Clover <: AbstractFieldstrength end
 struct Improved <: AbstractFieldstrength end
 
-function fieldstrength_eachsite!(F::Vector{Temporaryfield}, kind_of_fs::String)
+function fieldstrength_eachsite!(F::Vector{Temporaryfield}, U, kind_of_fs::String)
     if kind_of_fs == "plaquette"
-        fieldstrength_eachsite!(Plaquette(), F)
+        fieldstrength_eachsite!(Plaquette(), F, U)
     elseif kind_of_fs == "clover"
-        fieldstrength_eachsite!(Clover(), F)
+        fieldstrength_eachsite!(Clover(), F, U)
     else
         error("kind of fieldstrength \"$(kind_of_fs)\" not supported")
     end

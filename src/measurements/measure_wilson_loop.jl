@@ -47,7 +47,7 @@ struct WilsonLoopMeasurement <: AbstractMeasurement
     end
 end
 
-function WilsonLoopMeasurement(U, params::WilsonLoopParameters, filename="wilson_loop.txt", flow=false)
+function WilsonLoopMeasurement(U, params::WilsonLoopParameters, filename, flow=false)
     return WilsonLoopMeasurement(
         U,
         filename = filename,

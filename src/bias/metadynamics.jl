@@ -28,44 +28,44 @@ struct Metadynamics <: AbstractBias
 
     bin_vals::Vector{Float64}
     values::Vector{Float64}
+end
 
-    function Metadynamics(p::ParameterSet; verbose=Verbose1(), instance=1)
-        println_verbose1(verbose, ">> Setting MetaD instance $(instance)...")
-        symmetric = p.symmetric
-        stride = p.stride
-        println_verbose1(verbose, "\t>> STRIDE = $(stride)")
-        @assert stride>0 "STRIDE must be >0"
+function Metadynamics(p::ParameterSet; verbose=Verbose1(), instance=1)
+    println_verbose1(verbose, ">> Setting MetaD instance $(instance)...")
+    symmetric = p.symmetric
+    stride = p.stride
+    println_verbose1(verbose, "\t>> STRIDE = $(stride)")
+    @assert stride>0 "STRIDE must be >0"
 
-        if instance == 0
-            bin_vals, values = metad_from_file(p, nothing)
-        elseif p.usebiases !== nothing && instance > length(p.usebiases)
-            bin_vals, values = metad_from_file(p, nothing)
-        elseif p.usebiases === nothing
-            bin_vals, values = metad_from_file(p, nothing)
-        else
-            bin_vals, values = metad_from_file(p, p.usebiases[instance])
-        end
-
-        println_verbose1(verbose, "\t>> CVLIMS = $(p.cvlims)")
-        @assert issorted(p.cvlims) "CVLIMS must be sorted from low to high"
-
-        println_verbose1(verbose, "\t>> BIN_WIDTH = $(p.bin_width)")
-        @assert p.bin_width > 0 "BIN_WIDTH must be > 0"
-
-        println_verbose1(verbose, "\t>> META_WEIGHT = $(p.meta_weight)")
-        @assert p.meta_weight > 0 "META_WEIGHT must be > 0, try \"is_static=true\""
-
-        println_verbose1(verbose, "\t>> PENALTY_WEIGHT = $(p.penalty_weight)")
-
-        biasfactor = p.biasfactor
-        println_verbose1(verbose, "\t>> BIASFACTOR = $(biasfactor)")
-        @assert biasfactor > 1 "BIASFACTOR must be > 1"
-        return new(
-            symmetric, stride,
-            p.cvlims, biasfactor, p.bin_width, p.meta_weight, p.penalty_weight,
-            bin_vals, values,
-        )
+    if instance == 0
+        bin_vals, values = metad_from_file(p, nothing)
+    elseif p.usebiases !== nothing && instance > length(p.usebiases)
+        bin_vals, values = metad_from_file(p, nothing)
+    elseif p.usebiases === nothing
+        bin_vals, values = metad_from_file(p, nothing)
+    else
+        bin_vals, values = metad_from_file(p, p.usebiases[instance])
     end
+
+    println_verbose1(verbose, "\t>> CVLIMS = $(p.cvlims)")
+    @assert issorted(p.cvlims) "CVLIMS must be sorted from low to high"
+
+    println_verbose1(verbose, "\t>> BIN_WIDTH = $(p.bin_width)")
+    @assert p.bin_width > 0 "BIN_WIDTH must be > 0"
+
+    println_verbose1(verbose, "\t>> META_WEIGHT = $(p.meta_weight)")
+    @assert p.meta_weight > 0 "META_WEIGHT must be > 0, try \"is_static=true\""
+
+    println_verbose1(verbose, "\t>> PENALTY_WEIGHT = $(p.penalty_weight)")
+
+    biasfactor = p.biasfactor
+    println_verbose1(verbose, "\t>> BIASFACTOR = $(biasfactor)")
+    @assert biasfactor > 1 "BIASFACTOR must be > 1"
+    return Metadynamics(
+        symmetric, stride,
+        p.cvlims, biasfactor, p.bin_width, p.meta_weight, p.penalty_weight,
+        bin_vals, values,
+    )
 end
 
 Base.length(m::Metadynamics) = length(m.values)
@@ -86,7 +86,7 @@ end
 end
 
 function update!(m::Metadynamics, cv, args...)
-    if in_bounds(cv, m.cvlims)
+    if in_bounds(cv, m.cvlims...)
         for (idx, current_bin) in enumerate(m.bin_vals)
             wt = exp(-m[idx] / m.biasfactor)
             m[idx] += m.weight * wt * exp(-0.5(cv - current_bin)^2 / m.bin_width^2)
@@ -94,7 +94,7 @@ function update!(m::Metadynamics, cv, args...)
     end
 
     if m.symmetric
-        if in_bounds(cv, m.cvlims)
+        if in_bounds(cv, m.cvlims...)
             for (idx, current_bin) in enumerate(m.bin_vals)
                 wt = exp(-m[idx] / m.biasfactor)
                 m[idx] += m.weight * wt * exp(-0.5(-cv - current_bin)^2 / m.bin_width^2)

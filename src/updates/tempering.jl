@@ -36,7 +36,7 @@ function temper!(
         println_verbose1(
             verbose,
             ">> Swap Acceptance [$i ⇔  $(i-1)]:\t",
-            "$(numaccepts_temper[i-1]*100 / (itrj/swap_every)) %"
+            "$(100numaccepts_temper[i-1] / (itrj/swap_every)) %"
         )
     end
 

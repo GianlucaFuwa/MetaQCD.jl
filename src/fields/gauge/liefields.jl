@@ -21,6 +21,7 @@ struct Liefield <: Abstractfield
 
         for μ in 1:4
             U[μ] = Array{SMatrix{3, 3, ComplexF64, 9}, 4}(undef, NX, NY, NZ, NT)
+            fill!(U[μ], zero3)
         end
 
         return new(U, NX, NY, NZ, NT, NV, 3)
@@ -36,16 +37,6 @@ function gaussian_momenta!(p::Liefield, ϕ)
     @threads for site in eachindex(p)
         for μ in 1:4
             p[μ][site] = cosϕ*p[μ][site] + sinϕ*gaussian_su3_matrix()
-        end
-    end
-
-    return nothing
-end
-
-function flip_momenta!(p::Liefield)
-    @batch for site in eachindex(p)
-        for μ in 1:4
-            p[μ][site] *= -1
         end
     end
 

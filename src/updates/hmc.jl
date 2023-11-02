@@ -1,71 +1,79 @@
 import ..Gaugefields: SymanzikTadGaugeAction
 abstract type AbstractIntegrator end
 
-struct HMCUpdate{TI,TG,TS,TB} <: AbstractUpdate
+struct HMC{TI,TG,TS,TB} <: AbstractUpdate
     steps::Int64
     Δτ::Float64
-    ϕ::Float64
+    friction::Float64
     P::Liefield
-    _temp_P::Union{Nothing, Liefield} # second momenum field for GHMC
-    _temp_U::TG
-    _temp_staple::Temporaryfield
-    _temp_force::Temporaryfield
-    _temp_force2::Union{Nothing, Temporaryfield} # second force field for smearing
-    _temp_fieldstrength::Union{Nothing, Vector{Temporaryfield}}
+    P_old::Union{Nothing, Liefield} # second momentum field for GHMC
+    U_old::TG
+    staples::Temporaryfield
+    force::Temporaryfield
+    force2::Union{Nothing, Temporaryfield} # second force field for smearing
+    fieldstrength::Union{Nothing, Vector{Temporaryfield}} # fieldstrength fields for Bias
     smearing::TS
     fp::Union{Nothing, IOStream}
 
-    function HMCUpdate(
+    function HMC(
         U,
-        integrator,
-        steps,
-        Δτ,
-        ϕ;
+        integrator, steps, trajectory;
+        verbose = nothing,
+        friction = π/2,
         numsmear = 0,
         ρ_stout = 0,
         bias_enabled = false,
         verboselevel = 1,
         logdir = "",
     )
-        GA = eltype(U)
-        @assert GA != SymanzikTadGaugeAction "Tadpole improved actions not supported in HMC"
+        println_verbose1(verbose, ">> Setting HMC...")
+        TI = getfield(Updates, Symbol(integrator))
+        println_verbose1(verbose, "\t>> INTEGRATOR = $(TI)")
+        TG = typeof(U)
+        Δτ = trajectory / steps
+
+        println_verbose1(verbose, "\t>> TRAJECTORY LENGTH = $(trajectory)")
+        println_verbose1(verbose, "\t>> STEPS = $(steps)")
+        println_verbose1(verbose, "\t>> STEP LENGTH = $(Δτ)")
+        println_verbose1(verbose, "\t>> INTEGRATOR = $(TI)")
+
         P = Liefield(U)
         gaussian_momenta!(P, π/2)
-        _temp_P = ϕ==π/2 ? nothing : Liefield(U)
-        _temp_U = similar(U)
-        _temp_staple = Temporaryfield(U)
-        _temp_force = Temporaryfield(U)
+        P_old = friction==π/2 ? nothing : Liefield(U)
+        U_old = similar(U)
+        staples = Temporaryfield(U)
+        force = Temporaryfield(U)
+
+        smearing = StoutSmearing(U, numsmear, ρ_stout)
+        TS = typeof(smearing)
+        force2 = (TS==NoSmearing && !bias_enabled) ? nothing : Temporaryfield(U)
+
+        if TS != NoSmearing
+            println_verbose1(verbose, "\t>> ACTION SMEARING = (ρ = $(ρ_stout), n = $(numsmear))")
+        end
 
         if bias_enabled
             TB = BiasEnabled
-            _temp_fieldstrength = Vector{Temporaryfield}(undef, 4)
+            println_verbose1(verbose, "\t>> BIAS ENABLED")
+            fieldstrength = Vector{Temporaryfield}(undef, 4)
 
             for i in 1:4
-                _temp_fieldstrength[i] = Temporaryfield(U)
+                fieldstrength[i] = Temporaryfield(U)
             end
         else
             TB = BiasDisabled
-            _temp_fieldstrength = nothing
-        end
-
-        smearing = StoutSmearing(U, numsmear, ρ_stout)
-
-        TI = getfield(Updates, Symbol(integrator))
-        TG = typeof(U)
-        TS = typeof(smearing)
-
-        if TS == NoSmearing && !bias_enabled
-            _temp_force2 = nothing
-        else
-            _temp_force2 = Temporaryfield(U)
+            println_verbose1(verbose, "\t>> BIAS DISABLED")
+            fieldstrength = nothing
         end
 
         if verboselevel>=2 && logdir!=""
-            fp = open(logdir * "/hmc_$(GA)_$(TI)_logs.txt", "w")
+            hmc_log_file = logdir * "/hmc_acc_logs.txt"
+            println_verbose1(verbose, "\t>> ACCEPTANCE DATA TRACKED IN $(hmc_log_file)")
+            fp = open(hmc_log_file, "w")
             println(
                 fp,
                 rpad("ΔSg", 22, " "), "\t",
-                rpad("ΔP2", 22, " "), "\t",
+                rpad("ΔP²", 22, " "), "\t",
                 rpad("ΔV", 22, " "), "\t",
                 rpad("ΔH", 22, " "),
             )
@@ -73,17 +81,19 @@ struct HMCUpdate{TI,TG,TS,TB} <: AbstractUpdate
             fp = nothing
         end
 
+        println_verbose1(verbose, "")
+
         return new{TI,TG,TS,TB}(
 			steps,
 			Δτ,
-            ϕ,
+            friction,
 			P,
-            _temp_P,
-			_temp_U,
-            _temp_staple,
-            _temp_force,
-            _temp_force2,
-            _temp_fieldstrength,
+            P_old,
+			U_old,
+            staples,
+            force,
+            force2,
+            fieldstrength,
             smearing,
             fp,
 		)
@@ -93,42 +103,30 @@ end
 include("hmc_integrators.jl")
 
 function update!(
-    updatemethod::HMCUpdate{TI,TG,TS,TB},
+    hmc::HMC{TI,TG,TS,TB},
     U,
     verbose::VerboseLevel;
     bias = nothing,
     metro_test = true,
 ) where {TI,TG,TS,TB}
-    U_old = updatemethod._temp_U
-    P_old = updatemethod._temp_P
+    U_old = hmc.U_old
+    P_old = hmc.P_old
     substitute_U!(U_old, U)
-    gaussian_momenta!(updatemethod.P, updatemethod.ϕ)
-    P_old!==nothing && substitute_U!(P_old, updatemethod.P)
+    gaussian_momenta!(hmc.P, hmc.friction)
+    P_old≢nothing && substitute_U!(P_old, hmc.P)
 
-    trP2_old = -calc_kinetic_energy(updatemethod.P)
+    Sg_old = U.Sg
+    trP²_old = -calc_kinetic_energy(hmc.P)
 
-    evolve!(TI(), U, updatemethod, bias)
+    evolve!(TI(), U, hmc, bias)
 
-    hmc_smearing = updatemethod.smearing
+    Sg_new = calc_gauge_action(hmc.smearing, U)
+    trP²_new = -calc_kinetic_energy(hmc.P)
 
-    if TS == NoSmearing
-        Sg_old = U.Sg
-        Sg_new = calc_gauge_action(U)
-    else
-        calc_smearedU!(hmc_smearing, U_old)
-        fully_smeared_Uold = hmc_smearing.Usmeared_multi[end]
-        Sg_old = calc_gauge_action(fully_smeared_Uold)
-        calc_smearedU!(hmc_smearing, U)
-        fully_smeared_Unew = hmc_smearing.Usmeared_multi[end]
-        Sg_new = calc_gauge_action(fully_smeared_Unew)
-    end
-
-    trP2_new = -calc_kinetic_energy(updatemethod.P)
-
-    ΔP2 = trP2_new - trP2_old
+    ΔP² = trP²_new - trP²_old
     ΔSg = Sg_new - Sg_old
 
-    if bias === nothing
+    if bias ≡ nothing
         CV_old = U.CV
         CV_new = CV_old
         ΔV = 0
@@ -138,20 +136,11 @@ function update!(
         ΔV = bias(CV_new) - bias(CV_old)
     end
 
-    ΔH = ΔP2 + ΔSg + ΔV
+    ΔH = ΔP² + ΔSg + ΔV
 
-    if updatemethod.fp !== nothing
-        println(
-            updatemethod.fp,
-            rpad(@sprintf("%.15E", ΔSg), 22, " "), "\t",
-            rpad(@sprintf("%.15E", ΔP2), 22, " "), "\t",
-            rpad(@sprintf("%.15E", ΔV), 22, " "), "\t",
-            rpad(@sprintf("%.15E", ΔH), 22, " "),
-        )
-        flush(updatemethod.fp)
-    end
+    print_hmc_data(hmc.fp, ΔSg, ΔP², ΔV, ΔH)
 
-    accept = metro_test ? rand() ≤ exp(-ΔH) : true
+    accept = metro_test ? rand()≤exp(-ΔH) : true
 
     if accept
         U.Sg = Sg_new
@@ -160,9 +149,9 @@ function update!(
     else
         substitute_U!(U, U_old)
 
-        if P_old !== nothing# flip momenta if rejected
-            substitute_U!(updatemethod.P, P_old)
-            mul!(updatemethod.P, -1)
+        if P_old ≢ nothing# flip momenta if rejected
+            substitute_U!(hmc.P, P_old)
+            mul!(hmc.P, -1)
         end
         println_verbose2(verbose, "Rejected")
     end
@@ -171,29 +160,29 @@ function update!(
     return accept
 end
 
-function updateU!(U, method, fac)
-    ϵ = method.Δτ * fac
-    P = method.P
+function updateU!(U, hmc, fac)
+    ϵ = hmc.Δτ * fac
+    P = hmc.P
 
     @batch for site in eachindex(U)
         for μ in 1:4
-            U[μ][site] = cmatmul_oo(exp_iQ(-im * ϵ * P[μ][site]), U[μ][site])
+            U[μ][site] = cmatmul_oo(exp_iQ(-im*ϵ*P[μ][site]), U[μ][site])
         end
     end
 
     return nothing
 end
 
-function updateP!(U, method::HMCUpdate, fac, bias)
-    ϵ = method.Δτ * fac
-    P = method.P
-    staples = method._temp_staple
-    force = method._temp_force
-    temp_force = method._temp_force2
-    smearing = method.smearing
+function updateP!(U, hmc::HMC, fac, bias)
+    ϵ = hmc.Δτ * fac
+    P = hmc.P
+    staples = hmc.staples
+    force = hmc.force
+    temp_force = hmc.force2
+    smearing = hmc.smearing
+    fieldstrength = hmc.fieldstrength
 
-    if bias !== nothing
-        fieldstrength = method._temp_fieldstrength
+    if bias ≢ nothing
         calc_dVdU_bare!(force, fieldstrength, U, temp_force, bias)
         add!(P, force, ϵ)
     end
@@ -330,4 +319,27 @@ function ∇trFμνFρσ(::Clover, U, F, μ, ν, ρ, σ, site)
         cmatmul_oddo(F[ρ][σ][siteμp], U[ν][siteμpνn]   , U[μ][siteνn]   , U[ν][siteνn])
 
     return im/8 * component
+end
+
+calc_gauge_action(::NoSmearing, U) = calc_gauge_action(U)
+
+function calc_gauge_action(smearing::StoutSmearing, U)
+    calc_smearedU!(smearing, U)
+    fully_smeared_U = smearing.Usmeared_multi[end]
+    smeared_action = calc_gauge_action(fully_smeared_U)
+    return smeared_action
+end
+
+print_hmc_data(::Nothing, args...) = nothing
+
+function print_hmc_data(fp, ΔSg, ΔP², ΔV, ΔH)
+    println(
+        fp,
+        rpad(@sprintf("%.15E", ΔSg), 22, " "), "\t",
+        rpad(@sprintf("%.15E", ΔP²), 22, " "), "\t",
+        rpad(@sprintf("%.15E", ΔV), 22, " "), "\t",
+        rpad(@sprintf("%.15E", ΔH), 22, " "),
+    )
+    flush(fp)
+    return nothing
 end
