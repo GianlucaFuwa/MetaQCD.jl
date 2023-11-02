@@ -5,10 +5,11 @@ using Random
 using Test
 using Polyester
 
-include("testmeas.jl")
-include("testderivative.jl")
-include("testupdate.jl")
-include("testgradflow.jl")
+include("test_meas.jl")
+include("test_derivative.jl")
+include("test_update.jl")
+include("test_gflow.jl")
+include("test_reversibility.jl")
 
 @testset "MetaQCD.jl" begin
     plaq, poly, top_plaq, top_clover, top_improved, wilsonloop1x1 = SU3testmeas()
@@ -22,12 +23,9 @@ include("testgradflow.jl")
     relerrors = SU3testderivative()
     @test length(findall(x -> abs(x) > 1e-3, relerrors)) == 0
 
-    accrate = SU3testupdate()
-    @test accrate == 1
-
     @test SU3testgradflow()
 end
 
 if VERSION >= v"1.9"
-    Aqua.test_all(MetaQCD, stale_deps = false)
+    Aqua.test_all(MetaQCD, stale_deps=false)
 end

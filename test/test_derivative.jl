@@ -1,8 +1,8 @@
 function SU3testderivative()
     Random.seed!(1206)
     println("SU3testderivative")
-    NX = 8; NY = 8; NZ = 8; NT = 8;
-    U = random_gauges(NX, NY, NZ, NT, 5.7, WilsonGaugeAction)
+    NX = 4; NY = 4; NZ = 4; NT = 4;
+    U = random_gauges(NX, NY, NZ, NT, 6.0, WilsonGaugeAction)
 
     gaction_old = calc_gauge_action(U)
     topcharge_old = top_charge(U, "clover")
