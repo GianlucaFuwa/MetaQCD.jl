@@ -15,8 +15,8 @@ end
 function calc_gauge_action(::SymanzikTreeGaugeAction, U)
     P = plaquette_trace_sum(U)
     R = rect_trace_sum(U)
-    Sg_plaq = 6U.NV - 1/3P
-    Sg_rect = 12U.NV - 1/3R
+    Sg_plaq = 6*U.NV - 1/3*P
+    Sg_rect = 12*U.NV - 1/3*R
     Sg_symanzik = U.β * ((1 + 8/12)*Sg_plaq - 1/12*Sg_rect)
     return Sg_symanzik
 end
@@ -25,8 +25,8 @@ function calc_gauge_action(::SymanzikTadGaugeAction, U)
     P = plaquette_trace_sum(U)
     R = rect_trace_sum(U)
     u0sq = sqrt(1/(6*U.NV*U.NC) * P)
-    Sg_plaq = 6U.NV - 1/3P
-    Sg_rect = 12U.NV - 1/3R
+    Sg_plaq = 6*U.NV - 1/3*P
+    Sg_rect = 12*U.NV - 1/3*R
     Sg_symanzik = U.β * ((1 + 8/12)*Sg_plaq - 1/12u0sq*Sg_rect)
     return Sg_symanzik
 end
@@ -34,8 +34,8 @@ end
 function calc_gauge_action(::IwasakiGaugeAction, U)
     P = plaquette_trace_sum(U)
     R = rect_trace_sum(U)
-    Sg_plaq = 6U.NV - 1/3P
-    Sg_rect = 12U.NV - 1/3R
+    Sg_plaq = 6*U.NV - 1/3*P
+    Sg_rect = 12*U.NV - 1/3*R
     Sg_iwasaki = U.β * ((1 + 8*0.331)*Sg_plaq - 0.331*Sg_rect)
     return Sg_iwasaki
 end
@@ -43,8 +43,8 @@ end
 function calc_gauge_action(::DBW2GaugeAction, U)
     P = plaquette_trace_sum(U)
     R = rect_trace_sum(U)
-    Sg_plaq = 6U.NV - 1/3P
-    Sg_rect = 12U.NV - 1/3R
+    Sg_plaq = 6*U.NV - 1/3*P
+    Sg_rect = 12*U.NV - 1/3*R
     Sg_dbw2 = U.β * ((1 + 8*1.409) * Sg_plaq - 1.409*Sg_rect)
     return Sg_dbw2
 end
