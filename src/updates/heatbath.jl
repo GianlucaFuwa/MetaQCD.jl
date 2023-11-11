@@ -13,8 +13,8 @@ struct Heatbath{ITR,TOR} <: AbstractUpdate
 
         if eo
             println_verbose1(verbose, "\t>> PARALLELIZATION ENABLED")
-            @info "Parallel heatbath doesn't always produce reproducible results. To force
-            it, turn MT off with \"eo = false\" under [\"Physical Settings\"]."
+            @info ">> Parallel heatbath doesn't always produce reproducible results.
+            To force it, turn MT off with \"eo = false\" under [\"Physical Settings\"]."
             if GA==WilsonGaugeAction
                 ITR = Checkerboard2MT
             else

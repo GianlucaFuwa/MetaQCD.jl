@@ -27,18 +27,22 @@ struct Verbose3 <: VerboseLevel
 end
 
 function Base.flush(v::VerboseLevel)
-    v.fp!==nothing && flush(v.fp)
+    v.fp≢nothing && flush(v.fp)
+end
+
+function Base.close(v::VerboseLevel)
+    v.fp≢nothing && close(v.fp)
 end
 
 function InteractiveUtils.versioninfo(v::VerboseLevel)
     InteractiveUtils.versioninfo()
-    v.fp!==nothing && InteractiveUtils.versioninfo(v.fp)
+    v.fp≢nothing && InteractiveUtils.versioninfo(v.fp)
 end
 
 function println_verbose1(v::Verbose3, val...)
     println(val...)
 
-    if v.fp !== nothing
+    if v.fp ≢ nothing
         println(v.fp, val...)
     end
 
@@ -48,7 +52,7 @@ end
 function println_verbose2(v::Verbose3, val...)
     println(val...)
 
-    if v.fp !== nothing
+    if v.fp ≢ nothing
         println(v.fp, val...)
     end
 
@@ -58,7 +62,7 @@ end
 function println_verbose3(v::Verbose3, val...)
     println(val...)
 
-    if v.fp !== nothing
+    if v.fp ≢ nothing
         println(v.fp, val...)
     end
 
@@ -68,7 +72,7 @@ end
 function println_verbose1(v::Verbose2, val...)
     println(val...)
 
-    if v.fp !== nothing
+    if v.fp ≢ nothing
         println(v.fp, val...)
     end
 
@@ -78,7 +82,7 @@ end
 function println_verbose2(v::Verbose2, val...)
     println(val...)
 
-    if v.fp !== nothing
+    if v.fp ≢ nothing
         println(v.fp, val...)
     end
 
@@ -88,7 +92,7 @@ end
 function println_verbose1(v::Verbose1, val...)
     println(val...)
 
-    if v.fp !== nothing
+    if v.fp ≢ nothing
         println(v.fp, val...)
     end
 
@@ -98,7 +102,7 @@ end
 function print_verbose1(v::Verbose3, val...)
     print(val...)
 
-    if v.fp !== nothing
+    if v.fp ≢ nothing
         print(v.fp, val...)
     end
 
@@ -108,7 +112,7 @@ end
 function print_verbose2(v::Verbose3, val...)
     print(val...)
 
-    if v.fp !== nothing
+    if v.fp ≢ nothing
         print(v.fp, val...)
     end
 
@@ -118,7 +122,7 @@ end
 function print_verbose3(v::Verbose3, val...)
     print(val...)
 
-    if v.fp !== nothing
+    if v.fp ≢ nothing
         print(v.fp, val...)
     end
 
@@ -128,7 +132,7 @@ end
 function print_verbose1(v::Verbose2, val...)
     print(val...)
 
-    if v.fp !== nothing
+    if v.fp ≢ nothing
         print(v.fp, val...)
     end
 
@@ -138,7 +142,7 @@ end
 function print_verbose2(v::Verbose2, val...)
     print(val...)
 
-    if v.fp !== nothing
+    if v.fp ≢ nothing
         print(v.fp, val...)
     end
 
@@ -148,7 +152,7 @@ end
 function print_verbose1(v::Verbose1, val...)
     print(val...)
 
-    if v.fp !== nothing
+    if v.fp ≢ nothing
         print(v.fp, val...)
     end
 

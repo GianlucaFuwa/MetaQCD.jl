@@ -57,9 +57,8 @@ function run_sim!(univ, parameters)
         measurements[1] = MeasurementMethods(
             U[1],
             parameters.measuredir,
-            parameters.measurement_methods,
-            cv = true,
-            additional_string = "_1",
+            parameters.measurements,
+            additional_string = "_0",
             verbose = univ.verbose_print,
         )
         println_verbose1(univ.verbose_print, ">> Preparing flowed Measurements...")
@@ -68,39 +67,36 @@ function run_sim!(univ, parameters)
             parameters.measuredir,
             parameters.measurements_with_flow,
             flow = true,
-            additional_string = "_1",
+            additional_string = "_0",
             verbose = univ.verbose_print,
         )
         for i in 2:parameters.numinstances
             if parameters.measure_on_all
-
                 measurements[i] = MeasurementMethods(
                     U[i],
                     parameters.measuredir,
-                    parameters.measurement_methods,
-                    cv = true,
-                    additional_string = "_$i",
+                    parameters.measurements,
+                    additional_string = "_$(i-1)",
                 )
                 measurements_with_flow[i] = MeasurementMethods(
                     U[i],
                     parameters.measuredir,
                     parameters.measurements_with_flow,
                     flow = true,
-                    additional_string = "_$i",
+                    additional_string = "_$(i-1)",
                 )
             else
                 measurements[i] = MeasurementMethods(
                     U[i],
                     parameters.measuredir,
                     Dict[],
-                    cv = true,
-                    additional_string = "_$i",
+                    additional_string = "_$(i-1)",
                 )
                 measurements_with_flow[i] = MeasurementMethods(
                     U[i],
                     parameters.measuredir,
                     Dict[],
-                    additional_string = "_$i",
+                    additional_string = "_$(i-1)",
                 )
             end
         end
@@ -118,8 +114,7 @@ function run_sim!(univ, parameters)
         measurements = MeasurementMethods(
             U,
             parameters.measuredir,
-            parameters.measurement_methods,
-            cv = parameters.kind_of_bias!="none",
+            parameters.measurements,
             verbose = univ.verbose_print,
         )
         println_verbose1(univ.verbose_print, ">> Preparing flowed Measurements...")
@@ -226,13 +221,16 @@ function metaqcd!(
                 ">> FMeas. elapsed time:\t$(fmtime) [s]\n",
                 "#",
             )
-            flush(vp.fp)
+            flush(vp)
         end
     end
 
     println_verbose1(vp, "\n\t>> Total elapsed time:\t$(convert_seconds(runtime_all)) \n")
     flush(stdout)
-    flush(vp)
+    close(measurements)
+    close(measurements_with_flow)
+    close(bias)
+    close(vp)
     return nothing
 end
 
@@ -319,8 +317,12 @@ function metaqcd_PT!(
         end
     end
 
-    println_verbose1(vp, "\n\t>> Total elapsed time:\t$(convert_seconds(runtime_all)) \n")
     flush(stdout)
-    flush(vp)
+    [close(m)  for m in measurements]
+    [close(mf) for mf in measurements_with_flow]
+    [close(b)  for b in bias]
+    close(vp)
+
+    println_verbose1(vp, "\n\t>> Total elapsed time:\t$(convert_seconds(runtime_all)) \n")
     return nothing
 end

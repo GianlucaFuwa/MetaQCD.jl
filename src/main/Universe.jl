@@ -35,10 +35,10 @@ function Univ(p::ParameterSet; use_mpi=false, fp=true)
 
     fp && println_verbose1(
         verbose_print,
-        ">> PHYSICAL PARAMS: L = $NX×$NX×$NX×$NX, GaugeAction = $(GA), β = $β\n")
+        ">> PHYSICAL PARAMS: L = $(NX)x$(NX)x$(NX)x$(NX), GaugeAction = $(GA), beta = $β\n")
 
     if p.kind_of_bias != "none"
-        if p.tempering_enabled && use_mpi == false
+        if p.tempering_enabled && use_mpi==false
             numinstances = p.numinstances
             println_verbose1(verbose_print, ">> Using 1 + $(numinstances-1) instances\n")
             U₁ = initial_gauges(p.initial, NX, NY, NZ, NT, β, type_of_gaction=GA)

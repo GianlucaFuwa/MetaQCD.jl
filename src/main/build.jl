@@ -40,36 +40,41 @@ function run_build!(univ, parameters)
     UM_verbose = (myrank==0) ? univ.verbose_print : nothing
     updatemethod = Updatemethod(parameters, U, UM_verbose)
 
-    gradient_flow = GradientFlow(
+    gflow = GradientFlow(
         U,
         integrator = parameters.flow_integrator,
         numflow = parameters.flow_num,
         steps = parameters.flow_steps,
         tf = parameters.flow_tf,
         measure_every = parameters.flow_measure_every,
+        verbose = UM_verbose,
     )
 
     additional_string = "_$(myrank)"
 
+    println_verbose0(univ.verbose_print, ">> Preparing Measurements...")
     measurements = MeasurementMethods(
         U,
         parameters.measuredir,
-        parameters.measurement_methods,
-        cv = true,
+        parameters.measurements,
         additional_string = additional_string,
+        verbose = UM_verbose,
     )
+    println_verbose0(univ.verbose_print, ">> Preparing flowed Measurements...")
     measurements_with_flow = MeasurementMethods(
         U,
         parameters.measuredir,
         parameters.measurements_with_flow,
+        additional_string = additional_string,
         flow = true,
+        verbose = UM_verbose,
     )
 
     build!(
         parameters,
         univ,
         updatemethod,
-        gradient_flow,
+        gflow,
         measurements,
         measurements_with_flow,
     )
@@ -81,7 +86,7 @@ function build!(
     parameters,
     univ,
     update_method,
-    gradient_flow,
+    gflow,
     measurements,
     measurements_with_flow,
 )
@@ -132,14 +137,18 @@ function build!(
             MPI.Barrier(comm)
 
             calc_measurements(measurements, U, itrj)
-            calc_measurements_flowed(measurements_with_flow, gradient_flow, U, itrj)
+            calc_measurements_flowed(measurements_with_flow, gflow, U, itrj)
             calc_weights(bias, U.CV, itrj)
         end
     end
 
+    close(measurements)
+    close(measurements_with_flow)
+    close(bias)
+
     if myrank == 0
-        println_verbose1(vp, "\n\t>> Total Elapsed time $(runtime_all) [s]")
-        flush(univ.verbose_print)
+        println_verbose0(vp, "\n\t>> Total Elapsed time $(runtime_all) [s]")
+        close(vp)
         flush(stdout)
     end
 

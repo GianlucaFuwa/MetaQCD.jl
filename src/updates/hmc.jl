@@ -1,10 +1,11 @@
 import ..Gaugefields: SymanzikTadGaugeAction
 abstract type AbstractIntegrator end
 
-struct HMC{TI,TG,TS,TB} <: AbstractUpdate
+struct HMC{TI,TG,TS} <: AbstractUpdate
     steps::Int64
     Δτ::Float64
     friction::Float64
+
     P::Liefield
     P_old::Union{Nothing, Liefield} # second momentum field for GHMC
     U_old::TG
@@ -13,6 +14,7 @@ struct HMC{TI,TG,TS,TB} <: AbstractUpdate
     force2::Union{Nothing, Temporaryfield} # second force field for smearing
     fieldstrength::Union{Nothing, Vector{Temporaryfield}} # fieldstrength fields for Bias
     smearing::TS
+
     fp::Union{Nothing, IOStream}
 
     function HMC(
@@ -55,7 +57,6 @@ struct HMC{TI,TG,TS,TB} <: AbstractUpdate
         end
 
         if bias_enabled
-            TB = BiasEnabled
             println_verbose1(verbose, "\t>> BIAS ENABLED")
             fieldstrength = Vector{Temporaryfield}(undef, 4)
 
@@ -63,7 +64,6 @@ struct HMC{TI,TG,TS,TB} <: AbstractUpdate
                 fieldstrength[i] = Temporaryfield(U)
             end
         else
-            TB = BiasDisabled
             println_verbose1(verbose, "\t>> BIAS DISABLED")
             fieldstrength = nothing
         end
@@ -72,12 +72,8 @@ struct HMC{TI,TG,TS,TB} <: AbstractUpdate
             hmc_log_file = logdir * "/hmc_acc_logs.txt"
             println_verbose1(verbose, "\t>> ACCEPTANCE DATA TRACKED IN $(hmc_log_file)")
             fp = open(hmc_log_file, "w")
-            println(
-                fp,
-                rpad("ΔSg", 22, " "), "\t",
-                rpad("ΔP²", 22, " "), "\t",
-                rpad("ΔV", 22, " "), "\t",
-                rpad("ΔH", 22, " "),
+            @printf(
+                fp, "%-22s\t%-22s\t%-22s\t%-22s\n", "ΔSg", "ΔP²", "ΔV", "ΔH"
             )
         else
             fp = nothing
@@ -85,18 +81,9 @@ struct HMC{TI,TG,TS,TB} <: AbstractUpdate
 
         println_verbose1(verbose, "")
 
-        return new{TI,TG,TS,TB}(
-			steps,
-			Δτ,
-            friction,
-			P,
-            P_old,
-			U_old,
-            staples,
-            force,
-            force2,
-            fieldstrength,
-            smearing,
+        return new{TI,TG,TS}(
+			steps, Δτ, friction,
+            P, P_old, U_old, staples, force, force2, fieldstrength, smearing,
             fp,
 		)
     end
@@ -104,13 +91,7 @@ end
 
 include("hmc_integrators.jl")
 
-function update!(
-    hmc::HMC{TI,TG,TS,TB},
-    U,
-    verbose::VerboseLevel;
-    bias = nothing,
-    metro_test = true,
-) where {TI,TG,TS,TB}
+function update!(hmc::HMC{TI,TG,TS}, U, verbose; bias=nothing, metro_test=true) where {TI,TG,TS}
     U_old = hmc.U_old
     P_old = hmc.P_old
     substitute_U!(U_old, U)
@@ -335,13 +316,7 @@ end
 print_hmc_data(::Nothing, args...) = nothing
 
 function print_hmc_data(fp, ΔSg, ΔP², ΔV, ΔH)
-    println(
-        fp,
-        rpad(@sprintf("%.15E", ΔSg), 22, " "), "\t",
-        rpad(@sprintf("%.15E", ΔP²), 22, " "), "\t",
-        rpad(@sprintf("%.15E", ΔV), 22, " "), "\t",
-        rpad(@sprintf("%.15E", ΔH), 22, " "),
-    )
+    @printf(fp, "%+22.15E\t%+22.15E\t%+22.15E\t%+22.15E\n", ΔSg, ΔP², ΔV, ΔH)
     flush(fp)
     return nothing
 end
