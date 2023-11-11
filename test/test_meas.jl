@@ -4,9 +4,9 @@ function SU3testmeas()
     NY = 4
     NZ = 4
     NT = 4
-    U = identity_gauges(NX, NY, NZ, NT, 5.7, WilsonGaugeAction)
+    U = identity_gauges(NX, NY, NZ, NT, 5.7, WilsonGaugeAction);
     filename = "./test/testconf.txt"
-    loadU_bridge!(U, filename)
+    loadU_bridge!(U, filename);
 
     m_plaq = PlaquetteMeasurement(U)
     @time plaq = get_value(measure(m_plaq, U))
@@ -38,5 +38,5 @@ function SU3testmeas()
     @time gaction = get_value(measure(m_gaction, U))
     println("gaction: $gaction")
 
-    return plaq, poly, topo["plaquette"], topo["clover"], topo["improved"], wilsonloop[1]
+    return plaq, poly, topo["plaquette"], topo["clover"], topo["improved"], wilsonloop[1, 1]
 end
