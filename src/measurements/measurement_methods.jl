@@ -1,5 +1,3 @@
-abstract type AbstractMeasurement end
-
 struct MeasurementMethods
     measurement_parameters_set::Vector{MeasurementParameters}
     measurements::Vector{AbstractMeasurement}
@@ -12,38 +10,29 @@ function MeasurementMethods(
     measurement_dir,
     measurement_methods::Vector{Dict};
     flow = false,
-    cv = false,
     additional_string = "",
     verbose = nothing,
 )
-    nummeasurements = length(measurement_methods) + cv
+    nummeasurements = length(measurement_methods)
     println_verbose1(verbose, "\t>> NUMBER OF OBSERVABLES = $(nummeasurements)")
-    measurements = Vector{AbstractMeasurement}(undef, nummeasurements + cv)
-    measurement_parameters_set = Vector{MeasurementParameters}(undef, nummeasurements + cv)
-    intervals = zeros(Int64, nummeasurements + cv)
+    measurements = Vector{AbstractMeasurement}(undef, nummeasurements)
+    measurement_parameters_set = Vector{MeasurementParameters}(undef, nummeasurements)
+    intervals = zeros(Int64, nummeasurements)
 
     str = flow ? "_flowed" : ""
-    idx = 1
 
     for (i, method) in enumerate(measurement_methods)
-        print_verbose1(verbose, "\t>> OBSERVABLE $i: $(method["methodname"]) →  ")
-        measurement_parameters = construct_measurement_parameters_from_dict(method) # TODO
+        measurement_parameters = construct_measurement_parameters_from_dict(method)
+        print_verbose1(verbose, "\t>> OBSERVABLE $i: $(measurement_parameters.methodname) ->  ")
         intervals[i] = measurement_parameters.measure_every
         println_verbose1(verbose, "every $(intervals[i]) updates")
         filename = measurement_dir * "/" *
             measurement_parameters.methodname * additional_string * "$str.txt"
         measurements[i] = prepare_measurement(U, measurement_parameters, filename, flow)
         measurement_parameters_set[i] = deepcopy(measurement_parameters)
-        idx += 1
-    end
-
-    if cv==true && flow==false
-        println_verbose1(verbose, "\t>> OBSERVABLE $idx: meta_charge →  every 1 updates")
-        measurement_parameters = MetaChargeParameters()
-        intervals[idx] = measurement_parameters.measure_every
-        filename = measurement_dir * "/meta_charge" * additional_string * ".txt"
-        measurements[idx] = prepare_measurement(U, measurement_parameters, filename, false)
-        measurement_parameters_set[idx] = deepcopy(measurement_parameters)
+        if measurement_parameters.methodname=="wilson_loop" && verbose≢nothing
+        @info ">> Wilson loop measurements are not printed to console to avoid cluttering"
+        end
     end
 
     println_verbose1(verbose, "")
@@ -110,7 +99,7 @@ function calc_measurements_flowed(m::MeasurementMethods, gradient_flow, U, itrj;
         flow!(gradient_flow)
 
         if iflow ∈ gradient_flow.measure_at
-            additional_string = "$itrj\t$iflow\t$τ"
+            additional_string = @sprintf("%-9i\t%-7i\t%-9.5f", itrj, iflow, τ)
 
             for i in 1:m.num_measurements
                 interval = m.intervals[i]
@@ -142,9 +131,7 @@ end
 
 function Base.close(m::MeasurementMethods)
     for meas in m.measurements
-        if meas.fp !== nothing
-            close(meas.fp)
-        end
+        close(meas)
     end
 
     return nothing

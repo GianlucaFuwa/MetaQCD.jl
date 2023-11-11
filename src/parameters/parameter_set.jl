@@ -63,7 +63,7 @@ struct ParameterSet
     numorelax::Int64
     parity_update::Bool
 
-    measurement_methods::Vector{Dict}
+    measurements::Vector{Dict}
     measurements_with_flow::Vector{Dict}
     flow_integrator::String
     flow_num::Int64

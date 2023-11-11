@@ -4,6 +4,24 @@ struct SymanzikTadGaugeAction <: AbstractGaugeAction end
 struct IwasakiGaugeAction <: AbstractGaugeAction end
 struct DBW2GaugeAction <: AbstractGaugeAction end
 
+function calc_gauge_action(U::Gaugefield, methodname::String)
+    if methodname == "wilson"
+        Sg = calc_gauge_action(WilsonGaugeAction(), U)
+    elseif methodname == "symanzik_tree"
+        Sg = calc_gauge_action(SymanzikTreeGaugeAction(), U)
+    elseif methodname == "symanzik_tad"
+        Sg = calc_gauge_action(SymanzikTadGaugeAction(), U)
+    elseif methodname == "iwasaki"
+        Sg = calc_gauge_action(IwasakiGaugeAction(), U)
+    elseif methodname == "dbw2"
+        Sg = calc_gauge_action(DBW2GaugeAction(), U)
+    else
+        error("method $methodname is not supported in gauge action measurement")
+    end
+
+    return Sg
+end
+
 calc_gauge_action(U::Gaugefield{GA}) where {GA} = calc_gauge_action(GA(), U)
 
 function calc_gauge_action(::WilsonGaugeAction, U)
@@ -49,7 +67,7 @@ function calc_gauge_action(::DBW2GaugeAction, U)
     return Sg_dbw2
 end
 
-function plaquette_trace_sum(U)
+function plaquette_trace_sum(U)::Float64
     @batch threadlocal=0.0::Float64 for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4

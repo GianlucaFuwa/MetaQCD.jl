@@ -1,42 +1,38 @@
-struct EnergyDensityMeasurement <: AbstractMeasurement
-    filename::Union{Nothing, String}
-    verbose_print::Union{Nothing, VerboseLevel}
-    fp::Union{Nothing, IOStream}
-    printvalues::Bool
-    ED_methods::Vector{String}
+struct EnergyDensityMeasurement{T} <: AbstractMeasurement
+    ED_dict::Dict{String, Float64}
+    fp::T
 
     function EnergyDensityMeasurement(
         ::Gaugefield;
-        filename = nothing,
-        verbose_level = 2,
+        filename = "",
         printvalues = false,
         ED_methods = ["clover"],
         flow = false,
     )
+        ED_dict = Dict{String, Float64}()
+        for method in ED_methods
+            ED_dict[method] = 0.0
+        end
+
         if printvalues
             fp = open(filename, "w")
             header = ""
-            header *= flow ? "itrj\tiflow\ttflow" : rpad("itrj", 9, " ")
+            if flow
+                header *= @sprintf("%-9s\t%-7s\t%-9s", "itrj", "iflow", "tflow")
+            else
+                header *= @sprintf("%-9s", "itrj")
+            end
 
             for methodname in ED_methods
-                header *= "\tE$(rpad(methodname, 22, " "))"
+                header *= @sprintf("\t%-22s", "E_$(methodname)")
             end
 
             println(fp, header)
-
-            if verbose_level == 1
-                verbose_print = Verbose1()
-            elseif verbose_level == 2
-                verbose_print = Verbose2()
-            elseif verbose_level == 3
-                verbose_print = Verbose3()
-            end
         else
             fp = nothing
-            verbose_print = nothing
         end
 
-        return new(filename, verbose_print, fp, printvalues, ED_methods)
+        return new{typeof(fp)}(ED_dict, fp)
     end
 end
 
@@ -44,42 +40,38 @@ function EnergyDensityMeasurement(U, params::EnergyDensityParameters, filename, 
     return EnergyDensityMeasurement(
         U,
         filename = filename,
-        verbose_level = params.verbose_level,
-        printvalues = params.printvalues,
+        printvalues = true,
         ED_methods = params.kinds_of_energy_density,
         flow = flow,
     )
 end
 
-function measure(m::EnergyDensityMeasurement, U; additional_string="")
+function measure(m::EnergyDensityMeasurement{T}, U; additional_string="") where {T}
     measurestring = ""
-    values = zeros(Float64, length(m.ED_methods))
-    valuedic = Dict{String, AbstractFloat}()
-    printstring = rpad(additional_string, 9, " ")
+    printstring = @sprintf("%-9s", additional_string)
 
-    for (i, methodname) in enumerate(m.ED_methods)
+    for methodname in keys(m.ED_dict)
         E = energy_density(U, methodname)
-        values[i] = E
-        valuedic[methodname] = E
+        m.ED_dict[methodname] = E
     end
 
-    if m.printvalues
-        for value in values
-            svalue = @sprintf("%.15E", value)
+    if T == IOStream
+        for value in values(m.ED_dict)
+            svalue = @sprintf("%+-22.15E", value)
             printstring *= "\t$(svalue)"
         end
 
         measurestring = printstring
-        # println_verbose2(m.verbose_print, measurestring)
         println(m.fp, measurestring)
         flush(m.fp)
+        measurestring *= " # energy_density"
     end
 
-    output = MeasurementOutput(valuedic, measurestring * " # energy_density")
+    output = MeasurementOutput(m.ED_dict, measurestring)
     return output
 end
 
-function energy_density(U::T, methodname::String) where {T<:Gaugefield}
+function energy_density(U::Gaugefield, methodname::String)
     if methodname == "plaquette"
         E = energy_density(Plaquette(), U)
     elseif methodname == "clover"
@@ -94,21 +86,17 @@ function energy_density(U::T, methodname::String) where {T<:Gaugefield}
 end
 
 function energy_density(::Plaquette, U::Gaugefield)
-    spacing = 8
-    Eplaq = zeros(Float64, nthreads() * spacing)
-
-    @batch for site in eachindex(U)
+    @batch threadlocal=0.0::Float64 for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
                 Cμν = plaquette(U, μ, ν, site)
                 Fμν = im * traceless_antihermitian(Cμν)
-
-                Eplaq[threadid() * spacing] += real(multr(Fμν, Fμν))
+                threadlocal += real(multr(Fμν, Fμν))
             end
         end
     end
 
-    Eplaq = 1/2U.NV * sum(Eplaq)
+    Eplaq = 1/2U.NV * sum(threadlocal)
     return Eplaq
 end
 
@@ -130,7 +118,7 @@ end
 function energy_density(::Improved, U::Gaugefield)
     Eclover = energy_density(Clover(), U)
     Erect = energy_density_rect(U)
-    return 5/3 * Eclover - 1/12 * Erect
+    return 5/3*Eclover - 1/12*Erect
 end
 
 function energy_density_rect(U::Gaugefield)

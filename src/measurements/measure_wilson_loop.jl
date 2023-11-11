@@ -1,49 +1,47 @@
 import ..Gaugefields: wilsonloop
 
-struct WilsonLoopMeasurement <: AbstractMeasurement
-    filename::Union{Nothing, String}
-    verbose_print::Union{Nothing, VerboseLevel}
-    fp::Union{Nothing, IOStream}
-    printvalues::Bool
+struct WilsonLoopMeasurement{T} <: AbstractMeasurement
+    WL_dict::Dict{NTuple{2,Int64}, Float64}
     Tmax::Int64
     Rmax::Int64
-    outputvalues::Matrix{Float64}
+    fp::T
 
     function WilsonLoopMeasurement(
-        U;
-        filename = nothing,
-        verbose_level = 2,
+        ::Gaugefield;
+        filename = "",
         printvalues = false,
         Rmax = 4,
         Tmax = 4,
         flow = false,
     )
-        if printvalues
-            fp = open(filename, "w")
-            header = ""
-
-            if flow
-                header *= "itrj\tiflow\ttflow\tRe(wilson_loop)\t(in column major)"
-            else
-                "itrj\tRe(wilson_loop)\t(in column major)"
+        WL_dict = Dict{NTuple{2,Int64}, Float64}()
+        for iT in 1:Tmax
+            for iR in 1:Rmax
+                WL_dict[iR, iT] = 0.0
             end
-
-            println(fp, header)
-
-            if verbose_level == 1
-                verbose_print = Verbose1()
-            elseif verbose_level == 2
-                verbose_print = Verbose2()
-            elseif verbose_level == 3
-                verbose_print = Verbose3()
-            end
-        else
-            fp = nothing
-            verbose_print = nothing
         end
 
-        outputvalues = zeros(Float64, Rmax, Tmax)
-        return new(filename, verbose_print, fp, printvalues, Tmax, Rmax, outputvalues)
+        if printvalues
+            fp = open(filename, "w")
+
+            if flow
+                @printf(fp, "%-9s\t%-7s\t%-9s", "itrj", "iflow", "tflow")
+            else
+                @printf(fp, "%-9s", "itrj")
+            end
+
+            for iT in 1:Tmax
+                for iR in 1:Rmax
+                    @printf(fp, "\t%-22s", "wilson_loop_$(iR)x$(iT)")
+                end
+            end
+
+            @printf(fp, "\n")
+        else
+            fp = nothing
+        end
+
+        return new{typeof(fp)}(WL_dict, Tmax, Rmax, fp)
     end
 end
 
@@ -51,31 +49,32 @@ function WilsonLoopMeasurement(U, params::WilsonLoopParameters, filename, flow=f
     return WilsonLoopMeasurement(
         U,
         filename = filename,
-        verbose_level = params.verbose_level,
-        printvalues = params.printvalues,
+        printvalues = true,
         Rmax = params.Rmax,
         Tmax = params.Tmax,
         flow = flow,
     )
 end
 
-function measure(m::WilsonLoopMeasurement, U; additional_string="")
-    measurestring = ""
+function measure(m::WilsonLoopMeasurement{T}, U; additional_string="") where {T}
+    T==IOStream && @printf(m.fp, "%-9s", additional_string)
 
-    for T in 1:m.Tmax
-        for R in 1:m.Rmax
-            WL = wilsonloop(U, R, T) # NC=3 and 6 associated loop
-            m.outputvalues[R, T] = tr(WL) / (U.NV * 18.0)
+    for iT in 1:m.Tmax
+        for iR in 1:m.Rmax
+            WL = tr(wilsonloop(U, iR, iT)) / (18.0*U.NV)
+            m.WL_dict[iR, iT] = WL
 
-            if m.printvalues
-                measurestring = "$additional_string\t$R\t$T\t$WL"
-                # println_verbose2(m.verbose_print, "$measurestring# wilson_loops")
-                println(m.fp, measurestring)
-                flush(m.fp)
+            if T == IOStream
+                @printf(m.fp, "\t%+-22.15E", WL)
             end
         end
     end
 
-    output = MeasurementOutput(m.outputvalues, measurestring * " # wilson_loops")
+    if T == IOStream
+        @printf(m.fp, "\n")
+        flush(m.fp)
+    end
+
+    output = MeasurementOutput(m.WL_dict, "")
     return output
 end

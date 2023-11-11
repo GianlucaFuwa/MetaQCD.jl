@@ -1,42 +1,38 @@
-struct TopologicalChargeMeasurement <: AbstractMeasurement
-    filename::Union{Nothing, String}
-    verbose_print::Union{Nothing, VerboseLevel}
-    fp::Union{Nothing, IOStream}
-    printvalues::Bool
-    TC_methods::Vector{String}
+struct TopologicalChargeMeasurement{T} <: AbstractMeasurement
+    TC_dict::Dict{String, Float64}
+    fp::T
 
     function TopologicalChargeMeasurement(
-        U;
-        filename = nothing,
-        verbose_level = 2,
+        ::Gaugefield;
+        filename = "",
         printvalues = false,
         TC_methods = ["clover"],
         flow = false,
     )
+        TC_dict = Dict{String, Float64}()
+        for method in TC_methods
+            TC_dict[method] = 0.0
+        end
+
         if printvalues
             fp = open(filename, "w")
             header = ""
-            header *= flow ? "itrj\tiflow\ttflow" : rpad("itrj", 9, " ")
+            if flow
+                header *= @sprintf("%-9s\t%-7s\t%-9s", "itrj", "iflow", "tflow")
+            else
+                header *= @sprintf("%-9s", "itrj")
+            end
 
             for methodname in TC_methods
                 header *= "\tQ$(rpad(methodname, 22, " "))"
             end
 
             println(fp, header)
-
-            if verbose_level == 1
-                verbose_print = Verbose1()
-            elseif verbose_level == 2
-                verbose_print = Verbose2()
-            elseif verbose_level == 3
-                verbose_print = Verbose3()
-            end
         else
             fp = nothing
-            verbose_print = nothing
         end
 
-        return new(filename, verbose_print, fp, printvalues, TC_methods)
+        return new{typeof(fp)}(TC_dict, fp)
     end
 end
 
@@ -44,38 +40,34 @@ function TopologicalChargeMeasurement(U, params::TopologicalChargeParameters, fi
     return TopologicalChargeMeasurement(
         U,
         filename = filename,
-        verbose_level = params.verbose_level,
-        printvalues = params.printvalues,
+        printvalues = true,
         TC_methods = params.kinds_of_topological_charge,
         flow = flow,
     )
 end
 
-function measure(m::TopologicalChargeMeasurement, U; additional_string="")
+function measure(m::TopologicalChargeMeasurement{T}, U; additional_string="") where {T}
     measurestring = ""
-    values = zeros(Float64, length(m.TC_methods))
-    valuedic = Dict{String, AbstractFloat}()
-    printstring = rpad(additional_string, 9, " ")
+    printstring = @sprintf("%-9s", additional_string)
 
-    for (i, methodname) in enumerate(m.TC_methods)
+    for methodname in keys(m.TC_dict)
         Q = top_charge(U, methodname)
-        values[i] = Q
-        valuedic[methodname] = Q
+        m.TC_dict[methodname] = Q
     end
 
-    if m.printvalues
-        for value in values
-            svalue = @sprintf("%.15E", value)
+    if T == IOStream
+        for value in values(m.TC_dict)
+            svalue = @sprintf("%+-22.15E", value)
             printstring *= "\t$svalue"
         end
 
         measurestring = printstring
-        # println_verbose2(m.verbose_print, "$measurestring# top_charge")
         println(m.fp, measurestring)
         flush(m.fp)
+        measurestring *= " # top_charge"
     end
 
-    output = MeasurementOutput(valuedic, measurestring * " # top_charge")
+    output = MeasurementOutput(m.TC_dict, measurestring)
     return output
 end
 

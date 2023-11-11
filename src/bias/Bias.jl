@@ -11,9 +11,6 @@ import ..Gaugefields: AbstractGaugeAction, Gaugefield, Plaquette, Clover
 import ..Measurements: top_charge
 import ..Smearing: NoSmearing, StoutSmearing, calc_smearedU!
 
-struct BiasEnabled end # probably unnecessary
-struct BiasDisabled end
-
 abstract type AbstractBias end
 
 """
@@ -34,7 +31,7 @@ struct Bias{TCV,TS,TB}
     biasfile::Union{Nothing, String}
     write_bias_every::Int64
     kinds_of_weights::Union{Nothing, Vector{String}}
-    weight_fp::Union{Nothing, IOStream}
+    fp::Union{Nothing, IOStream}
 end
 
 function Bias(p::ParameterSet, U; verbose=Verbose1(), instance=1, has_fp=true)
@@ -54,28 +51,28 @@ function Bias(p::ParameterSet, U; verbose=Verbose1(), instance=1, has_fp=true)
         error("kind_of_bias $(p.kind_of_bias) not supported. Try metad or opes")
     end
 
-    if (has_fp==true) && (instance>0) && (p.kind_of_bias!="parametric")
+    if (has_fp==true) && (p.kind_of_bias!="parametric")
         biasfile = p.biasdir * "/stream_$instance.txt"
-        weight_fp = open(p.measuredir * "/meta_weight_$instance.txt", "w")
+        fp = open(p.measuredir * "/bias_data_$instance.txt", "w")
         kinds_of_weights = p.kinds_of_weights
-        header = rpad("itrj", 9, " ")
+        @printf(fp, "%-9s\t%-22s", "itrj", "cv")
 
         for name in kinds_of_weights
-            name_str = "weight_$name"
-            header *= "\t$(rpad(name_str, 22, " "))"
+            @printf(fp, "\t%-22s", "weight_$(name)")
         end
 
-        println(weight_fp, header)
-    elseif (has_fp==true) && (instance>0) && (p.kind_of_bias=="parametric")
-        weight_fp = open(p.measuredir * "/meta_weight_$instance.txt", "w")
+        @printf(fp, "\n")
+    elseif (has_fp==true) && (p.kind_of_bias=="parametric")
+        fp = open(p.measuredir * "/bias_data_$instance.txt", "w")
         kinds_of_weights = ["branduardi"]
-        @info "Parametric Bias is always STATIC"
-        @info "Weight-type defaults to \"branduardi\", i.e. exp(V(Qᵢ)) on parametric bias"
+        @printf(fp, "%-9s\t%-22s\t%-22s\n", "itrj", "cv", "weight_branduardi")
+        @info ">> Parametric Bias is always STATIC"
+        @info ">> Weight-type defaults to \"branduardi\", i.e. exp(V(Qᵢ)) on parametric bias"
         biasfile = nothing
     else
         biasfile = nothing
         kinds_of_weights = nothing
-        weight_fp = nothing
+        fp = nothing
     end
 
     println_verbose1(verbose, "\t>> BIASFILE = $(biasfile)")
@@ -90,11 +87,13 @@ function Bias(p::ParameterSet, U; verbose=Verbose1(), instance=1, has_fp=true)
     return Bias(
         TCV(), smearing, is_static,
         bias, biasfile, write_bias_every,
-        kinds_of_weights, weight_fp,
+        kinds_of_weights, fp,
     )
 end
 
 (b::Bias)(cv) = b.bias(cv)
+kind_of_cv(b::Bias) = b.kind_of_cv
+Base.close(b::Bias) = b.fp≢nothing ? close(b.fp) : nothing
 
 include("metadynamics.jl")
 include("opes.jl")
@@ -150,8 +149,6 @@ function get_cvtype_from_parameters(p::ParameterSet)
         error("kind of cv \"$(p.kind_of_cv)\" not supported")
     end
 end
-
-kind_of_cv(b::Bias) = b.kind_of_cv
 
 function in_bounds(cv, lb, ub)
     lb <= cv <= ub && return true

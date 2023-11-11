@@ -3,66 +3,50 @@ struct2dict(x::T) where {T} =
 
 abstract type MeasurementParameters end
 
-Base.@kwdef mutable struct GaugeActionParameters <: MeasurementParameters
-    methodname::String = "gauge_action"
-    verbose_level::Int64 = 2
-    printvalues::Bool = true
-    measure_every::Int64 = 1
-    kinds_of_gaction::Vector{String} = ["wilson"]
-end
-
-Base.@kwdef mutable struct PlaquetteParameters <: MeasurementParameters
-    methodname::String = "plaquette"
-    verbose_level::Int64 = 2
-    printvalues::Bool = true
-    measure_every::Int64 = 1
-end
-
-Base.@kwdef mutable struct PolyakovParameters <: MeasurementParameters
-    methodname::String = "polyakov_loop"
-    verbose_level::Int64 = 2
-    printvalues::Bool = true
-    measure_every::Int64 = 1
-end
-
-Base.@kwdef mutable struct WilsonLoopParameters <: MeasurementParameters
-    methodname::String = "wilson_loop"
-    verbose_level::Int64 = 2
-    printvalues::Bool = true
-    Tmax::Int64 = 4
-    Rmax::Int64 = 4
-    measure_every::Int64 = 10
-end
-
-Base.@kwdef mutable struct TopologicalChargeParameters <: MeasurementParameters
-    methodname::String = "topological_charge"
-    verbose_level::Int64 = 2
-    printvalues::Bool = true
-    measure_every::Int64 = 10
-    kinds_of_topological_charge::Vector{String} = ["clover"]
-end
-
 Base.@kwdef mutable struct EnergyDensityParameters <: MeasurementParameters
-    methodname::String = "energy_density"
-    verbose_level::Int64 = 2
-    printvalues::Bool = true
     measure_every::Int64 = 10
     kinds_of_energy_density::Vector{String} = ["clover"]
+    methodname::String = "energy_density"
+end
+
+Base.@kwdef mutable struct GaugeActionParameters <: MeasurementParameters
+    measure_every::Int64 = 1
+    kinds_of_gauge_action::Vector{String} = ["wilson"]
+    methodname::String = "gauge_action"
 end
 
 Base.@kwdef mutable struct MetaChargeParameters <: MeasurementParameters
-    methodname::String = "meta_charge"
-    verbose_level::Int64 = 2
-    printvalues::Bool = true
     measure_every::Int64 = 1
+    methodname::String = "meta_charge"
 end
 
 Base.@kwdef mutable struct MetaWeightParameters <: MeasurementParameters
-    methodname::String = "meta_weight"
-    verbose_level::Int64 = 2
-    printvalues::Bool = true
     measure_every::Int64 = 1
-    weight_method::Vector{String} = ["kish"]
+    weight_method::Vector{String} = ["balanced_exp"]
+    methodname::String = "meta_weight"
+end
+
+Base.@kwdef mutable struct PlaquetteParameters <: MeasurementParameters
+    measure_every::Int64 = 1
+    methodname::String = "plaquette"
+end
+
+Base.@kwdef mutable struct PolyakovParameters <: MeasurementParameters
+    measure_every::Int64 = 1
+    methodname::String = "polyakov_loop"
+end
+
+Base.@kwdef mutable struct TopologicalChargeParameters <: MeasurementParameters
+    measure_every::Int64 = 10
+    kinds_of_topological_charge::Vector{String} = ["clover"]
+    methodname::String = "topological_charge"
+end
+
+Base.@kwdef mutable struct WilsonLoopParameters <: MeasurementParameters
+    Tmax::Int64 = 4
+    Rmax::Int64 = 4
+    measure_every::Int64 = 10
+    methodname::String = "wilson_loop"
 end
 
 function initialize_measurement_parameters(methodname)
@@ -86,14 +70,8 @@ function initialize_measurement_parameters(methodname)
     return method
 end
 
-function prepare_measurement_from_dict(U, value_i::Dict, filename="", flow=false)
-    parameters = construct_measurement_parameters_from_dict(value_i)
-    return prepare_measurement(U, parameters, filename, flow)
-end
-
 function construct_measurement_parameters_from_dict(value_i::Dict)
-    @assert haskey(value_i, "methodname") "methodname should be in measurement."
-    methodname = value_i["methodname"]
+    methodname = value_i["observable"]
     method = initialize_measurement_parameters(methodname)
     method_dict = struct2dict(method)
 

@@ -25,6 +25,10 @@ import ..Gaugefields: Gaugefield, calc_gauge_action, clover_rect, clover_square,
 import ..Gaugefields: Plaquette, Clover, Improved
 import ..Smearing: StoutSmearing, calc_smearedU!, flow!
 
+abstract type AbstractMeasurement end
+
+Base.close(m::AbstractMeasurement) = typeof(m.fp)==IOStream ? close(m.fp) : nothing
+
 include("./measurement_parameters.jl")
 include("./measurement_methods.jl")
 

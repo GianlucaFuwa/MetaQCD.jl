@@ -153,13 +153,13 @@ function construct_params_from_toml(parameters; am_rank0 = true)
     end
 
     for (i, pname_i) in enumerate(pnames)
-        for (key, value) in parameters
+        for (_, value) in parameters
             if haskey(value, String(pname_i))
-                if String(pname_i) == "measurement_methods"
-                    valuedir = construct_measurement_dir(value[String(pname_i)])
+                if String(pname_i) == "measurements"
+                    valuedir = construct_measurement_dicts(value[String(pname_i)])
                     value_Params[i] = valuedir
                 elseif String(pname_i) == "measurements_with_flow"
-                    valuedir = construct_measurement_dir(value[String(pname_i)])
+                    valuedir = construct_measurement_dicts(value[String(pname_i)])
                     value_Params[i] = valuedir
                 elseif String(pname_i) == "L"
                     value_Params[i] = Tuple(value[String(pname_i)])
@@ -248,20 +248,21 @@ function parameter_check(p::ParameterSet; do_prints=true)
     end
 end
 
-function construct_measurement_dir(x)
-    valuedic = Dict[]
+function construct_measurement_dicts(x)
+    meas_dicts = Dict[]
 
-    for (method, methoddic) in x
-        dic_i = Dict()
+    for (method, method_dict) in x
+        dictᵢ = Dict()
+        dictᵢ["observable"] = method
 
-        for (key, value) in methoddic
-            dic_i[key] = value
+        for (key, value) in method_dict
+            dictᵢ[key] = value
         end
 
-        push!(valuedic, dic_i)
+        push!(meas_dicts, dictᵢ)
     end
 
-    return valuedic
+    return meas_dicts
 end
 
 function overwrite_detected(s::String, am_rank0)
