@@ -19,27 +19,41 @@ randomseed = 0
 verboselevel = 1
 overwrite = true
 
-["Measurement set".measurement_methods.Polyakov_loop]
-measure_every = 10
-methodname = "polyakov_loop"
+["Measurement Settings".measurements.Energy_density]
+measure_every = 1
+kinds_of_energy_density = ["plaquette", "clover", "improved"]
 
-["Measurement set".measurement_methods.Topological_charge]
-measure_every = 10
-kinds_of_topological_charge = ["clover"]
-methodname = "topological_charge"
+["Measurement Settings".measurements.Gauge_action]
+measure_every = 1
+kinds_of_gauge_action = ["wilson", "symanzik_tree", "iwasaki", "dbw2"]
 
-["Measurement set".measurement_methods.Plaquette]
-measure_every = 10
-methodname = "plaquette"
+["Measurement Settings".measurements.Plaquette]
+measure_every = 1
 
-[gradientflow_measurements]
+["Measurement Settings".measurements.Polyakov_loop]
+measure_every = 1
+
+["Measurement Settings".measurements.Topological_charge]
+measure_every = 1
+kinds_of_topological_charge = ["plaquette", "clover", "improved"]
+
+["Measurement Settings".measurements.Wilson_loop]
+measure_every = 1
+Rmax = 4
+Tmax = 4
+
+["Gradient Flow Settings"]
 flow_integrator = "euler"
 flow_num = 7
 flow_steps = 1
-flow_tf = 0.23
+flow_tf = 0.12 # total flow time is flow_num * flow_tf
 flow_measure_every = 7
 
-    [gradientflow_measurements.measurements_with_flow.Topological_charge]
+    ["Gradient Flow Settings".measurements_with_flow.Topological_charge]
     measure_every = 10
     kinds_of_topological_charge = ["clover"]
-    methodname = "topological_charge"
+
+    ["Gradient Flow Settings".measurements_with_flow.Wilson_loop]
+    measure_every = 10
+    Rmax = 2
+    Tmax = 2

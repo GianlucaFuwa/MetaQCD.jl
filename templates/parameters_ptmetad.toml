@@ -2,8 +2,8 @@
 L = [16, 16, 16, 16]
 beta = 1.25
 kind_of_gaction = "dbw2"
-numtherm = 1
-numsteps = 1
+numtherm = 10
+numsteps = 10
 initial = "cold"
 update_method = "heatbath"
 numheatbath = 1
@@ -21,13 +21,11 @@ symmetric = true
 stride = 1
 cvlims = [-5, 5]
 biasfactor = "Inf"
+kinds_of_weights = ["tiwari", "branduardi", "balanced_exp"]
 # metadynamics specific parameters
 bin_width = 0.02
 meta_weight = 0.01
 penalty_weight = 1000
-usebiases = [
-    "./metapotentials/L16x16x16x16_dbw2_beta1.25/ssa.txt",
-]
 # parameters
 bias_Q = 0.0
 bias_A = 7
@@ -47,7 +45,7 @@ hmc_integrator = "OMF4"
 
 ["System Settings"]               
 logdir = "./logs/L16x16x16x16_dbw2_beta1.25/test_ptmetad"
-logfile = "tau1_phipidiv8_pt.txt"
+logfile = "logs.txt"
 measurement_basedir = "./measurements/L16x16x16x16_dbw2_beta1.25/test_ptmetad"
 measurement_dir = "raw_data"
 randomseed = 1206
@@ -56,18 +54,41 @@ bias_basedir = "./metapotentials/L16x16x16x16_dbw2_beta1.25/test_ptmetad"
 bias_dir = "bias"
 overwrite = true
 
-["Measurement set".measurement_methods.Plaquette]
+["Measurement Settings".measurements.Energy_density]
 measure_every = 1
-methodname = "plaquette"
+kinds_of_energy_density = ["plaquette", "clover", "improved"]
 
-[gradientflow_measurements]
+["Measurement Settings".measurements.Gauge_action]
+measure_every = 1
+kinds_of_gauge_action = ["wilson", "symanzik_tree", "iwasaki", "dbw2"]
+
+["Measurement Settings".measurements.Plaquette]
+measure_every = 1
+
+["Measurement Settings".measurements.Polyakov_loop]
+measure_every = 1
+
+["Measurement Settings".measurements.Topological_charge]
+measure_every = 1
+kinds_of_topological_charge = ["plaquette", "clover", "improved"]
+
+["Measurement Settings".measurements.Wilson_loop]
+measure_every = 1
+Rmax = 4
+Tmax = 4
+
+["Gradient Flow Settings"]
 flow_integrator = "euler"
-flow_num = 30
+flow_num = 7
 flow_steps = 1
-flow_tf = 0.12
-flow_measure_every = 30
+flow_tf = 0.12 # total flow time is flow_num * flow_tf
+flow_measure_every = 7
 
-    [gradientflow_measurements.measurements_with_flow.Topological_charge]
+    ["Gradient Flow Settings".measurements_with_flow.Topological_charge]
     measure_every = 10
     kinds_of_topological_charge = ["clover"]
-    methodname = "topological_charge"
+
+    ["Gradient Flow Settings".measurements_with_flow.Wilson_loop]
+    measure_every = 10
+    Rmax = 2
+    Tmax = 2
