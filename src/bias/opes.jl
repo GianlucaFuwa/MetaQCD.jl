@@ -250,6 +250,8 @@ function (o::OPES)(cv)
     end
 end
 
+(o::OPES)(cv, t) = error("No time-depency support for OPES")
+
 function calculate!(o::OPES, cv)
     o.is_first_step && return nothing
     cutoff² = o.cutoff²
@@ -287,6 +289,9 @@ function ∂V∂Q(o::OPES, cv)
     out = o.bias_prefactor / (prob/Z+o.ϵ) * deriv/Z
     return out
 end
+
+∂V∂Q(o::OPES, cv, t) = error("No time-depency support for OPES")
+∂V∂t(o::OPES, cv, t) = error("No time-depency support for OPES")
 
 function add_kernel!(o::OPES, height, cv, σ)
     kernels = get_kernels(o)

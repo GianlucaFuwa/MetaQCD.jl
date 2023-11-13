@@ -1,15 +1,15 @@
 ["Physical Settings"]
-L = [12, 12, 12, 12]
-beta = 6.0
-kind_of_gaction = "wilson"
-numtherm = 20
-numsteps = 100
+L = [16, 16, 16, 16]
+beta = 1.25
+kind_of_gaction = "dbw2"
+numtherm = 0
+numsteps = 2
 initial = "cold"
 update_method = "HMC"
 
 ["Bias Settings"]
 # general bias parameters
-kind_of_bias = "metad"
+kind_of_bias = "parametric"
 kind_of_cv = "clover"
 numsmears_for_cv = 4
 rhostout_for_cv = 0.12
@@ -22,62 +22,66 @@ biasfactor = "Inf"
 bin_width = 0.02
 meta_weight = 0.01
 penalty_weight = 100
-# usebiases = [
-#     "./metapotentials/L16x16x16x16_dbw2_beta1.25/dummy.txt",
-# ]
+#
+bias_Q = 0.0
+bias_A = 200
+bias_Z = 1.18
 
 ["HMC Settings"]
-hmc_deltatau = 0.2
+hmc_trajectory = 1
 hmc_steps = 5
 hmc_integrator = "OMF4"
-# hmc_friction = 0.1
 
 ["System Settings"]               
-logdir = "./logs/L12x12x12x12_wilson_beta6.0/test_metad"
+logdir = "./logs/L16x16x16x16_dbw2_beta1.25/test_topupdateC"
 logfile = "logs.txt"
-measurement_basedir = "./measurements/L12x12x12x12_wilson_beta6.0/test_metad"
+measurement_basedir = "./measurements/L16x16x16x16_dbw2_beta1.25/test_topupdateC"
 measurement_dir = "raw_data"
-randomseed = 123
-verboselevel = 1
-bias_basedir = "./metapotentials/L12x12x12x12_wilson_beta6.0/test_metad"
+randomseed = 0
+verboselevel = 3
+bias_basedir = "./metapotentials/L16x16x16x16_dbw2_beta1.25/test_topupdateC"
 bias_dir = "bias"
 overwrite = true
+loadU_fromfile = true
+loadU_format = "bridge"
+loadU_dir = "./configs"
+loadU_filename = "config_00000001.txt"
 
 ["Measurement Settings".measurements.Energy_density]
 measure_every = 1
-kinds_of_energy_density = ["plaquette", "clover", "improved"]
-
-["Measurement Settings".measurements.Gauge_action]
-measure_every = 1
-kinds_of_gauge_action = ["wilson", "symanzik_tree", "iwasaki", "dbw2"]
+kinds_of_energy_density = ["plaquette", "clover"]
 
 ["Measurement Settings".measurements.Plaquette]
 measure_every = 1
 
-["Measurement Settings".measurements.Polyakov_loop]
-measure_every = 1
-
 ["Measurement Settings".measurements.Topological_charge]
 measure_every = 1
-kinds_of_topological_charge = ["plaquette", "clover", "improved"]
+kinds_of_topological_charge = ["plaquette", "clover"]
 
 ["Measurement Settings".measurements.Wilson_loop]
 measure_every = 1
-Rmax = 4
-Tmax = 4
+Rmax = 2
+Tmax = 2
 
 ["Gradient Flow Settings"]
 flow_integrator = "euler"
-flow_num = 7
+flow_num = 30
 flow_steps = 1
 flow_tf = 0.12 # total flow time is flow_num * flow_tf
-flow_measure_every = 7
+flow_measure_every = 30
+
+    ["Gradient Flow Settings".measurements_with_flow.Energy_density]
+    measure_every = 1
+    kinds_of_topological_charge = ["plaquette", "clover"]
 
     ["Gradient Flow Settings".measurements_with_flow.Topological_charge]
-    measure_every = 10
-    kinds_of_topological_charge = ["clover"]
+    measure_every = 1
+    kinds_of_topological_charge = ["plaquette", "clover"]
 
     ["Gradient Flow Settings".measurements_with_flow.Wilson_loop]
-    measure_every = 10
+    measure_every = 1
     Rmax = 2
     Tmax = 2
+
+    ["Gradient Flow Settings".measurements_with_flow.Plaquette]
+    measure_every = 1

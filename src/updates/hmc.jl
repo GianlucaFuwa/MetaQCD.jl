@@ -1,11 +1,15 @@
 import ..Gaugefields: SymanzikTadGaugeAction
 abstract type AbstractIntegrator end
 
-struct HMC{TI,TG,TS} <: AbstractUpdate
+mutable struct HMC{TI,TG,TS} <: AbstractUpdate
+    trajectory::Float64
     steps::Int64
     Δτ::Float64
     friction::Float64
 
+    direction::Int64
+    U₀::Float64
+    P₀::Float64
     P::Liefield
     P_old::Union{Nothing, Liefield} # second momentum field for GHMC
     U_old::TG
@@ -82,8 +86,8 @@ struct HMC{TI,TG,TS} <: AbstractUpdate
         println_verbose1(verbose, "")
 
         return new{TI,TG,TS}(
-			steps, Δτ, friction,
-            P, P_old, U_old, staples, force, force2, fieldstrength, smearing,
+			trajectory, steps, Δτ, friction,
+            1, 0.0, 0.0, P, P_old, U_old, staples, force, force2, fieldstrength, smearing,
             fp,
 		)
     end
@@ -97,7 +101,9 @@ function update!(hmc::HMC{TI,TG,TS}, U, verbose; bias=nothing, metro_test=true) 
     substitute_U!(U_old, U)
     gaussian_momenta!(hmc.P, hmc.friction)
     P_old≢nothing && substitute_U!(P_old, hmc.P)
+    hmc.direction = rand()<0.5 ? 1 : -1
 
+    U₀_old = hmc.U₀
     Sg_old = U.Sg
     trP²_old = -calc_kinetic_energy(hmc.P)
 
@@ -116,12 +122,12 @@ function update!(hmc::HMC{TI,TG,TS}, U, verbose; bias=nothing, metro_test=true) 
     else
         CV_old = calc_CV(U_old, bias)
         CV_new = calc_CV(U, bias)
-        ΔV = bias(CV_new) - bias(CV_old)
+        ΔV = bias(CV_new, hmc.U₀) - bias(CV_old, U₀_old)
     end
 
-    ΔH = ΔP² + ΔSg + ΔV
+    ΔH = ΔP² + ΔSg + ΔV + hmc.P₀
 
-    print_hmc_data(hmc.fp, ΔSg, ΔP², ΔV, ΔH)
+    print_hmc_data(hmc.fp, ΔSg, ΔP², ΔV, ΔH, hmc.P₀)
 
     accept = metro_test ? rand()≤exp(-ΔH) : true
 
@@ -146,6 +152,7 @@ end
 function updateU!(U, hmc, fac)
     ϵ = hmc.Δτ * fac
     P = hmc.P
+    hmc.U₀ += hmc.direction*ϵ / hmc.trajectory
 
     @batch for site in eachindex(U)
         for μ in 1:4
@@ -166,7 +173,9 @@ function updateP!(U, hmc::HMC, fac, bias)
     fieldstrength = hmc.fieldstrength
 
     if bias ≢ nothing
-        calc_dVdU_bare!(force, fieldstrength, U, temp_force, bias)
+        cv = calc_dVdU_bare!(force, fieldstrength, U, temp_force, bias, hmc.U₀)
+        hmc.P₀ -= ∂V∂t(bias, cv, hmc.U₀) * ϵ * hmc.direction
+        @printf("t = %.10f\tcv = %.10f\tP₀ = %.10f\n", hmc.U₀, cv, hmc.P₀)
         add!(P, force, ϵ)
     end
 
@@ -210,10 +219,10 @@ Calculate the bias force for a molecular dynamics step, i.e. the derivative of t
 bias potential w.r.t. the bare/unsmeared field U. \\
 Needs the additional field "temp_force" to be a TemporaryField when doing recursion
 """
-function calc_dVdU_bare!(dVdU, F, U, temp_force, bias)
+function calc_dVdU_bare!(dVdU, F, U, temp_force, bias, t)
     smearing = bias.smearing
     cv = calc_CV(U, bias)
-    bias_derivative = ∂V∂Q(bias, cv)
+    bias_derivative = ∂V∂Q(bias, cv, t)
 
     if typeof(smearing) == NoSmearing
         calc_dVdU!(kind_of_cv(bias), dVdU, F, U, bias_derivative)
@@ -222,7 +231,7 @@ function calc_dVdU_bare!(dVdU, F, U, temp_force, bias)
         calc_dVdU!(kind_of_cv(bias), dVdU, F, fully_smeared_U, bias_derivative)
         stout_backprop!(dVdU, temp_force, smearing)
     end
-    return nothing
+    return cv
 end
 
 function calc_dVdU!(kind_of_charge, dVdU, F, U, bias_derivative)
@@ -315,8 +324,8 @@ end
 
 print_hmc_data(::Nothing, args...) = nothing
 
-function print_hmc_data(fp, ΔSg, ΔP², ΔV, ΔH)
-    @printf(fp, "%+22.15E\t%+22.15E\t%+22.15E\t%+22.15E\n", ΔSg, ΔP², ΔV, ΔH)
+function print_hmc_data(fp, ΔSg, ΔP², ΔV, ΔH, P₀)
+    @printf(fp, "%+22.15E\t%+22.15E\t%+22.15E\t%+22.15E\t%+22.15E\n", ΔSg, ΔP², ΔV, ΔH, P₀)
     flush(fp)
     return nothing
 end

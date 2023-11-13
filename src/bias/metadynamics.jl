@@ -106,6 +106,7 @@ function update!(m::Metadynamics, cv, args...)
 end
 
 (m::Metadynamics)(cv) = return_potential(m, cv)
+(m::Metadynamics)(cv, t) = error("No time-depency support for MetaD")
 
 function return_potential(m::Metadynamics, cv)
     bw = m.bin_width
@@ -131,6 +132,9 @@ function ∂V∂Q(m::Metadynamics, cv)
     denom = 12bw
     return num / denom
 end
+
+∂V∂Q(m::Metadynamics, cv, t) = error("No time-depency support for MetaD")
+∂V∂t(m::Metadynamics, cv, t) = error("No time-depency support for MetaD")
 
 function clear!(m::Metadynamics)
     @batch for i in eachindex(m)
