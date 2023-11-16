@@ -51,6 +51,11 @@ function Bias(p::ParameterSet, U; verbose=Verbose1(), instance=1, has_fp=true)
         error("kind_of_bias $(p.kind_of_bias) not supported. Try metad or opes")
     end
 
+    println_verbose1(
+        verbose,
+        "\t>> CV DATA: $TCV WITH $(p.numsmears_for_cv)x$(p.rhostout_for_cv) SMEARS"
+    )
+
     if (has_fp==true) && (p.kind_of_bias!="parametric")
         biasfile = p.biasdir * "/stream_$instance.txt"
         fp = open(p.measuredir * "/bias_data_$instance.txt", "w")

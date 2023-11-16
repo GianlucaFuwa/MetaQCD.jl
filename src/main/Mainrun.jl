@@ -25,12 +25,6 @@ const comm_size = MPI.Comm_size(comm)
 """
 So we don't have to type "if myrank == 0" all the time...
 """
-function println_rank0(v::VerboseLevel, args...)
-    if myrank == 0
-        println(v, args...)
-    end
-end
-
 function println_verbose0(v::VerboseLevel, args...)
     if myrank == 0
         println_verbose1(v, args...)

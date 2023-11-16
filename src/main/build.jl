@@ -85,7 +85,7 @@ end
 function build!(
     parameters,
     univ,
-    update_method,
+    updatemethod,
     gflow,
     measurements,
     measurements_with_flow,
@@ -99,18 +99,17 @@ function build!(
             println_verbose0(vp, "\n# therm itrj = $itrj")
 
             _, updatetime = @timed begin
-                update!(update_method, U, vp, bias=nothing, metro_test=false)
+                update!(updatemethod, U, vp, bias=nothing, metro_test=false)
             end
 
-            println_verbose0(vp, "Thermalization Update: Elapsed time $(updatetime) [s]")
+            println_verbose0(vp, ">> Therm. Update elapsed time:\t$(updatetime) [s]\n#")
         end
     end
 
+    println_verbose0(vp, "\t>> Thermalization elapsed time:\t$(runtime_therm) [s]\n")
     recalc_CV!(U, bias) # need to recalc cv since it was not updated during therm
 
     MPI.Barrier(comm)
-
-    println_verbose0(vp, "Thermalization Elapsed time $(runtime_therm) [s]")
 
     _, runtime_all = @timed begin
         numaccepts = 0.0
@@ -119,7 +118,7 @@ function build!(
             println_verbose0(vp, "\n# itrj = $itrj")
 
             _, updatetime = @timed begin
-                numaccepts += update!(update_method, U, vp, bias=bias)
+                numaccepts += update!(updatemethod, U, vp, bias=bias)
             end
 
             println_verbose0(vp, "Update: Elapsed time $(updatetime) [s]")

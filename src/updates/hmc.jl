@@ -147,7 +147,7 @@ function updateU!(U, hmc, fac)
     ϵ = hmc.Δτ * fac
     P = hmc.P
 
-    @batch for site in eachindex(U)
+    @batch per=thread for site in eachindex(U)
         for μ in 1:4
             U[μ][site] = cmatmul_oo(exp_iQ(-im*ϵ*P[μ][site]), U[μ][site])
         end
@@ -193,7 +193,7 @@ end
 function calc_dSdU!(dSdU, staples, U)
     β = U.β
 
-    @batch for site in eachindex(U)
+    @batch per=thread for site in eachindex(U)
         for μ in 1:4
             A = staple(U, μ, site)
             staples[μ][site] = A
@@ -228,7 +228,7 @@ end
 function calc_dVdU!(kind_of_charge, dVdU, F, U, bias_derivative)
     fieldstrength_eachsite!(kind_of_charge, F, U)
 
-    @batch for site in eachindex(U)
+    @batch per=thread for site in eachindex(U)
         tmp1 = cmatmul_oo(U[1][site], (
             ∇trFμνFρσ(kind_of_charge, U, F, 1, 2, 3, 4, site) -
             ∇trFμνFρσ(kind_of_charge, U, F, 1, 3, 2, 4, site) +

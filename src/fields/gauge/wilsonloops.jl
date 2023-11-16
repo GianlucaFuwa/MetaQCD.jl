@@ -127,7 +127,7 @@ function wilsonloop_bottom_right(U, μ, ν, site, Lμ, Lν)
 end
 
 function wilsonloop(U, Lμ, Lν)
-    @batch threadlocal=0.0::Float64 for site in eachindex(U)
+    @batch per=thread threadlocal=0.0::Float64 for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
                 threadlocal += real(tr(wilsonloop(U, μ, ν, site, Lμ, Lν)))

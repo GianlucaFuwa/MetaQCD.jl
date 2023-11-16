@@ -45,7 +45,7 @@ end
 
 function calc_kinetic_energy(p::Liefield)
     kin = 0.0
-    @batch threadlocal=0.0::Float64 for site in eachindex(p)
+    @batch per=thread threadlocal=0.0::Float64 for site in eachindex(p)
         for μ in 1:4
             threadlocal += real(multr(p[μ][site], p[μ][site]))
         end

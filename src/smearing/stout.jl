@@ -60,7 +60,7 @@ function apply_smearing!(smearing, Uin)
 end
 
 function apply_stout_smearing!(Uout, C, Q, U, ρ)
-	@batch for site in eachindex(U)
+	@batch per=thread for site in eachindex(U)
         for μ in 1:4
 			Qμ = calc_stout_Q!(Q, C, U, site, μ, ρ)
             Uout[μ][site] = cmatmul_oo(exp_iQ(Qμ), U[μ][site])
@@ -92,7 +92,7 @@ function stout_recursion!(Σ, Σ′, U′, U, C, Q, Λ, ρ)
 	leftmul_dagg!(Σ′, U′)
 	calc_stout_Λ!(Λ, Σ′, Q, U)
 
-	@batch for site in eachindex(Σ)
+	@batch per=thread for site in eachindex(Σ)
         for μ in 1:4
             Nμ = size(Σ′)[μ]
             siteμp = move(site, μ, 1, Nμ)
@@ -131,7 +131,7 @@ function stout_recursion!(Σ, Σ′, U′, U, C, Q, Λ, ρ)
 end
 
 function calc_stout_Λ!(Λ, Σ′, Q, U)
-	@batch for site in eachindex(Λ)
+	@batch per=thread for site in eachindex(Λ)
         for μ in 1:4
 			q = Q[μ][site]
 			Qₘ = get_Q(q)

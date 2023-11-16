@@ -178,22 +178,22 @@ function metaqcd!(
     bias = univ.bias
     vp = univ.verbose_print
 
+    # load in config and recalculate gauge action if given
+    load_gaugefield!(U, parameters, vp) && (U.Sg = calc_gauge_action(U))
+
     _, runtime_therm = @timed begin
         for itrj in 1:parameters.numtherm
-            println_verbose1(vp, "\n# therm itrj = $itrj")
-            updatetime = 0.0
+            println_verbose0(vp, "\n# therm itrj = $itrj")
 
             _, updatetime = @timed begin
                 update!(updatemethod, U, vp, bias=nothing, metro_test=false)
             end
 
-            println_verbose1(vp, ">> Therm. Update elapsed time:\t$(updatetime) [s]\n#")
+            println_verbose0(vp, ">> Therm. Update elapsed time:\t$(updatetime) [s]\n#")
         end
     end
 
     println_verbose1(vp, "\t>> Thermalization elapsed time:\t$(runtime_therm) [s]\n")
-    # load in config and recalculate gauge action if given
-    load_gaugefield!(U, parameters, vp) && (U.Sg = calc_gauge_action(U))
     recalc_CV!(U, bias) # need to recalc cv since it was not updated during therm
 
     _, runtime_all = @timed begin
@@ -229,7 +229,7 @@ function metaqcd!(
     flush(stdout)
     close(measurements)
     close(measurements_with_flow)
-    close(bias)
+    bias≢nothing && close(bias)
     close(vp)
     return nothing
 end
@@ -256,28 +256,24 @@ function metaqcd_PT!(
     # if stream 1 uses hmc then we have to recalc the CV before tempering
     uses_hmc = <:(typeof(updatemethod), HMC)
 
-    value, runtime_therm = @timed begin
+    _, runtime_therm = @timed begin
         for itrj in 1:parameters.numtherm
-            println_verbose1(vp, "\n# therm itrj = $itrj")
-            # thermalize without bias potential contribution, since it's a waste of time
-            _, updatetime = @timed begin
-                for _ in 1:rank0_updates
-                    for i in 1:numinstances
-                        update!(updatemethod, U[i], vp, bias=nothing, metro_test=!uses_hmc)
-                    end
-                end
-            end
+            for i in 1:numinstances
+                println_verbose0(vp, "\n# therm itrj = $itrj")
 
-            println_verbose1(vp, ">> Thermalization Update: Elapsed time $(updatetime) [s]\n#")
+                _, updatetime = @timed begin
+                    update!(updatemethod, U[i], vp, bias=nothing, metro_test=false)
+                end
+
+                println_verbose0(vp, ">> Therm. Update elapsed time:\t$(updatetime) [s]\n#")
+            end
         end
     end
 
     println_verbose1(vp, "\t>> Thermalization Elapsed time $(runtime_therm) [s]")
-    # load in config and recalculate gauge action if given
-    load_gaugefield!(U[1], parameters, vp) && (U[1].Sg = calc_gauge_action(U[1]))
     recalc_CV!(U, bias) # need to recalc cv since it was not updated during therm
 
-    value, runtime_all = @timed begin
+    _, runtime_all = @timed begin
         numaccepts = zeros(numinstances)
         numaccepts_temper = zeros(Int64, numinstances-1)
 

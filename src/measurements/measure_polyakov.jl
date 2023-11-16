@@ -49,7 +49,7 @@ end
 function polyakov_traced(U)
     NX, NY, NZ, NT = size(U)
 
-    @batch threadlocal=zero(ComplexF64)::ComplexF64 for iz in 1:NZ
+    @batch per=thread threadlocal=zero(ComplexF64)::ComplexF64 for iz in 1:NZ
         for iy in 1:NY
             for ix in 1:NX
                 polymat = U[4][ix,iy,iz,1]

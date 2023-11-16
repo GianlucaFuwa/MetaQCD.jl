@@ -17,7 +17,7 @@ function fieldstrength_eachsite!(F::Vector{Temporaryfield}, U, kind_of_fs::Strin
 end
 
 function fieldstrength_eachsite!(::Plaquette, F::Vector{Temporaryfield}, U)
-    @batch for site in eachindex(U)
+    @batch per=thread for site in eachindex(U)
         C12 = plaquette(U, 1, 2, site)
         F[1][2][site] = im * traceless_antihermitian(C12)
 
@@ -41,7 +41,7 @@ function fieldstrength_eachsite!(::Plaquette, F::Vector{Temporaryfield}, U)
 end
 
 function fieldstrength_eachsite!(::Clover, F::Vector{Temporaryfield}, U)
-    @batch for site in eachindex(U)
+    @batch per=thread for site in eachindex(U)
         C12 = clover_square(U, 1, 2, site, 1)
         F[1][2][site] = im/4 * traceless_antihermitian(C12)
 

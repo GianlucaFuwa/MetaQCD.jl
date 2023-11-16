@@ -131,7 +131,7 @@ function staple_rect(U, μ, site)
 end
 
 function staple_eachsite!(staples, U)
-    @batch for site in eachindex(U)
+    @batch per=thread for site in eachindex(U)
         for μ in 1:4
             staples[μ][site] = staple(U, μ, site)
         end

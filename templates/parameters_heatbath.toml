@@ -1,5 +1,5 @@
 ["Physical Settings"]
-L = [12, 12, 12, 12]
+L = [12, 12, 12, 10]
 beta = 6.0
 kind_of_gaction = "wilson"
 numtherm = 20
@@ -9,16 +9,15 @@ update_method = "heatbath"
 hb_maxit = 10
 numheatbath = 1
 eo = true
-or_algorithm = "kenney-laub"
+or_algorithm = "subgroups"
 numorelax = 4
-parity_update = true
 
 ["System Settings"]               
 logdir = "./logs/L12x12x12x12_wilson_beta6.0/test_heatbath"
 logfile = "logs.txt"
 measurement_basedir = "./measurements/L12x12x12x12_wilson_beta6.0/test_heatbath"
 measurement_dir = "raw_data"
-randomseed = 123
+randomseed = 2805
 verboselevel = 1
 overwrite = true
 
@@ -42,8 +41,8 @@ kinds_of_topological_charge = ["plaquette", "clover", "improved"]
 
 ["Measurement Settings".measurements.Wilson_loop]
 measure_every = 1
-Rmax = 4
-Tmax = 4
+Rmax = 2
+Tmax = 2
 
 ["Gradient Flow Settings"]
 flow_integrator = "euler"

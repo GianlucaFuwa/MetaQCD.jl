@@ -87,7 +87,7 @@ function top_charge(U::Gaugefield, methodname::String)
 end
 
 function top_charge(::Plaquette, U)
-    @batch threadlocal=0.0::Float64 for site in eachindex(U)
+    @batch per=thread threadlocal=0.0::Float64 for site in eachindex(U)
         C12 = plaquette(U, 1, 2, site)
         F12 = im * traceless_antihermitian(C12)
 
@@ -114,7 +114,7 @@ function top_charge(::Plaquette, U)
 end
 
 function top_charge(::Clover, U)
-    @batch threadlocal=0.0::Float64 for site in eachindex(U)
+    @batch per=thread threadlocal=0.0::Float64 for site in eachindex(U)
         C12 = clover_square(U, 1, 2, site, 1)
         F12 = im/4 * traceless_antihermitian(C12)
 
@@ -148,7 +148,7 @@ function top_charge(::Improved, U)
 end
 
 function top_charge_rect(U)
-    @batch threadlocal=0.0::Float64 for site in eachindex(U)
+    @batch per=thread threadlocal=0.0::Float64 for site in eachindex(U)
         C12 = clover_rect(U, 1, 2, site, 1, 2)
         F12 = im/8 * traceless_antihermitian(C12)
 

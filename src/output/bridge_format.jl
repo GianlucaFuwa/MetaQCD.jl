@@ -1,8 +1,8 @@
-function saveU_bridge(U, filename)
+function saveU(::BridgeFormat, U, filename)
     NX, NY, NZ, NT = size(U)
     fp = open(filename, "w")
-    i = 0
 
+    i = 0
     for it in 1:NT
         for iz in 1:NZ
             for iy in 1:NY
@@ -27,11 +27,11 @@ function saveU_bridge(U, filename)
     return nothing
 end
 
-function loadU_bridge!(U, filename)
+function loadU!(::BridgeFormat, U, filename)
     NX, NY, NZ, NT = size(U)
     fp = open(filename, "r")
     numdata = countlines(filename)
-    @assert numdata == 4 * U.NV * 9 * 2 "data shape is wrong"
+    @assert numdata == 4*U.NV*9*2 "data shape is wrong"
 
     for it in 1:NT
         for iz in 1:NZ
@@ -45,7 +45,7 @@ function loadU_bridge!(U, filename)
                                 rvalue = parse(Float64, u)
                                 u = readline(fp)
                                 ivalue = parse(Float64, u)
-                                link[a,b] = rvalue + im * ivalue
+                                link[a, b] = rvalue + im*ivalue
                             end
                         end
                         U[μ][ix,iy,iz,it] = SMatrix{3,3,ComplexF64,9}(link)

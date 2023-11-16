@@ -8,8 +8,8 @@ using StaticArrays
 export VerboseLevel, Verbose1, Verbose2, Verbose3
 export print_verbose1, print_verbose2, print_verbose3,
     println_verbose1, println_verbose2, println_verbose3
-export SaveConfigs, loadU_bridge!, loadU_jld!, load_gaugefield!, save_gaugefield,
-    saveU_bridge, saveU_jld
+export BridgeFormat, Checkpointer, JLD2Format, SaveConfigs
+export load_checkpoint, load_gaugefield!, loadU!, save_gaugefield, saveU
 
 include("verbose.jl")
 
@@ -21,49 +21,81 @@ struct JLD2Format end
 include("bridge_format.jl")
 include("jld2_format.jl")
 
+struct Checkpointer{T}
+    checkpoint_dir::String
+    checkpoint_every::Int64
+    ext::String
+
+    function Checkpointer(checkpointing_enabled, checkpoint_dir, checkpoint_every, vp)
+
+        if checkpointing_enabled
+            T == JLD2Format
+            ext = ".jld2"
+        else
+            T == Nothing
+            ext = ""
+        end
+
+        if T ≢ Nothing
+            println_verbose1(vp, "\t>> Checkpointing every $(checkpoint_every) trajectory!")
+        end
+
+        return new{T}(checkpoint_dir, checkpoint_every, ext)
+    end
+end
+
+function (cp::Checkpointer{T})(univ, updatemethod, verbose, itrj) where {T}
+    T≡Nothing && return nothing
+
+    if itrj%cp.checkpoint_every == 0
+        filename = cp.checkpoint_dir * "/checkpoint$(cp.ext)"
+        create_checkpoint(T(), univ, updatemethod, filename)
+        println_verbose1(verbose, ">> Checkpoint created in $(filename)")
+    end
+
+    return nothing
+end
+
+function load_checkpoint(filename)
+    return load_checkpoint(JLD2Format(), filename)
+end
+
 struct SaveConfigs{T}
-    saveU_format::Union{Nothing, String}
     saveU_dir::String
     saveU_every::Int64
-    itrjsavecount::Base.RefValue{Int64}
+    ext::String
 
     function SaveConfigs(saveU_format, saveU_dir, saveU_every, vp)
-        itrjsavecount = Base.RefValue{Int64}(0)
 
         if saveU_format == "bridge"
             T = BridgeFormat
+            ext = ".txt"
         elseif saveU_format == "jld" || saveU_format == "jld2"
             T = JLD2Format
-        elseif saveU_format === nothing
+            ext = ".jld2"
+        elseif saveU_format ≡ nothing
             T = Nothing
+            ext = ""
         else
             error("saveU format $saveU_format not supported")
         end
 
-        if T !== Nothing
+        if T ≢ Nothing
             println_verbose1(vp, "\t>> Save config every $(saveU_every) trajectory!")
         end
 
-        return new{T}(saveU_format, saveU_dir, saveU_every, itrjsavecount)
+        return new{T}(saveU_dir, saveU_every, ext)
     end
 end
 
-function save_gaugefield(save_configs::SaveConfigs{T}, U, verbose, itrj) where {T}
-    T===Nothing && return nothing
+function save_gaugefield(saver::SaveConfigs{T}, U, verbose, itrj) where {T}
+    T≡Nothing && return nothing
 
-    if itrj % save_configs.saveU_every == 0
-        save_configs.itrjsavecount[] += 1
+    if itrj%saver.saveU_every == 0
         itrjstring = lpad(itrj, 8, "0")
-
-        if T == JLD2Format
-            filename = save_configs.saveU_dir * "/config_$(itrjstring).jld2"
-            saveU_jld(U, filename)
-        elseif T == BridgeFormat
-            filename = save_configs.saveU_dir * "/config_$(itrjstring).txt"
-            saveU_bridge(U, filename)
-        end
-        rng_seed = get_current_seed()
-        println_verbose1(verbose, ">> Stored config. Current rng: $(string.(rng_seed))")
+        filename = saver.saveU_dir * "/config_$(itrjstring)$(saver.ext)"
+        saveU(T(), U, filename)
+        println_verbose1(verbose, ">> Config saved in $(filename)")
     end
 
     return nothing
@@ -75,9 +107,9 @@ function load_gaugefield!(U, parameters, verbose)
     format = parameters.loadU_format
 
     if format == "bridge"
-        loadU_bridge!(U, filename)
+        loadU!(BridgeFormat(), U, filename)
     elseif format ∈ ("jld", "jld2")
-        loadU_jld!(U, filename)
+        loadU!(JLD2Format(), U, filename)
     else
         error("loadU_format \"$(format)\" not supported.")
     end
@@ -86,10 +118,10 @@ function load_gaugefield!(U, parameters, verbose)
     return true
 end
 
-function get_current_seed()
-    fn = fieldnames(Xoshiro)
-    seed = [getfield(copy(Random.default_rng()), name) for name in fn]
-    return seed
+function get_rng_state()
+    rng = copy(Random.default_rng())
+    state = [getfield(rng, i) for i in 1:4]
+    return state
 end
 
 end

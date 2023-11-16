@@ -25,7 +25,7 @@ using .Utils
 using .Mainrun
 
 export Sequential, SequentialMT, Checkerboard2, Checkerboard2MT, Checkerboard4, Checkerboard4MT
-export loadU_bridge!, loadU_jld!, saveU_bridge, saveU_jld
+export BridgeFormat, JLD2Format, loadU!, saveU
 export Verbose1, Verbose2, Verbose3
 export run_sim, run_build
 
@@ -38,8 +38,8 @@ import .Gaugefields: normalize!, plaquette, plaquette_trace_sum, random_gauges
 import .Gaugefields: substitute_U!, staple, staple_eachsite!, wilsonloop
 import .Gaugefields: Liefield, calc_kinetic_energy, gaussian_momenta!
 import .Measurements: measure, get_value, top_charge
-import .Measurements: GaugeActionMeasurement, PlaquetteMeasurement, PolyakovMeasurement
-import .Measurements: TopologicalChargeMeasurement, WilsonLoopMeasurement
+import .Measurements: EnergyDensityMeasurement, GaugeActionMeasurement, PlaquetteMeasurement
+import .Measurements: PolyakovMeasurement, TopologicalChargeMeasurement, WilsonLoopMeasurement
 import .Parameters: ParameterSet, construct_params_from_toml
 import .Smearing: Euler, RK2, RK3, RK3W7, GradientFlow, NoSmearing, StoutSmearing
 import .Smearing: calc_smearedU!, flow!, stout_backprop!
@@ -58,8 +58,8 @@ export normalize!, plaquette, plaquette_trace_sum, random_gauges
 export substitute_U!, staple, staple_eachsite!, wilsonloop
 export Liefield, calc_kinetic_energy, gaussian_momenta!
 export measure, get_value, top_charge
-export GaugeActionMeasurement, PlaquetteMeasurement, PolyakovMeasurement
-export TopologicalChargeMeasurement, WilsonLoopMeasurement
+export EnergyDensityMeasurement, GaugeActionMeasurement, PlaquetteMeasurement
+export PolyakovMeasurement, TopologicalChargeMeasurement, WilsonLoopMeasurement
 export ParameterSet, construct_params_from_toml
 export Euler, RK2, RK3, RK3W7, GradientFlow, NoSmearing, StoutSmearing
 export calc_smearedU!, flow!, stout_backprop!

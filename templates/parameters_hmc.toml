@@ -3,7 +3,7 @@ L = [12, 12, 12, 12]
 beta = 6.0
 kind_of_gaction = "wilson"
 numtherm = 20
-numsteps = 100
+numsteps = 10
 initial = "cold"
 update_method = "hmc"
 parity_update = false
@@ -18,7 +18,7 @@ logdir = "./logs/L12x12x12x12_wilson_beta6.0/test_hmc"
 logfile = "logs.txt"
 measurement_basedir = "./measurements/L12x12x12x12_wilson_beta6.0/test_hmc"
 measurement_dir = "raw_data"
-randomseed = 123
+randomseed = 2805
 verboselevel = 1
 overwrite = true
 
@@ -42,8 +42,8 @@ kinds_of_topological_charge = ["plaquette", "clover", "improved"]
 
 ["Measurement Settings".measurements.Wilson_loop]
 measure_every = 1
-Rmax = 4
-Tmax = 4
+Rmax = 2
+Tmax = 2
 
 ["Gradient Flow Settings"]
 flow_integrator = "euler"

@@ -86,7 +86,7 @@ function energy_density(U::Gaugefield, methodname::String)
 end
 
 function energy_density(::Plaquette, U::Gaugefield)
-    @batch threadlocal=0.0::Float64 for site in eachindex(U)
+    @batch per=thread threadlocal=0.0::Float64 for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
                 Cμν = plaquette(U, μ, ν, site)
@@ -96,12 +96,12 @@ function energy_density(::Plaquette, U::Gaugefield)
         end
     end
 
-    Eplaq = 1/2U.NV * sum(threadlocal)
+    Eplaq = 1/U.NV * sum(threadlocal)
     return Eplaq
 end
 
 function energy_density(::Clover, U::Gaugefield)
-    @batch threadlocal=0.0::Float64 for site in eachindex(U)
+    @batch per=thread threadlocal=0.0::Float64 for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
                 Cμν = clover_square(U, μ, ν, site, 1)
@@ -111,7 +111,7 @@ function energy_density(::Clover, U::Gaugefield)
         end
     end
 
-    Eclov = 1/2U.NV * sum(threadlocal)
+    Eclov = 1/U.NV * sum(threadlocal)
     return Eclov
 end
 
@@ -122,7 +122,7 @@ function energy_density(::Improved, U::Gaugefield)
 end
 
 function energy_density_rect(U::Gaugefield)
-    @batch threadlocal=0.0::Float64 for site in eachindex(U)
+    @batch per=thread threadlocal=0.0::Float64 for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
                 Cμν = clover_rect(U, μ, ν, site, 1, 2)
@@ -132,6 +132,6 @@ function energy_density_rect(U::Gaugefield)
         end
     end
 
-    Erect = 1/2U.NV * sum(threadlocal)
+    Erect = 1/U.NV * sum(threadlocal)
     return Erect
 end

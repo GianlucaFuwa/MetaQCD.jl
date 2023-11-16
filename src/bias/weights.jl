@@ -13,14 +13,15 @@ function calc_weights(b::Vector{<:Bias}, cv, itrj)
 end
 
 function calc_weights(b::Bias, cv, itrj)
-    if b.fp ≢ nothing
-        @printf(b.fp, "%-9i\t%+-22.15E", itrj, cv)
-        for method in b.kinds_of_weights
-            w = calc_weight(b, cv, method)
-            @printf(b.fp, "\t%-22.15E", w)
-        end
+    str = @sprintf("%-9i\t%+-22.15E", itrj, cv)
+    for method in b.kinds_of_weights
+        w = calc_weight(b, cv, method)
+        str *= @sprintf("\t%-22.15E", w)
+    end
+    println(str * " # cv weight")
 
-        @printf(b.fp, "\n")
+    if b.fp ≢ nothing
+        println(b.fp, str)
         flush(b.fp)
     end
 

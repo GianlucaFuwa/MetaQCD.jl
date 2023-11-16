@@ -6,7 +6,7 @@ function SU3testmeas()
     NT = 4
     U = identity_gauges(NX, NY, NZ, NT, 5.7, WilsonGaugeAction);
     filename = "./test/testconf.txt"
-    loadU_bridge!(U, filename);
+    loadU!(BridgeFormat(), U, filename);
 
     m_plaq = PlaquetteMeasurement(U)
     @time plaq = get_value(measure(m_plaq, U))
@@ -30,6 +30,13 @@ function SU3testmeas()
     m_topo = TopologicalChargeMeasurement(U, TC_methods=TC_methods)
     @time topo = get_value(measure(m_topo, U))
     println("topo: $topo")
+
+    println("==========")
+
+    ED_methods  = ["plaquette", "clover", "improved"]
+    m_ed = EnergyDensityMeasurement(U, ED_methods=ED_methods)
+    @time ed = get_value(measure(m_ed, U))
+    println("ed: $ed")
 
     println("==========")
 

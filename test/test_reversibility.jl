@@ -7,7 +7,7 @@ function SU3testreversibility()
     N = 4
     U = identity_gauges(N, N, N, N, 6.0, WilsonGaugeAction)
     # if it works for dbw2 it should(!) work for the other improved actions
-    loadU_bridge!(U, "./test/testconf.txt")
+    loadU!(BridgeFormat(), U, "./test/testconf.txt")
 
     hmc_integrator = ["Leapfrog", "OMF2Slow", "OMF2", "OMF4Slow", "OMF4"]
     hmc_trajectory = 1
@@ -15,7 +15,7 @@ function SU3testreversibility()
 
     bias = Bias(
         Clover(),
-        StoutSmearing(Uw, 5, 0.12),
+        StoutSmearing(U, 5, 0.12),
         true,
         Parametric((-5, 5), 10, 0, 100, 1.4),
         nothing,
@@ -24,14 +24,17 @@ function SU3testreversibility()
         nothing,
     )
 
+    ΔH_dict = Dict{String, Vector{Float64}}()
+
     for itg in hmc_integrator
         hmc =  HMC(U, itg, hmc_steps, hmc_trajectory)
         hmcB = HMC(U, itg, hmc_steps, hmc_trajectory, bias_enabled=true)
 
-        reversibility_test(hmc, U, nothing)
-        reversibility_test(hmcB, U, bias)
+        dH_n = reversibility_test(hmc, U, nothing)
+        dH_b = reversibility_test(hmcB, U, bias)
+        ΔH_dict[itg] = [dH_n, dH_b]
     end
-    return true
+    return ΔH_dict
 end
 
 function reversibility_test(hmc::HMC{TI,TG,TS}, U, bias, prec=1e-2) where {TI,TG,TS}
@@ -55,7 +58,5 @@ function reversibility_test(hmc::HMC{TI,TG,TS}, U, bias, prec=1e-2) where {TI,TG
     H_new = Sg_new + trP²_new + V_new
 
     ΔH = H_new - H_old
-    println("ΔH = ", ΔH)
-    @assert !isnan(ΔH) "Reversibility test failed for $(typeof(hmc)) and $(typeof(U)) with ΔH = $(ΔH)"
-    return true
+    return ΔH
 end
