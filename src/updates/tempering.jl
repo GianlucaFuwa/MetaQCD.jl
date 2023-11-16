@@ -36,7 +36,7 @@ function temper!(
         println_verbose1(
             verbose,
             ">> Swap Acceptance [$i ⇔  $(i-1)]:\t",
-            "$(numaccepts_temper[i-1]*100 / (itrj/swap_every)) %"
+            "$(100numaccepts_temper[i-1] / (itrj/swap_every)) %"
         )
     end
 
@@ -52,7 +52,7 @@ function swap_U!(a::Gaugefield, b::Gaugefield)
     b.Sg = a_Sg_tmp
     b.CV = a_CV_tmp
 
-    @batch for site in eachindex(a)
+    @batch per=thread for site in eachindex(a)
         for μ in 1:4
             a_tmp = a[μ][site]
             a[μ][site] = b[μ][site]

@@ -1,56 +1,56 @@
 module Mainrun
-    using Dates
-    using DelimitedFiles
-    using InteractiveUtils
-    using MPI
-    using Random
-    using ..Output
 
-    import ..Gaugefields: calc_gauge_action, normalize!
-    import ..Measurements: MeasurementMethods, calc_measurements, calc_measurements_flowed
-    import ..BiasModule: calc_weights, recalc_CV!, update_bias!, write_to_file
-    import ..Parameters: construct_params_from_toml
-    import ..Smearing: GradientFlow
-    import ..Universe: Univ
-    import ..Updates: HMCUpdate, ParityUpdate, Updatemethod, update!, temper!
+using Dates
+using DelimitedFiles
+using InteractiveUtils
+using MPI
+using Random
+using ..Output
 
-    export run_build, run_sim
+import ..Gaugefields: calc_gauge_action, normalize!
+import ..Measurements: MeasurementMethods, calc_measurements, calc_measurements_flowed
+import ..BiasModule: calc_weights, recalc_CV!, update_bias!, write_to_file
+import ..Parameters: construct_params_from_toml
+import ..Smearing: GradientFlow
+import ..Universe: Univ
+import ..Updates: HMC, ParityUpdate, Updatemethod, update!, temper!
 
-    """
-    So we don't have to type "if myrank == 0" all the time...
-    """
-    function println_rank0(args...)
-        if MPI.Comm_rank(MPI.COMM_WORLD) == 0
-            println(v, args...)
-        end
+export run_build, run_sim
+
+MPI.Initialized() || MPI.Init()
+const comm = MPI.COMM_WORLD
+const myrank = MPI.Comm_rank(comm)
+const comm_size = MPI.Comm_size(comm)
+
+"""
+So we don't have to type "if myrank == 0" all the time...
+"""
+function println_verbose0(v::VerboseLevel, args...)
+    if myrank == 0
+        println_verbose1(v, args...)
+    end
+end
+
+function print_acceptance_rates(numaccepts, itrj, verbose)
+    for (i, value) in enumerate(numaccepts)
+        println_verbose1(verbose, ">> Acceptance $i:\t$(100value / itrj) %")
     end
 
-    function println_verbose0(v::T, args...) where {T<:VerboseLevel}
-        if MPI.Comm_rank(MPI.COMM_WORLD) == 0
-            println_verbose1(v, args...)
-        end
-    end
+    return nothing
+end
 
-    function print_acceptance_rates(numaccepts, itrj, verbose)
-        for (i, value) in enumerate(numaccepts)
-            println_verbose1(verbose, ">> Acceptance $i:\t$(100value / itrj) %")
-        end
+"""
+Convenience-function to convert execution time from seconds to days
+"""
+function convert_seconds(sec)
+    sec = round(Int, sec, RoundNearestTiesAway)
+    x, seconds = divrem(sec, 60)
+    y, minutes = divrem(x, 60)
+    days, hours = divrem(y, 24)
+    return "$(Day(days)), $(Hour(hours)), $(Minute(minutes)), $(Second(seconds))"
+end
 
-        return nothing
-    end
-
-    """
-    Convenience-function to convert execution time from seconds to days
-    """
-    function convert_seconds(sec)
-        sec = round(Int, sec, RoundNearestTiesAway)
-        x, seconds = divrem(sec, 60)
-        y, minutes = divrem(x, 60)
-        days, hours = divrem(y, 24)
-        return "$(Day(days)), $(Hour(hours)), $(Minute(minutes)), $(Second(seconds))"
-    end
-
-    include("build.jl")
-    include("sim.jl")
+include("build.jl")
+include("sim.jl")
 
 end

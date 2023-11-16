@@ -1,15 +1,14 @@
 struct ParityUpdate{TG} <: AbstractUpdate
-    _temp_U::TG
-
+    U_bak::TG
     ParityUpdate(U::TG) where {TG} = new{TG}(similar(U))
 end
 
-function update!(updatemethod::ParityUpdate, U)
+function update!(parity::ParityUpdate, U)
     NX, NY, NZ, NT = size(U)
-    U_bak = updatemethod._temp_U
+    U_bak = parity.U_bak
     substitute_U!(U_bak, U)
 
-    @batch for it in 1:NT
+    @batch per=thread for it in 1:NT
         for iz in 1:NZ
             for iy in 1:NY
                 for ix in 1:NX

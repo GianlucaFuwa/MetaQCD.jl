@@ -101,20 +101,21 @@ function OPES(p::ParameterSet; verbose=Verbose1(), instance=1)
         println_verbose1(verbose, "\t>> Getting state from $(p.usebiases[instance])")
         kernels, state = opes_from_file(p.usebiases[instance])
         nker = length(kernels)
-        println_verbose1(verbose, "\t>> NKER = $(nker)")
-        println_verbose1(verbose, "\t>> COUNTER = $(counter)")
         is_first_step = false
-        counter = Int64(state["counter "])
-        biasfactor = state["biasfactor "]
-        σ₀ = state["sigma0 "]
-        ϵ = state["epsilon "]
-        sum_weights = state["sum_weights "]
-        Z = state["Z "]
-        threshold = state["threshold "]
-        cutoff² = state["cutoff "]^2
-        penalty = state["penalty "]
+        counter = Int64(state["counter"])
+        biasfactor = state["biasfactor"]
+        σ₀ = state["sigma0"]
+        ϵ = state["epsilon"]
+        sum_weights = state["sum_weights"]
+        Z = state["Z"]
+        threshold = state["threshold"]
+        cutoff² = state["cutoff"]^2
+        penalty = state["penalty"]
     end
 
+    println_verbose1(verbose, "\t>> NKER = $(nker)")
+    println_verbose1(verbose, "\t>> COUNTER = $(counter)")
+    @assert counter>0 "COUNTER must be ≥0"
     println_verbose1(verbose, "\t>> STRIDE = $(stride)")
     @assert stride>0 "STRIDE must be >0"
     println_verbose1(verbose, "\t>> CVLIMS = $(cvlims)")
@@ -133,7 +134,7 @@ function OPES(p::ParameterSet; verbose=Verbose1(), instance=1)
     println_verbose1(verbose, "\t>> NO_Z = $(no_Z)")
     println_verbose1(verbose, "\t>> THRESHOLD = $(threshold)")
     @assert threshold > 0 "THRESHOLD must be > 0"
-    println_verbose1(verbose, "\t>> CUTOFF = $(cutoff)")
+    println_verbose1(verbose, "\t>> CUTOFF = $(sqrt(cutoff²))")
     @assert cutoff > 0 "CUTOFF must be > 0"
 
     return OPES(
@@ -329,32 +330,31 @@ function get_mergeable_kernel(cv, kernels, threshold, nker)
 end
 
 const state_vars = [
-    "counter ",
-    "biasfactor ",
-    "sigma0 ",
-    "epsilon ",
-    "sum_weights ",
-    "Z ",
-    "threshold ",
-    "cutoff ",
-    "penalty ",
+    "counter",
+    "biasfactor",
+    "sigma0",
+    "epsilon",
+    "sum_weights",
+    "Z",
+    "threshold",
+    "cutoff",
+    "penalty",
 ]
-const kernel_vars = [
-    "height ",
-    "center ",
-    "sigma ",
-]
+const kernel_header = "#$(rpad("height", 20))\t$(rpad("center", 20))\t$(rpad("sigma", 20))"
 
 function write_to_file(o::OPES, filename)
     (tmppath, tmpio) = mktemp()
-    println(tmpio, "# ", state_vars...)
-    state_str = "$(o.counter) $(o.biasfactor) $(o.σ₀) $(o.ϵ) $(o.sum_weights) $(o.Z)" *
-        " $(o.threshold) $(√o.cutoff²) $(o.penalty)"
+    print(tmpio, "#"); [print(tmpio, "$(var)\t") for var in state_vars]; println(tmpio, "")
+    state_str = "$(o.counter)\t$(o.biasfactor)\t$(o.σ₀)\t$(o.ϵ)\t$(o.sum_weights)\t$(o.Z)" *
+        "\t$(o.threshold)\t$(√o.cutoff²)\t$(o.penalty)\n"
     println(tmpio, state_str)
-    println(tmpio, "# ", kernel_vars...)
+    println(tmpio, kernel_header)
 
     for kernel in eachkernel(o)
-        kernel_str = "$(kernel.height) $(kernel.center) $(kernel.σ)"
+        h_str = @sprintf("%+-20.15e", kernel.height)
+        c_str = @sprintf("%+-20.15e", kernel.center)
+        σ_str = @sprintf("%+-20.15e", kernel.σ)
+        kernel_str = "$(h_str)\t$(c_str)\t$(σ_str)"
         println(tmpio, kernel_str)
     end
 

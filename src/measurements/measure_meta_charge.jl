@@ -1,68 +1,33 @@
-struct MetaChargeMeasurement <: AbstractMeasurement
-    filename::Union{Nothing, String}
-    verbose_print::Union{Nothing, VerboseLevel}
-    fp::Union{Nothing, IOStream}
-    printvalues::Bool
+struct MetaChargeMeasurement{T} <: AbstractMeasurement
+    fp::T
 
-    function MetaChargeMeasurement(
-        U;
-        filename = nothing,
-        verbose_level = 2,
-        printvalues = false,
-    )
+    function MetaChargeMeasurement(::Gaugefield; filename="", printvalues=false)
         if printvalues
             fp = open(filename, "w")
-            header = "$(rpad("itrj", 9, " "))\tmeta_charge"
-
-            println(fp, header)
-
-            if verbose_level == 1
-                verbose_print = Verbose1()
-            elseif verbose_level == 2
-                verbose_print = Verbose2()
-            elseif verbose_level == 3
-                verbose_print = Verbose3()
-            end
+            @printf(fp, "%-9s\t%-22s\n", "itrj", "meta_charge")
         else
             fp = nothing
-            verbose_print = nothing
         end
 
-        return new(
-            filename,
-            verbose_print,
-            fp,
-            printvalues,
-        )
+        return new{typeof(fp)}(fp)
     end
 end
 
-function MetaChargeMeasurement(
-    U::T,
-    params::MetaChargeParameters,
-    filename,
-    ::Bool,
-) where {T<:Gaugefield}
-    return MetaChargeMeasurement(
-        U,
-        filename = filename,
-        verbose_level = params.verbose_level,
-        printvalues = params.printvalues,
-    )
+function MetaChargeMeasurement(U, ::MetaChargeParameters, filename, ::Bool)
+    return MetaChargeMeasurement(U, filename=filename, printvalues=true)
 end
 
-function measure(m::MetaChargeMeasurement, U; additional_string="")
+function measure(m::MetaChargeMeasurement{T}, U; additional_string="") where {T}
     cv = U.CV
     measurestring = ""
 
-    if m.printvalues
-        cv_str = @sprintf("%.15E", cv)
-        measurestring = "$(rpad(additional_string, 9, " "))\t$cv_str"
-        # println_verbose2(m.verbose_print, "$measurestring# meta_charge")
+    if T == IOStream
+        measurestring *= @sprintf("%-9s\t%+22.15E", additional_string, cv)
         println(m.fp, measurestring)
         flush(m.fp)
+        measurestring *= " # meta_charge"
     end
 
-    output = MeasurementOutput(cv, measurestring * " # meta_charge")
+    output = MeasurementOutput(cv, measurestring)
     return output
 end

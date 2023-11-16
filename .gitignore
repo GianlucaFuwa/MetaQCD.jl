@@ -4,7 +4,7 @@ alloc-profile.pb.gz
 /metapotentials/
 /configs/
 /test/test.jl
-/test/testsmearing.jl
+/test/logger.jl
 .vscode/
 run.jl
 /src/dirac/

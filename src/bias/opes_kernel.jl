@@ -10,7 +10,7 @@ end
 @inline function evaluate_kernel(cv, height, center, σ, cutoff², penalty)
     diff = (center - cv)/σ
     diff² = diff^2
-    out = ifelse(diff²>=cutoff², 0.0, height * (exp(-0.5diff²) - penalty))
+    out = ifelse(diff²>=cutoff², 0.0, height*(exp(-0.5diff²) - penalty))
     return out
 end
 
@@ -21,7 +21,7 @@ derivative(k::Kernel, cv, cutoff², penalty) =
     diff = (center - cv)/σ
     diff² = diff^2
     val = ifelse(diff²>=cutoff², 0.0, height * (exp(-0.5diff²) - penalty))
-    out = -diff*val
+    out = -diff * val
     return out
 end
 

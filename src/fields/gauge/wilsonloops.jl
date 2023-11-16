@@ -1,6 +1,6 @@
-function wilsonloop(U, μ, ν, site::SiteCoords, Lμ, Lν)
-    right = sign(Lμ) == 1
-    top = sign(Lν) == 1
+function wilsonloop(U, μ, ν, site, Lμ, Lν)
+    right = sign(Lμ)==1
+    top = sign(Lν)==1
 
     if right && top
         return wilsonloop_top_right(U, μ, ν, site, Lμ, Lν)
@@ -14,7 +14,7 @@ function wilsonloop(U, μ, ν, site::SiteCoords, Lμ, Lν)
 
 end
 
-function wilsonloop_top_right(U, μ, ν, site::SiteCoords, Lμ, Lν)
+function wilsonloop_top_right(U, μ, ν, site, Lμ, Lν)
     Nμ = size(U)[μ]
     Nν = size(U)[ν]
     wil = eye3
@@ -42,7 +42,7 @@ function wilsonloop_top_right(U, μ, ν, site::SiteCoords, Lμ, Lν)
     return wil
 end
 
-function wilsonloop_bottom_left(U, μ, ν, site::SiteCoords, Lμ, Lν)
+function wilsonloop_bottom_left(U, μ, ν, site, Lμ, Lν)
     Nμ = size(U)[μ]
     Nν = size(U)[ν]
     wil = eye3
@@ -70,7 +70,7 @@ function wilsonloop_bottom_left(U, μ, ν, site::SiteCoords, Lμ, Lν)
     return wil
 end
 
-function wilsonloop_top_left(U, μ, ν, site::SiteCoords, Lμ, Lν)
+function wilsonloop_top_left(U, μ, ν, site, Lμ, Lν)
     Nμ = size(U)[μ]
     Nν = size(U)[ν]
     wil = eye3
@@ -98,7 +98,7 @@ function wilsonloop_top_left(U, μ, ν, site::SiteCoords, Lμ, Lν)
     return wil
 end
 
-function wilsonloop_bottom_right(U, μ, ν, site::SiteCoords, Lμ, Lν)
+function wilsonloop_bottom_right(U, μ, ν, site, Lμ, Lν)
     Nμ = size(U)[μ]
     Nν = size(U)[ν]
     wil = eye3
@@ -126,8 +126,8 @@ function wilsonloop_bottom_right(U, μ, ν, site::SiteCoords, Lμ, Lν)
     return wil
 end
 
-function wilsonloop(U::T, Lμ, Lν) where {T <: Gaugefield}
-    @batch threadlocal=0.0::Float64 for site in eachindex(U)
+function wilsonloop(U, Lμ, Lν)
+    @batch per=thread threadlocal=0.0::Float64 for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
                 threadlocal += real(tr(wilsonloop(U, μ, ν, site, Lμ, Lν)))

@@ -1,70 +1,40 @@
-function overrelaxation_sweep!(U; metro_test=true)
-    numaccepts = 0
-    action_factor = -U.β / 3
+struct Subgroups end
+struct KenneyLaub end
 
-    for site in eachindex(U)
-        for μ in 1:4
-            A_adj = staple(U, μ, site)'
-            old_link = U[μ][site]
-            new_link = overrelaxation_subgroups(old_link, A_adj)
-
-            ΔSg = action_factor * real(multr(new_link - old_link, A_adj))
-            accept = metro_test ? (rand() < exp(-ΔSg)) : true
-
-            if accept
-                U[μ][site] = new_link
-                U.Sg += ΔSg
-                numaccepts += accept
-            end
+struct Overrelaxation{ALG}
+    function Overrelaxation(algorithm)
+        if algorithm == "subgroups"
+            ALG = Subgroups
+        elseif algorithm == "kenney-laub"
+            ALG = KenneyLaub
         end
-	end
-
-    return numaccepts
+        return new{ALG}()
+    end
 end
 
-function overrelaxation_sweep_eo!(U; metro_test=true)
-    NX, NY, NZ, NT = size(U)
-    spacing = 8
-    numaccepts = zeros(Float64, nthreads()*spacing)
-    action_factor = -U.β / 3
+function (or::Overrelaxation{ALG})(U, μ, site, action_factor) where {ALG}
+    A_adj = staple(U, μ, site)'
+    old_link = U[μ][site]
+    new_link = overrelaxation_SU3(ALG(), old_link, A_adj)
 
-    for μ in 1:4
-        for pass in 1:2
-            @threads for it in 1:NT
-                for iz in 1:NZ
-                    for iy in 1:NY
-                        for ix in 1+iseven(iy + iz + it + pass):2:NX
-                            site = SiteCoords(ix, iy, iz, it)
-                            A_adj = staple(U, μ, site)'
-                            old_link = U[μ][site]
-                            new_link = overrelaxation_subgroups(old_link, A_adj)
+    ΔSg = action_factor * real(multr(new_link - old_link, A_adj))
+    accept = (rand(Float64) < exp(-ΔSg))
 
-                            ΔSg = action_factor * real(multr(new_link - old_link, A_adj))
-                            accept = metro_test ? (rand() < exp(-ΔSg)) : true
-
-                            if accept
-                                U[μ][site] = new_link
-                                U.Sg += ΔSg
-                                numaccepts[threadid()*spacing] += accept
-                            end
-                        end
-                    end
-                end
-            end
-        end
-	end
-
-    return sum(numaccepts)
+    if accept
+        U[μ][site] = new_link
+        U.Sg += ΔSg
+    end
+    return accept
 end
 
-function overrelaxation_kenneylaub(link, A_adj)
+function overrelaxation_SU3(::KenneyLaub, link, A_adj)
     tmp = 1/6 * A_adj
     or_mat = kenney_laub(tmp)
     link = cmatmul_ddd(or_mat, link, or_mat)
     return link
 end
 
-function overrelaxation_subgroups(link, A_adj)
+function overrelaxation_SU3(::Subgroups, link, A_adj)
     subblock = make_submatrix(cmatmul_oo(link, A_adj), 1, 2)
     tmp = embed_into_SU3(overrelaxation_SU2(subblock), 1, 2)
     link = cmatmul_oo(tmp, link)

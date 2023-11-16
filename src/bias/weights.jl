@@ -4,30 +4,31 @@ https://pubs.acs.org/doi/pdf/10.1021/acs.jctc.9b00867
 """
 calc_weights(::Nothing, args...) = nothing
 
-function calc_weights(b::Vector{TB}, cv, itrj) where {TB<:Bias}
+function calc_weights(b::Vector{<:Bias}, cv, itrj)
     for i in eachindex(b)
-        i>1 && calc_weights(b[i], cv[i], itrj)
+        calc_weights(b[i], cv[i], itrj)
     end
 
     return nothing
 end
 
 function calc_weights(b::Bias, cv, itrj)
-    printstring = "$(rpad(itrj, 9, " "))\t"
+    str = @sprintf("%-9i\t%+-22.15E", itrj, cv)
+    for method in b.kinds_of_weights
+        w = calc_weight(b, cv, method)
+        str *= @sprintf("\t%-22.15E", w)
+    end
+    println(str * " # cv weight")
 
-    if b.weight_fp !== nothing
-        for method in b.kinds_of_weights
-            w = calc_weight(b, cv, method)
-            w_str = @sprintf("%.15E", w)
-            printstring *= "$w_str\t"
-        end
-
-        println(b.weight_fp, printstring)
-        flush(b.weight_fp)
+    if b.fp ≢ nothing
+        println(b.fp, str)
+        flush(b.fp)
     end
 
     return nothing
 end
+
+calc_weight(b::Parametric, cv, args...) = exp(b(cv))
 
 function calc_weight(b, cv, weight_method)
     if weight_method == "tiwari" # average over exp(V) in denom

@@ -14,46 +14,46 @@ Smearing types are subtypes of AbstractSmearing
 
 """
 module Smearing
-    using Base.Threads: nthreads, threadid, @threads
-    using LinearAlgebra
-    using Polyester
-    using StaticArrays
-    using TimerOutputs
-    using ..Utils
 
-    import ..Gaugefields: AbstractGaugeAction, CoeffField, Gaugefield, Liefield,
-        Temporaryfield
-    import ..Gaugefields: leftmul_dagg!, staple, staple_eachsite!, substitute_U!
+using Base.Threads: nthreads, threadid, @threads
+using LinearAlgebra
+using Polyester
+using StaticArrays
+using ..Output
+using ..Utils
 
-    abstract type AbstractSmearing end
+import ..Gaugefields: AbstractGaugeAction, CoeffField, Gaugefield, Liefield, Temporaryfield
+import ..Gaugefields: leftmul_dagg!, staple, staple_eachsite!, substitute_U!
 
-    struct NoSmearing <: AbstractSmearing end
+abstract type AbstractSmearing end
 
-    include("./stout.jl")
-    include("./gradientflow.jl")
+struct NoSmearing <: AbstractSmearing end
 
-    function construct_smearing(U, smearingparameters, coefficient, numlayers)
-        if smearingparameters == "nothing"
-            smearing = NoSmearing()
-        elseif smearingparameters == "stout"
-            @assert coefficient !== nothing "Stout coefficient must be set"
-            println("Stout smearing will be used")
-            smearing = StoutSmearing(U, numlayers, coefficient)
-        else
-            error("Smearing = $smearing is not supported")
-        end
+include("./stout.jl")
+include("./gradientflow.jl")
 
-        return smearing
+function construct_smearing(U, smearingparameters, coefficient, numlayers)
+    if smearingparameters == "nothing"
+        smearing = NoSmearing()
+    elseif smearingparameters == "stout"
+        @assert coefficient !== nothing "Stout coefficient must be set"
+        println("Stout smearing will be used")
+        smearing = StoutSmearing(U, numlayers, coefficient)
+    else
+        error("Smearing = $smearing is not supported")
     end
 
-    function calc_smearedU!(smearing, Uin)
-        if typeof(smearing) <: StoutSmearing
-            apply_smearing!(smearing, Uin)
-        elseif typeof(smearing) <: GradientFlow
-            flow!(smearing)
-        end
+    return smearing
+end
 
-        return nothing
+function calc_smearedU!(smearing, Uin)
+    if typeof(smearing) <: StoutSmearing
+        apply_smearing!(smearing, Uin)
+    elseif typeof(smearing) <: GradientFlow
+        flow!(smearing)
     end
+
+    return nothing
+end
 
 end

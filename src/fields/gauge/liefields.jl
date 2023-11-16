@@ -21,6 +21,7 @@ struct Liefield <: Abstractfield
 
         for μ in 1:4
             U[μ] = Array{SMatrix{3, 3, ComplexF64, 9}, 4}(undef, NX, NY, NZ, NT)
+            fill!(U[μ], zero3)
         end
 
         return new(U, NX, NY, NZ, NT, NV, 3)
@@ -42,19 +43,9 @@ function gaussian_momenta!(p::Liefield, ϕ)
     return nothing
 end
 
-function flip_momenta!(p::Liefield)
-    @batch for site in eachindex(p)
-        for μ in 1:4
-            p[μ][site] *= -1
-        end
-    end
-
-    return nothing
-end
-
 function calc_kinetic_energy(p::Liefield)
     kin = 0.0
-    @batch threadlocal=0.0::Float64 for site in eachindex(p)
+    @batch per=thread threadlocal=0.0::Float64 for site in eachindex(p)
         for μ in 1:4
             threadlocal += real(multr(p[μ][site], p[μ][site]))
         end

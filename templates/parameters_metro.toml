@@ -1,42 +1,62 @@
 ["Physical Settings"]
-L = [8, 8, 8, 8]
-beta = 5.70
+L = [12, 12, 12, 12]
+beta = 6.0
 kind_of_gaction = "wilson"
-numtherm = 10
+numtherm = 20
 numsteps = 10
 initial = "cold"
 update_method = "metropolis"
-metro_multi_hit = 10
+metro_numhits = 10
 metro_target_acc = 0.5
 metro_epsilon = 0.1
+eo = true
+or_algorithm = "subgroups"
+numorelax = 4
 
 ["System Settings"]               
-logdir = "./logs/L8x8x8x8_wilson_beta5.7/test_metro"
+logdir = "./logs/L12x12x12x12_wilson_beta6.0/test_metro"
 logfile = "logs.txt"
-measurement_basedir = "./measurements/L8x8x8x8_wilson_beta5.7/test_metro"
+measurement_basedir = "./measurements/L12x12x12x12_wilson_beta6.0/test_metro"
 measurement_dir = "raw_data"
-randomseed = 0
+randomseed = 2805
 verboselevel = 1
 overwrite = true
 
-["Measurement set".measurement_methods.Polyakov_loop]
-measure_every = 5
-methodname = "polyakov_loop"
+["Measurement Settings".measurements.Energy_density]
+measure_every = 1
+kinds_of_energy_density = ["plaquette", "clover", "improved"]
 
-["Measurement set".measurement_methods.Topological_charge]
-measure_every = 5
-kinds_of_topological_charge = ["clover"]
-methodname = "topological_charge"
+["Measurement Settings".measurements.Gauge_action]
+measure_every = 1
+kinds_of_gauge_action = ["wilson", "symanzik_tree", "iwasaki", "dbw2"]
 
-["Measurement set".measurement_methods.Plaquette]
-measure_every = 5
-methodname = "plaquette"
+["Measurement Settings".measurements.Plaquette]
+measure_every = 1
 
-[gradientflow_measurements]
+["Measurement Settings".measurements.Polyakov_loop]
+measure_every = 1
+
+["Measurement Settings".measurements.Topological_charge]
+measure_every = 1
+kinds_of_topological_charge = ["plaquette", "clover", "improved"]
+
+["Measurement Settings".measurements.Wilson_loop]
+measure_every = 1
+Rmax = 2
+Tmax = 2
+
+["Gradient Flow Settings"]
 flow_integrator = "euler"
-flow_num = 4
+flow_num = 7
 flow_steps = 1
-flow_tf = 0.1
-flow_measure_every = 1
+flow_tf = 0.12 # total flow time is flow_num * flow_tf
+flow_measure_every = 7
 
-    [gradientflow_measurements.measurements_with_flow]
+    ["Gradient Flow Settings".measurements_with_flow.Topological_charge]
+    measure_every = 10
+    kinds_of_topological_charge = ["clover"]
+
+    ["Gradient Flow Settings".measurements_with_flow.Wilson_loop]
+    measure_every = 10
+    Rmax = 2
+    Tmax = 2
