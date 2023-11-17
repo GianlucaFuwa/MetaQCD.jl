@@ -47,7 +47,7 @@ end
 
 function WilsonLoopMeasurement(U, params::WilsonLoopParameters, filename, flow=false)
     return WilsonLoopMeasurement(
-        U,
+        U;
         filename = filename,
         printvalues = true,
         Rmax = params.Rmax,

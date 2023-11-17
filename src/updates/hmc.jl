@@ -18,8 +18,7 @@ struct HMC{TI,TG,TS} <: AbstractUpdate
     fp::Union{Nothing, IOStream}
 
     function HMC(
-        U,
-        integrator, steps, trajectory;
+        U, integrator, steps, trajectory;
         verbose = nothing,
         friction = π/2,
         numsmear = 0,
@@ -91,11 +90,14 @@ end
 
 include("hmc_integrators.jl")
 
-function update!(hmc::HMC{TI,TG,TS}, U, verbose; bias=nothing, metro_test=true) where {TI,TG,TS}
+function update!(
+    hmc::HMC{TI,TG,TS}, U, verbose;
+    bias=nothing, metro_test=true, friction=hmc.friction,
+) where {TI,TG,TS}
     U_old = hmc.U_old
     P_old = hmc.P_old
     substitute_U!(U_old, U)
-    gaussian_momenta!(hmc.P, hmc.friction)
+    gaussian_momenta!(hmc.P, friction)
     P_old≢nothing && substitute_U!(P_old, hmc.P)
 
     Sg_old = U.Sg

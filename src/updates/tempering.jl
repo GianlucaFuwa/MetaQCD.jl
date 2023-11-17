@@ -1,10 +1,5 @@
 function temper!(
-    U::Vector{TG},
-    bias::Vector{TB},
-    numaccepts_temper,
-    swap_every,
-    itrj,
-    verbose::VerboseLevel;
+    U::Vector{TG}, bias::Vector{TB}, numaccepts_temper, swap_every, itrj, verbose;
     recalc = false,
 ) where {TG<:Gaugefield, TB<:Bias}
     itrj%swap_every!=0 && return nothing

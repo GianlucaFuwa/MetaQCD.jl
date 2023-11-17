@@ -186,7 +186,7 @@ function metaqcd!(
             println_verbose0(vp, "\n# therm itrj = $itrj")
 
             _, updatetime = @timed begin
-                update!(updatemethod, U, vp, bias=nothing, metro_test=false)
+                update!(updatemethod, U, vp, metro_test=false, friction=π/2)
             end
 
             println_verbose0(vp, ">> Therm. Update elapsed time:\t$(updatetime) [s]\n#")
@@ -262,7 +262,7 @@ function metaqcd_PT!(
                 println_verbose0(vp, "\n# therm itrj = $itrj")
 
                 _, updatetime = @timed begin
-                    update!(updatemethod, U[i], vp, bias=nothing, metro_test=false)
+                    update!(updatemethod, U[i], vp, metro_test=false, friction=π/2)
                 end
 
                 println_verbose0(vp, ">> Therm. Update elapsed time:\t$(updatetime) [s]\n#")

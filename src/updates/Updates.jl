@@ -80,10 +80,7 @@ function Updatemethod(
 )
     if update_method == "hmc"
         updatemethod = HMC(
-            U,
-            hmc_integrator,
-            hmc_steps,
-            hmc_trajectory;
+            U, hmc_integrator, hmc_steps, hmc_trajectory;
             verbose = verbose,
             friction = hmc_friction,
             numsmear = hmc_numsmear,
@@ -94,23 +91,12 @@ function Updatemethod(
         )
     elseif update_method == "metropolis"
         updatemethod = Metropolis(
-            U,
-            eo,
-            metro_ϵ,
-            metro_numhits,
-            metro_target_acc,
-            or_algorithm,
-            or_numOR;
+            U, eo, metro_ϵ, metro_numhits, metro_target_acc, or_algorithm, or_numOR;
             verbose = verbose,
         )
     elseif update_method == "heatbath"
         updatemethod = Heatbath(
-            U,
-            eo,
-            hb_MAXIT,
-            hb_numHB,
-            or_algorithm,
-            or_numOR;
+            U, eo, hb_MAXIT, hb_numHB, or_algorithm, or_numOR;
             verbose = verbose,
         )
     else

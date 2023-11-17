@@ -6,8 +6,7 @@ struct Metropolis{ITR,TOR} <: AbstractUpdate
     numOR::Int64
 
 	function Metropolis(
-        ::Gaugefield{GA},
-        eo, ϵ, numhits, target_acc, or_alg, numOR;
+        ::Gaugefield{GA}, eo, ϵ, numhits, target_acc, or_alg, numOR;
         verbose = nothing,
     ) where {GA}
         println_verbose1(verbose, ">> Setting Metropolis...")

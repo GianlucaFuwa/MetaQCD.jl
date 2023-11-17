@@ -5,8 +5,7 @@ struct Heatbath{ITR,TOR} <: AbstractUpdate
     numOR::Int64
 
     function Heatbath(
-        ::Gaugefield{GA},
-        eo, MAXIT, numHB, or_alg, numOR;
+        ::Gaugefield{GA}, eo, MAXIT, numHB, or_alg, numOR;
         verbose = nothing,
     ) where {GA}
         println_verbose1(verbose, ">> Setting Heatbath...")

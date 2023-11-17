@@ -16,3 +16,5 @@ stability.jl
 plot.jl
 plot_opes.jl
 .VSCodeCounter/
+/test/test_AD.jl
+/test/testsmearing.jl

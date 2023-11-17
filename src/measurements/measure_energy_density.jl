@@ -38,7 +38,7 @@ end
 
 function EnergyDensityMeasurement(U, params::EnergyDensityParameters, filename, flow=false)
     return EnergyDensityMeasurement(
-        U,
+        U;
         filename = filename,
         printvalues = true,
         ED_methods = params.kinds_of_energy_density,

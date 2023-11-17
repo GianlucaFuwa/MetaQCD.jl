@@ -6,9 +6,7 @@ struct MeasurementMethods
 end
 
 function MeasurementMethods(
-    U,
-    measurement_dir,
-    measurement_methods::Vector{Dict};
+    U, measurement_dir, measurement_methods::Vector{Dict};
     flow = false,
     additional_string = "",
     verbose = nothing,
@@ -38,10 +36,7 @@ function MeasurementMethods(
     println_verbose1(verbose, "")
 
     return MeasurementMethods(
-        measurement_parameters_set,
-        measurements,
-        nummeasurements,
-        intervals,
+        measurement_parameters_set, measurements, nummeasurements, intervals,
     )
 end
 
@@ -71,11 +66,7 @@ function calc_measurements(m::MeasurementMethods, U, itrj; str="")
 end
 
 function calc_measurements_flowed(
-    m::Vector{MeasurementMethods},
-    gflow,
-    U,
-    itrj,
-    measure_on_all = false,
+    m::Vector{MeasurementMethods}, gflow, U, itrj, measure_on_all=false,
 )
     if measure_on_all
         for i in eachindex(m)

@@ -38,7 +38,7 @@ end
 
 function TopologicalChargeMeasurement(U, params::TopologicalChargeParameters, filename, flow=false)
     return TopologicalChargeMeasurement(
-        U,
+        U;
         filename = filename,
         printvalues = true,
         TC_methods = params.kinds_of_topological_charge,

@@ -44,7 +44,7 @@ end
 
 function GaugeActionMeasurement(U, params::GaugeActionParameters, filename, flow=false)
     return GaugeActionMeasurement(
-        U,
+        U;
         filename = filename,
         printvalues = true,
         GA_methods = params.kinds_of_gauge_action,
