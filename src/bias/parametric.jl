@@ -62,7 +62,7 @@ function (p::Parametric)(cv, t)
     lb, ub = p.cvlims
     Q′ = Z*cv + t
 
-    if in_bounds(cv, lb, ub)
+    if in_bounds(Q′, lb, ub)
         return    Q*cv^2 - A*cos(2π*Q′) * sin(π*t)^2
     elseif cv < lb
         penalty = Q*cv^2 - A*cos(2π*Q′) + pen*(cv - lb)^2
@@ -79,7 +79,7 @@ function ∂V∂Q(p::Parametric, cv, t)
     lb, ub = p.cvlims
     Q′ = Z*cv + t
 
-    if in_bounds(cv, lb, ub)
+    if in_bounds(Q′, lb, ub)
         return    2Q*cv + 2π*Z*A*sin(2π*Q′) * sin(π*t)^2
     elseif cv < lb
         penalty = 2Q*cv + 2π*Z*A*sin(2π*Q′) * sin(π*t)^2 + 2pen*(cv - lb)
@@ -93,7 +93,7 @@ end
 function ∂V∂t(p::Parametric, cv, t)
     A, Z = p.A, p.Z
     Q′ = Z*cv + t
-    return -π*A*(sin(2π*(2t + Z*cv)) - sin(2π*Q′))
+    return -π*A*(sin(2π*(2t + Z*cv)) - sin(2π*Q′)) #2π*A*sin(2π*Q′)
 end
 
 function integral(p::Parametric, lb, ub)

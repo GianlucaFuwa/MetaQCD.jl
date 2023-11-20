@@ -40,6 +40,8 @@ function Bias(p::ParameterSet, U; verbose=Verbose1(), instance=1, has_fp=true)
     is_static = instance==0 ? true : p.is_static[instance]
     sstr = (is_static || p.kind_of_bias=="parametric") ? "STATIC" : "DYNAMIC"
     println_verbose1(verbose, ">> Bias $instance is $sstr")
+    println_verbose1(verbose, ">> CV NUMSMEARS = $(p.numsmears_for_cv)")
+    println_verbose1(verbose, ">> CV RHO STOUT = $(p.rhostout_for_cv)")
 
     if p.kind_of_bias ∈ ["metad", "metadynamics"]
         bias = Metadynamics(p; instance=instance, verbose=verbose)

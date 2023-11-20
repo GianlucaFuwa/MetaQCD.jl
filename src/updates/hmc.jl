@@ -77,7 +77,7 @@ mutable struct HMC{TI,TG,TS} <: AbstractUpdate
             println_verbose1(verbose, "\t>> ACCEPTANCE DATA TRACKED IN $(hmc_log_file)")
             fp = open(hmc_log_file, "w")
             @printf(
-                fp, "%-22s\t%-22s\t%-22s\t%-22s\n", "ΔSg", "ΔP²", "ΔV", "ΔH"
+                fp, "%-22s\t%-22s\t%-22s\t%-22s\t%-22s\n", "ΔSg", "ΔP²", "ΔV", "P₀", "ΔH"
             )
         else
             fp = nothing
@@ -154,7 +154,7 @@ function updateU!(U, hmc, fac)
     P = hmc.P
     hmc.U₀ += hmc.direction*ϵ / hmc.trajectory
 
-    @batch for site in eachindex(U)
+    @batch per=thread for site in eachindex(U)
         for μ in 1:4
             U[μ][site] = cmatmul_oo(exp_iQ(-im*ϵ*P[μ][site]), U[μ][site])
         end
@@ -174,7 +174,7 @@ function updateP!(U, hmc::HMC, fac, bias)
 
     if bias ≢ nothing
         cv = calc_dVdU_bare!(force, fieldstrength, U, temp_force, bias, hmc.U₀)
-        hmc.P₀ -= ∂V∂t(bias, cv, hmc.U₀) * ϵ * hmc.direction
+        hmc.P₀ -= ∂V∂t(bias, cv, hmc.U₀) * ϵ * hmc.direction / hmc.trajectory
         @printf("t = %.10f\tcv = %.10f\tP₀ = %.10f\n", hmc.U₀, cv, hmc.P₀)
         add!(P, force, ϵ)
     end
@@ -202,7 +202,7 @@ end
 function calc_dSdU!(dSdU, staples, U)
     β = U.β
 
-    @batch for site in eachindex(U)
+    @batch per=thread for site in eachindex(U)
         for μ in 1:4
             A = staple(U, μ, site)
             staples[μ][site] = A
@@ -237,7 +237,7 @@ end
 function calc_dVdU!(kind_of_charge, dVdU, F, U, bias_derivative)
     fieldstrength_eachsite!(kind_of_charge, F, U)
 
-    @batch for site in eachindex(U)
+    @batch per=thread for site in eachindex(U)
         tmp1 = cmatmul_oo(U[1][site], (
             ∇trFμνFρσ(kind_of_charge, U, F, 1, 2, 3, 4, site) -
             ∇trFμνFρσ(kind_of_charge, U, F, 1, 3, 2, 4, site) +
@@ -325,7 +325,7 @@ end
 print_hmc_data(::Nothing, args...) = nothing
 
 function print_hmc_data(fp, ΔSg, ΔP², ΔV, ΔH, P₀)
-    @printf(fp, "%+22.15E\t%+22.15E\t%+22.15E\t%+22.15E\t%+22.15E\n", ΔSg, ΔP², ΔV, ΔH, P₀)
+    @printf(fp, "%+22.15E\t%+22.15E\t%+22.15E\t%+22.15E\t%+22.15E\n", ΔSg, ΔP², ΔV, P₀, ΔH)
     flush(fp)
     return nothing
 end

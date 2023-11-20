@@ -164,7 +164,7 @@ function Base.similar(u::T) where {T<:Abstractfield}
 end
 
 function substitute_U!(a::T, b::T) where {T <: Abstractfield}
-	@batch for site in eachindex(a)
+	@batch per=thread for site in eachindex(a)
 		for μ in 1:4
 			a[μ][site] = b[μ][site]
 		end
@@ -187,7 +187,7 @@ end
 function identity_gauges(NX, NY, NZ, NT, β, type_of_gaction)
 	u = Gaugefield(NX, NY, NZ, NT, β, GA=type_of_gaction)
 
-	@batch for site in eachindex(u)
+	@batch per=thread for site in eachindex(u)
 		for μ in 1:4
 			u[μ][site] = eye3
 		end
@@ -213,7 +213,7 @@ function random_gauges(NX, NY, NZ, NT, β, type_of_gaction)
 end
 
 function clear_U!(u::Abstractfield)
-	@batch for site in eachindex(u)
+	@batch per=thread for site in eachindex(u)
 		for μ in 1:4
 			u[μ][site] = zero3
 		end
@@ -223,7 +223,7 @@ function clear_U!(u::Abstractfield)
 end
 
 function normalize!(u::Gaugefield)
-	@batch for site in eachindex(u)
+	@batch per=thread for site in eachindex(u)
 		for μ in 1:4
 			u[μ][site] = proj_onto_SU3(u[μ][site])
 		end
@@ -233,7 +233,7 @@ function normalize!(u::Gaugefield)
 end
 
 function add!(a::Abstractfield, b::Abstractfield, fac)
-	@batch for site in eachindex(a)
+	@batch per=thread for site in eachindex(a)
 		for μ in 1:4
 			a[μ][site] += fac * b[μ][site]
 		end
@@ -243,7 +243,7 @@ function add!(a::Abstractfield, b::Abstractfield, fac)
 end
 
 function mul!(u::Abstractfield, α::Number)
-	@batch for site in eachindex(u)
+	@batch per=thread for site in eachindex(u)
 		for μ in 1:4
 			u[μ][site] *= α
 		end
@@ -253,7 +253,7 @@ function mul!(u::Abstractfield, α::Number)
 end
 
 function leftmul!(a::Abstractfield, b::Abstractfield)
-	@batch for site in eachindex(a)
+	@batch per=thread for site in eachindex(a)
 		for μ in 1:4
 			a[μ][site] = cmatmul_oo(b[μ][site], a[μ][site])
 		end
@@ -263,7 +263,7 @@ function leftmul!(a::Abstractfield, b::Abstractfield)
 end
 
 function leftmul_dagg!(a::Abstractfield, b::Abstractfield)
-	@batch for site in eachindex(a)
+	@batch per=thread for site in eachindex(a)
 		for μ in 1:4
 			a[μ][site] = cmatmul_do(b[μ][site], a[μ][site])
 		end
@@ -273,7 +273,7 @@ function leftmul_dagg!(a::Abstractfield, b::Abstractfield)
 end
 
 function rightmul!(a::Abstractfield, b::Abstractfield)
-	@batch for site in eachindex(a)
+	@batch per=thread for site in eachindex(a)
 		for μ in 1:4
 			a[μ][site] = cmatmul_oo(a[μ][site], b[μ][site])
 		end
@@ -283,7 +283,7 @@ function rightmul!(a::Abstractfield, b::Abstractfield)
 end
 
 function rightmul_dagg!(a::Abstractfield, b::Abstractfield)
-	@batch for site in eachindex(a)
+	@batch per=thread for site in eachindex(a)
 		for μ in 1:4
 			a[μ][site] = cmatmul_od(a[μ][site], b[μ][site])
 		end

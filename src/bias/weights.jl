@@ -18,16 +18,16 @@ function calc_weights(b::Bias, cv, itrj)
         w = calc_weight(b, cv, method)
         str *= @sprintf("\t%-22.15E", w)
     end
-    println(str * " # cv weight\n")
+    println(str * " # cv weight")
 
     if b.fp ≢ nothing
-        println(b.fp, str * "\n")
+        println(b.fp, str)
         flush(b.fp)
     end
     return nothing
 end
 
-calc_weight(b::Parametric, cv, args...) = exp(b(cv))
+calc_weight(b::Parametric, cv, args...) = exp(b(cv, 0.0))
 
 function calc_weight(b, cv, weight_method)
     if weight_method == "tiwari" # average over exp(V) in denom

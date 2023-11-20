@@ -57,7 +57,7 @@ end
 flow!(method::GradientFlow{TI,TG}) where {TI,TG} = flow!(TI(), method)
 
 function updateU!(U, Z, ϵ)
-    @batch for site in eachindex(U)
+    @batch per=thread for site in eachindex(U)
         for μ in 1:4
             U[μ][site] = cmatmul_oo(exp_iQ(-im * ϵ * Z[μ][site]), U[μ][site])
         end
@@ -67,7 +67,7 @@ function updateU!(U, Z, ϵ)
 end
 
 function calc_Z!(U, Z, ϵ)
-    @batch for site in eachindex(U)
+    @batch per=thread for site in eachindex(U)
         for μ in 1:4
             A = staple(WilsonGaugeAction(), U, μ, site)
             AU = cmatmul_od(A, U[μ][site])
@@ -79,7 +79,7 @@ function calc_Z!(U, Z, ϵ)
 end
 
 function updateZ!(U, Z, ϵ_old, ϵ_new)
-    @batch for site in eachindex(U)
+    @batch per=thread for site in eachindex(U)
         for μ in 1:4
             A = staple(WilsonGaugeAction(), U, μ, site)
             AU = cmatmul_od(A, U[μ][site])
