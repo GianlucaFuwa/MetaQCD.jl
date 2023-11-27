@@ -1,5 +1,5 @@
 ["Physical Settings"]
-L = [12, 12, 12, 10]
+L = [12, 12, 12, 12]
 beta = 6.0
 kind_of_gaction = "wilson"
 numtherm = 20
