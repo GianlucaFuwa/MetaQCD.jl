@@ -45,7 +45,7 @@ function update!(hb::Heatbath{ITR}, U, ::VerboseLevel; kwargs...) where {ITR}
 
     sweep!(ITR(), hb.numHB, hb, U, U.NC/U.β)
     normalize!(U)
-    numaccepts += sweep_reduce!(ITR(), hb.numOR, hb.OR, U, U.β/U.NC)
+    numaccepts += sweep_reduce!(ITR(), hb.numOR, hb.OR, U, -U.β/U.NC)
     normalize!(U)
 
     U.Sg = calc_gauge_action(U)
