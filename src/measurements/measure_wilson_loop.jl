@@ -25,18 +25,21 @@ struct WilsonLoopMeasurement{T} <: AbstractMeasurement
             fp = open(filename, "w")
 
             if flow
-                @printf(fp, "%-9s\t%-7s\t%-9s", "itrj", "iflow", "tflow")
+                str = @sprintf("%-9s\t%-7s\t%-9s", "itrj", "iflow", "tflow")
+                println(fp, str)
             else
-                @printf(fp, "%-9s", "itrj")
+                str = @sprintf("%-9s", "itrj")
+                println(fp, str)
             end
 
             for iT in 1:Tmax
                 for iR in 1:Rmax
-                    @printf(fp, "\t%-22s", "wilson_loop_$(iR)x$(iT)")
+                    str = @sprintf("\t%-22s", "wilson_loop_$(iR)x$(iT)")
+                    println(fp, str)
                 end
             end
 
-            @printf(fp, "\n")
+            println(fp)
         else
             fp = nothing
         end
@@ -46,35 +49,29 @@ struct WilsonLoopMeasurement{T} <: AbstractMeasurement
 end
 
 function WilsonLoopMeasurement(U, params::WilsonLoopParameters, filename, flow=false)
-    return WilsonLoopMeasurement(
-        U,
-        filename = filename,
-        printvalues = true,
-        Rmax = params.Rmax,
-        Tmax = params.Tmax,
-        flow = flow,
-    )
+    return WilsonLoopMeasurement(U, filename = filename, printvalues = true,
+                                 Rmax = params.Rmax, Tmax = params.Tmax, flow = flow)
 end
 
 function measure(m::WilsonLoopMeasurement{T}, U; additional_string="") where {T}
-    T==IOStream && @printf(m.fp, "%-9s", additional_string)
+    if T≡IOStream
+        str = @sprintf("%-9s", additional_string)
+        println(m.fp, str)
+    end
 
     for iT in 1:m.Tmax
         for iR in 1:m.Rmax
             WL = tr(wilsonloop(U, iR, iT)) / (18.0*U.NV)
             m.WL_dict[iR, iT] = WL
 
-            if T == IOStream
-                @printf(m.fp, "\t%+-22.15E", WL)
+            if T ≡ IOStream
+                str = @sprintf("\t%+-22.15E", WL)
+                print(m.fp, str)
             end
         end
     end
 
-    if T == IOStream
-        @printf(m.fp, "\n")
-        flush(m.fp)
-    end
-
+    T ≡ IOStream && println(m.fp)
     output = MeasurementOutput(m.WL_dict, "")
     return output
 end

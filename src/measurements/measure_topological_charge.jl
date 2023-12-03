@@ -37,13 +37,9 @@ struct TopologicalChargeMeasurement{T} <: AbstractMeasurement
 end
 
 function TopologicalChargeMeasurement(U, params::TopologicalChargeParameters, filename, flow=false)
-    return TopologicalChargeMeasurement(
-        U,
-        filename = filename,
-        printvalues = true,
-        TC_methods = params.kinds_of_topological_charge,
-        flow = flow,
-    )
+    return TopologicalChargeMeasurement(U, filename = filename, printvalues = true,
+                                        TC_methods = params.kinds_of_topological_charge,
+                                        flow = flow)
 end
 
 function measure(m::TopologicalChargeMeasurement{T}, U; additional_string="") where {T}
@@ -55,7 +51,7 @@ function measure(m::TopologicalChargeMeasurement{T}, U; additional_string="") wh
         m.TC_dict[methodname] = Q
     end
 
-    if T == IOStream
+    if T ≡ IOStream
         for value in values(m.TC_dict)
             svalue = @sprintf("%+-22.15E", value)
             printstring *= "\t$svalue"
@@ -87,7 +83,9 @@ function top_charge(U::Gaugefield, methodname::String)
 end
 
 function top_charge(::Plaquette, U)
-    @batch per=thread threadlocal=0.0::Float64 for site in eachindex(U)
+    out = zeros(Float64, 8nthreads())
+
+    @batch per=thread for site in eachindex(U)
         C12 = plaquette(U, 1, 2, site)
         F12 = im * traceless_antihermitian(C12)
 
@@ -106,15 +104,17 @@ function top_charge(::Plaquette, U)
         C34 = plaquette(U, 3, 4, site)
         F34 = im * traceless_antihermitian(C34)
 
-        threadlocal += real(multr(F12, F34)) - real(multr(F13, F24)) + real(multr(F14, F23))
+        out[8threadid()] += real(multr(F12, F34)) - real(multr(F13, F24)) + real(multr(F14, F23))
     end
 
-    Qplaq = 1/4π^2 * sum(threadlocal)
+    Qplaq = 1/4π^2 * sum(out)
     return Qplaq
 end
 
 function top_charge(::Clover, U)
-    @batch per=thread threadlocal=0.0::Float64 for site in eachindex(U)
+    out = zeros(Float64, 8nthreads())
+
+    @batch per=thread for site in eachindex(U)
         C12 = clover_square(U, 1, 2, site, 1)
         F12 = im/4 * traceless_antihermitian(C12)
 
@@ -133,10 +133,10 @@ function top_charge(::Clover, U)
         C34 = clover_square(U, 3, 4, site, 1)
         F34 = im/4 * traceless_antihermitian(C34)
 
-        threadlocal += real(multr(F12, F34)) - real(multr(F13, F24)) + real(multr(F14, F23))
+        out[8threadid()] += real(multr(F12, F34)) - real(multr(F13, F24)) + real(multr(F14, F23))
     end
 
-    Qclover = 1/4π^2 * sum(threadlocal)
+    Qclover = 1/4π^2 * sum(out)
     return Qclover
 end
 
@@ -148,7 +148,9 @@ function top_charge(::Improved, U)
 end
 
 function top_charge_rect(U)
-    @batch per=thread threadlocal=0.0::Float64 for site in eachindex(U)
+    out = zeros(Float64, 8nthreads())
+
+    @batch per=thread for site in eachindex(U)
         C12 = clover_rect(U, 1, 2, site, 1, 2)
         F12 = im/8 * traceless_antihermitian(C12)
 
@@ -167,9 +169,9 @@ function top_charge_rect(U)
         C34 = clover_rect(U, 3, 4, site, 1, 2)
         F34 = im/8 * traceless_antihermitian(C34)
 
-        threadlocal += real(multr(F12, F34)) - real(multr(F13, F24)) + real(multr(F14, F23))
+        out[8threadid()] += real(multr(F12, F34)) - real(multr(F13, F24)) + real(multr(F14, F23))
     end
 
-    Qrect = 2/4π^2 * sum(threadlocal)
+    Qrect = 2/4π^2 * sum(out)
     return Qrect
 end

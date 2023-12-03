@@ -6,21 +6,19 @@ struct Parametric <: AbstractBias
     Z::Float64
 end
 
-function Parametric(p::ParameterSet; verbose=Verbose1(), instance=1)
-    println_verbose1(verbose, ">> Setting Parametric Bias instance $(instance)...")
+function Parametric(p::ParameterSet; instance=1)
     cvlims = instance>0 ? p.cvlims : (-Inf, Inf)
-    println_verbose1(verbose, "\t>> CVLIMS = $(cvlims)")
+    @level1("|  CVLIMS: $(cvlims)")
     penalty_weight = instance>0 ? p.penalty_weight : 0.0
-    println_verbose1(verbose, "\t>> PENALTY WEIGHT = $(penalty_weight)")
+    @level1("|  PENALTY WEIGHT: $(penalty_weight)")
 
     Q, A, Z = instance>0 ? (p.bias_Q, p.bias_A, p.bias_Z) : (0.0, 0.0, 0.0)
-    println_verbose1(verbose, "\t>> PARAMETERS = $Q, $A, $Z")
+    @level1("|  PARAMETERS: $Q, $A, $Z")
     return Parametric(cvlims, penalty_weight, Q, A, Z)
 end
 
 update!(::Parametric, cv, args...) = nothing
 clear!(::Parametric) = nothing
-write_to_file(::Parametric, args...) = nothing
 
 function (p::Parametric)(cv)
     Q, A, Z = p.Q, p.A, p.Z

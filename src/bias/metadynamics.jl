@@ -30,47 +30,42 @@ struct Metadynamics <: AbstractBias
     values::Vector{Float64}
 end
 
-function Metadynamics(p::ParameterSet; verbose=Verbose1(), instance=1)
-    println_verbose1(verbose, ">> Setting MetaD instance $(instance)...")
+function Metadynamics(p::ParameterSet; instance=1)
     symmetric = p.symmetric
     stride = p.stride
-    println_verbose1(verbose, "\t>> STRIDE = $(stride)")
+    @level1("|  STRIDE: $(stride)")
     @assert stride>0 "STRIDE must be >0"
 
     if instance == 0
-        bin_vals, values = metad_from_file(p, nothing)
-    elseif p.usebiases !== nothing && instance > length(p.usebiases)
-        bin_vals, values = metad_from_file(p, nothing)
-    elseif p.usebiases === nothing
-        bin_vals, values = metad_from_file(p, nothing)
+        bin_vals, values = metad_from_file(p, "")
+    elseif instance > length(p.usebiases)
+        bin_vals, values = metad_from_file(p, "")
     else
         bin_vals, values = metad_from_file(p, p.usebiases[instance])
     end
 
-    println_verbose1(verbose, "\t>> CVLIMS = $(p.cvlims)")
+    @level1("|  CVLIMS: $(p.cvlims)")
     @assert issorted(p.cvlims) "CVLIMS must be sorted from low to high"
 
-    println_verbose1(verbose, "\t>> BIN_WIDTH = $(p.bin_width)")
+    @level1("|  BIN_WIDTH: $(p.bin_width)")
     @assert p.bin_width > 0 "BIN_WIDTH must be > 0"
 
-    println_verbose1(verbose, "\t>> META_WEIGHT = $(p.meta_weight)")
+    @level1("|  META_WEIGHT: $(p.meta_weight)")
     @assert p.meta_weight > 0 "META_WEIGHT must be > 0, try \"is_static=true\""
 
-    println_verbose1(verbose, "\t>> PENALTY_WEIGHT = $(p.penalty_weight)")
+    @level1("|  PENALTY_WEIGHT: $(p.penalty_weight)")
 
     biasfactor = p.biasfactor
-    println_verbose1(verbose, "\t>> BIASFACTOR = $(biasfactor)")
+    @level1("|  BIASFACTOR: $(biasfactor)")
     @assert biasfactor > 1 "BIASFACTOR must be > 1"
-    return Metadynamics(
-        symmetric, stride,
-        p.cvlims, biasfactor, p.bin_width, p.meta_weight, p.penalty_weight,
-        bin_vals, values,
-    )
+    return Metadynamics(symmetric, stride,
+                        p.cvlims, biasfactor, p.bin_width, p.meta_weight, p.penalty_weight,
+                        bin_vals, values)
 end
 
 Base.length(m::Metadynamics) = length(m.values)
 Base.eachindex(m::Metadynamics) = eachindex(m.values)
-Base.lastindex(m::Metadynamics) = length(m.values)
+Base.lastindex(m::Metadynamics) = lastindex(m.values)
 
 function Base.setindex!(m::Metadynamics, v, i)
     m.values[i] = v
@@ -87,17 +82,17 @@ end
 
 function update!(m::Metadynamics, cv, args...)
     if in_bounds(cv, m.cvlims...)
-        for (idx, current_bin) in enumerate(m.bin_vals)
+        for (idx, bin_val) in enumerate(m.bin_vals)
             wt = exp(-m[idx] / m.biasfactor)
-            m[idx] += m.weight * wt * exp(-0.5(cv - current_bin)^2 / m.bin_width^2)
+            m[idx] += m.weight * wt * exp(-0.5(cv - bin_val)^2 / m.bin_width^2)
         end
     end
 
     if m.symmetric
-        if in_bounds(cv, m.cvlims...)
-            for (idx, current_bin) in enumerate(m.bin_vals)
+        if in_bounds(-cv, m.cvlims...)
+            for (idx, bin_val) in enumerate(m.bin_vals)
                 wt = exp(-m[idx] / m.biasfactor)
-                m[idx] += m.weight * wt * exp(-0.5(-cv - current_bin)^2 / m.bin_width^2)
+                m[idx] += m.weight * wt * exp(-0.5(-cv - bin_val)^2 / m.bin_width^2)
             end
         end
     end
@@ -120,7 +115,7 @@ function return_potential(m::Metadynamics, cv)
         penalty = m[1] + pen * (cv - lb)^2
         return penalty
     else
-        penalty = m[end] + pen * (cv - ub+bw)^2
+        penalty = m[end] + pen * (cv - ub)^2
         return penalty
     end
 end
@@ -140,7 +135,10 @@ function clear!(m::Metadynamics)
     return nothing
 end
 
-function write_to_file(m::Metadynamics, filename)
+write_to_file(::Metadynamics, ::Nothing) = nothing
+
+function write_to_file(m::Metadynamics, filename::String)
+    filename=="" && return nothing
     (tmppath, tmpio) = mktemp() # open temporary file at arbitrary location in storage
     println(tmpio, "$(rpad("CV", 7))\t$(rpad("V(CV)", 7))")
 
@@ -154,7 +152,7 @@ function write_to_file(m::Metadynamics, filename)
 end
 
 function metad_from_file(p::ParameterSet, usebias)
-    if usebias === nothing
+    if usebias == ""
         bin_vals = range(p.cvlims[1], p.cvlims[2], step=p.bin_width)
         values = zero(bin_vals)
         println("\t>> initialized as zeros")

@@ -62,8 +62,7 @@ mutable struct OPES <: AbstractBias
     δkernels::Vector{Kernel}
 end
 
-function OPES(p::ParameterSet; verbose=Verbose1(), instance=1)
-    println_verbose1(verbose, ">> Setting OPES instance $(instance)...")
+function OPES(p::ParameterSet; instance=1)
     is_first_step = true
     after_calculate = false
 
@@ -97,10 +96,21 @@ function OPES(p::ParameterSet; verbose=Verbose1(), instance=1)
     kernels = Vector{Kernel}(undef, 1000)
     nδker = 0
     δkernels = Vector{Kernel}(undef, 2)
-    if (p.usebiases!==nothing) && (0<instance<=length(p.usebiases))
-        println_verbose1(verbose, "\t>> Getting state from $(p.usebiases[instance])")
-        kernels, state = opes_from_file(p.usebiases[instance])
-        nker = length(kernels)
+
+    state = Dict{String, Any}(
+        "counter" => counter,
+        "biasfactor" => biasfactor,
+        "sigma0" => σ₀,
+        "epsilon" => ϵ,
+        "sum_weights" => sum_weights,
+        "Z" => Z,
+        "threshold" => threshold,
+        "cutoff" => cutoff,
+        "penalty" => penalty,
+    )
+
+    if 0<instance<=length(p.usebiases)
+        kernels, nker = opes_from_file!(state, p.usebiases[instance])
         is_first_step = false
         counter = Int64(state["counter"])
         biasfactor = state["biasfactor"]
@@ -113,40 +123,37 @@ function OPES(p::ParameterSet; verbose=Verbose1(), instance=1)
         penalty = state["penalty"]
     end
 
-    println_verbose1(verbose, "\t>> NKER = $(nker)")
-    println_verbose1(verbose, "\t>> COUNTER = $(counter)")
+    @level1("|  NKER: $(nker)")
+    @level1("|  COUNTER: $(counter)")
     @assert counter>0 "COUNTER must be ≥0"
-    println_verbose1(verbose, "\t>> STRIDE = $(stride)")
+    @level1("|  STRIDE: $(stride)")
     @assert stride>0 "STRIDE must be >0"
-    println_verbose1(verbose, "\t>> CVLIMS = $(cvlims)")
+    @level1("|  CVLIMS: $(cvlims)")
     @assert cvlims[1]<cvlims[2] "CVLIMS[1] must be <CVLIMS[2]"
-    println_verbose1(verbose, "\t>> BARRIER = $(barrier)")
+    @level1("|  BARRIER: $(barrier)")
     @assert barrier >= 0 "BARRIER must be > 0"
-    println_verbose1(verbose, "\t>> BIASFACTOR = $(biasfactor)")
+    @level1("|  BIASFACTOR: $(biasfactor)")
     @assert biasfactor > 1 "BIASFACTOR must be > 1"
-    println_verbose1(verbose, "\t>> SIGMA0 = $(σ₀)")
+    @level1("|  SIGMA0: $(σ₀)")
     @assert σ₀ >= 0 "SIGMA0 must be >= 0"
-    println_verbose1(verbose, "\t>> SIGMA_MIN = $(σ_min)")
+    @level1("|  SIGMA_MIN: $(σ_min)")
     @assert σ_min >= 0 "SIGMA_MIN must be > 0"
-    println_verbose1(verbose, "\t>> FIXED_SIGMA = $(fixed_σ)")
-    println_verbose1(verbose, "\t>> EPSILON = $(ϵ)")
+    @level1("|  FIXED_SIGMA: $(fixed_σ)")
+    @level1("|  EPSILON: $(ϵ)")
     @assert ϵ > 0 "EPSILON must be > 0, maybe your BARRIER is to high?"
-    println_verbose1(verbose, "\t>> NO_Z = $(no_Z)")
-    println_verbose1(verbose, "\t>> THRESHOLD = $(threshold)")
+    @level1("|  NO_Z: $(no_Z)")
+    @level1("|  THRESHOLD: $(threshold)")
     @assert threshold > 0 "THRESHOLD must be > 0"
-    println_verbose1(verbose, "\t>> CUTOFF = $(sqrt(cutoff²))")
+    @level1("|  CUTOFF: $(sqrt(cutoff²))")
     @assert cutoff > 0 "CUTOFF must be > 0"
-
-    return OPES(
-        is_first_step, after_calculate,
-        symmetric, counter, stride, cvlims,
-        biasfactor, bias_prefactor,
-        σ₀, σ_min, fixed_σ,
-        ϵ, sum_weights, sum_weights², current_bias, no_Z, Z, KDEnorm,
-        threshold, cutoff², penalty,
-        sum_weights, Z, KDEnorm,
-        nker, kernels, nδker, δkernels,
-    )
+    return OPES(is_first_step, after_calculate,
+                symmetric, counter, stride, cvlims,
+                biasfactor, bias_prefactor,
+                σ₀, σ_min, fixed_σ,
+                ϵ, sum_weights, sum_weights², current_bias, no_Z, Z, KDEnorm,
+                threshold, cutoff², penalty,
+                sum_weights, Z, KDEnorm,
+                nker, kernels, nδker, δkernels)
 end
 
 get_kernels(o::OPES) = o.kernels
@@ -239,8 +246,8 @@ function (o::OPES)(cv)
     lb, ub = o.cvlims
 
     if !in_bounds(cv, lb, ub)
-        bounds_penalty = 1000
-        which_bound, dist² = findmin((cv - lb)^2, (cv - ub)^2)
+        bounds_penalty = 100
+        which_bound, dist² = findmin(((cv - lb)^2, (cv - ub)^2))
         nearest_bound = which_bound==1 ? lb : ub
         calculate!(o, nearest_bound)
         return o.current_bias + bounds_penalty*dist²
@@ -259,7 +266,8 @@ function calculate!(o::OPES, cv)
     for kernel in eachkernel(o)
         prob += kernel(cv, cutoff², penalty)
         if prob > 1e10
-            error("prob = $prob is dangerously high, something probably went wrong")
+            throw(AssertionError("prob = $prob is dangerously high,
+                                  something probably went wrong"))
         end
     end
     prob /= o.sum_weights
@@ -342,7 +350,10 @@ const state_vars = [
 ]
 const kernel_header = "#$(rpad("height", 20))\t$(rpad("center", 20))\t$(rpad("sigma", 20))"
 
-function write_to_file(o::OPES, filename)
+write_to_file(::OPES, ::Nothing) = nothing
+
+function write_to_file(o::OPES, filename::String)
+    filename=="" && return nothing
     (tmppath, tmpio) = mktemp()
     print(tmpio, "#"); [print(tmpio, "$(var)\t") for var in state_vars]; println(tmpio, "")
     state_str = "$(o.counter)\t$(o.biasfactor)\t$(o.σ₀)\t$(o.ϵ)\t$(o.sum_weights)\t$(o.Z)" *
@@ -363,18 +374,24 @@ function write_to_file(o::OPES, filename)
     return nothing
 end
 
-function opes_from_file(usebias)
-    usebias === nothing && return nothing, nothing
-    # state is stored in header, which is always read as a string so we have to parse it
-    kernel_data, state_data = readdlm(usebias, comments=true, header=true)
-    state_parse = [parse(Float64, state_param) for state_param in state_data]
-    state_dict =
-        Dict{String, Any}(state_vars[i] => state_parse[i] for i in eachindex(state_vars))
+function opes_from_file!(dict, usebias)
+    if usebias==""
+        kernels = Vector{Kernel}(undef, 1000)
+        return kernels, 0
+    else
+        @level1("|  Getting state from $(usebias)")
+        # state is stored in header, which is always read as a string so we have to parse it
+        kernel_data, state_data = readdlm(usebias, comments=true, header=true)
+        state_parse = [parse(Float64, state_param) for state_param in state_data]
 
-    kernels = Vector{Kernel}(undef, size(kernel_data, 1))
-    for i in axes(kernel_data, 1)
-        kernels[i] = Kernel(view(kernel_data, i, 1:3)...)
+        for i in eachindex(state_vars)
+            dict[state_vars[i]] = state_parse[i]
+        end
+
+        kernels = Vector{Kernel}(undef, size(kernel_data, 1))
+        for i in axes(kernel_data, 1)
+            kernels[i] = Kernel(view(kernel_data, i, 1:3)...)
+        end
+        return kernels, length(kernels)
     end
-
-    return kernels, state_dict
 end

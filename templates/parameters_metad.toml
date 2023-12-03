@@ -1,15 +1,15 @@
 ["Physical Settings"]
-L = [12, 12, 12, 12]
-beta = 6.0
-kind_of_gaction = "wilson"
+L = [16, 16, 16, 16]
+beta = 1.25
+kind_of_gaction = "dbw2"
 numtherm = 20
-numsteps = 10
+numsteps = 1
 initial = "cold"
 update_method = "HMC"
 
 ["Bias Settings"]
 # general bias parameters
-kind_of_bias = "opes"
+kind_of_bias = "parametric"
 kind_of_cv = "clover"
 numsmears_for_cv = 4
 rhostout_for_cv = 0.12
@@ -25,24 +25,26 @@ meta_weight = 0.01
 # opes specific parameters
 barrier = 40
 sigma0 = 0.1
+# parametric values
+bias_Q = 0.0
+bias_A = 8
+bias_Z = 1.18
 # usebiases = [
 #     "./metapotentials/L16x16x16x16_dbw2_beta1.25/dummy.txt",
 # ]
 
 ["HMC Settings"]
-hmc_deltatau = 0.2
+hmc_trajectory = 1
 hmc_steps = 5
 hmc_integrator = "OMF4"
-# hmc_friction = 0.1
 
 ["System Settings"]               
-logdir = "./logs/L12x12x12x12_wilson_beta6.0/test_metad"
-logfile = "logs.txt"
-measurement_basedir = "./measurements/L12x12x12x12_wilson_beta6.0/test_metad"
+log_dir = "logs/L16x16x16x16_dbw2_beta1.25/test_metad"
+measurement_basedir = "measurements/L16x16x16x16_dbw2_beta1.25/test_metad"
 measurement_dir = "raw_data"
-randomseed = 2805
-verboselevel = 1
-bias_basedir = "./metapotentials/L12x12x12x12_wilson_beta6.0/test_metad"
+randomseed = 0
+verboselevel = 2
+bias_basedir = "metapotentials/L16x16x16x16_dbw2_beta1.25/test_metad"
 bias_dir = "bias"
 overwrite = true
 
@@ -66,8 +68,8 @@ kinds_of_topological_charge = ["plaquette", "clover", "improved"]
 
 ["Measurement Settings".measurements.Wilson_loop]
 measure_every = 1
-Rmax = 4
-Tmax = 4
+Rmax = 2
+Tmax = 2
 
 ["Gradient Flow Settings"]
 flow_integrator = "euler"

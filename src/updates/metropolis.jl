@@ -1,64 +1,62 @@
-struct Metropolis{ITR,TOR} <: AbstractUpdate
+struct Metropolis{ITR,NH,TOR,NOR} <: AbstractUpdate
 	ϵ::Base.RefValue{Float64}
 	numhits::Int64
 	target_acc::Float64
     OR::TOR
     numOR::Int64
 
-	function Metropolis(
-        ::Gaugefield{GA},
-        eo, ϵ, numhits, target_acc, or_alg, numOR;
-        verbose = nothing,
-    ) where {GA}
-        println_verbose1(verbose, ">> Setting Metropolis...")
+	function Metropolis(::Gaugefield{GA}, eo, ϵ, numhits, target_acc, or_alg, numOR) where {GA}
+        @level1("┌ Setting Metropolis...")
 		m_ϵ = Base.RefValue{Float64}(ϵ)
 
         if eo
-            println_verbose1(verbose, "\t>> PARALLELIZATION ENABLED")
+            @level1("|  PARALLELIZATION ENABLED")
             if GA==WilsonGaugeAction
                 ITR = Checkerboard2MT
             else
                 ITR = Checkerboard4MT
             end
         else
-            println_verbose1(verbose, "\t>> PARALLELIZATION DISABLED")
+            @level1("|  PARALLELIZATION DISABLED")
             if GA==WilsonGaugeAction
                 ITR = Checkerboard2
             else
                 ITR = Checkerboard4
             end
         end
-        println_verbose1(verbose, "\t>> ITERATOR = $(ITR)")
+        @level1("|  ITERATOR: $(ITR)")
 
         OR = Overrelaxation(or_alg)
         TOR = typeof(OR)
-        println_verbose1(verbose, "\t>> NUMBER OF METROPOLIS HITS = $(numhits)")
-        println_verbose1(verbose, "\t>> TARGET ACCEPTANCE RATE = $(target_acc)")
-        println_verbose1(verbose, "\t>> OVERRELAXATION ALGORITHM = $(TOR)")
-        println_verbose1(verbose, "\t>> NUM. OF OVERRELAXATION SWEEPS = $(numOR)\n")
-
-		return new{ITR, typeof(OR)}(m_ϵ, numhits, target_acc, OR, numOR)
+        @level1("|  NUMBER OF METROPOLIS HITS: $(numhits)")
+        @level1("|  TARGET ACCEPTANCE RATE: $(target_acc)")
+        @level1("|  OVERRELAXATION ALGORITHM: $(TOR)")
+        @level1("|  NUM. OF OVERRELAXATION SWEEPS: $(numOR)")
+        @level1("└\n")
+		return new{ITR,Val{numhits},typeof(OR),Val{numOR}}(m_ϵ, numhits, target_acc, OR, numOR)
 	end
 end
 
-function update!(metro::Metropolis{ITR}, U, ::VerboseLevel; kwargs...) where {ITR}
-    numaccepts = 0
+function update!(metro::Metropolis{ITR,NH,TOR,NOR}, U; kwargs...) where {ITR,NH,TOR,NOR}
+    numaccepts_metro = 0.0
+    numaccepts_or = 0.0
 
-    numaccepts += sweep_reduce!(ITR(), 1, metro, U, -U.β/U.NC)
-    normalize!(U)
-    numaccepts += sweep_reduce!(ITR(), metro.numOR, metro.OR, U, -U.β/U.NC)
-    normalize!(U)
+    numaccepts_metro += sweep_reduce!(ITR(), Val{1}(), metro, U, -U.β/U.NC)
+    numaccepts_or += sweep_reduce!(ITR(), NOR(), TOR(), U, -U.β/U.NC)
 
-    numaccepts /= (4*U.NV*metro.numhits + 4*U.NV*metro.numOR)
-    adjust_ϵ!(metro, numaccepts)
-	return numaccepts
+    numaccepts_metro /= 4*U.NV*_unwrap_val(NH())
+    @level3("|  Metro acceptance: $(numaccepts_metro)")
+    numaccepts_or /= 4*U.NV*_unwrap_val(NOR())
+    adjust_ϵ!(metro, numaccepts_metro)
+	return numaccepts_or
 end
 
-function (metro::Metropolis)(U, μ, site, action_factor, metro_test=true)
+function (metro::Metropolis{ITR,NH,TOR,NOR})(U, μ, site, action_factor;
+                                             metro_test=true) where {ITR,NH,TOR,NOR}
     A_adj = staple(U, μ, site)'
     numaccepts = 0
 
-    for _ in 1:metro.numhits
+    for _ in 1:_unwrap_val(NH())
         X = gen_SU3_matrix(metro.ϵ[])
         old_link = U[μ][site]
         new_link = cmatmul_oo(X, old_link)
@@ -68,7 +66,7 @@ function (metro::Metropolis)(U, μ, site, action_factor, metro_test=true)
         accept = metro_test ? (rand(Float64)≤exp(-ΔSg)) : true
 
         if accept
-            U[μ][site] = new_link
+            U[μ][site] = proj_onto_SU3(new_link)
             U.Sg += ΔSg
             numaccepts += 1
         end

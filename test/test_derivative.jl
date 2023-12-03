@@ -77,38 +77,15 @@ function SU3testderivative()
             (tc_symm_diff_smeared - dtopcharge_proj_smeared) / tc_symm_diff_smeared
 
         println("================= Group direction $(group_direction) =================")
-
-        # println("gaction before: ", gaction_old)
-        # println("gaction fwd: ", gaction_new_fwd)
-        # println("gaction bwd: ", gaction_new_bwd)
-        # println("/ GA Difference: \t", (gaction_new_fwd - gaction_old) / deltaH)
-        # println("/ GA Symm. Diff: \t", ga_symm_diff)
-        # println("/ GA Derivative: \t", dgaction_proj)
-        println(
-            "/ GA rel. error (unsmeared): \t",
-            (ga_symm_diff - dgaction_proj) / ga_symm_diff
-        )
-        println(
-            "/ GA rel. error (smeared):   \t",
-            (ga_symm_diff_smeared - dgaction_proj_smeared) / ga_symm_diff_smeared
-        )
-
+        println("/ GA rel. error (unsmeared): \t",
+                (ga_symm_diff - dgaction_proj) / ga_symm_diff)
+        println("/ GA rel. error (smeared):   \t",
+                (ga_symm_diff_smeared - dgaction_proj_smeared) / ga_symm_diff_smeared)
         println("")
-
-        # println("topcharge before: ", topcharge_old)
-        # println("topcharge fwd: ", topcharge_new_fwd)
-        # println("topcharge bwd: ", topcharge_new_bwd)
-        # println("/ TC Difference: \t", (topcharge_new_fwd - topcharge_old) / deltaH)
-        # println("/ TC Symm. Diff: \t", tc_symm_diff)
-        # println("/ TC Derivative: \t", dtopcharge_proj)
-        println(
-            "/ TC rel. error (unsmeared): \t",
-            (tc_symm_diff - dtopcharge_proj) / tc_symm_diff
-        )
-        println(
-            "/ TC rel. error (smeared):   \t",
-            (tc_symm_diff_smeared - dtopcharge_proj_smeared) / tc_symm_diff_smeared
-        )
+        println("/ TC rel. error (unsmeared): \t",
+                (tc_symm_diff - dtopcharge_proj) / tc_symm_diff)
+        println("/ TC rel. error (smeared):   \t",
+                (tc_symm_diff_smeared - dtopcharge_proj_smeared) / tc_symm_diff_smeared)
     end
 
     return relerrors

@@ -93,14 +93,10 @@ function staple_rect(U, μ, site)
         # |-   -|
         # ↓     ↑
         # |- → -|
-        staple += cmatmul_oo(
-            cmatmul_ooo(U[ν][site], U[ν][siteν⁺], U[μ][siteν²⁺]),
-            cmatmul_dd(U[ν][siteμ⁺ν⁺], U[ν][siteμ⁺]),
-        )
-        staple += cmatmul_oo(
-            cmatmul_ddo(U[ν][siteν⁻], U[ν][siteν²⁻], U[μ][siteν²⁻]),
-            cmatmul_oo(U[ν][siteμ⁺ν²⁻], U[ν][siteμ⁺ν⁻]),
-        )
+        staple += cmatmul_oo(cmatmul_ooo(U[ν][site], U[ν][siteν⁺], U[μ][siteν²⁺]),
+                             cmatmul_dd(U[ν][siteμ⁺ν⁺], U[ν][siteμ⁺]))
+        staple += cmatmul_oo(cmatmul_ddo(U[ν][siteν⁻], U[ν][siteν²⁻], U[μ][siteν²⁻]),
+                             cmatmul_oo(U[ν][siteμ⁺ν²⁻], U[ν][siteμ⁺ν⁻]))
 
         # Second term, same direction from site and siteν⁻
         # |- → -|- → -|
@@ -108,11 +104,9 @@ function staple_rect(U, μ, site)
         # |-----|- ← -|
         # ↓           ↑
         # |- → -|- → -|
-        staple += cmatmul_od(
-            cmatmul_oood(U[ν][site], U[μ][siteν⁺], U[μ][siteμ⁺ν⁺], U[ν][siteμ²⁺]) +
-            cmatmul_dooo(U[ν][siteν⁻], U[μ][siteν⁻], U[μ][siteμ⁺ν⁻], U[ν][siteμ²⁺ν⁻]),
-            U[μ][siteμ⁺],
-        )
+        staple += cmatmul_od(cmatmul_oood(U[ν][site], U[μ][siteν⁺], U[μ][siteμ⁺ν⁺], U[ν][siteμ²⁺]) +
+                              cmatmul_dooo(U[ν][siteν⁻], U[μ][siteν⁻], U[μ][siteμ⁺ν⁻], U[ν][siteμ²⁺ν⁻]),
+                             U[μ][siteμ⁺])
 
         # Third term, same direction from siteμ⁻ and siteμ⁻ν⁻
         # |- → -|- → -|
@@ -120,11 +114,9 @@ function staple_rect(U, μ, site)
         # |- ← -|-----|
         # ↓           ↑
         # |- → -|- → -|
-        staple += cmatmul_do(
-            U[μ][siteμ⁻],
-            cmatmul_oood(U[ν][siteμ⁻], U[μ][siteμ⁻ν⁺], U[μ][siteν⁺], U[ν][siteμ⁺]) +
-            cmatmul_dooo(U[ν][siteμ⁻ν⁻], U[μ][siteμ⁻ν⁻], U[μ][siteν⁻], U[ν][siteμ⁺ν⁻]),
-        )
+        staple += cmatmul_do(U[μ][siteμ⁻],
+                             cmatmul_oood(U[ν][siteμ⁻], U[μ][siteμ⁻ν⁺], U[μ][siteν⁺], U[ν][siteμ⁺]) +
+                              cmatmul_dooo(U[ν][siteμ⁻ν⁻], U[μ][siteμ⁻ν⁻], U[μ][siteν⁻], U[ν][siteμ⁺ν⁻]))
     end
 
     return staple

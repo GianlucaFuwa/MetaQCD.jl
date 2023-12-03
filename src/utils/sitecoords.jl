@@ -12,18 +12,4 @@ const SiteCoords = CartesianIndex{4}
     return SiteCoords(ix, iy, iz, it)
 end
 
-@inline function move(s::SiteCoords, μ, steps, lim)
-    ix, iy, iz, it = Tuple(s)
-
-    if μ == 1
-        ix = mod1(ix + steps, lim)
-    elseif μ == 2
-        iy = mod1(iy + steps, lim)
-    elseif μ == 3
-        iz = mod1(iz + steps, lim)
-    elseif μ == 4
-        it = mod1(it + steps, lim)
-    end
-
-    return SiteCoords(ix, iy, iz, it)
-end
+move(s::SiteCoords, μ, steps, lim) = @set s[μ] = mod1(s[μ] + steps, lim)

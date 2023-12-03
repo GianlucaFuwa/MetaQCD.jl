@@ -11,10 +11,9 @@ function MeasurementMethods(
     measurement_methods::Vector{Dict};
     flow = false,
     additional_string = "",
-    verbose = nothing,
 )
+    @level1("┌ Preparing $(ifelse(flow, "flowed", "")) Measurements...")
     nummeasurements = length(measurement_methods)
-    println_verbose1(verbose, "\t>> NUMBER OF OBSERVABLES = $(nummeasurements)")
     measurements = Vector{AbstractMeasurement}(undef, nummeasurements)
     measurement_parameters_set = Vector{MeasurementParameters}(undef, nummeasurements)
     intervals = zeros(Int64, nummeasurements)
@@ -23,20 +22,19 @@ function MeasurementMethods(
 
     for (i, method) in enumerate(measurement_methods)
         measurement_parameters = construct_measurement_parameters_from_dict(method)
-        print_verbose1(verbose, "\t>> OBSERVABLE $i: $(measurement_parameters.methodname) ->  ")
+        @level1("|  OBSERVABLE $i: $(measurement_parameters.methodname)")
         intervals[i] = measurement_parameters.measure_every
-        println_verbose1(verbose, "every $(intervals[i]) updates")
+        @level1("|    every $(intervals[i]) updates")
+        if measurement_parameters.methodname=="wilson_loop"
+            @level1("|    @info: Wilson loop measurements are not printed to console")
+        end
         filename = measurement_dir * "/" *
             measurement_parameters.methodname * additional_string * "$str.txt"
         measurements[i] = prepare_measurement(U, measurement_parameters, filename, flow)
         measurement_parameters_set[i] = deepcopy(measurement_parameters)
-        if measurement_parameters.methodname=="wilson_loop" && verbose≢nothing
-        @info ">> Wilson loop measurements are not printed to console to avoid cluttering"
-        end
     end
 
-    println_verbose1(verbose, "")
-
+    @level1("└\n")
     return MeasurementMethods(
         measurement_parameters_set,
         measurements,
@@ -53,30 +51,23 @@ function calc_measurements(m::Vector{MeasurementMethods}, U, itrj)
 end
 
 function calc_measurements(m::MeasurementMethods, U, itrj; str="")
-    comm = MPI.COMM_WORLD
-    measurestrings = String[]
-    check_for_measurements(itrj, m.intervals) || return measurestrings
+    check_for_measurements(itrj, m.intervals) || return nothing
 
     for i in 1:m.num_measurements
         interval = m.intervals[i]
 
         if itrj%interval == 0
             out = measure(m.measurements[i], U, additional_string="$itrj")
-            push!(measurestrings, get_string(out)*str)
+            @level1(get_string(out) * str)
         end
 
     end
-    MPI.Comm_rank(comm)==0 && println.(measurestrings)
-    return measurestrings
+
+    return nothing
 end
 
-function calc_measurements_flowed(
-    m::Vector{MeasurementMethods},
-    gflow,
-    U,
-    itrj,
-    measure_on_all = false,
-)
+function calc_measurements_flowed(m::Vector{MeasurementMethods}, gflow, U, itrj,
+                                  measure_on_all = false)
     if measure_on_all
         for i in eachindex(m)
             calc_measurements_flowed(m[i], gflow, U[i], itrj; str="$i")
@@ -89,9 +80,7 @@ function calc_measurements_flowed(
 end
 
 function calc_measurements_flowed(m::MeasurementMethods, gradient_flow, U, itrj; str="")
-    comm = MPI.COMM_WORLD
-    measurestrings = String[]
-    check_for_measurements(itrj, m.intervals) || return measurestrings
+    check_for_measurements(itrj, m.intervals) || return nothing
     substitute_U!(gradient_flow.Uflow, U)
 
     for iflow in 1:gradient_flow.numflow
@@ -105,20 +94,17 @@ function calc_measurements_flowed(m::MeasurementMethods, gradient_flow, U, itrj;
                 interval = m.intervals[i]
 
                 if itrj%interval == 0
-                    out = measure(
-                        m.measurements[i],
-                        gradient_flow.Uflow,
-                        additional_string = additional_string,
-                    )
-                    push!(measurestrings, get_string(out)*str)
+                    out = measure(m.measurements[i], gradient_flow.Uflow,
+                                  additional_string = additional_string)
+                    @level1(get_string(out) * str)
                 end
 
             end
         end
 
     end
-    MPI.Comm_rank(comm)==0 && println.(measurestrings)
-    return measurestrings
+
+    return nothing
 end
 
 function check_for_measurements(itrj, intervals)

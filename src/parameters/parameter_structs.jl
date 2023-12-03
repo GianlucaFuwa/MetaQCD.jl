@@ -62,7 +62,7 @@ Base.@kwdef mutable struct PrintBiasParameters
     cvlims::NTuple{2, Float64} = (-7, 7)
     biasfactor::Float64 = Inf
     kinds_of_weights::Vector{String} = ["tiwari"]
-    usebiases::Union{Nothing, String, Vector{Union{Nothing,String}}} = nothing
+    usebiases::Vector{String} = [""]
     write_bias_every::Int64 = 1
     # metadynamics specific
     bin_width::Float64 = 1e-2
@@ -91,20 +91,20 @@ end
 
 Base.@kwdef mutable struct PrintSystemParameters
     log_dir::String = ""
-    logfile::String = ""
+    log_to_console::Bool = true
     verboselevel::Int64 = 1
-    loadU_format::Union{Nothing, String} = nothing
+    loadU_format::String = ""
     loadU_dir::String = ""
     loadU_fromfile::Bool = false
     loadU_filename::String = ""
     saveU_dir::String = ""
-    saveU_format::Union{String, Nothing} = nothing
+    saveU_format::String = ""
     saveU_every::Int64 = 1
     randomseed::Union{UInt64, Vector{UInt64}} = 0x0000000000000000
     measurement_basedir::String = ""
     measurement_dir::String = ""
-    bias_basedir::Union{Nothing, String, Vector{String}} = nothing
-    bias_dir::Union{Nothing, String, Vector{Union{Nothing,String}}} = nothing
+    bias_basedir::Union{String, Vector{String}} = ""
+    bias_dir::Union{String, Vector{String}} = ""
     overwrite::Bool = false
 end
 

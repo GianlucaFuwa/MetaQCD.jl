@@ -37,13 +37,9 @@ struct EnergyDensityMeasurement{T} <: AbstractMeasurement
 end
 
 function EnergyDensityMeasurement(U, params::EnergyDensityParameters, filename, flow=false)
-    return EnergyDensityMeasurement(
-        U,
-        filename = filename,
-        printvalues = true,
-        ED_methods = params.kinds_of_energy_density,
-        flow = flow,
-    )
+    return EnergyDensityMeasurement(U, filename = filename, printvalues = true,
+                                    ED_methods = params.kinds_of_energy_density,
+                                    flow = flow)
 end
 
 function measure(m::EnergyDensityMeasurement{T}, U; additional_string="") where {T}
@@ -86,32 +82,36 @@ function energy_density(U::Gaugefield, methodname::String)
 end
 
 function energy_density(::Plaquette, U::Gaugefield)
-    @batch per=thread threadlocal=0.0::Float64 for site in eachindex(U)
+    out = zeros(Float64, 8nthreads())
+
+    @batch per=thread for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
                 Cμν = plaquette(U, μ, ν, site)
                 Fμν = im * traceless_antihermitian(Cμν)
-                threadlocal += real(multr(Fμν, Fμν))
+                out[8threadid()] += real(multr(Fμν, Fμν))
             end
         end
     end
 
-    Eplaq = 1/U.NV * sum(threadlocal)
+    Eplaq = 1/U.NV * sum(out)
     return Eplaq
 end
 
 function energy_density(::Clover, U::Gaugefield)
-    @batch per=thread threadlocal=0.0::Float64 for site in eachindex(U)
+    out = zeros(Float64, 8nthreads())
+
+    @batch per=thread for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
                 Cμν = clover_square(U, μ, ν, site, 1)
                 Fμν = im/4 * traceless_antihermitian(Cμν)
-                threadlocal += real(multr(Fμν, Fμν))
+                out[8threadid()] += real(multr(Fμν, Fμν))
             end
         end
     end
 
-    Eclov = 1/U.NV * sum(threadlocal)
+    Eclov = 1/U.NV * sum(out)
     return Eclov
 end
 
@@ -122,16 +122,18 @@ function energy_density(::Improved, U::Gaugefield)
 end
 
 function energy_density_rect(U::Gaugefield)
-    @batch per=thread threadlocal=0.0::Float64 for site in eachindex(U)
+    out = zeros(Float64, 8nthreads())
+
+    @batch per=thread for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
                 Cμν = clover_rect(U, μ, ν, site, 1, 2)
                 Fμν = im/8 * traceless_antihermitian(Cμν)
-                threadlocal += real(multr(Fμν, Fμν))
+                out[8threadid()] += real(multr(Fμν, Fμν))
             end
         end
     end
 
-    Erect = 1/U.NV * sum(threadlocal)
+    Erect = 1/U.NV * sum(out)
     return Erect
 end

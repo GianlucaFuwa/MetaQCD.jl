@@ -1,6 +1,6 @@
 function run_build(filenamein::String; MPIparallel=false)
     if myrank == 0
-        println("\t>> MPI enabled with $(comm_size) procs\n")
+        MPIparallel && println("\t>> MPI enabled with $(comm_size) procs\n")
         ext = splitext(filenamein)[end]
         @assert (ext == ".toml") """
             input file format \"$ext\" not supported. Use TOML format
@@ -11,12 +11,7 @@ function run_build(filenamein::String; MPIparallel=false)
     MPI.Barrier(comm)
 
     @assert parameters.kind_of_bias != "none" "bias has to be enabled in build"
-
-    (parameters.is_static==true) && @warn(
-        "Stream_$(myrank+1) is static, which is probably not wanted"
-    )
-
-    fp = (myrank == 0)
+    @assert parameters.is_static==false "Bias $(myrank+1) cannot be static in build"
 
     if parameters.randomseed != 0
         seed = parameters.randomseed
@@ -26,114 +21,82 @@ function run_build(filenamein::String; MPIparallel=false)
         Random.seed!(seed)
     end
 
-    univ = Univ(parameters, use_mpi=MPIparallel, fp=fp)
+    logger_io = myrank==0 ? parameters.logdir*"/logs.txt" : devnull
+    set_global_logger!(parameters.verboselevel, logger_io, tc=parameters.log_to_console)
+    @level1("Start time: @ $(current_time())")
+    buf = IOBuffer()
+    InteractiveUtils.versioninfo(buf)
+    versioninfo = String(take!(buf))
+    @level1(versioninfo)
+    @level1("Random seed is: $seed\n")
 
-    println_verbose0(univ.verbose_print, ">> Random seed is: $seed")
+    univ = Univ(parameters, use_mpi=MPIparallel)
 
     run_build!(univ, parameters)
-
     return nothing
 end
 
 function run_build!(univ, parameters)
     U = univ.U
-    UM_verbose = (myrank==0) ? univ.verbose_print : nothing
-    updatemethod = Updatemethod(parameters, U, UM_verbose)
+    updatemethod = Updatemethod(parameters, U)
 
-    gflow = GradientFlow(
-        U,
-        integrator = parameters.flow_integrator,
-        numflow = parameters.flow_num,
-        steps = parameters.flow_steps,
-        tf = parameters.flow_tf,
-        measure_every = parameters.flow_measure_every,
-        verbose = UM_verbose,
-    )
+    gflow = GradientFlow(U, parameters.flow_integrator, parameters.flow_num,
+                         parameters.flow_steps, parameters.flow_tf,
+                         measure_every = parameters.flow_measure_every)
 
-    additional_string = "_$(myrank)"
+    additional_string = "_$(myrank+1)"
 
-    println_verbose0(univ.verbose_print, ">> Preparing Measurements...")
-    measurements = MeasurementMethods(
-        U,
-        parameters.measuredir,
-        parameters.measurements,
-        additional_string = additional_string,
-        verbose = UM_verbose,
-    )
-    println_verbose0(univ.verbose_print, ">> Preparing flowed Measurements...")
-    measurements_with_flow = MeasurementMethods(
-        U,
-        parameters.measuredir,
-        parameters.measurements_with_flow,
-        additional_string = additional_string,
-        flow = true,
-        verbose = UM_verbose,
-    )
+    measurements = MeasurementMethods(U, parameters.measuredir, parameters.measurements,
+                                      additional_string = additional_string)
 
-    build!(
-        parameters,
-        univ,
-        updatemethod,
-        gflow,
-        measurements,
-        measurements_with_flow,
-    )
+    measurements_with_flow = MeasurementMethods(U, parameters.measuredir,
+                                                parameters.measurements_with_flow,
+                                                additional_string = additional_string,
+                                                flow = true)
 
+    build!(parameters, univ, updatemethod, gflow, measurements, measurements_with_flow)
     return nothing
 end
 
-function build!(
-    parameters,
-    univ,
-    updatemethod,
-    gflow,
-    measurements,
-    measurements_with_flow,
-)
+function build!(parameters,univ, updatemethod, gflow, measurements, measurements_with_flow)
     U = univ.U
     bias = univ.bias
-    vp = univ.verbose_print
 
+    @level1("┌ Thermalization:")
     _, runtime_therm = @timed begin
         for itrj in 1:parameters.numtherm
-            println_verbose0(vp, "\n# therm itrj = $itrj")
+            @level1("|  itrj = $itrj")
 
             _, updatetime = @timed begin
-                update!(updatemethod, U, vp, bias=nothing, metro_test=false)
+                update!(updatemethod, U, bias=nothing, metro_test=false)
             end
 
-            println_verbose0(vp, ">> Therm. Update elapsed time:\t$(updatetime) [s]\n#")
+            @level1("|  Elapsed time:\t$(updatetime) [s]")
         end
     end
 
-    println_verbose0(vp, "\t>> Thermalization elapsed time:\t$(runtime_therm) [s]\n")
+    @level1("└ Total elapsed time:\t$(runtime_therm) [s]\n")
     recalc_CV!(U, bias) # need to recalc cv since it was not updated during therm
 
     MPI.Barrier(comm)
 
+    @level1("┌ Production:")
     _, runtime_all = @timed begin
         numaccepts = 0.0
 
         for itrj in 1:parameters.numsteps
-            println_verbose0(vp, "\n# itrj = $itrj")
+            @level1("|  itrj = $itrj")
 
             _, updatetime = @timed begin
-                numaccepts += update!(updatemethod, U, vp, bias=bias)
+                numaccepts += update!(updatemethod, U, bias=bias)
             end
 
-            println_verbose0(vp, "Update: Elapsed time $(updatetime) [s]")
+            @level1("|  Elapsed time:\t$(updatetime) [s]\n")
 
-            CVs = MPI.Allgather(U.CV, comm)
+            CVs = MPI.Allgather(U.CV::Float64, comm)
             update_bias!(bias, CVs, itrj, myrank==0)
-
-            acceptances = MPI.Allgather(numaccepts, comm)
-
-            if myrank == 0
-                print_acceptance_rates(acceptances, itrj, vp)
-                flush(vp)
-            end
-
-            MPI.Barrier(comm)
+            acceptances = MPI.Allgather(numaccepts::Float64, comm)
+            print_acceptance_rates(acceptances, itrj)
 
             calc_measurements(measurements, U, itrj)
             calc_measurements_flowed(measurements_with_flow, gflow, U, itrj)
@@ -141,15 +104,14 @@ function build!(
         end
     end
 
+    @level1("└\n" *
+            "Total elapsed time:\t$(convert_seconds(runtime_all))\n" *
+            "@ $(current_time())")
+    flush(stdout)
+    close(updatemethod)
     close(measurements)
     close(measurements_with_flow)
     close(bias)
-
-    if myrank == 0
-        println_verbose0(vp, "\n\t>> Total Elapsed time $(runtime_all) [s]")
-        close(vp)
-        flush(stdout)
-    end
-
+    close(Output.GlobalLogger[])
     return nothing
 end

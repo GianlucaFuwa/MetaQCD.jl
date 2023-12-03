@@ -9,17 +9,16 @@ update_method = "hmc"
 parity_update = false
 
 ["HMC Settings"]
-hmc_deltatau = 0.2
+hmc_trajectory = 1
 hmc_steps = 5
 hmc_integrator = "OMF4"
 
 ["System Settings"]               
-logdir = "./logs/L12x12x12x12_wilson_beta6.0/test_hmc"
-logfile = "logs.txt"
-measurement_basedir = "./measurements/L12x12x12x12_wilson_beta6.0/test_hmc"
+log_dir = "logs/L12x12x12x12_wilson_beta6.0/test_hmc"
+measurement_basedir = "measurements/L12x12x12x12_wilson_beta6.0/test_hmc"
 measurement_dir = "raw_data"
-randomseed = 2805
-verboselevel = 1
+randomseed = 0
+verboselevel = 2
 overwrite = true
 
 ["Measurement Settings".measurements.Energy_density]

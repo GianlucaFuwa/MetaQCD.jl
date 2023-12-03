@@ -26,7 +26,7 @@ using .Mainrun
 
 export Sequential, SequentialMT, Checkerboard2, Checkerboard2MT, Checkerboard4, Checkerboard4MT
 export BridgeFormat, JLD2Format, loadU!, saveU
-export Verbose1, Verbose2, Verbose3
+export MetaLogger, current_time, @level1, @level2, @level3, set_global_logger!
 export run_sim, run_build
 
 import .BiasModule: Bias, Metadynamics, OPES, Parametric, calc_CV, update_bias!

@@ -35,11 +35,11 @@ struct StoutSmearing{TG} <: AbstractSmearing
 	end
 end
 
-function Base.length(s::StoutSmearing)
+function Base.length(s::T) where {T<:StoutSmearing}
 	return s.numlayers
 end
 
-function get_layer(s::StoutSmearing, i)
+function get_layer(s::T, i) where {T<:StoutSmearing}
 	return s.Usmeared_multi[i]
 end
 
@@ -91,19 +91,20 @@ See [hep-lat/0311018] by Morningstar & Peardon
 function stout_recursion!(Σ, Σ′, U′, U, C, Q, Λ, ρ)
 	leftmul_dagg!(Σ′, U′)
 	calc_stout_Λ!(Λ, Σ′, Q, U)
+	sizeΣ′ = size(Σ′)
 
 	@batch per=thread for site in eachindex(Σ)
         for μ in 1:4
-            Nμ = size(Σ′)[μ]
+            Nμ = sizeΣ′[μ]
             siteμp = move(site, μ, 1, Nμ)
-            force_sum = @SMatrix zeros(ComplexF64, 3, 3)
+            force_sum = zero3
 
             for ν in 1:4
                 if ν == μ
                     continue
                 end
 
-                Nν = size(Σ′)[ν]
+                Nν = sizeΣ′[ν]
                 siteνp = move(site, ν, 1, Nν)
                 siteνn = move(site, ν, -1 ,Nν)
                 siteμpνn = move(siteμp, ν, -1, Nν)
@@ -119,11 +120,9 @@ function stout_recursion!(Σ, Σ′, U′, U, C, Q, Λ, ρ)
 
             link = U[μ][site]
             expiQ_mat = exp_iQ(Q[μ][site])
-            Σ[μ][site] = traceless_antihermitian(
-                cmatmul_ooo(link, Σ′[μ][site], expiQ_mat) +
-                im * cmatmul_odo(link, C[μ][site], Λ[μ][site]) -
-                im * ρ * cmatmul_oo(link, force_sum)
-            )
+            Σ[μ][site] = traceless_antihermitian(cmatmul_ooo(link, Σ′[μ][site], expiQ_mat) +
+                								 im*cmatmul_odo(link, C[μ][site], Λ[μ][site]) -
+                								 im*ρ*cmatmul_oo(link, force_sum))
         end
 	end
 

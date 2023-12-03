@@ -44,12 +44,13 @@ function gaussian_momenta!(p::Liefield, ϕ)
 end
 
 function calc_kinetic_energy(p::Liefield)
-    kin = 0.0
-    @batch per=thread threadlocal=0.0::Float64 for site in eachindex(p)
+    out = zeros(Float64, 8nthreads())
+
+    @batch per=thread for site in eachindex(p)
         for μ in 1:4
-            threadlocal += real(multr(p[μ][site], p[μ][site]))
+            out[8threadid()] += real(multr(p[μ][site], p[μ][site]))
         end
     end
-    kin += sum(threadlocal)
-    return kin
+
+    return sum(out)
 end
