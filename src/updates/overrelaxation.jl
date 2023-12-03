@@ -1,15 +1,14 @@
 struct Subgroups end
 struct KenneyLaub end
+struct Overrelaxation{ALG} end
 
-struct Overrelaxation{ALG}
-    function Overrelaxation(algorithm)
-        if algorithm == "subgroups"
-            ALG = Subgroups
-        elseif algorithm == "kenney-laub"
-            ALG = KenneyLaub
-        end
-        return new{ALG}()
+function Overrelaxation(algorithm)
+    if algorithm == "subgroups"
+        ALG = Subgroups
+    elseif algorithm == "kenney-laub"
+        ALG = KenneyLaub
     end
+    return Overrelaxation{ALG}()
 end
 
 function (or::Overrelaxation{ALG})(U, μ, site, action_factor) where {ALG}

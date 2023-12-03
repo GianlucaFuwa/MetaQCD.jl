@@ -18,8 +18,8 @@ struct ParameterSet
     cvlims::NTuple{2,Float64}
     biasfactor::Float64
     kinds_of_weights::Vector{String}
-    usebiases::Union{Nothing, Vector{Union{Nothing, String}}}
-    write_bias_every::Union{Nothing, Int64}
+    usebiases::Vector{String}
+    write_bias_every::Int64
     # metadynamics specific parameters
     bin_width::Float64
     meta_weight::Float64
@@ -69,23 +69,22 @@ struct ParameterSet
     flow_num::Int64
     flow_tf::Float64
     flow_steps::Int64
-    flow_measure_every::Union{Nothing, Int64, Vector{Int64}}
+    flow_measure_every::Union{Int64, Vector{Int64}}
 
     verboselevel::Int64
 
-    saveU_format::Union{String, Nothing}
+    saveU_format::String
     saveU_every::Int64
     saveU_dir::String
-    loadU_format::Union{String, Nothing}
+    loadU_format::String
     loadU_dir::String
     loadU_fromfile::Bool
     loadU_filename::String
 
     randomseed::Union{UInt64, Vector{UInt64}}
     logdir::String
-    logfile::String
-    load_fp::Union{Nothing, IOStream}
+    log_to_console::Bool
     measuredir::String
-    biasdir::Union{Nothing, String}
+    biasdir::String
     overwrite::Bool
 end

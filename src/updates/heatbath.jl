@@ -1,55 +1,50 @@
-struct Heatbath{ITR,TOR} <: AbstractUpdate
+struct Heatbath{ITR,TOR,NHB,NOR} <: AbstractUpdate
     MAXIT::Int64
     numHB::Int64
     OR::TOR
     numOR::Int64
-
-    function Heatbath(
-        ::Gaugefield{GA}, eo, MAXIT, numHB, or_alg, numOR;
-        verbose = nothing,
-    ) where {GA}
-        println_verbose1(verbose, ">> Setting Heatbath...")
-
-        if eo
-            println_verbose1(verbose, "\t>> PARALLELIZATION ENABLED")
-            @info ">> Parallel heatbath doesn't always produce reproducible results.
-            To force it, turn MT off with \"eo = false\" under [\"Physical Settings\"]."
-            if GA==WilsonGaugeAction
-                ITR = Checkerboard2MT
-            else
-                ITR = Checkerboard4MT
-            end
-        else
-            println_verbose1(verbose, "\t>> PARALLELIZATION DISABLED")
-            if GA==WilsonGaugeAction
-                ITR = Checkerboard2
-            else
-                ITR = Checkerboard4
-            end
-        end
-        println_verbose1(verbose, "\t>> ITERATOR = $(ITR)")
-
-        OR = Overrelaxation(or_alg)
-        TOR = typeof(OR)
-        println_verbose1(verbose, "\t>> MAX. ITERATION COUNT IN HEATBATH = $(MAXIT)")
-        println_verbose1(verbose, "\t>> NUM. OF HEATBATH SWEEPS = $(numHB)")
-        println_verbose1(verbose, "\t>> OVERRELAXATION ALGORITHM = $(TOR)")
-        println_verbose1(verbose, "\t>> NUM. OF OVERRELAXATION SWEEPS = $(numOR)\n")
-        return new{ITR, TOR}(MAXIT, numHB, OR, numOR)
-    end
 end
 
-function update!(hb::Heatbath{ITR}, U, ::VerboseLevel; kwargs...) where {ITR}
-    numOR = hb.numOR
+function Heatbath(::Gaugefield{GA}, eo, MAXIT, numHB, or_alg, numOR) where {GA}
+    @level1("┌ Setting Heatbath...")
+
+    if eo
+        @level1("|  PARALLELIZATION ENABLED")
+        @level1("|  Parallel heatbath doesn't always produce reproducible results.
+        To force it, turn MT off with \"eo = false\" under [\"Physical Settings\"].")
+        if GA==WilsonGaugeAction
+            ITR = Checkerboard2MT
+        else
+            ITR = Checkerboard4MT
+        end
+    else
+        @level1("|  PARALLELIZATION DISABLED")
+        if GA==WilsonGaugeAction
+            ITR = Checkerboard2
+        else
+            ITR = Checkerboard4
+        end
+    end
+    @level1("|  ITERATOR: $(ITR)")
+
+    OR = Overrelaxation(or_alg)
+    TOR = typeof(OR)
+    @level1("|  MAX. ITERATION COUNT IN HEATBATH: $(MAXIT)")
+    @level1("|  NUM. OF HEATBATH SWEEPS: $(numHB)")
+    @level1("|  OVERRELAXATION ALGORITHM: $(TOR)")
+    @level1("|  NUM. OF OVERRELAXATION SWEEPS: $(numOR)")
+    @level1("└\n")
+    return Heatbath{ITR,TOR,Val{numHB},Val{numOR}}(MAXIT, numHB, OR, numOR)
+end
+
+function update!(hb::Heatbath{ITR,TOR,NHB,NOR}, U; kwargs...) where {ITR,TOR,NHB,NOR}
     numaccepts = 0.0
 
-    sweep!(ITR(), hb.numHB, hb, U, U.NC/U.β)
-    normalize!(U)
-    numaccepts += sweep_reduce!(ITR(), hb.numOR, hb.OR, U, -U.β/U.NC)
-    normalize!(U)
+    sweep!(ITR(), NHB(), hb, U, U.NC/U.β)
+    numaccepts += sweep_reduce!(ITR(), NOR(), TOR(), U, -U.β/U.NC)
 
     U.Sg = calc_gauge_action(U)
-    numaccepts = (numOR==0) ? 1.0 : numaccepts / (4*U.NV*numOR)
+    numaccepts = (NOR≡Val{0}) ? 1.0 : numaccepts / (4*U.NV*_unwrap_val(NOR()))
     return numaccepts
 end
 

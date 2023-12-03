@@ -1,20 +1,27 @@
 module BiasModule
 
 using DelimitedFiles
+using MPI
 using Polyester
 using Printf
 using Statistics
+using Unicode
 using ..Parameters: ParameterSet
 using ..Output
 
-import ..Gaugefields: AbstractGaugeAction, Gaugefield, Plaquette, Clover
+import ..Gaugefields: AbstractFieldstrength, AbstractGaugeAction, Gaugefield, Plaquette, Clover
 import ..Measurements: top_charge
-import ..Smearing: NoSmearing, StoutSmearing, calc_smearedU!
+import ..Smearing: AbstractSmearing, NoSmearing, StoutSmearing, calc_smearedU!
+
+MPI.Initialized() || MPI.Init()
+const comm = MPI.COMM_WORLD
+const myrank = MPI.Comm_rank(comm)
+const comm_size = MPI.Comm_size(comm)
 
 abstract type AbstractBias end
 
 """
-    Bias(p::ParameterSet, U::Gaugefield; verbose=nothing, instance=1, has_fp=true)
+    Bias(p::ParameterSet, U::Gaugefield; instance=1)
 
 Container that holds general parameters of bias enhanced sampling, like the kind of CV,
 its smearing and filenames/-pointers relevant to the bias. Also holds the specific kind
@@ -23,88 +30,99 @@ The `instance` keyword is used in case of PT-MetaD and multiple walkers to assig
 correct `usebias` to each stream. `has_fp` indicates whether the stream prints to file
 at any point, since only rank 0 should print in case of MPI usage.
 """
-struct Bias{TCV,TS,TB}
+struct Bias{TCV<:AbstractFieldstrength,TS<:AbstractSmearing,TB<:AbstractBias,T<:Union{Nothing, IO}}
     kind_of_cv::TCV
     smearing::TS
     is_static::Bool
     bias::TB
-    biasfile::Union{Nothing, String}
+    biasfile::String
     write_bias_every::Int64
-    kinds_of_weights::Union{Nothing, Vector{String}}
-    fp::Union{Nothing, IOStream}
+    kinds_of_weights::Vector{String}
+    fp::T
 end
 
-function Bias(p::ParameterSet, U; verbose=Verbose1(), instance=1, has_fp=true)
+function Bias(p::ParameterSet, U; instance=1)
+    @level1("┌ Setting Bias instance $(instance)...")
+    kind_of_bias = Unicode.normalize(p.kind_of_bias, casefold=true)
     TCV = get_cvtype_from_parameters(p)
     smearing = StoutSmearing(U, p.numsmears_for_cv, p.rhostout_for_cv)
     is_static = instance==0 ? true : p.is_static[instance]
-    sstr = (is_static || p.kind_of_bias=="parametric") ? "STATIC" : "DYNAMIC"
-    println_verbose1(verbose, ">> Bias $instance is $sstr")
+    sstr = (is_static || kind_of_bias=="parametric") ? "static" : "dynamic"
+    @level1("|  Type: $(sstr) $(kind_of_bias)")
 
-    if p.kind_of_bias ∈ ["metad", "metadynamics"]
-        bias = Metadynamics(p; instance=instance, verbose=verbose)
-    elseif p.kind_of_bias == "opes"
-        bias = OPES(p; instance=instance, verbose=verbose)
-    elseif p.kind_of_bias == "parametric"
-        bias = Parametric(p; instance=instance, verbose=verbose)
+    if kind_of_bias ∈ ["metad", "metadynamics"]
+        bias = Metadynamics(p; instance=instance)
+    elseif kind_of_bias == "opes"
+        bias = OPES(p; instance=instance)
+    elseif kind_of_bias == "parametric"
+        bias = Parametric(p; instance=instance)
     else
-        error("kind_of_bias $(p.kind_of_bias) not supported. Try metad or opes")
+        error("kind_of_bias $(kind_of_bias) not supported. Try metad, opes or parametric")
     end
 
-    println_verbose1(
-        verbose,
-        "\t>> CV DATA: $TCV WITH $(p.numsmears_for_cv)x$(p.rhostout_for_cv) SMEARS"
-    )
+    @level1("|  CV: $TCV with $(p.numsmears_for_cv) x $(p.rhostout_for_cv) Stout")
 
-    if (has_fp==true) && (p.kind_of_bias!="parametric")
+    if myrank==0 && (kind_of_bias!="parametric")
         biasfile = p.biasdir * "/stream_$instance.txt"
         fp = open(p.measuredir * "/bias_data_$instance.txt", "w")
         kinds_of_weights = p.kinds_of_weights
-        @printf(fp, "%-9s\t%-22s", "itrj", "cv")
+        str = @sprintf("%-9s\t%-22s", "itrj", "cv")
+        print(fp, str)
 
         for name in kinds_of_weights
-            @printf(fp, "\t%-22s", "weight_$(name)")
+            str = @sprintf("\t%-22s", "weight_$(name)")
+            print(fp, str)
         end
 
-        @printf(fp, "\n")
-    elseif (has_fp==true) && (p.kind_of_bias=="parametric")
+        println(fp)
+    elseif myrank==0 && (kind_of_bias=="parametric")
         fp = open(p.measuredir * "/bias_data_$instance.txt", "w")
         kinds_of_weights = ["branduardi"]
-        @printf(fp, "%-9s\t%-22s\t%-22s\n", "itrj", "cv", "weight_branduardi")
-        @info ">> Parametric Bias is always STATIC"
-        @info ">> Weight-type defaults to \"branduardi\", i.e. exp(V(Qᵢ)) on parametric bias"
-        biasfile = nothing
+        str = @sprintf("%-9s\t%-22s\t%-22s\n", "itrj", "cv", "weight_branduardi")
+        println(fp, str)
+        @level1("|  @info: Parametric bias defaults to static and weight-type \"branduardi\"")
+        biasfile = ""
     else
-        biasfile = nothing
+        biasfile = ""
         kinds_of_weights = nothing
         fp = nothing
     end
 
-    println_verbose1(verbose, "\t>> BIASFILE = $(biasfile)")
-    write_bias_every = p.write_bias_every≡nothing ? 0 : p.write_bias_every
-    println_verbose1(verbose, "\t>> WRITE_BIAS_EVERY = $(write_bias_every)")
+    @level1("|  BIASFILE: $(biasfile)")
+    write_bias_every = p.write_bias_every
+    @level1("|  WRITE_BIAS_EVERY: $(write_bias_every)")
     @assert (write_bias_every==0) || (write_bias_every>=p.stride)
-    println_verbose1(verbose)
 
     # write to file after construction to make sure nothing went wrong
-    biasfile≢nothing && write_to_file(bias, biasfile)
+    write_to_file(bias, biasfile)
+    @level1("└\n")
+    return Bias(TCV(), smearing, is_static,
+                bias, biasfile, write_bias_every,
+                kinds_of_weights, fp)
+end
 
-    return Bias(
-        TCV(), smearing, is_static,
-        bias, biasfile, write_bias_every,
-        kinds_of_weights, fp,
-    )
+function Base.show(io::IO, b::T) where {T<:Bias}
+	print(io, "$(typeof(b))", "(;")
+    for fieldname in fieldnames(typeof(b))
+		if fieldname == :smearing
+        	print(io, " ", fieldname, " = ", typeof(getfield(b, fieldname)), ",")
+		else
+			print(io, " ", fieldname, " = ", getfield(b, fieldname), ",")
+		end
+    end
+    print(io, ")")
+	return nothing
 end
 
 (b::Bias)(cv) = b.bias(cv)
 kind_of_cv(b::Bias) = b.kind_of_cv
-Base.close(b::Bias) = b.fp≢nothing ? close(b.fp) : nothing
+Base.close(b::Bias{TCV,TS,TB,T}) where {TCV,TS,TB,T} = T≢Nothing ? close(b.fp) : nothing
+update_bias!(::Nothing, args...) = nothing
+write_to_file(::T, args...) where {T<:AbstractBias} = nothing
 
 include("metadynamics.jl")
 include("opes.jl")
 include("parametric.jl")
-
-update_bias!(::Nothing, args...) = nothing
 
 function update_bias!(b::Bias, values, itrj, write)
     b.is_static && return nothing
@@ -113,7 +131,7 @@ function update_bias!(b::Bias, values, itrj, write)
         update!(b.bias, cv, itrj)
     end
 
-    (b.biasfile!==nothing && write) && write_to_file(b.bias, b.biasfile)
+    write && write_to_file(b.bias, b.biasfile)
     return nothing
 end
 
@@ -132,11 +150,11 @@ function recalc_CV!(U::Vector{TG}, b::Vector{TB}) where {TG<:Gaugefield, TB<:Bia
     return nothing
 end
 
-function calc_CV(U, ::Bias{TCV,TS,TB}) where {TCV,TS<:NoSmearing,TB}
+function calc_CV(U, ::Bias{TCV,TS,TB,T}) where {TCV,TS<:NoSmearing,TB,T}
     return top_charge(TCV(), U)
 end
 
-function calc_CV(U, b::Bias{TCV,TS,TB}) where {TCV,TS,TB}
+function calc_CV(U, b::Bias{TCV,TS,TB,T}) where {TCV,TS,TB,T}
     calc_smearedU!(b.smearing, U)
     fully_smeared_U = b.smearing.Usmeared_multi[end]
     CV_new = top_charge(TCV(), fully_smeared_U)
@@ -156,7 +174,7 @@ function get_cvtype_from_parameters(p::ParameterSet)
 end
 
 function in_bounds(cv, lb, ub)
-    lb <= cv <= ub && return true
+    lb <= cv < ub && return true
     return false
 end
 

@@ -1,174 +1,39 @@
 import InteractiveUtils
 
-abstract type VerboseLevel end
+struct MetaLogger
+    LEVEL::Int64
+    io::IO
+    to_console::Bool
 
-struct Verbose1 <: VerboseLevel
-    fp::Union{Nothing, IOStream}
-    Verbose1() = new(nothing)
-    Verbose1(::Nothing) = new(nothing)
-    Verbose1(filename::String) = new(open(filename, "w"))
-    Verbose1(fp::IOStream) = new(fp)
+    MetaLogger(LEVEL=2, tc::Bool=true) = new(LEVEL, devnull, tc)
+    MetaLogger(LEVEL, ::Nothing, tc::Bool=true) = new(LEVEL, devnull, tc)
+    MetaLogger(LEVEL, filename::String, tc::Bool=true) = new(LEVEL, open(filename, "w"), tc)
+    MetaLogger(LEVEL, io::IO, tc::Bool=true) = new(LEVEL, io, tc)
 end
 
-struct Verbose2 <: VerboseLevel
-    fp::Union{Nothing, IOStream}
-    Verbose2() = new(nothing)
-    Verbose2(::Nothing) = new(nothing)
-    Verbose2(filename::String) = new(open(filename, "w"))
-    Verbose2(fp::IOStream) = new(fp)
-end
+const GlobalLogger = Ref(MetaLogger(2))
 
-struct Verbose3 <: VerboseLevel
-    fp::Union{Nothing, IOStream}
-    Verbose3() = new(nothing)
-    Verbose3(::Nothing) = new(nothing)
-    Verbose3(filename::String) = new(open(filename, "w"))
-    Verbose3(fp::IOStream) = new(fp)
-end
+Base.flush(logger::MetaLogger) = flush(logger.io)
+Base.close(logger::MetaLogger) = close(logger.io)
 
-function Base.flush(v::VerboseLevel)
-    v.fp≢nothing && flush(v.fp)
-end
-
-function Base.close(v::VerboseLevel)
-    v.fp≢nothing && close(v.fp)
-end
-
-function InteractiveUtils.versioninfo(v::VerboseLevel)
-    InteractiveUtils.versioninfo()
-    v.fp≢nothing && InteractiveUtils.versioninfo(v.fp)
-end
-
-function println_verbose1(v::Verbose3, val...)
-    println(val...)
-
-    if v.fp ≢ nothing
-        println(v.fp, val...)
-    end
-
+function set_global_logger!(level, io=devnull; tc=true)
+    GlobalLogger[] = MetaLogger(level, io, tc)
     return nothing
 end
 
-function println_verbose2(v::Verbose3, val...)
-    println(val...)
-
-    if v.fp ≢ nothing
-        println(v.fp, val...)
+for input_level in 1:3
+    @eval macro $(Symbol("level$(input_level)"))(val...)
+        return $(Symbol("level$(input_level)"))(val...)
     end
-
-    return nothing
 end
 
-function println_verbose3(v::Verbose3, val...)
-    println(val...)
-
-    if v.fp ≢ nothing
-        println(v.fp, val...)
+for input_level in 1:3
+    @eval function $(Symbol("level$(input_level)"))(val...)
+        GlobalLogger[].LEVEL < $(input_level) && return nothing
+        return quote
+            GlobalLogger[].to_console && println(stdout, $(esc(val...)))
+            println(GlobalLogger[].io, $(esc(val...)))
+            flush(GlobalLogger[].io)
+        end
     end
-
-    return nothing
 end
-
-function println_verbose1(v::Verbose2, val...)
-    println(val...)
-
-    if v.fp ≢ nothing
-        println(v.fp, val...)
-    end
-
-    return nothing
-end
-
-function println_verbose2(v::Verbose2, val...)
-    println(val...)
-
-    if v.fp ≢ nothing
-        println(v.fp, val...)
-    end
-
-    return nothing
-end
-
-function println_verbose1(v::Verbose1, val...)
-    println(val...)
-
-    if v.fp ≢ nothing
-        println(v.fp, val...)
-    end
-
-    return nothing
-end
-
-function print_verbose1(v::Verbose3, val...)
-    print(val...)
-
-    if v.fp ≢ nothing
-        print(v.fp, val...)
-    end
-
-    return nothing
-end
-
-function print_verbose2(v::Verbose3, val...)
-    print(val...)
-
-    if v.fp ≢ nothing
-        print(v.fp, val...)
-    end
-
-    return nothing
-end
-
-function print_verbose3(v::Verbose3, val...)
-    print(val...)
-
-    if v.fp ≢ nothing
-        print(v.fp, val...)
-    end
-
-    return nothing
-end
-
-function print_verbose1(v::Verbose2, val...)
-    print(val...)
-
-    if v.fp ≢ nothing
-        print(v.fp, val...)
-    end
-
-    return nothing
-end
-
-function print_verbose2(v::Verbose2, val...)
-    print(val...)
-
-    if v.fp ≢ nothing
-        print(v.fp, val...)
-    end
-
-    return nothing
-end
-
-function print_verbose1(v::Verbose1, val...)
-    print(val...)
-
-    if v.fp ≢ nothing
-        print(v.fp, val...)
-    end
-
-    return nothing
-end
-
-println_verbose1(::Nothing, val...) = nothing
-println_verbose2(::Nothing, val...) = nothing
-println_verbose3(::Nothing, val...) = nothing
-println_verbose2(::Verbose1, val...) = nothing
-println_verbose3(::Verbose1, val...) = nothing
-println_verbose3(::Verbose2, val...) = nothing
-
-print_verbose1(::Nothing, val...) = nothing
-print_verbose2(::Nothing, val...) = nothing
-print_verbose3(::Nothing, val...) = nothing
-print_verbose2(::Verbose1, val...) = nothing
-print_verbose3(::Verbose1, val...) = nothing
-print_verbose3(::Verbose2, val...) = nothing

@@ -1,42 +1,49 @@
 import ..Gaugefields: SymanzikTadGaugeAction
 abstract type AbstractIntegrator end
 
-struct HMC{TI,TG,TS} <: AbstractUpdate
+struct HMC{TI,TG,TS,PO,F2,FS,IO} <: AbstractUpdate
     steps::Int64
     Δτ::Float64
     friction::Float64
 
     P::Liefield
-    P_old::Union{Nothing, Liefield} # second momentum field for GHMC
+    P_old::PO # second momentum field for GHMC
     U_old::TG
     staples::Temporaryfield
     force::Temporaryfield
-    force2::Union{Nothing, Temporaryfield} # second force field for smearing
-    fieldstrength::Union{Nothing, Vector{Temporaryfield}} # fieldstrength fields for Bias
+    force2::F2 # second force field for smearing
+    fieldstrength::FS # fieldstrength fields for Bias
     smearing::TS
 
-    fp::Union{Nothing, IOStream}
+    fp::IO
 
-    function HMC(
-        U, integrator, steps, trajectory;
-        verbose = nothing,
-        friction = π/2,
-        numsmear = 0,
-        ρ_stout = 0,
-        bias_enabled = false,
-        verboselevel = 1,
-        logdir = "",
-    )
-        println_verbose1(verbose, ">> Setting HMC...")
-        TI = getfield(Updates, Symbol(integrator))
-        println_verbose1(verbose, "\t>> INTEGRATOR = $(TI)")
+    function HMC(U, integrator, trajectory, steps, friction = π/2, numsmear = 0, ρ_stout = 0,
+                 verboselevel = 1; bias_enabled = false, logdir = "")
+        @level1("┌ Setting HMC...")
+        integrator = Unicode.normalize(integrator, casefold=true)
+
+        if integrator == "leapfrog"
+            TI = Leapfrog
+        elseif integrator == "omf2slow"
+            TI = OMF2Slow
+        elseif integrator == "omf2"
+            TI = OMF2
+        elseif integrator == "omf4slow"
+            TI = OMF4Slow
+        elseif integrator == "omf4"
+            TI = OMF4
+        else
+            error("HMC integrator \"$(integrator)\" not supported")
+        end
+
+        @level1("|  INTEGRATOR: $(TI)")
         TG = typeof(U)
         Δτ = trajectory / steps
 
-        println_verbose1(verbose, "\t>> TRAJECTORY LENGTH = $(trajectory)")
-        println_verbose1(verbose, "\t>> STEPS = $(steps)")
-        println_verbose1(verbose, "\t>> STEP LENGTH = $(Δτ)")
-        println_verbose1(verbose, "\t>> FRICTION = $(friction)")
+        @level1("|  TRAJECTORY LENGTH: $(trajectory)")
+        @level1("|  STEPS: $(steps)")
+        @level1("|  STEP LENGTH: $(Δτ)")
+        @level1("|  FRICTION: $(friction) $(ifelse(friction==π/2, "(default)", ""))")
 
         P = Liefield(U)
         gaussian_momenta!(P, π/2)
@@ -50,55 +57,52 @@ struct HMC{TI,TG,TS} <: AbstractUpdate
         force2 = (TS==NoSmearing && !bias_enabled) ? nothing : Temporaryfield(U)
 
         if TS == NoSmearing
-            println_verbose1(verbose, "\t>> NO ACTION SMEARING")
+            @level1("|  ACTION SMEARING: Disabled")
         else
-            println_verbose1(verbose, "\t>> ACTION SMEARING = (ρ = $(ρ_stout), n = $(numsmear))")
+            @level1("|  ACTION SMEARING: $(numsmear) x $(ρ_stout) Stout")
         end
 
         if bias_enabled
-            println_verbose1(verbose, "\t>> BIAS ENABLED")
+            @level1("|  Bias enabled")
             fieldstrength = Vector{Temporaryfield}(undef, 4)
 
             for i in 1:4
                 fieldstrength[i] = Temporaryfield(U)
             end
         else
-            println_verbose1(verbose, "\t>> BIAS DISABLED")
+            @level1("|  Bias disabled")
             fieldstrength = nothing
         end
 
         if verboselevel>=2 && logdir!=""
             hmc_log_file = logdir * "/hmc_acc_logs.txt"
-            println_verbose1(verbose, "\t>> ACCEPTANCE DATA TRACKED IN $(hmc_log_file)")
+            @level1("|  Acceptance data tracked in $(hmc_log_file)")
             fp = open(hmc_log_file, "w")
-            @printf(
-                fp, "%-22s\t%-22s\t%-22s\t%-22s\n", "ΔSg", "ΔP²", "ΔV", "ΔH"
-            )
+            str = @sprintf("%-22s\t%-22s\t%-22s\t%-22s", "ΔSg", "ΔP²", "ΔV", "ΔH")
+            println(fp, str)
         else
             fp = nothing
         end
 
-        println_verbose1(verbose, "")
-
-        return new{TI,TG,TS}(
-			steps, Δτ, friction,
+        @level1("└\n")
+        return new{TI,TG,TS,typeof(P_old),typeof(force2),typeof(fieldstrength),typeof(fp)}(
+            steps, Δτ, friction,
             P, P_old, U_old, staples, force, force2, fieldstrength, smearing,
             fp,
-		)
+        )
     end
 end
 
 include("hmc_integrators.jl")
 
-function update!(
-    hmc::HMC{TI,TG,TS}, U, verbose;
-    bias=nothing, metro_test=true, friction=hmc.friction,
-) where {TI,TG,TS}
+function update!(hmc::HMC{TI,TG,TS,PO,F2,FS,IO}, U;
+                 bias::T=nothing, metro_test=true,
+                 friction=hmc.friction) where {TI,TG,TS,PO,F2,FS,IO,T}
     U_old = hmc.U_old
     P_old = hmc.P_old
     substitute_U!(U_old, U)
     gaussian_momenta!(hmc.P, friction)
-    P_old≢nothing && substitute_U!(P_old, hmc.P)
+    PO≢Nothing && substitute_U!(P_old, hmc.P)
 
     Sg_old = U.Sg
     trP²_old = -calc_kinetic_energy(hmc.P)
@@ -111,7 +115,7 @@ function update!(
     ΔP² = trP²_new - trP²_old
     ΔSg = Sg_new - Sg_old
 
-    if bias ≡ nothing
+    if T ≡ Nothing
         CV_old = U.CV
         CV_new = CV_old
         ΔV = 0
@@ -130,17 +134,16 @@ function update!(
     if accept
         U.Sg = Sg_new
         U.CV = CV_new
-        println_verbose2(verbose, "Accepted")
+        @level2("|    Accepted")
     else
         substitute_U!(U, U_old)
 
-        if P_old ≢ nothing# flip momenta if rejected
+        if PO ≢ Nothing # flip momenta if rejected
             substitute_U!(hmc.P, P_old)
             mul!(hmc.P, -1)
         end
-        println_verbose2(verbose, "Rejected")
+        @level2("|    Rejected")
     end
-
     normalize!(U)
     return accept
 end
@@ -158,7 +161,7 @@ function updateU!(U, hmc, fac)
     return nothing
 end
 
-function updateP!(U, hmc::HMC, fac, bias)
+function updateP!(U, hmc::HMC, fac, bias::T) where {T}
     ϵ = hmc.Δτ * fac
     P = hmc.P
     staples = hmc.staples
@@ -167,7 +170,7 @@ function updateP!(U, hmc::HMC, fac, bias)
     smearing = hmc.smearing
     fieldstrength = hmc.fieldstrength
 
-    if bias ≢ nothing
+    if T ≢ Nothing
         calc_dVdU_bare!(force, fieldstrength, U, temp_force, bias)
         add!(P, force, ϵ)
     end
@@ -231,32 +234,24 @@ function calc_dVdU!(kind_of_charge, dVdU, F, U, bias_derivative)
     fieldstrength_eachsite!(kind_of_charge, F, U)
 
     @batch per=thread for site in eachindex(U)
-        tmp1 = cmatmul_oo(U[1][site], (
-            ∇trFμνFρσ(kind_of_charge, U, F, 1, 2, 3, 4, site) -
-            ∇trFμνFρσ(kind_of_charge, U, F, 1, 3, 2, 4, site) +
-            ∇trFμνFρσ(kind_of_charge, U, F, 1, 4, 2, 3, site)
-        ))
+        tmp1 = cmatmul_oo(U[1][site], (∇trFμνFρσ(kind_of_charge, U, F, 1, 2, 3, 4, site) -
+                                       ∇trFμνFρσ(kind_of_charge, U, F, 1, 3, 2, 4, site) +
+                                       ∇trFμνFρσ(kind_of_charge, U, F, 1, 4, 2, 3, site)))
         dVdU[1][site] = bias_derivative * 1/4π^2 * traceless_antihermitian(tmp1)
 
-        tmp2 = cmatmul_oo(U[2][site], (
-            ∇trFμνFρσ(kind_of_charge, U, F, 2, 3, 1, 4, site) -
-            ∇trFμνFρσ(kind_of_charge, U, F, 2, 1, 3, 4, site) -
-            ∇trFμνFρσ(kind_of_charge, U, F, 2, 4, 1, 3, site)
-        ))
+        tmp2 = cmatmul_oo(U[2][site], (∇trFμνFρσ(kind_of_charge, U, F, 2, 3, 1, 4, site) -
+                                       ∇trFμνFρσ(kind_of_charge, U, F, 2, 1, 3, 4, site) -
+                                       ∇trFμνFρσ(kind_of_charge, U, F, 2, 4, 1, 3, site)))
         dVdU[2][site] = bias_derivative * 1/4π^2 * traceless_antihermitian(tmp2)
 
-        tmp3 = cmatmul_oo(U[3][site], (
-            ∇trFμνFρσ(kind_of_charge, U, F, 3, 1, 2, 4, site) -
-            ∇trFμνFρσ(kind_of_charge, U, F, 3, 2, 1, 4, site) +
-            ∇trFμνFρσ(kind_of_charge, U, F, 3, 4, 1, 2, site)
-        ))
+        tmp3 = cmatmul_oo(U[3][site], (∇trFμνFρσ(kind_of_charge, U, F, 3, 1, 2, 4, site) -
+                                       ∇trFμνFρσ(kind_of_charge, U, F, 3, 2, 1, 4, site) +
+                                       ∇trFμνFρσ(kind_of_charge, U, F, 3, 4, 1, 2, site)))
         dVdU[3][site] = bias_derivative * 1/4π^2 * traceless_antihermitian(tmp3)
 
-        tmp4 = cmatmul_oo(U[4][site], (
-            ∇trFμνFρσ(kind_of_charge, U, F, 4, 2, 1, 3, site) -
-            ∇trFμνFρσ(kind_of_charge, U, F, 4, 1, 2, 3, site) -
-            ∇trFμνFρσ(kind_of_charge, U, F, 4, 3, 1, 2, site)
-        ))
+        tmp4 = cmatmul_oo(U[4][site], (∇trFμνFρσ(kind_of_charge, U, F, 4, 2, 1, 3, site) -
+                                       ∇trFμνFρσ(kind_of_charge, U, F, 4, 1, 2, 3, site) -
+                                       ∇trFμνFρσ(kind_of_charge, U, F, 4, 3, 1, 2, site)))
         dVdU[4][site] = bias_derivative * 1/4π^2 * traceless_antihermitian(tmp4)
     end
 
@@ -274,9 +269,8 @@ function ∇trFμνFρσ(::Plaquette, U, F, μ, ν, ρ, σ, site)
     siteνn = move(site, ν, -1, Nν)
     siteμpνn = move(siteμp, ν, -1, Nν)
 
-    component =
-        cmatmul_oddo(U[ν][siteμp]  , U[μ][siteνp], U[ν][site]     , F[ρ][σ][site]) +
-        cmatmul_ddoo(U[ν][siteμpνn], U[μ][siteνn], F[ρ][σ][siteνn], U[ν][siteνn])
+    component = cmatmul_oddo(U[ν][siteμp]  , U[μ][siteνp], U[ν][site]     , F[ρ][σ][site]) +
+                cmatmul_ddoo(U[ν][siteμpνn], U[μ][siteνn], F[ρ][σ][siteνn], U[ν][siteνn])
 
     return im/2 * component
 end
@@ -317,8 +311,15 @@ end
 
 print_hmc_data(::Nothing, args...) = nothing
 
-function print_hmc_data(fp, ΔSg, ΔP², ΔV, ΔH)
-    @printf(fp, "%+22.15E\t%+22.15E\t%+22.15E\t%+22.15E\n", ΔSg, ΔP², ΔV, ΔH)
+function print_hmc_data(fp::T, ΔSg, ΔP², ΔV, ΔH) where {T}
+    T≡Nothing && return nothing
+    str = @sprintf("%+22.15E\t%+22.15E\t%+22.15E\t%+22.15E", ΔSg, ΔP², ΔV, ΔH)
+    println(fp, str)
     flush(fp)
+    return nothing
+end
+
+function Base.close(hmc::HMC{TI,TG,TS,PO,F2,FS,IO}) where {TI,TG,TS,PO,F2,FS,IO}
+    IO===IOStream && close(hmc.fp)
     return nothing
 end

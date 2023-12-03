@@ -5,6 +5,7 @@ alloc-profile.pb.gz
 /configs/
 /test/test.jl
 /test/logger.jl
+/test/test_JET.jl
 .vscode/
 run.jl
 /src/dirac/

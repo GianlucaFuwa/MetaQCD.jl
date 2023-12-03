@@ -1,6 +1,10 @@
 struct ParityUpdate{TG} <: AbstractUpdate
     U_bak::TG
-    ParityUpdate(U::TG) where {TG} = new{TG}(similar(U))
+
+    function ParityUpdate(U::TG) where {TG}
+        @level1("[ Parity update enabled\n")
+        return new{TG}(similar(U))
+    end
 end
 
 function update!(parity::ParityUpdate, U)

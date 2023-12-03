@@ -1,56 +1,56 @@
 module Output
 
+using Dates
 using JLD2
 using LinearAlgebra
 using Random
 using StaticArrays
 
-export VerboseLevel, Verbose1, Verbose2, Verbose3
-export print_verbose1, print_verbose2, print_verbose3,
-    println_verbose1, println_verbose2, println_verbose3
+export MetaLogger, current_time, @level1, @level2, @level3, set_global_logger!
 export BridgeFormat, Checkpointer, JLD2Format, SaveConfigs
 export load_checkpoint, load_gaugefield!, loadU!, save_gaugefield, saveU
 
 include("verbose.jl")
 
+abstract type SaveFormat end
 # struct BMWFormat end
-struct BridgeFormat end
-struct JLD2Format end
+struct BridgeFormat <: SaveFormat end
+struct JLD2Format <: SaveFormat end
 
 # include("bmw_format.jl")
 include("bridge_format.jl")
 include("jld2_format.jl")
+
+const date_format = "yyyy-mm-dd HH:MM:SS"
+
+current_time() = "$(Dates.format(now(), date_format))"
 
 struct Checkpointer{T}
     checkpoint_dir::String
     checkpoint_every::Int64
     ext::String
 
-    function Checkpointer(checkpointing_enabled, checkpoint_dir, checkpoint_every, vp)
-
+    function Checkpointer(checkpointing_enabled, checkpoint_dir, checkpoint_every)
         if checkpointing_enabled
-            T == JLD2Format
+            T = JLD2Format
             ext = ".jld2"
+            @level1("[ Checkpointing every $(checkpoint_every) trajectory!")
         else
-            T == Nothing
+            T = Nothing
             ext = ""
-        end
-
-        if T ≢ Nothing
-            println_verbose1(vp, "\t>> Checkpointing every $(checkpoint_every) trajectory!")
         end
 
         return new{T}(checkpoint_dir, checkpoint_every, ext)
     end
 end
 
-function (cp::Checkpointer{T})(univ, updatemethod, verbose, itrj) where {T}
+function (cp::Checkpointer{T})(univ, updatemethod, itrj) where {T}
     T≡Nothing && return nothing
 
     if itrj%cp.checkpoint_every == 0
         filename = cp.checkpoint_dir * "/checkpoint$(cp.ext)"
         create_checkpoint(T(), univ, updatemethod, filename)
-        println_verbose1(verbose, ">> Checkpoint created in $(filename)")
+        @level1("|  Checkpoint created in $(filename)")
     end
 
     return nothing
@@ -65,7 +65,7 @@ struct SaveConfigs{T}
     saveU_every::Int64
     ext::String
 
-    function SaveConfigs(saveU_format, saveU_dir, saveU_every, vp)
+    function SaveConfigs(saveU_format, saveU_dir, saveU_every)
 
         if saveU_format == "bridge"
             T = BridgeFormat
@@ -73,7 +73,7 @@ struct SaveConfigs{T}
         elseif saveU_format == "jld" || saveU_format == "jld2"
             T = JLD2Format
             ext = ".jld2"
-        elseif saveU_format ≡ nothing
+        elseif saveU_format == ""
             T = Nothing
             ext = ""
         else
@@ -81,27 +81,27 @@ struct SaveConfigs{T}
         end
 
         if T ≢ Nothing
-            println_verbose1(vp, "\t>> Save config every $(saveU_every) trajectory!")
+            @level1("[ Save config every $(saveU_every) trajectory!")
         end
 
         return new{T}(saveU_dir, saveU_every, ext)
     end
 end
 
-function save_gaugefield(saver::SaveConfigs{T}, U, verbose, itrj) where {T}
+function save_gaugefield(saver::SaveConfigs{T}, U, itrj) where {T}
     T≡Nothing && return nothing
 
     if itrj%saver.saveU_every == 0
         itrjstring = lpad(itrj, 8, "0")
         filename = saver.saveU_dir * "/config_$(itrjstring)$(saver.ext)"
         saveU(T(), U, filename)
-        println_verbose1(verbose, ">> Config saved in $(filename)")
+        @level1("|  Config saved in $(filename)")
     end
 
     return nothing
 end
 
-function load_gaugefield!(U, parameters, verbose)
+function load_gaugefield!(U, parameters)
     parameters.loadU_fromfile || return false
     filename = parameters.loadU_dir * "/" * parameters.loadU_filename
     format = parameters.loadU_format
@@ -114,7 +114,7 @@ function load_gaugefield!(U, parameters, verbose)
         error("loadU_format \"$(format)\" not supported.")
     end
 
-    println_verbose1(verbose, ">> Config loaded from $(filename)")
+    @level1("[ Config loaded from $(filename)")
     return true
 end
 

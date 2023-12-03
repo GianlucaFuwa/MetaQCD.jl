@@ -43,13 +43,8 @@ struct GaugeActionMeasurement{T} <: AbstractMeasurement
 end
 
 function GaugeActionMeasurement(U, params::GaugeActionParameters, filename, flow=false)
-    return GaugeActionMeasurement(
-        U;
-        filename = filename,
-        printvalues = true,
-        GA_methods = params.kinds_of_gauge_action,
-        flow = flow
-    )
+    return GaugeActionMeasurement(U, filename = filename, printvalues = true,
+                                  GA_methods = params.kinds_of_gauge_action, flow = flow)
 end
 
 function measure(m::GaugeActionMeasurement{T}, U; additional_string="") where {T}

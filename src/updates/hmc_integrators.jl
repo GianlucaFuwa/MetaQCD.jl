@@ -1,15 +1,15 @@
 struct Leapfrog <: AbstractIntegrator end
 
-function evolve!(::Leapfrog, U, hmc::HMC, Bias)
-    updateP!(U, hmc, 0.5, Bias)
+function evolve!(::Leapfrog, U, hmc::HMC, bias)
+    updateP!(U, hmc, 0.5, bias)
 
     for _ = 1:hmc.steps-1
         updateU!(U, hmc, 1.0)
-        updateP!(U, hmc, 1.0, Bias)
+        updateP!(U, hmc, 1.0, bias)
     end
 
     updateU!(U, hmc, 1.0)
-    updateP!(U, hmc, 0.5, Bias)
+    updateP!(U, hmc, 0.5, bias)
     return nothing
 end
 
@@ -26,14 +26,14 @@ struct OMF2Slow <: AbstractIntegrator
     end
 end
 
-function evolve!(O2S::OMF2Slow, U, hmc::HMC, Bias)
+function evolve!(O2S::OMF2Slow, U, hmc::HMC, bias)
 
     for _ in 1:hmc.steps
-        updateP!(U, hmc, O2S.α, Bias)
+        updateP!(U, hmc, O2S.α, bias)
         updateU!(U, hmc, O2S.β)
-        updateP!(U, hmc, O2S.γ, Bias)
+        updateP!(U, hmc, O2S.γ, bias)
         updateU!(U, hmc, O2S.β)
-        updateP!(U, hmc, O2S.α, Bias)
+        updateP!(U, hmc, O2S.α, bias)
     end
 
     return nothing
@@ -52,20 +52,20 @@ struct OMF2 <: AbstractIntegrator
     end
 end
 
-function evolve!(O2::OMF2, U, hmc::HMC, Bias)
-    updateP!(U, hmc, O2.α, Bias)
+function evolve!(O2::OMF2, U, hmc::HMC, bias)
+    updateP!(U, hmc, O2.α, bias)
     updateU!(U, hmc, O2.β)
-    updateP!(U, hmc, O2.γ, Bias)
+    updateP!(U, hmc, O2.γ, bias)
     updateU!(U, hmc, O2.β)
 
     for _ in 1:hmc.steps-1
-        updateP!(U, hmc, 2*O2.α, Bias)
+        updateP!(U, hmc, 2*O2.α, bias)
         updateU!(U, hmc, O2.β)
-        updateP!(U, hmc, O2.γ, Bias)
+        updateP!(U, hmc, O2.γ, bias)
         updateU!(U, hmc, O2.β)
     end
 
-    updateP!(U, hmc, O2.α, Bias)
+    updateP!(U, hmc, O2.α, bias)
     return nothing
 end
 
@@ -88,22 +88,22 @@ struct OMF4Slow <: AbstractIntegrator
     end
 end
 
-function evolve!(O4S::OMF4Slow, U, hmc::HMC, Bias)
+function evolve!(O4S::OMF4Slow, U, hmc::HMC, bias)
 
     for _ in 1:hmc.steps
-        updateP!(U, hmc, O4S.α, Bias)
+        updateP!(U, hmc, O4S.α, bias)
         updateU!(U, hmc, O4S.β)
-        updateP!(U, hmc, O4S.γ, Bias)
+        updateP!(U, hmc, O4S.γ, bias)
         updateU!(U, hmc, O4S.δ)
 
-        updateP!(U, hmc, O4S.μ, Bias)
+        updateP!(U, hmc, O4S.μ, bias)
         updateU!(U, hmc, O4S.ν)
-        updateP!(U, hmc, O4S.μ, Bias)
+        updateP!(U, hmc, O4S.μ, bias)
 
         updateU!(U, hmc, O4S.δ)
-        updateP!(U, hmc, O4S.γ, Bias)
+        updateP!(U, hmc, O4S.γ, bias)
         updateU!(U, hmc, O4S.β)
-        updateP!(U, hmc, O4S.α, Bias)
+        updateP!(U, hmc, O4S.α, bias)
     end
 
     return nothing
@@ -128,35 +128,35 @@ struct OMF4 <: AbstractIntegrator
     end
 end
 
-function evolve!(O4::OMF4, U, hmc::HMC, Bias)
-    updateP!(U, hmc, O4.α, Bias)
+function evolve!(O4::OMF4, U, hmc::HMC, bias)
+    updateP!(U, hmc, O4.α, bias)
     updateU!(U, hmc, O4.β)
-    updateP!(U, hmc, O4.γ, Bias)
+    updateP!(U, hmc, O4.γ, bias)
     updateU!(U, hmc, O4.δ)
 
-    updateP!(U, hmc, O4.μ, Bias)
+    updateP!(U, hmc, O4.μ, bias)
     updateU!(U, hmc, O4.ν)
-    updateP!(U, hmc, O4.μ, Bias)
+    updateP!(U, hmc, O4.μ, bias)
 
     updateU!(U, hmc, O4.δ)
-    updateP!(U, hmc, O4.γ, Bias)
+    updateP!(U, hmc, O4.γ, bias)
     updateU!(U, hmc, O4.β)
 
     for _ in 1:hmc.steps-1
-        updateP!(U, hmc, 2 * O4.α, Bias)
+        updateP!(U, hmc, 2 * O4.α, bias)
         updateU!(U, hmc, O4.β)
-        updateP!(U, hmc, O4.γ, Bias)
+        updateP!(U, hmc, O4.γ, bias)
         updateU!(U, hmc, O4.δ)
 
-        updateP!(U, hmc, O4.μ, Bias)
+        updateP!(U, hmc, O4.μ, bias)
         updateU!(U, hmc, O4.ν)
-        updateP!(U, hmc, O4.μ, Bias)
+        updateP!(U, hmc, O4.μ, bias)
 
         updateU!(U, hmc, O4.δ)
-        updateP!(U, hmc, O4.γ, Bias)
+        updateP!(U, hmc, O4.γ, bias)
         updateU!(U, hmc, O4.β)
     end
 
-    updateP!(U, hmc, O4.α, Bias)
+    updateP!(U, hmc, O4.α, bias)
     return nothing
 end

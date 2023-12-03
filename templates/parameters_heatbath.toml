@@ -9,16 +9,15 @@ update_method = "heatbath"
 hb_maxit = 10
 numheatbath = 1
 eo = true
-or_algorithm = "subgroups"
+or_algorithm = "kenney-laub"
 numorelax = 4
 
 ["System Settings"]               
-logdir = "./logs/L12x12x12x12_wilson_beta6.0/test_heatbath"
-logfile = "logs.txt"
-measurement_basedir = "./measurements/L12x12x12x12_wilson_beta6.0/test_heatbath"
+log_dir = "logs/L12x12x12x12_wilson_beta6.0/test_heatbath"
+measurement_basedir = "measurements/L12x12x12x12_wilson_beta6.0/test_heatbath"
 measurement_dir = "raw_data"
-randomseed = 2805
-verboselevel = 1
+randomseed = 0
+verboselevel = 2
 overwrite = true
 
 ["Measurement Settings".measurements.Energy_density]

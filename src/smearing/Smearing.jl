@@ -19,6 +19,7 @@ using Base.Threads: nthreads, threadid, @threads
 using LinearAlgebra
 using Polyester
 using StaticArrays
+using Unicode
 using ..Output
 using ..Utils
 

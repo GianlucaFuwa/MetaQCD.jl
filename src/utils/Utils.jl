@@ -1,8 +1,9 @@
 module Utils
 
+using Accessors
 using Base.Threads: @spawn, @threads, nthreads, threadid
-using LoopVectorization
 using LinearAlgebra
+using LoopVectorization
 using Polyester
 using Random
 using StaticArrays
@@ -12,7 +13,7 @@ export gen_SU3_matrix, is_special_unitary, is_traceless_antihermitian
 export kenney_laub, proj_onto_SU3, make_submatrix, embed_into_SU3, multr
 export antihermitian, hermitian, traceless_antihermitian, traceless_hermitian
 export zero2, eye2, zero3, eye3, δ, ε_tensor, gaussian_su3_matrix
-export move, SiteCoords
+export SiteCoords, linear_coords, move
 export Sequential, Checkerboard2, Checkerboard4
 export SequentialMT, Checkerboard2MT, Checkerboard4MT
 export sweep!, sweep_reduce!
@@ -24,6 +25,9 @@ export cmatmul_oooo, cmatmul_oood, cmatmul_oodo, cmatmul_odoo, cmatmul_dooo,
     cmatmul_oodd, cmatmul_oddo, cmatmul_ddoo, cmatmul_odod, cmatmul_dood,
     cmatmul_dodo, cmatmul_oddd, cmatmul_dddo, cmatmul_ddod, cmatmul_dodd,
     cmatmul_dddd
+export _unwrap_val
+
+_unwrap_val(::Val{B}) where {B} = B
 
 const zero3 = @SArray [
     0.0+0.0im 0.0+0.0im 0.0+0.0im
@@ -53,9 +57,7 @@ Kronecker-Delta: \\
 {1, if x == y \\
 {0, else
 """
-function δ(x, y)
-    return x == y
-end
+δ(x, y) = x==y
 
 """
 Implementation of ε-tensor from: https://github.com/JuliaMath/Combinatorics.jl

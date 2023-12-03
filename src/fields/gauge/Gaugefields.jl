@@ -10,9 +10,24 @@ using ..Utils
 abstract type Abstractfield end
 abstract type AbstractGaugeAction end
 
+function Base.show(io::IO, u::T) where {T<:Abstractfield}
+	print(io, "$(typeof(u))", "(;")
+    for fieldname in fieldnames(typeof(u))
+		fieldname∈(:U, :NV) && continue
+
+		if fieldname ∈ (:Sg, :CV)
+        	print(io, " ", fieldname, " = ", getfield(u, fieldname)[], ",")
+		else
+			print(io, " ", fieldname, " = ", getfield(u, fieldname), ",")
+		end
+    end
+    print(io, ")")
+	return nothing
+end
+
 """
-Gaugefield(NX, NY, NZ, NT, β; GA=WilsonGaugeAction)
-Gaugefield(U::Gaugefield{GA}) where {GA}
+	Gaugefield(NX, NY, NZ, NT, β; GA=WilsonGaugeAction)
+	Gaugefield(U::Gaugefield{GA}) where {GA}
 
 Creates a Gaugefield, i.e. an array of link-variables (SU3 matrices) of size
 `4 × NX × NY × NZ × NT` with coupling parameter `β` and gauge action `GA` or a copy of `U`
@@ -55,8 +70,8 @@ end
 Gaugefield(U::Gaugefield{GA}) where {GA} = Gaugefield(U.NX, U.NY, U.NZ, U.NT, U.β; GA=GA)
 
 """
-Temporaryfield(NX, NY, NZ, NT)
-Temporaryfield(u::Abstractfield)
+	Temporaryfield(NX, NY, NZ, NT)
+	Temporaryfield(u::Abstractfield)
 
 Creates a Temporaryfield, i.e. an array of 3-by-3 matrices of size `4 × NX × NY × NZ × NT`
 or of the same size as `u`
@@ -87,8 +102,8 @@ end
 Temporaryfield(u::Abstractfield) = Temporaryfield(u.NX, u.NY, u.NZ, u.NT)
 
 """
-CoeffField(NX, NY, NZ, NT)
-CoeffField(u::Abstractfield)
+	CoeffField(NX, NY, NZ, NT)
+	CoeffField(u::Abstractfield)
 
 Creates a CoeffField, i.e. an array of `exp_iQ_su3` objects of size `4 × NX × NY × NZ × NT`
 or of the same size as `u`. The objects hold the `Q`-matrices and all the exponential
@@ -117,21 +132,21 @@ end
 
 CoeffField(u::Abstractfield) = CoeffField(u.NX, u.NY, u.NZ, u.NT)
 
-Base.size(u::Abstractfield) = NTuple{4, Int64}((u.NX, u.NY, u.NZ, u.NT))
-Base.eachindex(u::Abstractfield) = CartesianIndices(size(u))
-Base.eachindex(::IndexLinear, u::Abstractfield) = Base.OneTo(u.NV)
+Base.size(u::T) where {T<:Abstractfield} = NTuple{4, Int64}((u.NX, u.NY, u.NZ, u.NT))
+Base.eachindex(u::T) where {T<:Abstractfield} = CartesianIndices(size(u)::NTuple{4, Int64})
+Base.eachindex(::IndexLinear, u::T)  where {T<:Abstractfield} = Base.OneTo(u.NV)
 Base.eltype(::Gaugefield{GA}) where {GA} = GA
 
-function Base.setindex!(u::Abstractfield, v, μ)
+@inline function Base.setindex!(u::T, v, μ) where {T<:Abstractfield}
 	u.U[μ] = v
 	return nothing
 end
 
-@inline function Base.getindex(u::Abstractfield, μ)
+function Base.getindex(u::T, μ) where {T<:Abstractfield}
 	return u.U[μ]
 end
 
-function Base.getproperty(u::Gaugefield, p::Symbol)
+function Base.getproperty(u::T, p::Symbol) where {T<:Gaugefield}
 	if p == :Sg
 		return getfield(u, :Sg)[]
 	elseif p == :CV
@@ -141,13 +156,13 @@ function Base.getproperty(u::Gaugefield, p::Symbol)
 	end
 end
 
-function Base.setproperty!(u::Gaugefield, p::Symbol, val)
+function Base.setproperty!(u::T, p::Symbol, val) where {T<:Gaugefield}
 	if p == :Sg
 		getfield(u, :Sg)[] = val
 	elseif p == :CV
 		getfield(u, :CV)[] = val
 	else
-		setfield!(u, p, val)
+		setproperty!(u, p, val)
 	end
 
 	return nothing
@@ -163,7 +178,7 @@ function Base.similar(u::T) where {T<:Abstractfield}
 	return uout
 end
 
-function substitute_U!(a::T, b::T) where {T <: Abstractfield}
+function substitute_U!(a::Ta, b::Tb) where {Ta<:Abstractfield,Tb<:Abstractfield}
 	@batch per=thread for site in eachindex(a)
 		for μ in 1:4
 			a[μ][site] = b[μ][site]
@@ -212,7 +227,7 @@ function random_gauges(NX, NY, NZ, NT, β, type_of_gaction)
 	return u
 end
 
-function clear_U!(u::Abstractfield)
+function clear_U!(u::T) where {T<:Gaugefield}
 	@batch per=thread for site in eachindex(u)
 		for μ in 1:4
 			u[μ][site] = zero3
@@ -222,7 +237,7 @@ function clear_U!(u::Abstractfield)
 	return nothing
 end
 
-function normalize!(u::Gaugefield)
+function normalize!(u::T) where {T<:Gaugefield}
 	@batch per=thread for site in eachindex(u)
 		for μ in 1:4
 			u[μ][site] = proj_onto_SU3(u[μ][site])
@@ -232,7 +247,7 @@ function normalize!(u::Gaugefield)
 	return nothing
 end
 
-function add!(a::Abstractfield, b::Abstractfield, fac)
+function add!(a::Ta, b::Tb, fac) where {Ta<:Abstractfield,Tb<:Abstractfield}
 	@batch per=thread for site in eachindex(a)
 		for μ in 1:4
 			a[μ][site] += fac * b[μ][site]
@@ -242,7 +257,7 @@ function add!(a::Abstractfield, b::Abstractfield, fac)
 	return nothing
 end
 
-function mul!(u::Abstractfield, α::Number)
+function mul!(u::T, α::Number) where {T<:Gaugefield}
 	@batch per=thread for site in eachindex(u)
 		for μ in 1:4
 			u[μ][site] *= α
@@ -252,7 +267,7 @@ function mul!(u::Abstractfield, α::Number)
 	return nothing
 end
 
-function leftmul!(a::Abstractfield, b::Abstractfield)
+function leftmul!(a::Ta, b::Tb) where {Ta<:Abstractfield,Tb<:Abstractfield}
 	@batch per=thread for site in eachindex(a)
 		for μ in 1:4
 			a[μ][site] = cmatmul_oo(b[μ][site], a[μ][site])
@@ -262,7 +277,7 @@ function leftmul!(a::Abstractfield, b::Abstractfield)
 	return nothing
 end
 
-function leftmul_dagg!(a::Abstractfield, b::Abstractfield)
+function leftmul_dagg!(a::Ta, b::Tb) where {Ta<:Abstractfield,Tb<:Abstractfield}
 	@batch per=thread for site in eachindex(a)
 		for μ in 1:4
 			a[μ][site] = cmatmul_do(b[μ][site], a[μ][site])
@@ -272,7 +287,7 @@ function leftmul_dagg!(a::Abstractfield, b::Abstractfield)
 	return nothing
 end
 
-function rightmul!(a::Abstractfield, b::Abstractfield)
+function rightmul!(a::Ta, b::Tb) where {Ta<:Abstractfield,Tb<:Abstractfield}
 	@batch per=thread for site in eachindex(a)
 		for μ in 1:4
 			a[μ][site] = cmatmul_oo(a[μ][site], b[μ][site])
@@ -282,7 +297,7 @@ function rightmul!(a::Abstractfield, b::Abstractfield)
 	return nothing
 end
 
-function rightmul_dagg!(a::Abstractfield, b::Abstractfield)
+function rightmul_dagg!(a::Ta, b::Tb) where {Ta<:Abstractfield,Tb<:Abstractfield}
 	@batch per=thread for site in eachindex(a)
 		for μ in 1:4
 			a[μ][site] = cmatmul_od(a[μ][site], b[μ][site])

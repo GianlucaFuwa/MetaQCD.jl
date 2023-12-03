@@ -7,9 +7,9 @@ using MPI
 using Random
 using ..Output
 
+import ..BiasModule: calc_weights, recalc_CV!, update_bias!, write_to_file
 import ..Gaugefields: calc_gauge_action, normalize!
 import ..Measurements: MeasurementMethods, calc_measurements, calc_measurements_flowed
-import ..BiasModule: calc_weights, recalc_CV!, update_bias!, write_to_file
 import ..Parameters: construct_params_from_toml
 import ..Smearing: GradientFlow
 import ..Universe: Univ
@@ -22,18 +22,9 @@ const comm = MPI.COMM_WORLD
 const myrank = MPI.Comm_rank(comm)
 const comm_size = MPI.Comm_size(comm)
 
-"""
-So we don't have to type "if myrank == 0" all the time...
-"""
-function println_verbose0(v::VerboseLevel, args...)
-    if myrank == 0
-        println_verbose1(v, args...)
-    end
-end
-
-function print_acceptance_rates(numaccepts, itrj, verbose)
+function print_acceptance_rates(numaccepts, itrj)
     for (i, value) in enumerate(numaccepts)
-        println_verbose1(verbose, ">> Acceptance $i:\t$(100value / itrj) %")
+        @level1("|    Acceptance $i:\t$(100value / itrj) %")
     end
 
     return nothing

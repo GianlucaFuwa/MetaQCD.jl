@@ -7,10 +7,8 @@ struct PolyakovMeasurement{T} <: AbstractMeasurement
             header = ""
 
             if flow
-                header *= @sprintf(
-                    "%-9s\t%-7s\t%-9s\t%-22s\t%-22s",
-                    "itrj", "iflow", "tflow", "Re(plaq)", "Im(poly)"
-                )
+                header *= @sprintf("%-9s\t%-7s\t%-9s\t%-22s\t%-22s",
+                                   "itrj", "iflow", "tflow", "Re(plaq)", "Im(poly)")
             else
                 header *= @sprintf("%-9s\t%-22s\t%-22s", "itrj", "Re(poly)", "Im(poly)")
             end
@@ -33,10 +31,9 @@ function measure(m::PolyakovMeasurement{T}, U; additional_string="") where {T}
     poly = polyakov_traced(U) / (NX * NY * NZ)
     measurestring = ""
 
-    if T == IOStream
-        measurestring *= @sprintf(
-            "%-9s\t%+22.15E\t%+22.15E", additional_string, real(poly), imag(poly)
-        )
+    if T ≡ IOStream
+        measurestring *= @sprintf("%-9s\t%+22.15E\t%+22.15E",
+                                  additional_string, real(poly), imag(poly))
         println(m.fp, measurestring)
         flush(m.fp)
         measurestring *= " # poly"
@@ -47,9 +44,10 @@ function measure(m::PolyakovMeasurement{T}, U; additional_string="") where {T}
 end
 
 function polyakov_traced(U)
+    out = zeros(ComplexF64, 8nthreads())
     NX, NY, NZ, NT = size(U)
 
-    @batch per=thread threadlocal=zero(ComplexF64)::ComplexF64 for iz in 1:NZ
+    @batch per=thread  for iz in 1:NZ
         for iy in 1:NY
             for ix in 1:NX
                 polymat = U[4][ix,iy,iz,1]
@@ -58,10 +56,10 @@ function polyakov_traced(U)
                     polymat = cmatmul_oo(polymat, U[4][ix,iy,iz,1+t])
                 end
 
-                threadlocal += tr(polymat)
+                out[8threadid()] += tr(polymat)
             end
         end
     end
 
-    return sum(threadlocal)
+    return sum(out)
 end

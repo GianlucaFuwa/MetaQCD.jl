@@ -7,7 +7,7 @@ function SU3testgradflow()
     plaq = plaquette_trace_sum(U) * mfac
     println("0\tplaq: $plaq")
 
-    g = GradientFlow(U, integrator="euler", numflow=3, steps=1, tf=0.12, measure_every=1)
+    g = GradientFlow(U, "euler", 3, 1, 0.12)
     s = StoutSmearing(U, 3, 0.12)
 
     MetaQCD.Gaugefields.substitute_U!(g.Uflow, U)

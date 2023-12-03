@@ -11,12 +11,19 @@ function run_sim(filenamein::String)
         Random.seed!(seed)
     end
 
+    set_global_logger!(parameters.verboselevel, parameters.logdir*"/logs.txt",
+                       tc=parameters.log_to_console)
+
+    @level1("# $(pwd()) @ $(current_time())")
+    buf = IOBuffer()
+    InteractiveUtils.versioninfo(buf)
+    versioninfo = String(take!(buf))
+    @level1(versioninfo)
+    @level1("[ Random seed is: $seed\n")
+
     univ = Univ(parameters)
 
-    println_verbose1(univ.verbose_print, ">> Random seed is: $seed\n")
-
     run_sim!(univ, parameters)
-
     return nothing
 end
 
@@ -24,301 +31,210 @@ function run_sim!(univ, parameters)
     U = univ.U
 
     if parameters.tempering_enabled
-        updatemethod = Updatemethod(parameters, U[1], univ.verbose_print)
-        updatemethod_pt = HMC(
-            U[1],
-            parameters.hmc_integrator,
-            parameters.hmc_steps,
-            parameters.hmc_trajectory;
-            friction = parameters.hmc_friction,
-            bias_enabled = true,
-            verbose = univ.verbose_print,
-        )
+        updatemethod = Updatemethod(parameters, U[1])
+        updatemethod_pt = HMC(U[1], parameters.hmc_integrator, parameters.hmc_trajectory,
+                              parameters.hmc_steps, parameters.hmc_friction,
+                              bias_enabled = true)
         parity = parameters.parity_update ? ParityUpdate(U[1]) : nothing
     else
-        updatemethod = Updatemethod(parameters, U, univ.verbose_print)
+        updatemethod = Updatemethod(parameters, U)
         parity = parameters.parity_update ? ParityUpdate(U) : nothing
     end
-    parity≢nothing && println_verbose1(univ.verbose_print, "\t>> PARITY UPDATE ENABLED\n")
+    parity≢nothing && @level1("[ Parity update enabled\n")
 
     if parameters.tempering_enabled
-        gflow = GradientFlow(
-            U[1],
-            integrator = parameters.flow_integrator,
-            numflow = parameters.flow_num,
-            steps = parameters.flow_steps,
-            tf = parameters.flow_tf,
-            measure_every = parameters.flow_measure_every,
-            verbose = univ.verbose_print,
-        )
+        gflow = GradientFlow(U[1], parameters.flow_integrator, parameters.flow_num,
+                             parameters.flow_steps, parameters.flow_tf,
+                             measure_every = parameters.flow_measure_every)
         measurements = Vector{MeasurementMethods}(undef, parameters.numinstances)
         measurements_with_flow = Vector{MeasurementMethods}(undef, parameters.numinstances)
-        println_verbose1(univ.verbose_print, ">> Preparing Measurements...")
-        measurements[1] = MeasurementMethods(
-            U[1],
-            parameters.measuredir,
-            parameters.measurements,
-            additional_string = "_0",
-            verbose = univ.verbose_print,
-        )
-        println_verbose1(univ.verbose_print, ">> Preparing flowed Measurements...")
+
+        measurements[1] = MeasurementMethods(U[1], parameters.measuredir, parameters.measurements,
+                                             additional_string = "_0")
+
         measurements_with_flow[1] = MeasurementMethods(
             U[1],
             parameters.measuredir,
             parameters.measurements_with_flow,
             flow = true,
             additional_string = "_0",
-            verbose = univ.verbose_print,
         )
         for i in 2:parameters.numinstances
             if parameters.measure_on_all
-                measurements[i] = MeasurementMethods(
-                    U[i],
-                    parameters.measuredir,
-                    parameters.measurements,
-                    additional_string = "_$(i-1)",
-                )
-                measurements_with_flow[i] = MeasurementMethods(
-                    U[i],
-                    parameters.measuredir,
-                    parameters.measurements_with_flow,
-                    flow = true,
-                    additional_string = "_$(i-1)",
-                )
+                measurements[i] = MeasurementMethods(U[i], parameters.measuredir,
+                                                     parameters.measurements,
+                                                     additional_string = "_$(i-1)")
+                measurements_with_flow[i] = MeasurementMethods(U[i], parameters.measuredir,
+                                                               parameters.measurements_with_flow,
+                                                               flow = true,
+                                                               additional_string="_$(i-1)")
             else
-                measurements[i] = MeasurementMethods(
-                    U[i],
-                    parameters.measuredir,
-                    Dict[],
-                    additional_string = "_$(i-1)",
-                )
-                measurements_with_flow[i] = MeasurementMethods(
-                    U[i],
-                    parameters.measuredir,
-                    Dict[],
-                    additional_string = "_$(i-1)",
-                )
+                measurements[i] = MeasurementMethods(U[i], parameters.measuredir, Dict[],
+                                                     additional_string = "_$(i-1)")
+                measurements_with_flow[i] = MeasurementMethods(U[i], parameters.measuredir, Dict[],
+                                                               additional_string="_$(i-1)")
             end
         end
     else
-        gflow = GradientFlow(
-            U,
-            integrator = parameters.flow_integrator,
-            numflow = parameters.flow_num,
-            steps = parameters.flow_steps,
-            tf = parameters.flow_tf,
-            measure_every = parameters.flow_measure_every,
-            verbose = univ.verbose_print,
-        )
-        println_verbose1(univ.verbose_print, ">> Preparing Measurements...")
-        measurements = MeasurementMethods(
-            U,
-            parameters.measuredir,
-            parameters.measurements,
-            verbose = univ.verbose_print,
-        )
-        println_verbose1(univ.verbose_print, ">> Preparing flowed Measurements...")
-        measurements_with_flow = MeasurementMethods(
-            U,
-            parameters.measuredir,
-            parameters.measurements_with_flow,
-            flow = true,
-            verbose = univ.verbose_print,
-        )
+        gflow = GradientFlow(U, parameters.flow_integrator, parameters.flow_num,
+                             parameters.flow_steps, parameters.flow_tf,
+                             measure_every = parameters.flow_measure_every)
+
+        measurements = MeasurementMethods(U, parameters.measuredir, parameters.measurements)
+        measurements_with_flow = MeasurementMethods(U, parameters.measuredir,
+                                                    parameters.measurements_with_flow,
+                                                    flow = true)
     end
 
-    println(">> Measurement methods are set!\n")
-
-    save_configs = SaveConfigs(
-        parameters.saveU_format,
-        parameters.saveU_dir,
-        parameters.saveU_every,
-        univ.verbose_print
-    )
+    save_configs = SaveConfigs(parameters.saveU_format, parameters.saveU_dir, parameters.saveU_every)
 
     if parameters.tempering_enabled
-        metaqcd_PT!(
-            parameters,
-            univ,
-            updatemethod,
-            updatemethod_pt,
-            gflow,
-            measurements,
-            measurements_with_flow,
-            parity,
-            save_configs,
-        )
+        metaqcd_PT!(parameters, univ, updatemethod, updatemethod_pt, gflow, measurements,
+                    measurements_with_flow, parity, save_configs)
     else
-        metaqcd!(
-            parameters,
-            univ,
-            updatemethod,
-            gflow,
-            measurements,
-            measurements_with_flow,
-            parity,
-            save_configs,
-        )
+        metaqcd!(parameters, univ, updatemethod, gflow, measurements,
+                measurements_with_flow, parity, save_configs)
     end
 
     return nothing
 end
 
-function metaqcd!(
-    parameters,
-    univ,
-    updatemethod,
-    gflow,
-    measurements,
-    measurements_with_flow,
-    parity,
-    save_configs,
-)
+function metaqcd!(parameters, univ, updatemethod, gflow, measurements,
+                  measurements_with_flow, parity, save_configs)
     U = univ.U
     bias = univ.bias
-    vp = univ.verbose_print
 
     # load in config and recalculate gauge action if given
-    load_gaugefield!(U, parameters, vp) && (U.Sg = calc_gauge_action(U))
+    load_gaugefield!(U, parameters) && (U.Sg = calc_gauge_action(U))
 
+    @level1("┌ Thermalization:")
     _, runtime_therm = @timed begin
         for itrj in 1:parameters.numtherm
-            println_verbose0(vp, "\n# therm itrj = $itrj")
-
+            @level1("|  itrj = $itrj")
             _, updatetime = @timed begin
-                update!(updatemethod, U, vp, metro_test=false, friction=π/2)
+                update!(updatemethod, U; bias=nothing, metro_test=false)
             end
-
-            println_verbose0(vp, ">> Therm. Update elapsed time:\t$(updatetime) [s]\n#")
+            @level1("|  Elapsed time:\t$(updatetime) [s]")
         end
     end
 
-    println_verbose1(vp, "\t>> Thermalization elapsed time:\t$(runtime_therm) [s]\n")
+    @level1("└ Total elapsed time:\t$(runtime_therm) [s]\n")
     recalc_CV!(U, bias) # need to recalc cv since it was not updated during therm
 
+    @level1("┌ Production:")
     _, runtime_all = @timed begin
         numaccepts = 0.0
         for itrj in 1:parameters.numsteps
-            println_verbose1(vp, "\n# itrj = $itrj")
+            @level1("|  itrj = $itrj")
 
             _, updatetime = @timed begin
-                numaccepts += update!(updatemethod, U, vp, bias=bias, metro_test=true)
+                numaccepts += update!(updatemethod, U; bias=bias, metro_test=true)
                 rand()<0.5 ? update!(parity, U) : nothing
                 update_bias!(bias, U.CV, itrj, true)
             end
 
-            print_acceptance_rates(numaccepts, itrj, vp)
-            println_verbose1(vp, ">> Update elapsed time:\t$(updatetime) [s]")
+            print_acceptance_rates(numaccepts, itrj)
+            @level1("|  Elapsed time:\t$(updatetime) [s]\n")
 
-            save_gaugefield(save_configs, U, vp, itrj)
+            save_gaugefield(save_configs, U, itrj)
 
             _, mtime = @timed calc_measurements(measurements, U, itrj)
             _, fmtime = @timed calc_measurements_flowed(measurements_with_flow, gflow, U, itrj)
             calc_weights(bias, U.CV, itrj)
-            println_verbose1(
-                vp,
-                ">> Meas. elapsed time:\t$(mtime) [s]\n",
-                ">> FMeas. elapsed time:\t$(fmtime) [s]\n",
-                "#",
+            @level1(
+                "|  Meas. elapsed time:     $(mtime)  [s]\n" *
+                "|  FlowMeas. elapsed time: $(fmtime) [s]"
             )
-            flush(vp)
         end
     end
 
-    println_verbose1(vp, "\n\t>> Total elapsed time:\t$(convert_seconds(runtime_all)) \n")
+    @level1("└\n" *
+            "Total elapsed time:\t$(convert_seconds(runtime_all))\n" *
+            "@ $(current_time())")
     flush(stdout)
+    close(updatemethod)
     close(measurements)
     close(measurements_with_flow)
     bias≢nothing && close(bias)
-    close(vp)
+    close(Output.GlobalLogger[])
     return nothing
 end
 
-function metaqcd_PT!(
-    parameters,
-    univ,
-    updatemethod,
-    updatemethod_pt,
-    gflow,
-    measurements,
-    measurements_with_flow,
-    parity,
-    save_configs,
-)
+function metaqcd_PT!(parameters, univ, updatemethod, updatemethod_pt, gflow, measurements,
+                     measurements_with_flow, parity, save_configs)
     numinstances = parameters.numinstances
     U = univ.U
     bias = univ.bias
-    vp = univ.verbose_print
     swap_every = parameters.swap_every
     rank0_updates = parameters.non_metadynamics_updates
     measure_on_all = parameters.measure_on_all
 
     # if stream 1 uses hmc then we have to recalc the CV before tempering
-    uses_hmc = <:(typeof(updatemethod), HMC)
+    uses_hmc = updatemethod isa HMC
 
+    @level1("┌ Thermalization:")
     _, runtime_therm = @timed begin
         for itrj in 1:parameters.numtherm
-            for i in 1:numinstances
-                println_verbose0(vp, "\n# therm itrj = $itrj")
-
-                _, updatetime = @timed begin
-                    update!(updatemethod, U[i], vp, metro_test=false, friction=π/2)
+            @level1("|  itrj = $itrj")
+            _, updatetime = @timed begin
+                for i in reverse(1:numinstances)
+                    # thermalize all streams with the updatemethod of stream 1
+                    # shouldnt be a problem for HMC, since we force 0-friction
+                    # for thermalization updates and reverse the order, so stream 1 is last
+                    update!(updatemethod, U[i], bias=nothing, metro_test=false, friction=π/2)
                 end
-
-                println_verbose0(vp, ">> Therm. Update elapsed time:\t$(updatetime) [s]\n#")
             end
+            @level1("|  Elapsed time:\t$(updatetime) [s]")
         end
     end
 
-    println_verbose1(vp, "\t>> Thermalization Elapsed time $(runtime_therm) [s]")
+    @level1("└ Total elapsed time:\t$(runtime_therm) [s]\n")
     recalc_CV!(U, bias) # need to recalc cv since it was not updated during therm
 
+    @level1("┌ Production:")
     _, runtime_all = @timed begin
         numaccepts = zeros(numinstances)
         numaccepts_temper = zeros(Int64, numinstances-1)
 
         for itrj in 1:parameters.numsteps
-            println_verbose1(vp, "\n# itrj = $itrj")
+            @level1("|  itrj = $itrj")
             _, updatetime = @timed begin
                 tmp = 0.0
                 for _ in 1:rank0_updates
-                    tmp += update!(updatemethod, U[1], vp, bias=nothing)
+                    tmp += update!(updatemethod, U[1], bias=nothing)
                 end
                 numaccepts[1] += tmp/rank0_updates
                 rand()<0.5 && update!(parity, U[1])
 
                 for i in 2:numinstances
-                    numaccepts[i] += update!(updatemethod_pt, U[i], vp, bias=bias[i])
+                    numaccepts[i] += update!(updatemethod_pt, U[i], bias=bias[i])
                     update_bias!(bias[i], U[i].CV, itrj, true)
                 end
             end
 
-            println_verbose1(vp, ">> Update: Elapsed time $(sum(updatetime)) [s]")
-            print_acceptance_rates(numaccepts, itrj, vp)
+            print_acceptance_rates(numaccepts, itrj)
+            @level1("|  Elapsed time:\t$(updatetime) [s]")
 
-            temper!(U, bias, numaccepts_temper, swap_every, itrj, vp; recalc=!uses_hmc)
+            temper!(U, bias, numaccepts_temper, swap_every, itrj; recalc=!uses_hmc)
 
-            save_gaugefield(save_configs, U[1], vp, itrj)
+            save_gaugefield(save_configs, U[1], itrj)
 
             _, mtime = @timed calc_measurements(measurements, U, itrj)
             _, fmtime = @timed calc_measurements_flowed(measurements_with_flow, gflow, U, itrj, measure_on_all)
             calc_weights(bias, [U[i].CV for i in 1:numinstances], itrj)
-            println_verbose1(
-                vp,
-                ">> Meas. elapsed time:\t$(mtime) [s]\n",
-                ">> FMeas. elapsed time:\t$(fmtime) [s]\n",
-                "#",
-            )
-            flush(vp.fp)
+            @level1("|  Meas. elapsed time:     $(mtime)  [s]\n" *
+                    "|  FlowMeas. elapsed time: $(fmtime) [s]")
         end
     end
 
+    @level1("└\n" *
+            "Total elapsed time:\t$(convert_seconds(runtime_all))\n" *
+            "@ $(current_time())")
     flush(stdout)
+    close(updatemethod)
     [close(m)  for m in measurements]
     [close(mf) for mf in measurements_with_flow]
     [close(b)  for b in bias]
-    close(vp)
-
-    println_verbose1(vp, "\n\t>> Total elapsed time:\t$(convert_seconds(runtime_all)) \n")
+    close(Output.GlobalLogger[])
     return nothing
 end

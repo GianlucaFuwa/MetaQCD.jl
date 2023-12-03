@@ -58,7 +58,7 @@ end
 #     return out
 # end
 
-function embed_into_SU3(M::SMatrix{2,2,ComplexF64,4}, i, j)
+@inline function embed_into_SU3(M::SMatrix{2,2,ComplexF64,4}, i, j)
     if (i, j) == (1, 2)
         out = @SMatrix [
             M[1,1] M[1,2] 0
@@ -84,7 +84,7 @@ function embed_into_SU3(M::SMatrix{2,2,ComplexF64,4}, i, j)
     return out
 end
 
-function make_submatrix(M::SMatrix{3,3,ComplexF64,9}, i, j)
+@inline function make_submatrix(M::SMatrix{3,3,ComplexF64,9}, i, j)
     α = 0.5 * (M[i,i] + conj(M[j,j]))
     β = 0.5 * (M[j,i] - conj(M[i,j]))
     out = @SMatrix [
@@ -104,7 +104,7 @@ function proj_onto_SU2(M::SMatrix{2,2,ComplexF64,4})
     return out
 end
 
-function proj_onto_SU3(M::SMatrix{3,3,ComplexF64,9})
+@inline function proj_onto_SU3(M::SMatrix{3,3,ComplexF64,9})
     col1 = M[:,1]
     col2 = M[:,2]
     col3 = M[:,3]
@@ -132,17 +132,17 @@ function kenney_laub(M::SMatrix{3,3,ComplexF64,9})
     return M
 end
 
-function is_special_unitary(M::SMatrix{3,3,ComplexF64,9}, prec = 1e-12)
+function is_special_unitary(M::SMatrix{3,3,ComplexF64,9}, prec=1e-12)
     is_SU3 = norm(eye3 - cmatmul_od(M, M)) < prec && abs(1 - det(M)) < prec
     return is_SU3
 end
 
-function is_traceless_antihermitian(M::SMatrix{3,3,ComplexF64,9}, prec = 1e-12)
+function is_traceless_antihermitian(M::SMatrix{3,3,ComplexF64,9}, prec=1e-12)
     is_TA = norm(M + M') < prec && abs(tr(M)) < prec
     return is_TA
 end
 
-function is_traceless_hermitian(M::SMatrix{3,3,ComplexF64,9}, prec = 1e-12)
+function is_traceless_hermitian(M::SMatrix{3,3,ComplexF64,9}, prec=1e-12)
     is_TH = norm(M - M') < prec && abs(tr(M)) < prec
     return is_TH
 end

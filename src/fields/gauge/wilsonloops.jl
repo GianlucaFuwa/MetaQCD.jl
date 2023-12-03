@@ -8,7 +8,7 @@ function wilsonloop(U, μ, ν, site, Lμ, Lν)
         return wilsonloop_top_left(U, μ, ν, site, Lμ, Lν)
     elseif right && !top
         return wilsonloop_bottom_right(U, μ, ν, site, Lμ, Lν)
-    elseif !right && !top
+    else
         return wilsonloop_bottom_left(U, μ, ν, site, Lμ, Lν)
     end
 
@@ -127,13 +127,15 @@ function wilsonloop_bottom_right(U, μ, ν, site, Lμ, Lν)
 end
 
 function wilsonloop(U, Lμ, Lν)
-    @batch per=thread threadlocal=0.0::Float64 for site in eachindex(U)
+    out = zeros(Float64, 8nthreads())
+
+    @batch per=thread for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
-                threadlocal += real(tr(wilsonloop(U, μ, ν, site, Lμ, Lν)))
+                out[8threadid()] += real(tr(wilsonloop(U, μ, ν, site, Lμ, Lν)))
             end
         end
     end
 
-    return sum(threadlocal)
+    return sum(out)
 end

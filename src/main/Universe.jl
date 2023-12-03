@@ -1,7 +1,7 @@
 module Universe
 
 using Dates
-using InteractiveUtils
+using Unicode
 using ..Utils
 using ..Output
 
@@ -13,36 +13,29 @@ import ..BiasModule: Bias, get_cvtype_from_parameters, write_to_file
 import ..Parameters: ParameterSet
 import ..Smearing: NoSmearing, StoutSmearing
 
-struct Univ{TG,TB,TV<:VerboseLevel}
+struct Univ{TG,TB}
     U::TG
     bias::TB
     numinstances::Int64
-    verbose_print::TV
 end
 
 function Univ(p::ParameterSet; use_mpi=false, fp=true)
+    @level1("┌ Setting Universe...")
     NX, NY, NZ, NT = p.L
     β = p.beta
-    verbose_print = get_verboseprint_from_parameters(p, fp)
-    fp && println_verbose1(verbose_print, "# ", pwd())
-    fp && println_verbose1(verbose_print, "# ", Dates.now())
-    io = IOBuffer()
-
-    InteractiveUtils.versioninfo(io)
-    versioninfo = String(take!(io))
-    fp && println_verbose1(verbose_print, versioninfo)
     GA = get_gaugeaction_from_parameters(p)
 
-    fp && println_verbose1(
-        verbose_print,
-        ">> PHYSICAL PARAMS: L = $(NX)x$(NX)x$(NX)x$(NX), GaugeAction = $(GA), beta = $β\n")
+    @level1("|  L: $(NX)x$(NY)x$(NZ)x$(NT)")
+    @level1("|  GaugeAction: $(GA)")
+    @level1("|  beta: $β")
+    @level1("└\n")
 
     if p.kind_of_bias != "none"
         if p.tempering_enabled && use_mpi==false
             numinstances = p.numinstances
-            println_verbose1(verbose_print, ">> Using 1 + $(numinstances-1) instances\n")
+            @level1("|  Using 1 + $(numinstances-1) instances\n")
             U₁ = initial_gauges(p.initial, NX, NY, NZ, NT, β, type_of_gaction=GA)
-            bias₁ = Bias(p, U₁; instance=0, verbose=verbose_print, has_fp=fp)
+            bias₁ = Bias(p, U₁; instance=0)
 
             U = Vector{typeof(U₁)}(undef, numinstances)
             bias = Vector{typeof(bias₁)}(undef, numinstances)
@@ -51,13 +44,12 @@ function Univ(p::ParameterSet; use_mpi=false, fp=true)
             U[1] = U₁
             for i in 2:numinstances
                 U[i] = initial_gauges(p.initial, NX, NY, NZ, NT, β, type_of_gaction=GA)
-                bias[i] = Bias(p, U[i]; verbose=verbose_print, instance=i-1, has_fp=fp)
+                bias[i] = Bias(p, U[i]; instance=i-1)
             end
         else
-            vb = fp ? verbose_print : nothing
             numinstances = 1
             U = initial_gauges(p.initial, NX, NY, NZ, NT, β, type_of_gaction=GA)
-            bias = Bias(p, U; verbose=vb)
+            bias = Bias(p, U)
         end
     else
         @assert p.tempering_enabled == false "tempering can only be enabled with bias"
@@ -66,44 +58,27 @@ function Univ(p::ParameterSet; use_mpi=false, fp=true)
         bias = nothing
     end
 
-    return Univ{typeof(U), typeof(bias), typeof(verbose_print)}(
-        U,
-        bias,
-        numinstances,
-        verbose_print,
-    )
+    return Univ{typeof(U), typeof(bias)}(U, bias, numinstances)
 end
 
 function get_gaugeaction_from_parameters(p::ParameterSet)
-    if p.kind_of_gaction=="wilson"
+    kind_of_gaction = Unicode.normalize(p.kind_of_gaction, casefold=true)
+
+    if kind_of_gaction == "wilson"
         GA = WilsonGaugeAction
-    elseif p.kind_of_gaction=="symanzik_tree"
+    elseif kind_of_gaction == "symanzik_tree"
         GA = SymanzikTreeGaugeAction
-    elseif p.kind_of_gaction=="symanzik_tadpole"
+    elseif kind_of_gaction == "symanzik_tadpole"
         GA = SymanzikTadGaugeAction
-    elseif p.kind_of_gaction=="iwasaki"
+    elseif kind_of_gaction == "iwasaki"
         GA = IwasakiGaugeAction
-    elseif p.kind_of_gaction=="dbw2"
+    elseif kind_of_gaction == "dbw2"
         GA = DBW2GaugeAction
     else
         error("Gauge action '$(p.kind_of_gaction)' not supported")
     end
 
     return GA
-end
-
-function get_verboseprint_from_parameters(p::ParameterSet, fp)
-    if p.verboselevel == 1
-        verbose_print = fp ? Verbose1(p.load_fp) : Verbose1()
-    elseif p.verboselevel == 2
-        verbose_print = fp ? Verbose2(p.load_fp) : Verbose2()
-    elseif p.verboselevel == 3
-        verbose_print = fp ? Verbose3(p.load_fp) : Verbose3()
-    else
-        error("Verbose level can only be 1, 2 or 3. Now it's $(p.verboselevel)")
-    end
-
-    return verbose_print
 end
 
 end

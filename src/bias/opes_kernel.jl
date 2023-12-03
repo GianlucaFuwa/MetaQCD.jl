@@ -4,23 +4,23 @@ struct Kernel
     σ::Float64
 end
 
-(k::Kernel)(cv, cutoff², penalty) =
-    evaluate_kernel(cv, k.height, k.center, k.σ, cutoff², penalty)
+(k::Kernel)(s, cutoff², penalty) =
+    evaluate_kernel(s, k.height, k.center, k.σ, cutoff², penalty)
 
-@inline function evaluate_kernel(cv, height, center, σ, cutoff², penalty)
-    diff = (center - cv)/σ
+@inline function evaluate_kernel(s, height, center, σ, cutoff², penalty)
+    diff = (center - s)/σ
     diff² = diff^2
     out = ifelse(diff²>=cutoff², 0.0, height*(exp(-0.5diff²) - penalty))
     return out
 end
 
-derivative(k::Kernel, cv, cutoff², penalty) =
-    kernel_derivative(cv, k.height, k.center, k.σ, cutoff², penalty)
+derivative(k::Kernel, s, cutoff², penalty) =
+    kernel_derivative(s, k.height, k.center, k.σ, cutoff², penalty)
 
-@inline function kernel_derivative(cv, height, center, σ, cutoff², penalty)
-    diff = (center - cv)/σ
+@inline function kernel_derivative(s, height, center, σ, cutoff², penalty)
+    diff = (center - s)/σ
     diff² = diff^2
-    val = ifelse(diff²>=cutoff², 0.0, height * (exp(-0.5diff²) - penalty))
+    val = ifelse(diff²>=cutoff², 0.0, height*(exp(-0.5diff²) - penalty))
     out = -diff * val
     return out
 end

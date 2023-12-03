@@ -6,6 +6,7 @@ using StaticArrays
 using Polyester
 using Printf
 using Random: rand, default_rng
+using Unicode
 using ..Output
 using ..Utils
 
@@ -30,11 +31,10 @@ include("./overrelaxation.jl")
 include("./parity.jl")
 include("./tempering.jl")
 
-function Updatemethod(parameters::ParameterSet, U, verbose)
+function Updatemethod(parameters::ParameterSet, U)
     updatemethod = Updatemethod(
         U,
         parameters.update_method,
-        verbose,
         parameters.verboselevel,
         parameters.logdir,
         parameters.kind_of_bias,
@@ -59,7 +59,6 @@ end
 function Updatemethod(
     U,
     update_method,
-    verbose,
     verboselevel = 1,
     logdir = "",
     kind_of_bias = "none",
@@ -78,27 +77,16 @@ function Updatemethod(
     or_algorithm = "subgroups",
     or_numOR = 4,
 )
-    if update_method == "hmc"
-        updatemethod = HMC(
-            U, hmc_integrator, hmc_steps, hmc_trajectory;
-            verbose = verbose,
-            friction = hmc_friction,
-            numsmear = hmc_numsmear,
-            ρ_stout = hmc_ρstout,
-            bias_enabled = kind_of_bias!="none",
-            verboselevel = verboselevel,
-            logdir = logdir,
-        )
-    elseif update_method == "metropolis"
-        updatemethod = Metropolis(
-            U, eo, metro_ϵ, metro_numhits, metro_target_acc, or_algorithm, or_numOR;
-            verbose = verbose,
-        )
-    elseif update_method == "heatbath"
-        updatemethod = Heatbath(
-            U, eo, hb_MAXIT, hb_numHB, or_algorithm, or_numOR;
-            verbose = verbose,
-        )
+    lower_case(str) = Unicode.normalize(str, casefold=true)
+    if lower_case(update_method) == "hmc"
+        updatemethod = HMC(U, hmc_integrator, hmc_trajectory, hmc_steps, hmc_friction,
+                           hmc_numsmear, hmc_ρstout, verboselevel;
+                           bias_enabled = kind_of_bias!="none", logdir=logdir)
+    elseif lower_case(update_method) == "metropolis"
+        updatemethod = Metropolis(U, eo, metro_ϵ, metro_numhits, metro_target_acc,
+                                  or_algorithm, or_numOR)
+    elseif lower_case(update_method) == "heatbath"
+        updatemethod = Heatbath(U, eo, hb_MAXIT, hb_numHB, or_algorithm, or_numOR)
     else
         error("update method $(update_method) is not supported")
     end
@@ -108,5 +96,7 @@ end
 
 update!(::T, U) where {T<:AbstractUpdate} = nothing
 update!(::Nothing, U) = nothing
+
+Base.close(::T) where {T<:AbstractUpdate} = nothing
 
 end

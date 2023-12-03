@@ -12,19 +12,13 @@ end
 
 include("gradientflow_integrators.jl")
 
-function GradientFlow(
-    U::TG;
-    integrator = "euler",
-    numflow = 1,
-    steps = 1,
-    tf = 0.12,
-    measure_every = 1,
-    verbose = nothing,
-) where {TG}
-    println_verbose1(verbose, ">> Setting Gradient Flow...")
+function GradientFlow(U::TG, integrator="euler", numflow=1, steps=1, tf=0.12;
+                      measure_every = 1) where {TG}
+    @level1("┌ Setting Gradient Flow...")
     Z = Liefield(U)
     Uflow = similar(U)
 
+    integrator = Unicode.normalize(integrator, casefold=true)
     if integrator == "euler"
         TI = Euler
     elseif integrator == "rk2"
@@ -37,20 +31,21 @@ function GradientFlow(
         error("Gradient flow integrator \"$(integrator)\" not supported")
     end
 
-    if typeof(measure_every) == Int64
+    if measure_every isa Int64
         measure_at = range(measure_every, numflow, step=measure_every)
-    else
+    elseif measure_every isa Vector{Int64}
         measure_at = measure_every
     end
 
     ϵ = tf / steps
 
-    println_verbose1(verbose, "\t>> GFLOW INTEGRATOR = $(TI)")
-    println_verbose1(verbose, "\t>> NUMBER OF GFLOWS = $(numflow)")
-    println_verbose1(verbose, "\t>> FLOW TIME PER GFLOW = $(tf)")
-    println_verbose1(verbose, "\t>> INTEGRATION STEPS PER GFLOW = $(steps)")
-    println_verbose1(verbose, "\t>> INTEGRATION STEP SIZE = $(ϵ)")
-    println_verbose1(verbose, "\t>> MEASURING ON GFLOW NUMBERS: $(collect(measure_at))\n")
+    @level1("|  GFLOW INTEGRATOR: $(TI)")
+    @level1("|  NUMBER OF GFLOWS: $(numflow)")
+    @level1("|  FLOW TIME PER GFLOW: $(tf)")
+    @level1("|  INTEGRATION STEPS PER GFLOW: $(steps)")
+    @level1("|  INTEGRATION STEP SIZE: $(ϵ)")
+    @level1("|  MEASURING ON GFLOW NUMBERS: $(measure_at)")
+    @level1("└\n")
     return GradientFlow{TI,TG}(numflow, steps, ϵ, tf, measure_at, Uflow, Z)
 end
 

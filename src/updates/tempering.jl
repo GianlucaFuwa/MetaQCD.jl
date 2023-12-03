@@ -1,7 +1,5 @@
-function temper!(
-    U::Vector{TG}, bias::Vector{TB}, numaccepts_temper, swap_every, itrj, verbose;
-    recalc = false,
-) where {TG<:Gaugefield, TB<:Bias}
+function temper!(U::Vector{TG}, bias::Vector{TB}, numaccepts_temper, swap_every, itrj;
+                 recalc = false) where {TG<:Gaugefield, TB<:Bias}
     itrj%swap_every!=0 && return nothing
     numinstances = length(U)
     recalc && recalc_CV!(U[1], bias[1])
@@ -16,7 +14,7 @@ function temper!(
         ΔV1 = bias1(cv2) - bias1(cv1)
         ΔV2 = bias2(cv1) - bias2(cv2)
         acc_prob = exp(-ΔV1-ΔV2)
-        println_verbose1(verbose, ">> ΔV$(i) = $(ΔV1)", "\t", "ΔV$(i-1) = $(ΔV2)")
+        @level1("|  ΔV$(i) = $(ΔV1)\tΔV$(i-1) = $(ΔV2)")
 
         if rand() ≤ acc_prob
             println("# swap accepted")
@@ -28,11 +26,7 @@ function temper!(
             println("# swap rejected")
         end
 
-        println_verbose1(
-            verbose,
-            ">> Swap Acceptance [$i ⇔  $(i-1)]:\t",
-            "$(100numaccepts_temper[i-1] / (itrj/swap_every)) %"
-        )
+        @level1( "|  Acceptance [$i ⇔  $(i-1)]:\t$(100numaccepts_temper[i-1] / (itrj/swap_every)) %")
     end
 
     return nothing
