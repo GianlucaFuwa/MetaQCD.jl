@@ -6,9 +6,7 @@ struct MeasurementMethods
 end
 
 function MeasurementMethods(
-    U,
-    measurement_dir,
-    measurement_methods::Vector{Dict};
+    U, measurement_dir, measurement_methods::Vector{Dict};
     flow = false,
     additional_string = "",
 )
@@ -36,10 +34,7 @@ function MeasurementMethods(
 
     @level1("└\n")
     return MeasurementMethods(
-        measurement_parameters_set,
-        measurements,
-        nummeasurements,
-        intervals,
+        measurement_parameters_set, measurements, nummeasurements, intervals,
     )
 end
 

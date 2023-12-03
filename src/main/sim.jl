@@ -111,11 +111,9 @@ function metaqcd!(parameters, univ, updatemethod, gflow, measurements,
     _, runtime_therm = @timed begin
         for itrj in 1:parameters.numtherm
             @level1("|  itrj = $itrj")
-
             _, updatetime = @timed begin
                 update!(updatemethod, U; bias=nothing, metro_test=false)
             end
-
             @level1("|  Elapsed time:\t$(updatetime) [s]")
         end
     end

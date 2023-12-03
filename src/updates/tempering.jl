@@ -1,11 +1,5 @@
-function temper!(
-    U::Vector{TG},
-    bias::Vector{TB},
-    numaccepts_temper,
-    swap_every,
-    itrj;
-    recalc = false,
-) where {TG<:Gaugefield, TB<:Bias}
+function temper!(U::Vector{TG}, bias::Vector{TB}, numaccepts_temper, swap_every, itrj;
+                 recalc = false) where {TG<:Gaugefield, TB<:Bias}
     itrj%swap_every!=0 && return nothing
     numinstances = length(U)
     recalc && recalc_CV!(U[1], bias[1])
