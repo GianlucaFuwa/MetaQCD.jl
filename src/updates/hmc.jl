@@ -96,11 +96,12 @@ end
 include("hmc_integrators.jl")
 
 function update!(hmc::HMC{TI,TG,TS,PO,F2,FS,IO}, U;
-                 bias::T=nothing, metro_test=true) where {TI,TG,TS,PO,F2,FS,IO,T}
+                 bias::T=nothing, metro_test=true,
+                 friction=hmc.friction) where {TI,TG,TS,PO,F2,FS,IO,T}
     U_old = hmc.U_old
     P_old = hmc.P_old
     substitute_U!(U_old, U)
-    gaussian_momenta!(hmc.P, hmc.friction)
+    gaussian_momenta!(hmc.P, friction)
     PO≢Nothing && substitute_U!(P_old, hmc.P)
 
     Sg_old = U.Sg

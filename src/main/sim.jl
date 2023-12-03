@@ -183,7 +183,7 @@ function metaqcd_PT!(parameters, univ, updatemethod, updatemethod_pt, gflow, mea
                     # thermalize all streams with the updatemethod of stream 1
                     # shouldnt be a problem for HMC, since we force 0-friction
                     # for thermalization updates and reverse the order, so stream 1 is last
-                    update!(updatemethod, U[i], bias=nothing, metro_test=false)
+                    update!(updatemethod, U[i], bias=nothing, metro_test=false, friction=π/2)
                 end
             end
             @level1("|  Elapsed time:\t$(updatetime) [s]")
