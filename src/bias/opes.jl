@@ -292,7 +292,7 @@ function ∂V∂Q(o::OPES, cv)
     deriv /= o.sum_weights
 
     Z = o.Z
-    out = o.bias_prefactor / (prob/Z+o.ϵ) * deriv/Z
+    out = -o.bias_prefactor / (prob/Z+o.ϵ) * deriv/Z
     return out
 end
 
