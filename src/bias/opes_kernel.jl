@@ -21,7 +21,7 @@ derivative(k::Kernel, s, cutoff², penalty) =
     diff = (center - s)/σ
     diff² = diff^2
     val = ifelse(diff²>=cutoff², 0.0, height*(exp(-0.5diff²) - penalty))
-    out = -diff * val
+    out = -diff/σ * val
     return out
 end
 
