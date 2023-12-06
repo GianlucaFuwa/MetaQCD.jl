@@ -44,6 +44,7 @@ mutable struct OPES <: AbstractBias
     sum_weights::Float64
     sum_weights²::Float64
     current_bias::Float64
+    current_weight::Float64
     no_Z::Bool
     Z::Float64
     KDEnorm::Float64
@@ -150,7 +151,7 @@ function OPES(p::ParameterSet; instance=1)
                 symmetric, counter, stride, cvlims,
                 biasfactor, bias_prefactor,
                 σ₀, σ_min, fixed_σ,
-                ϵ, sum_weights, sum_weights², current_bias, no_Z, Z, KDEnorm,
+                ϵ, sum_weights, sum_weights², current_bias, 0.0, no_Z, Z, KDEnorm,
                 threshold, cutoff², penalty,
                 sum_weights, Z, KDEnorm,
                 nker, kernels, nδker, δkernels)
@@ -273,6 +274,7 @@ function calculate!(o::OPES, cv)
     prob /= o.sum_weights
 
     current_bias = o.bias_prefactor * log(prob/o.Z + o.ϵ)
+    o.current_weight = prob
     o.current_bias = current_bias
     o.after_calculate = true
     return nothing
