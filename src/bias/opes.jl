@@ -26,7 +26,6 @@ must be ordered \\
 """
 mutable struct OPES <: AbstractBias
     is_first_step::Bool
-    after_calculate::Bool
 
     symmetric::Bool
     counter::Int64
@@ -65,7 +64,6 @@ end
 
 function OPES(p::ParameterSet; instance=1)
     is_first_step = true
-    after_calculate = false
 
     symmetric = p.symmetric
     counter = 1
@@ -115,6 +113,7 @@ function OPES(p::ParameterSet; instance=1)
         is_first_step = false
         counter = Int64(state["counter"])
         biasfactor = state["biasfactor"]
+        bias_prefactor = 1 - 1/biasfactor
         σ₀ = state["sigma0"]
         ϵ = state["epsilon"]
         sum_weights = state["sum_weights"]
@@ -147,7 +146,7 @@ function OPES(p::ParameterSet; instance=1)
     @assert threshold > 0 "THRESHOLD must be > 0"
     @level1("|  CUTOFF: $(sqrt(cutoff²))")
     @assert cutoff > 0 "CUTOFF must be > 0"
-    return OPES(is_first_step, after_calculate,
+    return OPES(is_first_step,
                 symmetric, counter, stride, cvlims,
                 biasfactor, bias_prefactor,
                 σ₀, σ_min, fixed_σ,
@@ -157,22 +156,49 @@ function OPES(p::ParameterSet; instance=1)
                 nker, kernels, nδker, δkernels)
 end
 
+function OPES(filename::String)
+    state = Dict{String, Any}(
+        "counter" => 0,
+        "biasfactor" => Inf,
+        "sigma0" => 0.0,
+        "epsilon" => 0.0,
+        "sum_weights" => 0.0,
+        "Z" => 1.0,
+        "threshold" => 1.0,
+        "cutoff" => 1.0,
+        "penalty" => 1.0,
+    )
+
+    @assert isfile(filename) "file \"$(filename)\" doesn't exist"
+    kernels, nker = opes_from_file!(state, filename)
+    is_first_step = false
+    counter = Int64(state["counter"])
+    biasfactor = state["biasfactor"]
+    bias_prefactor = 1 - 1/biasfactor
+    σ₀ = state["sigma0"]
+    ϵ = state["epsilon"]
+    sum_weights = state["sum_weights"]
+    Z = state["Z"]
+    threshold = state["threshold"]
+    cutoff² = state["cutoff"]^2
+    penalty = state["penalty"]
+
+    return OPES(is_first_step,
+                true, counter, 1, (-5, 5),
+                biasfactor, bias_prefactor,
+                σ₀, 1e-6, false,
+                ϵ, sum_weights, sum_weights^2, 0.0, 0.0, false, Z, sum_weights,
+                threshold, cutoff², penalty,
+                sum_weights, Z, sum_weights,
+                nker, kernels, 0, Vector{Kernel}(undef, 2))
+end
+
 get_kernels(o::OPES) = o.kernels
 get_δkernels(o::OPES) = o.δkernels
 eachkernel(o::OPES) = view(o.kernels, 1:o.nker)
 eachδkernel(o::OPES) = view(o.δkernels, 1:o.nδker)
 
-function update!(o::OPES, cv, itrj)
-    calculate!(o, cv)
-    update_opes!(o, cv, itrj)
-
-    if o.symmetric
-        calculate!(o, -cv)
-        update_opes!(o, -cv, itrj)
-    end
-
-    return nothing
-end
+update!(o::OPES, cv, itrj) = update_opes!(o, cv, itrj)
 
 function update_opes!(o::OPES, cv, itrj)
     if o.is_first_step
@@ -180,17 +206,21 @@ function update_opes!(o::OPES, cv, itrj)
         return nothing
     end
 
-    (itrj%o.stride != 0 || !in_bounds(cv, o.cvlims...)) && return nothing
+    (itrj%o.stride != 0 || !in_bounds(cv[1], o.cvlims[1], o.cvlims[2])) && return nothing
     o.old_KDEnorm = o.KDEnorm
     old_nker = o.nker
 
+    # if bias is symmetric then we add twice the weight to the total
+    symm_factor = o.symmetric ? 2.0 : 1.0
+
     # get new kernel height
-    height = exp(o.current_bias)
+    current_bias = [o(cvᵢ) for cvᵢ in cv]
+    height = exp.(current_bias)
 
     # update sum_weights and neff
-    o.counter += 1
-    o.sum_weights += height
-    o.sum_weights² += height^2
+    o.counter += symm_factor * length(cv)
+    o.sum_weights += symm_factor * sum(height)
+    o.sum_weights² += symm_factor^2 * sum(height.*height)
     neff = (1 + o.sum_weights)^2 / (1 + o.sum_weights²)
     o.KDEnorm = o.sum_weights
 
@@ -208,7 +238,10 @@ function update_opes!(o::OPES, cv, itrj)
     height *= (o.σ₀/σ)
 
     # add new kernel
-    add_kernel!(o, height, cv, σ)
+    for i in eachindex(cv)
+        add_kernel!(o, height[i], cv[i], σ)
+        o.symmetric && add_kernel!(o, height[i], -cv[i], σ)
+    end
 
     # update Z
     if !o.no_Z
@@ -276,7 +309,6 @@ function calculate!(o::OPES, cv)
     current_bias = o.bias_prefactor * log(prob/o.Z + o.ϵ)
     o.current_weight = prob
     o.current_bias = current_bias
-    o.after_calculate = true
     return nothing
 end
 
