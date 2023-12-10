@@ -126,11 +126,7 @@ include("parametric.jl")
 
 function update_bias!(b::Bias, values, itrj, write)
     b.is_static && return nothing
-
-    for cv in values
-        update!(b.bias, cv, itrj)
-    end
-
+    update!(b.bias, values, itrj)
     write && write_to_file(b.bias, b.biasfile)
     return nothing
 end

@@ -81,18 +81,20 @@ end
 end
 
 function update!(m::Metadynamics, cv, args...)
-    if in_bounds(cv, m.cvlims...)
-        for (idx, bin_val) in enumerate(m.bin_vals)
-            wt = exp(-m[idx] / m.biasfactor)
-            m[idx] += m.weight * wt * exp(-0.5(cv - bin_val)^2 / m.bin_width^2)
-        end
-    end
-
-    if m.symmetric
-        if in_bounds(-cv, m.cvlims...)
+    for cvᵢ in cv
+        if in_bounds(cvᵢ, m.cvlims[1], m.cvlims[2])
             for (idx, bin_val) in enumerate(m.bin_vals)
                 wt = exp(-m[idx] / m.biasfactor)
-                m[idx] += m.weight * wt * exp(-0.5(-cv - bin_val)^2 / m.bin_width^2)
+                m[idx] += m.weight * wt * exp(-0.5(cvᵢ - bin_val)^2 / m.bin_width^2)
+            end
+        end
+
+        if m.symmetric
+            if in_bounds(-cvᵢ, m.cvlims[1], m.cvlims[2])
+                for (idx, bin_val) in enumerate(m.bin_vals)
+                    wt = exp(-m[idx] / m.biasfactor)
+                    m[idx] += m.weight * wt * exp(-0.5(-cvᵢ - bin_val)^2 / m.bin_width^2)
+                end
             end
         end
     end
