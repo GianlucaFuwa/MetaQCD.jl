@@ -15,6 +15,8 @@ Inspired by the [LatticeQCD.jl](https://github.com/akio-tomiya/LatticeQCD.jl/tre
 - Improved Topological charge definitions (clover, rectangle clover-improved)
 
 ## Installation:
+First make sure you have a Julia version at or above 1.9.0 installed. You can use [juliaup](https://github.com/JuliaLang/juliaup) for that or just install the release from the [Julia website](https://julialang.org/downloads/).
+
 The package in not in the general registry. So you will have to:
 1. Clone this repository onto your machine.
 2. Open Julia in the directory which you cloned the repo into, with the project specific environment. This can either be done by starting Julia with the command line argument "--project" or by activating the environment within an opened Julia instance via the package manager:
