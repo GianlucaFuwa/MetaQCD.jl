@@ -128,9 +128,10 @@ function metaqcd!(parameters, univ, updatemethod, gflow, measurements,
             @level1("|  itrj = $itrj")
 
             _, updatetime = @timed begin
-                numaccepts += update!(updatemethod, U; bias=bias, metro_test=true)
-                rand()<0.5 ? update!(parity, U) : nothing
-                update_bias!(bias, U.CV, itrj, true)
+                accepted = update!(updatemethod, U; bias=bias, metro_test=true)
+                rand()<0.5 && update!(parity, U)
+                accepted==true && update_bias!(bias, U.CV, itrj, true)
+                numaccepts += accepted
             end
 
             print_acceptance_rates(numaccepts, itrj)
@@ -207,8 +208,9 @@ function metaqcd_PT!(parameters, univ, updatemethod, updatemethod_pt, gflow, mea
                 rand()<0.5 && update!(parity, U[1])
 
                 for i in 2:numinstances
-                    numaccepts[i] += update!(updatemethod_pt, U[i], bias=bias[i])
-                    update_bias!(bias[i], U[i].CV, itrj, true)
+                    accepted = update!(updatemethod_pt, U[i], bias=bias[i])
+                    accepted==true && update_bias!(bias[i], U[i].CV, itrj, true)
+                    numaccepts[i] += accepted
                 end
             end
 

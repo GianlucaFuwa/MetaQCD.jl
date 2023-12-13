@@ -86,13 +86,14 @@ function build!(parameters,univ, updatemethod, gflow, measurements, measurements
             @level1("|  itrj = $itrj")
 
             _, updatetime = @timed begin
-                numaccepts += update!(updatemethod, U, bias=bias)
+                accepted = update!(updatemethod, U, bias=bias)
+                numaccepts += accepted
             end
 
             @level1("|  Elapsed time:\t$(updatetime) [s]\n")
 
             CVs = MPI.Allgather(U.CV::Float64, comm)
-            update_bias!(bias, CVs, itrj, myrank==0)
+            accepted==true && update_bias!(bias, CVs, itrj, myrank==0)
             acceptances = MPI.Allgather(numaccepts::Float64, comm)
             print_acceptance_rates(acceptances, itrj)
 
