@@ -348,9 +348,6 @@ function add_kernel!(o::OPES, height, cv, σ)
         push!(δkernels, new_kernel)
         o.nδker += 1
     end
-
-    @show o.δkernels
-
     return nothing
 end
 
