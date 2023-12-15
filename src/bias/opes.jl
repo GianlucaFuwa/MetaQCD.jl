@@ -92,9 +92,9 @@ function OPES(p::ParameterSet; instance=1)
     penalty = exp(-0.5cutoff²)
 
     nker = 0
-    kernels = Vector{Kernel}(undef, 1000)
+    kernels = Vector{Kernel}(undef, 0)
     nδker = 0
-    δkernels = Vector{Kernel}(undef, 2)
+    δkernels = Vector{Kernel}(undef, 0)
 
     state = Dict{String, Any}(
         "counter" => counter,
@@ -195,8 +195,6 @@ end
 
 get_kernels(o::OPES) = o.kernels
 get_δkernels(o::OPES) = o.δkernels
-eachkernel(o::OPES) = view(o.kernels, 1:o.nker)
-eachδkernel(o::OPES) = view(o.δkernels, 1:o.nδker)
 
 update!(o::OPES, cv, itrj) = update_opes!(o, cv, itrj)
 
@@ -215,7 +213,7 @@ function update_opes!(o::OPES, cv, itrj)
 
     # get new kernel height
     current_bias = [o(cvᵢ) for cvᵢ in cv]
-    height = exp.(current_bias)
+    height = [exp(Vᵢ) for Vᵢ in current_bias]
 
     # update sum_weights and neff
     o.counter += symm_factor * length(cv)
@@ -237,7 +235,9 @@ function update_opes!(o::OPES, cv, itrj)
     # so we leave it out altogether but keep the s_rescaling
     height *= (o.σ₀/σ)
 
-    # add new kernel
+    # add new kernels
+    empty!(o.δkernels)
+    o.nδker = 0
     for i in eachindex(cv)
         add_kernel!(o, height[i], cv[i], σ)
         o.symmetric && add_kernel!(o, height[i], -cv[i], σ)
@@ -253,16 +253,16 @@ function update_opes!(o::OPES, cv, itrj)
         penalty = o.penalty
         sum_uprob = 0.0
         δsum_uprob = 0.0
-        for kernel in eachkernel(o)
-            for δkernel in eachδkernel(o)
+        for kernel in o.kernels
+            for δkernel in o.δkernels
                 # take away contribution from kernels that are gone, and add new ones
                 sgn = sign(δkernel.height)
                 δsum_uprob += δkernel(kernel.center, cutoff², penalty) +
                               sgn*kernel(δkernel.center, cutoff², penalty)
             end
         end
-        for δkernel in eachδkernel(o)
-            for δδkernel in eachδkernel(o)
+        for δkernel in o.δkernels
+            for δδkernel in o.δkernels
                 # now subtract the δ_uprob added before, but not needed
                 sgn = sign(δkernel.height)
                 δsum_uprob -= sgn*δδkernel(δkernel.center, cutoff², penalty)
@@ -297,7 +297,7 @@ function calculate!(o::OPES, cv)
     penalty = o.penalty
 
     prob = 0.0
-    for kernel in eachkernel(o)
+    for kernel in o.kernels
         prob += kernel(cv, cutoff², penalty)
         if prob > 1e10
             throw(AssertionError("prob = $prob is dangerously high,
@@ -318,7 +318,7 @@ function ∂V∂Q(o::OPES, cv)
 
     prob = 0.0
     deriv = 0.0
-    for kernel in eachkernel(o)
+    for kernel in o.kernels
         prob += kernel(cv, cutoff², penalty)
         deriv += derivative(kernel, cv, cutoff², penalty)
     end
@@ -338,21 +338,18 @@ function add_kernel!(o::OPES, height, cv, σ)
     taker_i = get_mergeable_kernel(cv, kernels, o.threshold, o.nker)
 
     if taker_i < o.nker+1
-        δkernels[1] = -1 * kernels[taker_i]
+        push!(δkernels, -1*kernels[taker_i])
         kernels[taker_i] = merge(kernels[taker_i], new_kernel)
-        δkernels[2] = kernels[taker_i]
-        o.nδker = 2
+        push!(δkernels, kernels[taker_i])
+        o.nδker += 2
     else
-        if o.nker+1 > length(kernels)
-            push!(kernels, new_kernel)
-            o.nker += 1
-        else
-            kernels[o.nker+1] = new_kernel
-            o.nker += 1
-        end
-        δkernels[1] = new_kernel
-        o.nδker = 1
+        push!(kernels, new_kernel)
+        o.nker += 1
+        push!(δkernels, new_kernel)
+        o.nδker += 1
     end
+
+    @show o.δkernels
 
     return nothing
 end
@@ -395,7 +392,7 @@ function write_to_file(o::OPES, filename::String)
     println(tmpio, state_str)
     println(tmpio, kernel_header)
 
-    for kernel in eachkernel(o)
+    for kernel in o.kernels
         h_str = @sprintf("%+-20.15e", kernel.height)
         c_str = @sprintf("%+-20.15e", kernel.center)
         σ_str = @sprintf("%+-20.15e", kernel.σ)
@@ -410,7 +407,7 @@ end
 
 function opes_from_file!(dict, usebias)
     if usebias==""
-        kernels = Vector{Kernel}(undef, 1000)
+        kernels = Vector{Kernel}(undef, 0)
         return kernels, 0
     else
         @level1("|  Getting state from $(usebias)")
