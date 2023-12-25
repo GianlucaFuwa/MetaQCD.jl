@@ -371,6 +371,7 @@ const state_vars = [
     "sigma0",
     "epsilon",
     "sum_weights",
+    # "sum_weights²",
     "Z",
     "threshold",
     "cutoff",
@@ -384,8 +385,8 @@ function write_to_file(o::OPES, filename::String)
     filename=="" && return nothing
     (tmppath, tmpio) = mktemp()
     print(tmpio, "#"); [print(tmpio, "$(var)\t") for var in state_vars]; println(tmpio, "")
-    state_str = "$(o.counter)\t$(o.biasfactor)\t$(o.σ₀)\t$(o.ϵ)\t$(o.sum_weights)\t$(o.Z)" *
-        "\t$(o.threshold)\t$(√o.cutoff²)\t$(o.penalty)\n"
+    state_str = "$(o.counter)\t$(o.biasfactor)\t$(o.σ₀)\t$(o.ϵ)\t$(o.sum_weights)" *
+    "\t$(o.sum_weights²)\t$(o.Z)\t$(o.threshold)\t$(√o.cutoff²)\t$(o.penalty)\n"
     println(tmpio, state_str)
     println(tmpio, kernel_header)
 
