@@ -56,6 +56,7 @@ function construct_params_from_toml(parameters; am_rank0=true)
     pnames = fieldnames(ParameterSet)
     numparams = length(pnames)
     value_Params = Vector{Any}(undef, numparams)
+    time_now = now()
 
     physical = PrintPhysicalParameters()
     set_params_value!(value_Params, physical)
@@ -79,45 +80,38 @@ function construct_params_from_toml(parameters; am_rank0=true)
 
     posl = findfirst(x -> String(x) == "logdir", pnames)
     log_dir = try
-                parameters["System Settings"]["log_dir"]
-             catch
-                ""
-             end
+                  parameters["System Settings"]["log_dir"]
+              catch
+                  string(time_now)
+              end
 
-    if log_dir!="" && isdir(log_dir)==false
-        am_rank0 && mkpath(log_dir)
+    logdir = pwd() * "/logs/" * log_dir
+
+    if !isdir(logdir)
+        am_rank0 && mkpath(logdir)
     end
 
-    logfile = pwd() * "/" * log_dir * "/logs.txt"
+    logfile = logdir * "/logs.txt"
 
     if isfile(logfile)
         overwrite || overwrite_detected("logfile", am_rank0)
     end
-    value_Params[posl] = log_dir
+    value_Params[posl] = logdir
 
-    measurement_basedir = try
-                              parameters["System Settings"]["measurement_basedir"]
-                          catch
-                              "measurements"
-                          end
     measurement_dir = try
                           parameters["System Settings"]["measurement_dir"]
                       catch
-                          string(now())
+                          string(time_now)
                       end
 
-    if !isdir(measurement_basedir)
-        am_rank0 ? mkpath(measurement_basedir) : nothing
-    end
-
-    if !isdir(pwd() * "/" * measurement_basedir * "/" * measurement_dir)
-        am_rank0 && mkpath(pwd() * "/" * measurement_basedir * "/" * measurement_dir)
+    measuredir = pwd() * "/measurements/" * measurement_dir
+    if !isdir(measuredir)
+        am_rank0 && mkpath(measuredir)
     else
         overwrite || overwrite_detected("measurement", am_rank0)
     end
 
     posm = findfirst(x -> String(x) == "measuredir", pnames)
-    measuredir = pwd() * "/" * measurement_basedir * "/" * measurement_dir
     value_Params[posm] = measuredir
 
     kind_of_bias = try
@@ -130,15 +124,10 @@ function construct_params_from_toml(parameters; am_rank0=true)
     pos = findfirst(x -> String(x) == "biasdir", pnames)
 
     if kind_of_bias != "none"
-        bias_basedir = try parameters["System Settings"]["bias_basedir"] catch _ "biases" end
-        bias_dir = try parameters["System Settings"]["bias_dir"] catch _ "" end
-        biasdir = pwd() * "/" * bias_basedir * "/" * bias_dir
+        bias_dir = try parameters["System Settings"]["bias_dir"] catch _ "$time_now" end
+        biasdir = pwd() * "/metapotentials/" * bias_dir
 
-        if !isdir(bias_basedir)
-            am_rank0 && mkpath(bias_basedir)
-        end
-
-        if !isdir(pwd() * "/" * bias_basedir * "/" * bias_dir)
+        if !isdir(biasdir)
             am_rank0 && mkpath(biasdir)
         end
 

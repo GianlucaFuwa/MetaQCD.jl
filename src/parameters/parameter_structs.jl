@@ -101,9 +101,7 @@ Base.@kwdef mutable struct PrintSystemParameters
     saveU_format::String = ""
     saveU_every::Int64 = 1
     randomseed::Union{UInt64, Vector{UInt64}} = 0x0000000000000000
-    measurement_basedir::String = ""
     measurement_dir::String = ""
-    bias_basedir::Union{String, Vector{String}} = ""
     bias_dir::Union{String, Vector{String}} = ""
     overwrite::Bool = false
 end
@@ -118,7 +116,6 @@ Base.@kwdef mutable struct PrintHMCParameters
 end
 
 Base.@kwdef mutable struct PrintGradientFlowParameters
-    hasgradientflow::Bool = false
     flow_integrator::String = "euler"
     flow_num::Int64 = 1
     flow_tf::Float64 = 0.1

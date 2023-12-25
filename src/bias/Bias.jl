@@ -62,10 +62,12 @@ function Bias(p::ParameterSet, U; instance=1)
 
     @level1("|  CV: $TCV with $(p.numsmears_for_cv) x $(p.rhostout_for_cv) Stout")
 
-    if myrank==0 && (kind_of_bias!="parametric")
-        biasfile = p.biasdir * "/stream_$instance.txt"
+    if myrank==0 && !(bias isa Parametric)
+        is_opes = bias isa opes
+        ext = is_opes ? "opes" : "metad"
+        biasfile = p.biasdir * "/stream_$(instance).$(ext)"
         fp = open(p.measuredir * "/bias_data_$instance.txt", "w")
-        kinds_of_weights = p.kinds_of_weights
+        kinds_of_weights = is_opes ? ["opes"] : p.kinds_of_weights
         str = @sprintf("%-9s\t%-22s", "itrj", "cv")
         print(fp, str)
 
@@ -75,7 +77,7 @@ function Bias(p::ParameterSet, U; instance=1)
         end
 
         println(fp)
-    elseif myrank==0 && (kind_of_bias=="parametric")
+    elseif myrank==0 && (bias isa Parametric)
         fp = open(p.measuredir * "/bias_data_$instance.txt", "w")
         kinds_of_weights = ["branduardi"]
         str = @sprintf("%-9s\t%-22s\t%-22s\n", "itrj", "cv", "weight_branduardi")

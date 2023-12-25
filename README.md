@@ -9,8 +9,8 @@ Inspired by the [LatticeQCD.jl](https://github.com/akio-tomiya/LatticeQCD.jl/tre
 - [Metadynamics](https://www.researchgate.net/publication/224908601_Metadynamics_A_method_to_simulate_rare_events_and_reconstruct_the_free_energy_in_biophysics_chemistry_and_material_science)
 - [PT-MetaD](https://arxiv.org/abs/2307.04742)
 - Several update algorithms (HMC, Metropolis, Heatbath, Overrelaxation)
-- Several symplectic integrators for HMC (Leapfrog, OMF2, OMF4) -> Case sensititve in parameter-files
-- Gradient flow with variable integrators (Euler, RK2, RK3, RK3W7) -> Case sensititve in parameter-files
+- Several symplectic integrators for HMC (Leapfrog, OMF2, OMF4)
+- Gradient flow with variable integrators (Euler, RK2, RK3, RK3W7)
 - Improved Gauge actions (Symanzik tree, Iwasaki, DBW2)
 - Improved Topological charge definitions (clover, rectangle clover-improved)
 
@@ -56,8 +56,28 @@ using MetaQCD
 ```
 4. Begin Simulation with prepared parameter file "parameters.toml":
 ``` julia
-@time run_sim("parameters.toml")
+run_sim("parameters.toml")
 ```
+
+## Visualization:
+We include the ability to visualize your data. For that, you have to activate and instantiate the visualization project:
+```julia
+pkg> activate ./visualize
+pkg> instantiate
+```
+
+Now you can create a holder for all measurements in a directory and plot a time series of an observable, specifying its filename (without extenstion) as a symbol:
+```julia
+measurements = MetaMeasurements(mydir)
+timeseries(measurements, :myobservable)
+```
+
+You can also create a holder of a bias potential and plot it. MetaQCD.jl creates the bias files with an extension that gives their type (.metad or .opes), but if you changed the extension you have to provide the bias type as a symbol under the kwarg `which`:
+```julia
+bias = MetaBias(myfile, which=:mytype)
+biaspotential(bias)
+```
+
 ## Full Parameter list (= default):
 ```julia
 Base.@kwdef mutable struct PrintPhysicalParameters
@@ -91,7 +111,7 @@ Base.@kwdef mutable struct PrintBiasParameters
     cvlims::NTuple{2, Float64} = (-7, 7)
     biasfactor::Float64 = Inf
     kinds_of_weights::Vector{String} = ["tiwari"]
-    usebiases::Union{Nothing, String, Vector{Union{Nothing,String}}} = nothing
+    usebiases::Vector{String} = [""]
     write_bias_every::Int64 = 1
     # metadynamics specific
     bin_width::Float64 = 1e-2
@@ -120,20 +140,18 @@ end
 
 Base.@kwdef mutable struct PrintSystemParameters
     log_dir::String = ""
-    logfile::String = ""
+    log_to_console::Bool = true
     verboselevel::Int64 = 1
-    loadU_format::Union{Nothing, String} = nothing
+    loadU_format::String = ""
     loadU_dir::String = ""
     loadU_fromfile::Bool = false
     loadU_filename::String = ""
     saveU_dir::String = ""
-    saveU_format::Union{String, Nothing} = nothing
+    saveU_format::String = ""
     saveU_every::Int64 = 1
     randomseed::Union{UInt64, Vector{UInt64}} = 0x0000000000000000
-    measurement_basedir::String = ""
     measurement_dir::String = ""
-    bias_basedir::Union{Nothing, String, Vector{String}} = nothing
-    bias_dir::Union{Nothing, String, Vector{Union{Nothing,String}}} = nothing
+    bias_dir::Union{String, Vector{String}} = ""
     overwrite::Bool = false
 end
 
@@ -147,11 +165,14 @@ Base.@kwdef mutable struct PrintHMCParameters
 end
 
 Base.@kwdef mutable struct PrintGradientFlowParameters
-    hasgradientflow::Bool = false
     flow_integrator::String = "euler"
     flow_num::Int64 = 1
     flow_tf::Float64 = 0.1
     flow_steps::Int64 = 10
     flow_measure_every::Union{Int64, Vector{Int64}} = 1
+end
+
+Base.@kwdef mutable struct PrintMeasurementParameters
+    measurement_method::Vector{Dict} = Dict[]
 end
 ```

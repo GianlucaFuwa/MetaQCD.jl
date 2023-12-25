@@ -43,13 +43,11 @@ hmc_steps = 5
 hmc_integrator = "OMF4"
 
 ["System Settings"]               
-log_dir = "logs/L16x16x16x16_dbw2_beta1.25/test_ptmetad"
-measurement_basedir = "measurements/L16x16x16x16_dbw2_beta1.25/test_ptmetad"
-measurement_dir = "raw_data"
+log_dir = "L16x16x16x16_dbw2_beta1.25/test_ptmetad"
+measurement_dir = "L16x16x16x16_dbw2_beta1.25/test_ptmetad"
+bias_dir = "L16x16x16x16_dbw2_beta1.25/test_ptmetad"
 randomseed = 0
 verboselevel = 2
-bias_basedir = "metapotentials/L16x16x16x16_dbw2_beta1.25/test_ptmetad"
-bias_dir = "bias"
 overwrite = true
 
 ["Measurement Settings".measurements.Energy_density]

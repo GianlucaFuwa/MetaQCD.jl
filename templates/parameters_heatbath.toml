@@ -13,9 +13,8 @@ or_algorithm = "kenney-laub"
 numorelax = 4
 
 ["System Settings"]               
-log_dir = "logs/L12x12x12x12_wilson_beta6.0/test_heatbath"
-measurement_basedir = "measurements/L12x12x12x12_wilson_beta6.0/test_heatbath"
-measurement_dir = "raw_data"
+log_dir = "L12x12x12x12_wilson_beta6.0/test_heatbath"
+measurement_dir = "L12x12x12x12_wilson_beta6.0/test_heatbath"
 randomseed = 0
 verboselevel = 2
 overwrite = true
