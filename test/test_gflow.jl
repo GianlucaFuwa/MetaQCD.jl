@@ -2,7 +2,7 @@ function SU3testgradflow()
     Random.seed!(123)
     println("SU3testgradflow")
     NX = 8; NY = 8; NZ = 8; NT = 8;
-    U = random_gauges(NX, NY, NZ, NT, 5.7, WilsonGaugeAction)
+    U = MetaQCD.initial_gauges("hot", NX, NY, NZ, NT, 5.7, WilsonGaugeAction)
     mfac = 1 / (6 * U.NV * U.NC)
     plaq = plaquette_trace_sum(U) * mfac
     println("0\tplaq: $plaq")

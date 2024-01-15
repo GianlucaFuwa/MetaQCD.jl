@@ -189,31 +189,30 @@ function substitute_U!(a::Ta, b::Tb) where {Ta<:Abstractfield,Tb<:Abstractfield}
 end
 
 function initial_gauges(initial, args...; type_of_gaction=WilsonGaugeAction)
+	u = Gaugefield(args...; GA=type_of_gaction)
+
 	if initial == "cold"
-		return identity_gauges(args..., type_of_gaction)
+		identity_gauges!(u)
 	elseif initial == "hot"
-		return random_gauges(args..., type_of_gaction)
+		random_gauges!(u)
 	else
-		error("Only cold or hot inital configs supported")
+		throw(AssertionError("Only cold or hot initial configs supported"))
 	end
+
+	return u
 end
 
-
-function identity_gauges(NX, NY, NZ, NT, β, type_of_gaction)
-	u = Gaugefield(NX, NY, NZ, NT, β, GA=type_of_gaction)
-
+function identity_gauges!(u)
 	@batch per=thread for site in eachindex(u)
 		for μ in 1:4
 			u[μ][site] = eye3
 		end
 	end
 
-	return u
+	return nothing
 end
 
-function random_gauges(NX, NY, NZ, NT, β, type_of_gaction)
-	u = Gaugefield(NX, NY, NZ, NT, β, GA=type_of_gaction)
-
+function random_gauges!(u)
 	for site = eachindex(u)
 		for μ in 1:4
 			link = @SMatrix rand(ComplexF64, 3, 3)
@@ -224,7 +223,7 @@ function random_gauges(NX, NY, NZ, NT, β, type_of_gaction)
 
 	Sg = calc_gauge_action(u)
 	u.Sg = Sg
-	return u
+	return nothing
 end
 
 function clear_U!(u::T) where {T<:Gaugefield}

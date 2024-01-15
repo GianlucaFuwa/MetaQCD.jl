@@ -2,7 +2,7 @@ function SU3testderivative()
     Random.seed!(1206)
     println("SU3testderivative")
     NX = 4; NY = 4; NZ = 4; NT = 4;
-    U = random_gauges(NX, NY, NZ, NT, 6.0, WilsonGaugeAction)
+    U = MetaQCD.initial_gauges("hot", NX, NY, NZ, NT, 6.0, WilsonGaugeAction)
 
     gaction_old = calc_gauge_action(U)
     topcharge_old = top_charge(U, "clover")

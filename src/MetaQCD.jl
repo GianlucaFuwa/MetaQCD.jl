@@ -32,9 +32,9 @@ export run_sim, run_build
 import .BiasModule: Bias, Metadynamics, OPES, Parametric, calc_CV, update_bias!
 import .Gaugefields: DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
 import .Gaugefields: SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
-import .Gaugefields: CoeffField, Gaugefield, Temporaryfield
-import .Gaugefields: calc_gauge_action, fieldstrength_eachsite!, identity_gauges, mul!
-import .Gaugefields: normalize!, plaquette, plaquette_trace_sum, random_gauges
+import .Gaugefields: CoeffField, Gaugefield, Temporaryfield, initial_gauges
+import .Gaugefields: calc_gauge_action, fieldstrength_eachsite!, identity_gauges!, mul!
+import .Gaugefields: normalize!, plaquette, plaquette_trace_sum, random_gauges!
 import .Gaugefields: substitute_U!, staple, staple_eachsite!, wilsonloop
 import .Gaugefields: Liefield, calc_kinetic_energy, gaussian_momenta!
 import .Measurements: measure, get_value, top_charge
@@ -52,9 +52,9 @@ import .Universe: Univ
 export Bias, Metadynamics, OPES, Parametric, calc_CV, update_bias!
 export DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
 export SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
-export CoeffField, Gaugefield, Temporaryfield
-export calc_gauge_action, fieldstrength_eachsite!, identity_gauges, mul!
-export normalize!, plaquette, plaquette_trace_sum, random_gauges
+export CoeffField, Gaugefield, Temporaryfield, initial_gauges
+export calc_gauge_action, fieldstrength_eachsite!, identity_gauges!, mul!
+export normalize!, plaquette, plaquette_trace_sum, random_gauges!
 export substitute_U!, staple, staple_eachsite!, wilsonloop
 export Liefield, calc_kinetic_energy, gaussian_momenta!
 export measure, get_value, top_charge

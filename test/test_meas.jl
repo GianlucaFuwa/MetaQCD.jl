@@ -4,7 +4,7 @@ function SU3testmeas()
     NY = 4
     NZ = 4
     NT = 4
-    U = identity_gauges(NX, NY, NZ, NT, 5.7, WilsonGaugeAction);
+    U = Gaugefield(NX, NY, NZ, NT, 5.7, GA=WilsonGaugeAction);
     filename = "./test/testconf.txt"
     loadU!(BridgeFormat(), U, filename);
 

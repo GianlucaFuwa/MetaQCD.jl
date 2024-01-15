@@ -70,7 +70,7 @@ end
 function plaquette_trace_sum(U)
     out = zeros(Float64, 8nthreads())
 
-    for site in eachindex(U)
+    @batch for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
                 out[8threadid()] += real(tr(plaquette(U, μ, ν, site)))
@@ -84,7 +84,7 @@ end
 function rect_trace_sum(U)
     out = zeros(Float64, 8nthreads())
 
-    for site in eachindex(U)
+    @batch for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
                 out[8threadid()] += real(tr(rect_1x2(U, μ, ν, site))) +

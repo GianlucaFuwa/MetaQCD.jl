@@ -3,7 +3,7 @@ function SU3testupdate()
 
     println("SU3testupdate")
     NX = 4; NY = 4; NZ = 4; NT = 4
-    U = random_gauges(NX, NY, NZ, NT, 6.0, SymanzikTreeGaugeAction);
+    U = MetaQCD.initial_gaues("hot", NX, NY, NZ, NT, 6.0, SymanzikTreeGaugeAction);
     #filename = "./test/testconf.txt"
     #load_BridgeText!(filename,U)
 
