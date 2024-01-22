@@ -1,0 +1,22 @@
+AUTOMATIC DIFFERENTIATION:
+- Either use ChainRulesCore or try Enzyme if possible
+- Should create "SU(3)" and "su(3)" types to define different rrules
+- Create rrule for cmatmul and any function that uses an Abstractfield as input
+- Dont know how loops are handled yet
+    Update 20.01.24:
+    - Enzyme seems to work up to daggering. Using "Daggered" wrapper is pain in the ass
+    - Normal adjoint "'" breaks the AD for some reason
+
+GPU:
+- Fields are going to have to be 5-dimensional CuArrays
+- Reduction still iffy with KernelAbstractions
+- Shared memory optimization is a headache---memory on 1060 only 48kb, only enough for 2^4
+    + halo at 32bit precision---should be better on more powerful GPUs, maybe ask
+    Lukas if he has worked with GPUs in 4D-SU(3)
+- Still have to figure out if all indices are being looped over
+
+CACHE FRIENDLINESS:
+- Split lattice into blocks that fit on L2-Cache
+- Making lattice itself more cache local is hard 
+- Could try using OffsetArrays to avoid the "mod1()" calls in move
+- Stencils are small enough that all matrices and sites fit into L1

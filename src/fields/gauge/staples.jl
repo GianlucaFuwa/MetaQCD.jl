@@ -83,6 +83,14 @@ function staple_rect(U, μ, site)
         siteμ⁺ν²⁻ = move(siteν²⁻, μ, 1, Nμ)
         siteμ²⁺ν⁻ = move(siteν⁻, μ, 2, Nμ)
 
+        # reused matrices
+        # Uνsite = U[ν][site]
+        # Uνsiteμ⁺ = U[ν][siteμ⁺]
+        # Uνsiteν⁻ = U[ν][siteν⁻]
+        # Uνsiteμ⁺ν⁻ = U[ν][siteμ⁺ν⁻]
+        # Uμsiteν⁺ = U[μ][siteν⁺]
+        # Uμsiteν⁻ = U[μ][siteν⁻]
+
         # First term, orthogonal to link
         # |- → -|
         # ↑     ↓
@@ -105,7 +113,7 @@ function staple_rect(U, μ, site)
         # ↓           ↑
         # |- → -|- → -|
         staple += cmatmul_od(cmatmul_oood(U[ν][site], U[μ][siteν⁺], U[μ][siteμ⁺ν⁺], U[ν][siteμ²⁺]) +
-                              cmatmul_dooo(U[ν][siteν⁻], U[μ][siteν⁻], U[μ][siteμ⁺ν⁻], U[ν][siteμ²⁺ν⁻]),
+                             cmatmul_dooo(U[ν][siteν⁻], U[μ][siteν⁻], U[μ][siteμ⁺ν⁻], U[ν][siteμ²⁺ν⁻]),
                              U[μ][siteμ⁺])
 
         # Third term, same direction from siteμ⁻ and siteμ⁻ν⁻
@@ -116,7 +124,7 @@ function staple_rect(U, μ, site)
         # |- → -|- → -|
         staple += cmatmul_do(U[μ][siteμ⁻],
                              cmatmul_oood(U[ν][siteμ⁻], U[μ][siteμ⁻ν⁺], U[μ][siteν⁺], U[ν][siteμ⁺]) +
-                              cmatmul_dooo(U[ν][siteμ⁻ν⁻], U[μ][siteμ⁻ν⁻], U[μ][siteν⁻], U[ν][siteμ⁺ν⁻]))
+                             cmatmul_dooo(U[ν][siteμ⁻ν⁻], U[μ][siteμ⁻ν⁻], U[μ][siteν⁻], U[ν][siteμ⁺ν⁻]))
     end
 
     return staple

@@ -86,8 +86,6 @@ end
 
 function sweep!(::Checkerboard4, ::Val{count}, f!::F, U, args...) where {F, count}
     NX, NY, NZ, NT = size(U)
-    numhits = 0
-    hitlist = NTuple{5, Int64}[]
 
     for _ in 1:count
         for μ in 1:4
@@ -102,9 +100,6 @@ function sweep!(::Checkerboard4, ::Val{count}, f!::F, U, args...) where {F, coun
                                 if mod1(it+iz+iy+ix + site[μ], 4)!=pass
                                     continue
                                 end
-                                numhits += 1
-                                s = (μ, ix, iy, iz, it)
-                                s∉hitlist && push!(hitlist, s)
                                 f!(U, μ, site, args...)
                             end
                         end
@@ -114,7 +109,6 @@ function sweep!(::Checkerboard4, ::Val{count}, f!::F, U, args...) where {F, coun
         end
     end
 
-    @assert (length(hitlist)==4U.NV && numhits==4U.NV) "We only hit $(length(hitlist)) / $(4U.NV) links"
     return nothing
 end
 

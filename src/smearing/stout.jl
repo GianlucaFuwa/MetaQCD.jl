@@ -109,6 +109,14 @@ function stout_recursion!(Σ, Σ′, U′, U, C, Q, Λ, ρ)
                 siteνn = move(site, ν, -1 ,Nν)
                 siteμpνn = move(siteμp, ν, -1, Nν)
 
+				# bring reused matrices up to cache (can also precalculate some products)
+				# Uνsiteμ⁺ = U[ν][siteμp]
+				# Uμsiteμ⁺ = U[μ][siteνp]
+				# Uνsite = U[ν][site]
+				# Uνsiteμ⁺ν⁻ = U[ν][siteμpνn]
+				# Uμsiteν⁻ = U[μ][siteνn]
+				# Uνsiteν⁻ = U[ν][siteνn]
+
                 force_sum +=
                     cmatmul_oddo(U[ν][siteμp], U[μ][siteνp], U[ν][site], Λ[ν][site]) +
                     cmatmul_ddoo(U[ν][siteμpνn], U[μ][siteνn], Λ[μ][siteνn], U[ν][siteνn]) +

@@ -48,7 +48,8 @@ function calc_kinetic_energy(p::Liefield)
 
     @batch per=thread for site in eachindex(p)
         for μ in 1:4
-            out[8threadid()] += real(multr(p[μ][site], p[μ][site]))
+            pmat = p[μ][site]
+            out[8threadid()] += real(multr(pmat, pmat))
         end
     end
 

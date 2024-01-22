@@ -287,6 +287,14 @@ function ∇trFμνFρσ(::Clover, U, F, μ, ν, ρ, σ, site)
     siteμpνp = move(siteμp, ν, 1, Nν)
     siteμpνn = move(siteμp, ν, -1, Nν)
 
+    # get reused matrices up to cache (can precalculate some products too)
+    # Uνsiteμ⁺ = U[ν][siteμp]
+    # Uμsiteν⁺ = U[μ][siteνp]
+    # Uνsite = U[ν][site]
+    # Uνsiteμ⁺ν⁻ = U[ν][siteμpνn]
+    # Uμsiteν⁻ = U[μ][siteνn]
+    # Uνsiteν⁻ = U[ν][siteνn]
+
     component =
         cmatmul_oddo(U[ν][siteμp]   , U[μ][siteνp]     , U[ν][site]     , F[ρ][σ][site]) +
         cmatmul_odod(U[ν][siteμp]   , U[μ][siteνp]     , F[ρ][σ][siteνp], U[ν][site])    +
