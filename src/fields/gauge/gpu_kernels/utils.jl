@@ -177,7 +177,7 @@ end
 end
 
 """
-    @groupreduce(op, val, neutral, use_subgroups)
+    @groupreduce(op, val, neutral, groupsize)
 Copied from https://github.com/JuliaGPU/KernelAbstractions.jl/pull/421 \\
 Reduce values across a block
 - `op`: the operator of the reduction
