@@ -10,9 +10,11 @@ using StaticArrays
 
 export exp_iQ, exp_iQ_coeffs, exp_iQ_su3, get_B₁, get_B₂, get_Q, get_Q²
 export gen_SU3_matrix, is_special_unitary, is_traceless_antihermitian
-export kenney_laub, proj_onto_SU3, make_submatrix, embed_into_SU3, multr
+export kenney_laub, proj_onto_SU3, multr
+export make_submatrix_12, make_submatrix_13, make_submatrix_23
+export embed_into_SU3_12, embed_into_SU3_13, embed_into_SU3_23
 export antihermitian, hermitian, traceless_antihermitian, traceless_hermitian
-export zero2, eye2, zero3, eye3, δ, ε_tensor, gaussian_su3_matrix
+export zero2, eye2, zero3, eye3, δ, ε_tensor, gaussian_TA_mat
 export SiteCoords, linear_coords, move
 export Sequential, Checkerboard2, Checkerboard4
 export SequentialMT, Checkerboard2MT, Checkerboard4MT
@@ -25,30 +27,30 @@ export cmatmul_oooo, cmatmul_oood, cmatmul_oodo, cmatmul_odoo, cmatmul_dooo,
     cmatmul_oodd, cmatmul_oddo, cmatmul_ddoo, cmatmul_odod, cmatmul_dood,
     cmatmul_dodo, cmatmul_oddd, cmatmul_dddo, cmatmul_ddod, cmatmul_dodd,
     cmatmul_dddd
-export _unwrap_val
+export _unwrap_val, SU
 
 _unwrap_val(::Val{B}) where {B} = B
 
-const zero3 = @SArray [
-    0.0+0.0im 0.0+0.0im 0.0+0.0im
-    0.0+0.0im 0.0+0.0im 0.0+0.0im
-    0.0+0.0im 0.0+0.0im 0.0+0.0im
+eye3(::Type{T}) where {T<:AbstractFloat} = @SArray [
+    one(Complex{T})  zero(Complex{T}) zero(Complex{T})
+    zero(Complex{T}) one(Complex{T})  zero(Complex{T})
+    zero(Complex{T}) zero(Complex{T}) one(Complex{T})
 ]
 
-const eye3 = @SArray [
-    1.0+0.0im 0.0+0.0im 0.0+0.0im
-    0.0+0.0im 1.0+0.0im 0.0+0.0im
-    0.0+0.0im 0.0+0.0im 1.0+0.0im
+zero3(::Type{T}) where {T<:AbstractFloat} = @SArray [
+    zero(Complex{T}) zero(Complex{T}) zero(Complex{T})
+    zero(Complex{T}) zero(Complex{T}) zero(Complex{T})
+    zero(Complex{T}) zero(Complex{T}) zero(Complex{T})
 ]
 
-const zero2 = @SArray [
-    0.0+0.0im 0.0+0.0im
-    0.0+0.0im 0.0+0.0im
+eye2(::Type{T}) where {T<:AbstractFloat} = @SArray [
+    one(Complex{T})  zero(Complex{T})
+    zero(Complex{T}) one(Complex{T})
 ]
 
-const eye2 = @SArray [
-    1.0+0.0im 0.0+0.0im
-    0.0+0.0im 1.0+0.0im
+zero2(::Type{T}) where {T<:AbstractFloat} = @SArray [
+    zero(Complex{T}) zero(Complex{T})
+    zero(Complex{T}) zero(Complex{T})
 ]
 
 """
@@ -84,16 +86,17 @@ function ε_tensor(p::NTuple{N, Int}) where {N}
     return iseven(flips) ? 1 : -1
 end
 
-@inline function multr(
-    A::SMatrix{NC, NC, Complex{T}, NC2},
-    B::SMatrix{NC, NC, Complex{T}, NC2},
-) where {NC, NC2, T}
-    a = reinterpret(reshape, T, A)
-    b = reinterpret(reshape, T, B)
+const SU{N, N², T} = SMatrix{N, N, Complex{T}, N²}
+
+@inline function multr(A::SU{N,N²,T}, B::SU{N,N²,T}) where {N,N²,T}
+    # for some reason we have to convert A and B to MArrays, otherwise we get a dynamic
+    # function invocation for reinterpret(...) on CUDA
+    a = reinterpret(reshape, T, MMatrix(A))
+    b = reinterpret(reshape, T, MMatrix(B))
     re = zero(T)
     im = zero(T)
 
-    @turbo for i ∈ Base.Slice(static(1):static(NC)), j ∈ Base.Slice(static(1):static(NC))
+    @turbo for i ∈ Base.Slice(static(1):static(N)), j ∈ Base.Slice(static(1):static(N))
         re += a[1,i,j] * b[1,j,i] - a[2,i,j] * b[2,j,i]
         im += a[1,i,j] * b[2,j,i] + a[2,i,j] * b[1,j,i]
     end

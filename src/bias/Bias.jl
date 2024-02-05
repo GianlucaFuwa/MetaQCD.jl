@@ -30,7 +30,7 @@ The `instance` keyword is used in case of PT-MetaD and multiple walkers to assig
 correct `usebias` to each stream. `has_fp` indicates whether the stream prints to file
 at any point, since only rank 0 should print in case of MPI usage.
 """
-struct Bias{TCV<:AbstractFieldstrength,TS<:AbstractSmearing,TB<:AbstractBias,T<:Union{Nothing, IO}}
+struct Bias{TCV<:AbstractFieldstrength,TS<:AbstractSmearing,TB<:AbstractBias,T<:Union{Nothing,IO}}
     kind_of_cv::TCV
     smearing::TS
     is_static::Bool
@@ -148,11 +148,11 @@ function recalc_CV!(U::Vector{TG}, b::Vector{TB}) where {TG<:Gaugefield, TB<:Bia
     return nothing
 end
 
-function calc_CV(U, ::Bias{TCV,TS,TB,T}) where {TCV,TS<:NoSmearing,TB,T}
+function calc_CV(U, ::Bias{TCV,TS}) where {TCV,TS<:NoSmearing}
     return top_charge(TCV(), U)
 end
 
-function calc_CV(U, b::Bias{TCV,TS,TB,T}) where {TCV,TS,TB,T}
+function calc_CV(U, b::Bias{TCV}) where {TCV}
     calc_smearedU!(b.smearing, U)
     fully_smeared_U = b.smearing.Usmeared_multi[end]
     CV_new = top_charge(TCV(), fully_smeared_U)

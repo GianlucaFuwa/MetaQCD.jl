@@ -22,7 +22,7 @@ function calc_gauge_action(U::Gaugefield, methodname::String)
     return Sg
 end
 
-calc_gauge_action(U::Gaugefield{GA}) where {GA} = calc_gauge_action(GA(), U)
+calc_gauge_action(U::Gaugefield{D,T,A,GA}) where {D,T,A,GA} = calc_gauge_action(GA(), U)
 
 function calc_gauge_action(::WilsonGaugeAction, U)
     P = plaquette_trace_sum(U)
@@ -67,10 +67,10 @@ function calc_gauge_action(::DBW2GaugeAction, U)
     return Sg_dbw2
 end
 
-function plaquette_trace_sum(U)
-    out = zeros(Float64, 8nthreads())
+function plaquette_trace_sum(U::Gaugefield{CPUD,T}) where {T}
+    out = zeros(T, 8nthreads())
 
-    @batch for site in eachindex(U)
+    @threads for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
                 out[8threadid()] += real(tr(plaquette(U, μ, ν, site)))
@@ -81,14 +81,14 @@ function plaquette_trace_sum(U)
     return sum(out)
 end
 
-function rect_trace_sum(U)
-    out = zeros(Float64, 8nthreads())
+function rect_trace_sum(U::Gaugefield{CPUD,T}) where {T}
+    out = zeros(T, 8nthreads())
 
-    @batch for site in eachindex(U)
+    @threads for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
                 out[8threadid()] += real(tr(rect_1x2(U, μ, ν, site))) +
-                                    real(tr(rect_2x1(U, μ, ν, site)))
+                    real(tr(rect_2x1(U, μ, ν, site)))
             end
         end
     end
@@ -97,48 +97,48 @@ function rect_trace_sum(U)
 end
 
 function plaquette(U, μ, ν, site)
-    Nμ = size(U)[μ]
-    Nν = size(U)[ν]
+    Nμ = size(U)[1+μ]
+    Nν = size(U)[1+ν]
     siteμ⁺ = move(site, μ, 1, Nμ)
     siteν⁺ = move(site, ν, 1, Nν)
-    plaq = cmatmul_oodd(U[μ][site], U[ν][siteμ⁺], U[μ][siteν⁺], U[ν][site])
+    plaq = cmatmul_oodd(U[μ,site], U[ν,siteμ⁺], U[μ,siteν⁺], U[ν,site])
     return plaq
 end
 
 function rect_2x1(U, μ, ν, site)
-    Nμ = size(U)[μ]
-    Nν = size(U)[ν]
+    Nμ = size(U)[1+μ]
+    Nν = size(U)[1+ν]
     siteμ⁺   = move(site, μ, 1, Nμ)
     siteμ²⁺  = move(siteμ⁺, μ, 1, Nμ)
     siteμ⁺ν⁺ = move(siteμ⁺, ν, 1, Nν)
     siteν⁺   = move(site, ν, 1, Nν)
-    plaq = cmatmul_oo(cmatmul_oood(U[μ][site], U[μ][siteμ⁺], U[ν][siteμ²⁺], U[μ][siteμ⁺ν⁺]),
-                      cmatmul_dd(U[μ][siteν⁺], U[ν][site]))
+    plaq = cmatmul_oo(cmatmul_oood(U[μ,site], U[μ,siteμ⁺], U[ν,siteμ²⁺], U[μ,siteμ⁺ν⁺]),
+                      cmatmul_dd(U[μ,siteν⁺], U[ν,site]))
     return plaq
 end
 
 function rect_1x2(U, μ, ν, site)
-    Nμ = size(U)[μ]
-    Nν = size(U)[ν]
+    Nμ = size(U)[1+μ]
+    Nν = size(U)[1+ν]
     siteμ⁺   = move(site, μ, 1, Nμ)
     siteμ⁺ν⁺ = move(siteμ⁺, ν, 1, Nν)
     siteν⁺   = move(site, ν, 1, Nν)
     siteν²⁺  = move(siteν⁺, ν, 1, Nν)
-    plaq = cmatmul_oo(cmatmul_oood(U[μ][site], U[ν][siteμ⁺], U[ν][siteμ⁺ν⁺], U[μ][siteν²⁺]),
-                      cmatmul_dd(U[ν][siteν⁺], U[ν][site]))
+    plaq = cmatmul_oo(cmatmul_oood(U[μ,site], U[ν,siteμ⁺], U[ν,siteμ⁺ν⁺], U[μ,siteν²⁺]),
+                      cmatmul_dd(U[ν,siteν⁺], U[ν,site]))
     return plaq
 end
 
 function plaquette_2x2(U, μ, ν, site)
-    Nμ = size(U)[μ]
-    Nν = size(U)[ν]
+    Nμ = size(U)[1+μ]
+    Nν = size(U)[1+ν]
     siteμ⁺    = move(site, μ, 1, Nμ)
     siteμ²⁺   = move(siteμ⁺, μ, 1, Nμ)
     siteμ²⁺ν⁺ = move(siteμ²⁺, ν, 1, Nν)
     siteν⁺    = move(site, ν, 1, Nν)
     siteν²⁺   = move(siteν⁺, ν, 1, Nν)
     siteμ⁺ν²⁺ = move(siteν²⁺, μ, 1, Nμ)
-    plaq = cmatmul_oo(cmatmul_oooo(U[μ][site], U[μ][siteμ⁺], U[ν][siteμ²⁺], U[ν][siteμ²⁺ν⁺]),
-                      cmatmul_dddd(U[μ][siteμ⁺ν²⁺], U[μ][siteν²⁺], U[ν][siteν⁺], U[ν][site]))
+    plaq = cmatmul_oo(cmatmul_oooo(U[μ,site], U[μ,siteμ⁺], U[ν,siteμ²⁺], U[ν,siteμ²⁺ν⁺]),
+                      cmatmul_dddd(U[μ,siteμ⁺ν²⁺], U[μ,siteν²⁺], U[ν,siteν⁺], U[ν,site]))
     return plaq
 end

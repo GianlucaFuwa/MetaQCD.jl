@@ -41,18 +41,17 @@ function run_build!(univ, parameters)
     updatemethod = Updatemethod(parameters, U)
 
     gflow = GradientFlow(U, parameters.flow_integrator, parameters.flow_num,
-                         parameters.flow_steps, parameters.flow_tf,
-                         measure_every = parameters.flow_measure_every)
+        parameters.flow_steps, parameters.flow_tf,
+        measure_every = parameters.flow_measure_every)
 
     additional_string = "_$(myrank+1)"
 
     measurements = MeasurementMethods(U, parameters.measuredir, parameters.measurements,
-                                      additional_string = additional_string)
+        additional_string = additional_string)
 
     measurements_with_flow = MeasurementMethods(U, parameters.measuredir,
-                                                parameters.measurements_with_flow,
-                                                additional_string = additional_string,
-                                                flow = true)
+        parameters.measurements_with_flow, additional_string = additional_string,
+        flow = true)
 
     build!(parameters, univ, updatemethod, gflow, measurements, measurements_with_flow)
     return nothing
@@ -103,9 +102,7 @@ function build!(parameters,univ, updatemethod, gflow, measurements, measurements
         end
     end
 
-    @level1("└\n" *
-            "Total elapsed time:\t$(convert_seconds(runtime_all))\n" *
-            "@ $(current_time())")
+    @level1("└\nTotal elapsed time:\t$(convert_seconds(runtime_all))\n@ $(current_time())")
     flush(stdout)
     close(updatemethod)
     close(measurements)

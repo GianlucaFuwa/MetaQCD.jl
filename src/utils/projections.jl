@@ -2,42 +2,44 @@
 Generator of Matrices X ∈ SU(3) near the identity \\
 From Gattringer C. & Lang C.B. (Springer, Berlin Heidelberg 2010)
 """
-function gen_SU3_matrix(ϵ)
-    R2 = gen_SU2_matrix(ϵ)
-    S2 = gen_SU2_matrix(ϵ)
-    T2 = gen_SU2_matrix(ϵ)
+@inline function gen_SU3_matrix(ϵ, ::Type{T}) where {T}
+    R2 = gen_SU2_matrix(ϵ, T)
+    S2 = gen_SU2_matrix(ϵ, T)
+    T2 = gen_SU2_matrix(ϵ, T)
 
-    R = embed_into_SU3(R2, 1, 2)
-    S = embed_into_SU3(S2, 1, 3)
-    T = embed_into_SU3(T2, 2, 3)
-    out = cmatmul_ooo(R, S, T)
+    R3 = embed_into_SU3_12(R2)
+    S3 = embed_into_SU3_13(S2)
+    T3 = embed_into_SU3_23(T2)
+    out = cmatmul_ooo(R3, S3, T3)
 
-    if rand(Float64) < 0.5
+    if rand(T) < T(0.5)
         return out
     else
         return out'
     end
 end
 
-function gen_SU2_matrix(ϵ)
-    r₁ = rand(Float64) - 0.5
-    r₂ = rand(Float64) - 0.5
-    r₃ = rand(Float64) - 0.5
+@inline function gen_SU2_matrix(ϵ, ::Type{T}) where {T}
+    onehalf = T(0.5)
+    r₁ = rand(T) - onehalf
+    r₂ = rand(T) - onehalf
+    r₃ = rand(T) - onehalf
     rnorm = sqrt(r₁^2 + r₂^2 + r₃^2)
-    out = sqrt(1 - ϵ^2) * eye2 + im * ϵ/rnorm * (r₁ * σ₁ + r₂ * σ₂ + r₃ * σ₃)
+    out = sqrt(one(T) - ϵ^2) * eye2(T) + im * ϵ/rnorm * (r₁ * σ₁ + r₂ * σ₂ + r₃ * σ₃)
     return out
 end
 
-function gaussian_su3_matrix()
-    sq3 = sqrt(3)
-    h₁ = 0.5randn(Float64)
-    h₂ = 0.5randn(Float64)
-    h₃ = 0.5randn(Float64)
-    h₄ = 0.5randn(Float64)
-    h₅ = 0.5randn(Float64)
-    h₆ = 0.5randn(Float64)
-    h₇ = 0.5randn(Float64)
-    h₈ = 0.5randn(Float64)
+@inline function gaussian_TA_mat(::Type{T}) where {T}
+    sq3 = sqrt(T(3))
+    onehalf = T(0.5)
+    h₁ = onehalf * randn(T)
+    h₂ = onehalf * randn(T)
+    h₃ = onehalf * randn(T)
+    h₄ = onehalf * randn(T)
+    h₅ = onehalf * randn(T)
+    h₆ = onehalf * randn(T)
+    h₇ = onehalf * randn(T)
+    h₈ = onehalf * randn(T)
     out = @SMatrix [
         im*(h₃+h₈/sq3) h₂+im*h₁        h₅+im*h₄
         -h₂+im*h₁      im*(-h₃+h₈/sq3) h₇+im*h₆
@@ -58,35 +60,28 @@ end
 #     return out
 # end
 
-@inline function embed_into_SU3(M::SMatrix{2,2,ComplexF64,4}, i, j)
-    if (i, j) == (1, 2)
-        out = @SMatrix [
-            M[1,1] M[1,2] 0
-            M[2,1] M[2,2] 0
-            0.0000 0.0000 1
-        ]
-    elseif (i, j) == (2, 3)
-        out = @SMatrix [
-            1 0.0000 0.0000
-            0 M[1,1] M[1,2]
-            0 M[2,1] M[2,2]
-        ]
-    elseif (i, j) == (1, 3)
-        out = @SMatrix [
-            M[1,1] 0 M[1,2]
-            0.0000 1 0.0000
-            M[2,1] 0 M[2,2]
-        ]
-    else
-        out = eye3
-    end
+@inline embed_into_SU3_12(M::SMatrix{2,2,Complex{T},4}) where {T} = @SMatrix [
+    M[1,1] M[1,2] zero(T)
+    M[2,1] M[2,2] zero(T)
+    zero(T) zero(T) one(T)
+]
 
-    return out
-end
+@inline embed_into_SU3_13(M::SMatrix{2,2,Complex{T},4}) where {T} = @SMatrix [
+    M[1,1] zero(T) M[1,2]
+    zero(T) one(T) zero(T)
+    M[2,1] zero(T) M[2,2]
+]
 
-@inline function make_submatrix(M::SMatrix{3,3,ComplexF64,9}, i, j)
-    α = 0.5 * (M[i,i] + conj(M[j,j]))
-    β = 0.5 * (M[j,i] - conj(M[i,j]))
+@inline embed_into_SU3_23(M::SMatrix{2,2,Complex{T},4}) where {T} = @SMatrix [
+    one(T) zero(T) zero(T)
+    zero(T) M[1,1] M[1,2]
+    zero(T) M[2,1] M[2,2]
+]
+
+@inline function make_submatrix_12(M::SMatrix{3,3,Complex{T},9}) where {T}
+    onehalf = T(0.5)
+    α = onehalf * (M[1,1] + conj(M[2,2]))
+    β = onehalf * (M[2,1] - conj(M[1,2]))
     out = @SMatrix [
         α -conj(β)
         β  conj(α)
@@ -94,9 +89,10 @@ end
     return out
 end
 
-function proj_onto_SU2(M::SMatrix{2,2,ComplexF64,4})
-    α = 0.5 * (M[1,1] + conj(M[2,2]))
-    β = 0.5 * (M[1,2] - conj(M[2,1]))
+@inline function make_submatrix_13(M::SMatrix{3,3,Complex{T},9}) where {T}
+    onehalf = T(0.5)
+    α = onehalf * (M[1,1] + conj(M[3,3]))
+    β = onehalf * (M[3,1] - conj(M[1,3]))
     out = @SMatrix [
         α -conj(β)
         β  conj(α)
@@ -104,7 +100,29 @@ function proj_onto_SU2(M::SMatrix{2,2,ComplexF64,4})
     return out
 end
 
-@inline function proj_onto_SU3(M::SMatrix{3,3,ComplexF64,9})
+@inline function make_submatrix_23(M::SMatrix{3,3,Complex{T},9}) where {T}
+    onehalf = T(0.5)
+    α = onehalf * (M[2,2] + conj(M[3,3]))
+    β = onehalf * (M[3,2] - conj(M[2,3]))
+    out = @SMatrix [
+        α -conj(β)
+        β  conj(α)
+    ]
+    return out
+end
+
+@inline function proj_onto_SU2(M::SMatrix{2,2,Complex{T},4}) where {T}
+    onehalf = T(0.5)
+    α = onehalf * (M[1,1] + conj(M[2,2]))
+    β = onehalf * (M[1,2] - conj(M[2,1]))
+    out = @SMatrix [
+        α -conj(β)
+        β  conj(α)
+    ]
+    return out
+end
+
+@inline function proj_onto_SU3(M::SMatrix{3,3,Complex{T},9}) where {T}
     col1 = M[:,1]
     col2 = M[:,2]
     col3 = M[:,3]
@@ -114,55 +132,57 @@ end
     col3 -= (col1' * col3) * col1 + (col2' * col3) * col2
     col3 /= norm(col3)
     out = [col1 col2 col3]
-    out /= det(out)^(1/3)
+    out /= det(out)^(T(1/3))
     return out
 end
 
-function kenney_laub(M::SMatrix{3,3,ComplexF64,9})
+function kenney_laub(M::SMatrix{3,3,Complex{T},9}) where {T}
+    onethird = T(1/3)
+    eightthirds = T(8/3)
     for _ in 1:25
         X = cmatmul_do(M, M)
-        norm(eye3 - X) <= 1e-12 && break
-        M = cmatmul_oo(M/3, (eye3 + 8/3 * inv(X + 1/3 * eye3)))
+        norm(eye3(T) - X) <= convert(T, 1e-12) && break
+        M = cmatmul_oo(onethird*M, (eye3(T) + eightthirds * inv(X + onethird*eye3(T))))
         # M_enum = 5eye3 + 10X + cmatmul_oo(X, X)
         # M_denom = inv(eye3 + 10X + 5cmatmul_oo(X, X))
         # M = cmatmul_oo(M, cmatmul_oo(M_enum, M_denom))
     end
 
-    M /= det(M)^(1/3)
+    M /= det(M)^(T(1/3))
     return M
 end
 
-function is_special_unitary(M::SMatrix{3,3,ComplexF64,9}, prec=1e-12)
-    is_SU3 = norm(eye3 - cmatmul_od(M, M)) < prec && abs(1 - det(M)) < prec
+function is_special_unitary(M::SMatrix{3,3,Complex{T},9}, prec=1e-12) where {T}
+    is_SU3 = norm(eye3(T) - cmatmul_od(M, M)) < prec && abs(one(T) - det(M)) < prec
     return is_SU3
 end
 
-function is_traceless_antihermitian(M::SMatrix{3,3,ComplexF64,9}, prec=1e-12)
+function is_traceless_antihermitian(M::SMatrix{3,3,Complex{T},9}, prec=1e-12) where {T}
     is_TA = norm(M + M') < prec && abs(tr(M)) < prec
     return is_TA
 end
 
-function is_traceless_hermitian(M::SMatrix{3,3,ComplexF64,9}, prec=1e-12)
+function is_traceless_hermitian(M::SMatrix{3,3,Complex{T},9}, prec=1e-12) where {T}
     is_TH = norm(M - M') < prec && abs(tr(M)) < prec
     return is_TH
 end
 
-function traceless_antihermitian(M::SMatrix{3,3,ComplexF64,9})
-    out = 0.5 * (M - M') - 1/6 * tr(M - M') * eye3
+function traceless_antihermitian(M::SMatrix{3,3,Complex{T},9}) where {T}
+    out = T(0.5) * (M - M') - T(1/6) * tr(M - M') * eye3(T)
     return out
 end
 
-function antihermitian(M::SMatrix{3,3,ComplexF64,9})
-    out = 0.5 * (M - M')
+function antihermitian(M::SMatrix{3,3,Complex{T},9}) where {T}
+    out = T(0.5) * (M - M')
     return out
 end
 
-function traceless_hermitian(M::SMatrix{3,3,ComplexF64,9})
-    out = 0.5 * (M + M') - 1/6 * tr(M + M') * eye3
+function traceless_hermitian(M::SMatrix{3,3,Complex{T},9}) where {T}
+    out = T(0.5) * (M + M') - T(1/6) * tr(M + M') * eye3(T)
     return out
 end
 
-function hermitian(M::SMatrix{3,3,ComplexF64,9})
-    out = 0.5 * (M + M')
+function hermitian(M::SMatrix{3,3,Complex{T},9}) where {T}
+    out = T(0.5) * (M + M')
     return out
 end

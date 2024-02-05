@@ -49,8 +49,8 @@ function run_sim!(univ, parameters)
         measurements = Vector{MeasurementMethods}(undef, parameters.numinstances)
         measurements_with_flow = Vector{MeasurementMethods}(undef, parameters.numinstances)
 
-        measurements[1] = MeasurementMethods(U[1], parameters.measuredir, parameters.measurements,
-                                             additional_string = "_0")
+        measurements[1] = MeasurementMethods(U[1], parameters.measuredir,
+            parameters.measurements, additional_string = "_0")
 
         measurements_with_flow[1] = MeasurementMethods(
             U[1],
@@ -62,17 +62,15 @@ function run_sim!(univ, parameters)
         for i in 2:parameters.numinstances
             if parameters.measure_on_all
                 measurements[i] = MeasurementMethods(U[i], parameters.measuredir,
-                                                     parameters.measurements,
-                                                     additional_string = "_$(i-1)")
+                    parameters.measurements, additional_string = "_$(i-1)")
                 measurements_with_flow[i] = MeasurementMethods(U[i], parameters.measuredir,
-                                                               parameters.measurements_with_flow,
-                                                               flow = true,
-                                                               additional_string="_$(i-1)")
+                    parameters.measurements_with_flow, flow = true,
+                    additional_string="_$(i-1)")
             else
                 measurements[i] = MeasurementMethods(U[i], parameters.measuredir, Dict[],
-                                                     additional_string = "_$(i-1)")
-                measurements_with_flow[i] = MeasurementMethods(U[i], parameters.measuredir, Dict[],
-                                                               additional_string="_$(i-1)")
+                    additional_string = "_$(i-1)")
+                measurements_with_flow[i] = MeasurementMethods(U[i], parameters.measuredir,
+                    Dict[], additional_string="_$(i-1)")
             end
         end
     else
@@ -86,21 +84,22 @@ function run_sim!(univ, parameters)
                                                     flow = true)
     end
 
-    save_configs = SaveConfigs(parameters.saveU_format, parameters.saveU_dir, parameters.saveU_every)
+    save_configs = SaveConfigs(parameters.saveU_format, parameters.saveU_dir,
+        parameters.saveU_every)
 
     if parameters.tempering_enabled
         metaqcd_PT!(parameters, univ, updatemethod, updatemethod_pt, gflow, measurements,
-                    measurements_with_flow, parity, save_configs)
+            measurements_with_flow, parity, save_configs)
     else
         metaqcd!(parameters, univ, updatemethod, gflow, measurements,
-                measurements_with_flow, parity, save_configs)
+            measurements_with_flow, parity, save_configs)
     end
 
     return nothing
 end
 
 function metaqcd!(parameters, univ, updatemethod, gflow, measurements,
-                  measurements_with_flow, parity, save_configs)
+    measurements_with_flow, parity, save_configs)
     U = univ.U
     bias = univ.bias
 
@@ -149,9 +148,7 @@ function metaqcd!(parameters, univ, updatemethod, gflow, measurements,
         end
     end
 
-    @level1("└\n" *
-            "Total elapsed time:\t$(convert_seconds(runtime_all))\n" *
-            "@ $(current_time())")
+    @level1("└\nTotal elapsed time:\t$(convert_seconds(runtime_all))\n@ $(current_time())")
     flush(stdout)
     close(updatemethod)
     close(measurements)
@@ -162,7 +159,7 @@ function metaqcd!(parameters, univ, updatemethod, gflow, measurements,
 end
 
 function metaqcd_PT!(parameters, univ, updatemethod, updatemethod_pt, gflow, measurements,
-                     measurements_with_flow, parity, save_configs)
+    measurements_with_flow, parity, save_configs)
     numinstances = parameters.numinstances
     U = univ.U
     bias = univ.bias
@@ -222,16 +219,15 @@ function metaqcd_PT!(parameters, univ, updatemethod, updatemethod_pt, gflow, mea
             save_gaugefield(save_configs, U[1], itrj)
 
             _, mtime = @timed calc_measurements(measurements, U, itrj)
-            _, fmtime = @timed calc_measurements_flowed(measurements_with_flow, gflow, U, itrj, measure_on_all)
+            _, fmtime = @timed calc_measurements_flowed(measurements_with_flow, gflow, U,
+                itrj, measure_on_all)
             calc_weights(bias, [U[i].CV for i in 1:numinstances], itrj)
             @level1("|  Meas. elapsed time:     $(mtime)  [s]\n" *
                     "|  FlowMeas. elapsed time: $(fmtime) [s]")
         end
     end
 
-    @level1("└\n" *
-            "Total elapsed time:\t$(convert_seconds(runtime_all))\n" *
-            "@ $(current_time())")
+    @level1("└\nTotal elapsed time:\t$(convert_seconds(runtime_all))\n@ $(current_time())")
     flush(stdout)
     close(updatemethod)
     [close(m)  for m in measurements]

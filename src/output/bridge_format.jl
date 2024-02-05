@@ -1,4 +1,5 @@
 function saveU(::BridgeFormat, U, filename)
+    @assert U.U isa Array
     NX, NY, NZ, NT = size(U)
     fp = open(filename, "w")
 
@@ -11,9 +12,9 @@ function saveU(::BridgeFormat, U, filename)
                         for a in 1:3
                             for b in 1:3
                                 i += 1
-                                rvalue = real(U[μ][ix,iy,iz,it][a,b])
+                                rvalue = real(U[μ,ix,iy,iz,it][a,b])
                                 println(fp, rvalue)
-                                ivalue = imag(U[μ][ix,iy,iz,it][a,b])
+                                ivalue = imag(U[μ,ix,iy,iz,it][a,b])
                                 println(fp, ivalue)
                             end
                         end
@@ -28,6 +29,7 @@ function saveU(::BridgeFormat, U, filename)
 end
 
 function loadU!(::BridgeFormat, U, filename)
+    @assert U.U isa Array
     NX, NY, NZ, NT = size(U)
     fp = open(filename, "r")
     numdata = countlines(filename)
@@ -48,7 +50,7 @@ function loadU!(::BridgeFormat, U, filename)
                                 link[a, b] = rvalue + im*ivalue
                             end
                         end
-                        U[μ][ix,iy,iz,it] = SMatrix{3,3,ComplexF64,9}(link)
+                        U[μ,ix,iy,iz,it] = SMatrix{3,3,ComplexF64,9}(link)
                     end
                 end
             end

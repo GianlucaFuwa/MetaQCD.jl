@@ -212,6 +212,6 @@ function expλ(i, α)
     elseif i == 8
         return expλ₈(α)
     else
-        return eye3
+        return eye3(Float64)
     end
 end

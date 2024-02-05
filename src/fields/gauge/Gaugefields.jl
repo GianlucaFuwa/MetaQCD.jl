@@ -1,14 +1,26 @@
 module Gaugefields
 
+using AMDGPU: ROCArray, ROCBackend
 using Base.Threads: nthreads, threadid, @threads
+using CUDA: CuArray, CUDABackend, i32
+using KernelAbstractions
+using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
 using StaticArrays
 using Polyester
 using Random
 using ..Utils
 
-abstract type Abstractfield end
+import KernelAbstractions as KA
+
+struct CPUD end
+struct GPUD end
+abstract type Abstractfield{D,FloatT,A} end
 abstract type AbstractGaugeAction end
+
+floatT(::AbstractArray{SMatrix{3,3,Complex{FloatT},9},5}) where {FloatT} = FloatT
+floatT(::Abstractfield{D,FloatT}) where {D,FloatT} = FloatT
+KA.get_backend(u::Abstractfield) = get_backend(u.U)
 
 function Base.show(io::IO, u::T) where {T<:Abstractfield}
 	print(io, "$(typeof(u))", "(;")
@@ -37,9 +49,8 @@ Creates a Gaugefield, i.e. an array of link-variables (SU3 matrices) of size
 `IwasakiGaugeAction` \\
 `DBW2GaugeAction`
 """
-struct Gaugefield{GA} <: Abstractfield
-	# Vector of 4D-Arrays performs better than 5D-Array for some reason
-	U::Vector{Array{SMatrix{3, 3, ComplexF64, 9}, 4}}
+struct Gaugefield{D,T,A<:AbstractArray{SU{3,9,T}, 5},GA} <: Abstractfield{D,T,A}
+	U::A
 	NX::Int64
 	NY::Int64
 	NZ::Int64
@@ -50,24 +61,30 @@ struct Gaugefield{GA} <: Abstractfield
 	β::Float64
 	Sg::Base.RefValue{Float64}
 	CV::Base.RefValue{Float64}
-
-	function Gaugefield(NX, NY, NZ, NT, β; GA=WilsonGaugeAction)
-		U = Vector{Array{SMatrix{3, 3, ComplexF64, 9}, 4}}(undef, 4)
-
-		for μ in 1:4
-			U[μ] = Array{SMatrix{3, 3, ComplexF64, 9}, 4}(undef, NX, NY, NZ, NT)
-			fill!(U[μ], zero3)
-		end
-
-		NV = NX * NY * NZ * NT
-
-		Sg = Base.RefValue{Float64}(0.0)
-		CV = Base.RefValue{Float64}(0.0)
-		return new{GA}(U, NX, NY, NZ, NT, NV, 3, β, Sg, CV)
-	end
 end
 
-Gaugefield(U::Gaugefield{GA}) where {GA} = Gaugefield(U.NX, U.NY, U.NZ, U.NT, U.β; GA=GA)
+function Gaugefield(NX, NY, NZ, NT, β; backend=CPU(), T=Val(Float64),
+	GA::AbstractGaugeAction=WilsonGaugeAction())
+	D = if backend isa CPU
+		CPUD
+	elseif backend isa GPU
+		GPUD
+	else
+		throw(AssertionError("Only CPU, CUDABackend or ROCBackend supported!"))
+	end
+
+	Tu = _unwrap_val(T)
+	U = KA.zeros(backend, SU{3,9,Tu}, 4, NX, NY, NZ, NT)
+	NV = NX * NY * NZ * NT
+	Sg = Base.RefValue{Float64}(0.0)
+	CV = Base.RefValue{Float64}(0.0)
+	return Gaugefield{D,Tu,typeof(U),typeof(GA)}(U, NX, NY, NZ, NT, NV, 3, β, Sg, CV)
+end
+
+function Gaugefield(u::Gaugefield{D,T,A,GA}) where {D,T,A,GA}
+	backend = get_backend(u)
+	return Gaugefield(u.NX, u.NY, u.NZ, u.NT, u.β; backend=backend, T=Val(T), GA=GA())
+end
 
 """
 	Temporaryfield(NX, NY, NZ, NT)
@@ -76,30 +93,36 @@ Gaugefield(U::Gaugefield{GA}) where {GA} = Gaugefield(U.NX, U.NY, U.NZ, U.NT, U.
 Creates a Temporaryfield, i.e. an array of 3-by-3 matrices of size `4 × NX × NY × NZ × NT`
 or of the same size as `u`
 """
-struct Temporaryfield <: Abstractfield
-	U::Vector{Array{SMatrix{3, 3, ComplexF64, 9}, 4}}
+struct Temporaryfield{D,T,A<:AbstractArray{SU{3,9,T}, 5}} <: Abstractfield{D,T,A}
+	U::A
 	NX::Int64
 	NY::Int64
 	NZ::Int64
 	NT::Int64
 	NV::Int64
 	NC::Int64
-
-	function Temporaryfield(NX, NY, NZ, NT)
-		U = Vector{Array{SMatrix{3, 3, ComplexF64, 9}, 4}}(undef, 4)
-
-		for μ in 1:4
-			U[μ] = Array{SMatrix{3, 3, ComplexF64, 9}, 4}(undef, NX, NY, NZ, NT)
-			fill!(U[μ], zero3)
-		end
-
-		NV = NX * NY * NZ * NT
-		NC = 3
-		return new(U, NX, NY, NZ, NT, NV, NC)
-	end
 end
 
-Temporaryfield(u::Abstractfield) = Temporaryfield(u.NX, u.NY, u.NZ, u.NT)
+function Temporaryfield(NX, NY, NZ, NT; backend=CPU(), T=Val(Float64))
+	D = if backend isa CPU
+		CPUD
+	elseif backend isa GPU
+		GPUD
+	else
+		throw(AssertionError("Only CPU, CUDABackend or ROCBackend supported!"))
+	end
+
+	Tu = _unwrap_val(T)
+	U = KA.zeros(backend, SMatrix{3,3,Complex{Tu},9}, 4, NX, NY, NZ, NT)
+	NV = NX * NY * NZ * NT
+	NC = 3
+	return Temporaryfield{D,Tu,typeof(U)}(U, NX, NY, NZ, NT, NV, NC)
+end
+
+function Temporaryfield(u::Abstractfield{D,T,A}) where {D,T,A}
+	backend = get_backend(u)
+	return Temporaryfield(u.NX, u.NY, u.NZ, u.NT; backend=backend, T=Val(T))
+end
 
 """
 	CoeffField(NX, NY, NZ, NT)
@@ -109,42 +132,55 @@ Creates a CoeffField, i.e. an array of `exp_iQ_su3` objects of size `4 × NX × 
 or of the same size as `u`. The objects hold the `Q`-matrices and all the exponential
 parameters needed for stout-force recursion
 """
-struct CoeffField <: Abstractfield
-	U::Vector{Array{exp_iQ_su3, 4}}
+struct CoeffField{D,T,A<:AbstractArray{exp_iQ_su3{T}, 5}} <: Abstractfield{D,T,A}
+	U::A
 	NX::Int64
 	NY::Int64
 	NZ::Int64
 	NT::Int64
 	NV::Int64
-
-	function CoeffField(NX, NY, NZ, NT)
-		U = Vector{Array{exp_iQ_su3, 4}}(undef, 4)
-
-		for μ in 1:4
-			U[μ] = Array{exp_iQ_su3, 4}(undef, NX, NY, NZ, NT)
-			fill!(U[μ], exp_iQ_su3())
-		end
-
-		NV = NX * NY * NZ * NT
-		return new(U, NX, NY, NZ, NT, NV)
-	end
 end
 
-CoeffField(u::Abstractfield) = CoeffField(u.NX, u.NY, u.NZ, u.NT)
+function CoeffField(NX, NY, NZ, NT; backend=CPU(), T=Val(Float64))
+	D = if backend isa CPU
+		CPUD
+	elseif backend isa GPU
+		GPUD
+	else
+		throw(AssertionError("Only CPU, CUDABackend or ROCBackend supported!"))
+	end
 
-Base.size(u::T) where {T<:Abstractfield} = NTuple{4, Int64}((u.NX, u.NY, u.NZ, u.NT))
-Base.eachindex(u::T) where {T<:Abstractfield} = CartesianIndices(size(u)::NTuple{4, Int64})
+	Tu = _unwrap_val(T)
+	U = KA.zeros(backend, exp_iQ_su3{Tu}, 4, NX, NY, NZ, NT)
+	NV = NX * NY * NZ * NT
+	return CoeffField{D,Tu,typeof(U)}(U, NX, NY, NZ, NT, NV)
+end
+
+function CoeffField(u::Abstractfield{D,T,A}) where {D,T,A}
+	backend = get_backend(u)
+	return CoeffField(u.NX, u.NY, u.NZ, u.NT; backend=backend, T=Val(T))
+end
+
+Base.ndims(u::T) where {T<:Abstractfield} = 4
+Base.size(u::T) where {T<:Abstractfield} = NTuple{5, Int64}((4, u.NX, u.NY, u.NZ, u.NT))
+Base.eachindex(u::T) where {T<:Abstractfield} =
+	CartesianIndices((u.NX, u.NY, u.NZ, u.NT)::NTuple{4, Int64})
 Base.eachindex(::IndexLinear, u::T)  where {T<:Abstractfield} = Base.OneTo(u.NV)
-Base.eltype(::Gaugefield{GA}) where {GA} = GA
+Base.length(u::T) where {T<:Abstractfield} = u.NV
+gactionT(::Gaugefield{D,T,A,GA}) where {D,T,A,GA} = GA
 
-@inline function Base.setindex!(u::T, v, μ) where {T<:Abstractfield}
-	u.U[μ] = v
+@inline function Base.setindex!(u::T, v, μ, x, y, z, t) where {T<:Abstractfield}
+	u.U[μ,x,y,z,t] = v
 	return nothing
 end
 
-function Base.getindex(u::T, μ) where {T<:Abstractfield}
-	return u.U[μ]
+@inline function Base.setindex!(u::T, v, μ, site::SiteCoords) where {T<:Abstractfield}
+	u.U[μ,site] = v
+	return nothing
 end
+
+Base.getindex(u::T, μ, x, y, z, t) where {T<:Abstractfield} = u.U[μ,x,y,z,t]
+Base.getindex(u::T, μ, site::SiteCoords) where {T<:Abstractfield} = u.U[μ,site]
 
 function Base.getproperty(u::T, p::Symbol) where {T<:Gaugefield}
 	if p == :Sg
@@ -178,18 +214,49 @@ function Base.similar(u::T) where {T<:Abstractfield}
 	return uout
 end
 
-function substitute_U!(a::Ta, b::Tb) where {Ta<:Abstractfield,Tb<:Abstractfield}
+function to_backend(::Type{B}, u::Abstractfield{D,T}) where {B<:AbstractArray,D,T}
+	Dnew = if B == Array
+		CPUD
+	elseif B == CuArray
+		GPUD
+	elseif B == ROCArray
+		GPUD
+	else
+		throw(AssertionError("Only Array, CuArray or ROCArray supported!"))
+	end
+
+	Unew = B(u.U)
+	sizeU = size(u)[2:end]
+	if u isa Gaugefield
+		return Gaugefield{Dnew,floatT(u),typeof(Unew),gactionT(u)}(Unew, sizeU..., u.NV,
+		3, u.β, Base.RefValue{Float64}(u.Sg), Base.RefValue{Float64}(u.CV))
+	elseif u isa CoeffField
+		return CoeffField{Dnew,floatT(u),typeof(Unew)}(Unew, sizeU..., u.NV, 3)
+	elseif u isa Temporaryfield
+		return Temporaryfield{Dnew,floatT(u),typeof(Unew)}(Unew, sizeU..., u.NV, 3)
+	else
+		throw(AssertionError("Abstractfield type $T not supported!"))
+	end
+end
+
+function substitute_U!(a::Abstractfield{CPUD,T}, b::Abstractfield{CPUD,T}) where {T}
+	@assert size(a) == size(b)
 	@batch per=thread for site in eachindex(a)
 		for μ in 1:4
-			a[μ][site] = b[μ][site]
+			a[μ,site] = b[μ,site]
 		end
 	end
 
 	return nothing
 end
 
-function initial_gauges(initial, args...; type_of_gaction=WilsonGaugeAction)
-	u = Gaugefield(args...; GA=type_of_gaction)
+function initial_gauges(initial, args...; backend=CPU(), T=Val(Float64),
+	GA=WilsonGaugeAction())
+	return _initial_gauges(initial, args..., backend, T, GA)
+end
+
+function _initial_gauges(initial, NX, NY, NZ, NT, β, ::CPU, ::Val{T}, GA) where {T}
+	u = Gaugefield(NX, NY, NZ, NT, β; backend=CPU(), T=Val(T), GA=GA)
 
 	if initial == "cold"
 		identity_gauges!(u)
@@ -202,22 +269,22 @@ function initial_gauges(initial, args...; type_of_gaction=WilsonGaugeAction)
 	return u
 end
 
-function identity_gauges!(u)
+function identity_gauges!(u::Gaugefield{CPUD,T}) where {T}
 	@batch per=thread for site in eachindex(u)
 		for μ in 1:4
-			u[μ][site] = eye3
+			u[μ,site] = eye3(T)
 		end
 	end
 
 	return nothing
 end
 
-function random_gauges!(u)
+function random_gauges!(u::Gaugefield{CPUD,T}) where {T}
 	for site = eachindex(u)
 		for μ in 1:4
-			link = @SMatrix rand(ComplexF64, 3, 3)
+			link = @SMatrix rand(Complex{T}, 3, 3)
 			link = proj_onto_SU3(link)
-			u[μ][site] = link
+			u[μ,site] = link
 		end
 	end
 
@@ -226,80 +293,85 @@ function random_gauges!(u)
 	return nothing
 end
 
-function clear_U!(u::T) where {T<:Gaugefield}
-	@batch per=thread for site in eachindex(u)
+function clear_U!(u::Gaugefield{CPUD,T}) where {T}
+	@threads for site in eachindex(u)
 		for μ in 1:4
-			u[μ][site] = zero3
+			u[μ,site] = zero3(T)
 		end
 	end
 
 	return nothing
 end
 
-function normalize!(u::T) where {T<:Gaugefield}
-	@batch per=thread for site in eachindex(u)
+function normalize!(u::Gaugefield{CPUD,T}) where {T}
+	@threads for site in eachindex(u)
 		for μ in 1:4
-			u[μ][site] = proj_onto_SU3(u[μ][site])
+			u[μ,site] = proj_onto_SU3(u[μ,site])
 		end
 	end
 
 	return nothing
 end
 
-function add!(a::Ta, b::Tb, fac) where {Ta<:Abstractfield,Tb<:Abstractfield}
-	@batch per=thread for site in eachindex(a)
+function add!(a::Abstractfield{CPUD,T}, b::Abstractfield{CPUD,T}, fac) where {T}
+	@assert size(a) == size(b)
+	@threads for site in eachindex(a)
 		for μ in 1:4
-			a[μ][site] += fac * b[μ][site]
+			a[μ,site] += fac * b[μ,site]
 		end
 	end
 
 	return nothing
 end
 
-function mul!(u::T, α::Number) where {T<:Gaugefield}
-	@batch per=thread for site in eachindex(u)
+function mul!(u::Gaugefield{CPUD,T}, α::Number) where {T}
+	@threads for site in eachindex(u)
 		for μ in 1:4
-			u[μ][site] *= α
+			u[μ,site] *= α
 		end
 	end
 
 	return nothing
 end
 
-function leftmul!(a::Ta, b::Tb) where {Ta<:Abstractfield,Tb<:Abstractfield}
-	@batch per=thread for site in eachindex(a)
+function leftmul!(a::Abstractfield{CPUD,T}, b::Abstractfield{CPUD,T}) where {T}
+	@assert size(a) == size(b)
+	@threads for site in eachindex(a)
 		for μ in 1:4
-			a[μ][site] = cmatmul_oo(b[μ][site], a[μ][site])
+			a[μ,site] = cmatmul_oo(b[μ,site], a[μ,site])
 		end
 	end
 
 	return nothing
 end
 
-function leftmul_dagg!(a::Ta, b::Tb) where {Ta<:Abstractfield,Tb<:Abstractfield}
-	@batch per=thread for site in eachindex(a)
+function leftmul_dagg!(a::Abstractfield{CPUD,T}, b::Abstractfield{CPUD,T}) where {T}
+	@assert size(a) == size(b)
+	@threads for site in eachindex(a)
 		for μ in 1:4
-			a[μ][site] = cmatmul_do(b[μ][site], a[μ][site])
+			a[μ,site] = cmatmul_do(b[μ,site], a[μ,site])
 		end
 	end
 
 	return nothing
 end
 
-function rightmul!(a::Ta, b::Tb) where {Ta<:Abstractfield,Tb<:Abstractfield}
-	@batch per=thread for site in eachindex(a)
+function rightmul!(a::Abstractfield{CPUD,T}, b::Abstractfield{CPUD,T}) where {T}
+	@assert size(a) == size(b)
+	@threads for site in eachindex(a)
 		for μ in 1:4
-			a[μ][site] = cmatmul_oo(a[μ][site], b[μ][site])
+			a[μ,site] = cmatmul_oo(a[μ,site], b[μ,site])
 		end
 	end
 
 	return nothing
 end
 
-function rightmul_dagg!(a::Ta, b::Tb) where {Ta<:Abstractfield,Tb<:Abstractfield}
-	@batch per=thread for site in eachindex(a)
+function rightmul_dagg!(a::Abstractfield{CPUD,T}, b::Abstractfield{CPUD,T}) where {T}
+	@assert size(a) == size(b)
+	@threads for site in eachindex(a)
 		for μ in 1:4
-			a[μ][site] = cmatmul_od(a[μ][site], b[μ][site])
+			a[μ,site] = cmatmul_od(a[μ,site], b[μ,site])
 		end
 	end
 
@@ -312,5 +384,12 @@ include("staples.jl")
 include("clovers.jl")
 include("fieldstrength.jl")
 include("liefields.jl")
+
+include("gpu_kernels/utils.jl")
+include("gpu_kernels/field_operations.jl")
+include("gpu_kernels/wilsonloops.jl")
+include("gpu_kernels/actions.jl")
+include("gpu_kernels/liefields.jl")
+include("gpu_kernels/fieldstrength.jl")
 
 end

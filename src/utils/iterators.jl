@@ -8,8 +8,6 @@ struct Checkerboard2MT <: AbstractIterator end
 struct Checkerboard4 <: AbstractIterator end
 struct Checkerboard4MT <: AbstractIterator end
 
-const threadlocals = zeros(Float64, 8nthreads())
-
 function sweep!(::Sequential, ::Val{count}, f!::F, U, args...) where {F, count}
     for _ in 1:count
         for site in eachindex(U)
@@ -37,7 +35,7 @@ function sweep!(::SequentialMT, ::Val{count}, f!::F, U, args...) where {F, count
 end
 
 function sweep!(::Checkerboard2, ::Val{count}, f!::F, U, args...) where {F, count}
-    NX, NY, NZ, NT = size(U)
+    NX, NY, NZ, NT = size(U)[2:end]
 
     for _ in 1:count
         for μ in 1:4
@@ -60,7 +58,7 @@ function sweep!(::Checkerboard2, ::Val{count}, f!::F, U, args...) where {F, coun
 end
 
 function sweep!(::Checkerboard2MT, ::Val{count}, f!::F, U, args...) where {F, count}
-    NX, NY, NZ, NT = size(U)
+    NX, NY, NZ, NT = size(U)[2:end]
 
     for _ in 1:count
         for μ in 1:4
@@ -85,7 +83,7 @@ function sweep!(::Checkerboard2MT, ::Val{count}, f!::F, U, args...) where {F, co
 end
 
 function sweep!(::Checkerboard4, ::Val{count}, f!::F, U, args...) where {F, count}
-    NX, NY, NZ, NT = size(U)
+    NX, NY, NZ, NT = size(U)[2:end]
 
     for _ in 1:count
         for μ in 1:4
@@ -113,7 +111,7 @@ function sweep!(::Checkerboard4, ::Val{count}, f!::F, U, args...) where {F, coun
 end
 
 function sweep!(::Checkerboard4MT, ::Val{count}, f!::F, U, args...)::Nothing where {F, count}
-    NX, NY, NZ, NT = size(U)
+    NX, NY, NZ, NT = size(U)[2:end]
 
     for _ in 1:count
         for μ in 1:4
@@ -172,7 +170,7 @@ function sweep_reduce!(::SequentialMT, ::Val{count}, f!::F, U, args...) where {F
 end
 
 function sweep_reduce!(::Checkerboard2, ::Val{count}, f!::F, U, args...) where {F, count}
-    NX, NY, NZ, NT = size(U)
+    NX, NY, NZ, NT = size(U)[2:end]
     out = 0.0
 
     for _ in 1:count
@@ -197,13 +195,13 @@ end
 
 function sweep_reduce!(::Checkerboard2MT, ::Val{count}, f!::F, U, args...) where {F, count}
     count > 0 || return 0.0
-    NX, NY, NZ, NT = size(U)
+    NX, NY, NZ, NT = size(U)[2:end]
     out = zeros(Float64, 8nthreads())
 
     for _ in 1:count
         for μ in 1:4
             for pass in 1:2
-                @batch per=thread for it in 1:NT
+                @threads for it in 1:NT
                     for iz in 1:NZ
                         for iy in 1:NY
                             for ix in 1+iseven(it + iz + iy + pass):2:NX
@@ -221,7 +219,7 @@ function sweep_reduce!(::Checkerboard2MT, ::Val{count}, f!::F, U, args...) where
 end
 
 function sweep_reduce!(::Checkerboard4, ::Val{count}, f!::F, U, args...) where {F, count}
-    NX, NY, NZ, NT = size(U)
+    NX, NY, NZ, NT = size(U)[2:end]
     out = 0.0
 
     for _ in 1:count
@@ -251,7 +249,7 @@ end
 
 function sweep_reduce!(::Checkerboard4MT, ::Val{count}, f!::F, U, args...) where {F, count}
     count > 0 || return 0.0
-    NX, NY, NZ, NT = size(U)
+    NX, NY, NZ, NT = size(U)[2:end]
     out = zeros(Float64, 8nthreads())
 
     for _ in 1:count

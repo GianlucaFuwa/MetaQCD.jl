@@ -1,5 +1,5 @@
 function temper!(U::Vector{TG}, bias::Vector{TB}, numaccepts_temper, swap_every, itrj;
-                 recalc = false) where {TG<:Gaugefield, TB<:Bias}
+    recalc = false) where {TG<:Gaugefield, TB<:Bias}
     itrj%swap_every!=0 && return nothing
     numinstances = length(U)
     recalc && recalc_CV!(U[1], bias[1])
@@ -32,7 +32,8 @@ function temper!(U::Vector{TG}, bias::Vector{TB}, numaccepts_temper, swap_every,
     return nothing
 end
 
-function swap_U!(a::Gaugefield, b::Gaugefield)
+function swap_U!(a, b)
+    @assert size(a) == size(b)
     a_Sg_tmp = deepcopy(a.Sg)
     a_CV_tmp = deepcopy(a.CV)
 
@@ -43,9 +44,9 @@ function swap_U!(a::Gaugefield, b::Gaugefield)
 
     @batch per=thread for site in eachindex(a)
         for μ in 1:4
-            a_tmp = a[μ][site]
-            a[μ][site] = b[μ][site]
-            b[μ][site] = a_tmp
+            a_tmp = a[μ,site]
+            a[μ,site] = b[μ,site]
+            b[μ,site] = a_tmp
         end
     end
 

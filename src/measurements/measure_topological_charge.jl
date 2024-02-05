@@ -167,7 +167,7 @@ end
 function top_charge_density_imp(U, site)
     q_clov = top_charge_density_clover(U, site)
     q_rect = top_charge_density_rect(U, site)
-    q_imp = 5/3*q_clov - 1/12*q_rect
+    q_imp = 5/3*q_clov - 2/12*q_rect
     return q_imp
 end
 

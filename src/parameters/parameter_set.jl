@@ -63,6 +63,7 @@ struct ParameterSet
     numorelax::Int64
     parity_update::Bool
 
+    # measurements
     measurements::Vector{Dict}
     measurements_with_flow::Vector{Dict}
     flow_integrator::String
@@ -71,8 +72,10 @@ struct ParameterSet
     flow_steps::Int64
     flow_measure_every::Union{Int64, Vector{Int64}}
 
+    # system settings
+    backend::String
+    float_type::String
     verboselevel::Int64
-
     saveU_format::String
     saveU_every::Int64
     saveU_dir::String

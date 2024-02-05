@@ -77,9 +77,10 @@ end
 function calc_measurements_flowed(m::MeasurementMethods, gradient_flow, U, itrj; str="")
     check_for_measurements(itrj, m.intervals) || return nothing
     substitute_U!(gradient_flow.Uflow, U)
+    tf = gradient_flow.tf
 
     for iflow in 1:gradient_flow.numflow
-        τ = round(iflow * gradient_flow.tf, sigdigits = 3)
+        τ = round(iflow * tf, sigdigits=3)
         flow!(gradient_flow)
 
         if iflow ∈ gradient_flow.measure_at

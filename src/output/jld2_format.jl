@@ -11,7 +11,7 @@ function loadU!(::JLD2Format, U, filename::String)
 
     for ii in eachindex(U[1])
         for μ in 1:4
-            U[μ][ii] = Unew[μ][ii]
+            U[μ,ii] = Unew[μ,ii]
         end
     end
 

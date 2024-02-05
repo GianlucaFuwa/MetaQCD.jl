@@ -67,7 +67,7 @@ function measure(m::EnergyDensityMeasurement{T}, U; additional_string="") where 
     return output
 end
 
-function energy_density(U::Gaugefield, methodname::String)
+function energy_density(U, methodname::String)
     if methodname == "plaquette"
         E = energy_density(Plaquette(), U)
     elseif methodname == "clover"
@@ -81,7 +81,7 @@ function energy_density(U::Gaugefield, methodname::String)
     return E
 end
 
-function energy_density(::Plaquette, U::Gaugefield)
+function energy_density(::Plaquette, U::T) where {T<:Gaugefield}
     out = zeros(Float64, 8nthreads())
 
     @batch per=thread for site in eachindex(U)
@@ -98,7 +98,7 @@ function energy_density(::Plaquette, U::Gaugefield)
     return Eplaq
 end
 
-function energy_density(::Clover, U::Gaugefield)
+function energy_density(::Clover, U::T) where {T<:Gaugefield}
     out = zeros(Float64, 8nthreads())
 
     @batch per=thread for site in eachindex(U)
@@ -115,13 +115,13 @@ function energy_density(::Clover, U::Gaugefield)
     return Eclov
 end
 
-function energy_density(::Improved, U::Gaugefield)
+function energy_density(::Improved, U::T) where {T<:Gaugefield}
     Eclover = energy_density(Clover(), U)
     Erect = energy_density_rect(U)
     return 5/3*Eclover - 1/12*Erect
 end
 
-function energy_density_rect(U::Gaugefield)
+function energy_density_rect(U)
     out = zeros(Float64, 8nthreads())
 
     @batch per=thread for site in eachindex(U)

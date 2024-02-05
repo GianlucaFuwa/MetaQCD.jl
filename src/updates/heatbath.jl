@@ -5,10 +5,10 @@ struct Heatbath{ITR,TOR,NHB,NOR} <: AbstractUpdate
     numOR::Int64
 end
 
-function Heatbath(::Gaugefield{GA}, eo, MAXIT, numHB, or_alg, numOR) where {GA}
+function Heatbath(::Gaugefield{D,T,A,GA}, eo, MAXIT, numHB, or_alg, numOR) where {D,T,A,GA}
     @level1("┌ Setting Heatbath...")
 
-    if eo
+    if eo || D==GPUD
         @level1("|  PARALLELIZATION ENABLED")
         @level1("|  Parallel heatbath doesn't always produce reproducible results.
         To force it, turn MT off with \"eo = false\" under [\"Physical Settings\"].")
@@ -49,62 +49,62 @@ function update!(hb::Heatbath{ITR,TOR,NHB,NOR}, U; kwargs...) where {ITR,TOR,NHB
 end
 
 function (hb::Heatbath)(U, μ, site, action_factor)
-    old_link = U[μ][site]
+    old_link = U[μ,site]
     A = staple(U, μ, site)
-    new_link = heatbath_SU3(old_link, A, hb.MAXIT, action_factor)
-    U[μ][site] = new_link
+    U[μ,site] = heatbath_SU3(old_link, A, hb.MAXIT, action_factor)
     return nothing
 end
 
-function heatbath_SU3(old_link, A, MAXIT, action_factor)
-    subblock = make_submatrix(cmatmul_od(old_link, A), 1, 2)
-    tmp = embed_into_SU3(heatbath_SU2(subblock, MAXIT, action_factor), 1, 2)
+@inline function heatbath_SU3(old_link::SMatrix{3,3,Complex{T},9}, A, MAXIT,
+    action_factor) where {T}
+    subblock = make_submatrix_12(cmatmul_od(old_link, A))
+    tmp = embed_into_SU3_12(heatbath_SU2(subblock, MAXIT, action_factor))
     old_link = cmatmul_oo(tmp, old_link)
 
-    subblock = make_submatrix(cmatmul_od(old_link, A), 1, 3)
-    tmp = embed_into_SU3(heatbath_SU2(subblock, MAXIT, action_factor), 1, 3)
+    subblock = make_submatrix_13(cmatmul_od(old_link, A))
+    tmp = embed_into_SU3_13(heatbath_SU2(subblock, MAXIT, action_factor))
     old_link = cmatmul_oo(tmp, old_link)
 
-    subblock = make_submatrix(cmatmul_od(old_link, A), 2, 3)
-    tmp = embed_into_SU3(heatbath_SU2(subblock, MAXIT, action_factor), 2, 3)
+    subblock = make_submatrix_23(cmatmul_od(old_link, A))
+    tmp = embed_into_SU3_23(heatbath_SU2(subblock, MAXIT, action_factor))
     new_link = cmatmul_oo(tmp, old_link)
     return new_link
 end
 
-function heatbath_SU2(A, MAXIT, action_factor)
-    r₀ = 1
-    λ² = 1
-    a_norm = 1 / sqrt(real(det(A)))
+function heatbath_SU2(A::SMatrix{2,2,Complex{T},4}, MAXIT, action_factor) where {T}
+    r₀ = one(T)
+    λ² = one(T)
+    a_norm = one(T) / sqrt(real(det(A)))
     V = a_norm * A
     i = 1
 
     while r₀^2 + λ² >= 1
         if i > MAXIT
-            return eye2
+            return eye2(T)
         end
 
-        r₁ = 1 - rand(Float64)
+        r₁ = 1 - rand(T)
         x₁ = log(r₁)
-        r₂ = 1 - rand(Float64)
-        x₂ = cos(2π * r₂)
-        r₃ = 1 - rand(Float64)
+        r₂ = 1 - rand(T)
+        x₂ = cospi(2r₂)
+        r₃ = 1 - rand(T)
         x₃ = log(r₃)
 
-        λ² = (-0.25 * action_factor * a_norm) * (x₁ + x₂^2*x₃)
+        λ² = (-T(0.25) * action_factor * a_norm) * (x₁ + x₂^2*x₃)
 
-        r₀ = rand(Float64)
+        r₀ = rand(T)
         i += 1
     end
 
     x₀ = 1 - 2λ²
     abs_x = sqrt(1 - x₀^2)
 
-    φ = rand(Float64)
-    cosϑ = 1 - 2rand(Float64)
+    φ = rand(T)
+    cosϑ = 1 - 2rand(T)
     vec_norm = abs_x * sqrt(1 - cosϑ^2)
 
-    x₁ = vec_norm * cos(2π*φ)
-    x₂ = vec_norm * sin(2π*φ)
+    x₁ = vec_norm * cospi(2φ)
+    x₂ = vec_norm * sinpi(2φ)
     x₃ = abs_x * cosϑ
 
     mat = @SMatrix [

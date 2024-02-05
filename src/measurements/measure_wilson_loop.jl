@@ -61,7 +61,7 @@ function measure(m::WilsonLoopMeasurement{T}, U; additional_string="") where {T}
 
     for iT in 1:m.Tmax
         for iR in 1:m.Rmax
-            WL = tr(wilsonloop(U, iR, iT)) / (18.0*U.NV)
+            WL = wilsonloop(U, iR, iT) / (18.0U.NV)
             m.WL_dict[iR, iT] = WL
 
             if T ≡ IOStream

@@ -35,8 +35,8 @@ import .Gaugefields: SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clov
 import .Gaugefields: CoeffField, Gaugefield, Temporaryfield, initial_gauges
 import .Gaugefields: calc_gauge_action, fieldstrength_eachsite!, identity_gauges!, mul!
 import .Gaugefields: normalize!, plaquette, plaquette_trace_sum, random_gauges!
-import .Gaugefields: substitute_U!, staple, staple_eachsite!, wilsonloop
-import .Gaugefields: Liefield, calc_kinetic_energy, gaussian_momenta!
+import .Gaugefields: substitute_U!, staple, staple_eachsite!, wilsonloop, to_backend
+import .Gaugefields: Tensorfield, calc_kinetic_energy, gaussian_TA!
 import .Measurements: measure, get_value, top_charge
 import .Measurements: EnergyDensityMeasurement, GaugeActionMeasurement, PlaquetteMeasurement
 import .Measurements: PolyakovMeasurement, TopologicalChargeMeasurement, WilsonLoopMeasurement
@@ -55,8 +55,8 @@ export SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
 export CoeffField, Gaugefield, Temporaryfield, initial_gauges
 export calc_gauge_action, fieldstrength_eachsite!, identity_gauges!, mul!
 export normalize!, plaquette, plaquette_trace_sum, random_gauges!
-export substitute_U!, staple, staple_eachsite!, wilsonloop
-export Liefield, calc_kinetic_energy, gaussian_momenta!
+export substitute_U!, staple, staple_eachsite!, wilsonloop, to_backend
+export Tensorfield, calc_kinetic_energy, gaussian_TA!
 export measure, get_value, top_charge
 export EnergyDensityMeasurement, GaugeActionMeasurement, PlaquetteMeasurement
 export PolyakovMeasurement, TopologicalChargeMeasurement, WilsonLoopMeasurement

@@ -90,6 +90,8 @@ Base.@kwdef mutable struct PrintBiasParameters
 end
 
 Base.@kwdef mutable struct PrintSystemParameters
+    backend::String = "cpu"
+    float_type::String = "float64"
     log_dir::String = ""
     log_to_console::Bool = true
     verboselevel::Int64 = 1
