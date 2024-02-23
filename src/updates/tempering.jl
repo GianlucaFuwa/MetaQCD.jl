@@ -42,7 +42,7 @@ function swap_U!(a, b)
     b.Sg = a_Sg_tmp
     b.CV = a_CV_tmp
 
-    @batch per=thread for site in eachindex(a)
+    @threads for site in eachindex(a)
         for μ in 1:4
             a_tmp = a[μ,site]
             a[μ,site] = b[μ,site]

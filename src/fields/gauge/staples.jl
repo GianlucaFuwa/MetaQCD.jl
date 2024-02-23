@@ -130,7 +130,7 @@ function staple_rect(U, μ, site)
 end
 
 function staple_eachsite!(staples::Temporaryfield{CPUD,T}, U::Gaugefield{CPUD,T}) where {T}
-    @batch per=thread for site in eachindex(U)
+    @threads for site in eachindex(U)
         for μ in 1:4
             staples[μ,site] = staple(U, μ, site)
         end

@@ -1,6 +1,6 @@
 function substitute_U!(a::Abstractfield{GPUD,T}, b::Abstractfield{GPUD,T}) where {T}
 	@assert size(b) == size(a)
-	@latmap(substitute_U_kernel!, a, b)
+	@latmap(Sequential(), Val(1), substitute_U_kernel!, a, b)
 	return nothing
 end
 
@@ -12,7 +12,8 @@ end
 	end
 end
 
-clear_U!(u::Abstractfield{GPUD,T}) where {T} = @latmap(clear_U_kernel!, u, T)
+clear_U!(u::Abstractfield{GPUD,T}) where {T} =
+	@latmap(Sequential(), Val(1), clear_U_kernel!, u, T)
 
 @kernel function clear_U_kernel!(U, T)
 	site = @index(Global, Cartesian)
@@ -22,7 +23,7 @@ clear_U!(u::Abstractfield{GPUD,T}) where {T} = @latmap(clear_U_kernel!, u, T)
 	end
 end
 
-normalize!(u::Abstractfield{GPUD}) = @latmap(normalize_kernel!, u)
+normalize!(u::Abstractfield{GPUD}) = @latmap(Sequential(), Val(1), normalize_kernel!, u)
 
 @kernel function normalize_kernel!(U)
 	site = @index(Global, Cartesian)
@@ -34,7 +35,7 @@ end
 
 function add!(a::Abstractfield{GPUD,T}, b::Abstractfield{GPUD,T}, fac) where {T}
 	@assert size(b) == size(a)
-	@latmap(add_kernel!, a, b, T(fac))
+	@latmap(Sequential(), Val(1), add_kernel!, a, b, T(fac))
 	return nothing
 end
 
@@ -46,7 +47,8 @@ end
 	end
 end
 
-mul!(a::Abstractfield{GPUD,T}, α) where {T} = @latmap(mul_kernel!, a, T(α))
+mul!(a::Abstractfield{GPUD,T}, α) where {T} =
+	@latmap(Sequential(), Val(1), mul_kernel!, a, T(α))
 
 @kernel function mul_kernel!(a, α)
 	site = @index(Global, Cartesian)
@@ -58,7 +60,7 @@ end
 
 function leftmul!(a::Abstractfield{GPUD,T}, b::Abstractfield{GPUD,T}) where {T}
 	@assert size(b) == size(a)
-	@latmap(leftmul_kernel!, a, b)
+	@latmap(Sequential(), Val(1), leftmul_kernel!, a, b)
 	return nothing
 end
 
@@ -72,7 +74,7 @@ end
 
 function leftmul_dagg!(a::Abstractfield{GPUD,T}, b::Abstractfield{GPUD,T}) where {T}
 	@assert size(b) == size(a)
-	@latmap(leftmul_dagg_kernel!, a, b)
+	@latmap(Sequential(), Val(1), leftmul_dagg_kernel!, a, b)
 	return nothing
 end
 
@@ -86,7 +88,7 @@ end
 
 function rightmul!(a::Abstractfield{GPUD,T}, b::Abstractfield{GPUD,T}) where {T}
 	@assert size(b) == size(a)
-	@latmap(rightmul_kernel!, a, b)
+	@latmap(Sequential(), Val(1), rightmul_kernel!, a, b)
 	return nothing
 end
 
@@ -100,7 +102,7 @@ end
 
 function rightmul_dagg!(a::Abstractfield{GPUD,T}, b::Abstractfield{GPUD,T}) where {T}
 	@assert size(b) == size(a)
-	@latmap(rightmul_dagg_kernel!, a, b)
+	@latmap(Sequential(), Val(1), rightmul_dagg_kernel!, a, b)
 	return nothing
 end
 

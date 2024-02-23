@@ -1,3 +1,4 @@
+# XXX: Maybe better to use a backup U so we dont have to bother with checkerboarding
 struct Heatbath{ITR,TOR,NHB,NOR} <: AbstractUpdate
     MAXIT::Int64
     numHB::Int64
@@ -7,24 +8,7 @@ end
 
 function Heatbath(::Gaugefield{D,T,A,GA}, eo, MAXIT, numHB, or_alg, numOR) where {D,T,A,GA}
     @level1("┌ Setting Heatbath...")
-
-    if eo || D==GPUD
-        @level1("|  PARALLELIZATION ENABLED")
-        @level1("|  Parallel heatbath doesn't always produce reproducible results.
-        To force it, turn MT off with \"eo = false\" under [\"Physical Settings\"].")
-        if GA==WilsonGaugeAction
-            ITR = Checkerboard2MT
-        else
-            ITR = Checkerboard4MT
-        end
-    else
-        @level1("|  PARALLELIZATION DISABLED")
-        if GA==WilsonGaugeAction
-            ITR = Checkerboard2
-        else
-            ITR = Checkerboard4
-        end
-    end
+    ITR = GA==WilsonGaugeAction ? Checkerboard2 : Checkerboard4
     @level1("|  ITERATOR: $(ITR)")
 
     OR = Overrelaxation(or_alg)
@@ -38,13 +22,11 @@ function Heatbath(::Gaugefield{D,T,A,GA}, eo, MAXIT, numHB, or_alg, numOR) where
 end
 
 function update!(hb::Heatbath{ITR,TOR,NHB,NOR}, U; kwargs...) where {ITR,TOR,NHB,NOR}
-    numaccepts = 0.0
-
-    sweep!(ITR(), NHB(), hb, U, U.NC/U.β)
-    numaccepts += sweep_reduce!(ITR(), NOR(), TOR(), U, -U.β/U.NC)
+    @latmap(ITR(), NHB(), hb, U, U.NC/U.β)
+    numaccepts_or = @latsum(ITR(), NOR(), TOR(), U, -U.β/U.NC)
 
     U.Sg = calc_gauge_action(U)
-    numaccepts = (NOR≡Val{0}) ? 1.0 : numaccepts / (4*U.NV*_unwrap_val(NOR()))
+    numaccepts = (NOR≡Val{0}) ? 1.0 : numaccepts_or / (4*U.NV*_unwrap_val(NOR()))
     return numaccepts
 end
 

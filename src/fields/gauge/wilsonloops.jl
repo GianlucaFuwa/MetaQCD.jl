@@ -127,12 +127,12 @@ function wilsonloop_bottom_right(U, μ, ν, site, Lμ, Lν)
 end
 
 function wilsonloop(U::Gaugefield{CPUD}, Lμ, Lν)
-    out = zeros(floatT(U), 8nthreads())
+    out = zeros(Float64, 8, nthreads())
 
     @threads for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
-                out[8threadid()] += real(tr(wilsonloop(U, μ, ν, site, Lμ, Lν)))
+                out[1,threadid()] += real(tr(wilsonloop(U, μ, ν, site, Lμ, Lν)))
             end
         end
     end

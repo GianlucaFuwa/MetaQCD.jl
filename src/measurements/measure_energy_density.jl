@@ -82,14 +82,14 @@ function energy_density(U, methodname::String)
 end
 
 function energy_density(::Plaquette, U::T) where {T<:Gaugefield}
-    out = zeros(Float64, 8nthreads())
+    out = zeros(Float64, 8, nthreads())
 
-    @batch per=thread for site in eachindex(U)
+    @threads for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
                 Cμν = plaquette(U, μ, ν, site)
                 Fμν = im * traceless_antihermitian(Cμν)
-                out[8threadid()] += real(multr(Fμν, Fμν))
+                out[1,threadid()] += real(multr(Fμν, Fμν))
             end
         end
     end
@@ -99,14 +99,14 @@ function energy_density(::Plaquette, U::T) where {T<:Gaugefield}
 end
 
 function energy_density(::Clover, U::T) where {T<:Gaugefield}
-    out = zeros(Float64, 8nthreads())
+    out = zeros(Float64, 8, nthreads())
 
-    @batch per=thread for site in eachindex(U)
+    @threads for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
                 Cμν = clover_square(U, μ, ν, site, 1)
                 Fμν = im/4 * traceless_antihermitian(Cμν)
-                out[8threadid()] += real(multr(Fμν, Fμν))
+                out[1,threadid()] += real(multr(Fμν, Fμν))
             end
         end
     end
@@ -122,14 +122,14 @@ function energy_density(::Improved, U::T) where {T<:Gaugefield}
 end
 
 function energy_density_rect(U)
-    out = zeros(Float64, 8nthreads())
+    out = zeros(Float64, 8, nthreads())
 
-    @batch per=thread for site in eachindex(U)
+    @threads for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
                 Cμν = clover_rect(U, μ, ν, site, 1, 2)
                 Fμν = im/8 * traceless_antihermitian(Cμν)
-                out[8threadid()] += real(multr(Fμν, Fμν))
+                out[1,threadid()] += real(multr(Fμν, Fμν))
             end
         end
     end

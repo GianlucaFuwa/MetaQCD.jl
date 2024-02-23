@@ -1,7 +1,7 @@
 function apply_stout_smearing!(Uout::Gaugefield{GPUD,T}, C::Temporaryfield{GPUD,T},
     Q::CoeffField{GPUD,T}, U::Gaugefield{GPUD}, ρ) where {T}
     @assert size(Uout) == size(U) == size(C)== size(Q)
-    @latmap(apply_stout_smearing_kernel!, Uout, C, Q, U, T(ρ))
+    @latmap(Sequential(), Val(1), apply_stout_smearing_kernel!, Uout, C, Q, U, T(ρ))
     return nothing
 end
 
@@ -18,7 +18,7 @@ function stout_recursion!(Σ::Temporaryfield{GPUD,T}, Σ′::Temporaryfield{GPUD
     U′::Gaugefield{GPUD}, U::Gaugefield{GPUD}, C::Temporaryfield{GPUD},
     Q::CoeffField{GPUD}, Λ::Temporaryfield{GPUD}, ρ) where {T}
     @assert size(U) == size(Σ) == size(Σ′) == size(U′) == size(C) == size(Q) == size(Λ)
-    @latmap(stout_recursion_kernel!, Σ, Σ′, U′, U, C, Q, Λ, T(ρ))
+    @latmap(Sequential(), Val(1), stout_recursion_kernel!, Σ, Σ′, U′, U, C, Q, Λ, T(ρ))
     return nothing
 end
 
@@ -69,7 +69,7 @@ end
 function calc_stout_Λ!(Λ::Temporaryfield{GPUD}, Σ′::Temporaryfield{GPUD},
     Q::CoeffField{GPUD}, U::Gaugefield{GPUD})
     @assert size(U) == size(Λ) == size(Σ′) == size(Q)
-    @latmap(calc_stout_Λ_kernel!, Λ, Σ′, Q, U)
+    @latmap(Sequential(), Val(1), calc_stout_Λ_kernel!, Λ, Σ′, Q, U)
     return nothing
 end
 

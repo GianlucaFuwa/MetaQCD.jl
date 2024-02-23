@@ -1,6 +1,6 @@
 module Utils
 
-using Accessors
+using Accessors: @set
 using Base.Threads: @spawn, @threads, nthreads, threadid
 using LinearAlgebra
 using LoopVectorization

@@ -1,7 +1,7 @@
 function calc_dSdU!(dU::Temporaryfield{GPUD,T}, staples::Temporaryfield{GPUD,T},
     U::Gaugefield{GPUD,T,A,GA}) where {T,A,GA}
     @assert size(U) == size(dU) == size(staples)
-    @latmap(calc_dSdU_kernel!, dU, staples, U, GA(), T(U.β))
+    @latmap(Sequential(), Val(1), calc_dSdU_kernel!, dU, staples, U, GA(), T(U.β))
     return nothing
 end
 
@@ -19,7 +19,7 @@ end
 function calc_dQdU!(kind_of_charge, dU::Temporaryfield{GPUD,T}, F::Tensorfield{GPUD,T},
     U::Gaugefield{GPUD,T}) where {T}
     @assert size(U) == size(dU) == size(F)
-    @latmap(calc_dQdU_kernel!, dU, F, U, kind_of_charge, T(1.0))
+    @latmap(Sequential(), Val(1), calc_dQdU_kernel!, dU, F, U, kind_of_charge, T(1.0))
     return nothing
 end
 

@@ -1,6 +1,8 @@
-plaquette_trace_sum(U::Gaugefield{GPUD}) = @latreduce(+, plaquette_trace_sum_kernel!, U)
+plaquette_trace_sum(U::Gaugefield{GPUD}) =
+	@latsum(Sequential(), Val(1), plaquette_trace_sum_kernel!, U)
 
-rect_trace_sum(U::Gaugefield{GPUD}) = @latreduce(+, rect_trace_sum_kernel!, U)
+rect_trace_sum(U::Gaugefield{GPUD}) =
+	@latsum(Sequential(), Val(1), rect_trace_sum_kernel!, U)
 
 @kernel function plaquette_trace_sum_kernel!(out, @Const(U), neutral)
 	# workgroup index, that we use to pass the reduced value to global "out"

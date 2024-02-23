@@ -1,5 +1,5 @@
 struct Metropolis{ITR,NH,TOR,NOR} <: AbstractUpdate
-	ϵ::Base.RefValue{Float64}
+	ϵ::Float64
 	numhits::Int64
 	target_acc::Float64
     OR::TOR
@@ -9,22 +9,7 @@ struct Metropolis{ITR,NH,TOR,NOR} <: AbstractUpdate
         numOR) where {D,T,A,GA}
         @level1("┌ Setting Metropolis...")
 		m_ϵ = Base.RefValue{Float64}(ϵ)
-
-        if eo || D==GPUD
-            @level1("|  PARALLELIZATION ENABLED")
-            if GA==WilsonGaugeAction
-                ITR = Checkerboard2MT
-            else
-                ITR = Checkerboard4MT
-            end
-        else
-            @level1("|  PARALLELIZATION DISABLED")
-            if GA==WilsonGaugeAction
-                ITR = Checkerboard2
-            else
-                ITR = Checkerboard4
-            end
-        end
+        ITR = GA==WilsonGaugeAction ? Checkerboard2 : Checkerboard4
         @level1("|  ITERATOR: $(ITR)")
 
         OR = Overrelaxation(or_alg)
@@ -39,18 +24,17 @@ struct Metropolis{ITR,NH,TOR,NOR} <: AbstractUpdate
 end
 
 function update!(metro::Metropolis{ITR,NH,TOR,NOR}, U; kwargs...) where {ITR,NH,TOR,NOR}
-    numaccepts_metro = 0.0
-    numaccepts_or = 0.0
+    fac = -U.β/U.NC
 
-    numaccepts_metro += sweep_reduce!(ITR(), Val(1), metro, U, -U.β/U.NC)
-    numaccepts_or += sweep_reduce!(ITR(), NOR(), TOR(), U, -U.β/U.NC)
+    numaccepts_metro = @latsum(ITR(), Val(1), metro, U, fac)
+    numaccepts_or = @latsum(ITR(), NOR(), TOR(), U, fac)
 
     numaccepts_metro /= 4*U.NV*_unwrap_val(NH())
     @level3("|  Metro acceptance: $(numaccepts_metro)")
-    numaccepts_or /= 4*U.NV*_unwrap_val(NOR())
     adjust_ϵ!(metro, numaccepts_metro)
     U.Sg = calc_gauge_action(U)
-	return numaccepts_or
+    numaccepts = (NOR≡Val{0}) ? 1.0 : numaccepts_or / (4U.NV*_unwrap_val(NOR()))
+	return numaccepts
 end
 
 function (metro::Metropolis{ITR,NH,TOR,NOR})(U::Gaugefield{CPUD,T}, μ, site,
@@ -76,6 +60,6 @@ function (metro::Metropolis{ITR,NH,TOR,NOR})(U::Gaugefield{CPUD,T}, μ, site,
 end
 
 function adjust_ϵ!(metro, numaccepts)
-	metro.ϵ[] += (numaccepts - metro.target_acc) * 0.01 # 0.2 is arbitrarily chosen
+	metro.ϵ[] += (numaccepts - metro.target_acc) * 0.1 # 0.1 is arbitrarily chosen
 	return nothing
 end

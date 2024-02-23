@@ -1,4 +1,5 @@
-wilsonloop(U::Gaugefield{GPUD}, Lμ, Lν) = @latreduce(+, wilsonloop_kernel!, U, Lμ, Lν)
+wilsonloop(U::Gaugefield{GPUD}, Lμ, Lν) =
+	@latsum(Sequential(), Val(1), wilsonloop_kernel!, U, Lμ, Lν)
 
 @kernel function wilsonloop_kernel!(out, @Const(U), Lμ, Lν, neutral)
 	# workgroup index, that we use to pass the reduced value to global "out"

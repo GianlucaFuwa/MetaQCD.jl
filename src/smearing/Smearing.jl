@@ -19,7 +19,6 @@ using Base.Threads: nthreads, threadid, @threads
 using KernelAbstractions
 using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
-using Polyester
 using StaticArrays
 using Unicode
 using ..Output

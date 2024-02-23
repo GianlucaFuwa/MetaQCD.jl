@@ -1,55 +1,23 @@
-# """
-#     Liefield(NX, NY, NZ, NT)
-#     Liefield(u::Abstractfield)
-
-# Creates a Liefield, i.e. an array of 3-by-3 matrices of size `4 × NX × NY × NZ × NT`
-# or of the same size as `u`. Essentially the same as `TemporaryField`, but used for verbosity
-# in HMC
-# """
-# struct Liefield <: Abstractfield
-#     U::Vector{Array{SMatrix{3,3,ComplexF64,9},4}}
-#     NX::Int64
-#     NY::Int64
-#     NZ::Int64
-#     NT::Int64
-#     NV::Int64
-#     NC::Int64
-
-#     function Liefield(NX, NY, NZ, NT)
-#         NV = NX * NY * NZ * NT
-#         U = Vector{Array{SMatrix{3,3,ComplexF64,9},4}}(undef, 4)
-
-#         for μ in 1:4
-#             U[μ] = Array{SMatrix{3, 3, ComplexF64, 9}, 4}(undef, NX, NY, NZ, NT)
-#             fill!(U[μ], zero3)
-#         end
-
-#         return new(U, NX, NY, NZ, NT, NV, 3)
-#     end
-# end
-
-# Liefield(u::Abstractfield) = Liefield(u.NX, u.NY, u.NZ, u.NT)
-
 function gaussian_TA!(p::Temporaryfield{CPUD,T}, ϕ) where {T}
-    cosϕ = cos(convert(T, ϕ))
-    sinϕ = sin(convert(T, ϕ))
+    ϕ₁ = T(sqrt(1 - ϕ^2))
+    ϕ₂ = T(ϕ)
 
     @threads for site in eachindex(p)
         for μ in 1:4
-            p[μ,site] = cosϕ*p[μ,site] + sinϕ*gaussian_TA_mat(T)
+            p[μ,site] = ϕ₁*gaussian_TA_mat(T) + ϕ₂*p[μ,site]
         end
     end
 
     return nothing
 end
 
-function calc_kinetic_energy(p::Temporaryfield{CPUD,T}) where {T}
-    out = zeros(T, 8nthreads())
+function calc_kinetic_energy(p::Temporaryfield{CPUD})
+    out = zeros(Float64, 8, nthreads())
 
     @threads for site in eachindex(p)
         for μ in 1:4
             pmat = p[μ,site]
-            out[8threadid()] += real(multr(pmat, pmat))
+            out[1,threadid()] += real(multr(pmat, pmat))
         end
     end
 

@@ -1,6 +1,6 @@
 function swap_U!(a::Gaugefield{GPUD}, b::Gaugefield{GPUD})
     @assert size(b) == size(a)
-    @latmap(swap_U_kernel!, a, b)
+    @latmap(Sequential(), Val(1), swap_U_kernel!, a, b)
     return nothing
 end
 

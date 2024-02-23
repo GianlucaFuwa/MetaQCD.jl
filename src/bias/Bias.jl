@@ -2,7 +2,6 @@ module BiasModule
 
 using DelimitedFiles
 using MPI
-using Polyester
 using Printf
 using Statistics
 using Unicode

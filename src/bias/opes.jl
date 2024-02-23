@@ -1,7 +1,7 @@
 include("opes_kernel.jl")
 
 """
-    OPES(p::ParameterSet; verbose=Verbose1(), instance=1)
+    OPES(p::ParameterSet; instance=1)
 
 Create an instance of a OPES bias using the parameters given in `p`. \\
 `verbose` is used to print all parameters out as they are explicitly defined in the

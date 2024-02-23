@@ -13,6 +13,7 @@ Inspired by the [LatticeQCD.jl](https://github.com/akio-tomiya/LatticeQCD.jl/tre
 - Gradient flow with variable integrators (Euler, RK2, RK3, RK3W7)
 - Improved Gauge actions (Symanzik tree, Iwasaki, DBW2)
 - Improved Topological charge definitions (clover, rectangle clover-improved)
+- Support for CUDA and ROCm backends
 
 ## Installation:
 First make sure you have a Julia version at or above 1.9.0 installed. You can use [juliaup](https://github.com/JuliaLang/juliaup) for that or just install the release from the [Julia website](https://julialang.org/downloads/).
@@ -36,6 +37,8 @@ or
 ``` julia
 pkg> instantiate
 ```
+
+If you want to use a GPU, make sure you not only have CUDA.jl or AMDGPU.jl installed, but also a fairly recent version of the CUDA Toolkit or ROCm.
 
 ## Quick Start:
 1. Set parameters using one of the templates in template folder
@@ -139,6 +142,8 @@ Base.@kwdef mutable struct PrintBiasParameters
 end
 
 Base.@kwdef mutable struct PrintSystemParameters
+    backend::String = "cpu"
+    float_type::String = "float64"
     log_dir::String = ""
     log_to_console::Bool = true
     verboselevel::Int64 = 1

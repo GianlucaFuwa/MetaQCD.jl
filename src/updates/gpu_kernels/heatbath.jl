@@ -1,36 +1,18 @@
-function update!(hb::Heatbath{Checkerboard2MT,TOR,NHB,NOR},
-    U::Gaugefield{GPUD,T,A,GA}; kwargs...) where {NHB,TOR,NOR,T,A,GA}
-    @checker2map(heatbath_C2_kernel!, U, GA(), T(U.NC/U.β), hb.MAXIT)
+function update!(hb::Heatbath{ITR,TOR,NHB,NOR}, U::Gaugefield{GPUD,T,A,GA};
+    kwargs...) where {ITR,NHB,TOR,NOR,T,A,GA}
+    @assert ITR!=Sequential
+    ALG = eltype(TOR())
+    fac_hb = T(U.NC/U.β)
+    fac_or = T(-U.β/U.NC)
 
-    if NOR !== Val{0}
-        fac = T(-U.β/U.NC)
-        ALG = eltype(TOR())
-        numaccepts = zero(T)
-        for _ in 1:_unwrap_val(NOR())
-            numaccepts += @checker2reduce(+, overrelaxation_C2_kernel!, U, ALG(), GA(), fac)
-        end
-    end
+    hb_kernel! = ITR ≡ Checkerboard2 ? heatbath_C2_kernel! : heatbath_C4_kernel!
+    or_kernel! = ITR ≡ Checkerboard2 ? overrelaxation_C2_kernel! : overrelaxation_C4_kernel!
 
-    U.Sg = calc_gauge_action(U)
-    numaccepts = (NOR≡Val{0}) ? 1.0 : numaccepts / (4U.NV*_unwrap_val(NOR()))
-    return numaccepts
-end
-
-function update!(hb::Heatbath{Checkerboard4MT,TOR,NHB,NOR},
-    U::Gaugefield{GPUD,T,A,GA}; kwargs...) where {NHB,TOR,NOR,T,A,GA}
-    @checker4map(heatbath_C4_kernel!, U, GA(), T(U.NC/U.β), hb.MAXIT)
-
-    if NOR !== Val{0}
-        fac = T(-U.β/U.NC)
-        ALG = eltype(TOR())
-        numaccepts = zero(T)
-        for _ in 1:_unwrap_val(NOR())
-            numaccepts += @checker4reduce(+, overrelaxation_C4_kernel!, U, ALG(), GA(), fac)
-        end
-    end
+    @latmap(ITR(), NHB(), hb_kernel!, U, GA(), fac_hb, hb.MAXIT)
+    numaccepts_or = @latsum(ITR(), NOR(), or_kernel!, U, ALG(), GA(), fac_or)
 
     U.Sg = calc_gauge_action(U)
-    numaccepts = (NOR≡Val{0}) ? 1.0 : numaccepts / (4*U.NV*_unwrap_val(NOR()))
+    numaccepts = (NOR≡Val{0}) ? 1.0 : numaccepts_or / (4U.NV*_unwrap_val(NOR()))
     return numaccepts
 end
 
@@ -48,7 +30,7 @@ end
 @kernel function heatbath_C4_kernel!(U, μ, pass, GA, action_factor, MAXIT)
 	iy, iz, it = @index(Global, NTuple)
 
-    @unroll for ix in 1:size(U, 2)
+    @unroll for ix in axes(U, 2)
         site = SiteCoords(ix, iy, iz, it)
         if mod1(sum(site.I) + site[μ], 4)==pass
             @inbounds old_link = U[μ,site]

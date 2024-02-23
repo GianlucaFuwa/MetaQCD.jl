@@ -1,50 +1,29 @@
-function update!(metro::Metropolis{Checkerboard2MT,NH,TOR,NOR},
-    U::Gaugefield{GPUD,T,A,GA}; kwargs...) where {NH,TOR,NOR,T,A,GA}
+function update!(metro::Metropolis{ITR,NH,TOR,NOR}, U::Gaugefield{GPUD,T,A,GA};
+    kwargs...) where {ITR,NH,TOR,NOR,T,A,GA}
     fac = T(-U.β/U.NC)
     ϵ = T(metro.ϵ[])
     hits = _unwrap_val(NH())
-    numaccepts_metro = @checker2reduce(+, metropolis_C2_kernel!, U, GA(), ϵ, fac, hits)
+    ALG = eltype(TOR())
 
-    if NOR !== Val{0}
-        ALG = eltype(TOR())
-        numaccepts = zero(T)
-        for _ in 1:_unwrap_val(NOR())
-            numaccepts += @checker2reduce(+, overrelaxation_C2_kernel!, U, ALG(), GA(), fac)
-        end
-    end
+    metro_kernel! = ITR ≡ Checkerboard2 ? metropolis_C2_kernel! : metropolis_C4_kernel!
+    or_kernel! = ITR ≡ Checkerboard2 ? overrelaxation_C2_kernel! : overrelaxation_C4_kernel!
 
-    adjust_ϵ!(metro, numaccepts_metro / (4U.NV*hits))
+    numaccepts_metro = @latsum(ITR(), Val(1), metro_kernel!, U, GA(), ϵ, fac, hits)
+    numaccepts_or = @latsum(ITR(), NOR(), or_kernel!, U, ALG(), GA(), fac_or)
+
+    numaccepts_metro /= 4U.NV*hits
+    @level2("|  Metro acceptance: $(numaccepts_metro)")
+    adjust_ϵ!(metro, numaccepts_metro)
     U.Sg = calc_gauge_action(U)
-    numaccepts = (NOR≡Val{0}) ? 1.0 : numaccepts / (4U.NV*_unwrap_val(NOR()))
+    numaccepts = (NOR≡Val{0}) ? 1.0 : numaccepts_or / (4U.NV*_unwrap_val(NOR()))
     return numaccepts
 end
 
-function update!(metro::Metropolis{Checkerboard4MT,NH,TOR,NOR},
-    U::Gaugefield{GPUD,T,A,GA}; kwargs...) where {NH,TOR,NOR,T,A,GA}
-    fac = T(-U.β/U.NC)
-    ϵ = T(metro.ϵ[])
-    hits = _unwrap_val(NH())
-    numaccepts_metro = @checker4reduce(+, metropolis_C4_kernel!, U, GA(), ϵ, fac, hits)
-
-    if NOR !== Val{0}
-        ALG = eltype(TOR())
-        numaccepts = zero(T)
-        for _ in 1:_unwrap_val(NOR())
-            numaccepts += @checker4reduce(+, overrelaxation_C4_kernel!, U, ALG(), GA(), fac)
-        end
-    end
-
-    adjust_ϵ!(metro, numaccepts_metro / (4U.NV*hits))
-    U.Sg = calc_gauge_action(U)
-    numaccepts = (NOR≡Val{0}) ? 1.0 : numaccepts / (4U.NV*_unwrap_val(NOR()))
-    return numaccepts
-end
-
-@kernel function metropolis_C2_kernel!(out, U, μ, pass, GA, ϵ, fac, numhits, neutral)
+@kernel function metropolis_C2_kernel!(out, U, μ, pass, GA, ϵ, fac, numhits)
 	# workgroup index, that we use to pass the reduced value to global "out"
 	bi = @index(Group, Linear)
 	iy, iz, it = @index(Global, NTuple)
-    numaccepts = neutral
+    numaccepts = 0f0
 
     for ix in 1+iseven(iy+iz+it+pass):2:size(U, 2)
         site = SiteCoords(ix, iy, iz, it)
@@ -65,7 +44,7 @@ end
         end
     end
 
-    out_group = @groupreduce(+, numaccepts, neutral)
+    out_group = @groupreduce(+, numaccepts, 0f0)
 
 	ti = @index(Local)
 	if ti == 1
@@ -73,13 +52,13 @@ end
 	end
 end
 
-@kernel function metropolis_C4_kernel!(out, U, μ, pass, GA, ϵ, fac, numhits, neutral)
+@kernel function metropolis_C4_kernel!(out, U, μ, pass, GA, ϵ, fac, numhits)
 	# workgroup index, that we use to pass the reduced value to global "out"
 	bi = @index(Group, Linear)
     iy, iz, it = @index(Global, NTuple)
-    numaccepts = neutral
+    numaccepts = 0f0
 
-    for ix in 1:size(U, 2)
+    for ix in axes(U, 2)
         site = SiteCoords(ix, iy, iz, it)
         if mod1(sum(site.I) + site[μ], 4)==pass
             A_adj = staple(GA, U, μ, site)'
@@ -100,7 +79,7 @@ end
         end
     end
 
-    out_group = @groupreduce(+, numaccepts, neutral)
+    out_group = @groupreduce(+, numaccepts, 0f0)
 
 	ti = @index(Local)
 	if ti == 1

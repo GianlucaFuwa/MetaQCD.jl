@@ -6,7 +6,6 @@ using KernelAbstractions
 using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
 using StaticArrays
-using Polyester
 using Printf
 using Random: rand, default_rng
 using Unicode
@@ -18,8 +17,7 @@ import ..Gaugefields: AbstractGaugeAction, Gaugefield, Temporaryfield
 import ..Gaugefields: WilsonGaugeAction, add!, calc_gauge_action, calc_kinetic_energy
 import ..Gaugefields: clear_U!, normalize!, fieldstrength_eachsite!, gaussian_TA!, mul!
 import ..Gaugefields: staple, staple_eachsite!, substitute_U!, floatT
-import ..Gaugefields: @checker2map, @checker2reduce, @checker4map, @checker4reduce
-import ..Gaugefields: @groupreduce, @latmap, @latreduce
+import ..Gaugefields: @groupreduce, @latmap, @latsum
 import ..Gaugefields: Plaquette, Clover, CPUD, GPUD, Tensorfield
 import ..BiasModule: Bias, calc_CV, ∂V∂Q, recalc_CV!
 import ..BiasModule: kind_of_cv, update_bias!

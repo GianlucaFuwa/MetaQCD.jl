@@ -1,5 +1,5 @@
 """
-    Metadynamics(p::ParameterSet; verbose=Verbose1(), instance=1)
+    Metadynamics(p::ParameterSet; instance=1)
 
 Create an instance of a Metadynamics bias using the parameters given in `p`. \\
 `verbose` is used to print all parameters out as they are explicitly defined in the
@@ -130,7 +130,7 @@ function ∂V∂Q(m::Metadynamics, cv)
 end
 
 function clear!(m::Metadynamics)
-    @batch for i in eachindex(m)
+    @threads for i in eachindex(m)
         m[i] = 0.0
     end
 

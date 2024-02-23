@@ -7,11 +7,11 @@ using KernelAbstractions
 using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
 using StaticArrays
-using Polyester
 using Random
 using ..Utils
 
 import KernelAbstractions as KA
+export @latmap, @latsum
 
 struct CPUD end
 struct GPUD end
@@ -38,11 +38,16 @@ function Base.show(io::IO, u::T) where {T<:Abstractfield}
 end
 
 """
-	Gaugefield(NX, NY, NZ, NT, β; GA=WilsonGaugeAction)
-	Gaugefield(U::Gaugefield{GA}) where {GA}
+	Gaugefield(NX, NY, NZ, NT, β; backend=CPU(), T=Val(Float64), GA=WilsonGaugeAction())
+	Gaugefield(U::Gaugefield)
 
-Creates a Gaugefield, i.e. an array of link-variables (SU3 matrices) of size
-`4 × NX × NY × NZ × NT` with coupling parameter `β` and gauge action `GA` or a copy of `U`
+Creates a Gaugefield on `backend`, i.e. an array of link-variables (SU3 matrices with `T`
+precision) of size `4 × NX × NY × NZ × NT` with coupling parameter `β` and gauge action `GA`
+or a zero-initialized copy of `U`
+# Supported backends
+`CPU` \\
+`CUDABackend` \\
+`ROCBackend`
 # Supported gauge actions
 `WilsonGaugeAction` \\
 `SymanzikTreeGaugeAction` (Lüscher-Weisz) \\
@@ -74,6 +79,7 @@ function Gaugefield(NX, NY, NZ, NT, β; backend=CPU(), T=Val(Float64),
 	end
 
 	Tu = _unwrap_val(T)
+	@assert Tu <: AbstractFloat "Only Float16, Float32 or Float64 supported!"
 	U = KA.zeros(backend, SU{3,9,Tu}, 4, NX, NY, NZ, NT)
 	NV = NX * NY * NZ * NT
 	Sg = Base.RefValue{Float64}(0.0)
@@ -87,11 +93,15 @@ function Gaugefield(u::Gaugefield{D,T,A,GA}) where {D,T,A,GA}
 end
 
 """
-	Temporaryfield(NX, NY, NZ, NT)
+	Temporaryfield(NX, NY, NZ, NT; backend=CPU(), T=Val(Float64))
 	Temporaryfield(u::Abstractfield)
 
-Creates a Temporaryfield, i.e. an array of 3-by-3 matrices of size `4 × NX × NY × NZ × NT`
-or of the same size as `u`
+Creates a Temporaryfield on `backend`, i.e. an array of 3-by-3 `T`-precision matrices of
+size `4 × NX × NY × NZ × NT` or a zero-initialized Temporaryfield of the same size as `u`
+# Supported backends
+`CPU` \\
+`CUDABackend` \\
+`ROCBackend`
 """
 struct Temporaryfield{D,T,A<:AbstractArray{SU{3,9,T}, 5}} <: Abstractfield{D,T,A}
 	U::A
@@ -113,6 +123,7 @@ function Temporaryfield(NX, NY, NZ, NT; backend=CPU(), T=Val(Float64))
 	end
 
 	Tu = _unwrap_val(T)
+	@assert Tu <: AbstractFloat "Only Float16, Float32 or Float64 supported!"
 	U = KA.zeros(backend, SMatrix{3,3,Complex{Tu},9}, 4, NX, NY, NZ, NT)
 	NV = NX * NY * NZ * NT
 	NC = 3
@@ -125,12 +136,16 @@ function Temporaryfield(u::Abstractfield{D,T,A}) where {D,T,A}
 end
 
 """
-	CoeffField(NX, NY, NZ, NT)
+	CoeffField(NX, NY, NZ, NT; backend=CPU(), T=Val(Float64))
 	CoeffField(u::Abstractfield)
 
-Creates a CoeffField, i.e. an array of `exp_iQ_su3` objects of size `4 × NX × NY × NZ × NT`
-or of the same size as `u`. The objects hold the `Q`-matrices and all the exponential
-parameters needed for stout-force recursion
+Creates a CoeffField on `backend`, i.e. an array of `T`-precison `exp_iQ_su3` objects of
+size `4 × NX × NY × NZ × NT` or of the same size as `u`. The objects hold the `Q`-matrices
+and all the exponential parameters needed for stout-force recursion
+# Supported backends
+`CPU` \\
+`CUDABackend` \\
+`ROCBackend`
 """
 struct CoeffField{D,T,A<:AbstractArray{exp_iQ_su3{T}, 5}} <: Abstractfield{D,T,A}
 	U::A
@@ -151,6 +166,7 @@ function CoeffField(NX, NY, NZ, NT; backend=CPU(), T=Val(Float64))
 	end
 
 	Tu = _unwrap_val(T)
+	@assert Tu <: AbstractFloat "Only Float16, Float32 or Float64 supported!"
 	U = KA.zeros(backend, exp_iQ_su3{Tu}, 4, NX, NY, NZ, NT)
 	NV = NX * NY * NZ * NT
 	return CoeffField{D,Tu,typeof(U)}(U, NX, NY, NZ, NT, NV)
@@ -229,7 +245,7 @@ function to_backend(::Type{B}, u::Abstractfield{D,T}) where {B<:AbstractArray,D,
 	sizeU = size(u)[2:end]
 	if u isa Gaugefield
 		return Gaugefield{Dnew,floatT(u),typeof(Unew),gactionT(u)}(Unew, sizeU..., u.NV,
-		3, u.β, Base.RefValue{Float64}(u.Sg), Base.RefValue{Float64}(u.CV))
+			3, u.β, Base.RefValue{Float64}(u.Sg), Base.RefValue{Float64}(u.CV))
 	elseif u isa CoeffField
 		return CoeffField{Dnew,floatT(u),typeof(Unew)}(Unew, sizeU..., u.NV, 3)
 	elseif u isa Temporaryfield
@@ -241,7 +257,8 @@ end
 
 function substitute_U!(a::Abstractfield{CPUD,T}, b::Abstractfield{CPUD,T}) where {T}
 	@assert size(a) == size(b)
-	@batch per=thread for site in eachindex(a)
+
+	@threads for site in eachindex(a)
 		for μ in 1:4
 			a[μ,site] = b[μ,site]
 		end
@@ -270,7 +287,7 @@ function _initial_gauges(initial, NX, NY, NZ, NT, β, ::CPU, ::Val{T}, GA) where
 end
 
 function identity_gauges!(u::Gaugefield{CPUD,T}) where {T}
-	@batch per=thread for site in eachindex(u)
+	@threads for site in eachindex(u)
 		for μ in 1:4
 			u[μ,site] = eye3(T)
 		end
@@ -303,7 +320,7 @@ function clear_U!(u::Gaugefield{CPUD,T}) where {T}
 	return nothing
 end
 
-function normalize!(u::Gaugefield{CPUD,T}) where {T}
+function normalize!(u::Gaugefield{CPUD})
 	@threads for site in eachindex(u)
 		for μ in 1:4
 			u[μ,site] = proj_onto_SU3(u[μ,site])
@@ -313,8 +330,10 @@ function normalize!(u::Gaugefield{CPUD,T}) where {T}
 	return nothing
 end
 
-function add!(a::Abstractfield{CPUD,T}, b::Abstractfield{CPUD,T}, fac) where {T}
+function add!(a::Abstractfield{CPUD,T}, b::Abstractfield{CPUD}, fac) where {T}
 	@assert size(a) == size(b)
+	fac = T(fac)
+
 	@threads for site in eachindex(a)
 		for μ in 1:4
 			a[μ,site] += fac * b[μ,site]
@@ -325,6 +344,8 @@ function add!(a::Abstractfield{CPUD,T}, b::Abstractfield{CPUD,T}, fac) where {T}
 end
 
 function mul!(u::Gaugefield{CPUD,T}, α::Number) where {T}
+	α = T(α)
+
 	@threads for site in eachindex(u)
 		for μ in 1:4
 			u[μ,site] *= α
@@ -334,8 +355,9 @@ function mul!(u::Gaugefield{CPUD,T}, α::Number) where {T}
 	return nothing
 end
 
-function leftmul!(a::Abstractfield{CPUD,T}, b::Abstractfield{CPUD,T}) where {T}
+function leftmul!(a::Abstractfield{CPUD}, b::Abstractfield{CPUD})
 	@assert size(a) == size(b)
+
 	@threads for site in eachindex(a)
 		for μ in 1:4
 			a[μ,site] = cmatmul_oo(b[μ,site], a[μ,site])
@@ -345,8 +367,9 @@ function leftmul!(a::Abstractfield{CPUD,T}, b::Abstractfield{CPUD,T}) where {T}
 	return nothing
 end
 
-function leftmul_dagg!(a::Abstractfield{CPUD,T}, b::Abstractfield{CPUD,T}) where {T}
+function leftmul_dagg!(a::Abstractfield{CPUD}, b::Abstractfield{CPUD})
 	@assert size(a) == size(b)
+
 	@threads for site in eachindex(a)
 		for μ in 1:4
 			a[μ,site] = cmatmul_do(b[μ,site], a[μ,site])
@@ -356,8 +379,9 @@ function leftmul_dagg!(a::Abstractfield{CPUD,T}, b::Abstractfield{CPUD,T}) where
 	return nothing
 end
 
-function rightmul!(a::Abstractfield{CPUD,T}, b::Abstractfield{CPUD,T}) where {T}
+function rightmul!(a::Abstractfield{CPUD}, b::Abstractfield{CPUD})
 	@assert size(a) == size(b)
+
 	@threads for site in eachindex(a)
 		for μ in 1:4
 			a[μ,site] = cmatmul_oo(a[μ,site], b[μ,site])
@@ -369,6 +393,7 @@ end
 
 function rightmul_dagg!(a::Abstractfield{CPUD,T}, b::Abstractfield{CPUD,T}) where {T}
 	@assert size(a) == size(b)
+
 	@threads for site in eachindex(a)
 		for μ in 1:4
 			a[μ,site] = cmatmul_od(a[μ,site], b[μ,site])
@@ -377,6 +402,9 @@ function rightmul_dagg!(a::Abstractfield{CPUD,T}, b::Abstractfield{CPUD,T}) wher
 
 	return nothing
 end
+
+include("../iterators.jl")
+include("../gpu_iterators.jl")
 
 include("wilsonloops.jl")
 include("actions.jl")

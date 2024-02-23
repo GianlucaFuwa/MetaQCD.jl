@@ -1,11 +1,11 @@
 function update!(parity::ParityUpdate, U::Gaugefield{GPUD})
     U_bak = parity.U_bak
     @assert size(U_bak) == size(U)
-    @latmap(parity_update_kernel!, U, U_bak)
+    @latmap(Sequential(), Val(1), parity_update_kernel!, U, U_bak)
     return nothing
 end
 
-@kernel function parity_update_kernel!(@Const(U), @Const(U_bak))
+@kernel function parity_update_kernel!(U, @Const(U_bak))
 	ix, iy, iz, it = @index(Global, NTuple)
 
 	@inbounds begin

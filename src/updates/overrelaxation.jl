@@ -26,7 +26,7 @@ function (or::Overrelaxation{ALG})(U::Gaugefield{CPUD,T}, μ, site, action_facto
 end
 
 function overrelaxation_SU3(::KenneyLaub, link::SMatrix{3,3,Complex{T},9}, A_adj) where {T}
-    tmp = 1//6 * A_adj
+    tmp = T(1/6) * A_adj
     or_mat = kenney_laub(tmp)
     link = cmatmul_ddd(or_mat, link, or_mat)
     return link

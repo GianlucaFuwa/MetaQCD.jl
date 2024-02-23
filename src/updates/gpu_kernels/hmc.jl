@@ -2,7 +2,7 @@ function updateU!(U::Gaugefield{GPUD,T}, hmc::HMC, fac) where {T}
     ϵ = hmc.Δτ * fac
     P = hmc.P
     @assert size(U) == size(P)
-    @latmap(updateU_kernel!, U, P, T(ϵ))
+    @latmap(Sequential(), Val(1), updateU_kernel!, U, P, T(ϵ))
     return nothing
 end
 

@@ -1,6 +1,6 @@
 function updateU!(U::Gaugefield{GPUD,T}, Z::Temporaryfield{GPUD}, ϵ) where {T}
     @assert size(Z) == size(U)
-    @latmap(updateU_gf_kernel!, U, Z, T(ϵ))
+    @latmap(Sequential(), Val(1), updateU_gf_kernel!, U, Z, T(ϵ))
     return nothing
 end
 
@@ -14,7 +14,7 @@ end
 
 function calcZ!(Z::Temporaryfield{GPUD,T}, U::Gaugefield{GPUD}, ϵ) where {T}
     @assert size(Z) == size(U)
-    @latmap(calcZ_kernel!, Z, U, T(ϵ))
+    @latmap(Sequential(), Val(1), calcZ_kernel!, Z, U, T(ϵ))
     return nothing
 end
 
@@ -30,7 +30,7 @@ end
 
 function updateZ!(Z::Temporaryfield{GPUD,T}, U::Gaugefield{GPUD}, ϵ_old, ϵ_new) where {T}
     @assert size(Z) == size(U)
-    @latmap(updateZ_kernel!, Z, U, T(ϵ_old), T(ϵ_new))
+    @latmap(Sequential(), Val(1), updateZ_kernel!, Z, U, T(ϵ_old), T(ϵ_new))
     return nothing
 end
 
