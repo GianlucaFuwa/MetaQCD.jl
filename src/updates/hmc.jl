@@ -17,7 +17,7 @@ struct HMC{TI,TG,TT,TS,PO,F2,FS,IO} <: AbstractUpdate
 
     fp::IO
 
-    function HMC(U, integrator, trajectory, steps, friction = π/2, numsmear = 0, ρ_stout = 0,
+    function HMC(U, integrator, trajectory, steps, friction = 0, numsmear = 0, ρ_stout = 0,
                  verboselevel = 1; bias_enabled = false, logdir = "")
         @level1("┌ Setting HMC...")
         integrator = Unicode.normalize(integrator, casefold=true)
@@ -47,8 +47,8 @@ struct HMC{TI,TG,TT,TS,PO,F2,FS,IO} <: AbstractUpdate
 
         P = Temporaryfield(U)
         TT = typeof(P)
-        gaussian_TA!(P, π/2)
-        P_old = friction==π/2 ? nothing : Temporaryfield(U)
+        gaussian_TA!(P, 0)
+        P_old = friction==0 ? nothing : Temporaryfield(U)
         PO = typeof(P_old)
         U_old = similar(U)
         staples = Temporaryfield(U)
@@ -137,7 +137,7 @@ function update!(hmc::HMC{TI}, U;
     else
         substitute_U!(U, U_old)
 
-        if P_old ≢ nothing # flip momenta if rejected
+        if P_old ≡ nothing # flip momenta if rejected
             substitute_U!(hmc.P, P_old)
             mul!(hmc.P, -1)
         end
@@ -150,9 +150,9 @@ end
 function updateU!(U, hmc, fac)
     ϵ = hmc.Δτ * fac
     P = hmc.P
-    @assert size(U) == size(P)
+    @assert dims(U) == dims(P)
 
-    @threads for site in eachindex(U)
+    @batch for site in eachindex(U)
         for μ in 1:4
             U[μ,site] = cmatmul_oo(exp_iQ(-im*ϵ*P[μ,site]), U[μ,site])
         end
@@ -164,7 +164,7 @@ end
 function updateP!(U, hmc::HMC, fac, bias::T) where {T}
     ϵ = hmc.Δτ * fac
     P = hmc.P
-    @assert size(U) == size(P)
+    @assert dims(U) == dims(P)
     staples = hmc.staples
     force = hmc.force
     temp_force = hmc.force2

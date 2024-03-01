@@ -8,11 +8,11 @@ struct ParityUpdate{TG} <: AbstractUpdate
 end
 
 function update!(parity::ParityUpdate, U)
-    NX, NY, NZ, NT = size(U)
+    NX, NY, NZ, NT = dims(U)
     U_bak = parity.U_bak
     substitute_U!(U_bak, U)
 
-    @threads for it in 1:NT
+    @batch for it in 1:NT
         for iz in 1:NZ
             for iy in 1:NY
                 for ix in 1:NX

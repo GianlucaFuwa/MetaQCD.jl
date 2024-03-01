@@ -1,5 +1,5 @@
 function clover_square(U, μ, ν, site, L)
-    clover = zero3(floatT(U))
+    clover = zero3(float_type(U))
 
     clover += wilsonloop_top_right(U, μ, ν, site, L, L)
     clover += wilsonloop_top_left(U, μ, ν, site, L, L)
@@ -9,7 +9,7 @@ function clover_square(U, μ, ν, site, L)
 end
 
 function clover_rect(U, μ, ν, site, L1, L2)
-    clover = zero3(floatT(U))
+    clover = zero3(float_type(U))
 
     clover += wilsonloop_top_right(U, μ, ν, site, L1, L2)
     clover += wilsonloop_top_left(U, μ, ν, site, L1, L2)

@@ -83,38 +83,35 @@ function top_charge(U::Gaugefield, methodname::String)
 end
 
 function top_charge(::Plaquette, U)
-    out = zeros(Float64, 8nthreads())
+    Q = 0.0
 
-    @threads for site in eachindex(U)
-        out[8threadid()] += top_charge_density_plaq(U, site)
+    @batch reduction=(+, Q) for site in eachindex(U)
+        Q += top_charge_density_plaq(U, site)
     end
 
-    Q_plaq = 1/4π^2 * sum(out)
-    return Q_plaq
+    return Q / 4π^2
 end
 
 function top_charge(::Clover, U)
-    out = zeros(Float64, 8nthreads())
+    Q = 0.0
 
-    @threads for site in eachindex(U)
-        out[8threadid()] += top_charge_density_clover(U, site)
+    @batch reduction=(+, Q) for site in eachindex(U)
+        Q += top_charge_density_clover(U, site)
     end
 
-    Q_clover = 1/4π^2 * sum(out)
-    return Q_clover
+    return Q / 4π^2
 end
 
 function top_charge(::Improved, U)
-    out = zeros(Float64, 8nthreads())
-    c₁ = 5/3
-    c₂ = -2/12
+    Q = 0.0
+    c₀ = 5/3
+    c₁ = -2/12
 
-    @threads for site in eachindex(U)
-        out[8threadid()] += top_charge_density_imp(U, site, c₁, c₂)
+    @batch reduction=(+, Q) for site in eachindex(U)
+        Q += top_charge_density_imp(U, site, c₀, c₁)
     end
 
-    Q_imp = 1/4π^2 * sum(out)
-    return Q_imp
+    return Q / 4π^2
 end
 
 function top_charge_density_plaq(U, site)
@@ -153,10 +150,10 @@ function top_charge_density_clover(U, site)
     return out
 end
 
-function top_charge_density_imp(U, site, c₁, c₂)
+function top_charge_density_imp(U, site, c₀, c₁)
     q_clov = top_charge_density_clover(U, site)
     q_rect = top_charge_density_rect(U, site)
-    q_imp = c₁*q_clov - c₂*q_rect
+    q_imp = c₀*q_clov + c₁*q_rect
     return q_imp
 end
 

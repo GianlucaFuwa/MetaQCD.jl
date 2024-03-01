@@ -22,7 +22,7 @@ function staple(::SymanzikTadGaugeAction, U, μ, site) # TODO
 end
 
 function staple(::IwasakiGaugeAction, U, μ, site)
-    c1 = floatT(U)(0.331)
+    c1 = float_type(U)(0.331)
     c1prime = c1
     staple_p = staple_plaq(U, μ, site)
     staple_r = staple_rect(U, μ, site)
@@ -30,7 +30,7 @@ function staple(::IwasakiGaugeAction, U, μ, site)
 end
 
 function staple(::DBW2GaugeAction, U, μ, site)
-    c1 = floatT(U)(1.409)
+    c1 = float_type(U)(1.409)
     c1prime = c1
     staple_p = staple_plaq(U, μ, site)
     staple_r = staple_rect(U, μ, site)
@@ -38,16 +38,16 @@ function staple(::DBW2GaugeAction, U, μ, site)
 end
 
 function staple_plaq(U, μ, site)
-    Nμ = size(U)[1+μ]
+    Nμ = dims(U)[μ]
     siteμ⁺ = move(site, μ, 1, Nμ)
-    staple = zero3(floatT(U))
+    staple = zero3(float_type(U))
 
     for ν in 1:4
         if ν == μ
             continue
         end
 
-        Nν = size(U)[1+ν]
+        Nν = dims(U)[ν]
         siteν⁺ = move(site, ν, 1, Nν)
         siteν⁻ = move(site, ν, -1, Nν)
         siteμ⁺ν⁻ = move(siteμ⁺, ν, -1, Nν)
@@ -59,19 +59,19 @@ function staple_plaq(U, μ, site)
 end
 
 function staple_rect(U, μ, site)
-    Nμ = size(U)[1+μ]
+    Nμ = dims(U)[μ]
     siteμ⁺  = move(site, μ, 1, Nμ)
     siteμ⁻  = move(site, μ, -1, Nμ)
     siteμ²⁺ = move(site, μ, 2, Nμ)
 
-    staple = zero3(floatT(U))
+    staple = zero3(float_type(U))
 
     for ν in 1:4
         if ν == μ
             continue
         end
 
-        Nν = size(U)[1+ν]
+        Nν = dims(U)[ν]
         siteν⁺    = move(site, ν, 1, Nν)
         siteν⁻    = move(site, ν, -1, Nν)
         siteμ⁺ν⁺  = move(siteμ⁺, ν, 1, Nν)
@@ -129,8 +129,8 @@ function staple_rect(U, μ, site)
     return staple
 end
 
-function staple_eachsite!(staples::Temporaryfield{CPUD,T}, U::Gaugefield{CPUD,T}) where {T}
-    @threads for site in eachindex(U)
+function staple_eachsite!(staples::Temporaryfield{CPU,T}, U::Gaugefield{CPU,T}) where {T}
+    @batch for site in eachindex(U)
         for μ in 1:4
             staples[μ,site] = staple(U, μ, site)
         end

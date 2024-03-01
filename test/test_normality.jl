@@ -7,7 +7,7 @@ L = (12, 12, 12, 12)
 β = 6.0
 gaction = WilsonGaugeAction
 
-U = initial_gauges("hot", L..., β, GA=gaction());
+U = initial_gauges("hot", L..., β, GA=gaction);
 hb = Heatbath(U, true, 10, 1, "subgroups", 4)
 
 function test(hb, U, N)

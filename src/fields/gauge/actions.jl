@@ -1,3 +1,5 @@
+abstract type AbstractGaugeAction end
+
 struct WilsonGaugeAction <: AbstractGaugeAction end
 struct SymanzikTreeGaugeAction <: AbstractGaugeAction end
 struct SymanzikTadGaugeAction <: AbstractGaugeAction end
@@ -22,7 +24,7 @@ function calc_gauge_action(U::Gaugefield, methodname::String)
     return Sg
 end
 
-calc_gauge_action(U::Gaugefield{D,T,A,GA}) where {D,T,A,GA} = calc_gauge_action(GA(), U)
+calc_gauge_action(U::Gaugefield{B,T,A,GA}) where {B,T,A,GA} = calc_gauge_action(GA(), U)
 
 function calc_gauge_action(::WilsonGaugeAction, U)
     P = plaquette_trace_sum(U)
@@ -67,38 +69,37 @@ function calc_gauge_action(::DBW2GaugeAction, U)
     return Sg_dbw2
 end
 
-function plaquette_trace_sum(U::Gaugefield{CPUD,T}) where {T}
-    out = zeros(T, 8nthreads())
+function plaquette_trace_sum(U::Gaugefield{CPU,T}) where {T}
+    P = zero(T)
 
-    @threads for site in eachindex(U)
+    @batch reduction=(+, P) for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
-                out[8threadid()] += real(tr(plaquette(U, μ, ν, site)))
+                P += real(tr(plaquette(U, μ, ν, site)))
             end
         end
     end
 
-    return sum(out)
+    return P
 end
 
-function rect_trace_sum(U::Gaugefield{CPUD,T}) where {T}
-    out = zeros(T, 8nthreads())
+function rect_trace_sum(U::Gaugefield{CPU,T}) where {T}
+    R = zero(T)
 
-    @threads for site in eachindex(U)
+    @batch reduction=(+, R) for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
-                out[8threadid()] += real(tr(rect_1x2(U, μ, ν, site))) +
-                    real(tr(rect_2x1(U, μ, ν, site)))
+                R += real(tr(rect_1x2(U, μ, ν, site))) + real(tr(rect_2x1(U, μ, ν, site)))
             end
         end
     end
 
-    return sum(out)
+    return R
 end
 
 function plaquette(U, μ, ν, site)
-    Nμ = size(U)[1+μ]
-    Nν = size(U)[1+ν]
+    Nμ = dims(U)[μ]
+    Nν = dims(U)[ν]
     siteμ⁺ = move(site, μ, 1, Nμ)
     siteν⁺ = move(site, ν, 1, Nν)
     plaq = cmatmul_oodd(U[μ,site], U[ν,siteμ⁺], U[μ,siteν⁺], U[ν,site])
@@ -106,8 +107,8 @@ function plaquette(U, μ, ν, site)
 end
 
 function rect_2x1(U, μ, ν, site)
-    Nμ = size(U)[1+μ]
-    Nν = size(U)[1+ν]
+    Nμ = dims(U)[μ]
+    Nν = dims(U)[ν]
     siteμ⁺   = move(site, μ, 1, Nμ)
     siteμ²⁺  = move(siteμ⁺, μ, 1, Nμ)
     siteμ⁺ν⁺ = move(siteμ⁺, ν, 1, Nν)
@@ -118,8 +119,8 @@ function rect_2x1(U, μ, ν, site)
 end
 
 function rect_1x2(U, μ, ν, site)
-    Nμ = size(U)[1+μ]
-    Nν = size(U)[1+ν]
+    Nμ = dims(U)[μ]
+    Nν = dims(U)[ν]
     siteμ⁺   = move(site, μ, 1, Nμ)
     siteμ⁺ν⁺ = move(siteμ⁺, ν, 1, Nν)
     siteν⁺   = move(site, ν, 1, Nν)
@@ -130,8 +131,8 @@ function rect_1x2(U, μ, ν, site)
 end
 
 function plaquette_2x2(U, μ, ν, site)
-    Nμ = size(U)[1+μ]
-    Nν = size(U)[1+ν]
+    Nμ = dims(U)[μ]
+    Nν = dims(U)[ν]
     siteμ⁺    = move(site, μ, 1, Nμ)
     siteμ²⁺   = move(siteμ⁺, μ, 1, Nμ)
     siteμ²⁺ν⁺ = move(siteμ²⁺, ν, 1, Nν)

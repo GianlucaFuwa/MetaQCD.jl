@@ -11,14 +11,14 @@ this is generally slower.
 macro groupreduce(op, val, neutral)
     quote
         $__groupreduce($(esc(:__ctx__)),$(esc(op)), $(esc(val)), $(esc(neutral)),
-            Val(prod(KernelAbstractions.groupsize($(esc(:__ctx__))))))
+                       Val(prod(KernelAbstractions.groupsize($(esc(:__ctx__))))))
     end
 end
 
 macro groupreduce(op, val, neutral, groupsize)
     quote
         $__groupreduce($(esc(:__ctx__)),$(esc(op)), $(esc(val)), $(esc(neutral)),
-            $(esc(groupsize)))
+                       $(esc(groupsize)))
     end
 end
 
@@ -51,12 +51,6 @@ end
     end
 
     return val
-end
-
-@inline function get_raws(args...)
-    fields = filter(x -> x isa Abstractfield, args)
-    rest = filter(x -> !(x isa Abstractfield), args)
-    return (ntuple(i -> fields[i].U, length(fields))..., rest...)
 end
 
 # @inline function tile(NX::Integer, NY::Integer, NZ::Integer, NT::Integer)

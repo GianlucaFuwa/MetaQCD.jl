@@ -15,10 +15,10 @@ Smearing types are subtypes of AbstractSmearing
 """
 module Smearing
 
-using Base.Threads: nthreads, threadid, @threads
 using KernelAbstractions
 using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
+using Polyester: @batch
 using StaticArrays
 using Unicode
 using ..Output
@@ -26,7 +26,7 @@ using ..Utils
 
 import ..Gaugefields: AbstractGaugeAction, CoeffField, Gaugefield, Temporaryfield
 import ..Gaugefields: leftmul_dagg!, staple, staple_eachsite!, substitute_U!, @groupreduce
-import ..Gaugefields: CPUD, GPUD, floatT, i32, @latmap
+import ..Gaugefields: dims, float_type, i32, @latmap
 
 abstract type AbstractSmearing end
 

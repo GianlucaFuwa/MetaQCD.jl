@@ -2,7 +2,7 @@
 
 julia_version = "1.9.4"
 manifest_format = "2.0"
-project_hash = "f90a5e8747873e242ff6e8cbc9a85a5859a855d9"
+project_hash = "9d8941c90d7abc0a0025f65fa5d3378a9b6fec18"
 
 [[deps.AMDGPU]]
 deps = ["AbstractFFTs", "Adapt", "CEnum", "ExprTools", "GPUArrays", "GPUCompiler", "HIP_jll", "KernelAbstractions", "LLD_jll", "LLVM", "LLVM_jll", "Libdl", "LinearAlgebra", "MacroTools", "Pkg", "Preferences", "Printf", "ROCmDeviceLibs_jll", "Random", "SparseArrays", "SpecialFunctions", "Statistics", "UnsafeAtomicsLLVM", "hsa_rocr_jll"]
@@ -597,6 +597,11 @@ uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
 version = "2022.10.11"
 
+[[deps.MuladdMacro]]
+git-tree-sha1 = "cac9cc5499c25554cba55cd3c30543cff5ca4fab"
+uuid = "46d2c3a1-f734-5fdb-9937-b9b9aeba4221"
+version = "0.2.4"
+
 [[deps.NUMA_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "3da12251003f08e819c907c645879c362206f5b4"
@@ -674,7 +679,9 @@ version = "0.3.3"
 
 [[deps.Polyester]]
 deps = ["ArrayInterface", "BitTwiddlingConvenienceFunctions", "CPUSummary", "IfElse", "ManualMemory", "PolyesterWeave", "Requires", "Static", "StaticArrayInterface", "StrideArraysCore", "ThreadingUtilities"]
-git-tree-sha1 = "fca25670784a1ae44546bcb17288218310af2778"
+git-tree-sha1 = "bd490b39e0246d7cd6fce2c83ea528075b231307"
+repo-rev = "master"
+repo-url = "https://github.com/GianlucaFuwa/Polyester.jl"
 uuid = "f517fe37-dbe3-4b94-8317-1923a5111588"
 version = "0.7.9"
 

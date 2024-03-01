@@ -4,7 +4,7 @@ struct Plaquette <: AbstractFieldstrength end
 struct Clover <: AbstractFieldstrength end
 struct Improved <: AbstractFieldstrength end
 
-struct Tensorfield{D,T,A<:AbstractArray{SU{3,9,T}, 6}} <: Abstractfield{D,T,A}
+struct Tensorfield{BACKEND,T,A<:AbstractArray{SU{3,9,T}, 6}} <: Abstractfield{BACKEND,T,A}
     U::A
 	NX::Int64
 	NY::Int64
@@ -14,39 +14,32 @@ struct Tensorfield{D,T,A<:AbstractArray{SU{3,9,T}, 6}} <: Abstractfield{D,T,A}
 	NC::Int64
 end
 
-function Tensorfield(NX, NY, NZ, NT; backend=CPU(), T=Val(Float64))
-	D = if backend isa CPU
-		CPUD
-	elseif backend isa GPU
-		GPUD
-	else
-		throw(AssertionError("Only CPU, CUDABackend or ROCBackend supported!"))
-	end
-
-	Tu = _unwrap_val(T)
-	U = KA.zeros(backend, SMatrix{3,3,Complex{Tu},9}, 4, 4, NX, NY, NZ, NT)
+function Tensorfield(NX, NY, NZ, NT; BACKEND=CPU, T=Float64)
+	@assert BACKEND ∈ SUPPORTED_BACKENDS "Only CPU, CUDABackend or ROCBackend supported!"
+	U = KA.zeros(BACKEND(), SMatrix{3,3,Complex{T},9}, 4, 4, NX, NY, NZ, NT)
 	NV = NX * NY * NZ * NT
 	NC = 3
-	return Tensorfield{D,Tu,typeof(U)}(U, NX, NY, NZ, NT, NV, NC)
+	return Tensorfield{BACKEND,T,typeof(U)}(U, NX, NY, NZ, NT, NV, NC)
 end
 
-function Tensorfield(u::Abstractfield{D,T,A}) where {D,T,A}
-    backend = get_backend(u)
-    return Tensorfield(u.NX, u.NY, u.NZ, u.NT; backend=backend, T=Val(T))
+function Tensorfield(u::Abstractfield{BACKEND,T,A}) where {BACKEND,T,A}
+    NX, NY, NZ, NT = dims(u)
+	U = KA.zeros(BACKEND(), SU{3,9,T}, 4, 4, NX, NY, NZ, NT)
+    return Tensorfield{BACKEND,T,typeof(U)}(U, NX, NY, NZ, NT, u.NV, u.NC)
 end
 
-@inline function Base.setindex!(f::T, v, μ, ν, x, y, z, t) where {T<:Tensorfield}
+@inline function Base.setindex!(f::Tensorfield, v, μ, ν, x, y, z, t)
 	f.U[μ,ν,x,y,z,t] = v
 	return nothing
 end
 
-@inline function Base.setindex!(f::T, v, μ, ν, site::SiteCoords) where {T<:Tensorfield}
+@inline function Base.setindex!(f::Tensorfield, v, μ, ν, site::SiteCoords)
 	f.U[μ,ν,site] = v
 	return nothing
 end
 
-Base.getindex(f::T, μ, ν, x, y, z, t) where {T<:Abstractfield} = f.U[μ,ν,x,y,z,t]
-Base.getindex(f::T, μ, ν, site::SiteCoords) where {T<:Abstractfield} = f.U[μ,ν,site]
+Base.getindex(f::Tensorfield, μ, ν, x, y, z, t) = f.U[μ,ν,x,y,z,t]
+Base.getindex(f::Tensorfield, μ, ν, site::SiteCoords) = f.U[μ,ν,site]
 
 function fieldstrength_eachsite!(F::Tensorfield, U, kind_of_fs::String)
     if kind_of_fs == "plaquette"
@@ -60,10 +53,10 @@ function fieldstrength_eachsite!(F::Tensorfield, U, kind_of_fs::String)
     return nothing
 end
 
-function fieldstrength_eachsite!(::Plaquette, F::Tensorfield{CPUD}, U::Gaugefield{CPUD})
-    @assert size(F) == size(U)
+function fieldstrength_eachsite!(::Plaquette, F::Tensorfield{CPU}, U::Gaugefield{CPU})
+    @assert dims(F) == dims(U)
 
-    @threads for site in eachindex(U)
+    @batch for site in eachindex(U)
         C12 = plaquette(U, 1, 2, site)
         F[1,2,site] = im * traceless_antihermitian(C12)
         C13 = plaquette(U, 1, 3, site)
@@ -81,10 +74,10 @@ function fieldstrength_eachsite!(::Plaquette, F::Tensorfield{CPUD}, U::Gaugefiel
     return nothing
 end
 
-function fieldstrength_eachsite!(::Clover, F::Tensorfield{CPUD}, U::Gaugefield{CPUD})
-    @assert size(F) == size(U)
+function fieldstrength_eachsite!(::Clover, F::Tensorfield{CPU}, U::Gaugefield{CPU})
+    @assert dims(F) == dims(U)
 
-    @threads for site in eachindex(U)
+    @batch for site in eachindex(U)
         C12 = clover_square(U, 1, 2, site, 1)
         F[1,2,site] = im/4 * traceless_antihermitian(C12)
         C13 = clover_square(U, 1, 3, site, 1)

@@ -1,5 +1,5 @@
 struct Metropolis{ITR,NH,TOR,NOR} <: AbstractUpdate
-	ϵ::Float64
+	ϵ::Base.RefValue{Float64}
 	numhits::Int64
 	target_acc::Float64
     OR::TOR
@@ -37,7 +37,7 @@ function update!(metro::Metropolis{ITR,NH,TOR,NOR}, U; kwargs...) where {ITR,NH,
 	return numaccepts
 end
 
-function (metro::Metropolis{ITR,NH,TOR,NOR})(U::Gaugefield{CPUD,T}, μ, site,
+function (metro::Metropolis{ITR,NH,TOR,NOR})(U::Gaugefield{CPU,T}, μ, site,
     action_factor) where {ITR,NH,TOR,NOR,T}
     A_adj = staple(U, μ, site)'
     numaccepts = 0

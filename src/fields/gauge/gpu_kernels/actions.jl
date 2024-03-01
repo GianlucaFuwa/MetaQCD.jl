@@ -1,22 +1,23 @@
-plaquette_trace_sum(U::Gaugefield{GPUD}) =
+plaquette_trace_sum(U::Gaugefield{B}) where {B} =
 	@latsum(Sequential(), Val(1), plaquette_trace_sum_kernel!, U)
 
-rect_trace_sum(U::Gaugefield{GPUD}) =
+rect_trace_sum(U::Gaugefield{B}) where {B} =
 	@latsum(Sequential(), Val(1), rect_trace_sum_kernel!, U)
 
-@kernel function plaquette_trace_sum_kernel!(out, @Const(U), neutral)
+@kernel function plaquette_trace_sum_kernel!(out, @Const(U))
 	# workgroup index, that we use to pass the reduced value to global "out"
 	bi = @index(Group, Linear)
 	site = @index(Global, Cartesian)
+	T = float_type(U)
 
-	p = neutral
+	p = T(0.0)
 	@unroll for μ in 1:3
 		for ν in μ+1:4
 			p += real(tr(plaquette(U, μ, ν, site)))
 		end
 	end
 
-	out_group = @groupreduce(+, p, neutral)
+	out_group = @groupreduce(+, p, T(0.0))
 
 	ti = @index(Local)
 	if ti == 1
@@ -24,19 +25,20 @@ rect_trace_sum(U::Gaugefield{GPUD}) =
 	end
 end
 
-@kernel function rect_trace_sum_kernel!(out, @Const(U), @Const(neutral))
+@kernel function rect_trace_sum_kernel!(out, @Const(U))
 	# workgroup index, that we use to pass the reduced value to global "out"
 	bi = @index(Group, Linear)
 	site = @index(Global, Cartesian)
+	T = float_type(U)
 
-	r = neutral
+	r = T(0.0)
 	@unroll for μ in 1i32:3i32
 		for ν in μ+1i32:4i32
 			r += real(tr(rect_1x2(U, μ, ν, site))) + real(tr(rect_2x1(U, μ, ν, site)))
 		end
 	end
 
-	out_group = @groupreduce(+, r, neutral)
+	out_group = @groupreduce(+, r, T(0.0))
 
 	ti = @index(Local)
 	if ti == 1

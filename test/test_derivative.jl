@@ -2,15 +2,15 @@ function SU3testderivative(backend=nothing)
     Random.seed!(123)
     println("SU3testderivative")
     NX = 4; NY = 4; NZ = 4; NT = 4;
-    U = initial_gauges("hot", NX, NY, NZ, NT, 6.0, GA=WilsonGaugeAction())
-    filename = "./test/testconf.txt"
-    loadU!(BridgeFormat(), U, filename);
+    U = initial_gauges("hot", NX, NY, NZ, NT, 6.0, GA=WilsonGaugeAction)
+    # filename = "./test/testconf.txt"
+    # loadU!(BridgeFormat(), U, filename);
     if backend !== nothing
-        U = to_backend(backend, U)
+        U = MetaQCD.to_backend(backend, U)
     end
 
-    gaction_old = calc_gauge_action(U)
-    topcharge_old = top_charge(Clover(), U)
+    # gaction_old = calc_gauge_action(U)
+    # topcharge_old = top_charge(Clover(), U)
 
     # Test for smearing with 5 steps and stout parameter 0.12
     smearing = StoutSmearing(U, 5, 0.12)

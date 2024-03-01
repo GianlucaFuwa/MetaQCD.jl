@@ -13,7 +13,7 @@ end
 
 Base.eltype(::Overrelaxation{ALG}) where {ALG} = ALG
 
-function (or::Overrelaxation{ALG})(U::Gaugefield{CPUD,T}, μ, site, action_factor) where {ALG,T}
+function (or::Overrelaxation{ALG})(U::Gaugefield{CPU,T}, μ, site, action_factor) where {ALG,T}
     A_adj = staple(U, μ, site)'
     old_link = U[μ,site]
     new_link = overrelaxation_SU3(ALG(), old_link, A_adj)

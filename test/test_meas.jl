@@ -4,11 +4,11 @@ function SU3testmeas(backend=nothing)
     NY = 4
     NZ = 4
     NT = 4
-    U = Gaugefield(NX, NY, NZ, NT, 5.7, GA=WilsonGaugeAction());
+    U = Gaugefield(NX, NY, NZ, NT, 5.7, GA=WilsonGaugeAction);
     filename = "./test/testconf.txt"
     loadU!(BridgeFormat(), U, filename);
     if backend !== nothing
-        U = to_backend(backend, U)
+        U = MetaQCD.to_backend(backend, U)
     end
 
     m_plaq = PlaquetteMeasurement(U)

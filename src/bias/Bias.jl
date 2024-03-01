@@ -1,5 +1,6 @@
 module BiasModule
 
+using Base.Threads
 using DelimitedFiles
 using MPI
 using Printf
@@ -29,7 +30,7 @@ The `instance` keyword is used in case of PT-MetaD and multiple walkers to assig
 correct `usebias` to each stream. `has_fp` indicates whether the stream prints to file
 at any point, since only rank 0 should print in case of MPI usage.
 """
-struct Bias{TCV<:AbstractFieldstrength,TS<:AbstractSmearing,TB<:AbstractBias,T<:Union{Nothing,IO}}
+struct Bias{TCV,TS,TB,T}
     kind_of_cv::TCV
     smearing::TS
     is_static::Bool
@@ -102,7 +103,7 @@ function Bias(p::ParameterSet, U; instance=1)
                 kinds_of_weights, fp)
 end
 
-function Base.show(io::IO, b::T) where {T<:Bias}
+function Base.show(io::IO, b::Bias)
 	print(io, "$(typeof(b))", "(;")
     for fieldname in fieldnames(typeof(b))
 		if fieldname == :smearing
@@ -119,7 +120,7 @@ end
 kind_of_cv(b::Bias) = b.kind_of_cv
 Base.close(b::Bias{TCV,TS,TB,T}) where {TCV,TS,TB,T} = T≢Nothing ? close(b.fp) : nothing
 update_bias!(::Nothing, args...) = nothing
-write_to_file(::T, args...) where {T<:AbstractBias} = nothing
+write_to_file(::AbstractBias, args...) = nothing
 
 include("metadynamics.jl")
 include("opes.jl")

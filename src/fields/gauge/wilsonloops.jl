@@ -15,9 +15,9 @@ function wilsonloop(U, μ, ν, site, Lμ, Lν)
 end
 
 function wilsonloop_top_right(U, μ, ν, site, Lμ, Lν)
-    Nμ = size(U)[1+μ]
-    Nν = size(U)[1+ν]
-    wil = eye3(floatT(U))
+    Nμ = dims(U)[μ]
+    Nν = dims(U)[ν]
+    wil = eye3(float_type(U))
 
     for _ in 1:Lμ
         wil = cmatmul_oo(wil, U[μ,site])
@@ -43,9 +43,9 @@ function wilsonloop_top_right(U, μ, ν, site, Lμ, Lν)
 end
 
 function wilsonloop_bottom_left(U, μ, ν, site, Lμ, Lν)
-    Nμ = size(U)[1+μ]
-    Nν = size(U)[1+ν]
-    wil = eye3(floatT(U))
+    Nμ = dims(U)[μ]
+    Nν = dims(U)[ν]
+    wil = eye3(float_type(U))
 
     for _ in 1:Lμ
         site = move(site, μ, -1, Nμ)
@@ -71,9 +71,9 @@ function wilsonloop_bottom_left(U, μ, ν, site, Lμ, Lν)
 end
 
 function wilsonloop_top_left(U, μ, ν, site, Lμ, Lν)
-    Nμ = size(U)[1+μ]
-    Nν = size(U)[1+ν]
-    wil = eye3(floatT(U))
+    Nμ = dims(U)[μ]
+    Nν = dims(U)[ν]
+    wil = eye3(float_type(U))
 
     for _ in 1:Lν
         wil = cmatmul_oo(wil, U[ν,site])
@@ -99,9 +99,9 @@ function wilsonloop_top_left(U, μ, ν, site, Lμ, Lν)
 end
 
 function wilsonloop_bottom_right(U, μ, ν, site, Lμ, Lν)
-    Nμ = size(U)[1+μ]
-    Nν = size(U)[1+ν]
-    wil = eye3(floatT(U))
+    Nμ = dims(U)[μ]
+    Nν = dims(U)[ν]
+    wil = eye3(float_type(U))
 
     for _ in 1:Lν
         site = move(site, ν, -1, Nν)
@@ -126,16 +126,16 @@ function wilsonloop_bottom_right(U, μ, ν, site, Lμ, Lν)
     return wil
 end
 
-function wilsonloop(U::Gaugefield{CPUD}, Lμ, Lν)
-    out = zeros(Float64, 8, nthreads())
+function wilsonloop(U::Gaugefield{CPU}, Lμ, Lν)
+    W = 0.0
 
-    @threads for site in eachindex(U)
+    @batch reduction=(+, W) for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
-                out[1,threadid()] += real(tr(wilsonloop(U, μ, ν, site, Lμ, Lν)))
+                W += real(tr(wilsonloop(U, μ, ν, site, Lμ, Lν)))
             end
         end
     end
 
-    return sum(out)
+    return W
 end

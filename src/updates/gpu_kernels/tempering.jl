@@ -1,5 +1,5 @@
-function swap_U!(a::Gaugefield{GPUD}, b::Gaugefield{GPUD})
-    @assert size(b) == size(a)
+function swap_U!(a::Gaugefield{B}, b::Gaugefield{B}) where {B<:GPU}
+    @assert dims(b) == dims(a)
     @latmap(Sequential(), Val(1), swap_U_kernel!, a, b)
     return nothing
 end

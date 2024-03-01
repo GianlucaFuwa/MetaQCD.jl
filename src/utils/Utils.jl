@@ -1,9 +1,10 @@
 module Utils
 
 using Accessors: @set
-using Base.Threads: @spawn, @threads, nthreads, threadid
+using Base.Threads: @threads, nthreads, threadid
 using LinearAlgebra
 using LoopVectorization
+using MuladdMacro: @muladd
 using Polyester
 using Random
 using StaticArrays

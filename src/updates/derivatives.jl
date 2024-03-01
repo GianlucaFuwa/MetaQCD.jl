@@ -14,10 +14,10 @@ function calc_dSdU_bare!(dU, staples, U, temp_force, smearing)
 end
 
 function calc_dSdU!(dU, staples, U)
-    @assert size(dU) == size(staples) == size(U)
+    @assert dims(dU) == dims(staples) == dims(U)
     β = U.β
 
-    @threads for site in eachindex(U)
+    @batch for site in eachindex(U)
         for μ in 1:4
             A = staple(U, μ, site)
             staples[μ,site] = A
@@ -63,10 +63,10 @@ function calc_dQdU_bare!(kind_of_cv, dU, F, U, temp_force=nothing, smearing=NoSm
 end
 
 function calc_dQdU!(kind_of_charge, dU, F, U, fac=1.0)
-    @assert size(dU) == size(F) == size(U)
+    @assert dims(dU) == dims(F) == dims(U)
     c = fac / 4π^2
 
-    @threads for site in eachindex(U)
+    @batch for site in eachindex(U)
         tmp1 = cmatmul_oo(U[1,site], (∇trFμνFρσ(kind_of_charge, U, F, 1, 2, 3, 4, site) -
                                       ∇trFμνFρσ(kind_of_charge, U, F, 1, 3, 2, 4, site) +
                                       ∇trFμνFρσ(kind_of_charge, U, F, 1, 4, 2, 3, site)))
@@ -92,8 +92,8 @@ end
 Derivative of the FμνFρσ term for Field strength tensor given by plaquette
 """
 function ∇trFμνFρσ(::Plaquette, U, F, μ, ν, ρ, σ, site)
-    Nμ = size(U)[1+μ]
-    Nν = size(U)[1+ν]
+    Nμ = dims(U)[μ]
+    Nν = dims(U)[ν]
     siteμp = move(site, μ, 1, Nμ)
     siteνp = move(site, ν, 1, Nν)
     siteνn = move(site, ν, -1, Nν)
@@ -110,8 +110,8 @@ end
 Derivative of the FμνFρσ term for Field strength tensor given by 1x1-Clover
 """
 function ∇trFμνFρσ(::Clover, U, F, μ, ν, ρ, σ, site)
-    Nμ = size(U)[1+μ]
-    Nν = size(U)[1+ν]
+    Nμ = dims(U)[μ]
+    Nν = dims(U)[ν]
     siteμp = move(site, μ, 1, Nμ)
     siteνp = move(site, ν, 1, Nν)
     siteνn = move(site, ν, -1, Nν)

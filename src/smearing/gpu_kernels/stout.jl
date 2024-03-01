@@ -1,6 +1,6 @@
-function apply_stout_smearing!(Uout::Gaugefield{GPUD,T}, C::Temporaryfield{GPUD,T},
-    Q::CoeffField{GPUD,T}, U::Gaugefield{GPUD}, ρ) where {T}
-    @assert size(Uout) == size(U) == size(C)== size(Q)
+function apply_stout_smearing!(Uout::Gaugefield{B,T}, C::Temporaryfield{B,T},
+                               Q::CoeffField{B,T}, U::Gaugefield{B}, ρ) where {B<:GPU,T}
+    @assert dims(Uout) == dims(U) == dims(C)== dims(Q)
     @latmap(Sequential(), Val(1), apply_stout_smearing_kernel!, Uout, C, Q, U, T(ρ))
     return nothing
 end
@@ -14,29 +14,32 @@ end
 	end
 end
 
-function stout_recursion!(Σ::Temporaryfield{GPUD,T}, Σ′::Temporaryfield{GPUD},
-    U′::Gaugefield{GPUD}, U::Gaugefield{GPUD}, C::Temporaryfield{GPUD},
-    Q::CoeffField{GPUD}, Λ::Temporaryfield{GPUD}, ρ) where {T}
-    @assert size(U) == size(Σ) == size(Σ′) == size(U′) == size(C) == size(Q) == size(Λ)
-    @latmap(Sequential(), Val(1), stout_recursion_kernel!, Σ, Σ′, U′, U, C, Q, Λ, T(ρ))
+function stout_recursion!(Σ::Temporaryfield{B,T}, Σ′::Temporaryfield{B}, U′::Gaugefield{B},
+                          U::Gaugefield{B}, C::Temporaryfield{B}, Q::CoeffField{B},
+                          Λ::Temporaryfield{B}, ρ) where {B<:GPU,T}
+    @assert dims(U) == dims(Σ) == dims(Σ′) == dims(U′) == dims(C) == dims(Q) == dims(Λ)
+    leftmul_dagg!(Σ′, U′)
+	calc_stout_Λ!(Λ, Σ′, Q, U)
+    @latmap(Sequential(), Val(1), stout_recursion_kernel!, Σ, Σ′, U, C, Q, Λ, T(ρ))
     return nothing
 end
 
 @kernel function stout_recursion_kernel!(Σ, @Const(Σ′), @Const(U), @Const(C), @Const(Q),
-    @Const(Λ), ρ)
+                                         @Const(Λ), ρ)
 	site = @index(Global, Cartesian)
+    dimsΣ′ = dims(Σ′)
 
 	@inbounds for μ in 1i32:4i32
-		Nμ = sizeΣ′[μ+1i32]
+		Nμ = dimsΣ′[μ]
         siteμp = move(site, μ, 1i32, Nμ)
-        force_sum = zero3
+        force_sum = zero3(float_type(Σ))
 
         for ν in 1i32:4i32
             if ν == μ
                 continue
             end
 
-            Nν = sizeΣ′[ν+1i32]
+            Nν = dimsΣ′[ν]
             siteνp = move(site, ν, 1i32, Nν)
             siteνn = move(site, ν, -1i32 ,Nν)
             siteμpνn = move(siteμp, ν, -1i32, Nν)
@@ -66,9 +69,9 @@ end
 	end
 end
 
-function calc_stout_Λ!(Λ::Temporaryfield{GPUD}, Σ′::Temporaryfield{GPUD},
-    Q::CoeffField{GPUD}, U::Gaugefield{GPUD})
-    @assert size(U) == size(Λ) == size(Σ′) == size(Q)
+function calc_stout_Λ!(Λ::Temporaryfield{B}, Σ′::Temporaryfield{B},
+                       Q::CoeffField{B}, U::Gaugefield{B}) where {B<:GPU}
+    @assert dims(U) == dims(Λ) == dims(Σ′) == dims(Q)
     @latmap(Sequential(), Val(1), calc_stout_Λ_kernel!, Λ, Σ′, Q, U)
     return nothing
 end

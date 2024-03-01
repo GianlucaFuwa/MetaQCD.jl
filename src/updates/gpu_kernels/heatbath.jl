@@ -1,5 +1,5 @@
-function update!(hb::Heatbath{ITR,TOR,NHB,NOR}, U::Gaugefield{GPUD,T,A,GA};
-    kwargs...) where {ITR,NHB,TOR,NOR,T,A,GA}
+function update!(hb::Heatbath{ITR,TOR,NHB,NOR}, U::Gaugefield{B,T,A,GA};
+                 kwargs...) where {ITR,NHB,TOR,NOR,B<:GPU,T,A,GA}
     @assert ITR!=Sequential
     ALG = eltype(TOR())
     fac_hb = T(U.NC/U.β)

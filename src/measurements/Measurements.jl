@@ -11,21 +11,21 @@ Module containing all measurement methods and their parameters. Also handles I/O
 """
 module Measurements
 
-using Base.Threads
 using CUDA: i32
 using KernelAbstractions
 using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
 using MPI
+using Polyester
 using Printf
 using Unicode
 using ..Output
 using ..Utils
 
 import KernelAbstractions as KA
-import ..Gaugefields: Gaugefield, calc_gauge_action, clover_rect, clover_square,
-    plaquette, wilsonloop, substitute_U!, @groupreduce, @latsum
-import ..Gaugefields: Plaquette, Clover, Improved, CPUD, GPUD
+import ..Gaugefields: Gaugefield, calc_gauge_action, clover_rect, clover_square, dims,
+    float_type, plaquette, wilsonloop, substitute_U!, @groupreduce, @latsum
+import ..Gaugefields: Plaquette, Clover, Improved
 import ..Smearing: StoutSmearing, calc_smearedU!, flow!
 
 abstract type AbstractMeasurement end

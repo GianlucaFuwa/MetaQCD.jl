@@ -1,8 +1,8 @@
-@kernel function overrelaxation_C2_kernel!(out, U, μ, pass, ALG, GA, fac, neutral)
+@kernel function overrelaxation_C2_kernel!(out, U, μ, pass, ALG, GA, fac)
 	# workgroup index, that we use to pass the reduced value to global "out"
 	bi = @index(Group, Linear)
 	iy, iz, it = @index(Global, NTuple)
-    numaccepts = neutral
+    numaccepts = 0i32
 
     @unroll for ix in 1+iseven(iy+iz+it+pass):2:size(U, 2)
         site = SiteCoords(ix, iy, iz, it)
@@ -15,11 +15,11 @@
 
         if accept
             @inbounds U[μ,site] = new_link
-            numaccepts += 1f0
+            numaccepts += 1i32
         end
     end
 
-    out_group = @groupreduce(+, numaccepts, neutral)
+    out_group = @groupreduce(+, numaccepts, 0i32)
 
 	ti = @index(Local)
 	if ti == 1
@@ -27,11 +27,11 @@
 	end
 end
 
-@kernel function overrelaxation_C4_kernel!(out, U, μ, pass, ALG, GA, fac, neutral)
+@kernel function overrelaxation_C4_kernel!(out, U, μ, pass, ALG, GA, fac)
 	# workgroup index, that we use to pass the reduced value to global "out"
 	bi = @index(Group, Linear)
 	iy, iz, it = @index(Global, NTuple)
-    numaccepts = neutral
+    numaccepts = 0i32
 
     @unroll for ix in axes(U, 2)
         site = SiteCoords(ix, iy, iz, it)
@@ -46,12 +46,12 @@ end
 
             if accept
                 @inbounds U[μ,site] = new_link
-                numaccepts += 1f0
+                numaccepts += 1i32
             end
         end
     end
 
-    out_group = @groupreduce(+, numaccepts, neutral)
+    out_group = @groupreduce(+, numaccepts, 0i32)
 
 	ti = @index(Local)
 	if ti == 1

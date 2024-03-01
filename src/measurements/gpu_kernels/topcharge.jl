@@ -1,19 +1,20 @@
-top_charge(::Plaquette, U::Gaugefield{GPUD}) =
+top_charge(::Plaquette, U::Gaugefield{B}) where {B<:GPU} =
 	@latsum(Sequential(), Val(1), top_charge_plaq_kernel!, U) / 4π^2
 
-top_charge(::Clover, U::Gaugefield{GPUD}) =
+top_charge(::Clover, U::Gaugefield{B}) where {B<:GPU} =
 	@latsum(Sequential(), Val(1), top_charge_clov_kernel!, U) / 4π^2
 
-top_charge(::Improved, U::Gaugefield{GPUD}) =
+top_charge(::Improved, U::Gaugefield{B}) where {B<:GPU} =
 	@latsum(Sequential(), Val(1), top_charge_imp_kernel!, U) / 4π^2
 
-@kernel function top_charge_plaq_kernel!(out, @Const(U), neutral)
+@kernel function top_charge_plaq_kernel!(out, @Const(U))
 	# workgroup index, that we use to pass the reduced value to global "out"
 	bi = @index(Group, Linear)
 	site = @index(Global, Cartesian)
+	T = float_type(U)
 
 	tc = top_charge_density_plaq(U, site)
-	out_group = @groupreduce(+, tc, neutral)
+	out_group = @groupreduce(+, tc, T(0.0))
 
 	ti = @index(Local)
 	if ti == 1
@@ -21,13 +22,14 @@ top_charge(::Improved, U::Gaugefield{GPUD}) =
 	end
 end
 
-@kernel function top_charge_clov_kernel!(out, @Const(U), neutral)
+@kernel function top_charge_clov_kernel!(out, @Const(U))
 	# workgroup index, that we use to pass the reduced value to global "out"
 	bi = @index(Group, Linear)
 	site = @index(Global, Cartesian)
+	T = float_type(U)
 
 	tc = top_charge_density_clover(U, site)
-	out_group = @groupreduce(+, tc, neutral)
+	out_group = @groupreduce(+, tc, T(0.0))
 
 	ti = @index(Local)
 	if ti == 1
@@ -35,15 +37,16 @@ end
 	end
 end
 
-@kernel function top_charge_imp_kernel!(out, @Const(U), neutral)
+@kernel function top_charge_imp_kernel!(out, @Const(U))
 	# workgroup index, that we use to pass the reduced value to global "out"
 	bi = @index(Group, Linear)
 	site = @index(Global, Cartesian)
-	c₁ = convert(eltype(neutral), 5/3)
-    c₂ = convert(eltype(neutral), -2/12)
+	T = float_type(U)
+	c₀ = T(5/3)
+    c₁ = T(-2/12)
 
-	tc = top_charge_density_imp(U, site, c₁, c₂)
-	out_group = @groupreduce(+, tc, neutral)
+	tc = top_charge_density_imp(U, site, c₀, c₁)
+	out_group = @groupreduce(+, tc, T(0.0))
 
 	ti = @index(Local)
 	if ti == 1

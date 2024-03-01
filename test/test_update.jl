@@ -1,12 +1,12 @@
 function SU3testupdate(backend=nothing; update_method="heatbath", or_algorithm="subgroups",
-    hmc_integrator="OMF4", hmc_numsmear=0, gaction=WilsonGaugeAction())
+    hmc_integrator="OMF4", hmc_numsmear=0, gaction=WilsonGaugeAction)
     Random.seed!(123)
 
     println("SU3testupdate")
     NX = 12; NY = 12; NZ = 12; NT = 12
     U = initial_gauges("hot", NX, NY, NZ, NT, 6.0, GA=gaction);
     if backend !== nothing
-        U = to_backend(backend, U)
+        U = MetaQCD.to_backend(backend, U)
     end
 
     verbose_level = 2
@@ -15,7 +15,7 @@ function SU3testupdate(backend=nothing; update_method="heatbath", or_algorithm="
     metro_numhits = 1
     metro_target_acc = 0.5
     hmc_trajectory = 1
-    hmc_friction = π/2
+    hmc_friction = 0
     hmc_steps = 5
     hmc_ρstout = 0.12
     hb_eo = true

@@ -1,6 +1,6 @@
 function saveU(::BridgeFormat, U, filename)
     @assert U.U isa Array
-    NX, NY, NZ, NT = size(U)
+    NX, NY, NZ, NT = size(U)[2:end]
     fp = open(filename, "w")
 
     i = 0
@@ -30,7 +30,7 @@ end
 
 function loadU!(::BridgeFormat, U, filename)
     @assert U.U isa Array
-    NX, NY, NZ, NT = size(U)
+    NX, NY, NZ, NT = size(U)[2:end]
     fp = open(filename, "r")
     numdata = countlines(filename)
     @assert numdata == 4*U.NV*9*2 "data shape is wrong"

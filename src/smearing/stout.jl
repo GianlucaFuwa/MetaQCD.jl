@@ -61,9 +61,9 @@ function apply_smearing!(smearing, Uin)
 end
 
 function apply_stout_smearing!(Uout, C, Q, U, ρ)
-	@assert size(Uout) == size(C) == size(Q) == size(U)
+	@assert dims(Uout) == dims(C) == dims(Q) == dims(U)
 
-	@threads for site in eachindex(U)
+	@batch for site in eachindex(U)
         for μ in 1:4
 			Qμ = calc_stout_Q!(Q, C, U, site, μ, ρ)
             Uout[μ,site] = cmatmul_oo(exp_iQ(Qμ), U[μ,site])
@@ -92,23 +92,23 @@ Stout-Force recursion \\
 See [hep-lat/0311018] by Morningstar & Peardon
 """
 function stout_recursion!(Σ, Σ′, U′, U, C, Q, Λ, ρ)
-	@assert size(Σ) == size(Σ′) == size(U′) == size(U) == size(C) == size(Q) == size(Λ)
+	@assert dims(Σ) == dims(Σ′) == dims(U′) == dims(U) == dims(C) == dims(Q) == dims(Λ)
 	leftmul_dagg!(Σ′, U′)
 	calc_stout_Λ!(Λ, Σ′, Q, U)
-	sizeΣ′ = size(Σ′)
+	dimsΣ′ = dims(Σ′)
 
-	@threads for site in eachindex(Σ)
+	@batch for site in eachindex(Σ)
         for μ in 1:4
-            Nμ = sizeΣ′[1+μ]
+            Nμ = dimsΣ′[μ]
             siteμp = move(site, μ, 1, Nμ)
-            force_sum = zero3(floatT(U))
+            force_sum = zero3(float_type(U))
 
             for ν in 1:4
                 if ν == μ
                     continue
                 end
 
-                Nν = sizeΣ′[1+ν]
+                Nν = dimsΣ′[ν]
                 siteνp = move(site, ν, 1, Nν)
                 siteνn = move(site, ν, -1 ,Nν)
                 siteμpνn = move(siteμp, ν, -1, Nν)
@@ -142,9 +142,9 @@ function stout_recursion!(Σ, Σ′, U′, U, C, Q, Λ, ρ)
 end
 
 function calc_stout_Λ!(Λ, Σ′, Q, U)
-	@assert size(Λ) == size(Σ′) == size(Q) == size(U)
+	@assert dims(Λ) == dims(Σ′) == dims(Q) == dims(U)
 
-	@threads for site in eachindex(Λ)
+	@batch for site in eachindex(Λ)
         for μ in 1:4
 			q = Q[μ,site]
 			Qₘ = get_Q(q)

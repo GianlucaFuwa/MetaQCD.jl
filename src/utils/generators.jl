@@ -28,8 +28,8 @@ const γ₄ = @SArray [
 ]
 
 const σ₁ = @SArray [
-        0 1
-        1 0
+    0 1
+    1 0
 ]
 
 const σ₂ = @SArray [

@@ -43,10 +43,10 @@ function measure(m::PolyakovMeasurement{T}, U; additional_string="") where {T}
 end
 
 function polyakov_traced(U)
-    out = zeros(ComplexF64, 8, nthreads())
-    NX, NY, NZ, NT = size(U)[2:end]
+    P = 0.0 + 0.0im
+    NX, NY, NZ, NT = dims(U)
 
-    @threads for iz in 1:NZ
+    @batch reduction=(+, P) for iz in 1:NZ
         for iy in 1:NY
             for ix in 1:NX
                 polymat = U[4,ix,iy,iz,1]
@@ -55,10 +55,10 @@ function polyakov_traced(U)
                     polymat = cmatmul_oo(polymat, U[4,ix,iy,iz,1+it])
                 end
 
-                out[1,threadid()] += tr(polymat)
+                P += tr(polymat)
             end
         end
     end
 
-    return sum(out) / (NX * NY * NZ)
+    return P / (NX * NY * NZ)
 end

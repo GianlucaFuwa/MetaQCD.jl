@@ -1,3 +1,8 @@
+# By default, Julia/LLVM does not use fused multiply-add operations (FMAs).
+# Since these FMAs can increase the performance of many numerical algorithms,
+# we need to opt-in explicitly.
+# See https://ranocha.de/blog/Optimizing_EC_Trixi for further details.
+@muladd begin
 """
 Generator of Matrices X ∈ SU(3) near the identity \\
 From Gattringer C. & Lang C.B. (Springer, Berlin Heidelberg 2010)
@@ -30,7 +35,7 @@ end
 end
 
 @inline function gaussian_TA_mat(::Type{T}) where {T}
-    sq3 = sqrt(T(3))
+    sq3i = 1 / sqrt(T(3))
     onehalf = T(0.5)
     h₁ = onehalf * randn(T)
     h₂ = onehalf * randn(T)
@@ -41,9 +46,9 @@ end
     h₇ = onehalf * randn(T)
     h₈ = onehalf * randn(T)
     out = @SMatrix [
-        im*(h₃+h₈/sq3) h₂+im*h₁        h₅+im*h₄
-        -h₂+im*h₁      im*(-h₃+h₈/sq3) h₇+im*h₆
-        -h₅+im*h₄      -h₇+im*h₆       im*(-2*h₈/sq3)
+        im*(h₃+h₈*sq3i) h₂+im*h₁         h₅+im*h₄
+        -h₂+im*h₁       im*(-h₃+h₈*sq3i) h₇+im*h₆
+        -h₅+im*h₄       -h₇+im*h₆        im*(-2*h₈*sq3i)
     ]
     return out
 end
@@ -185,4 +190,5 @@ end
 function hermitian(M::SMatrix{3,3,Complex{T},9}) where {T}
     out = T(0.5) * (M + M')
     return out
+end
 end

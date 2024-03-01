@@ -1,6 +1,7 @@
-function update!(parity::ParityUpdate, U::Gaugefield{GPUD})
+function update!(parity::ParityUpdate, U::Gaugefield{B}) where {B<:GPU}
+    @assert typeof(U) == typeof(parity.U_bak)
     U_bak = parity.U_bak
-    @assert size(U_bak) == size(U)
+    @assert dims(U_bak) == dims(U)
     @latmap(Sequential(), Val(1), parity_update_kernel!, U, U_bak)
     return nothing
 end

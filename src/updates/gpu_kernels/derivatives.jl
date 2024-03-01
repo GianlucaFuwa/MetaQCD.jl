@@ -1,6 +1,6 @@
-function calc_dSdU!(dU::Temporaryfield{GPUD,T}, staples::Temporaryfield{GPUD,T},
-    U::Gaugefield{GPUD,T,A,GA}) where {T,A,GA}
-    @assert size(U) == size(dU) == size(staples)
+function calc_dSdU!(dU::Temporaryfield{B,T}, staples::Temporaryfield{B,T},
+                    U::Gaugefield{B,T,A,GA}) where {B<:GPU,T,A,GA}
+    @assert dims(U) == dims(dU) == dims(staples)
     @latmap(Sequential(), Val(1), calc_dSdU_kernel!, dU, staples, U, GA(), T(U.β))
     return nothing
 end
@@ -16,9 +16,9 @@ end
     end
 end
 
-function calc_dQdU!(kind_of_charge, dU::Temporaryfield{GPUD,T}, F::Tensorfield{GPUD,T},
-    U::Gaugefield{GPUD,T}) where {T}
-    @assert size(U) == size(dU) == size(F)
+function calc_dQdU!(kind_of_charge, dU::Temporaryfield{B,T}, F::Tensorfield{B,T},
+                    U::Gaugefield{B,T}) where {B<:GPU,T}
+    @assert dims(U) == dims(dU) == dims(F)
     @latmap(Sequential(), Val(1), calc_dQdU_kernel!, dU, F, U, kind_of_charge, T(1.0))
     return nothing
 end

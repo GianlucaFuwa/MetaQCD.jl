@@ -1,4 +1,9 @@
 using Base.Math: isinf_real
+# By default, Julia/LLVM does not use fused multiply-add operations (FMAs).
+# Since these FMAs can increase the performance of many numerical algorithms,
+# we need to opt-in explicitly.
+# See https://ranocha.de/blog/Optimizing_EC_Trixi for further details.
+@muladd begin
 # convenient struct to store exponential coefficients
 struct exp_iQ_su3{T}
     Q::SU{3,9,T}
@@ -142,15 +147,17 @@ function set_fj(::Type{T}, u, w, signflip) where {T}
 end
 
 function set_uw(Q::SU{3,9,T}) where {T}
+    oneover3 = T(1/3)
     c₀_bare = real(det(Q))
     signflip = c₀_bare < zero(T)
     c₀ = abs(c₀_bare)
     c₁ = T(0.5)*real(multr(Q, Q))
-    c₁_3r = sqrt(c₁/3)
-    c₀ᵐᵃˣ = 2*(c₁_3r*c₁_3r*c₁_3r)
+    c₁_3r = sqrt(c₁*oneover3)
+    c₀ᵐᵃˣ = 2*(c₁_3r * c₁_3r * c₁_3r)
     Θ = isnan(c₀/c₀ᵐᵃˣ) ? acos(one(T)) : acos(min(one(T), c₀/c₀ᵐᵃˣ))
 
-    u = c₁_3r * cos(T(Θ/3))
-    w = sqrt(c₁) * sin(T(Θ/3))
+    u = c₁_3r * cos(Θ*oneover3)
+    w = sqrt(c₁) * sin(Θ*oneover3)
     return u, w, signflip
+end
 end

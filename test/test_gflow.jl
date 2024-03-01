@@ -2,11 +2,11 @@ function SU3testgradflow(backend=nothing)
     Random.seed!(123)
     println("SU3testgradflow")
     NX = 4; NY = 4; NZ = 4; NT = 4;
-    U = initial_gauges("hot", NX, NY, NZ, NT, 6.0, GA=WilsonGaugeAction())
+    U = initial_gauges("hot", NX, NY, NZ, NT, 6.0, GA=WilsonGaugeAction)
     filename = "./test/testconf.txt"
     loadU!(BridgeFormat(), U, filename);
     if backend !== nothing
-        U = to_backend(backend, U)
+        U = MetaQCD.to_backend(backend, U)
     end
 
     mfac = 1 / (6 * U.NV * U.NC)

@@ -1,5 +1,5 @@
-function fieldstrength_eachsite!(::Plaquette, F::Tensorfield{GPUD}, U::Gaugefield{GPUD})
-    @assert size(F) == size(U)
+function fieldstrength_eachsite!(::Plaquette, F::Tensorfield{B}, U::Gaugefield{B}) where {B}
+    @assert dims(F) == dims(U)
     @latmap(Sequential(), Val(1), fieldstrength_eachsite_Pkernel!, F, U)
     return nothing
 end
@@ -23,8 +23,8 @@ end
     end
 end
 
-function fieldstrength_eachsite!(::Clover, F::Tensorfield{GPUD}, U::Gaugefield{GPUD})
-    @assert size(F) == size(U)
+function fieldstrength_eachsite!(::Clover, F::Tensorfield{B}, U::Gaugefield{B}) where {B}
+    @assert dims(F) == dims(U)
     @latmap(Sequential(), Val(1), fieldstrength_eachsite_Ckernel!, F, U)
     return nothing
 end

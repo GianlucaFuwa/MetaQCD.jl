@@ -1,18 +1,19 @@
-energy_density(::Plaquette, U::Gaugefield{GPUD}) =
+energy_density(::Plaquette, U::Gaugefield{B}) where {B<:GPU} =
 	@latsum(Sequential(), Val(1), energy_density_plaq_kernel!, U) / U.NV
 
-energy_density(::Clover, U::Gaugefield{GPUD}) =
+energy_density(::Clover, U::Gaugefield{B}) where {B<:GPU} =
 	@latsum(Sequential(), Val(1), energy_density_clov_kernel!, U) / U.NV
 
-energy_density(::Improved, U::Gaugefield{GPUD}) =
+energy_density(::Improved, U::Gaugefield{B}) where {B<:GPU} =
 	@latsum(Sequential(), Val(1), energy_density_imp_kernel!, U) / U.NV
 
-@kernel function energy_density_plaq_kernel!(out, @Const(U), neutral)
+@kernel function energy_density_plaq_kernel!(out, @Const(U))
 	# workgroup index, that we use to pass the reduced value to global "out"
 	bi = @index(Group, Linear)
 	site = @index(Global, Cartesian)
+	T = float_type(U)
 
-	e = neutral
+	e = T(0.0)
 	@inbounds for μ in 1i32:4i32
 		for ν in μ+1i32:4i32
 			if μ == ν
@@ -24,7 +25,7 @@ energy_density(::Improved, U::Gaugefield{GPUD}) =
 		end
 	end
 
-	out_group = @groupreduce(+, e, neutral)
+	out_group = @groupreduce(+, e, T(0.0))
 
 	ti = @index(Local)
 	if ti == 1
@@ -32,12 +33,13 @@ energy_density(::Improved, U::Gaugefield{GPUD}) =
 	end
 end
 
-@kernel function energy_density_clov_kernel!(out, @Const(U), neutral)
+@kernel function energy_density_clov_kernel!(out, @Const(U))
 	# workgroup index, that we use to pass the reduced value to global "out"
 	bi = @index(Group, Linear)
 	site = @index(Global, Cartesian)
+	T = float_type(U)
 
-	e = neutral
+	e = T(0.0)
 	@inbounds for μ in 1i32:4i32
 		for ν in μ+1i32:4i32
 			if μ == ν
@@ -49,7 +51,7 @@ end
 		end
 	end
 
-	out_group = @groupreduce(+, e, neutral)
+	out_group = @groupreduce(+, e, T(0.0))
 
 	ti = @index(Local)
 	if ti == 1
@@ -57,13 +59,14 @@ end
 	end
 end
 
-@kernel function energy_density_imp_kernel!(out, @Const(U), @Const(neutral))
+@kernel function energy_density_imp_kernel!(out, @Const(U))
 	# workgroup index, that we use to pass the reduced value to global "out"
 	bi = @index(Group, Linear)
 	site = @index(Global, Cartesian)
+	T = float_type(U)
 
-	ec = neutral
-    er = neutral
+	ec = T(0.0)
+    er = T(0.0)
 	@inbounds for μ in 1i32:4i32
 		for ν in μ+1i32:4i32
 			if μ == ν
@@ -78,7 +81,7 @@ end
 		end
 	end
 
-	out_group = @groupreduce(+, 5/3*ec-1/12*er, neutral)
+	out_group = @groupreduce(+, 5/3*ec-1/12*er, T(0.0))
 
 	ti = @index(Local)
 	if ti == 1

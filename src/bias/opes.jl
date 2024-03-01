@@ -22,7 +22,7 @@ must be ordered \\
 `no_Z::Bool = false` - If `false` normalization factor `Z` is dynamically adjusted \\
 `threshold::Float64 = 1.0` - Threshold distance for kernel merging; must be >0 \\
 `cutoff::Float64 = sqrt(2barrier/(1-1/biasfactor))` - Cutoff value for kernels; must be >0 \\
-`penalty::Float64 = exp(-0.5cutoff²)` - Penalty for being outside kernel cutoff; must be >0 \\
+`penalty::Float64 = exp(-0.5cutoff²)` - Penalty for being outside kernel cutoff; must be >0
 """
 mutable struct OPES <: AbstractBias
     is_first_step::Bool

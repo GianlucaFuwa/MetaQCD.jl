@@ -1,7 +1,7 @@
-function updateU!(U::Gaugefield{GPUD,T}, hmc::HMC, fac) where {T}
+function updateU!(U::Gaugefield{B,T}, hmc::HMC, fac) where {B<:GPU,T}
     ϵ = hmc.Δτ * fac
     P = hmc.P
-    @assert size(U) == size(P)
+    @assert dims(U) == dims(P)
     @latmap(Sequential(), Val(1), updateU_kernel!, U, P, T(ϵ))
     return nothing
 end
