@@ -22,22 +22,23 @@ function Heatbath(::Gaugefield{D,T,A,GA}, eo, MAXIT, numHB, or_alg, numOR) where
 end
 
 function update!(hb::Heatbath{ITR,TOR,NHB,NOR}, U; kwargs...) where {ITR,TOR,NHB,NOR}
-    @latmap(ITR(), NHB(), hb, U, U.NC/U.β)
-    numaccepts_or = @latsum(ITR(), NOR(), TOR(), U, -U.β/U.NC)
+    GA = gauge_action(U)()
+    @latmap(ITR(), NHB(), hb, U, GA, U.NC/U.β)
+    numaccepts_or = @latsum(ITR(), NOR(), TOR(), U, GA, -U.β/U.NC)
 
     U.Sg = calc_gauge_action(U)
     numaccepts = (NOR≡Val{0}) ? 1.0 : numaccepts_or / (4*U.NV*_unwrap_val(NOR()))
     return numaccepts
 end
 
-function (hb::Heatbath)(U, μ, site, action_factor)
+function (hb::Heatbath)(U, μ, site, GA, action_factor)
     old_link = U[μ,site]
-    A = staple(U, μ, site)
+    A = staple(GA, U, μ, site)
     U[μ,site] = heatbath_SU3(old_link, A, hb.MAXIT, action_factor)
     return nothing
 end
 
-@inline function heatbath_SU3(old_link::SMatrix{3,3,Complex{T},9}, A, MAXIT,
+function heatbath_SU3(old_link::SMatrix{3,3,Complex{T},9}, A, MAXIT,
     action_factor) where {T}
     subblock = make_submatrix_12(cmatmul_od(old_link, A))
     tmp = embed_into_SU3_12(heatbath_SU2(subblock, MAXIT, action_factor))
@@ -54,9 +55,9 @@ end
 end
 
 function heatbath_SU2(A::SMatrix{2,2,Complex{T},4}, MAXIT, action_factor) where {T}
-    r₀ = one(T)
-    λ² = one(T)
-    a_norm = one(T) / sqrt(real(det(A)))
+    r₀ = 1
+    λ² = 1
+    a_norm = 1 / sqrt(real(det(A)))
     V = a_norm * A
     i = 1
 

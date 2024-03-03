@@ -137,7 +137,7 @@ function update!(hmc::HMC{TI}, U;
     else
         substitute_U!(U, U_old)
 
-        if P_old ≡ nothing # flip momenta if rejected
+        if P_old ≢ nothing # flip momenta if rejected
             substitute_U!(hmc.P, P_old)
             mul!(hmc.P, -1)
         end

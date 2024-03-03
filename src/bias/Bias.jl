@@ -9,7 +9,7 @@ using Unicode
 using ..Parameters: ParameterSet
 using ..Output
 
-import ..Gaugefields: AbstractFieldstrength, AbstractGaugeAction, Gaugefield, Plaquette, Clover
+import ..Gaugefields: Gaugefield, Plaquette, Clover
 import ..Measurements: top_charge
 import ..Smearing: AbstractSmearing, NoSmearing, StoutSmearing, calc_smearedU!
 

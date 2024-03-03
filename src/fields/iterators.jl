@@ -65,7 +65,7 @@ end
 
 """
 	@latsum(itr::AbstractIterator, kernel, U, args...)
-Sum `kernel` over `U` following the pattern specified by `itr`.
+Sum `kernel` over `U` following the pattern specified by `itr`. Basically a `mapreduce`
 """
 macro latsum(itr, COUNT, f!, U, args...)
 	quote

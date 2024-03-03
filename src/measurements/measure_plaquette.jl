@@ -1,8 +1,8 @@
 import ..Gaugefields: plaquette_trace_sum
 
 struct PlaquetteMeasurement{T} <: AbstractMeasurement
-    factor::Float64
-    fp::T
+    factor::Float64 # 1 / (6*U.NV*U.NC)
+    fp::T # file pointer
 
     function PlaquetteMeasurement(U::Gaugefield; filename="", printvalues=false, flow=false)
         if printvalues

@@ -11,7 +11,7 @@ using Random
 using ..Utils
 
 import KernelAbstractions as KA
-import StrideArraysCore: object_and_preserve
+import StrideArraysCore: object_and_preserve, PtrArray
 export @latmap, @latsum
 
 const SUPPORTED_BACKENDS = (CPU, CUDABackend, ROCBackend)
@@ -20,8 +20,9 @@ array_type(::CPU) = Array
 array_type(::CUDABackend) = CuArray
 array_type(::ROCBackend) = ROCArray
 
-abstract type Abstractfield{BACKEND,T,A} <: DenseArray{SU{3,9,T},5} end
+abstract type Abstractfield{BACKEND,T,A} end#<: DenseArray{SU{3,9,T},5} end
 
+# overload some function such that @batch knows how to handle Abstractfields
 Base.eltype(u::Abstractfield) = eltype(u.U)
 Base.elsize(u::Abstractfield) = Base.elsize(u.U)
 Base.parent(u::Abstractfield) = u.U
@@ -32,6 +33,7 @@ float_type(::AbstractArray{SMatrix{3,3,Complex{T},9},5}) where {T} = T
 float_type(::Abstractfield{BACKEND,T}) where {BACKEND,T} = T
 KA.get_backend(u::Abstractfield) = get_backend(u.U)
 
+# So we don't print the entire array in the REPL...
 function Base.show(io::IO, ::MIME"text/plain", u::T) where {T<:Abstractfield}
 	print(io, "$(typeof(u))", "(;")
     for fieldname in fieldnames(T)
@@ -64,7 +66,7 @@ or a zero-initialized copy of `U`
 `IwasakiGaugeAction` \\
 `DBW2GaugeAction`
 """
-struct Gaugefield{BACKEND,T,A<:AbstractArray{SU{3,9,T},5},GA} <: Abstractfield{BACKEND,T,A}
+struct Gaugefield{BACKEND,T,A,GA} <: Abstractfield{BACKEND,T,A}
 	U::A
 	NX::Int64
 	NY::Int64
@@ -166,14 +168,14 @@ end
 
 # define dims() function twice --- once for generic arrays, such that CUDA and ROC
 # can use it, and once for Abstractfields, such that CPU can use it
-@inline dims(u) = NTuple{4,Int64}((size(u,2), size(u,3), size(u,4), size(u,5)))
+@inline dims(u) = NTuple{4,Int64}((size(u, 2), size(u, 3), size(u, 4), size(u, 5)))
 @inline dims(u::Abstractfield) = NTuple{4,Int64}((u.NX, u.NY, u.NZ, u.NT))
 Base.ndims(u::Abstractfield) = 4
 Base.size(u::Abstractfield) = NTuple{5,Int64}((4, u.NX, u.NY, u.NZ, u.NT))
 Base.eachindex(u::Abstractfield) = CartesianIndices((u.NX, u.NY, u.NZ, u.NT))
 Base.eachindex(::IndexLinear, u::Abstractfield) = Base.OneTo(u.NV)
 Base.length(u::Abstractfield) = u.NV
-gactionT(::Gaugefield{D,T,A,GA}) where {D,T,A,GA} = GA
+gauge_action(::Gaugefield{B,T,A,GA}) where {B,T,A,GA} = GA
 
 # overload get and set for the Abstractfields structs, so we dont have to do u.U[μ,x,y,z,t]
 Base.@propagate_inbounds Base.getindex(u::Abstractfield, μ, x, y, z, t) = u.U[μ,x,y,z,t]
@@ -232,7 +234,7 @@ function to_backend(::Type{Bout}, u::Abstractfield{Bin,T}) where {Bout,Bin,T}
 	sizeU = dims(u)
 
 	if u isa Gaugefield
-		GA = gactionT(u)
+		GA = gauge_action(u)
 		Sg = Base.RefValue{Float64}(u.Sg)
 		CV = Base.RefValue{Float64}(u.CV)
 		return Gaugefield{Bout,T,typeof(Uout),GA}(Uout, sizeU..., u.NV, 3, u.β, Sg, CV)
@@ -287,9 +289,7 @@ end
 function random_gauges!(u::Gaugefield{CPU,T}) where {T}
 	for site = eachindex(u)
 		for μ in 1:4
-			link = @SMatrix rand(Complex{T}, 3, 3)
-			link = proj_onto_SU3(link)
-			u[μ,site] = link
+			u[μ,site] = rand_SU3(T)
 		end
 	end
 

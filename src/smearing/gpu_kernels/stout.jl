@@ -29,8 +29,8 @@ end
 	site = @index(Global, Cartesian)
     dimsΣ′ = dims(Σ′)
 
-	@inbounds for μ in 1i32:4i32
-		Nμ = dimsΣ′[μ]
+	@unroll for μ in 1i32:4i32
+		@inbounds Nμ = dimsΣ′[μ]
         siteμp = move(site, μ, 1i32, Nμ)
         force_sum = zero3(float_type(Σ))
 
@@ -52,7 +52,7 @@ end
             # Uμsiteν⁻ = U[μ,siteνn]
             # Uνsiteν⁻ = U[ν,siteνn]
 
-            force_sum +=
+            @inbounds force_sum +=
                 cmatmul_oddo(U[ν,siteμp]  , U[μ,siteνp]  , U[ν,site]  , Λ[ν,site])   +
                 cmatmul_ddoo(U[ν,siteμpνn], U[μ,siteνn]  , Λ[μ,siteνn], U[ν,siteνn]) +
                 cmatmul_dodo(U[ν,siteμpνn], Λ[ν,siteμpνn], U[μ,siteνn], U[ν,siteνn]) -
@@ -61,11 +61,13 @@ end
                 cmatmul_odod(U[ν,siteμp]  , U[μ,siteνp]  , Λ[μ,siteνp], U[ν,site])
         end
 
+        @inbounds begin
         link = U[μ,site]
         expiQ_mat = exp_iQ(Q[μ,site])
         Σ[μ,site] = traceless_antihermitian(cmatmul_ooo(link, Σ′[μ,site], expiQ_mat) +
                                             im*cmatmul_odo(link, C[μ,site], Λ[μ,site]) -
                                             im*ρ*cmatmul_oo(link, force_sum))
+        end
 	end
 end
 

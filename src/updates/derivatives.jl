@@ -16,10 +16,11 @@ end
 function calc_dSdU!(dU, staples, U)
     @assert dims(dU) == dims(staples) == dims(U)
     β = U.β
+    GA = gauge_action(U)()
 
     @batch for site in eachindex(U)
         for μ in 1:4
-            A = staple(U, μ, site)
+            A = staple(GA, U, μ, site)
             staples[μ,site] = A
             UA = cmatmul_od(U[μ,site], A)
             dU[μ,site] = -β/6 * traceless_antihermitian(UA)

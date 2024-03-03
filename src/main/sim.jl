@@ -1,8 +1,11 @@
 function run_sim(filenamein::String)
     filename_head = splitext(filenamein)[1]
     filename = filename_head * ".toml"
+
+    # load parameters from toml file
     parameters = construct_params_from_toml(filename)
 
+    # set random seed if provided, otherwise generate one
     if parameters.randomseed != 0
         seed = parameters.randomseed
         Random.seed!(seed)
@@ -14,6 +17,9 @@ function run_sim(filenamein::String)
     set_global_logger!(parameters.verboselevel, parameters.logdir*"/logs.txt",
                        tc=parameters.log_to_console)
 
+    # print time and system info, because it looks cool I guess
+    # btw, all these "@level1" calls are just for logging, level1 is always printed
+    # and anything higher has to specified in the parameter file (default is level2)
     @level1("# $(pwd()) @ $(current_time())")
     buf = IOBuffer()
     InteractiveUtils.versioninfo(buf)
@@ -21,6 +27,7 @@ function run_sim(filenamein::String)
     @level1(versioninfo)
     @level1("[ Random seed is: $seed\n")
 
+    # Univ is a struct that holds the gaugefield and bias
     univ = Univ(parameters)
 
     run_sim!(univ, parameters)
@@ -30,8 +37,10 @@ end
 function run_sim!(univ, parameters)
     U = univ.U
 
+    # initialize update method, measurements, and bias
     if parameters.tempering_enabled
         updatemethod = Updatemethod(parameters, U[1])
+        # all MetaD streams use HMC, so there is no need to initialize more than 1
         updatemethod_pt = HMC(U[1], parameters.hmc_integrator, parameters.hmc_trajectory,
                               parameters.hmc_steps, parameters.hmc_friction,
                               bias_enabled = true)
@@ -84,6 +93,7 @@ function run_sim!(univ, parameters)
                                                     flow = true)
     end
 
+    # initialize functor responsible for saving gaugefield configurations
     save_configs = SaveConfigs(parameters.saveU_format, parameters.saveU_dir,
         parameters.saveU_every)
 
@@ -110,7 +120,7 @@ function metaqcd!(parameters, univ, updatemethod, gflow, measurements,
     _, runtime_therm = @timed begin
         for itrj in 1:parameters.numtherm
             @level1("|  itrj = $itrj")
-            _, updatetime = @timed begin
+            _, updatetime = @timed begin # time each update iteration
                 update!(updatemethod, U; bias=nothing, metro_test=false)
             end
             @level1("|  Elapsed time:\t$(updatetime) [s]")
@@ -150,6 +160,7 @@ function metaqcd!(parameters, univ, updatemethod, gflow, measurements,
 
     @level1("└\nTotal elapsed time:\t$(convert_seconds(runtime_all))\n@ $(current_time())")
     flush(stdout)
+    # close all the I/O streams
     close(updatemethod)
     close(measurements)
     close(measurements_with_flow)
@@ -179,7 +190,7 @@ function metaqcd_PT!(parameters, univ, updatemethod, updatemethod_pt, gflow, mea
                     # thermalize all streams with the updatemethod of stream 1
                     # shouldnt be a problem for HMC, since we force 0-friction
                     # for thermalization updates and reverse the order, so stream 1 is last
-                    update!(updatemethod, U[i], bias=nothing, metro_test=false, friction=π/2)
+                    update!(updatemethod, U[i], bias=nothing, metro_test=false, friction=0)
                 end
             end
             @level1("|  Elapsed time:\t$(updatetime) [s]")

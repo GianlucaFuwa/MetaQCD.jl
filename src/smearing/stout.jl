@@ -1,5 +1,7 @@
 import ..Gaugefields: WilsonGaugeAction
 """
+	StoutSmearing(U::Gaugefield, numlayers, ρ)
+	
 Struct StoutSmearing holds all fields relevant to smearing and subsequent recursion. \\
 Since we never actually use the smeared fields in main, they dont have to leave this scope
 """
@@ -46,7 +48,7 @@ end
 
 function apply_smearing!(smearing, Uin)
 	numlayers = length(smearing)
-	ρ = smearing.ρ
+	ρ = convert(float_type(Uin), smearing.ρ)
 	Usmeared = smearing.Usmeared_multi
 	C = smearing.C_multi
 	Q = smearing.Q_multi

@@ -15,7 +15,7 @@ export kenney_laub, proj_onto_SU3, multr
 export make_submatrix_12, make_submatrix_13, make_submatrix_23
 export embed_into_SU3_12, embed_into_SU3_13, embed_into_SU3_23
 export antihermitian, hermitian, traceless_antihermitian, traceless_hermitian
-export zero2, eye2, zero3, eye3, δ, ε_tensor, gaussian_TA_mat
+export zero2, eye2, zero3, eye3, δ, ε_tensor, gaussian_TA_mat, rand_SU3
 export SiteCoords, linear_coords, move
 export Sequential, Checkerboard2, Checkerboard4
 export SequentialMT, Checkerboard2MT, Checkerboard4MT

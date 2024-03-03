@@ -1,51 +1,52 @@
 function calc_dSdU!(dU::Temporaryfield{B,T}, staples::Temporaryfield{B,T},
                     U::Gaugefield{B,T,A,GA}) where {B<:GPU,T,A,GA}
     @assert dims(U) == dims(dU) == dims(staples)
-    @latmap(Sequential(), Val(1), calc_dSdU_kernel!, dU, staples, U, GA(), T(U.β))
+    fac = convert(T, -U.β/6)
+    @latmap(Sequential(), Val(1), calc_dSdU_kernel!, dU, staples, U, GA(), fac)
     return nothing
 end
 
-@kernel function calc_dSdU_kernel!(dU, staples, @Const(U), @Const(GA), @Const(β))
+@kernel function calc_dSdU_kernel!(dU, staples, @Const(U), GA, fac)
 	site = @index(Global, Cartesian)
 
-	@unroll for μ in 1:4
+	@unroll for μ in 1i32:4i32
         A = staple(GA, U, μ, site)
         @inbounds staples[μ,site] = A
-        UA = @inbounds cmatmul_od(U[μ,site], A)
-        @inbounds dU[μ,site] = -β/6 * traceless_antihermitian(UA)
+        @inbounds UA = cmatmul_od(U[μ,site], A)
+        @inbounds dU[μ,site] = fac * traceless_antihermitian(UA)
     end
 end
 
 function calc_dQdU!(kind_of_charge, dU::Temporaryfield{B,T}, F::Tensorfield{B,T},
-                    U::Gaugefield{B,T}) where {B<:GPU,T}
+                    U::Gaugefield{B,T}, fac=1.0) where {B<:GPU,T}
     @assert dims(U) == dims(dU) == dims(F)
-    @latmap(Sequential(), Val(1), calc_dQdU_kernel!, dU, F, U, kind_of_charge, T(1.0))
+    fac = convert(T, fac/4π^2)
+    @latmap(Sequential(), Val(1), calc_dQdU_kernel!, dU, F, U, kind_of_charge, fac)
     return nothing
 end
 
 @kernel function calc_dQdU_kernel!(dU, @Const(F), @Const(U), kind_of_charge, fac)
 	site = @index(Global, Cartesian)
-    c = fac / 4π^2
 
 	@inbounds begin
-        tmp1 = cmatmul_oo(U[1,site], (∇trFμνFρσ(kind_of_charge, U, F, 1, 2, 3, 4, site) -
+        tmp1 = cmatmul_oo(U[1i32,site], (∇trFμνFρσ(kind_of_charge, U, F, 1, 2, 3, 4, site) -
                                       ∇trFμνFρσ(kind_of_charge, U, F, 1, 3, 2, 4, site) +
                                       ∇trFμνFρσ(kind_of_charge, U, F, 1, 4, 2, 3, site)))
-        dU[1,site] = c * traceless_antihermitian(tmp1)
+        dU[1i32,site] = fac * traceless_antihermitian(tmp1)
 
-        tmp2 = cmatmul_oo(U[2,site], (∇trFμνFρσ(kind_of_charge, U, F, 2, 3, 1, 4, site) -
+        tmp2 = cmatmul_oo(U[2i32,site], (∇trFμνFρσ(kind_of_charge, U, F, 2, 3, 1, 4, site) -
                                       ∇trFμνFρσ(kind_of_charge, U, F, 2, 1, 3, 4, site) -
                                       ∇trFμνFρσ(kind_of_charge, U, F, 2, 4, 1, 3, site)))
-        dU[2,site] = c * traceless_antihermitian(tmp2)
+        dU[2i32,site] = fac * traceless_antihermitian(tmp2)
 
-        tmp3 = cmatmul_oo(U[3,site], (∇trFμνFρσ(kind_of_charge, U, F, 3, 1, 2, 4, site) -
+        tmp3 = cmatmul_oo(U[3i32,site], (∇trFμνFρσ(kind_of_charge, U, F, 3, 1, 2, 4, site) -
                                       ∇trFμνFρσ(kind_of_charge, U, F, 3, 2, 1, 4, site) +
                                       ∇trFμνFρσ(kind_of_charge, U, F, 3, 4, 1, 2, site)))
-        dU[3,site] = c * traceless_antihermitian(tmp3)
+        dU[3i32,site] = fac * traceless_antihermitian(tmp3)
 
-        tmp4 = cmatmul_oo(U[4,site], (∇trFμνFρσ(kind_of_charge, U, F, 4, 2, 1, 3, site) -
+        tmp4 = cmatmul_oo(U[4i32,site], (∇trFμνFρσ(kind_of_charge, U, F, 4, 2, 1, 3, site) -
                                       ∇trFμνFρσ(kind_of_charge, U, F, 4, 1, 2, 3, site) -
                                       ∇trFμνFρσ(kind_of_charge, U, F, 4, 3, 1, 2, site)))
-        dU[4,site] = c * traceless_antihermitian(tmp4)
+        dU[4i32,site] = fac * traceless_antihermitian(tmp4)
     end
 end

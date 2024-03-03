@@ -56,7 +56,7 @@ function construct_params_from_toml(parameters; am_rank0=true)
     pnames = fieldnames(ParameterSet)
     numparams = length(pnames)
     value_Params = Vector{Any}(undef, numparams)
-    time_now = now()
+    time_now = Dates.format(now(), "YYYY-mm-dd-HH_MM_SS_ss")
 
     physical = PhysicalParameters()
     set_params_value!(value_Params, physical)
@@ -82,7 +82,7 @@ function construct_params_from_toml(parameters; am_rank0=true)
     log_dir = try
                   parameters["System Settings"]["log_dir"]
               catch
-                  string(time_now)
+                  time_now
               end
 
     logdir = pwd() * "/logs/" * log_dir
@@ -101,7 +101,7 @@ function construct_params_from_toml(parameters; am_rank0=true)
     measurement_dir = try
                           parameters["System Settings"]["measurement_dir"]
                       catch
-                          string(time_now)
+                          time_now
                       end
 
     measuredir = pwd() * "/measurements/" * measurement_dir
@@ -270,7 +270,7 @@ function parameter_check(p::ParameterSet, ::Val{true})
             """))
     elseif p.saveU_format != ""
         if p.saveU_dir == ""
-            !isdir(pwd() * "/configs_$(now())") && mkdir(pwd() * "/configs_$(now())")
+            !isdir(pwd() * "/configs_$(now())") && mkdir("/configs_$(now())")
         else
             !isdir(p.saveU_dir) && mkdir(p.saveU_dir)
         end

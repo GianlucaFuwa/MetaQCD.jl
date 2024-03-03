@@ -4,7 +4,7 @@
 # See https://ranocha.de/blog/Optimizing_EC_Trixi for further details.
 @muladd begin
 """
-Generator of Matrices X ∈ SU(3) near the identity \\
+Generator of Matrix X ∈ SU(3) near the identity \\
 From Gattringer C. & Lang C.B. (Springer, Berlin Heidelberg 2010)
 """
 @inline function gen_SU3_matrix(ϵ, ::Type{T}) where {T}
@@ -24,6 +24,10 @@ From Gattringer C. & Lang C.B. (Springer, Berlin Heidelberg 2010)
     end
 end
 
+"""
+Generator of Matrix X ∈ SU(2) near the identity \\
+From Gattringer C. & Lang C.B. (Springer, Berlin Heidelberg 2010)
+"""
 @inline function gen_SU2_matrix(ϵ, ::Type{T}) where {T}
     onehalf = T(0.5)
     r₁ = rand(T) - onehalf
@@ -34,6 +38,18 @@ end
     return out
 end
 
+"""
+Generator of random Matrix g ∈ SU(3)
+"""
+@inline function rand_SU3(::Type{T}) where {T}
+    out = @SMatrix rand(Complex{T}, 3, 3)
+    out = proj_onto_SU3(out)
+    return out
+end
+
+"""
+Generator of normally distributed 𝔤 ∈ 𝔰𝔲(3)
+"""
 @inline function gaussian_TA_mat(::Type{T}) where {T}
     sq3i = 1 / sqrt(T(3))
     onehalf = T(0.5)

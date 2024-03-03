@@ -1,4 +1,5 @@
 function run_build(filenamein::String; MPIparallel=false)
+    # When using MPI we make sure that only rank 0 prints to the console
     if myrank == 0
         MPIparallel && println("\t>> MPI enabled with $(comm_size) procs\n")
         ext = splitext(filenamein)[end]
@@ -23,6 +24,10 @@ function run_build(filenamein::String; MPIparallel=false)
 
     logger_io = myrank==0 ? parameters.logdir*"/logs.txt" : devnull
     set_global_logger!(parameters.verboselevel, logger_io, tc=parameters.log_to_console)
+
+    # print time and system info, because it looks cool I guess
+    # btw, all these "@level1" calls are just for logging, level1 is always printed
+    # and anything higher has to specified in the parameter file (default is level2)
     @level1("Start time: @ $(current_time())")
     buf = IOBuffer()
     InteractiveUtils.versioninfo(buf)
@@ -90,10 +95,10 @@ function build!(parameters,univ, updatemethod, gflow, measurements, measurements
             end
 
             @level1("|  Elapsed time:\t$(updatetime) [s]\n")
-
+            # all procs send their CVs to all other procs and update their copy of the bias
             CVs = MPI.Allgather(U.CV::Float64, comm)
             accepted==true && update_bias!(bias, CVs, itrj, myrank==0)
-            acceptances = MPI.Allgather(numaccepts::Float64, comm)
+            acceptances = MPI.Allgather(numaccepts::Float64, comm) # FIXME: should use MPI.gather
             print_acceptance_rates(acceptances, itrj)
 
             calc_measurements(measurements, U, itrj)

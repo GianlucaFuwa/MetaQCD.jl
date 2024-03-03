@@ -1,6 +1,6 @@
 struct EnergyDensityMeasurement{T} <: AbstractMeasurement
-    ED_dict::Dict{String, Float64}
-    fp::T
+    ED_dict::Dict{String, Float64} # energy density definition => value
+    fp::T # file pointer
 
     function EnergyDensityMeasurement(
         ::Gaugefield;

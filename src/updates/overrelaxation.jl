@@ -13,8 +13,9 @@ end
 
 Base.eltype(::Overrelaxation{ALG}) where {ALG} = ALG
 
-function (or::Overrelaxation{ALG})(U::Gaugefield{CPU,T}, μ, site, action_factor) where {ALG,T}
-    A_adj = staple(U, μ, site)'
+function (or::Overrelaxation{ALG})(U::Gaugefield{CPU,T}, μ, site, GA,
+                                   action_factor) where {ALG,T}
+    A_adj = staple(GA, U, μ, site)'
     old_link = U[μ,site]
     new_link = overrelaxation_SU3(ALG(), old_link, A_adj)
 
@@ -47,7 +48,7 @@ function overrelaxation_SU3(::Subgroups, link, A_adj)
     return link
 end
 
-@inline function overrelaxation_SU2(subblock)
+function overrelaxation_SU2(subblock)
     a_norm = 1 / sqrt(real(det(subblock)))
     V = a_norm * subblock
     return cmatmul_dd(V, V)

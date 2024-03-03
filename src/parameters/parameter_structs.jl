@@ -111,7 +111,7 @@ end
 Base.@kwdef mutable struct HMCParameters
     hmc_trajectory::Float64 = 1
     hmc_steps::Int64 = 10
-    hmc_friction::Float64 = π/2
+    hmc_friction::Float64 = 0.0
     hmc_integrator::String = "Leapfrog"
     hmc_numsmear::Int64 = 0
     hmc_rhostout::Float64 = 0.0
@@ -125,6 +125,6 @@ Base.@kwdef mutable struct GradientFlowParameters
     flow_measure_every::Union{Int64, Vector{Int64}} = 1
 end
 
-Base.@kwdef mutable struct PrintMeasurementParameters
+Base.@kwdef mutable struct MeasurementParameters
     measurement_method::Vector{Dict} = Dict[]
 end

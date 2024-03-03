@@ -1,10 +1,16 @@
 function __latmap(::Sequential, ::Val{COUNT}, f!::F, U::Abstractfield{B},
                   args...) where {COUNT,F,B<:GPU}
     COUNT==0 && return nothing
+    # KernelAbstractions requires an ndrange (indices we iterate over) and a 
+    # workgroupsize (number of threads in each workgroup / thread block on the GPU)
     ndrange = dims(U)
-    workgroupsize = (4, 4, 4, 4)
+    workgroupsize = (4, 4, 4, 4) # 4^4 = 256 threads per workgroup should be fine
     kernel! = f!(B(), workgroupsize)
-    raw_args = get_raws(args...)
+    # I couldn't be bothered working out how to make CUDA work with array wrappers such as
+    # Abstractfield, so we extract the actual array from all Abstractfields in the args
+    # In case some C/C++/Fortran programmer is reading this: We are not creating a copy
+    # we are just getting the reference
+    raw_args = get_raws(args...) 
 
     for _ in 1:COUNT
         kernel!(U.U, raw_args..., ndrange=ndrange)
@@ -21,7 +27,7 @@ function __latmap(::Checkerboard2, ::Val{COUNT}, f!::F, U::Abstractfield{B},
     @assert(mod.((NX, NY, NZ, NT), 2) == (0, 0, 0, 0),
         "CB2 only works for side lengths that are multiples of 2")
 	ndrange = (NY, NZ, NT)
-	workgroupsize = (4, 4, 4)
+	workgroupsize = (4, 4, 4) # since we only have 64 threads per block, we can use heavier kernels
     kernel! = f!(B(), workgroupsize)
     raw_args = get_raws(args...)
 

@@ -1,4 +1,6 @@
 function gaussian_TA!(p::Temporaryfield{CPU,T}, ϕ) where {T}
+    # friction is a number in the range [0,1] instead of an angle; it's easier to use
+    # have to make sure that ϕ₁² + ϕ₂² = 1
     ϕ₁ = T(sqrt(1 - ϕ^2))
     ϕ₂ = T(ϕ)
 

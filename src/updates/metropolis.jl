@@ -25,9 +25,9 @@ end
 
 function update!(metro::Metropolis{ITR,NH,TOR,NOR}, U; kwargs...) where {ITR,NH,TOR,NOR}
     fac = -U.β/U.NC
-
-    numaccepts_metro = @latsum(ITR(), Val(1), metro, U, fac)
-    numaccepts_or = @latsum(ITR(), NOR(), TOR(), U, fac)
+    GA = gauge_action(U)()
+    numaccepts_metro = @latsum(ITR(), Val(1), metro, U, GA, fac)
+    numaccepts_or = @latsum(ITR(), NOR(), TOR(), U, GA, fac)
 
     numaccepts_metro /= 4*U.NV*_unwrap_val(NH())
     @level3("|  Metro acceptance: $(numaccepts_metro)")
@@ -37,9 +37,9 @@ function update!(metro::Metropolis{ITR,NH,TOR,NOR}, U; kwargs...) where {ITR,NH,
 	return numaccepts
 end
 
-function (metro::Metropolis{ITR,NH,TOR,NOR})(U::Gaugefield{CPU,T}, μ, site,
-    action_factor) where {ITR,NH,TOR,NOR,T}
-    A_adj = staple(U, μ, site)'
+function (metro::Metropolis{ITR,NH,TOR,NOR})(U::Gaugefield{CPU,T}, μ, site, GA,
+                                             action_factor) where {ITR,NH,TOR,NOR,T}
+    A_adj = staple(GA, U, μ, site)'
     numaccepts = 0
 
     for _ in 1:_unwrap_val(NH())

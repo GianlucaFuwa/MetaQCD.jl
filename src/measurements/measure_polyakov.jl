@@ -1,5 +1,5 @@
 struct PolyakovMeasurement{T} <: AbstractMeasurement
-    fp::T
+    fp::T # file pointer
 
     function PolyakovMeasurement(::Gaugefield; filename="", printvalues=false, flow=false)
         if printvalues

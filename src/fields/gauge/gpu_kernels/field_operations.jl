@@ -1,3 +1,29 @@
+function identity_gauges!(u::Gaugefield{B,T}) where {B,T}
+	@latmap(Sequential(), Val(1), identity_gauges_kernel!, u, T)
+	return nothing
+end
+
+@kernel function identity_gauges_kernel!(u, T)
+	site = @index(Global, Cartesian)
+
+	@unroll for μ in 1i32:4i32
+		@inbounds u[μ,site] = eye3(T)
+	end
+end
+
+function random_gauges!(u::Gaugefield{B,T}) where {B,T}
+	@latmap(Sequential(), Val(1), random_gauges_kernel!, u, T)
+	return nothing
+end
+
+@kernel function random_gauges_kernel!(u, T)
+	site = @index(Global, Cartesian)
+
+	@unroll for μ in 1i32:4i32
+		@inbounds u[μ,site] = rand_SU3(T)
+	end
+end
+
 function substitute_U!(a::Abstractfield{B,T}, b::Abstractfield{B,T}) where {B,T}
 	@assert dims(b) == dims(a)
 	@latmap(Sequential(), Val(1), substitute_U_kernel!, a, b)

@@ -1,6 +1,6 @@
 struct TopologicalChargeMeasurement{T} <: AbstractMeasurement
-    TC_dict::Dict{String, Float64}
-    fp::T
+    TC_dict::Dict{String, Float64} # topological charge definition => value
+    fp::T # file pointer
 
     function TopologicalChargeMeasurement(
         ::Gaugefield;

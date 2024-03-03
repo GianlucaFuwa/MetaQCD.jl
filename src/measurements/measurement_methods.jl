@@ -1,8 +1,8 @@
 struct MeasurementMethods
-    measurement_parameters_set::Vector{MeasurementParameters}
-    measurements::Vector{AbstractMeasurement}
-    num_measurements::Int64
-    intervals::Vector{Int64}
+    measurement_parameters_set::Vector{MeasurementParameters} # Parameters of each observable
+    measurements::Vector{AbstractMeasurement} # Vector of obeservables to be measured
+    num_measurements::Int64 # number of measurements
+    intervals::Vector{Int64} # measure observable[i] every intervals[i] updates
 end
 
 function MeasurementMethods(
@@ -46,6 +46,7 @@ function calc_measurements(m::Vector{MeasurementMethods}, U, itrj)
 end
 
 function calc_measurements(m::MeasurementMethods, U, itrj; str="")
+    # check if the current iteration has any measurements to be made to avoid work
     check_for_measurements(itrj, m.intervals) || return nothing
 
     for i in 1:m.num_measurements
@@ -63,7 +64,7 @@ end
 
 function calc_measurements_flowed(m::Vector{MeasurementMethods}, gflow, U, itrj,
                                   measure_on_all = false)
-    if measure_on_all
+    if measure_on_all # if we measure on all streams in PT-MetaD
         for i in eachindex(m)
             calc_measurements_flowed(m[i], gflow, U[i], itrj; str="$i")
         end
@@ -75,6 +76,7 @@ function calc_measurements_flowed(m::Vector{MeasurementMethods}, gflow, U, itrj,
 end
 
 function calc_measurements_flowed(m::MeasurementMethods, gradient_flow, U, itrj; str="")
+    # check if the current iteration has any measurements to be made to avoid work
     check_for_measurements(itrj, m.intervals) || return nothing
     substitute_U!(gradient_flow.Uflow, U)
     tf = gradient_flow.tf

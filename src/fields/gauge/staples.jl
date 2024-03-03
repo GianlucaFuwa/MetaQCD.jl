@@ -1,46 +1,46 @@
-staple(U::Gaugefield{D,T,A,GA}, μ, site) where {D,T,A,GA} = staple(GA(), U, μ, site)
+staple(U::Gaugefield{B,T,A,GA}, μ, site) where {B,T,A,GA} = staple(GA(), U, μ, site)
 
 function staple(::WilsonGaugeAction, U, μ, site)
     return staple_plaq(U, μ, site)
 end
 
 function staple(::SymanzikTreeGaugeAction, U, μ, site)
-    c1 = -1//12
-    c1prime = c1
+    c₁ = -1//12
+    c₁′ = c₁
     staple_p = staple_plaq(U, μ, site)
     staple_r = staple_rect(U, μ, site)
-    return (1 - 8c1)*staple_p + c1prime*staple_r
+    return (1 - 8c₁)*staple_p + c₁′*staple_r
 end
 
-function staple(::SymanzikTadGaugeAction, U, μ, site) # TODO
+function staple(::SymanzikTadGaugeAction, U, μ, site) # FIXME: Cba
     # u0sq = sqrt(plaquette_trace_sum(U))
-    c1 = -1//12
-    c1prime = c1
+    c₁ = -1//12
+    c₁′ = c₁
     staple_p = staple_plaq(U, μ, site)
     staple_r = staple_rect(U, μ, site)
-    return (1 - 8c1)*staple_p + c1prime*staple_r
+    return (1 - 8c₁)*staple_p + c₁′*staple_r
 end
 
 function staple(::IwasakiGaugeAction, U, μ, site)
-    c1 = float_type(U)(0.331)
-    c1prime = c1
+    c₁ = float_type(U)(0.331)
+    c₁′ = c₁
     staple_p = staple_plaq(U, μ, site)
     staple_r = staple_rect(U, μ, site)
-    return (1 - 8c1)*staple_p + c1prime*staple_r
+    return (1 - 8c₁)*staple_p + c₁′*staple_r
 end
 
 function staple(::DBW2GaugeAction, U, μ, site)
-    c1 = float_type(U)(1.409)
-    c1prime = c1
+    c₁ = float_type(U)(1.409)
+    c₁′ = c₁
     staple_p = staple_plaq(U, μ, site)
     staple_r = staple_rect(U, μ, site)
-    return (1 - 8c1)*staple_p + c1prime*staple_r
+    return (1 - 8c₁)*staple_p + c₁′*staple_r
 end
 
 function staple_plaq(U, μ, site)
     Nμ = dims(U)[μ]
     siteμ⁺ = move(site, μ, 1, Nμ)
-    staple = zero3(float_type(U))
+    staple = @SMatrix zeros(ComplexF64, 3, 3)
 
     for ν in 1:4
         if ν == μ
@@ -129,7 +129,7 @@ function staple_rect(U, μ, site)
     return staple
 end
 
-function staple_eachsite!(staples::Temporaryfield{CPU,T}, U::Gaugefield{CPU,T}) where {T}
+function staple_eachsite!(staples::Temporaryfield{CPU}, U::Gaugefield{CPU})
     @batch for site in eachindex(U)
         for μ in 1:4
             staples[μ,site] = staple(U, μ, site)
