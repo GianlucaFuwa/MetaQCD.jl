@@ -13,7 +13,7 @@ end
 include("gradientflow_integrators.jl")
 
 function GradientFlow(U::TG, integrator="euler", numflow=1, steps=1, tf=0.12;
-    measure_every = 1) where {TG}
+                      measure_every = 1) where {TG}
     @level1("┌ Setting Gradient Flow...")
     Z = Temporaryfield(U)
     Uflow = similar(U)
@@ -57,7 +57,9 @@ function flow!(method::GradientFlow{TI}, Uin) where {TI}
     return nothing
 end
 
-function updateU!(U, Z, ϵ)
+function updateU!(U::Gaugefield{CPU,T}, Z::Temporaryfield{CPU,T}, ϵ) where {T}
+    ϵ = T(ϵ)
+
     @batch for site in eachindex(U)
         for μ in 1:4
             U[μ,site] = cmatmul_oo(exp_iQ(-im * ϵ * Z[μ,site]), U[μ,site])
@@ -67,7 +69,9 @@ function updateU!(U, Z, ϵ)
     return nothing
 end
 
-function calcZ!(Z, U, ϵ)
+function calcZ!(Z::Temporaryfield{CPU,T}, U::Gaugefield{CPU,T}, ϵ) where {T}
+    ϵ = T(ϵ)
+
     @batch for site in eachindex(U)
         for μ in 1:4
             A = staple(WilsonGaugeAction(), U, μ, site)
@@ -79,7 +83,10 @@ function calcZ!(Z, U, ϵ)
     return nothing
 end
 
-function updateZ!(Z, U, ϵ_old, ϵ_new)
+function updateZ!(Z::Temporaryfield{CPU,T}, U::Gaugefield{CPU,T}, ϵ_old, ϵ_new) where {T}
+    ϵ_old = T(ϵ_old)
+    ϵ_new = T(ϵ_new)
+    
     @batch for site in eachindex(U)
         for μ in 1:4
             A = staple(WilsonGaugeAction(), U, μ, site)

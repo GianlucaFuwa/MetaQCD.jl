@@ -104,7 +104,7 @@ function energy_density(::Clover, U::Gaugefield{CPU})
         for μ in 1:3
             for ν in μ+1:4
                 Cμν = clover_square(U, μ, ν, site, 1)
-                Fμν = im/4 * traceless_antihermitian(Cμν)
+                Fμν = im * 1//4 * traceless_antihermitian(Cμν)
                 E += real(multr(Fμν, Fμν))
             end
         end
@@ -126,7 +126,7 @@ function energy_density_rect(U::Gaugefield{CPU})
         for μ in 1:3
             for ν in μ+1:4
                 Cμν = clover_rect(U, μ, ν, site, 1, 2)
-                Fμν = im/8 * traceless_antihermitian(Cμν)
+                Fμν = im * 1//8 * traceless_antihermitian(Cμν)
                 E += real(multr(Fμν, Fμν))
             end
         end

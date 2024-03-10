@@ -37,9 +37,8 @@ end
 	# workgroup index, that we use to pass the reduced value to global "out"
 	bi = @index(Group, Linear)
 	site = @index(Global, Cartesian)
-	T = float_type(U)
 
-	e = T(0.0)
+	e = 0.0
 	@inbounds for μ in 1i32:4i32
 		for ν in μ+1i32:4i32
 			if μ == ν
@@ -51,7 +50,7 @@ end
 		end
 	end
 
-	out_group = @groupreduce(+, e, T(0.0))
+	out_group = @groupreduce(+, e, 0.0)
 
 	ti = @index(Local)
 	if ti == 1
@@ -65,8 +64,8 @@ end
 	site = @index(Global, Cartesian)
 	T = float_type(U)
 
-	ec = T(0.0)
-    er = T(0.0)
+	ec = 0.0
+    er = 0.0
 	@inbounds for μ in 1i32:4i32
 		for ν in μ+1i32:4i32
 			if μ == ν
@@ -81,7 +80,7 @@ end
 		end
 	end
 
-	out_group = @groupreduce(+, 5/3*ec-1/12*er, T(0.0))
+	out_group = @groupreduce(+, 5/3*ec-1/12*er, 0.0)
 
 	ti = @index(Local)
 	if ti == 1

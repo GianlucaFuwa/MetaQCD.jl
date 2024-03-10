@@ -18,7 +18,7 @@ import ..Gaugefields: WilsonGaugeAction, add!, calc_gauge_action, calc_kinetic_e
 import ..Gaugefields: clear_U!, dims, normalize!, fieldstrength_eachsite!, float_type
 import ..Gaugefields: gaussian_TA!, mul!, staple, staple_eachsite!, substitute_U!
 import ..Gaugefields: @groupreduce, @latmap, @latsum, gauge_action
-import ..Gaugefields: Plaquette, Clover, Tensorfield
+import ..Gaugefields: Abstractfield, Plaquette, Clover, Tensorfield
 import ..BiasModule: Bias, calc_CV, ∂V∂Q, recalc_CV!
 import ..BiasModule: kind_of_cv, update_bias!
 import ..Parameters: ParameterSet

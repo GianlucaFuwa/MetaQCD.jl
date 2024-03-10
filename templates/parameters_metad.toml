@@ -2,7 +2,7 @@
 L = [16, 16, 16, 16]
 beta = 1.25
 kind_of_gaction = "dbw2"
-numtherm = 20
+numtherm = 5
 numsteps = 1
 initial = "cold"
 update_method = "HMC"
@@ -38,10 +38,12 @@ hmc_trajectory = 1
 hmc_steps = 5
 hmc_integrator = "OMF4"
 
-["System Settings"]               
+["System Settings"]
+backend = "cpu"
+float_type = "double"            
 log_dir = "L16x16x16x16_dbw2_beta1.25/test_metad"
 measurement_dir = "L16x16x16x16_dbw2_beta1.25/test_metad"
-bias_basedir = "L16x16x16x16_dbw2_beta1.25/test_metad"
+bias_dir = "L16x16x16x16_dbw2_beta1.25/test_metad"
 randomseed = 0
 verboselevel = 2
 overwrite = true

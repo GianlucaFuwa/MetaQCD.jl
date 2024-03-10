@@ -14,7 +14,7 @@ top_charge(::Improved, U::Gaugefield{B}) where {B<:GPU} =
 	T = float_type(U)
 
 	tc = top_charge_density_plaq(U, site)
-	out_group = @groupreduce(+, tc, T(0.0))
+	out_group = @groupreduce(+, tc, 0.0)
 
 	ti = @index(Local)
 	if ti == 1
@@ -29,7 +29,7 @@ end
 	T = float_type(U)
 
 	tc = top_charge_density_clover(U, site)
-	out_group = @groupreduce(+, tc, T(0.0))
+	out_group = @groupreduce(+, tc, 0.0)
 
 	ti = @index(Local)
 	if ti == 1
@@ -46,7 +46,7 @@ end
     c₁ = T(-2/12)
 
 	tc = top_charge_density_imp(U, site, c₀, c₁)
-	out_group = @groupreduce(+, tc, T(0.0))
+	out_group = @groupreduce(+, tc, 0.0)
 
 	ti = @index(Local)
 	if ti == 1

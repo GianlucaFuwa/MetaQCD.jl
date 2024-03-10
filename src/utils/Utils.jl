@@ -18,8 +18,6 @@ export antihermitian, hermitian, traceless_antihermitian, traceless_hermitian
 export zero2, eye2, zero3, eye3, δ, ε_tensor, gaussian_TA_mat, rand_SU3
 export SiteCoords, linear_coords, move
 export Sequential, Checkerboard2, Checkerboard4
-export SequentialMT, Checkerboard2MT, Checkerboard4MT
-export sweep!, sweep_reduce!
 export λ, expλ
 export cmatmul_oo, cmatmul_dd, cmatmul_do, cmatmul_od
 export cmatmul_ooo, cmatmul_ood, cmatmul_odo, cmatmul_doo, cmatmul_odd,
@@ -30,26 +28,31 @@ export cmatmul_oooo, cmatmul_oood, cmatmul_oodo, cmatmul_odoo, cmatmul_dooo,
     cmatmul_dddd
 export _unwrap_val, SU
 
+abstract type AbstractIterator end
+struct Sequential <: AbstractIterator end
+struct Checkerboard2 <: AbstractIterator end
+struct Checkerboard4 <: AbstractIterator end
+
 _unwrap_val(::Val{B}) where {B} = B
 
-eye3(::Type{T}) where {T<:AbstractFloat} = @SArray [
+@inline eye3(::Type{T}) where {T<:AbstractFloat} = @SArray [
     one(Complex{T})  zero(Complex{T}) zero(Complex{T})
     zero(Complex{T}) one(Complex{T})  zero(Complex{T})
     zero(Complex{T}) zero(Complex{T}) one(Complex{T})
 ]
 
-zero3(::Type{T}) where {T<:AbstractFloat} = @SArray [
+@inline zero3(::Type{T}) where {T<:AbstractFloat} = @SArray [
     zero(Complex{T}) zero(Complex{T}) zero(Complex{T})
     zero(Complex{T}) zero(Complex{T}) zero(Complex{T})
     zero(Complex{T}) zero(Complex{T}) zero(Complex{T})
 ]
 
-eye2(::Type{T}) where {T<:AbstractFloat} = @SArray [
+@inline eye2(::Type{T}) where {T<:AbstractFloat} = @SArray [
     one(Complex{T})  zero(Complex{T})
     zero(Complex{T}) one(Complex{T})
 ]
 
-zero2(::Type{T}) where {T<:AbstractFloat} = @SArray [
+@inline zero2(::Type{T}) where {T<:AbstractFloat} = @SArray [
     zero(Complex{T}) zero(Complex{T})
     zero(Complex{T}) zero(Complex{T})
 ]
@@ -105,11 +108,11 @@ const SU{N, N², T} = SMatrix{N, N, Complex{T}, N²}
     return Complex{T}(re, im)
 end
 
+# include("generics.jl")
 include("matmul.jl")
 include("generators.jl")
 include("exp.jl")
 include("projections.jl")
 include("sitecoords.jl")
-include("iterators.jl")
 
 end

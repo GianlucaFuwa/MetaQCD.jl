@@ -13,21 +13,20 @@ end
 
 Base.eltype(::Overrelaxation{ALG}) where {ALG} = ALG
 
-function (or::Overrelaxation{ALG})(U::Gaugefield{CPU,T}, μ, site, GA,
-                                   action_factor) where {ALG,T}
+function (or::Overrelaxation{ALG})(U, μ, site, GA, action_factor) where {ALG}
     A_adj = staple(GA, U, μ, site)'
     old_link = U[μ,site]
     new_link = overrelaxation_SU3(ALG(), old_link, A_adj)
 
     ΔSg = action_factor * real(multr(new_link - old_link, A_adj))
-    accept = (rand(T) < exp(-ΔSg))
+    accept = (rand() < exp(-ΔSg))
 
     accept && (U[μ,site] = proj_onto_SU3(new_link))
     return accept
 end
 
-function overrelaxation_SU3(::KenneyLaub, link::SMatrix{3,3,Complex{T},9}, A_adj) where {T}
-    tmp = T(1/6) * A_adj
+function overrelaxation_SU3(::KenneyLaub, link, A_adj)
+    tmp = 1//6 * A_adj
     or_mat = kenney_laub(tmp)
     link = cmatmul_ddd(or_mat, link, or_mat)
     return link

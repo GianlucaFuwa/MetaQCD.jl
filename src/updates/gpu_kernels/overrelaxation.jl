@@ -4,7 +4,7 @@
 	iy, iz, it = @index(Global, NTuple)
     numaccepts = 0i32
 
-    @unroll for ix in 1+iseven(iy+iz+it+pass):2:size(U, 2)
+    for ix in 1+iseven(iy+iz+it+pass):2:size(U, 2)
         site = SiteCoords(ix, iy, iz, it)
         A_adj = staple(GA, U, μ, site)'
         @inbounds old_link = U[μ,site]
@@ -33,7 +33,7 @@ end
 	iy, iz, it = @index(Global, NTuple)
     numaccepts = 0i32
 
-    @unroll for ix in axes(U, 2)
+    for ix in axes(U, 2)
         site = SiteCoords(ix, iy, iz, it)
         if mod1(sum(site.I) + site[μ], 4)==pass
             A_adj = staple(GA, U, μ, site)'

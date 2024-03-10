@@ -173,37 +173,37 @@ function kenney_laub(M::SMatrix{3,3,Complex{T},9}) where {T}
     return M
 end
 
-function is_special_unitary(M::SMatrix{3,3,Complex{T},9}, prec=1e-12) where {T}
+@inline function is_special_unitary(M::SMatrix{3,3,Complex{T},9}, prec=1e-12) where {T}
     is_SU3 = norm(eye3(T) - cmatmul_od(M, M)) < prec && abs(one(T) - det(M)) < prec
     return is_SU3
 end
 
-function is_traceless_antihermitian(M::SMatrix{3,3,Complex{T},9}, prec=1e-12) where {T}
+@inline function is_traceless_antihermitian(M::SMatrix{3,3,Complex{T},9}, prec=1e-12) where {T}
     is_TA = norm(M + M') < prec && abs(tr(M)) < prec
     return is_TA
 end
 
-function is_traceless_hermitian(M::SMatrix{3,3,Complex{T},9}, prec=1e-12) where {T}
+@inline function is_traceless_hermitian(M::SMatrix{3,3,Complex{T},9}, prec=1e-12) where {T}
     is_TH = norm(M - M') < prec && abs(tr(M)) < prec
     return is_TH
 end
 
-function traceless_antihermitian(M::SMatrix{3,3,Complex{T},9}) where {T}
+@inline function traceless_antihermitian(M::SMatrix{3,3,Complex{T},9}) where {T}
     out = T(0.5) * (M - M') - T(1/6) * tr(M - M') * eye3(T)
     return out
 end
 
-function antihermitian(M::SMatrix{3,3,Complex{T},9}) where {T}
+@inline function antihermitian(M::SMatrix{3,3,Complex{T},9}) where {T}
     out = T(0.5) * (M - M')
     return out
 end
 
-function traceless_hermitian(M::SMatrix{3,3,Complex{T},9}) where {T}
+@inline function traceless_hermitian(M::SMatrix{3,3,Complex{T},9}) where {T}
     out = T(0.5) * (M + M') - T(1/6) * tr(M + M') * eye3(T)
     return out
 end
 
-function hermitian(M::SMatrix{3,3,Complex{T},9}) where {T}
+@inline function hermitian(M::SMatrix{3,3,Complex{T},9}) where {T}
     out = T(0.5) * (M + M')
     return out
 end

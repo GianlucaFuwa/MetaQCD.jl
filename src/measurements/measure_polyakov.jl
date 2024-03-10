@@ -42,7 +42,7 @@ function measure(m::PolyakovMeasurement{T}, U; additional_string="") where {T}
     return output
 end
 
-function polyakov_traced(U)
+function polyakov_traced(U::Gaugefield{CPU})
     P = 0.0 + 0.0im
     NX, NY, NZ, NT = dims(U)
 

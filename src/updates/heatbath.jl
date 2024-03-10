@@ -1,12 +1,13 @@
 # XXX: Maybe better to use a backup U so we dont have to bother with checkerboarding
-struct Heatbath{ITR,TOR,NHB,NOR} <: AbstractUpdate
-    MAXIT::Int64
-    numHB::Int64
-    OR::TOR
-    numOR::Int64
-end
+struct Heatbath{MAXIT,ITR,TOR,NHB,NOR} <: AbstractUpdate end
 
-function Heatbath(::Gaugefield{D,T,A,GA}, eo, MAXIT, numHB, or_alg, numOR) where {D,T,A,GA}
+# @inline MAXIT(::Heatbath{MAXIT}) where {MAXIT} = _unwrap_val(MAXIT)
+# @inline ITR(::Heatbath{<:Any,ITR}) where {ITR} = _unwrap_val(ITR)
+# @inline TOR(::Heatbath{<:Any,<:Any,TOR}) where {TOR} = TOR
+# @inline NHB(::Heatbath{<:Any,<:Any,<:Any,NHB}) where {NHB} = _unwrap_val(NHB)
+# @inline NOR(::Heatbath{<:Any,<:Any,<:Any,<:Any,NOR}) where {NOR} = _unwrap_val(NOR)
+
+function Heatbath(::Gaugefield{B,T,A,GA}, eo, MAXIT, numHB, or_alg, numOR) where {B,T,A,GA}
     @level1("┌ Setting Heatbath...")
     ITR = GA==WilsonGaugeAction ? Checkerboard2 : Checkerboard4
     @level1("|  ITERATOR: $(ITR)")
@@ -18,10 +19,10 @@ function Heatbath(::Gaugefield{D,T,A,GA}, eo, MAXIT, numHB, or_alg, numOR) where
     @level1("|  OVERRELAXATION ALGORITHM: $(TOR)")
     @level1("|  NUM. OF OVERRELAXATION SWEEPS: $(numOR)")
     @level1("└\n")
-    return Heatbath{ITR,TOR,Val{numHB},Val{numOR}}(MAXIT, numHB, OR, numOR)
+    return Heatbath{Val{MAXIT},ITR,TOR,Val{numHB},Val{numOR}}()
 end
 
-function update!(hb::Heatbath{ITR,TOR,NHB,NOR}, U; kwargs...) where {ITR,TOR,NHB,NOR}
+function update!(hb::Heatbath{<:Any,ITR,TOR,NHB,NOR}, U; kwargs...) where {ITR,TOR,NHB,NOR}
     GA = gauge_action(U)()
     @latmap(ITR(), NHB(), hb, U, GA, U.NC/U.β)
     numaccepts_or = @latsum(ITR(), NOR(), TOR(), U, GA, -U.β/U.NC)
@@ -31,15 +32,14 @@ function update!(hb::Heatbath{ITR,TOR,NHB,NOR}, U; kwargs...) where {ITR,TOR,NHB
     return numaccepts
 end
 
-function (hb::Heatbath)(U, μ, site, GA, action_factor)
+function (hb::Heatbath{MAXIT})(U, μ, site, GA, action_factor) where {MAXIT}
     old_link = U[μ,site]
     A = staple(GA, U, μ, site)
-    U[μ,site] = heatbath_SU3(old_link, A, hb.MAXIT, action_factor)
+    U[μ,site] = heatbath_SU3(old_link, A, _unwrap_val(MAXIT()), action_factor)
     return nothing
 end
 
-function heatbath_SU3(old_link::SMatrix{3,3,Complex{T},9}, A, MAXIT,
-    action_factor) where {T}
+function heatbath_SU3(old_link, A, MAXIT, action_factor)
     subblock = make_submatrix_12(cmatmul_od(old_link, A))
     tmp = embed_into_SU3_12(heatbath_SU2(subblock, MAXIT, action_factor))
     old_link = cmatmul_oo(tmp, old_link)
@@ -55,10 +55,11 @@ function heatbath_SU3(old_link::SMatrix{3,3,Complex{T},9}, A, MAXIT,
 end
 
 function heatbath_SU2(A::SMatrix{2,2,Complex{T},4}, MAXIT, action_factor) where {T}
-    r₀ = 1
-    λ² = 1
+    r₀ = one(T)
+    λ² = one(T)
     a_norm = 1 / sqrt(real(det(A)))
     V = a_norm * A
+    λ_factor = -1//4 * T(action_factor) * a_norm
     i = 1
 
     while r₀^2 + λ² >= 1
@@ -73,7 +74,7 @@ function heatbath_SU2(A::SMatrix{2,2,Complex{T},4}, MAXIT, action_factor) where 
         r₃ = 1 - rand(T)
         x₃ = log(r₃)
 
-        λ² = (-T(0.25) * action_factor * a_norm) * (x₁ + x₂^2*x₃)
+        λ² = λ_factor * (x₁ + x₂^2*x₃)
 
         r₀ = rand(T)
         i += 1
@@ -90,9 +91,6 @@ function heatbath_SU2(A::SMatrix{2,2,Complex{T},4}, MAXIT, action_factor) where 
     x₂ = vec_norm * sinpi(2φ)
     x₃ = abs_x * cosϑ
 
-    mat = @SMatrix [
-        x₀+im*x₃ x₂+im*x₁
-        -x₂+im*x₁ x₀-im*x₃
-    ]
+    mat = SMatrix{2,2,Complex{T},4}((x₀+im*x₃, -x₂+im*x₁, x₂+im*x₁, x₀-im*x₃))
     return cmatmul_od(mat, V)
 end

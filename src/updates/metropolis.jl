@@ -37,8 +37,8 @@ function update!(metro::Metropolis{ITR,NH,TOR,NOR}, U; kwargs...) where {ITR,NH,
 	return numaccepts
 end
 
-function (metro::Metropolis{ITR,NH,TOR,NOR})(U::Gaugefield{CPU,T}, μ, site, GA,
-                                             action_factor) where {ITR,NH,TOR,NOR,T}
+function (metro::Metropolis{ITR,NH})(U, μ, site, GA, action_factor) where {ITR,NH}
+    T = float_type(U)
     A_adj = staple(GA, U, μ, site)'
     numaccepts = 0
 
@@ -49,7 +49,7 @@ function (metro::Metropolis{ITR,NH,TOR,NOR})(U::Gaugefield{CPU,T}, μ, site, GA,
 
         ΔSg = action_factor * real(multr((new_link - old_link), A_adj))
 
-        accept = rand(T) ≤ exp(-ΔSg)
+        accept = rand() ≤ exp(-ΔSg)
 
         if accept
             U[μ,site] = proj_onto_SU3(new_link)

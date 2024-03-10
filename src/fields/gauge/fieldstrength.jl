@@ -28,18 +28,15 @@ function Tensorfield(u::Abstractfield{BACKEND,T,A}) where {BACKEND,T,A}
     return Tensorfield{BACKEND,T,typeof(U)}(U, NX, NY, NZ, NT, u.NV, u.NC)
 end
 
-@inline function Base.setindex!(f::Tensorfield, v, μ, ν, x, y, z, t)
-	f.U[μ,ν,x,y,z,t] = v
-	return nothing
-end
-
-@inline function Base.setindex!(f::Tensorfield, v, μ, ν, site::SiteCoords)
-	f.U[μ,ν,site] = v
-	return nothing
-end
-
-Base.getindex(f::Tensorfield, μ, ν, x, y, z, t) = f.U[μ,ν,x,y,z,t]
-Base.getindex(f::Tensorfield, μ, ν, site::SiteCoords) = f.U[μ,ν,site]
+# overload get and set for the Tensorfields, so we dont have to do u.U[μ,ν,x,y,z,t]
+Base.@propagate_inbounds Base.getindex(u::Abstractfield, μ, ν, x, y, z, t) =
+    u.U[μ,ν,x,y,z,t]
+Base.@propagate_inbounds Base.getindex(u::Abstractfield, μ, ν, site::SiteCoords) =
+    u.U[μ,ν,site]
+Base.@propagate_inbounds Base.setindex!(u::Abstractfield, v, μ, ν, x, y, z, t) = 
+	setindex!(u.U, v, μ, ν, x, y, z, t)
+Base.@propagate_inbounds Base.setindex!(u::Abstractfield, v, μ, ν, site::SiteCoords) =
+	setindex!(u.U, v, μ, ν, site)
 
 function fieldstrength_eachsite!(F::Tensorfield, U, kind_of_fs::String)
     if kind_of_fs == "plaquette"

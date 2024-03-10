@@ -15,7 +15,7 @@ end
 
 function calc_dSdU!(dU, staples, U)
     @assert dims(dU) == dims(staples) == dims(U)
-    β = U.β
+    βover6m = float_type(U)(-U.β/6)
     GA = gauge_action(U)()
 
     @batch for site in eachindex(U)
@@ -23,7 +23,7 @@ function calc_dSdU!(dU, staples, U)
             A = staple(GA, U, μ, site)
             staples[μ,site] = A
             UA = cmatmul_od(U[μ,site], A)
-            dU[μ,site] = -β/6 * traceless_antihermitian(UA)
+            dU[μ,site] = βover6m * traceless_antihermitian(UA)
         end
     end
 
@@ -65,7 +65,7 @@ end
 
 function calc_dQdU!(kind_of_charge, dU, F, U, fac=1.0)
     @assert dims(dU) == dims(F) == dims(U)
-    c = fac / 4π^2
+    c = float_type(U)(fac / 4π^2)
 
     @batch for site in eachindex(U)
         tmp1 = cmatmul_oo(U[1,site], (∇trFμνFρσ(kind_of_charge, U, F, 1, 2, 3, 4, site) -
@@ -89,35 +89,35 @@ function calc_dQdU!(kind_of_charge, dU, F, U, fac=1.0)
     return nothing
 end
 
-"""
-Derivative of the FμνFρσ term for Field strength tensor given by plaquette
-"""
+# """
+# Derivative of the FμνFρσ term for Field strength tensor given by plaquette
+# """
 function ∇trFμνFρσ(::Plaquette, U, F, μ, ν, ρ, σ, site)
     Nμ = dims(U)[μ]
     Nν = dims(U)[ν]
-    siteμp = move(site, μ, 1, Nμ)
-    siteνp = move(site, ν, 1, Nν)
-    siteνn = move(site, ν, -1, Nν)
-    siteμpνn = move(siteμp, ν, -1, Nν)
+    siteμp = move(site, μ, 1i32, Nμ)
+    siteνp = move(site, ν, 1i32, Nν)
+    siteνn = move(site, ν, -1i32, Nν)
+    siteμpνn = move(siteμp, ν, -1i32, Nν)
 
     component =
         cmatmul_oddo(U[ν,siteμp]  , U[μ,siteνp], U[ν,site]    , F[ρ,σ,site]) +
         cmatmul_ddoo(U[ν,siteμpνn], U[μ,siteνn], F[ρ,σ,siteνn], U[ν,siteνn])
 
-    return im/2 * component
+    return im * 1//2 * component
 end
 
-"""
-Derivative of the FμνFρσ term for Field strength tensor given by 1x1-Clover
-"""
+# """
+# Derivative of the FμνFρσ term for Field strength tensor given by 1x1-Clover
+# """
 function ∇trFμνFρσ(::Clover, U, F, μ, ν, ρ, σ, site)
     Nμ = dims(U)[μ]
     Nν = dims(U)[ν]
-    siteμp = move(site, μ, 1, Nμ)
-    siteνp = move(site, ν, 1, Nν)
-    siteνn = move(site, ν, -1, Nν)
-    siteμpνp = move(siteμp, ν, 1, Nν)
-    siteμpνn = move(siteμp, ν, -1, Nν)
+    siteμp = move(site, μ, 1i32, Nμ)
+    siteνp = move(site, ν, 1i32, Nν)
+    siteνn = move(site, ν, -1i32, Nν)
+    siteμpνp = move(siteμp, ν, 1i32, Nν)
+    siteμpνn = move(siteμp, ν, -1i32, Nν)
 
     # get reused matrices up to cache (can precalculate some products too)
     # Uνsiteμ⁺ = U[ν,siteμp]
@@ -137,5 +137,5 @@ function ∇trFμνFρσ(::Clover, U, F, μ, ν, ρ, σ, site)
         cmatmul_dodo(U[ν,siteμpνn], F[ρ,σ,siteμpνn], U[μ,siteνn]  , U[ν,siteνn]) -
         cmatmul_oddo(F[ρ,σ,siteμp], U[ν,siteμpνn]  , U[μ,siteνn]  , U[ν,siteνn])
 
-    return im/8 * component
+    return im * 1//8 * component
 end

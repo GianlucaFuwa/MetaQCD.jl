@@ -1,7 +1,8 @@
 function update!(parity::ParityUpdate, U::Gaugefield{B}) where {B<:GPU}
-    @assert typeof(U) == typeof(parity.U_bak)
     U_bak = parity.U_bak
+    @assert typeof(U) == typeof(U_bak)
     @assert dims(U_bak) == dims(U)
+    substitute_U!(U_bak, U)
     @latmap(Sequential(), Val(1), parity_update_kernel!, U, U_bak)
     return nothing
 end

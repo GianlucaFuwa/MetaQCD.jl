@@ -28,7 +28,7 @@ end
     for ix in 1+iseven(iy+iz+it+pass):2:size(U, 2)
         site = SiteCoords(ix, iy, iz, it)
         A_adj = staple(GA, U, μ, site)'
-        @unroll for _ in 1:numhits
+        for _ in 1:numhits
             X = gen_SU3_matrix(ϵ, Float32)
             @inbounds old_link = U[μ,site]
             new_link = cmatmul_oo(X, old_link)
@@ -62,7 +62,7 @@ end
         site = SiteCoords(ix, iy, iz, it)
         if mod1(sum(site.I) + site[μ], 4)==pass
             A_adj = staple(GA, U, μ, site)'
-            @unroll for _ in 1:numhits
+            for _ in 1:numhits
                 X = gen_SU3_matrix(ϵ, Float32)
                 @inbounds old_link = U[μ,site]
                 new_link = cmatmul_oo(X, old_link)

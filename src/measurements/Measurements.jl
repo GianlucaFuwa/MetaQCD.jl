@@ -25,7 +25,7 @@ using ..Utils
 import KernelAbstractions as KA
 import ..Gaugefields: Gaugefield, calc_gauge_action, clover_rect, clover_square, dims,
     float_type, plaquette, wilsonloop, substitute_U!, @groupreduce, @latsum
-import ..Gaugefields: Plaquette, Clover, Improved
+import ..Gaugefields: Plaquette, Clover, Improved, CPU
 import ..Smearing: StoutSmearing, calc_smearedU!, flow!
 
 abstract type AbstractMeasurement end

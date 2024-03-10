@@ -50,7 +50,7 @@ struct HMC{TI,TG,TT,TS,PO,F2,FS,IO} <: AbstractUpdate
         gaussian_TA!(P, 0)
         P_old = friction==0 ? nothing : Temporaryfield(U)
         PO = typeof(P_old)
-        U_old = similar(U)
+        U_old = Gaugefield(U)
         staples = Temporaryfield(U)
         force = Temporaryfield(U)
 
@@ -96,7 +96,7 @@ end
 include("hmc_integrators.jl")
 
 function update!(hmc::HMC{TI}, U;
-    bias::T=nothing, metro_test=true, friction=hmc.friction) where {TI,T}
+                 bias::T=nothing, metro_test=true, friction=hmc.friction) where {TI,T}
     U_old = hmc.U_old
     P_old = hmc.P_old
     substitute_U!(U_old, U)
@@ -147,8 +147,8 @@ function update!(hmc::HMC{TI}, U;
     return accept
 end
 
-function updateU!(U, hmc, fac)
-    ϵ = hmc.Δτ * fac
+function updateU!(U::Gaugefield{CPU,T}, hmc, fac) where {T}
+    ϵ = T(hmc.Δτ * fac)
     P = hmc.P
     @assert dims(U) == dims(P)
 

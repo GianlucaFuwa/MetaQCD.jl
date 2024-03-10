@@ -2,7 +2,7 @@
 
 julia_version = "1.9.4"
 manifest_format = "2.0"
-project_hash = "9d8941c90d7abc0a0025f65fa5d3378a9b6fec18"
+project_hash = "3677b9a9e2c3b6fb09a155f9824771f962ae46a6"
 
 [[deps.AMDGPU]]
 deps = ["AbstractFFTs", "Adapt", "CEnum", "ExprTools", "GPUArrays", "GPUCompiler", "HIP_jll", "KernelAbstractions", "LLD_jll", "LLVM", "LLVM_jll", "Libdl", "LinearAlgebra", "MacroTools", "Pkg", "Preferences", "Printf", "ROCmDeviceLibs_jll", "Random", "SparseArrays", "SpecialFunctions", "Statistics", "UnsafeAtomicsLLVM", "hsa_rocr_jll"]

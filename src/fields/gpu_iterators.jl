@@ -1,3 +1,9 @@
+macro latmap(itr, C, f!, U, args...)
+    quote
+        $__latmap($(esc(itr)), $(esc(C)), $(esc(f!)), $(esc(U)), $(map(esc, args)...))
+    end
+end
+
 function __latmap(::Sequential, ::Val{COUNT}, f!::F, U::Abstractfield{B},
                   args...) where {COUNT,F,B<:GPU}
     COUNT==0 && return nothing
@@ -14,7 +20,7 @@ function __latmap(::Sequential, ::Val{COUNT}, f!::F, U::Abstractfield{B},
 
     for _ in 1:COUNT
         kernel!(U.U, raw_args..., ndrange=ndrange)
-        synchronize(B())
+        KA.synchronize(B())
     end
 
     return nothing
@@ -35,7 +41,7 @@ function __latmap(::Checkerboard2, ::Val{COUNT}, f!::F, U::Abstractfield{B},
         for μ in 1:4
             for pass in 1:2
                 kernel!(U.U, μ, pass, raw_args..., ndrange=ndrange)
-                synchronize(B())
+                KA.synchronize(B())
             end
         end
     end
@@ -58,12 +64,18 @@ function __latmap(::Checkerboard4, ::Val{COUNT}, f!::F, U::Abstractfield{B},
         for μ in 1:4
             for pass in 1:4
                 kernel!(U.U, μ, pass, raw_args..., ndrange=ndrange)
-                synchronize(B())
+                KA.synchronize(B())
             end
         end
     end
 
     return nothing
+end
+
+macro latsum(itr, C, f!, U, args...)
+    quote
+        $__latsum($(esc(itr)), $(esc(C)), $(esc(f!)), $(esc(U)), $(map(esc, args)...))
+    end
 end
 
 function __latsum(::Sequential, ::Val{COUNT}, f!::F, U::Abstractfield{B},
@@ -78,7 +90,7 @@ function __latsum(::Sequential, ::Val{COUNT}, f!::F, U::Abstractfield{B},
 
     for _ in 1:COUNT
         kernel!(out, U.U, raw_args..., ndrange=ndrange)
-        synchronize(B())
+        KA.synchronize(B())
     end
 
     return sum(out)
@@ -101,7 +113,7 @@ function __latsum(::Checkerboard2, ::Val{COUNT}, f!::F, U::Abstractfield{B},
         for μ in 1:4
             for pass in 1:2
                 kernel!(out, U.U, μ, pass, raw_args..., ndrange=ndrange)
-                synchronize(B())
+                KA.synchronize(B())
             end
         end
     end
@@ -126,7 +138,7 @@ function __latsum(::Checkerboard4, ::Val{COUNT}, f!::F, U::Abstractfield{B},
         for μ in 1:4
             for pass in 1:4
                 kernel!(out, U.U, μ, pass, raw_args..., ndrange=ndrange)
-                synchronize(B())
+                KA.synchronize(B())
             end
         end
     end
