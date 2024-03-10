@@ -15,7 +15,6 @@ end
 	# workgroup index, that we use to pass the reduced value to global "out"
 	bi = @index(Group, Linear)
 	ix, iy, iz = @index(Global, NTuple)
-	T = float_type(U)
 
 	polymat = U[4,ix,iy,iz,1]
 	@unroll for it in 2:NT

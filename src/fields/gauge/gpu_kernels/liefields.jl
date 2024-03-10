@@ -16,15 +16,14 @@ calc_kinetic_energy(p::Temporaryfield{B}) where {B} =
 	# workgroup index, that we use to pass the reduced value to global "out"
 	bi = @index(Group, Linear)
 	site = @index(Global, Cartesian)
-	T = float_type(P)
 
-	k = T(0.0)
+	k = 0.0
 	@unroll for μ in 1i32:4i32
         @inbounds pmat = P[μ,site]
         k += real(multr(pmat, pmat))
 	end
 
-	out_group = @groupreduce(+, k, T(0.0))
+	out_group = @groupreduce(+, k, 0.0)
 
 	ti = @index(Local)
 	if ti == 1
