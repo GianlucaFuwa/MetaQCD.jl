@@ -26,9 +26,7 @@ makedocs(
     ],
     checkdocs = :none,
     warnonly = [:cross_references],
-    format = Documenter.HTML(
-        canonical = "https://gianlucafuwa.github.io/MetaQCD/",
-    ),
+    format = Documenter.HTML(),
 )
 
-deploydocs(repo = "github.com/GianlucaFuwa/MetaQCD.jl")
+deploydocs(repo = "github.com/GianlucaFuwa/MetaQCD.jl.git")
