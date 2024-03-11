@@ -29,4 +29,4 @@ makedocs(
     format = Documenter.HTML(),
 )
 
-deploydocs(repo = "github.com/GianlucaFuwa/MetaQCD.jl.git")
+deploydocs(repo = "github.com/GianlucaFuwa/MetaQCD.jl.git", devbranch="gpu")
