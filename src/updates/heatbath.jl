@@ -1,4 +1,3 @@
-# XXX: Maybe better to use a backup U so we dont have to bother with checkerboarding
 struct Heatbath{MAXIT,ITR,TOR,NHB,NOR} <: AbstractUpdate end
 
 # @inline MAXIT(::Heatbath{MAXIT}) where {MAXIT} = _unwrap_val(MAXIT)
@@ -7,7 +6,25 @@ struct Heatbath{MAXIT,ITR,TOR,NHB,NOR} <: AbstractUpdate end
 # @inline NHB(::Heatbath{<:Any,<:Any,<:Any,NHB}) where {NHB} = _unwrap_val(NHB)
 # @inline NOR(::Heatbath{<:Any,<:Any,<:Any,<:Any,NOR}) where {NOR} = _unwrap_val(NOR)
 
-function Heatbath(::Gaugefield{B,T,A,GA}, eo, MAXIT, numHB, or_alg, numOR) where {B,T,A,GA}
+"""
+    Heatbath(U::Gaugefield{B,T,A,GA}, MAXIT, numHB, or_alg, numOR) where {B,T,A,GA}
+
+Create a `Heatbath`` object.
+
+# Arguments
+- `U`: The gauge field on which the update is performed.
+- `MAXIT`: The maximum iteration count in the Heatbath update.
+- `numHB`: The number of Heatbath sweeps.
+- `or_alg`: The overrelaxation algorithm used.
+- `numOR`: The number of overrelaxation sweeps.
+
+# Returns
+A Heatbath object with the specified parameters. The gauge action `GA` of the field `U`
+determines the iterator used. For the plaquette or Wilson action it uses a
+Checkerboard iterator and for rectangular actions it partitions the lattice into four
+sublattices.
+"""
+function Heatbath(::Gaugefield{B,T,A,GA}, MAXIT, numHB, or_alg, numOR) where {B,T,A,GA}
     @level1("┌ Setting Heatbath...")
     ITR = GA==WilsonGaugeAction ? Checkerboard2 : Checkerboard4
     @level1("|  ITERATOR: $(ITR)")

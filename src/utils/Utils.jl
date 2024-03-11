@@ -57,17 +57,8 @@ _unwrap_val(::Val{B}) where {B} = B
     zero(Complex{T}) zero(Complex{T})
 ]
 
-"""
-Kronecker-Delta: \\
-δ(x, y) = \\
-{1, if x == y \\
-{0, else
-"""
 δ(x, y) = x==y
 
-"""
-Implementation of ε-tensor from: https://github.com/JuliaMath/Combinatorics.jl
-"""
 function ε_tensor(p::NTuple{N, Int}) where {N}
     todo = Vector{Bool}(undef, N)
     todo .= true
@@ -92,6 +83,11 @@ end
 
 const SU{N, N², T} = SMatrix{N, N, Complex{T}, N²}
 
+"""
+    multr(A::SU{N,N²,T}, B::SU{N,N²,T}) where {N,N²,T}
+
+Calculate the trace of the product of two SU(N) matrices `A` and `B` of precision `T`.
+"""
 @inline function multr(A::SU{N,N²,T}, B::SU{N,N²,T}) where {N,N²,T}
     # for some reason we have to convert A and B to MArrays, otherwise we get a dynamic
     # function invocation for reinterpret(...) on CUDA

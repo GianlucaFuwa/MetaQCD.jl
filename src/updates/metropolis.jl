@@ -1,3 +1,23 @@
+"""
+    Metropolis(U::Gaugefield{B,T,A,GA}, eo, ϵ, numhits, target_acc, or_alg, numOR) where {B,T,A,GA}
+
+Create a `Metropolis` object.
+
+# Arguments
+- `U::Gaugefield{B,T,A,GA}`: Gauge field object.
+- `eo`: Even-odd preconditioning.
+- `ϵ`: Step size for the update.
+- `numhits`: Number of Metropolis hits.
+- `target_acc`: Target acceptance rate.
+- `or_alg`: Overrelaxation algorithm.
+- `numOR`: Number of overrelaxation sweeps.
+
+# Returns
+A Metropolis object with the specified parameters. The gauge action `GA` of the field `U`
+determines the iterator used. For the plaquette or Wilson action it uses a
+Checkerboard iterator and for rectangular actions it partitions the lattice into four
+sublattices.
+"""
 struct Metropolis{ITR,NH,TOR,NOR} <: AbstractUpdate
 	ϵ::Base.RefValue{Float64}
 	numhits::Int64
@@ -5,8 +25,8 @@ struct Metropolis{ITR,NH,TOR,NOR} <: AbstractUpdate
     OR::TOR
     numOR::Int64
 
-	function Metropolis(::Gaugefield{D,T,A,GA}, eo, ϵ, numhits, target_acc, or_alg,
-        numOR) where {D,T,A,GA}
+	function Metropolis(::Gaugefield{B,T,A,GA}, eo, ϵ, numhits, target_acc, or_alg,
+                        numOR) where {B,T,A,GA}
         @level1("┌ Setting Metropolis...")
 		m_ϵ = Base.RefValue{Float64}(ϵ)
         ITR = GA==WilsonGaugeAction ? Checkerboard2 : Checkerboard4

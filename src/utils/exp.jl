@@ -36,10 +36,13 @@ get_B₁(e::exp_iQ_su3{T}) where {T} = e.b₁₀ * eye3(T) + e.b₁₁ * e.Q + e
 get_B₂(e::exp_iQ_su3{T}) where {T} = e.b₂₀ * eye3(T) + e.b₂₁ * e.Q + e.b₂₂ * e.Q²
 
 """
-Exponential function of Q for traceless-hermitian Q \\
+    exp_iQ(Q::SU{3,9,T}) where {T}
+    exp_iQ(e::exp_iQ_su3{T}) where {T}
+
+Compute the exponential of a traceless Hermitian 3x3 matrix `Q` or return the `exp_iQ` field
+of the `exp_iQ_su3{T}`-object `e`. \\
 From Morningstar & Peardon (2008) arXiv:hep-lat/0311018v1
 """
-
 function exp_iQ(Q::SU{3,9,T}) where {T}
     u, w, signflip = set_uw(Q)
     f₀, f₁, f₂, _ = set_fj(T, u, w, signflip)
@@ -47,6 +50,12 @@ function exp_iQ(Q::SU{3,9,T}) where {T}
     return mat
 end
 
+"""
+    exp_iQ_coeffs(Q::SU{3,9,T}) where {T}
+
+Return a `exp_iQ_su3` object that contains the exponential of `Q` and all parameters
+obtained in the Cayley-Hamilton algorithm that are needed for Stout force recursion.
+"""
 function exp_iQ_coeffs(Q::SU{3,9,T}) where {T}
     f₀, f₁, f₂, b₁₀, b₁₁, b₁₂, b₂₀, b₂₁, b₂₂ = calc_coefficients(Q)
     Q² = cmatmul_oo(Q, Q)

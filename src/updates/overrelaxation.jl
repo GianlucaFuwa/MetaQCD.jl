@@ -2,6 +2,16 @@ struct Subgroups end
 struct KenneyLaub end
 struct Overrelaxation{ALG} end
 
+"""
+    Overrelaxation(algorithm)
+
+Create an `Overrelaxation` object, that can be used within a Metropolis or Heatbath update
+step.
+
+# Supported Algorithms
+- `"subgroups"`: Cabibbo-Marinari SU(2) subgroup embedding scheme
+- `"kenney_laub"`: Kenney-Laub projection onto SU(3)
+"""
 function Overrelaxation(algorithm)
     if algorithm == "subgroups"
         ALG = Subgroups

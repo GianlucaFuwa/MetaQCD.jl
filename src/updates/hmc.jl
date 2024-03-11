@@ -1,6 +1,37 @@
 import ..Gaugefields: SymanzikTadGaugeAction
 abstract type AbstractIntegrator end
 
+"""
+    HMC(U, integrator, trajectory, steps, friction = 0, numsmear = 0, ρ_stout = 0,
+        verboselevel = 1; bias_enabled = false, logdir = "")
+
+Create an `HMC` object, that can be used as an update algorithm.
+
+# Arguments
+- `U`: The gauge field on which the update is performed.
+- `integrator`: The integrator used to evolve the field.
+- `trajectory`: The length of the HMC trajectory.
+- `steps`: The number of integrator steps within the trajectory.
+- `friction`: Friction factor in the GHMC algorithm. Has to be in the range [0, 1].
+- `numsmear`: Number of Stout smearing steps applied to the gauge action.
+- `ρ_stout`: Step length of the Stout smearing applied to the gauge action.
+- `verboselevel`: If `2` or higher, creates a logfile in `logdir` containing information
+on the trajectories
+- `bias_enabled`: If `true`, additional fields are initialized that are needed for Stout
+force recursion when using a bias.
+
+# Supported Integrators
+- `Leapfrog`
+- `OMF2`
+- `OMF2Slow`
+- `OMF4`
+- `OMF4Slow`
+
+# Returns
+An HMC object. If `bias_enabled` is `true` then a bias can be passed when updating
+a `Gaugefield` with this object. If not, then the required tensors and so on are not
+initialized during construction.
+"""
 struct HMC{TI,TG,TT,TS,PO,F2,FS,IO} <: AbstractUpdate
     steps::Int64
     Δτ::Float64
