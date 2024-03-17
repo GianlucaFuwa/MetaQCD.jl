@@ -10,15 +10,21 @@ this is generally slower.
 """
 macro groupreduce(op, val, neutral)
     quote
-        $__groupreduce($(esc(:__ctx__)),$(esc(op)), $(esc(val)), $(esc(neutral)),
-                       Val(prod(KernelAbstractions.groupsize($(esc(:__ctx__))))))
+        $__groupreduce(
+            $(esc(:__ctx__)),
+            $(esc(op)),
+            $(esc(val)),
+            $(esc(neutral)),
+            Val(prod(KernelAbstractions.groupsize($(esc(:__ctx__))))),
+        )
     end
 end
 
 macro groupreduce(op, val, neutral, groupsize)
     quote
-        $__groupreduce($(esc(:__ctx__)),$(esc(op)), $(esc(val)), $(esc(neutral)),
-                       $(esc(groupsize)))
+        $__groupreduce(
+            $(esc(:__ctx__)), $(esc(op)), $(esc(val)), $(esc(neutral)), $(esc(groupsize))
+        )
     end
 end
 
@@ -33,10 +39,10 @@ end
     d = 1
     while d < GS
         @synchronize()
-        index = 2 * d * (idx_in_group-1) + 1
+        index = 2 * d * (idx_in_group - 1) + 1
         @inbounds if index <= GS
             other_val = if index + d <= GS
-                localmem[index+d]
+                localmem[index + d]
             else
                 neutral
             end

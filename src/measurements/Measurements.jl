@@ -23,14 +23,14 @@ using ..Output
 using ..Utils
 
 import KernelAbstractions as KA
-import ..Gaugefields: Gaugefield, calc_gauge_action, clover_rect, clover_square, dims,
-    float_type, plaquette, wilsonloop, substitute_U!, @groupreduce, @latsum
-import ..Gaugefields: Plaquette, Clover, Improved, CPU
+import ..Gaugefields: Gaugefield, calc_gauge_action, clover_rect, clover_square, dims
+import ..Gaugefields: float_type, plaquette, wilsonloop
+import ..Gaugefields: @groupreduce, @latsum, Plaquette, Clover, Improved, CPU
 import ..Smearing: StoutSmearing, calc_smearedU!, flow!
 
 abstract type AbstractMeasurement end
 
-Base.close(m::AbstractMeasurement) = typeof(m.fp)==IOStream ? close(m.fp) : nothing
+Base.close(m::AbstractMeasurement) = typeof(m.fp) == IOStream ? close(m.fp) : nothing
 
 include("./measurement_parameters.jl")
 include("./measurement_methods.jl")
@@ -46,7 +46,7 @@ get_value(m::MeasurementOutput) = m.value
 get_string(m::MeasurementOutput) = m.outputstring
 
 function measure(::M, args...) where {M<:AbstractMeasurement}
-    error("measurement with a type $M is not supported")
+    return error("measurement with a type $M is not supported")
 end
 
 include("measure_gauge_action.jl")

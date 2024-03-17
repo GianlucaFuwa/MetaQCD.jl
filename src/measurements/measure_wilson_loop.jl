@@ -1,20 +1,14 @@
 import ..Gaugefields: wilsonloop
 
 struct WilsonLoopMeasurement{T} <: AbstractMeasurement
-    WL_dict::Dict{NTuple{2,Int64}, Float64} # (R, T) => value
+    WL_dict::Dict{NTuple{2,Int64},Float64} # (R, T) => value
     Tmax::Int64 # maximum width of the Wilson loop
     Rmax::Int64 # maximum length of the Wilson loop
     fp::T # file pointer
-
     function WilsonLoopMeasurement(
-        ::Gaugefield;
-        filename = "",
-        printvalues = false,
-        Rmax = 4,
-        Tmax = 4,
-        flow = false,
+        ::Gaugefield; filename="", printvalues=false, Rmax=4, Tmax=4, flow=false
     )
-        WL_dict = Dict{NTuple{2,Int64}, Float64}()
+        WL_dict = Dict{NTuple{2,Int64},Float64}()
         for iT in 1:Tmax
             for iR in 1:Rmax
                 WL_dict[iR, iT] = 0.0
@@ -49,18 +43,24 @@ struct WilsonLoopMeasurement{T} <: AbstractMeasurement
 end
 
 function WilsonLoopMeasurement(U, params::WilsonLoopParameters, filename, flow=false)
-    return WilsonLoopMeasurement(U, filename = filename, printvalues = true,
-                                 Rmax = params.Rmax, Tmax = params.Tmax, flow = flow)
+    return WilsonLoopMeasurement(
+        U;
+        filename=filename,
+        printvalues=true,
+        Rmax=params.Rmax,
+        Tmax=params.Tmax,
+        flow=flow,
+    )
 end
 
 function measure(m::WilsonLoopMeasurement{T}, U; additional_string="") where {T}
-    if T≡IOStream
+    if T ≡ IOStream
         str = @sprintf("%-9s", additional_string)
         println(m.fp, str)
     end
 
-    for iT in 1:m.Tmax
-        for iR in 1:m.Rmax
+    for iT in 1:(m.Tmax)
+        for iR in 1:(m.Rmax)
             WL = wilsonloop(U, iR, iT) / (18.0U.NV)
             m.WL_dict[iR, iT] = WL
 

@@ -12,9 +12,9 @@ function saveU(::BridgeFormat, U, filename)
                         for a in 1:3
                             for b in 1:3
                                 i += 1
-                                rvalue = real(U[μ,ix,iy,iz,it][a,b])
+                                rvalue = real(U[μ, ix, iy, iz, it][a, b])
                                 println(fp, rvalue)
-                                ivalue = imag(U[μ,ix,iy,iz,it][a,b])
+                                ivalue = imag(U[μ, ix, iy, iz, it][a, b])
                                 println(fp, ivalue)
                             end
                         end
@@ -33,7 +33,7 @@ function loadU!(::BridgeFormat, U, filename, T::Type{<:Real}=Float64)
     NX, NY, NZ, NT = size(U)[2:end]
     fp = open(filename, "r")
     numdata = countlines(filename)
-    @assert numdata == 4*U.NV*9*2 "data shape is wrong"
+    @assert numdata == 4 * U.NV * 9 * 2 "data shape is wrong"
 
     for it in 1:NT
         for iz in 1:NZ
@@ -47,10 +47,10 @@ function loadU!(::BridgeFormat, U, filename, T::Type{<:Real}=Float64)
                                 rvalue = parse(T, u)
                                 u = readline(fp)
                                 ivalue = parse(T, u)
-                                link[a, b] = rvalue + im*ivalue
+                                link[a, b] = rvalue + im * ivalue
                             end
                         end
-                        U[μ,ix,iy,iz,it] = SMatrix{3,3,ComplexF64,9}(link)
+                        U[μ, ix, iy, iz, it] = SMatrix{3,3,ComplexF64,9}(link)
                     end
                 end
             end

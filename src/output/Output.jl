@@ -47,9 +47,9 @@ struct Checkpointer{T}
 end
 
 function (cp::Checkpointer{T})(univ, updatemethod, itrj) where {T}
-    T≡Nothing && return nothing
+    T ≡ Nothing && return nothing
 
-    if itrj%cp.checkpoint_every == 0
+    if itrj % cp.checkpoint_every == 0
         filename = cp.checkpoint_dir * "/checkpoint$(cp.ext)"
         create_checkpoint(T(), univ, updatemethod, filename)
         @level1("|  Checkpoint created in $(filename)")
@@ -66,9 +66,7 @@ struct SaveConfigs{T}
     saveU_dir::String
     saveU_every::Int64
     ext::String
-
     function SaveConfigs(saveU_format, saveU_dir, saveU_every)
-
         if saveU_format == "bridge"
             T = BridgeFormat
             ext = ".txt"
@@ -91,9 +89,9 @@ struct SaveConfigs{T}
 end
 
 function save_gaugefield(saver::SaveConfigs{T}, U, itrj) where {T}
-    T≡Nothing && return nothing
+    T ≡ Nothing && return nothing
 
-    if itrj%saver.saveU_every == 0
+    if itrj % saver.saveU_every == 0
         itrjstring = lpad(itrj, 8, "0")
         filename = saver.saveU_dir * "/config_$(itrjstring)$(saver.ext)"
         saveU(T(), U, filename)

@@ -31,7 +31,7 @@ mutable struct OPES <: AbstractBias
     symmetric::Bool
     counter::Int64
     stride::Int64
-    cvlims::NTuple{2, Float64}
+    cvlims::NTuple{2,Float64}
 
     biasfactor::Float64
     bias_prefactor::Float64
@@ -63,24 +63,35 @@ mutable struct OPES <: AbstractBias
     δkernels::Vector{Kernel}
 end
 
-function OPES(; symmetric=true, stride=1, cvlims=(-6, 6), barrier=30, biasfactor=Inf,
-        	    σ₀=0.1, σ_min=1e-6, fixed_σ=true, opes_epsilon=0.0,
-                no_Z=false, threshold=1.0, cutoff=0.0)
+function OPES(;
+    symmetric=true,
+    stride=1,
+    cvlims=(-6, 6),
+    barrier=30,
+    biasfactor=Inf,
+    σ₀=0.1,
+    σ_min=1e-6,
+    fixed_σ=true,
+    opes_epsilon=0.0,
+    no_Z=false,
+    threshold=1.0,
+    cutoff=0.0,
+)
     is_first_step = true
 
     counter = 1
 
-    biasfactor = biasfactor===0.0 ? barrier : biasfactor
-    bias_prefactor = 1 - 1/biasfactor
+    biasfactor = biasfactor === 0.0 ? barrier : biasfactor
+    bias_prefactor = 1 - 1 / biasfactor
 
-    ϵ = opes_epsilon===0.0 ? exp(-barrier/bias_prefactor) : opes_epsilon
+    ϵ = opes_epsilon === 0.0 ? exp(-barrier / bias_prefactor) : opes_epsilon
     sum_weights = ϵ^bias_prefactor
     sum_weights² = sum_weights^2
     current_bias = 0.0
     Z = 1.0
     KDEnorm = sum_weights
 
-    cutoff = cutoff===0.0 ? sqrt(2barrier/bias_prefactor) : cutoff
+    cutoff = cutoff === 0.0 ? sqrt(2barrier / bias_prefactor) : cutoff
     cutoff² = cutoff^2
     penalty = exp(-0.5cutoff²)
 
@@ -91,11 +102,11 @@ function OPES(; symmetric=true, stride=1, cvlims=(-6, 6), barrier=30, biasfactor
     @level1("|  SYMMETRIC: $(symmetric)")
     @level1("|  NKER: $(nker)")
     @level1("|  COUNTER: $(counter)")
-    @assert counter>0 "COUNTER must be ≥0"
+    @assert counter > 0 "COUNTER must be ≥0"
     @level1("|  STRIDE: $(stride)")
-    @assert stride>0 "STRIDE must be >0"
+    @assert stride > 0 "STRIDE must be >0"
     @level1("|  CVLIMS: $(cvlims)")
-    @assert cvlims[1]<cvlims[2] "CVLIMS[1] must be <CVLIMS[2]"
+    @assert cvlims[1] < cvlims[2] "CVLIMS[1] must be <CVLIMS[2]"
     @level1("|  BARRIER: $(barrier)")
     @assert barrier >= 0 "BARRIER must be > 0"
     @level1("|  BIASFACTOR: $(biasfactor)")
@@ -112,14 +123,36 @@ function OPES(; symmetric=true, stride=1, cvlims=(-6, 6), barrier=30, biasfactor
     @assert threshold > 0 "THRESHOLD must be > 0"
     @level1("|  CUTOFF: $(sqrt(cutoff²))")
     @assert cutoff > 0 "CUTOFF must be > 0"
-    return OPES(is_first_step,
-                symmetric, counter, stride, cvlims,
-                biasfactor, bias_prefactor,
-                σ₀, σ_min, fixed_σ,
-                ϵ, sum_weights, sum_weights², current_bias, 0.0, no_Z, Z, KDEnorm,
-                threshold, cutoff², penalty,
-                sum_weights, Z, KDEnorm,
-                nker, kernels, nδker, δkernels)
+    return OPES(
+        is_first_step,
+        symmetric,
+        counter,
+        stride,
+        cvlims,
+        biasfactor,
+        bias_prefactor,
+        σ₀,
+        σ_min,
+        fixed_σ,
+        ϵ,
+        sum_weights,
+        sum_weights²,
+        current_bias,
+        0.0,
+        no_Z,
+        Z,
+        KDEnorm,
+        threshold,
+        cutoff²,
+        penalty,
+        sum_weights,
+        Z,
+        KDEnorm,
+        nker,
+        kernels,
+        nδker,
+        δkernels,
+    )
 end
 
 function OPES(p::ParameterSet; instance=1)
@@ -131,14 +164,14 @@ function OPES(p::ParameterSet; instance=1)
     cvlims = p.cvlims
 
     barrier = p.barrier
-    biasfactor = p.biasfactor===0.0 ? barrier : p.biasfactor
-    bias_prefactor = 1 - 1/biasfactor
+    biasfactor = p.biasfactor === 0.0 ? barrier : p.biasfactor
+    bias_prefactor = 1 - 1 / biasfactor
 
     σ₀ = p.sigma0
     σ_min = p.sigma_min
     fixed_σ = p.fixed_sigma
 
-    ϵ = p.opes_epsilon===0.0 ? exp(-barrier/bias_prefactor) : p.opes_epsilon
+    ϵ = p.opes_epsilon === 0.0 ? exp(-barrier / bias_prefactor) : p.opes_epsilon
     sum_weights = ϵ^bias_prefactor
     sum_weights² = sum_weights^2
     current_bias = 0.0
@@ -147,7 +180,7 @@ function OPES(p::ParameterSet; instance=1)
     KDEnorm = sum_weights
 
     threshold = p.threshold
-    cutoff = p.cutoff===0.0 ? sqrt(2barrier/bias_prefactor) : p.cutoff
+    cutoff = p.cutoff === 0.0 ? sqrt(2barrier / bias_prefactor) : p.cutoff
     cutoff² = cutoff^2
     penalty = exp(-0.5cutoff²)
 
@@ -156,7 +189,7 @@ function OPES(p::ParameterSet; instance=1)
     nδker = 0
     δkernels = Vector{Kernel}(undef, 0)
 
-    state = Dict{String, Any}(
+    state = Dict{String,Any}(
         "counter" => counter,
         "biasfactor" => biasfactor,
         "sigma0" => σ₀,
@@ -168,12 +201,12 @@ function OPES(p::ParameterSet; instance=1)
         "penalty" => penalty,
     )
 
-    if 0<instance<=length(p.usebiases)
+    if 0 < instance <= length(p.usebiases)
         kernels, nker = opes_from_file!(state, p.usebiases[instance])
         is_first_step = false
         counter = Int64(state["counter"])
         biasfactor = state["biasfactor"]
-        bias_prefactor = 1 - 1/biasfactor
+        bias_prefactor = 1 - 1 / biasfactor
         σ₀ = state["sigma0"]
         ϵ = state["epsilon"]
         sum_weights = state["sum_weights"]
@@ -186,11 +219,11 @@ function OPES(p::ParameterSet; instance=1)
     @level1("|  SYMMETRIC: $(symmetric)")
     @level1("|  NKER: $(nker)")
     @level1("|  COUNTER: $(counter)")
-    @assert counter>0 "COUNTER must be ≥0"
+    @assert counter > 0 "COUNTER must be ≥0"
     @level1("|  STRIDE: $(stride)")
-    @assert stride>0 "STRIDE must be >0"
+    @assert stride > 0 "STRIDE must be >0"
     @level1("|  CVLIMS: $(cvlims)")
-    @assert cvlims[1]<cvlims[2] "CVLIMS[1] must be <CVLIMS[2]"
+    @assert cvlims[1] < cvlims[2] "CVLIMS[1] must be <CVLIMS[2]"
     @level1("|  BARRIER: $(barrier)")
     @assert barrier >= 0 "BARRIER must be > 0"
     @level1("|  BIASFACTOR: $(biasfactor)")
@@ -207,18 +240,40 @@ function OPES(p::ParameterSet; instance=1)
     @assert threshold > 0 "THRESHOLD must be > 0"
     @level1("|  CUTOFF: $(sqrt(cutoff²))")
     @assert cutoff > 0 "CUTOFF must be > 0"
-    return OPES(is_first_step,
-                symmetric, counter, stride, cvlims,
-                biasfactor, bias_prefactor,
-                σ₀, σ_min, fixed_σ,
-                ϵ, sum_weights, sum_weights², current_bias, 0.0, no_Z, Z, KDEnorm,
-                threshold, cutoff², penalty,
-                sum_weights, Z, KDEnorm,
-                nker, kernels, nδker, δkernels)
+    return OPES(
+        is_first_step,
+        symmetric,
+        counter,
+        stride,
+        cvlims,
+        biasfactor,
+        bias_prefactor,
+        σ₀,
+        σ_min,
+        fixed_σ,
+        ϵ,
+        sum_weights,
+        sum_weights²,
+        current_bias,
+        0.0,
+        no_Z,
+        Z,
+        KDEnorm,
+        threshold,
+        cutoff²,
+        penalty,
+        sum_weights,
+        Z,
+        KDEnorm,
+        nker,
+        kernels,
+        nδker,
+        δkernels,
+    )
 end
 
 function OPES(filename::String)
-    state = Dict{String, Any}(
+    state = Dict{String,Any}(
         "counter" => 0,
         "biasfactor" => Inf,
         "sigma0" => 0.0,
@@ -235,7 +290,7 @@ function OPES(filename::String)
     is_first_step = false
     counter = Int64(state["counter"])
     biasfactor = state["biasfactor"]
-    bias_prefactor = 1 - 1/biasfactor
+    bias_prefactor = 1 - 1 / biasfactor
     σ₀ = state["sigma0"]
     ϵ = state["epsilon"]
     sum_weights = state["sum_weights"]
@@ -244,14 +299,36 @@ function OPES(filename::String)
     cutoff² = state["cutoff"]^2
     penalty = state["penalty"]
 
-    return OPES(is_first_step,
-                true, counter, 1, (-5, 5),
-                biasfactor, bias_prefactor,
-                σ₀, 1e-6, false,
-                ϵ, sum_weights, sum_weights^2, 0.0, 0.0, false, Z, sum_weights,
-                threshold, cutoff², penalty,
-                sum_weights, Z, sum_weights,
-                nker, kernels, 0, Vector{Kernel}(undef, 2))
+    return OPES(
+        is_first_step,
+        true,
+        counter,
+        1,
+        (-5, 5),
+        biasfactor,
+        bias_prefactor,
+        σ₀,
+        1e-6,
+        false,
+        ϵ,
+        sum_weights,
+        sum_weights^2,
+        0.0,
+        0.0,
+        false,
+        Z,
+        sum_weights,
+        threshold,
+        cutoff²,
+        penalty,
+        sum_weights,
+        Z,
+        sum_weights,
+        nker,
+        kernels,
+        0,
+        Vector{Kernel}(undef, 2),
+    )
 end
 
 get_kernels(o::OPES) = o.kernels
@@ -265,7 +342,7 @@ function update_opes!(o::OPES, cv, itrj)
         return nothing
     end
 
-    (itrj%o.stride != 0 || !in_bounds(cv[1], o.cvlims[1], o.cvlims[2])) && return nothing
+    (itrj % o.stride != 0 || !in_bounds(cv[1], o.cvlims[1], o.cvlims[2])) && return nothing
     o.old_KDEnorm = o.KDEnorm
     old_nker = o.nker
 
@@ -279,7 +356,7 @@ function update_opes!(o::OPES, cv, itrj)
     # update sum_weights and neff
     o.counter += symm_factor * length(cv)
     o.sum_weights += symm_factor * sum(height)
-    o.sum_weights² += symm_factor^2 * sum(height.*height)
+    o.sum_weights² += symm_factor^2 * sum(height .* height)
     neff = (1 + o.sum_weights)^2 / (1 + o.sum_weights²)
     o.KDEnorm = o.sum_weights
 
@@ -287,14 +364,14 @@ function update_opes!(o::OPES, cv, itrj)
     σ = o.σ₀
 
     if !o.fixed_σ
-        s_rescaling = (3neff/4)^(-1/5)
+        s_rescaling = (3neff / 4)^(-1 / 5)
         σ *= s_rescaling
         σ = max(σ, o.σ_min)
     end
 
     # height should be divided by sqrt(2π)*σ but this is cancelled out by Z
     # so we leave it out altogether but keep the s_rescaling
-    height *= (o.σ₀/σ)
+    height *= (o.σ₀ / σ)
 
     # add new kernels
     empty!(o.δkernels)
@@ -318,15 +395,16 @@ function update_opes!(o::OPES, cv, itrj)
             for δkernel in o.δkernels
                 # take away contribution from kernels that are gone, and add new ones
                 sgn = sign(δkernel.height)
-                δsum_uprob += δkernel(kernel.center, cutoff², penalty) +
-                              sgn*kernel(δkernel.center, cutoff², penalty)
+                δsum_uprob +=
+                    δkernel(kernel.center, cutoff², penalty) +
+                    sgn * kernel(δkernel.center, cutoff², penalty)
             end
         end
         for δkernel in o.δkernels
             for δδkernel in o.δkernels
                 # now subtract the δ_uprob added before, but not needed
                 sgn = sign(δkernel.height)
-                δsum_uprob -= sgn*δδkernel(δkernel.center, cutoff², penalty)
+                δsum_uprob -= sgn * δδkernel(δkernel.center, cutoff², penalty)
             end
         end
 
@@ -343,9 +421,9 @@ function (o::OPES)(cv)
     if !in_bounds(cv, lb, ub)
         bounds_penalty = 100
         which_bound, dist² = findmin(((cv - lb)^2, (cv - ub)^2))
-        nearest_bound = which_bound==1 ? lb : ub
+        nearest_bound = which_bound == 1 ? lb : ub
         calculate!(o, nearest_bound)
-        return o.current_bias + bounds_penalty*dist²
+        return o.current_bias + bounds_penalty * dist²
     else
         calculate!(o, cv)
         return o.current_bias
@@ -367,7 +445,7 @@ function calculate!(o::OPES, cv)
     end
     prob /= o.sum_weights
 
-    current_bias = o.bias_prefactor * log(prob/o.Z + o.ϵ)
+    current_bias = o.bias_prefactor * log(prob / o.Z + o.ϵ)
     o.current_weight = prob
     o.current_bias = current_bias
     return nothing
@@ -387,7 +465,7 @@ function ∂V∂Q(o::OPES, cv)
     deriv /= o.sum_weights
 
     Z = o.Z
-    out = -o.bias_prefactor / (prob/Z+o.ϵ) * deriv/Z
+    out = -o.bias_prefactor / (prob / Z + o.ϵ) * deriv / Z
     return out
 end
 
@@ -398,8 +476,8 @@ function add_kernel!(o::OPES, height, cv, σ)
 
     taker_i = get_mergeable_kernel(cv, kernels, o.threshold, o.nker)
 
-    if taker_i < o.nker+1
-        push!(δkernels, -1*kernels[taker_i])
+    if taker_i < o.nker + 1
+        push!(δkernels, -1 * kernels[taker_i])
         kernels[taker_i] = merge(kernels[taker_i], new_kernel)
         push!(δkernels, kernels[taker_i])
         o.nδker += 2
@@ -417,7 +495,7 @@ function get_mergeable_kernel(cv, kernels, threshold, nker)
     taker_i = nker + 1
 
     for i in 1:nker
-        d = abs(kernels[i].center-cv) / kernels[i].σ
+        d = abs(kernels[i].center - cv) / kernels[i].σ
         ismin = d < d_min
         d_min = ifelse(ismin, d, d_min)
         taker_i = ifelse(ismin, i, taker_i)
@@ -443,11 +521,14 @@ const kernel_header = "#$(rpad("height", 20))\t$(rpad("center", 20))\t$(rpad("si
 write_to_file(::OPES, ::Nothing) = nothing
 
 function write_to_file(o::OPES, filename::String)
-    filename=="" && return nothing
+    filename == "" && return nothing
     (tmppath, tmpio) = mktemp()
-    print(tmpio, "#"); [print(tmpio, "$(var)\t") for var in state_vars]; println(tmpio, "")
-    state_str = "$(o.counter)\t$(o.biasfactor)\t$(o.σ₀)\t$(o.ϵ)\t$(o.sum_weights)" *
-    "\t$(o.sum_weights²)\t$(o.Z)\t$(o.threshold)\t$(√o.cutoff²)\t$(o.penalty)\n"
+    print(tmpio, "#")
+    [print(tmpio, "$(var)\t") for var in state_vars]
+    println(tmpio, "")
+    state_str =
+        "$(o.counter)\t$(o.biasfactor)\t$(o.σ₀)\t$(o.ϵ)\t$(o.sum_weights)" *
+        "\t$(o.sum_weights²)\t$(o.Z)\t$(o.threshold)\t$(√o.cutoff²)\t$(o.penalty)\n"
     println(tmpio, state_str)
     println(tmpio, kernel_header)
 
@@ -460,18 +541,18 @@ function write_to_file(o::OPES, filename::String)
     end
 
     close(tmpio)
-    mv(tmppath, filename, force=true)
+    mv(tmppath, filename; force=true)
     return nothing
 end
 
 function opes_from_file!(dict, usebias)
-    if usebias==""
+    if usebias == ""
         kernels = Vector{Kernel}(undef, 0)
         return kernels, 0
     else
         @level1("|  Getting state from $(usebias)")
         # state is stored in header, which is always read as a string so we have to parse it
-        kernel_data, state_data = readdlm(usebias, comments=true, header=true)
+        kernel_data, state_data = readdlm(usebias; comments=true, header=true)
         state_parse = [parse(Float64, state_param) for state_param in state_data]
 
         for i in eachindex(state_vars)

@@ -47,11 +47,20 @@ struct HMC{TI,TG,TT,TS,PO,F2,FS,IO} <: AbstractUpdate
     smearing::TS
 
     fp::IO
-
-    function HMC(U, integrator, trajectory, steps, friction = 0, numsmear = 0, ρ_stout = 0,
-                 verboselevel = 1; bias_enabled = false, logdir = "")
+    function HMC(
+        U,
+        integrator,
+        trajectory,
+        steps,
+        friction=0,
+        numsmear=0,
+        ρ_stout=0,
+        verboselevel=1;
+        bias_enabled=false,
+        logdir="",
+    )
         @level1("┌ Setting HMC...")
-        integrator = Unicode.normalize(integrator, casefold=true)
+        integrator = Unicode.normalize(integrator; casefold=true)
 
         if integrator == "leapfrog"
             TI = Leapfrog
@@ -79,7 +88,7 @@ struct HMC{TI,TG,TT,TS,PO,F2,FS,IO} <: AbstractUpdate
         P = Temporaryfield(U)
         TT = typeof(P)
         gaussian_TA!(P, 0)
-        P_old = friction==0 ? nothing : Temporaryfield(U)
+        P_old = friction == 0 ? nothing : Temporaryfield(U)
         PO = typeof(P_old)
         U_old = Gaugefield(U)
         staples = Temporaryfield(U)
@@ -87,7 +96,7 @@ struct HMC{TI,TG,TT,TS,PO,F2,FS,IO} <: AbstractUpdate
 
         smearing = StoutSmearing(U, numsmear, ρ_stout)
         TS = typeof(smearing)
-        force2 = (TS==NoSmearing && !bias_enabled) ? nothing : Temporaryfield(U)
+        force2 = (TS == NoSmearing && !bias_enabled) ? nothing : Temporaryfield(U)
         F2 = typeof(force2)
 
         if TS == NoSmearing
@@ -105,7 +114,7 @@ struct HMC{TI,TG,TT,TS,PO,F2,FS,IO} <: AbstractUpdate
         end
         FS = typeof(fieldstrength)
 
-        if verboselevel>=2 && logdir!=""
+        if verboselevel >= 2 && logdir != ""
             hmc_log_file = logdir * "/hmc_acc_logs.txt"
             @level1("|  Acceptance data tracked in $(hmc_log_file)")
             fp = open(hmc_log_file, "w")
@@ -117,8 +126,17 @@ struct HMC{TI,TG,TT,TS,PO,F2,FS,IO} <: AbstractUpdate
 
         @level1("└\n")
         return new{TI,TG,TT,TS,PO,F2,FS,typeof(fp)}(
-            steps, Δτ, friction,
-            P, P_old, U_old, staples, force, force2, fieldstrength, smearing,
+            steps,
+            Δτ,
+            friction,
+            P,
+            P_old,
+            U_old,
+            staples,
+            force,
+            force2,
+            fieldstrength,
+            smearing,
             fp,
         )
     end
@@ -126,13 +144,14 @@ end
 
 include("hmc_integrators.jl")
 
-function update!(hmc::HMC{TI}, U;
-                 bias::T=nothing, metro_test=true, friction=hmc.friction) where {TI,T}
+function update!(
+    hmc::HMC{TI}, U; bias::T=nothing, metro_test=true, friction=hmc.friction
+) where {TI,T}
     U_old = hmc.U_old
     P_old = hmc.P_old
-    substitute_U!(U_old, U)
+    copy!(U_old, U)
     gaussian_TA!(hmc.P, friction)
-    P_old≢nothing && substitute_U!(P_old, hmc.P)
+    P_old ≢ nothing && copy!(P_old, hmc.P)
 
     Sg_old = U.Sg
     trP²_old = -calc_kinetic_energy(hmc.P)
@@ -159,17 +178,17 @@ function update!(hmc::HMC{TI}, U;
 
     print_hmc_data(hmc.fp, ΔSg, ΔP², ΔV, ΔH)
 
-    accept = metro_test ? rand()≤exp(-ΔH) : true
+    accept = metro_test ? rand() ≤ exp(-ΔH) : true
 
     if accept
         U.Sg = Sg_new
         U.CV = CV_new
         @level2("|    Accepted")
     else
-        substitute_U!(U, U_old)
+        copy!(U, U_old)
 
         if P_old ≢ nothing # flip momenta if rejected
-            substitute_U!(hmc.P, P_old)
+            copy!(hmc.P, P_old)
             mul!(hmc.P, -1)
         end
         @level2("|    Rejected")
@@ -185,7 +204,7 @@ function updateU!(U::Gaugefield{CPU,T}, hmc, fac) where {T}
 
     @batch for site in eachindex(U)
         for μ in 1:4
-            U[μ,site] = cmatmul_oo(exp_iQ(-im*ϵ*P[μ,site]), U[μ,site])
+            U[μ, site] = cmatmul_oo(exp_iQ(-im * ϵ * P[μ, site]), U[μ, site])
         end
     end
 
@@ -224,7 +243,7 @@ end
 print_hmc_data(::Nothing, args...) = nothing
 
 function print_hmc_data(fp::T, ΔSg, ΔP², ΔV, ΔH) where {T}
-    T≡Nothing && return nothing
+    T ≡ Nothing && return nothing
     str = @sprintf("%+22.15E\t%+22.15E\t%+22.15E\t%+22.15E", ΔSg, ΔP², ΔV, ΔH)
     println(fp, str)
     flush(fp)

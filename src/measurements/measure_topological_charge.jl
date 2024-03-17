@@ -1,15 +1,10 @@
 struct TopologicalChargeMeasurement{T} <: AbstractMeasurement
-    TC_dict::Dict{String, Float64} # topological charge definition => value
+    TC_dict::Dict{String,Float64} # topological charge definition => value
     fp::T # file pointer
-
     function TopologicalChargeMeasurement(
-        ::Gaugefield;
-        filename = "",
-        printvalues = false,
-        TC_methods = ["clover"],
-        flow = false,
+        ::Gaugefield; filename="", printvalues=false, TC_methods=["clover"], flow=false
     )
-        TC_dict = Dict{String, Float64}()
+        TC_dict = Dict{String,Float64}()
         for method in TC_methods
             TC_dict[method] = 0.0
         end
@@ -36,10 +31,16 @@ struct TopologicalChargeMeasurement{T} <: AbstractMeasurement
     end
 end
 
-function TopologicalChargeMeasurement(U, params::TopologicalChargeParameters, filename, flow=false)
-    return TopologicalChargeMeasurement(U, filename = filename, printvalues = true,
-                                        TC_methods = params.kinds_of_topological_charge,
-                                        flow = flow)
+function TopologicalChargeMeasurement(
+    U, params::TopologicalChargeParameters, filename, flow=false
+)
+    return TopologicalChargeMeasurement(
+        U;
+        filename=filename,
+        printvalues=true,
+        TC_methods=params.kinds_of_topological_charge,
+        flow=flow,
+    )
 end
 
 function measure(m::TopologicalChargeMeasurement{T}, U; additional_string="") where {T}
@@ -85,7 +86,7 @@ end
 function top_charge(::Plaquette, U::Gaugefield{CPU})
     Q = 0.0
 
-    @batch reduction=(+, Q) for site in eachindex(U)
+    @batch reduction = (+, Q) for site in eachindex(U)
         Q += top_charge_density_plaq(U, site)
     end
 
@@ -95,7 +96,7 @@ end
 function top_charge(::Clover, U::Gaugefield{CPU})
     Q = 0.0
 
-    @batch reduction=(+, Q) for site in eachindex(U)
+    @batch reduction = (+, Q) for site in eachindex(U)
         Q += top_charge_density_clover(U, site)
     end
 
@@ -104,10 +105,10 @@ end
 
 function top_charge(::Improved, U::Gaugefield{CPU})
     Q = 0.0
-    c₀ = float_type(U)(5/3)
-    c₁ = float_type(U)(-2/12)
+    c₀ = float_type(U)(5 / 3)
+    c₁ = float_type(U)(-2 / 12)
 
-    @batch reduction=(+, Q) for site in eachindex(U)
+    @batch reduction = (+, Q) for site in eachindex(U)
         Q += top_charge_density_imp(U, site, c₀, c₁)
     end
 
@@ -153,7 +154,7 @@ end
 function top_charge_density_imp(U, site, c₀, c₁)
     q_clov = top_charge_density_clover(U, site)
     q_rect = top_charge_density_rect(U, site)
-    q_imp = c₀*q_clov + c₁*q_rect
+    q_imp = c₀ * q_clov + c₁ * q_rect
     return q_imp
 end
 

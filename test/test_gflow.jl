@@ -1,10 +1,13 @@
 function SU3testgradflow(backend=nothing)
     Random.seed!(123)
     println("SU3testgradflow")
-    NX = 4; NY = 4; NZ = 4; NT = 4;
-    U = initial_gauges("hot", NX, NY, NZ, NT, 6.0, GA=WilsonGaugeAction)
+    NX = 4
+    NY = 4
+    NZ = 4
+    NT = 4
+    U = initial_gauges("hot", NX, NY, NZ, NT, 6.0; GA=WilsonGaugeAction)
     filename = "./test/testconf.txt"
-    loadU!(BridgeFormat(), U, filename);
+    loadU!(BridgeFormat(), U, filename)
     if backend !== nothing
         U = MetaQCD.to_backend(backend, U)
     end
@@ -15,7 +18,7 @@ function SU3testgradflow(backend=nothing)
     g = GradientFlow(U, "euler", 3, 1, 0.12)
     s = StoutSmearing(U, 3, 0.12)
 
-    MetaQCD.Gaugefields.substitute_U!(g.Uflow, U)
+    copy!(g.Uflow, U)
 
     println("0\tplaq: $plaq")
     for iflow in 1:g.numflow

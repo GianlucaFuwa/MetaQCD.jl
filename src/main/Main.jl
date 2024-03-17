@@ -1,4 +1,4 @@
-module Mainrun
+module Main
 
 using Dates
 using DelimitedFiles
@@ -24,7 +24,7 @@ const comm_size = MPI.Comm_size(comm)
 
 function print_acceptance_rates(numaccepts, itrj)
     myrank != 0 && return nothing
-    
+
     for (i, value) in enumerate(numaccepts)
         @level1("|    Acceptance $i:\t$(100value / itrj) %")
     end
@@ -43,7 +43,7 @@ function convert_seconds(sec)
     return "$(Day(days)), $(Hour(hours)), $(Minute(minutes)), $(Second(seconds))"
 end
 
-include("build.jl")
-include("sim.jl")
+include("runbuild.jl")
+include("runsim.jl")
 
 end

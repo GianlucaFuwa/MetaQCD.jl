@@ -3,7 +3,7 @@ struct Leapfrog <: AbstractIntegrator end
 function evolve!(::Leapfrog, U, hmc::HMC, bias)
     updateP!(U, hmc, 0.5, bias)
 
-    for _ = 1:hmc.steps-1
+    for _ in 1:hmc.steps-1
         updateU!(U, hmc, 1.0)
         updateP!(U, hmc, 1.0, bias)
     end
@@ -27,7 +27,6 @@ struct OMF2Slow <: AbstractIntegrator
 end
 
 function evolve!(O2S::OMF2Slow, U, hmc::HMC, bias)
-
     for _ in 1:hmc.steps
         updateP!(U, hmc, O2S.α, bias)
         updateU!(U, hmc, O2S.β)
@@ -59,7 +58,7 @@ function evolve!(O2::OMF2, U, hmc::HMC, bias)
     updateU!(U, hmc, O2.β)
 
     for _ in 1:hmc.steps-1
-        updateP!(U, hmc, 2*O2.α, bias)
+        updateP!(U, hmc, 2 * O2.α, bias)
         updateU!(U, hmc, O2.β)
         updateP!(U, hmc, O2.γ, bias)
         updateU!(U, hmc, O2.β)
@@ -89,7 +88,6 @@ struct OMF4Slow <: AbstractIntegrator
 end
 
 function evolve!(O4S::OMF4Slow, U, hmc::HMC, bias)
-
     for _ in 1:hmc.steps
         updateP!(U, hmc, O4S.α, bias)
         updateU!(U, hmc, O4S.β)

@@ -12,7 +12,7 @@ function run_build(filenamein::String; MPIparallel=false)
     MPI.Barrier(comm)
 
     @assert parameters.kind_of_bias != "none" "bias has to be enabled in build"
-    @assert parameters.is_static==false "Bias $(myrank+1) cannot be static in build"
+    @assert parameters.is_static == false "Bias $(myrank+1) cannot be static in build"
 
     if parameters.randomseed != 0
         seed = parameters.randomseed
@@ -22,8 +22,8 @@ function run_build(filenamein::String; MPIparallel=false)
         Random.seed!(seed)
     end
 
-    logger_io = myrank==0 ? parameters.logdir*"/logs.txt" : devnull
-    set_global_logger!(parameters.verboselevel, logger_io, tc=parameters.log_to_console)
+    logger_io = myrank == 0 ? parameters.logdir * "/logs.txt" : devnull
+    set_global_logger!(parameters.verboselevel, logger_io; tc=parameters.log_to_console)
 
     # print time and system info, because it looks cool I guess
     # btw, all these "@level1" calls are just for logging, level1 is always printed
@@ -35,7 +35,7 @@ function run_build(filenamein::String; MPIparallel=false)
     @level1(versioninfo)
     @level1("Random seed is: $seed\n")
 
-    univ = Univ(parameters, use_mpi=MPIparallel)
+    univ = Univ(parameters; use_mpi=MPIparallel)
 
     run_build!(univ, parameters)
     return nothing
@@ -45,33 +45,46 @@ function run_build!(univ, parameters)
     U = univ.U
     updatemethod = Updatemethod(parameters, U)
 
-    gflow = GradientFlow(U, parameters.flow_integrator, parameters.flow_num,
-        parameters.flow_steps, parameters.flow_tf,
-        measure_every = parameters.flow_measure_every)
+    gflow = GradientFlow(
+        U,
+        parameters.flow_integrator,
+        parameters.flow_num,
+        parameters.flow_steps,
+        parameters.flow_tf;
+        measure_every=parameters.flow_measure_every,
+    )
 
     additional_string = "_$(myrank+1)"
 
-    measurements = MeasurementMethods(U, parameters.measuredir, parameters.measurements,
-        additional_string = additional_string)
+    measurements = MeasurementMethods(
+        U,
+        parameters.measuredir,
+        parameters.measurements;
+        additional_string=additional_string,
+    )
 
-    measurements_with_flow = MeasurementMethods(U, parameters.measuredir,
-        parameters.measurements_with_flow, additional_string = additional_string,
-        flow = true)
+    measurements_with_flow = MeasurementMethods(
+        U,
+        parameters.measuredir,
+        parameters.measurements_with_flow;
+        additional_string=additional_string,
+        flow=true,
+    )
 
     build!(parameters, univ, updatemethod, gflow, measurements, measurements_with_flow)
     return nothing
 end
 
-function build!(parameters,univ, updatemethod, gflow, measurements, measurements_with_flow)
+function build!(parameters, univ, updatemethod, gflow, measurements, measurements_with_flow)
     U = univ.U
     bias = univ.bias
 
     @level1("┌ Thermalization:")
     _, runtime_therm = @timed begin
-        for itrj in 1:parameters.numtherm
+        for itrj in 1:(parameters.numtherm)
             @level1("|  itrj = $itrj")
             _, updatetime = @timed begin
-                update!(updatemethod, U, bias=nothing, metro_test=false, friction=π/2)
+                update!(updatemethod, U; bias=nothing, metro_test=false, friction=π / 2)
             end
             @level1("|  Elapsed time:\t$(updatetime) [s]")
         end
@@ -86,18 +99,18 @@ function build!(parameters,univ, updatemethod, gflow, measurements, measurements
     _, runtime_all = @timed begin
         numaccepts = 0.0
 
-        for itrj in 1:parameters.numsteps
+        for itrj in 1:(parameters.numsteps)
             @level1("|  itrj = $itrj")
 
             _, updatetime = @timed begin
-                accepted = update!(updatemethod, U, bias=bias)
+                accepted = update!(updatemethod, U; bias=bias)
                 numaccepts += accepted
             end
 
             @level1("|  Elapsed time:\t$(updatetime) [s]\n")
             # all procs send their CVs to all other procs and update their copy of the bias
             CVs = MPI.Allgather(U.CV::Float64, comm)
-            accepted==true && update_bias!(bias, CVs, itrj, myrank==0)
+            accepted == true && update_bias!(bias, CVs, itrj, myrank == 0)
             acceptances = MPI.Allgather(numaccepts::Float64, comm) # FIXME: should use MPI.gather
             print_acceptance_rates(acceptances, itrj)
 

@@ -3,15 +3,15 @@ import ..Gaugefields: plaquette_trace_sum
 struct PlaquetteMeasurement{T} <: AbstractMeasurement
     factor::Float64 # 1 / (6*U.NV*U.NC)
     fp::T # file pointer
-
     function PlaquetteMeasurement(U::Gaugefield; filename="", printvalues=false, flow=false)
         if printvalues
             fp = open(filename, "w")
             header = ""
 
             if flow
-                header *= @sprintf("%-9s\t%-7s\t%-9s\t%-22s",
-                                   "itrj", "iflow", "tflow", "Re(plaq)")
+                header *= @sprintf(
+                    "%-9s\t%-7s\t%-9s\t%-22s", "itrj", "iflow", "tflow", "Re(plaq)"
+                )
             else
                 header *= @sprintf("%-9s\t%-22s", "itrj", "Re(plaq)")
             end
@@ -21,14 +21,14 @@ struct PlaquetteMeasurement{T} <: AbstractMeasurement
             fp = nothing
         end
 
-        factor = 1 / (6*U.NV*U.NC)
+        factor = 1 / (6 * U.NV * U.NC)
 
         return new{typeof(fp)}(factor, fp)
     end
 end
 
 function PlaquetteMeasurement(U, ::PlaquetteParameters, filename, flow=false)
-    return PlaquetteMeasurement(U, filename=filename, printvalues=true, flow=flow)
+    return PlaquetteMeasurement(U; filename=filename, printvalues=true, flow=flow)
 end
 
 function measure(m::PlaquetteMeasurement{T}, U; additional_string="") where {T}

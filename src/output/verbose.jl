@@ -1,4 +1,4 @@
-import InteractiveUtils
+using InteractiveUtils: InteractiveUtils
 
 """
     MetaLogger(LEVEL::Int64, io::IO, to_console::Bool)
@@ -10,7 +10,6 @@ struct MetaLogger
     LEVEL::Int64
     io::IO
     to_console::Bool
-
     MetaLogger(LEVEL=2, tc::Bool=true) = new(LEVEL, devnull, tc)
     MetaLogger(LEVEL, ::Nothing, tc::Bool=true) = new(LEVEL, devnull, tc)
     MetaLogger(LEVEL, filename::String, tc::Bool=true) = new(LEVEL, open(filename, "w"), tc)

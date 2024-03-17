@@ -1,19 +1,18 @@
-import ..Gaugefields: WilsonGaugeAction, SymanzikTreeGaugeAction, SymanzikTadGaugeAction,
-    IwasakiGaugeAction, DBW2GaugeAction
+import ..Gaugefields:
+    WilsonGaugeAction,
+    SymanzikTreeGaugeAction,
+    SymanzikTadGaugeAction,
+    IwasakiGaugeAction,
+    DBW2GaugeAction
 
 struct GaugeActionMeasurement{T} <: AbstractMeasurement
-    GA_dict::Dict{String, Float64} # gauge action definition => value
+    GA_dict::Dict{String,Float64} # gauge action definition => value
     factor::Float64 # 1 / (6*U.NV*U.β)
     fp::T # file pointer
-
     function GaugeActionMeasurement(
-        U;
-        filename = "",
-        printvalues = false,
-        GA_methods = ["wilson"],
-        flow = false,
+        U; filename="", printvalues=false, GA_methods=["wilson"], flow=false
     )
-        GA_dict = Dict{String, Float64}()
+        GA_dict = Dict{String,Float64}()
         for method in GA_methods
             GA_dict[method] = 0.0
         end
@@ -36,15 +35,20 @@ struct GaugeActionMeasurement{T} <: AbstractMeasurement
             fp = nothing
         end
 
-        factor = 1 / (6*U.NV*U.β)
+        factor = 1 / (6 * U.NV * U.β)
 
         return new{typeof(fp)}(GA_dict, factor, fp)
     end
 end
 
 function GaugeActionMeasurement(U, params::GaugeActionParameters, filename, flow=false)
-    return GaugeActionMeasurement(U, filename = filename, printvalues = true,
-                                  GA_methods = params.kinds_of_gauge_action, flow = flow)
+    return GaugeActionMeasurement(
+        U;
+        filename=filename,
+        printvalues=true,
+        GA_methods=params.kinds_of_gauge_action,
+        flow=flow,
+    )
 end
 
 function measure(m::GaugeActionMeasurement{T}, U; additional_string="") where {T}

@@ -1,6 +1,5 @@
 struct Subgroups end
 struct KenneyLaub end
-struct Overrelaxation{ALG} end
 
 """
     Overrelaxation(algorithm)
@@ -12,26 +11,28 @@ step.
 - `"subgroups"`: Cabibbo-Marinari SU(2) subgroup embedding scheme
 - `"kenney_laub"`: Kenney-Laub projection onto SU(3)
 """
-function Overrelaxation(algorithm)
-    if algorithm == "subgroups"
-        ALG = Subgroups
-    elseif algorithm == "kenney-laub"
-        ALG = KenneyLaub
+struct Overrelaxation{ALG}
+    function Overrelaxation(algorithm)
+        if algorithm == "subgroups"
+            ALG = Subgroups
+        elseif algorithm == "kenney-laub"
+            ALG = KenneyLaub
+        end
+        return new{ALG}()
     end
-    return Overrelaxation{ALG}()
 end
 
 Base.eltype(::Overrelaxation{ALG}) where {ALG} = ALG
 
 function (or::Overrelaxation{ALG})(U, μ, site, GA, action_factor) where {ALG}
     A_adj = staple(GA, U, μ, site)'
-    old_link = U[μ,site]
+    old_link = U[μ, site]
     new_link = overrelaxation_SU3(ALG(), old_link, A_adj)
 
     ΔSg = action_factor * real(multr(new_link - old_link, A_adj))
     accept = (rand() < exp(-ΔSg))
 
-    accept && (U[μ,site] = proj_onto_SU3(new_link))
+    accept && (U[μ, site] = proj_onto_SU3(new_link))
     return accept
 end
 

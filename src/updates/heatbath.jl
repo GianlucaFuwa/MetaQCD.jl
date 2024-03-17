@@ -26,7 +26,7 @@ sublattices.
 """
 function Heatbath(::Gaugefield{B,T,A,GA}, MAXIT, numHB, or_alg, numOR) where {B,T,A,GA}
     @level1("┌ Setting Heatbath...")
-    ITR = GA==WilsonGaugeAction ? Checkerboard2 : Checkerboard4
+    ITR = GA == WilsonGaugeAction ? Checkerboard2 : Checkerboard4
     @level1("|  ITERATOR: $(ITR)")
 
     OR = Overrelaxation(or_alg)
@@ -41,18 +41,18 @@ end
 
 function update!(hb::Heatbath{<:Any,ITR,TOR,NHB,NOR}, U; kwargs...) where {ITR,TOR,NHB,NOR}
     GA = gauge_action(U)()
-    @latmap(ITR(), NHB(), hb, U, GA, U.NC/U.β)
-    numaccepts_or = @latsum(ITR(), NOR(), TOR(), U, GA, -U.β/U.NC)
+    @latmap(ITR(), NHB(), hb, U, GA, U.NC / U.β)
+    numaccepts_or = @latsum(ITR(), NOR(), TOR(), U, GA, -U.β / U.NC)
 
     U.Sg = calc_gauge_action(U)
-    numaccepts = (NOR≡Val{0}) ? 1.0 : numaccepts_or / (4*U.NV*_unwrap_val(NOR()))
+    numaccepts = (NOR ≡ Val{0}) ? 1.0 : numaccepts_or / (4 * U.NV * _unwrap_val(NOR()))
     return numaccepts
 end
 
 function (hb::Heatbath{MAXIT})(U, μ, site, GA, action_factor) where {MAXIT}
-    old_link = U[μ,site]
+    old_link = U[μ, site]
     A = staple(GA, U, μ, site)
-    U[μ,site] = heatbath_SU3(old_link, A, _unwrap_val(MAXIT()), action_factor)
+    U[μ, site] = heatbath_SU3(old_link, A, _unwrap_val(MAXIT()), action_factor)
     return nothing
 end
 
@@ -91,7 +91,7 @@ function heatbath_SU2(A::SMatrix{2,2,Complex{T},4}, MAXIT, action_factor) where 
         r₃ = 1 - rand(T)
         x₃ = log(r₃)
 
-        λ² = λ_factor * (x₁ + x₂^2*x₃)
+        λ² = λ_factor * (x₁ + x₂^2 * x₃)
 
         r₀ = rand(T)
         i += 1
@@ -108,6 +108,6 @@ function heatbath_SU2(A::SMatrix{2,2,Complex{T},4}, MAXIT, action_factor) where 
     x₂ = vec_norm * sinpi(2φ)
     x₃ = abs_x * cosϑ
 
-    mat = SMatrix{2,2,Complex{T},4}((x₀+im*x₃, -x₂+im*x₁, x₂+im*x₁, x₀-im*x₃))
+    mat = SMatrix{2,2,Complex{T},4}((x₀ + im*x₃, -x₂ + im*x₁, x₂ + im*x₁, x₀ - im*x₃))
     return cmatmul_od(mat, V)
 end

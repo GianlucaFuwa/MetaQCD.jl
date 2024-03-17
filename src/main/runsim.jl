@@ -14,8 +14,11 @@ function run_sim(filenamein::String)
         Random.seed!(seed)
     end
 
-    set_global_logger!(parameters.verboselevel, parameters.logdir*"/logs.txt",
-                       tc=parameters.log_to_console)
+    set_global_logger!(
+        parameters.verboselevel,
+        parameters.logdir * "/logs.txt";
+        tc=parameters.log_to_console,
+    )
 
     # print time and system info, because it looks cool I guess
     # btw, all these "@level1" calls are just for logging, level1 is always printed
@@ -41,75 +44,127 @@ function run_sim!(univ, parameters)
     if parameters.tempering_enabled
         updatemethod = Updatemethod(parameters, U[1])
         # all MetaD streams use HMC, so there is no need to initialize more than 1
-        updatemethod_pt = HMC(U[1], parameters.hmc_integrator, parameters.hmc_trajectory,
-                              parameters.hmc_steps, parameters.hmc_friction,
-                              bias_enabled = true)
+        updatemethod_pt = HMC(
+            U[1],
+            parameters.hmc_integrator,
+            parameters.hmc_trajectory,
+            parameters.hmc_steps,
+            parameters.hmc_friction;
+            bias_enabled=true,
+        )
         parity = parameters.parity_update ? ParityUpdate(U[1]) : nothing
     else
         updatemethod = Updatemethod(parameters, U)
         parity = parameters.parity_update ? ParityUpdate(U) : nothing
     end
-    parity≢nothing && @level1("[ Parity update enabled\n")
+    parity ≢ nothing && @level1("[ Parity update enabled\n")
 
     if parameters.tempering_enabled
-        gflow = GradientFlow(U[1], parameters.flow_integrator, parameters.flow_num,
-                             parameters.flow_steps, parameters.flow_tf,
-                             measure_every = parameters.flow_measure_every)
+        gflow = GradientFlow(
+            U[1],
+            parameters.flow_integrator,
+            parameters.flow_num,
+            parameters.flow_steps,
+            parameters.flow_tf;
+            measure_every=parameters.flow_measure_every,
+        )
         measurements = Vector{MeasurementMethods}(undef, parameters.numinstances)
         measurements_with_flow = Vector{MeasurementMethods}(undef, parameters.numinstances)
 
-        measurements[1] = MeasurementMethods(U[1], parameters.measuredir,
-            parameters.measurements, additional_string = "_0")
+        measurements[1] = MeasurementMethods(
+            U[1], parameters.measuredir, parameters.measurements; additional_string="_0"
+        )
 
         measurements_with_flow[1] = MeasurementMethods(
             U[1],
             parameters.measuredir,
-            parameters.measurements_with_flow,
-            flow = true,
-            additional_string = "_0",
+            parameters.measurements_with_flow;
+            flow=true,
+            additional_string="_0",
         )
-        for i in 2:parameters.numinstances
+        for i in 2:(parameters.numinstances)
             if parameters.measure_on_all
-                measurements[i] = MeasurementMethods(U[i], parameters.measuredir,
-                    parameters.measurements, additional_string = "_$(i-1)")
-                measurements_with_flow[i] = MeasurementMethods(U[i], parameters.measuredir,
-                    parameters.measurements_with_flow, flow = true,
-                    additional_string="_$(i-1)")
+                measurements[i] = MeasurementMethods(
+                    U[i],
+                    parameters.measuredir,
+                    parameters.measurements;
+                    additional_string="_$(i-1)",
+                )
+                measurements_with_flow[i] = MeasurementMethods(
+                    U[i],
+                    parameters.measuredir,
+                    parameters.measurements_with_flow;
+                    flow=true,
+                    additional_string="_$(i-1)",
+                )
             else
-                measurements[i] = MeasurementMethods(U[i], parameters.measuredir, Dict[],
-                    additional_string = "_$(i-1)")
-                measurements_with_flow[i] = MeasurementMethods(U[i], parameters.measuredir,
-                    Dict[], additional_string="_$(i-1)")
+                measurements[i] = MeasurementMethods(
+                    U[i], parameters.measuredir, Dict[]; additional_string="_$(i-1)"
+                )
+                measurements_with_flow[i] = MeasurementMethods(
+                    U[i], parameters.measuredir, Dict[]; additional_string="_$(i-1)"
+                )
             end
         end
     else
-        gflow = GradientFlow(U, parameters.flow_integrator, parameters.flow_num,
-                             parameters.flow_steps, parameters.flow_tf,
-                             measure_every = parameters.flow_measure_every)
+        gflow = GradientFlow(
+            U,
+            parameters.flow_integrator,
+            parameters.flow_num,
+            parameters.flow_steps,
+            parameters.flow_tf;
+            measure_every=parameters.flow_measure_every,
+        )
 
         measurements = MeasurementMethods(U, parameters.measuredir, parameters.measurements)
-        measurements_with_flow = MeasurementMethods(U, parameters.measuredir,
-                                                    parameters.measurements_with_flow,
-                                                    flow = true)
+        measurements_with_flow = MeasurementMethods(
+            U, parameters.measuredir, parameters.measurements_with_flow; flow=true
+        )
     end
 
     # initialize functor responsible for saving gaugefield configurations
-    save_configs = SaveConfigs(parameters.saveU_format, parameters.saveU_dir,
-        parameters.saveU_every)
+    save_configs = SaveConfigs(
+        parameters.saveU_format, parameters.saveU_dir, parameters.saveU_every
+    )
 
     if parameters.tempering_enabled
-        metaqcd_PT!(parameters, univ, updatemethod, updatemethod_pt, gflow, measurements,
-            measurements_with_flow, parity, save_configs)
+        metaqcd_PT!(
+            parameters,
+            univ,
+            updatemethod,
+            updatemethod_pt,
+            gflow,
+            measurements,
+            measurements_with_flow,
+            parity,
+            save_configs,
+        )
     else
-        metaqcd!(parameters, univ, updatemethod, gflow, measurements,
-            measurements_with_flow, parity, save_configs)
+        metaqcd!(
+            parameters,
+            univ,
+            updatemethod,
+            gflow,
+            measurements,
+            measurements_with_flow,
+            parity,
+            save_configs,
+        )
     end
 
     return nothing
 end
 
-function metaqcd!(parameters, univ, updatemethod, gflow, measurements,
-    measurements_with_flow, parity, save_configs)
+function metaqcd!(
+    parameters,
+    univ,
+    updatemethod,
+    gflow,
+    measurements,
+    measurements_with_flow,
+    parity,
+    save_configs,
+)
     U = univ.U
     bias = univ.bias
 
@@ -118,7 +173,7 @@ function metaqcd!(parameters, univ, updatemethod, gflow, measurements,
 
     @level1("┌ Thermalization:")
     _, runtime_therm = @timed begin
-        for itrj in 1:parameters.numtherm
+        for itrj in 1:(parameters.numtherm)
             @level1("|  itrj = $itrj")
             _, updatetime = @timed begin # time each update iteration
                 update!(updatemethod, U; bias=nothing, metro_test=false)
@@ -133,13 +188,13 @@ function metaqcd!(parameters, univ, updatemethod, gflow, measurements,
     @level1("┌ Production:")
     _, runtime_all = @timed begin
         numaccepts = 0.0
-        for itrj in 1:parameters.numsteps
+        for itrj in 1:(parameters.numsteps)
             @level1("|  itrj = $itrj")
 
             _, updatetime = @timed begin
                 accepted = update!(updatemethod, U; bias=bias, metro_test=true)
-                rand()<0.5 && update!(parity, U)
-                accepted==true && update_bias!(bias, U.CV, itrj, true)
+                rand() < 0.5 && update!(parity, U)
+                accepted == true && update_bias!(bias, U.CV, itrj, true)
                 numaccepts += accepted
             end
 
@@ -149,11 +204,13 @@ function metaqcd!(parameters, univ, updatemethod, gflow, measurements,
             save_gaugefield(save_configs, U, itrj)
 
             _, mtime = @timed calc_measurements(measurements, U, itrj)
-            _, fmtime = @timed calc_measurements_flowed(measurements_with_flow, gflow, U, itrj)
+            _, fmtime = @timed calc_measurements_flowed(
+                measurements_with_flow, gflow, U, itrj
+            )
             calc_weights(bias, U.CV, itrj)
             @level1(
                 "|  Meas. elapsed time:     $(mtime)  [s]\n" *
-                "|  FlowMeas. elapsed time: $(fmtime) [s]"
+                    "|  FlowMeas. elapsed time: $(fmtime) [s]"
             )
         end
     end
@@ -164,13 +221,22 @@ function metaqcd!(parameters, univ, updatemethod, gflow, measurements,
     close(updatemethod)
     close(measurements)
     close(measurements_with_flow)
-    bias≢nothing && close(bias)
+    bias ≢ nothing && close(bias)
     close(Output.GlobalLogger[])
     return nothing
 end
 
-function metaqcd_PT!(parameters, univ, updatemethod, updatemethod_pt, gflow, measurements,
-    measurements_with_flow, parity, save_configs)
+function metaqcd_PT!(
+    parameters,
+    univ,
+    updatemethod,
+    updatemethod_pt,
+    gflow,
+    measurements,
+    measurements_with_flow,
+    parity,
+    save_configs,
+)
     numinstances = parameters.numinstances
     U = univ.U
     bias = univ.bias
@@ -183,14 +249,14 @@ function metaqcd_PT!(parameters, univ, updatemethod, updatemethod_pt, gflow, mea
 
     @level1("┌ Thermalization:")
     _, runtime_therm = @timed begin
-        for itrj in 1:parameters.numtherm
+        for itrj in 1:(parameters.numtherm)
             @level1("|  itrj = $itrj")
             _, updatetime = @timed begin
                 for i in reverse(1:numinstances)
                     # thermalize all streams with the updatemethod of stream 1
                     # shouldnt be a problem for HMC, since we force 0-friction
                     # for thermalization updates and reverse the order, so stream 1 is last
-                    update!(updatemethod, U[i], bias=nothing, metro_test=false, friction=0)
+                    update!(updatemethod, U[i]; bias=nothing, metro_test=false, friction=0)
                 end
             end
             @level1("|  Elapsed time:\t$(updatetime) [s]")
@@ -203,21 +269,21 @@ function metaqcd_PT!(parameters, univ, updatemethod, updatemethod_pt, gflow, mea
     @level1("┌ Production:")
     _, runtime_all = @timed begin
         numaccepts = zeros(numinstances)
-        numaccepts_temper = zeros(Int64, numinstances-1)
+        numaccepts_temper = zeros(Int64, numinstances - 1)
 
-        for itrj in 1:parameters.numsteps
+        for itrj in 1:(parameters.numsteps)
             @level1("|  itrj = $itrj")
             _, updatetime = @timed begin
                 tmp = 0.0
                 for _ in 1:rank0_updates
-                    tmp += update!(updatemethod, U[1], bias=nothing)
+                    tmp += update!(updatemethod, U[1]; bias=nothing)
                 end
-                numaccepts[1] += tmp/rank0_updates
-                rand()<0.5 && update!(parity, U[1])
+                numaccepts[1] += tmp / rank0_updates
+                rand() < 0.5 && update!(parity, U[1])
 
                 for i in 2:numinstances
-                    accepted = update!(updatemethod_pt, U[i], bias=bias[i])
-                    accepted==true && update_bias!(bias[i], U[i].CV, itrj, true)
+                    accepted = update!(updatemethod_pt, U[i]; bias=bias[i])
+                    accepted == true && update_bias!(bias[i], U[i].CV, itrj, true)
                     numaccepts[i] += accepted
                 end
             end
@@ -230,20 +296,23 @@ function metaqcd_PT!(parameters, univ, updatemethod, updatemethod_pt, gflow, mea
             save_gaugefield(save_configs, U[1], itrj)
 
             _, mtime = @timed calc_measurements(measurements, U, itrj)
-            _, fmtime = @timed calc_measurements_flowed(measurements_with_flow, gflow, U,
-                itrj, measure_on_all)
+            _, fmtime = @timed calc_measurements_flowed(
+                measurements_with_flow, gflow, U, itrj, measure_on_all
+            )
             calc_weights(bias, [U[i].CV for i in 1:numinstances], itrj)
-            @level1("|  Meas. elapsed time:     $(mtime)  [s]\n" *
-                    "|  FlowMeas. elapsed time: $(fmtime) [s]")
+            @level1(
+                "|  Meas. elapsed time:     $(mtime)  [s]\n" *
+                    "|  FlowMeas. elapsed time: $(fmtime) [s]"
+            )
         end
     end
 
     @level1("└\nTotal elapsed time:\t$(convert_seconds(runtime_all))\n@ $(current_time())")
     flush(stdout)
     close(updatemethod)
-    [close(m)  for m in measurements]
+    [close(m) for m in measurements]
     [close(mf) for mf in measurements_with_flow]
-    [close(b)  for b in bias]
+    [close(b) for b in bias]
     close(Output.GlobalLogger[])
     return nothing
 end

@@ -42,10 +42,10 @@ function Univ(p::ParameterSet; use_mpi=false)
     @level1("|  beta: $β")
 
     if p.kind_of_bias != "none"
-        if p.tempering_enabled && use_mpi==false
+        if p.tempering_enabled && use_mpi == false
             numinstances = p.numinstances
             @level1("|  Using 1 + $(numinstances-1) instances\n")
-            U₁ = initial_gauges(initial, NX, NY, NZ, NT, β, BACKEND=B, T=T, GA=GA)
+            U₁ = initial_gauges(initial, NX, NY, NZ, NT, β; BACKEND=B, T=T, GA=GA)
             bias₁ = Bias(p, U₁; instance=0) # instance=0 -> dummy bias for non-MetaD stream
 
             U = Vector{typeof(U₁)}(undef, numinstances)
@@ -54,27 +54,27 @@ function Univ(p::ParameterSet; use_mpi=false)
             bias[1] = bias₁
             U[1] = U₁
             for i in 2:numinstances
-                U[i] = initial_gauges(initial, NX, NY, NZ, NT, β, BACKEND=B, T=T, GA=GA)
-                bias[i] = Bias(p, U[i]; instance=i-1)
+                U[i] = initial_gauges(initial, NX, NY, NZ, NT, β; BACKEND=B, T=T, GA=GA)
+                bias[i] = Bias(p, U[i]; instance=i - 1)
             end
         else
             numinstances = 1
-            U = initial_gauges(initial, NX, NY, NZ, NT, β, BACKEND=B, T=T, GA=GA)
+            U = initial_gauges(initial, NX, NY, NZ, NT, β; BACKEND=B, T=T, GA=GA)
             bias = Bias(p, U)
         end
     else
         @assert p.tempering_enabled == false "tempering can only be enabled with bias"
         numinstances = 1
-        U = initial_gauges(initial, NX, NY, NZ, NT, β, BACKEND=B, T=T, GA=GA)
+        U = initial_gauges(initial, NX, NY, NZ, NT, β; BACKEND=B, T=T, GA=GA)
         bias = nothing
     end
 
     @level1("└\n")
-    return Univ{typeof(U), typeof(bias)}(U, bias, numinstances)
+    return Univ{typeof(U),typeof(bias)}(U, bias, numinstances)
 end
 
 function get_backend_from_string(backend::String)
-    backend_str = Unicode.normalize(backend, casefold=true)
+    backend_str = Unicode.normalize(backend; casefold=true)
 
     if backend_str == "cpu"
         backend = CPU
@@ -98,7 +98,7 @@ function get_backend_from_string(backend::String)
 end
 
 function get_floatT_from_string(float_type::String)
-    float_type_str = Unicode.normalize(float_type, casefold=true)
+    float_type_str = Unicode.normalize(float_type; casefold=true)
 
     if float_type_str ∈ ("float64", "double")
         FloatT = Float64
@@ -114,14 +114,14 @@ function get_floatT_from_string(float_type::String)
 end
 
 function get_gaugeaction_from_string(gaction::String)
-    kind_of_gaction = Unicode.normalize(gaction, casefold=true)
+    kind_of_gaction = Unicode.normalize(gaction; casefold=true)
 
     if kind_of_gaction == "wilson"
         GA = WilsonGaugeAction
     elseif kind_of_gaction == "symanzik_tree"
         GA = SymanzikTreeGaugeAction
-    # elseif kind_of_gaction == "symanzik_tadpole"
-    #     GA = SymanzikTadGaugeAction
+        # elseif kind_of_gaction == "symanzik_tadpole"
+        #     GA = SymanzikTadGaugeAction
     elseif kind_of_gaction == "iwasaki"
         GA = IwasakiGaugeAction
     elseif kind_of_gaction == "dbw2"

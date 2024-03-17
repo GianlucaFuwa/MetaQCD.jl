@@ -1,6 +1,7 @@
-function temper!(U::Vector{TG}, bias::Vector{TB}, numaccepts_temper, swap_every, itrj;
-                 recalc = false) where {TG<:Gaugefield, TB<:Bias}
-    itrj%swap_every!=0 && return nothing
+function temper!(
+    U::Vector{TG}, bias::Vector{TB}, numaccepts_temper, swap_every, itrj; recalc=false
+) where {TG<:Gaugefield,TB<:Bias}
+    itrj % swap_every != 0 && return nothing
     numinstances = length(U)
     recalc && recalc_CV!(U[1], bias[1])
 
@@ -13,7 +14,7 @@ function temper!(U::Vector{TG}, bias::Vector{TB}, numaccepts_temper, swap_every,
         cv2 = U2.CV
         ΔV1 = bias1(cv2) - bias1(cv1)
         ΔV2 = bias2(cv1) - bias2(cv2)
-        acc_prob = exp(-ΔV1-ΔV2)
+        acc_prob = exp(-ΔV1 - ΔV2)
         @level1("|  ΔV$(i) = $(ΔV1)\tΔV$(i-1) = $(ΔV2)")
 
         if rand() ≤ acc_prob
@@ -26,7 +27,9 @@ function temper!(U::Vector{TG}, bias::Vector{TB}, numaccepts_temper, swap_every,
             println("# swap rejected")
         end
 
-        @level1( "|  Acceptance [$i ⇔  $(i-1)]:\t$(100numaccepts_temper[i-1] / (itrj/swap_every)) %")
+        @level1(
+            "|  Acceptance [$i ⇔  $(i-1)]:\t$(100numaccepts_temper[i-1] / (itrj/swap_every)) %"
+        )
     end
 
     return nothing
@@ -44,9 +47,9 @@ function swap_U!(a, b)
 
     @batch for site in eachindex(a)
         for μ in 1:4
-            a_tmp = a[μ,site]
-            a[μ,site] = b[μ,site]
-            b[μ,site] = a_tmp
+            a_tmp = a[μ, site]
+            a[μ, site] = b[μ, site]
+            b[μ, site] = a_tmp
         end
     end
 

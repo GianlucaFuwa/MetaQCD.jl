@@ -1,5 +1,6 @@
-struct2dict(x::T) where {T} =
-    Dict{String,Any}(string(fn) => getfield(x, fn) for fn in fieldnames(T))
+function struct2dict(x::T) where {T}
+    return Dict{String,Any}(string(fn) => getfield(x, fn) for fn in fieldnames(T))
+end
 
 abstract type MeasurementParameters end
 
@@ -39,17 +40,17 @@ Base.@kwdef mutable struct WilsonLoopParameters <: MeasurementParameters
 end
 
 function initialize_measurement_parameters(methodname)
-    if Unicode.normalize(methodname, casefold = true) == "gauge_action"
+    if Unicode.normalize(methodname; casefold=true) == "gauge_action"
         method = GaugeActionParameters()
-    elseif Unicode.normalize(methodname, casefold = true) == "plaquette"
+    elseif Unicode.normalize(methodname; casefold=true) == "plaquette"
         method = PlaquetteParameters()
-    elseif Unicode.normalize(methodname, casefold = true) == "polyakov_loop"
+    elseif Unicode.normalize(methodname; casefold=true) == "polyakov_loop"
         method = PolyakovParameters()
-    elseif Unicode.normalize(methodname, casefold = true) == "wilson_loop"
+    elseif Unicode.normalize(methodname; casefold=true) == "wilson_loop"
         method = WilsonLoopParameters()
-    elseif Unicode.normalize(methodname, casefold = true) == "topological_charge"
+    elseif Unicode.normalize(methodname; casefold=true) == "topological_charge"
         method = TopologicalChargeParameters()
-    elseif Unicode.normalize(methodname, casefold = true) == "energy_density"
+    elseif Unicode.normalize(methodname; casefold=true) == "energy_density"
         method = EnergyDensityParameters()
     else
         error("$methodname is not implemented")
@@ -77,22 +78,22 @@ end
 
 function prepare_measurement(U, meas_parameters::T, filename="", flow=false) where {T}
     if T == GaugeActionParameters
-        filename_input = ifelse(filename=="", "gauge_action.txt", filename)
+        filename_input = ifelse(filename == "", "gauge_action.txt", filename)
         measurement = GaugeActionMeasurement(U, meas_parameters, filename_input, flow)
     elseif T == PlaquetteParameters
-        filename_input = ifelse(filename=="", "plaquette.txt", filename)
+        filename_input = ifelse(filename == "", "plaquette.txt", filename)
         measurement = PlaquetteMeasurement(U, meas_parameters, filename_input, flow)
     elseif T == PolyakovParameters
-        filename_input = ifelse(filename=="", "polyakov_loop.txt", filename)
+        filename_input = ifelse(filename == "", "polyakov_loop.txt", filename)
         measurement = PolyakovMeasurement(U, meas_parameters, filename_input, flow)
     elseif T == TopologicalChargeParameters
-        filename_input = ifelse(filename=="", "topological_charge.txt", filename)
+        filename_input = ifelse(filename == "", "topological_charge.txt", filename)
         measurement = TopologicalChargeMeasurement(U, meas_parameters, filename_input, flow)
     elseif T == WilsonLoopParameters
-        filename_input = ifelse(filename=="", "wilson_loop.txt", filename)
+        filename_input = ifelse(filename == "", "wilson_loop.txt", filename)
         measurement = WilsonLoopMeasurement(U, meas_parameters, filename_input, flow)
     elseif T == EnergyDensityParameters
-        filename_input = ifelse(filename=="", "energy_density.txt", filename)
+        filename_input = ifelse(filename == "", "energy_density.txt", filename)
         measurement = EnergyDensityMeasurement(U, meas_parameters, filename_input, flow)
     else
         error(T, " is not supported in measurements")

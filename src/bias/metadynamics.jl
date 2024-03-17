@@ -19,7 +19,7 @@ must be ordered \\
 struct Metadynamics <: AbstractBias
     symmetric::Bool
     stride::Int64
-    cvlims::NTuple{2, Float64}
+    cvlims::NTuple{2,Float64}
 
     biasfactor::Float64
     bin_width::Float64
@@ -30,16 +30,23 @@ struct Metadynamics <: AbstractBias
     values::Vector{Float64}
 end
 
-function Metadynamics(; symmetric=true, stride=1, cvlims=(-6, 6), biasfactor=Inf,
-                        bin_width=0.1, weight=0.01, penalty_weight=1000)
+function Metadynamics(;
+    symmetric=true,
+    stride=1,
+    cvlims=(-6, 6),
+    biasfactor=Inf,
+    bin_width=0.1,
+    weight=0.01,
+    penalty_weight=1000,
+)
     @level1("|  STRIDE: $(stride)")
-    @assert stride>0 "STRIDE must be >0"
+    @assert stride > 0 "STRIDE must be >0"
     @level1("|  CVLIMS: $(cvlims)")
     @assert issorted(cvlims) "CVLIMS must be sorted from low to high"
     @level1("|  BIN_WIDTH: $(bin_width)")
     @assert bin_width > 0 "BIN_WIDTH must be > 0"
 
-    bin_vals = range(cvlims[1], cvlims[2], step=bin_width)
+    bin_vals = range(cvlims[1], cvlims[2]; step=bin_width)
     values = zero(bin_vals)
 
     @level1("|  META_WEIGHT: $(weight)")
@@ -47,16 +54,24 @@ function Metadynamics(; symmetric=true, stride=1, cvlims=(-6, 6), biasfactor=Inf
     @level1("|  PENALTY_WEIGHT: $(penalty_weight)")
     @level1("|  BIASFACTOR: $(biasfactor)")
     @assert biasfactor > 1 "BIASFACTOR must be > 1"
-    return Metadynamics(symmetric, stride,
-                        cvlims, biasfactor, bin_width, weight, penalty_weight,
-                        bin_vals, values)
+    return Metadynamics(
+        symmetric,
+        stride,
+        cvlims,
+        biasfactor,
+        bin_width,
+        weight,
+        penalty_weight,
+        bin_vals,
+        values,
+    )
 end
 
 function Metadynamics(p::ParameterSet; instance=1)
     symmetric = p.symmetric
     stride = p.stride
     @level1("|  STRIDE: $(stride)")
-    @assert stride>0 "STRIDE must be >0"
+    @assert stride > 0 "STRIDE must be >0"
 
     @level1("|  CVLIMS: $(p.cvlims)")
     @assert issorted(p.cvlims) "CVLIMS must be sorted from low to high"
@@ -80,9 +95,17 @@ function Metadynamics(p::ParameterSet; instance=1)
     biasfactor = p.biasfactor
     @level1("|  BIASFACTOR: $(biasfactor)")
     @assert biasfactor > 1 "BIASFACTOR must be > 1"
-    return Metadynamics(symmetric, stride,
-                        p.cvlims, biasfactor, p.bin_width, p.meta_weight, p.penalty_weight,
-                        bin_vals, values)
+    return Metadynamics(
+        symmetric,
+        stride,
+        p.cvlims,
+        biasfactor,
+        p.bin_width,
+        p.meta_weight,
+        p.penalty_weight,
+        bin_vals,
+        values,
+    )
 end
 
 Base.length(m::Metadynamics) = length(m.values)
@@ -90,7 +113,7 @@ Base.eachindex(m::Metadynamics) = eachindex(m.values)
 Base.lastindex(m::Metadynamics) = lastindex(m.values)
 
 function Base.setindex!(m::Metadynamics, v, i)
-    m.values[i] = v
+    return m.values[i] = v
 end
 
 @inline function Base.getindex(m::Metadynamics, i)
@@ -134,7 +157,7 @@ function return_potential(m::Metadynamics, cv)
     if in_bounds(cv, lb, ub)
         idx = index(m, cv)
         interpolation_constant = (cv - m.bin_vals[idx]) / bw
-        return m[idx] * (1 - interpolation_constant) + interpolation_constant * m[idx+1]
+        return m[idx] * (1 - interpolation_constant) + interpolation_constant * m[idx + 1]
     elseif cv < lb
         penalty = m[1] + pen * (cv - lb)^2
         return penalty
@@ -146,7 +169,7 @@ end
 
 function ∂V∂Q(m::Metadynamics, cv)
     bw = m.bin_width
-    num = -m(cv+2bw) + 8m(cv+bw) - 8m(cv-bw) + m(cv-2bw)
+    num = -m(cv + 2bw) + 8m(cv + bw) - 8m(cv - bw) + m(cv - 2bw)
     denom = 12bw
     return num / denom
 end
@@ -162,7 +185,7 @@ end
 write_to_file(::Metadynamics, ::Nothing) = nothing
 
 function write_to_file(m::Metadynamics, filename::String)
-    filename=="" && return nothing
+    filename == "" && return nothing
     (tmppath, tmpio) = mktemp() # open temporary file at arbitrary location in storage
     println(tmpio, "$(rpad("CV", 7))\t$(rpad("V(CV)", 7))")
 
@@ -171,20 +194,20 @@ function write_to_file(m::Metadynamics, filename::String)
     end
 
     close(tmpio)
-    mv(tmppath, filename, force=true) # replace bias file with temporary file
+    mv(tmppath, filename; force=true) # replace bias file with temporary file
     return nothing
 end
 
 function metad_from_file(p::ParameterSet, usebias)
     if usebias == ""
-        bin_vals = range(p.cvlims[1], p.cvlims[2], step=p.bin_width)
+        bin_vals = range(p.cvlims[1], p.cvlims[2]; step=p.bin_width)
         values = zero(bin_vals)
         println("\t>> initialized as zeros")
         return bin_vals, values
     else
-        values, _ = readdlm(usebias, Float64, header=true)
-        bin_vals = range(p.cvlims[1], p.cvlims[2], step=p.bin_width)
-        @assert length(values[:, 2])==length(bin_vals) "your bias doesn't match parameters"
+        values, _ = readdlm(usebias, Float64; header=true)
+        bin_vals = range(p.cvlims[1], p.cvlims[2]; step=p.bin_width)
+        @assert length(values[:, 2]) == length(bin_vals) "your bias doesn't match parameters"
         println("\t>> initialized from \"$(usebias)\"")
         return bin_vals, values[:, 2]
     end

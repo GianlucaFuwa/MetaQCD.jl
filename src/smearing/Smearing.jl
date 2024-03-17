@@ -25,7 +25,7 @@ using ..Output
 using ..Utils
 
 import ..Gaugefields: AbstractGaugeAction, CoeffField, Gaugefield, Temporaryfield
-import ..Gaugefields: leftmul_dagg!, staple, staple_eachsite!, substitute_U!, @groupreduce
+import ..Gaugefields: leftmul_dagg!, staple, staple_eachsite!, @groupreduce
 import ..Gaugefields: Abstractfield, dims, float_type, CUDA.i32, @latmap
 
 abstract type AbstractSmearing end

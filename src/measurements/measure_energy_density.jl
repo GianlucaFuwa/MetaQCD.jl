@@ -1,15 +1,10 @@
 struct EnergyDensityMeasurement{T} <: AbstractMeasurement
-    ED_dict::Dict{String, Float64} # energy density definition => value
+    ED_dict::Dict{String,Float64} # energy density definition => value
     fp::T # file pointer
-
     function EnergyDensityMeasurement(
-        ::Gaugefield;
-        filename = "",
-        printvalues = false,
-        ED_methods = ["clover"],
-        flow = false,
+        ::Gaugefield; filename="", printvalues=false, ED_methods=["clover"], flow=false
     )
-        ED_dict = Dict{String, Float64}()
+        ED_dict = Dict{String,Float64}()
         for method in ED_methods
             ED_dict[method] = 0.0
         end
@@ -37,9 +32,13 @@ struct EnergyDensityMeasurement{T} <: AbstractMeasurement
 end
 
 function EnergyDensityMeasurement(U, params::EnergyDensityParameters, filename, flow=false)
-    return EnergyDensityMeasurement(U, filename = filename, printvalues = true,
-                                    ED_methods = params.kinds_of_energy_density,
-                                    flow = flow)
+    return EnergyDensityMeasurement(
+        U;
+        filename=filename,
+        printvalues=true,
+        ED_methods=params.kinds_of_energy_density,
+        flow=flow,
+    )
 end
 
 function measure(m::EnergyDensityMeasurement{T}, U; additional_string="") where {T}
@@ -84,9 +83,9 @@ end
 function energy_density(::Plaquette, U::Gaugefield{CPU})
     E = 0.0
 
-    @batch reduction=(+, E) for site in eachindex(U)
+    @batch reduction = (+, E) for site in eachindex(U)
         for μ in 1:3
-            for ν in μ+1:4
+            for ν in (μ+1):4
                 Cμν = plaquette(U, μ, ν, site)
                 Fμν = im * traceless_antihermitian(Cμν)
                 E += real(multr(Fμν, Fμν))
@@ -100,9 +99,9 @@ end
 function energy_density(::Clover, U::Gaugefield{CPU})
     E = 0.0
 
-    @batch reduction=(+, E) for site in eachindex(U)
+    @batch reduction = (+, E) for site in eachindex(U)
         for μ in 1:3
-            for ν in μ+1:4
+            for ν in (μ+1):4
                 Cμν = clover_square(U, μ, ν, site, 1)
                 Fμν = im * 1//4 * traceless_antihermitian(Cμν)
                 E += real(multr(Fμν, Fμν))
@@ -116,15 +115,15 @@ end
 function energy_density(::Improved, U::Gaugefield{CPU})
     Eclover = energy_density(Clover(), U)
     Erect = energy_density_rect(U)
-    return 5/3*Eclover - 1/12*Erect
+    return 5 / 3 * Eclover - 1 / 12 * Erect
 end
 
 function energy_density_rect(U::Gaugefield{CPU})
     E = 0.0
 
-    @batch reduction=(+, E) for site in eachindex(U)
+    @batch reduction = (+, E) for site in eachindex(U)
         for μ in 1:3
-            for ν in μ+1:4
+            for ν in (μ+1):4
                 Cμν = clover_rect(U, μ, ν, site, 1, 2)
                 Fμν = im * 1//8 * traceless_antihermitian(Cμν)
                 E += real(multr(Fμν, Fμν))

@@ -1,4 +1,4 @@
-# Dirac-Basis γ matrices
+# Chiral(Weyl)-Basis γ matrices
 const γ₁ = @SArray [
     0 0 0 1
     0 0 1 0
@@ -27,18 +27,25 @@ const γ₄ = @SArray [
     0 0 0 -1
 ]
 
+const γ₅ = @SArray [
+    -1 0 0 0
+    0 -1 0 0
+    0 0 1 0
+    0 0 0 1
+]
+
 const σ₁ = @SArray [
     0 1
     1 0
 ]
 
 const σ₂ = @SArray [
-    0  -im
-    im  0
+    0 -im
+    im 0
 ]
 
 const σ₃ = @SArray [
-    1  0
+    1 0
     0 -1
 ]
 
@@ -183,7 +190,7 @@ function expλ₇(α)
 end
 
 function expλ₈(α)
-    φ = 0.5/sqrt(3) * α
+    φ = 0.5 / sqrt(3) * α
     expiφ = cis(φ)
 
     out = @SMatrix [
