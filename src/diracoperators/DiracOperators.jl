@@ -8,7 +8,7 @@ using ..CG
 using ..Output
 using ..Utils
 
-import ..Gaugefields: CPU, Fermionfield, Gaugefield, dims
+import ..Gaugefields: Fermionfield, Gaugefield, dims
 
 abstract type AbstractDiracOperator end
 abstract type AbstractFermionAction end

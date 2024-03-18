@@ -1,6 +1,6 @@
 mutable struct StaggeredDiracOperator{B,T,TG,TT} <: AbstractDiracOperator
     U::TG
-    temp::TT
+    temp::TT # temp for storage of intermediate result for Hermitian operator
     mass::Float64
     function StaggeredDiracOperator(U::Gaugefield{B,T}, mass) where {B,T}
         temp = Fermionfield(U, true)
@@ -10,16 +10,26 @@ end
 
 const StaggeredFermionfield{B,T,A} = Fermionfield{B,T,A,1}
 
-struct StaggeredFermionAction{TD,TT} <: AbstractFermionAction
+struct StaggeredFermionAction{Nf,TD,TT} <: AbstractFermionAction
     D::TD
-    temp1::TT
-    temp2::TT
-    function StaggeredFermionAction(U, mass)
+    temp1::TT # temp for A*p in cg
+    temp2::TT # temp for r in cg
+    temp3::TT # temp for p in cg
+    function StaggeredFermionAction(U, mass; Nf=4)
         D = StaggeredDiracOperator(U, mass)
         temp1 = Fermionfield(U, true)
-        temp2 = Fermionfield(U, true)
-        return new{typeof(D)}(D, temp1, temp2)
+        temp2 = Fermionfield(temp1)
+        temp3 = Fermionfield(temp1)
+        return new{Nf,typeof(D),typeof(temp1)}(D, temp1, temp2, temp3)
     end
+end
+
+get_cg_temps(action::StaggeredFermionAction) = action.temp1, action.temp2, action.temp3
+
+function calc_fermion_action(
+    fermion_action::StaggeredFermionAction, ψ::StaggeredFermionfield
+)
+    return nothing
 end
 
 function LinearAlgebra.mul!(
