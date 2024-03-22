@@ -99,7 +99,7 @@ end
     siteμ⁻ = move(site, 4, -1, NT)
     η = sgn * staggered_η(Val(4), site)
     ϕₙ += η * (cmvmul(U[4, site], ψ[siteμ⁺]) - cmvmul_d(U[4, siteμ⁻], ψ[siteμ⁻]))
-    return 1//2 * ϕₙ
+    return T(0.5) * ϕₙ
 end
 
 # Use Val to reduce the amount of if-statements in the kernel

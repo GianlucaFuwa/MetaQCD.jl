@@ -97,7 +97,7 @@ end
     siteμ⁻ = move(site, 4, -1, NT)
     ϕₙ += cmvmul_spin_proj(U[4, site], ψ[siteμ⁺], Val(-4))
     ϕₙ += cmvmul_spin_proj(U[4, siteμ⁻], ψ[siteμ⁻], Val(4), Val(true))
-    return 1//2 * ϕₙ
+    return T(0.5) * ϕₙ
 end
 
 @inline function wilson_kernel_dagg(U, ψ, site, mass, T)
@@ -112,7 +112,7 @@ end
     siteμ⁺ = move(site, 2, 1, NY)
     siteμ⁻ = move(site, 2, -1, NY)
     ϕₙ += cmvmul_spin_proj(U[2, siteμ⁻], ψ[siteμ⁻], Val(-2), Val(true))
-    ϕₙ += cmvmul_spin_proj(U[2, site], ψ[siteμ⁺], Val(2)) 
+    ϕₙ += cmvmul_spin_proj(U[2, site], ψ[siteμ⁺], Val(2))
     siteμ⁺ = move(site, 3, 1, NZ)
     siteμ⁻ = move(site, 3, -1, NZ)
     ϕₙ += cmvmul_spin_proj(U[3, siteμ⁻], ψ[siteμ⁻], Val(-3), Val(true))
@@ -121,5 +121,5 @@ end
     siteμ⁻ = move(site, 4, -1, NT)
     ϕₙ += cmvmul_spin_proj(U[4, siteμ⁻], ψ[siteμ⁻], Val(-4), Val(true))
     ϕₙ += cmvmul_spin_proj(U[4, site], ψ[siteμ⁺], Val(4))
-    return 1//2 * ϕₙ
+    return T(0.5) * ϕₙ
 end
