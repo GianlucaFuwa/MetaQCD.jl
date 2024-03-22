@@ -12,7 +12,12 @@ include("test_meas.jl")
 include("test_derivative.jl")
 include("test_update.jl")
 include("test_gflow.jl")
+include("test_clinalg.jl")
 # include("test_reversibility.jl")
+
+@testset "Linear Algebra Tests" begin
+    SU3testlinalg()
+end
 
 @testset "CPU Tests" begin
     # CUDA.allowscalar(false)
@@ -53,5 +58,5 @@ end
 end
 
 if VERSION >= v"1.9"
-    Aqua.test_all(MetaQCD, stale_deps=false, ambiguities=false)
+    Aqua.test_all(MetaQCD; stale_deps=false, ambiguities=false)
 end

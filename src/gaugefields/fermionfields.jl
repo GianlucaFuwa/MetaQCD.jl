@@ -23,7 +23,7 @@ struct Fermionfield{BACKEND,T,A,ND} <: Abstractfield{BACKEND,T,A}
     function Fermionfield(NX, NY, NZ, NT; BACKEND=CPU, T=Float64, staggered=false)
         @assert BACKEND ∈ SUPPORTED_BACKENDS "Only CPU, CUDABackend or ROCBackend supported!"
         ND = staggered ? 1 : 4
-        U = KA.zeros(BACKEND(), SVector{3,Complex{T}}, ND, NX, NY, NZ, NT)
+        U = KA.zeros(BACKEND(), SVector{3ND,Complex{T}}, NX, NY, NZ, NT)
         NV = NX * NY * NZ * NT
         return new{BACKEND,T,typeof(U),ND}(U, NX, NY, NZ, NT, NV, 3, ND)
     end
@@ -38,29 +38,25 @@ function Fermionfield(f::Abstractfield{BACKEND,T}, staggered) where {BACKEND,T}
     return Fermionfield(dims(f)...; BACKEND=BACKEND, T=T, staggered=staggered)
 end
 
-float_type(::AbstractArray{SVector{3,Complex{T}},5}) where {T} = T
+# Need to overload dims and size again, because we are using 4D arrays for fermions
+@inline dims(f::AbstractArray{SVector{N,Complex{T}},4}) where {N,T} =
+    NTuple{4,Int64}((size(f, 1), size(f, 2), size(f, 3), size(f, 4)))
+Base.size(f::AbstractArray{SVector{N,Complex{T}},4}) where {N,T} = dims(f)
+float_type(::AbstractArray{SVector{N,Complex{T}},4}) where {N,T} = T
 num_dirac(::Fermionfield{B,T,A,ND}) where {B,T,A,ND} = ND
 Base.similar(f::Fermionfield) = Fermionfield(f)
 
 function clear!(ψ::Fermionfield{CPU,T}) where {T}
-    ND = ψ.ND
-
     @batch for site in eachindex(ψ)
-        for μ in 1:ND
-            ψ[μ, site] = zerov3(T)
-        end
+        ψ[site] = zero(ψ[site])
     end
 
     return nothing
 end
 
 function ones!(ψ::Fermionfield{CPU,T}) where {T}
-    ND = ψ.ND
-
     @batch for site in eachindex(ψ)
-        for μ in 1:ND
-            ψ[μ, site] = onev3(T)
-        end
+        ψ[site] = fill(1, ψ[site])
     end
 
     return nothing
@@ -68,36 +64,28 @@ end
 
 function Base.copy!(ϕ::T, ψ::T) where {T<:Fermionfield{CPU}}
     @assert dims(ϕ) == dims(ψ)
-    ND = ϕ.ND
 
     @batch for site in eachindex(ϕ)
-        for μ in 1:ND
-            ϕ[μ, site] = ψ[μ, site]
-        end
+        ϕ[site] = ψ[site]
     end
 
     return nothing
 end
 
 function gaussian_pseudofermions!(f::Fermionfield{CPU,T}) where {T}
-    ND = f.ND
+    sz = f.ND * f.NC
 
     @batch for site in eachindex(f)
-        for μ in 1:ND
-            f[μ, site] = @SVector randn(Complex{T}, 3) # σ = 0.5
-        end
+        f[site] = @SVector randn(Complex{T}, sz) # σ = 0.5
     end
 end
 
 function LinearAlgebra.axpy!(α, ψ::T, ϕ::T) where {T<:Fermionfield{CPU}}
     @assert dims(ϕ) == dims(ψ)
-    ND = ϕ.ND
     α = float_type(ϕ)(α)
 
     @batch for site in eachindex(ϕ)
-        for μ in 1:ND
-            ϕ[μ, site] += α * ψ[μ, site]
-        end
+        ϕ[site] += α * ψ[site]
     end
 
     return nothing
@@ -105,14 +93,11 @@ end
 
 function LinearAlgebra.axpby!(α, ψ::T, β, ϕ::T) where {T<:Fermionfield{CPU}}
     @assert dims(ϕ) == dims(ψ)
-    ND = ϕ.ND
     α = float_type(ϕ)(α)
     β = float_type(ϕ)(β)
 
     @batch for site in eachindex(ϕ)
-        for μ in 1:ND
-            ϕ[μ, site] = α * ψ[μ, site] + β * ϕ[μ, site]
-        end
+        ϕ[site] = α * ψ[site] + β * ϕ[site]
     end
 
     return nothing
@@ -120,13 +105,10 @@ end
 
 function LinearAlgebra.dot(ϕ::T, ψ::T) where {T<:Fermionfield{CPU}}
     @assert dims(ϕ) == dims(ψ)
-    ND = ϕ.ND
     res = 0.0 + 0.0im # res is always double precision, even if T is single precision
 
     @batch reduction = (+, res) for site in eachindex(ϕ)
-        for μ in 1:ND
-            res += cdot(ϕ[μ, site], ψ[μ, site])
-        end
+        res += cdot(ϕ[site], ψ[site])
     end
 
     return res

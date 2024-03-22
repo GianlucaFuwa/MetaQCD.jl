@@ -4,6 +4,7 @@ using CUDA: i32
 using KernelAbstractions # With this we can write generic GPU kernels for ROC and CUDA
 using LinearAlgebra
 using Polyester
+using StaticArrays
 using ..CG
 using ..Output
 using ..Utils
@@ -12,6 +13,8 @@ import ..Gaugefields: Fermionfield, Gaugefield, dims
 
 abstract type AbstractDiracOperator end
 abstract type AbstractFermionAction end
+
+get_cg_temps(action::AbstractFermionAction) = action.temp1, action.temp2, action.temp3
 
 """
     Daggered(D::AbstractDiracOperator)
@@ -62,6 +65,6 @@ function solve_D⁻¹x!(ϕ, D, ψ, temps...)
 end
 
 include("staggered.jl")
-# include("wilson.jl")
+include("wilson.jl")
 
 end

@@ -43,4 +43,10 @@ function cg!(x, b, A, Ap, r, p; tol=TOLERANCE[], maxiter=MAX_ITERATIONS[])
     return nothing
 end
 
+function shifted_cg! end
+
+function bicg! end
+
+function bicg_stab! end
+
 end # module CG

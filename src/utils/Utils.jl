@@ -44,7 +44,7 @@ export cmatmul_oooo,
     cmatmul_ddod,
     cmatmul_dodd,
     cmatmul_dddd
-export cdot, cmvmul, cmvmul_d, cvmmul, cvmmul_d
+export cdot, cmvmul, cmvmul_d, cvmmul, cvmmul_d, ckron, cmvmul_spin_proj
 export _unwrap_val, SU
 
 abstract type AbstractIterator end
@@ -127,7 +127,7 @@ Calculate the trace of the product of two SU(N) matrices `A` and `B` of precisio
     re = zero(T)
     im = zero(T)
 
-    @turbo for i ∈ Base.Slice(static(1):static(N)), j ∈ Base.Slice(static(1):static(N))
+    @turbo for i in Base.Slice(static(1):static(N)), j in Base.Slice(static(1):static(N))
         re += a[1, i, j] * b[1, j, i] - a[2, i, j] * b[2, j, i]
         im += a[1, i, j] * b[2, j, i] + a[2, i, j] * b[1, j, i]
     end
@@ -135,9 +135,8 @@ Calculate the trace of the product of two SU(N) matrices `A` and `B` of precisio
     return Complex{T}(re, im)
 end
 
-# include("generics.jl")
-include("matmul.jl")
-include("linalg.jl")
+include("simd_matmul.jl")
+include("simd_vecops.jl")
 include("generators.jl")
 include("exp.jl")
 include("projections.jl")

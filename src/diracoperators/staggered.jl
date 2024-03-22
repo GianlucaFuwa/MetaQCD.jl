@@ -24,12 +24,15 @@ struct StaggeredFermionAction{Nf,TD,TT} <: AbstractFermionAction
     end
 end
 
-get_cg_temps(action::StaggeredFermionAction) = action.temp1, action.temp2, action.temp3
-
 function calc_fermion_action(
     fermion_action::StaggeredFermionAction, ψ::StaggeredFermionfield
 )
-    return nothing
+    D = fermion_action.D
+    DdagD = Hermitian(D)
+    temp1, temp2, temp3 = get_cg_temps(fermion_action)
+    solve_D⁻¹x!(temp1, DdagD, ψ, temp2, temp3)
+    mul!(temp2, D, ψ)
+    return real(dot(ψ, temp2))
 end
 
 function LinearAlgebra.mul!(
@@ -38,11 +41,11 @@ function LinearAlgebra.mul!(
     ψ::StaggeredFermionfield{CPU,T},
 ) where {T}
     U = D.U
-    mass = T(D.mass)
+    mass = D.mass
     @assert dims(ϕ) == dims(ψ) == dims(U)
 
     @batch for site in eachindex(ϕ)
-        ϕ[1, site] = staggered_kernel(U, ψ, site, mass, T)
+        ϕ[site] = staggered_kernel(U, ψ, site, mass, T)
     end
 
     return nothing
@@ -54,11 +57,11 @@ function LinearAlgebra.mul!(
     ψ::StaggeredFermionfield{CPU,T},
 ) where {T,TG,TF}
     U = D.parent.U
-    mass = T(D.parent.mass)
+    mass = D.parent.mass
     @assert dims(ϕ) == dims(ψ) == dims(U)
 
     @batch for site in eachindex(ϕ)
-        ϕ[1, site] = staggered_kernel(U, ψ, site, mass, T, -1)
+        ϕ[site] = staggered_kernel(U, ψ, site, mass, T, -1)
     end
 
     return nothing
@@ -77,29 +80,26 @@ end
 
 @inline function staggered_kernel(U, ψ, site, mass, T, sgn=1)
     NX, NY, NZ, NT = dims(U)
-    ϕₙ = 2mass * ψ[1, site]
+    ϕₙ = T(2mass) * ψ[site]
     # Cant do a for loop here because Val(μ) cannot be known at compile time and is 
     # therefore dynamically dispatched
     siteμ⁺ = move(site, 1, 1, NX)
     siteμ⁻ = move(site, 1, -1, NX)
     η = sgn * staggered_η(Val(1), site)
-    ϕₙ += η * (cmvmul(U[1, site], ψ[1, siteμ⁺]) - cmvmul_d(U[1, siteμ⁻], ψ[1, siteμ⁻]))
-
+    ϕₙ += η * (cmvmul(U[1, site], ψ[siteμ⁺]) - cmvmul_d(U[1, siteμ⁻], ψ[siteμ⁻]))
     siteμ⁺ = move(site, 2, 1, NY)
     siteμ⁻ = move(site, 2, -1, NY)
     η = sgn * staggered_η(Val(2), site)
-    ϕₙ += η * (cmvmul(U[2, site], ψ[1, siteμ⁺]) - cmvmul_d(U[2, siteμ⁻], ψ[1, siteμ⁻]))
-
+    ϕₙ += η * (cmvmul(U[2, site], ψ[siteμ⁺]) - cmvmul_d(U[2, siteμ⁻], ψ[siteμ⁻]))
     siteμ⁺ = move(site, 3, 1, NZ)
     siteμ⁻ = move(site, 3, -1, NZ)
     η = sgn * staggered_η(Val(3), site)
-    ϕₙ += η * (cmvmul(U[3, site], ψ[1, siteμ⁺]) - cmvmul_d(U[3, siteμ⁻], ψ[1, siteμ⁻]))
-
+    ϕₙ += η * (cmvmul(U[3, site], ψ[siteμ⁺]) - cmvmul_d(U[3, siteμ⁻], ψ[siteμ⁻]))
     siteμ⁺ = move(site, 4, 1, NT)
     siteμ⁻ = move(site, 4, -1, NT)
     η = sgn * staggered_η(Val(4), site)
-    ϕₙ += η * (cmvmul(U[4, site], ψ[1, siteμ⁺]) - cmvmul_d(U[4, siteμ⁻], ψ[1, siteμ⁻]))
-    return T(0.5) * ϕₙ
+    ϕₙ += η * (cmvmul(U[4, site], ψ[siteμ⁺]) - cmvmul_d(U[4, siteμ⁻], ψ[siteμ⁻]))
+    return 1//2 * ϕₙ
 end
 
 # Use Val to reduce the amount of if-statements in the kernel

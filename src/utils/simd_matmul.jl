@@ -1,8 +1,3 @@
-# using LoopVectorization
-# using Random
-# using StaticArrays
-# using Test
-#========== 2-fold products ==========#
 @inline function cmatmul_oo!(
     Cc::MMatrix{NC,NC,Complex{T},NC2},
     Ac::MMatrix{NC,NC,Complex{T},NC2},
@@ -127,7 +122,6 @@ end
     return SMatrix(cmatmul_dd!(MMatrix{NC,NC,Complex{T}}(undef), MMatrix(A), MMatrix(B)))
 end
 
-#========== 3-fold products ==========#
 @inline function cmatmul_ooo!(Dc, Ac, Bc, Cc)
     cmatmul_oo!(Dc, Ac, cmatmul_oo!(Dc, Bc, Cc))
     return Dc
@@ -248,7 +242,6 @@ end
     )
 end
 
-#========== 4-fold products ==========#
 @inline function cmatmul_oooo!(Ec, Ac, Bc, Cc, Dc)
     cmatmul_oo!(Ec, Ac, cmatmul_ooo!(Ec, Bc, Cc, Dc))
     return Ec
@@ -536,42 +529,3 @@ end
         ),
     )
 end
-
-# @testset "matmul" begin
-#     Random.seed!(1206)
-#     As = @SMatrix rand(ComplexF64, 3, 3)
-#     Bs = @SMatrix rand(ComplexF64, 3, 3)
-#     Cs = @SMatrix rand(ComplexF64, 3, 3)
-#     Ds = @SMatrix rand(ComplexF64, 3, 3)
-
-#     @test isapprox(As  * Bs , cmatmul_oo(As, Bs))
-#     @test isapprox(As  * Bs', cmatmul_od(As, Bs))
-#     @test isapprox(As' * Bs , cmatmul_do(As, Bs))
-#     @test isapprox(As' * Bs', cmatmul_dd(As, Bs))
-
-#     @test isapprox(As  * Bs  * Cs , cmatmul_ooo(As, Bs, Cs))
-#     @test isapprox(As  * Bs  * Cs', cmatmul_ood(As, Bs, Cs))
-#     @test isapprox(As  * Bs' * Cs , cmatmul_odo(As, Bs, Cs))
-#     @test isapprox(As' * Bs  * Cs , cmatmul_doo(As, Bs, Cs))
-#     @test isapprox(As  * Bs' * Cs', cmatmul_odd(As, Bs, Cs))
-#     @test isapprox(As' * Bs' * Cs , cmatmul_ddo(As, Bs, Cs))
-#     @test isapprox(As' * Bs  * Cs', cmatmul_dod(As, Bs, Cs))
-#     @test isapprox(As' * Bs' * Cs', cmatmul_ddd(As, Bs, Cs))
-
-#     @test isapprox(As  * Bs  * Cs  * Ds , cmatmul_oooo(As, Bs, Cs, Ds))
-#     @test isapprox(As  * Bs  * Cs  * Ds', cmatmul_oood(As, Bs, Cs, Ds))
-#     @test isapprox(As  * Bs  * Cs' * Ds , cmatmul_oodo(As, Bs, Cs, Ds))
-#     @test isapprox(As  * Bs' * Cs  * Ds , cmatmul_odoo(As, Bs, Cs, Ds))
-#     @test isapprox(As' * Bs  * Cs  * Ds , cmatmul_dooo(As, Bs, Cs, Ds))
-#     @test isapprox(As  * Bs  * Cs' * Ds', cmatmul_oodd(As, Bs, Cs, Ds))
-#     @test isapprox(As  * Bs' * Cs' * Ds , cmatmul_oddo(As, Bs, Cs, Ds))
-#     @test isapprox(As' * Bs' * Cs  * Ds , cmatmul_ddoo(As, Bs, Cs, Ds))
-#     @test isapprox(As  * Bs' * Cs  * Ds', cmatmul_odod(As, Bs, Cs, Ds))
-#     @test isapprox(As' * Bs  * Cs  * Ds', cmatmul_dood(As, Bs, Cs, Ds))
-#     @test isapprox(As' * Bs  * Cs' * Ds , cmatmul_dodo(As, Bs, Cs, Ds))
-#     @test isapprox(As  * Bs' * Cs' * Ds', cmatmul_oddd(As, Bs, Cs, Ds))
-#     @test isapprox(As' * Bs' * Cs' * Ds , cmatmul_dddo(As, Bs, Cs, Ds))
-#     @test isapprox(As' * Bs' * Cs  * Ds', cmatmul_ddod(As, Bs, Cs, Ds))
-#     @test isapprox(As' * Bs  * Cs' * Ds', cmatmul_dodd(As, Bs, Cs, Ds))
-#     @test isapprox(As' * Bs' * Cs' * Ds', cmatmul_dddd(As, Bs, Cs, Ds))
-# end
