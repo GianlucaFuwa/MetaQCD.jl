@@ -5,7 +5,7 @@ using ..Output
 export cg!, set_cg_max_iterations!, set_cg_tolerance!
 
 const TOLERANCE = Base.RefValue{Float64}(1e-10)
-const MAX_ITERATIONS = Base.RefValue{Int64}(1000)
+const MAX_ITERATIONS = Base.RefValue{Int64}(100)
 
 function set_cg_tolerance!(val)
     TOLERANCE[] = val
@@ -19,7 +19,7 @@ end
 
 function cg!(x, b, A, Ap, r, p; tol=TOLERANCE[], maxiter=MAX_ITERATIONS[])
     mul!(Ap, A, x)
-    axpy!(1, b, r)
+    copy!(r, b)
     axpy!(-1, Ap, r)
     copy!(p, r)
     res = real(dot(r, r))

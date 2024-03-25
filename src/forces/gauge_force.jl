@@ -1,7 +1,9 @@
 """
-Calculate the gauge force for a molecular dynamics step, i.e. the derivative of the
-gauge action w.r.t. the bare/unsmeared field U. \\
-Needs the additional field "temp_force" to be a TemporaryField when doing recursion
+    calc_dSdU_bare!(dU, staples, U, temp_force, smearing)
+
+Calculate the derivative of the gauge action with respect to the `Gaugefield` `U` and store
+the result in `dU`. `staples` and `temp_force` are `TemporaryFields` used to store
+intermediate results. `smearing` is a `NoSmearing` or `StoutSmearing` object.
 """
 calc_dSdU_bare!(dU, staples, U, ::Any, ::NoSmearing) = calc_dSdU!(dU, staples, U)
 

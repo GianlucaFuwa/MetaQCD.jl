@@ -1,9 +1,9 @@
 mutable struct StaggeredDiracOperator{B,T,TG,TT} <: AbstractDiracOperator
     U::TG
-    temp::TT # temp for storage of intermediate result for Hermitian operator
+    temp::TT # temp for storage of intermediate result for DdaggerD operator
     mass::Float64
     function StaggeredDiracOperator(U::Gaugefield{B,T}, mass) where {B,T}
-        temp = Fermionfield(U, true)
+        temp = Fermionfield(U; staggered=true)
         return new{B,T,typeof(U),typeof(temp)}(U, temp, mass)
     end
 end
@@ -12,15 +12,17 @@ const StaggeredFermionfield{B,T,A} = Fermionfield{B,T,A,1}
 
 struct StaggeredFermionAction{Nf,TD,TT} <: AbstractFermionAction
     D::TD
-    temp1::TT # temp for A*p in cg
-    temp2::TT # temp for r in cg
-    temp3::TT # temp for p in cg
+    temp1::TT # temp for result of cg
+    temp2::TT # temp for A*p in cg
+    temp3::TT # temp for r in cg
+    temp4::TT # temp for p in cg
     function StaggeredFermionAction(U, mass; Nf=4)
         D = StaggeredDiracOperator(U, mass)
-        temp1 = Fermionfield(U, true)
+        temp1 = Fermionfield(U; staggered=true)
         temp2 = Fermionfield(temp1)
         temp3 = Fermionfield(temp1)
-        return new{Nf,typeof(D),typeof(temp1)}(D, temp1, temp2, temp3)
+        temp4 = Fermionfield(temp1)
+        return new{Nf,typeof(D),typeof(temp1)}(D, temp1, temp2, temp3, temp4)
     end
 end
 
@@ -28,13 +30,16 @@ function calc_fermion_action(
     fermion_action::StaggeredFermionAction, ψ::StaggeredFermionfield
 )
     D = fermion_action.D
-    DdagD = Hermitian(D)
-    temp1, temp2, temp3 = get_cg_temps(fermion_action)
-    solve_D⁻¹x!(temp1, DdagD, ψ, temp2, temp3)
-    mul!(temp2, D, ψ)
-    return real(dot(ψ, temp2))
+    DdagD = DdaggerD(D)
+    temp1, temp2, temp3, temp4 = get_cg_temps(fermion_action)
+    clear!(temp1) # initial guess is zero
+    solve_D⁻¹x!(temp1, DdagD, ψ, temp2, temp3, temp4) # temp1 = (D†D)⁻¹ψ
+    return real(dot(ψ, temp1))
 end
 
+# We overload LinearAlgebra.mul! instead of Gaugefields.mul! so we dont have to import
+# The Gaugefields module into CG.jl, which also allows us to use the solvers for 
+# for arbitrary arrays, not just fermion fields and dirac operators (good for testing)
 function LinearAlgebra.mul!(
     ϕ::StaggeredFermionfield{CPU,T},
     D::StaggeredDiracOperator{CPU,T},
@@ -69,7 +74,7 @@ end
 
 function LinearAlgebra.mul!(
     ϕ::StaggeredFermionfield{CPU,T},
-    D::Hermitian{StaggeredDiracOperator{CPU,T,TG,TF}},
+    D::DdaggerD{StaggeredDiracOperator{CPU,T,TG,TF}},
     ψ::StaggeredFermionfield{CPU,T},
 ) where {T,TG,TF}
     temp = D.parent.temp

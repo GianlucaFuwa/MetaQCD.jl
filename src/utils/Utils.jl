@@ -44,7 +44,7 @@ export cmatmul_oooo,
     cmatmul_ddod,
     cmatmul_dodd,
     cmatmul_dddd
-export cdot, cmvmul, cmvmul_d, cvmmul, cvmmul_d, ckron, cmvmul_spin_proj
+export cdot, cmvmul, cmvmul_d, cvmmul, cvmmul_d, ckron, ckron_sum, cmvmul_spin_proj
 export _unwrap_val, SU
 
 abstract type AbstractIterator end

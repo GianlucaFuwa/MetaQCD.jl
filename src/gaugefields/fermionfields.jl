@@ -1,7 +1,7 @@
 """
 	Fermionfield(NX, NY, NZ, NT; BACKEND=CPU, T=Float64, staggered=false)
 	Fermionfield(ψ::Fermionfield)
-    Fermionfield(u::Abstractfield, staggered)
+    Fermionfield(f::Fermionfield, staggered)
 
 Creates a Fermionfield on `BACKEND`, i.e. an array of link-variables (3D complex vectors
 with `T` precision) of size `ND × NX × NY × NZ × NT` or a zero-initialized copy of `ψ`.
@@ -34,7 +34,7 @@ function Fermionfield(f::Fermionfield{BACKEND,T,A,ND}) where {BACKEND,T,A,ND}
     return Fermionfield(dims(f)...; BACKEND=BACKEND, T=T, staggered=staggered)
 end
 
-function Fermionfield(f::Abstractfield{BACKEND,T}, staggered) where {BACKEND,T}
+function Fermionfield(f::Abstractfield{BACKEND,T}; staggered=false) where {BACKEND,T}
     return Fermionfield(dims(f)...; BACKEND=BACKEND, T=T, staggered=staggered)
 end
 
@@ -42,9 +42,17 @@ end
 @inline dims(f::AbstractArray{SVector{N,Complex{T}},4}) where {N,T} =
     NTuple{4,Int64}((size(f, 1), size(f, 2), size(f, 3), size(f, 4)))
 Base.size(f::AbstractArray{SVector{N,Complex{T}},4}) where {N,T} = dims(f)
+Base.size(f::Fermionfield) = NTuple{4,Int64}((f.NX, f.NY, f.NZ, f.NT))
 float_type(::AbstractArray{SVector{N,Complex{T}},4}) where {N,T} = T
 num_dirac(::Fermionfield{B,T,A,ND}) where {B,T,A,ND} = ND
 Base.similar(f::Fermionfield) = Fermionfield(f)
+
+Base.@propagate_inbounds Base.getindex(f::Fermionfield, x, y, z, t) = f.U[x, y, z, t]
+Base.@propagate_inbounds Base.getindex(f::Fermionfield, site::SiteCoords) = f.U[site]
+Base.@propagate_inbounds Base.setindex!(f::Fermionfield, v, x, y, z, t) =
+    setindex!(f.U, v, x, y, z, t)
+Base.@propagate_inbounds Base.setindex!(f::Fermionfield, v, site::SiteCoords) =
+    setindex!(f.U, v, site)
 
 function clear!(ψ::Fermionfield{CPU,T}) where {T}
     @batch for site in eachindex(ψ)

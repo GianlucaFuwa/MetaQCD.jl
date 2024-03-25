@@ -479,6 +479,51 @@ end
 end
 
 """
+    ckron_sum(a, b)
+
+Return the complex Kronecker(outer) product of vectors `a` and `b`, summing over dirac
+indices, i.e. `∑ ᵨ aᵨ ⊗ bᵨ†`
+"""
+@inline function ckron_sum(a::SVector{M,Complex{T}}, b::SVector{M,Complex{T}}) where {T,M}
+    @assert M % 4 == 0 "length of inputs must be a multiple of 4"
+    N = M ÷ 4
+    return SMatrix(ckron_sum!(MMatrix{N,N,Complex{T},N * N}(undef), MVector(a), MVector(b)))
+end
+
+@inline function ckron_sum!(
+    cc::MMatrix{N,N,Complex{T},NN}, ac::MVector{M,Complex{T}}, bc::MVector{M,Complex{T}}
+) where {T,M,N,NN}
+    c = reinterpret(reshape, T, cc)
+    a = reinterpret(reshape, T, ac)
+    b = reinterpret(reshape, T, bc)
+
+    @turbo for m in Base.Slice(static(1):static(N))
+        for n in Base.Slice(static(1):static(N))
+            c[1, n, m] =
+                a[1, 4*(n-1)+1] * b[1, 4*(m-1)+1] +
+                a[2, 4*(n-1)+1] * b[2, 4*(m-1)+1] +
+                a[1, 4*(n-1)+2] * b[1, 4*(m-1)+2] +
+                a[2, 4*(n-1)+2] * b[2, 4*(m-1)+2] +
+                a[1, 4*(n-1)+3] * b[1, 4*(m-1)+3] +
+                a[2, 4*(n-1)+3] * b[2, 4*(m-1)+3] +
+                a[1, 4*(n-1)+4] * b[1, 4*(m-1)+4] +
+                a[2, 4*(n-1)+4] * b[2, 4*(m-1)+4]
+            c[2, n, m] =
+                -a[1, 4*(n-1)+1] * b[2, 4*(m-1)+1] +
+                a[2, 4*(n-1)+1] * b[1, 4*(m-1)+1] +
+                -a[1, 4*(n-1)+2] * b[2, 4*(m-1)+2] +
+                a[2, 4*(n-1)+2] * b[1, 4*(m-1)+2] +
+                -a[1, 4*(n-1)+3] * b[2, 4*(m-1)+3] +
+                a[2, 4*(n-1)+3] * b[1, 4*(m-1)+3] +
+                -a[1, 4*(n-1)+4] * b[2, 4*(m-1)+4] +
+                a[2, 4*(n-1)+4] * b[1, 4*(m-1)+4]
+        end
+    end
+
+    return cc
+end
+
+"""
     cmvmul_spin_proj(A, x, ::Val{ρ}, ::Val{is_adjoint}=Val(false))
 
 Return `A * (1 ± γᵨ) * x` where `γᵨ` is the ρ-th Euclidean gamma matrix in the Chiral
@@ -684,5 +729,5 @@ end
     end
 
     push!(q.args, loop_q)
-    return q 
+    return q
 end

@@ -19,7 +19,8 @@ import ..Gaugefields: clear!, dims, normalize!, fieldstrength_eachsite!, float_t
 import ..Gaugefields: gaussian_TA!, gaussian_pseudofermions!, mul!, staple, staple_eachsite!
 import ..Gaugefields: @groupreduce, @latmap, @latsum, gauge_action
 import ..Gaugefields: Abstractfield, Plaquette, Clover, Tensorfield, Fermionfield
-import ..DiracOperators: AbstractDiracOperator, StaggeredDiracOperator
+import ..DiracOperators: AbstractDiracOperator, StaggeredDiracOperator, WilsonDiracOperator
+import ..DiracOperators: DdaggerD, Daggered, replace_U!, calc_fermion_action
 import ..BiasModule: Bias, calc_CV, ∂V∂Q, recalc_CV!
 import ..BiasModule: kind_of_cv, update_bias!
 import ..Parameters: ParameterSet

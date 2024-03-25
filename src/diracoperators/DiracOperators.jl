@@ -9,12 +9,28 @@ using ..CG
 using ..Output
 using ..Utils
 
-import ..Gaugefields: Fermionfield, Gaugefield, dims
+import ..Gaugefields: Fermionfield, Gaugefield, clear!, dims
 
 abstract type AbstractDiracOperator end
 abstract type AbstractFermionAction end
 
-get_cg_temps(action::AbstractFermionAction) = action.temp1, action.temp2, action.temp3
+# So we don't print the entire array in the REPL...
+function Base.show(io::IO, ::MIME"text/plain", D::T) where {T<:AbstractDiracOperator}
+    print(io, "$(typeof(D))", "(;")
+    for fieldname in fieldnames(T)
+        if fieldname ∈ (:U, :temp)
+            continue
+        else
+            print(io, " ", fieldname, " = ", getfield(D, fieldname), ",")
+        end
+    end
+    print(io, ")")
+    return nothing
+end
+
+function get_cg_temps(action::AbstractFermionAction)
+    return action.temp1, action.temp2, action.temp3, action.temp4
+end
 
 """
     Daggered(D::AbstractDiracOperator)
@@ -27,13 +43,13 @@ struct Daggered{T} <: AbstractDiracOperator
 end
 
 """
-    Hermitian(D::AbstractDiracOperator)
+    DdaggerD(D::AbstractDiracOperator)
 
-Wrap the Dirac operator `D` such that future functions know to treat it as `DD†`
+Wrap the Dirac operator `D` such that future functions know to treat it as `D†D`
 """
-struct Hermitian{T} <: AbstractDiracOperator
+struct DdaggerD{T} <: AbstractDiracOperator
     parent::T
-    Hermitian(D::T) where {T<:AbstractDiracOperator} = new{T}(D)
+    DdaggerD(D::T) where {T<:AbstractDiracOperator} = new{T}(D)
 end
 
 """
@@ -46,7 +62,7 @@ function replace_U!(D::AbstractDiracOperator, U::Gaugefield)
     return nothing
 end
 
-function replace_U!(D::Union{Daggered,Hermitian}, U::Gaugefield)
+function replace_U!(D::Union{Daggered,DdaggerD}, U::Gaugefield)
     D.parent.U = U
     return nothing
 end

@@ -36,12 +36,13 @@ import .Gaugefields: CPU, CUDABackend, ROCBackend
 import .Gaugefields: DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
 import .Gaugefields: SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
 import .Gaugefields: CoeffField, Gaugefield, Temporaryfield, initial_gauges
-import .Gaugefields: calc_gauge_action, fieldstrength_eachsite!, identity_gauges!, mul!
+import .Gaugefields: calc_gauge_action, fieldstrength_eachsite!, identity_gauges!
 import .Gaugefields: normalize!, plaquette, plaquette_trace_sum, random_gauges!
 import .Gaugefields: staple, staple_eachsite!, wilsonloop, to_backend
 import .Gaugefields: Tensorfield, calc_kinetic_energy, gaussian_TA!
 import .Gaugefields: Fermionfield, gaussian_pseudofermions!
-import .DiracOperators: AbstractDiracOperator, Daggered, Hermitian, StaggeredDiracOperator
+import .DiracOperators: AbstractDiracOperator, Daggered, Hermitian, calc_fermion_action
+import .DiracOperators: StaggeredDiracOperator, WilsonDiracOperator
 import .Measurements: measure, get_value, top_charge
 import .Measurements: EnergyDensityMeasurement, GaugeActionMeasurement, PlaquetteMeasurement
 import .Measurements: PolyakovMeasurement, TopologicalChargeMeasurement
@@ -49,10 +50,10 @@ import .Measurements: WilsonLoopMeasurement
 import .Parameters: ParameterSet, construct_params_from_toml
 import .Smearing: Euler, RK2, RK3, RK3W7, GradientFlow, NoSmearing, StoutSmearing
 import .Smearing: calc_smearedU!, flow!, stout_backprop!
-import .Updates: Updatemethod, Heatbath, HMC, Metropolis
+import .Updates: Updatemethod, Heatbath, HMC, Metropolis, evolve!, update!
 import .Updates: Leapfrog, OMF2, OMF2Slow, OMF4, OMF4Slow
 import .Updates: Overrelaxation, Subgroups, KenneyLaub
-import .Updates: calc_dSdU_bare!, calc_dVdU_bare!, evolve!, update!, ∇trFμνFρσ
+import .Updates: calc_dSdU_bare!, calc_dSfdU_bare!, calc_dVdU_bare!, ∇trFμνFρσ
 import .Universe: Univ
 
 export Bias, Metadynamics, OPES, Parametric, calc_CV, update_bias!
@@ -61,12 +62,12 @@ export CPU, CUDABackend, ROCBackend
 export DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
 export SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
 export CoeffField, Gaugefield, Temporaryfield, initial_gauges
-export calc_gauge_action, fieldstrength_eachsite!, identity_gauges!, mul!
+export calc_gauge_action, fieldstrength_eachsite!, identity_gauges!
 export normalize!, plaquette, plaquette_trace_sum, random_gauges!
 export staple, staple_eachsite!, wilsonloop
 export Tensorfield, calc_kinetic_energy, gaussian_TA!
-export Fermionfield, StaggeredDiracOperator, Daggered, Hermitian
-export gaussian_pseudofermions!
+export Fermionfield, StaggeredDiracOperator, Daggered, Hermitian, WilsonDiracOperator
+export calc_fermion_action, gaussian_pseudofermions!
 export measure, get_value, top_charge
 export EnergyDensityMeasurement, GaugeActionMeasurement, PlaquetteMeasurement
 export PolyakovMeasurement, TopologicalChargeMeasurement, WilsonLoopMeasurement
@@ -76,9 +77,9 @@ export calc_smearedU!, flow!, stout_backprop!
 export Updatemethod, Heatbath, HMC, Metropolis
 export Leapfrog, OMF2, OMF2Slow, OMF4, OMF4Slow
 export Overrelaxation, Subgroups, KenneyLaub
-export calc_dSdU_bare!, calc_dVdU_bare!, evolve!, update!, ∇trFμνFρσ
+export calc_dSdU_bare!, calc_dSfdU_bare!, calc_dVdU_bare!, evolve!, update!, ∇trFμνFρσ
 export NoSmearing, StoutSmearing, calc_smearedU!, GradientFlow, flow!, stout_backprop!
-export Updatemethod, update!, calc_dSdU_bare!, calc_dVdU_bare!, ∇trFμνFρσ
+export Updatemethod, update!
 export Univ
 
 end

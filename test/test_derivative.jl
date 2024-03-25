@@ -1,6 +1,6 @@
 function SU3testderivative(backend=nothing)
     Random.seed!(123)
-    println("SU3testderivative")
+    println("SU3test_gauge_derivative")
     NX = 4; NY = 4; NZ = 4; NT = 4;
     U = initial_gauges("hot", NX, NY, NZ, NT, 6.0, GA=WilsonGaugeAction)
     # filename = "./test/testconf.txt"
