@@ -39,6 +39,19 @@ Base.@kwdef mutable struct WilsonLoopParameters <: MeasurementParameters
     methodname::String = "wilson_loop"
 end
 
+Base.@kwdef mutable struct PionCorrelatorParameters <: MeasurementParameters
+    dirac_type::String = "staggered"
+    mass::Float64 = 0.1
+    Nf::Int64 = 2
+    κ::Float64 = 0.12
+    r::Float64 = 1.0
+    cg_tolerance::Float64 = 1e-12
+    cg_maxiters::Int64 = 1000
+    boundary_conditions::String = "periodic"
+    measure_every::Int64 = 10
+    methodname::String = "pion_correlator"
+end
+
 function initialize_measurement_parameters(methodname)
     if Unicode.normalize(methodname; casefold=true) == "gauge_action"
         method = GaugeActionParameters()
@@ -52,6 +65,8 @@ function initialize_measurement_parameters(methodname)
         method = TopologicalChargeParameters()
     elseif Unicode.normalize(methodname; casefold=true) == "energy_density"
         method = EnergyDensityParameters()
+    elseif Unicode.normalize(methodname; casefold=true) == "pion_correlator"
+        method = PionCorrelatorParameters()
     else
         error("$methodname is not implemented")
     end
@@ -95,6 +110,9 @@ function prepare_measurement(U, meas_parameters::T, filename="", flow=false) whe
     elseif T == EnergyDensityParameters
         filename_input = ifelse(filename == "", "energy_density.txt", filename)
         measurement = EnergyDensityMeasurement(U, meas_parameters, filename_input, flow)
+    elseif T == PionCorrelatorParameters
+        filename_input = ifelse(filename == "", "pion_correlator.txt", filename)
+        measurement = PionCorrelatorMeasurement(U, meas_parameters, filename_input, flow)
     else
         error(T, " is not supported in measurements")
     end

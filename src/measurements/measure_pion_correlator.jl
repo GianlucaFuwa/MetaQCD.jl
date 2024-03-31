@@ -1,6 +1,9 @@
 struct PionCorrelatorMeasurement{T,TD,TF} <: AbstractMeasurement
     dirac_operator::TD
+    cg_tolerance::Float64
+    cg_maxiters::Int64
     temp_fermions::Vector{TF} # We need 3 temp fermion fields for cg
+    pion_dict::Dict{Int64,Float64} # One value per time slice
     fp::T # file pointer
     function PionCorrelatorMeasurement(
         U::Gaugefield;
@@ -16,35 +19,45 @@ struct PionCorrelatorMeasurement{T,TD,TF} <: AbstractMeasurement
         cg_maxiters=1000,
         boundary_conditions="periodic",
     )
+        pion_dict = Dict{Int64,Float64}()
+        NT = dims(U)[end]
+
+        for it in 1:NT
+            pion_dict[it] = 0.0
+        end
+
         if dirac_type == "staggered"
-            D = StaggeredDiracOperator(U, mass)
-            temp_fermions = [Fermionfield(U; staggered=true) for i in 1:3]
+            dirac_operator = StaggeredDiracOperator(U, mass)
+            temp_fermions = [Fermionfield(U; staggered=true) for _ in 1:3]
         elseif dirac_type == "wilson"
-            D = WilsonDiracOperator(U, mass)
-            temp_fermions = [Fermionfield(U) for i in 1:3]
+            dirac_operator = WilsonDiracOperator(U, mass)
+            temp_fermions = [Fermionfield(U) for _ in 1:3]
         else
             throw(ArgumentError("Dirac operator \"$dirac_type\" is not supported"))
         end
 
         if printvalues
             fp = open(filename, "w")
-            header = ""
+
             if flow
-                header *= @sprintf("%-9s\t%-7s\t%-9s", "itrj", "iflow", "tflow")
+                str = @sprintf("%-9s\t%-7s\t%-9s", "itrj", "iflow", "tflow")
+                println(fp, str)
             else
-                header *= @sprintf("%-9s", "itrj")
+                str = @sprintf("%-9s", "itrj")
+                println(fp, str)
             end
 
-            for methodname in TC_methods
-                header *= "\tQ$(rpad(methodname, 22, " "))"
+            for it in 1:NT
+                str = @sprintf("\t%-22s", "pion_corr_$(it)")
+                println(fp, str)
             end
 
-            println(fp, header)
+            println(fp)
         else
             fp = nothing
         end
 
-        return new{typeof(fp)}(TC_dict, fp)
+        return new{typeof(fp)}(dirac_operator, cg_tolerance, cg_maxiters, temp_fermions, fp)
     end
 end
 
@@ -55,22 +68,40 @@ function PionCorrelatorMeasurement(
         U;
         filename=filename,
         printvalues=true,
-        TC_methods=params.kinds_of_topological_charge,
         flow=flow,
+        dirac_type=params.dirac_type,
+        mass=params.mass,
+        Nf=params.Nf,
+        κ=params.κ,
+        r=params.r,
+        cg_tolerance=params.cg_tolerance_pion_corr,
+        cg_maxiters=params.cg_maxiters_pion_corr,
+        boundary_conditions=params.boundary_conditions_pion_corr,
     )
 end
 
-function measure(m::PionCorrelatorMeasurement{T}, U; additional_string="") where {T}
+function measure(m::PionCorrelatorMeasurement{T}, U, ψ; additional_string="") where {T}
     measurestring = ""
     printstring = @sprintf("%-9s", additional_string)
+    m.dirac_operator.U = U
 
-    for methodname in keys(m.TC_dict)
-        Q = top_charge(U, methodname)
-        m.TC_dict[methodname] = Q
+    for it in keys(m.pion_dict)
+        pion_corr_it = pion_correlators_temporal!(
+            it,
+            m.dirac_operator,
+            ψ,
+            m.temp_fermions[1],
+            m.temp_fermions[2],
+            m.temp_fermions[3],
+            m.temp_fermions[3],
+            m.cg_tolerance,
+            m.cg_maxiters,
+        )
+        m.pion_dict[it] = pion_corr_it
     end
 
     if T ≡ IOStream
-        for value in values(m.TC_dict)
+        for value in values(m.pion_dict)
             svalue = @sprintf("%+-22.15E", value)
             printstring *= "\t$svalue"
         end
@@ -78,24 +109,28 @@ function measure(m::PionCorrelatorMeasurement{T}, U; additional_string="") where
         measurestring = printstring
         println(m.fp, measurestring)
         flush(m.fp)
-        measurestring *= " # top_charge"
+        measurestring *= " # pion_correlator"
     end
 
-    output = MeasurementOutput(m.TC_dict, measurestring)
+    output = MeasurementOutput(m.pion_dict, measurestring)
     return output
 end
 
 function pion_correlators_temporal!(
-    correlators, D, ψ, temp1, temp2, temp3, temp4, cg_tolerance, cg_maxiters
+    it, D, ψ, temp1, temp2, temp3, temp4, cg_tolerance, cg_maxiters
 )
-    NX, NY, NZ, NT = dims(U)
-    @assert length(correlators) == NT
+    @assert dims(ψ) == dims(temp1) == dims(temp2) == dims(temp3) == dims(temp4) == dims(D.U)
+    NX, NY, NZ, _ = dims(ψ)
+    source = SideCoords(1, 1, 1, 1)
     ones!(ψ)
 
-    solve_D⁻¹x!(temps1, D, ψ, temps2, temps3, temp4, cg_tolerance, cg_maxiters)
+    solve_D⁻¹x!(temp1, D, ψ, temp2, temp3, temp4, cg_tolerance, cg_maxiters)
 
-    for it in 1:NT
-        # -½Tr[ΓD⁻¹(0|m)ΓD⁻¹(m|0)]
+    for iz in 1:NZ
+        for iy in 1:NY
+            for ix in 1:NX
+            end
+        end
     end
 
     return nothing
