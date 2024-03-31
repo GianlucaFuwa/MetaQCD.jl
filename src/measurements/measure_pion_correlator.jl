@@ -2,7 +2,8 @@ struct PionCorrelatorMeasurement{T,TD,TF} <: AbstractMeasurement
     dirac_operator::TD
     cg_tolerance::Float64
     cg_maxiters::Int64
-    temp_fermions::Vector{TF} # We need 3 temp fermion fields for cg
+    temp_fermion::Vector{TF} # We need 3 temp fermion fields for propagators
+    temp_cg_fermions::Vector{TF} # We need 3 temp fermion fields for cg
     pion_dict::Dict{Int64,Float64} # One value per time slice
     fp::T # file pointer
     function PionCorrelatorMeasurement(
@@ -28,10 +29,12 @@ struct PionCorrelatorMeasurement{T,TD,TF} <: AbstractMeasurement
 
         if dirac_type == "staggered"
             dirac_operator = StaggeredDiracOperator(U, mass)
-            temp_fermions = [Fermionfield(U; staggered=true) for _ in 1:3]
+            temp_fermion = Fermionfield(U; staggered=true)
+            temp_cg_fermions = [Fermionfield(U; staggered=true) for _ in 1:3]
         elseif dirac_type == "wilson"
             dirac_operator = WilsonDiracOperator(U, mass)
-            temp_fermions = [Fermionfield(U) for _ in 1:3]
+            temp_fermion = Fermionfield(U)
+            temp_cg_fermions = [Fermionfield(U) for _ in 1:3]
         else
             throw(ArgumentError("Dirac operator \"$dirac_type\" is not supported"))
         end
@@ -57,7 +60,9 @@ struct PionCorrelatorMeasurement{T,TD,TF} <: AbstractMeasurement
             fp = nothing
         end
 
-        return new{typeof(fp)}(dirac_operator, cg_tolerance, cg_maxiters, temp_fermions, fp)
+        return new{typeof(fp)}(
+            dirac_operator, cg_tolerance, cg_maxiters, temp_fermion, temp_cg_fermions, fp
+        )
     end
 end
 
@@ -74,9 +79,9 @@ function PionCorrelatorMeasurement(
         Nf=params.Nf,
         κ=params.κ,
         r=params.r,
-        cg_tolerance=params.cg_tolerance_pion_corr,
-        cg_maxiters=params.cg_maxiters_pion_corr,
-        boundary_conditions=params.boundary_conditions_pion_corr,
+        cg_tolerance=params.cg_tolerance,
+        cg_maxiters=params.cg_maxiters,
+        boundary_conditions=params.boundary_conditions,
     )
 end
 
@@ -89,11 +94,11 @@ function measure(m::PionCorrelatorMeasurement{T}, U, ψ; additional_string="") w
         pion_corr_it = pion_correlators_temporal!(
             it,
             m.dirac_operator,
-            ψ,
-            m.temp_fermions[1],
-            m.temp_fermions[2],
-            m.temp_fermions[3],
-            m.temp_fermions[3],
+            m.temp_fermion,
+            m.temp_cg_fermions[1],
+            m.temp_cg_fermions[2],
+            m.temp_cg_fermions[3],
+            m.temp_cg_fermions[4],
             m.cg_tolerance,
             m.cg_maxiters,
         )
