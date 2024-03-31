@@ -1,6 +1,6 @@
 struct TopologicalChargeMeasurement{T} <: AbstractMeasurement
-    TC_dict::Dict{String, Float64}
-    fp::T
+    TC_dict::Dict{String, Float64} # topological charge definition => value
+    fp::T # file pointer
 
     function TopologicalChargeMeasurement(
         ::Gaugefield;
@@ -82,59 +82,50 @@ function top_charge(U::Gaugefield, methodname::String)
     return Q
 end
 
-function top_charge(::Plaquette, U)
-    out = zeros(Float64, 8nthreads())
+function top_charge(::Plaquette, U::Gaugefield{CPU})
+    Q = 0.0
 
-    @batch per=thread for site in eachindex(U)
-        out[8threadid()] += top_charge_density_plaq(U, site)
+    @batch reduction=(+, Q) for site in eachindex(U)
+        Q += top_charge_density_plaq(U, site)
     end
 
-    Q_plaq = 1/4π^2 * sum(out)
-    return Q_plaq
+    return Q / 4π^2
 end
 
-function top_charge(::Clover, U)
-    out = zeros(Float64, 8nthreads())
+function top_charge(::Clover, U::Gaugefield{CPU})
+    Q = 0.0
 
-    @batch per=thread for site in eachindex(U)
-        out[8threadid()] += top_charge_density_clover(U, site)
+    @batch reduction=(+, Q) for site in eachindex(U)
+        Q += top_charge_density_clover(U, site)
     end
 
-    Q_clover = 1/4π^2 * sum(out)
-    return Q_clover
+    return Q / 4π^2
 end
 
-function top_charge(::Improved, U)
-    out = zeros(Float64, 8nthreads())
-    factor_clov = 5/3 * 1/4π^2
-    factor_rect = -1/12 * 2/4π^2
+function top_charge(::Improved, U::Gaugefield{CPU})
+    Q = 0.0
+    c₀ = float_type(U)(5/3)
+    c₁ = float_type(U)(-2/12)
 
-    @batch per=thread for site in eachindex(U)
-        out[8threadid()] += factor_clov*top_charge_density_clover(U, site) +
-                            factor_rect*top_charge_density_rect(U, site)
+    @batch reduction=(+, Q) for site in eachindex(U)
+        Q += top_charge_density_imp(U, site, c₀, c₁)
     end
 
-    Q_imp = sum(out)
-    return Q_imp
+    return Q / 4π^2
 end
 
 function top_charge_density_plaq(U, site)
-    C₁₂ = plaquette(U, 1, 2, site)
+    C₁₂ = plaquette(U, 1i32, 2i32, site)
     F₁₂ = im * traceless_antihermitian(C₁₂)
-
-    C₁₃ = plaquette(U, 1, 3, site)
+    C₁₃ = plaquette(U, 1i32, 3i32, site)
     F₁₃ = im * traceless_antihermitian(C₁₃)
-
-    C₂₃ = plaquette(U, 2, 3, site)
+    C₂₃ = plaquette(U, 2i32, 3i32, site)
     F₂₃ = im * traceless_antihermitian(C₂₃)
-
-    C₁₄ = plaquette(U, 1, 4, site)
+    C₁₄ = plaquette(U, 1i32, 4i32, site)
     F₁₄ = im * traceless_antihermitian(C₁₄)
-
-    C₂₄ = plaquette(U, 2, 4, site)
+    C₂₄ = plaquette(U, 2i32, 4i32, site)
     F₂₄ = im * traceless_antihermitian(C₂₄)
-
-    C₃₄ = plaquette(U, 3, 4, site)
+    C₃₄ = plaquette(U, 3i32, 4i32, site)
     F₃₄ = im * traceless_antihermitian(C₃₄)
 
     qₙ = real(multr(F₁₂, F₃₄)) - real(multr(F₁₃, F₂₄)) + real(multr(F₁₄, F₂₃))
@@ -142,53 +133,43 @@ function top_charge_density_plaq(U, site)
 end
 
 function top_charge_density_clover(U, site)
-    C₁₂ = clover_square(U, 1, 2, site, 1)
-    F₁₂ = im/4 * traceless_antihermitian(C₁₂)
-
-    C₁₃ = clover_square(U, 1, 3, site, 1)
-    F₁₃ = im/4 * traceless_antihermitian(C₁₃)
-
-    C₂₃ = clover_square(U, 2, 3, site, 1)
-    F₂₃ = im/4 * traceless_antihermitian(C₂₃)
-
-    C₁₄ = clover_square(U, 1, 4, site, 1)
-    F₁₄ = im/4 * traceless_antihermitian(C₁₄)
-
-    C₂₄ = clover_square(U, 2, 4, site, 1)
-    F₂₄ = im/4 * traceless_antihermitian(C₂₄)
-
-    C₃₄ = clover_square(U, 3, 4, site, 1)
-    F₃₄ = im/4 * traceless_antihermitian(C₃₄)
+    C₁₂ = clover_square(U, 1i32, 2i32, site, 1i32)
+    F₁₂ = im * 1//4 * traceless_antihermitian(C₁₂)
+    C₁₃ = clover_square(U, 1i32, 3i32, site, 1i32)
+    F₁₃ = im * 1//4 * traceless_antihermitian(C₁₃)
+    C₂₃ = clover_square(U, 2i32, 3i32, site, 1i32)
+    F₂₃ = im * 1//4 * traceless_antihermitian(C₂₃)
+    C₁₄ = clover_square(U, 1i32, 4i32, site, 1i32)
+    F₁₄ = im * 1//4 * traceless_antihermitian(C₁₄)
+    C₂₄ = clover_square(U, 2i32, 4i32, site, 1i32)
+    F₂₄ = im * 1//4 * traceless_antihermitian(C₂₄)
+    C₃₄ = clover_square(U, 3i32, 4i32, site, 1i32)
+    F₃₄ = im * 1//4 * traceless_antihermitian(C₃₄)
 
     out = real(multr(F₁₂, F₃₄)) - real(multr(F₁₃, F₂₄)) + real(multr(F₁₄, F₂₃))
     return out
 end
 
-function top_charge_density_imp(U, site)
+function top_charge_density_imp(U, site, c₀, c₁)
     q_clov = top_charge_density_clover(U, site)
     q_rect = top_charge_density_rect(U, site)
-    q_imp = 5/3*q_clov - 1/12*q_rect
+    q_imp = c₀*q_clov + c₁*q_rect
     return q_imp
 end
 
 function top_charge_density_rect(U, site)
-    C₁₂ = clover_rect(U, 1, 2, site, 1, 2)
-    F₁₂ = im/8 * traceless_antihermitian(C₁₂)
-
-    C₁₃ = clover_rect(U, 1, 3, site, 1, 2)
-    F₁₃ = im/8 * traceless_antihermitian(C₁₃)
-
-    C₂₃ = clover_rect(U, 2, 3, site, 1, 2)
-    F₂₃ = im/8 * traceless_antihermitian(C₂₃)
-
-    C₁₄ = clover_rect(U, 1, 4, site, 1, 2)
-    F₁₄ = im/8 * traceless_antihermitian(C₁₄)
-
-    C₂₄ = clover_rect(U, 2, 4, site, 1, 2)
-    F₂₄ = im/8 * traceless_antihermitian(C₂₄)
-
-    C₃₄ = clover_rect(U, 3, 4, site, 1, 2)
-    F₃₄ = im/8 * traceless_antihermitian(C₃₄)
+    C₁₂ = clover_rect(U, 1i32, 2i32, site, 1i32, 2i32)
+    F₁₂ = im * 1//8 * traceless_antihermitian(C₁₂)
+    C₁₃ = clover_rect(U, 1i32, 3i32, site, 1i32, 2i32)
+    F₁₃ = im * 1//8 * traceless_antihermitian(C₁₃)
+    C₂₃ = clover_rect(U, 2i32, 3i32, site, 1i32, 2i32)
+    F₂₃ = im * 1//8 * traceless_antihermitian(C₂₃)
+    C₁₄ = clover_rect(U, 1i32, 4i32, site, 1i32, 2i32)
+    F₁₄ = im * 1//8 * traceless_antihermitian(C₁₄)
+    C₂₄ = clover_rect(U, 2i32, 4i32, site, 1i32, 2i32)
+    F₂₄ = im * 1//8 * traceless_antihermitian(C₂₄)
+    C₃₄ = clover_rect(U, 3i32, 4i32, site, 1i32, 2i32)
+    F₃₄ = im * 1//8 * traceless_antihermitian(C₃₄)
 
     out = real(multr(F₁₂, F₃₄)) - real(multr(F₁₃, F₂₄)) + real(multr(F₁₄, F₂₃))
     return out

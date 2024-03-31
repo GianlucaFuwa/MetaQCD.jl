@@ -1,5 +1,11 @@
 import InteractiveUtils
 
+"""
+    MetaLogger(LEVEL::Int64, io::IO, to_console::Bool)
+
+Logger object that can be used to log messages to the IOStream `io` and, if
+`to_console = true`, to the console.
+"""
 struct MetaLogger
     LEVEL::Int64
     io::IO
@@ -22,12 +28,14 @@ function set_global_logger!(level, io=devnull; tc=true)
 end
 
 for input_level in 1:3
+    # Create the macros @level1, @level2, and @level3
     @eval macro $(Symbol("level$(input_level)"))(val...)
         return $(Symbol("level$(input_level)"))(val...)
     end
 end
 
 for input_level in 1:3
+    # Create the functions that the macros @level1, @level2, and @level3 call
     @eval function $(Symbol("level$(input_level)"))(val...)
         GlobalLogger[].LEVEL < $(input_level) && return nothing
         return quote

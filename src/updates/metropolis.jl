@@ -1,3 +1,23 @@
+"""
+    Metropolis(U::Gaugefield{B,T,A,GA}, eo, ϵ, numhits, target_acc, or_alg, numOR) where {B,T,A,GA}
+
+Create a `Metropolis` object.
+
+# Arguments
+- `U::Gaugefield{B,T,A,GA}`: Gauge field object.
+- `eo`: Even-odd preconditioning.
+- `ϵ`: Step size for the update.
+- `numhits`: Number of Metropolis hits.
+- `target_acc`: Target acceptance rate.
+- `or_alg`: Overrelaxation algorithm.
+- `numOR`: Number of overrelaxation sweeps.
+
+# Returns
+A Metropolis object with the specified parameters. The gauge action `GA` of the field `U`
+determines the iterator used. For the plaquette or Wilson action it uses a
+Checkerboard iterator and for rectangular actions it partitions the lattice into four
+sublattices.
+"""
 struct Metropolis{ITR,NH,TOR,NOR} <: AbstractUpdate
 	ϵ::Base.RefValue{Float64}
 	numhits::Int64
@@ -5,25 +25,11 @@ struct Metropolis{ITR,NH,TOR,NOR} <: AbstractUpdate
     OR::TOR
     numOR::Int64
 
-	function Metropolis(::Gaugefield{GA}, eo, ϵ, numhits, target_acc, or_alg, numOR) where {GA}
+	function Metropolis(::Gaugefield{B,T,A,GA}, eo, ϵ, numhits, target_acc, or_alg,
+                        numOR) where {B,T,A,GA}
         @level1("┌ Setting Metropolis...")
 		m_ϵ = Base.RefValue{Float64}(ϵ)
-
-        if eo
-            @level1("|  PARALLELIZATION ENABLED")
-            if GA==WilsonGaugeAction
-                ITR = Checkerboard2MT
-            else
-                ITR = Checkerboard4MT
-            end
-        else
-            @level1("|  PARALLELIZATION DISABLED")
-            if GA==WilsonGaugeAction
-                ITR = Checkerboard2
-            else
-                ITR = Checkerboard4
-            end
-        end
+        ITR = GA==WilsonGaugeAction ? Checkerboard2 : Checkerboard4
         @level1("|  ITERATOR: $(ITR)")
 
         OR = Overrelaxation(or_alg)
@@ -33,41 +39,40 @@ struct Metropolis{ITR,NH,TOR,NOR} <: AbstractUpdate
         @level1("|  OVERRELAXATION ALGORITHM: $(TOR)")
         @level1("|  NUM. OF OVERRELAXATION SWEEPS: $(numOR)")
         @level1("└\n")
-		return new{ITR,Val{numhits},typeof(OR),Val{numOR}}(m_ϵ, numhits, target_acc, OR, numOR)
+		return new{ITR,Val{numhits},TOR,Val{numOR}}(m_ϵ, numhits, target_acc, OR, numOR)
 	end
 end
 
 function update!(metro::Metropolis{ITR,NH,TOR,NOR}, U; kwargs...) where {ITR,NH,TOR,NOR}
-    numaccepts_metro = 0.0
-    numaccepts_or = 0.0
-
-    numaccepts_metro += sweep_reduce!(ITR(), Val{1}(), metro, U, -U.β/U.NC)
-    numaccepts_or += sweep_reduce!(ITR(), NOR(), TOR(), U, -U.β/U.NC)
+    fac = -U.β/U.NC
+    GA = gauge_action(U)()
+    numaccepts_metro = @latsum(ITR(), Val(1), metro, U, GA, fac)
+    numaccepts_or = @latsum(ITR(), NOR(), TOR(), U, GA, fac)
 
     numaccepts_metro /= 4*U.NV*_unwrap_val(NH())
     @level3("|  Metro acceptance: $(numaccepts_metro)")
-    numaccepts_or /= 4*U.NV*_unwrap_val(NOR())
     adjust_ϵ!(metro, numaccepts_metro)
-	return numaccepts_or
+    U.Sg = calc_gauge_action(U)
+    numaccepts = (NOR≡Val{0}) ? 1.0 : numaccepts_or / (4U.NV*_unwrap_val(NOR()))
+	return numaccepts
 end
 
-function (metro::Metropolis{ITR,NH,TOR,NOR})(U, μ, site, action_factor;
-                                             metro_test=true) where {ITR,NH,TOR,NOR}
-    A_adj = staple(U, μ, site)'
+function (metro::Metropolis{ITR,NH})(U, μ, site, GA, action_factor) where {ITR,NH}
+    T = float_type(U)
+    A_adj = staple(GA, U, μ, site)'
     numaccepts = 0
 
     for _ in 1:_unwrap_val(NH())
-        X = gen_SU3_matrix(metro.ϵ[])
-        old_link = U[μ][site]
+        X = gen_SU3_matrix(metro.ϵ[], T)
+        old_link = U[μ,site]
         new_link = cmatmul_oo(X, old_link)
 
         ΔSg = action_factor * real(multr((new_link - old_link), A_adj))
 
-        accept = metro_test ? (rand(Float64)≤exp(-ΔSg)) : true
+        accept = rand() ≤ exp(-ΔSg)
 
         if accept
-            U[μ][site] = proj_onto_SU3(new_link)
-            U.Sg += ΔSg
+            U[μ,site] = proj_onto_SU3(new_link)
             numaccepts += 1
         end
     end
@@ -75,6 +80,6 @@ function (metro::Metropolis{ITR,NH,TOR,NOR})(U, μ, site, action_factor;
 end
 
 function adjust_ϵ!(metro, numaccepts)
-	metro.ϵ[] += (numaccepts - metro.target_acc) * 0.2 # 0.2 is arbitrarily chosen
+	metro.ϵ[] += (numaccepts - metro.target_acc) * 0.1 # 0.1 is arbitrarily chosen
 	return nothing
 end

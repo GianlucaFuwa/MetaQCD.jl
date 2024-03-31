@@ -1,20 +1,24 @@
 module Updates
 
-using Base.Threads: @threads, nthreads, threadid
+using CUDA: i32
+using KernelAbstractions
+using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
 using StaticArrays
-using Polyester
+using Polyester: @batch
 using Printf
 using Random: rand, default_rng
 using Unicode
 using ..Output
 using ..Utils
 
-import ..Gaugefields: AbstractGaugeAction, Gaugefield, Liefield, Temporaryfield
-import ..Gaugefields: WilsonGaugeAction, add!, calc_gauge_action, calc_kinetic_energy,
-    clear_U!, normalize!, fieldstrength_eachsite!, gaussian_momenta!, mul!, staple,
-    staple_eachsite!, substitute_U!
-import ..Gaugefields: Plaquette, Clover
+import KernelAbstractions as KA
+import ..Gaugefields: AbstractGaugeAction, Gaugefield, Temporaryfield
+import ..Gaugefields: WilsonGaugeAction, add!, calc_gauge_action, calc_kinetic_energy
+import ..Gaugefields: clear_U!, dims, normalize!, fieldstrength_eachsite!, float_type
+import ..Gaugefields: gaussian_TA!, mul!, staple, staple_eachsite!, substitute_U!
+import ..Gaugefields: @groupreduce, @latmap, @latsum, gauge_action
+import ..Gaugefields: Abstractfield, Plaquette, Clover, Tensorfield
 import ..BiasModule: Bias, calc_CV, ∂V∂Q, recalc_CV!
 import ..BiasModule: kind_of_cv, update_bias!
 import ..Parameters: ParameterSet
@@ -24,12 +28,21 @@ import ..Universe: Univ
 
 abstract type AbstractUpdate end
 
+include("./derivatives.jl")
+include("./heatbath.jl")
 include("./hmc.jl")
 include("./metropolis.jl")
-include("./heatbath.jl")
 include("./overrelaxation.jl")
 include("./parity.jl")
 include("./tempering.jl")
+
+include("gpu_kernels/derivatives.jl")
+include("gpu_kernels/heatbath.jl")
+include("gpu_kernels/hmc.jl")
+include("gpu_kernels/metropolis.jl")
+include("gpu_kernels/overrelaxation.jl")
+include("gpu_kernels/parity.jl")
+include("gpu_kernels/tempering.jl")
 
 function Updatemethod(parameters::ParameterSet, U)
     updatemethod = Updatemethod(
@@ -53,7 +66,7 @@ function Updatemethod(parameters::ParameterSet, U)
         parameters.or_algorithm,
         parameters.numorelax,
     )
-        return updatemethod
+    return updatemethod
 end
 
 function Updatemethod(

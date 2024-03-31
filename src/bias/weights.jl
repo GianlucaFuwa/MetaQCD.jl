@@ -18,6 +18,7 @@ function calc_weights(b::Bias{TCV,TS,TB,T}, cv, itrj) where {TCV,TS,TB,T}
         w = calc_weight(b.bias, cv, method)
         str *= @sprintf("\t%-22.15E", w)
     end
+
     @level1(str * " # cv weight")
 
     if T ≢ Nothing

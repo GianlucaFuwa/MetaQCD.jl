@@ -15,16 +15,18 @@ Smearing types are subtypes of AbstractSmearing
 """
 module Smearing
 
-using Base.Threads: nthreads, threadid, @threads
+using KernelAbstractions
+using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
-using Polyester
+using Polyester: @batch
 using StaticArrays
 using Unicode
 using ..Output
 using ..Utils
 
-import ..Gaugefields: AbstractGaugeAction, CoeffField, Gaugefield, Liefield, Temporaryfield
-import ..Gaugefields: leftmul_dagg!, staple, staple_eachsite!, substitute_U!
+import ..Gaugefields: AbstractGaugeAction, CoeffField, Gaugefield, Temporaryfield
+import ..Gaugefields: leftmul_dagg!, staple, staple_eachsite!, substitute_U!, @groupreduce
+import ..Gaugefields: Abstractfield, dims, float_type, CUDA.i32, @latmap
 
 abstract type AbstractSmearing end
 
@@ -32,6 +34,9 @@ struct NoSmearing <: AbstractSmearing end
 
 include("./stout.jl")
 include("./gradientflow.jl")
+
+include("gpu_kernels/gradientflow.jl")
+include("gpu_kernels/stout.jl")
 
 function construct_smearing(U, smearingparameters, coefficient, numlayers)
     if smearingparameters == "nothing"
@@ -47,14 +52,7 @@ function construct_smearing(U, smearingparameters, coefficient, numlayers)
     return smearing
 end
 
-function calc_smearedU!(smearing, Uin)
-    if typeof(smearing) <: StoutSmearing
-        apply_smearing!(smearing, Uin)
-    elseif typeof(smearing) <: GradientFlow
-        flow!(smearing)
-    end
-
-    return nothing
-end
+calc_smearedU!(smearing::StoutSmearing, Uin) = apply_smearing!(smearing, Uin)
+calc_smearedU!(smearing::GradientFlow, Uin) = flow!(smearing, Uin)
 
 end

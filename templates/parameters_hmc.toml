@@ -1,9 +1,9 @@
 ["Physical Settings"]
 L = [12, 12, 12, 12]
 beta = 6.0
-kind_of_gaction = "wilson"
-numtherm = 20
-numsteps = 10
+kind_of_gaction = "iwasaki"
+numtherm = 10
+numsteps = 5
 initial = "cold"
 update_method = "hmc"
 parity_update = false
@@ -13,7 +13,9 @@ hmc_trajectory = 1
 hmc_steps = 5
 hmc_integrator = "OMF4"
 
-["System Settings"]               
+["System Settings"]
+backend = "cuda"
+float_type = "single"         
 log_dir = "L12x12x12x12_wilson_beta6.0/test_hmc"
 measurement_dir = "L12x12x12x12_wilson_beta6.0/test_hmc"
 randomseed = 0

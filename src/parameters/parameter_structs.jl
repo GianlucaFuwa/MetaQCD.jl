@@ -31,7 +31,7 @@ function struct2dict(x::T) where {T}
     return dict
 end
 
-Base.@kwdef mutable struct PrintPhysicalParameters
+Base.@kwdef mutable struct PhysicalParameters
     L::NTuple{4, Int64} = (4, 4, 4, 4)
     beta::Float64 = 5.7
     NC::Int64 = 3
@@ -51,7 +51,7 @@ Base.@kwdef mutable struct PrintPhysicalParameters
     parity_update::Bool = false
 end
 
-Base.@kwdef mutable struct PrintBiasParameters
+Base.@kwdef mutable struct BiasParameters
     kind_of_bias::String = "none"
     kind_of_cv::String = "clover"
     numsmears_for_cv::Int64 = 4
@@ -89,7 +89,9 @@ Base.@kwdef mutable struct PrintBiasParameters
     measure_on_all::Bool = false
 end
 
-Base.@kwdef mutable struct PrintSystemParameters
+Base.@kwdef mutable struct SystemParameters
+    backend::String = "cpu"
+    float_type::String = "float64"
     log_dir::String = ""
     log_to_console::Bool = true
     verboselevel::Int64 = 1
@@ -106,16 +108,16 @@ Base.@kwdef mutable struct PrintSystemParameters
     overwrite::Bool = false
 end
 
-Base.@kwdef mutable struct PrintHMCParameters
+Base.@kwdef mutable struct HMCParameters
     hmc_trajectory::Float64 = 1
     hmc_steps::Int64 = 10
-    hmc_friction::Float64 = π/2
+    hmc_friction::Float64 = 0.0
     hmc_integrator::String = "Leapfrog"
     hmc_numsmear::Int64 = 0
     hmc_rhostout::Float64 = 0.0
 end
 
-Base.@kwdef mutable struct PrintGradientFlowParameters
+Base.@kwdef mutable struct GradientFlowParameters
     flow_integrator::String = "euler"
     flow_num::Int64 = 1
     flow_tf::Float64 = 0.1
@@ -123,6 +125,6 @@ Base.@kwdef mutable struct PrintGradientFlowParameters
     flow_measure_every::Union{Int64, Vector{Int64}} = 1
 end
 
-Base.@kwdef mutable struct PrintMeasurementParameters
+Base.@kwdef mutable struct MeasurementParameters
     measurement_method::Vector{Dict} = Dict[]
 end

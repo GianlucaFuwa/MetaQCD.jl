@@ -11,7 +11,9 @@ Module containing all measurement methods and their parameters. Also handles I/O
 """
 module Measurements
 
-using Base.Threads
+using CUDA: i32
+using KernelAbstractions
+using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
 using MPI
 using Polyester
@@ -20,9 +22,10 @@ using Unicode
 using ..Output
 using ..Utils
 
-import ..Gaugefields: Gaugefield, calc_gauge_action, clover_rect, clover_square,
-    plaquette, wilsonloop, substitute_U!
-import ..Gaugefields: Plaquette, Clover, Improved
+import KernelAbstractions as KA
+import ..Gaugefields: Gaugefield, calc_gauge_action, clover_rect, clover_square, dims,
+    float_type, plaquette, wilsonloop, substitute_U!, @groupreduce, @latsum
+import ..Gaugefields: Plaquette, Clover, Improved, CPU
 import ..Smearing: StoutSmearing, calc_smearedU!, flow!
 
 abstract type AbstractMeasurement end
@@ -52,5 +55,9 @@ include("measure_polyakov.jl")
 include("measure_wilson_loop.jl")
 include("measure_topological_charge.jl")
 include("measure_energy_density.jl")
+
+include("gpu_kernels/energydensity.jl")
+include("gpu_kernels/polyakov.jl")
+include("gpu_kernels/topcharge.jl")
 
 end

@@ -1,10 +1,10 @@
 import ..Gaugefields: wilsonloop
 
 struct WilsonLoopMeasurement{T} <: AbstractMeasurement
-    WL_dict::Dict{NTuple{2,Int64}, Float64}
-    Tmax::Int64
-    Rmax::Int64
-    fp::T
+    WL_dict::Dict{NTuple{2,Int64}, Float64} # (R, T) => value
+    Tmax::Int64 # maximum width of the Wilson loop
+    Rmax::Int64 # maximum length of the Wilson loop
+    fp::T # file pointer
 
     function WilsonLoopMeasurement(
         ::Gaugefield;
@@ -61,7 +61,7 @@ function measure(m::WilsonLoopMeasurement{T}, U; additional_string="") where {T}
 
     for iT in 1:m.Tmax
         for iR in 1:m.Rmax
-            WL = tr(wilsonloop(U, iR, iT)) / (18.0*U.NV)
+            WL = wilsonloop(U, iR, iT) / (18.0U.NV)
             m.WL_dict[iR, iT] = WL
 
             if T ≡ IOStream

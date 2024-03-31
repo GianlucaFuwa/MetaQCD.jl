@@ -32,7 +32,8 @@ function temper!(U::Vector{TG}, bias::Vector{TB}, numaccepts_temper, swap_every,
     return nothing
 end
 
-function swap_U!(a::Gaugefield, b::Gaugefield)
+function swap_U!(a, b)
+    @assert dims(a) == dims(b)
     a_Sg_tmp = deepcopy(a.Sg)
     a_CV_tmp = deepcopy(a.CV)
 
@@ -41,11 +42,11 @@ function swap_U!(a::Gaugefield, b::Gaugefield)
     b.Sg = a_Sg_tmp
     b.CV = a_CV_tmp
 
-    @batch per=thread for site in eachindex(a)
+    @batch for site in eachindex(a)
         for μ in 1:4
-            a_tmp = a[μ][site]
-            a[μ][site] = b[μ][site]
-            b[μ][site] = a_tmp
+            a_tmp = a[μ,site]
+            a[μ,site] = b[μ,site]
+            b[μ,site] = a_tmp
         end
     end
 

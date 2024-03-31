@@ -1,3 +1,18 @@
+"""
+    Parametric(cvlims, penalty_weight, Q, A, Z)
+    Parametric(p::ParameterSet; instance=1)
+
+Create an instance of a static Parametric bias using the inputs or the
+parameters given in `p`.
+
+# Specifiable parameters
+`cvlims::NTuple{2, Float64} = (-6, 6)` - Minimum and maximum of the explorable cv-space;
+must be ordered \\
+`penalty_weight::Float64 = 1000` - Penalty when cv is outside of `cvlims`; must be positive \\
+`Q::Float64 = 0` - Quadratic term in the bias \\
+`A::Float64 = 0` - Amplitude of the cosine term in the bias \\
+`Z::Float64 = 0` - Frequency of the cosine term in the bias \\
+"""
 struct Parametric <: AbstractBias
     cvlims::NTuple{2, Float64}
     penalty_weight::Float64
@@ -54,7 +69,7 @@ function ∂V∂Q(p::Parametric, cv)
     end
 end
 
-function integral(p::Parametric, lb, ub)
+function integral(p::Parametric, lb, ub) # XXX: Why does this function exist?
     Q, A, Z = p.Q, p.A, p.Z
     num = 3A*sin(2π*Z*ub) + 2π*Q*Z*ub^3 - 3A*sin(2π*Z*lb) - 2π*Q*Z*lb^3
     denom = 6π * Z

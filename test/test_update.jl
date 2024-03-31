@@ -1,36 +1,32 @@
-function SU3testupdate()
-    Random.seed!(1206)
+function SU3testupdate(backend=nothing; update_method="heatbath", or_algorithm="subgroups",
+    hmc_integrator="OMF4", hmc_numsmear=0, gaction=WilsonGaugeAction)
+    Random.seed!(123)
 
     println("SU3testupdate")
-    NX = 4; NY = 4; NZ = 4; NT = 4
-    U = random_gauges(NX, NY, NZ, NT, 6.0, SymanzikTreeGaugeAction);
-    #filename = "./test/testconf.txt"
-    #load_BridgeText!(filename,U)
+    NX = 12; NY = 12; NZ = 12; NT = 12
+    U = initial_gauges("hot", NX, NY, NZ, NT, 6.0, GA=gaction);
+    if backend !== nothing
+        U = MetaQCD.to_backend(backend, U)
+    end
 
-    verbose = Verbose2()
-
-    update_method = "hmc"
+    verbose_level = 2
     kind_of_bias = "none"
-    metro_ϵ = 0.1
+    metro_ϵ = 0.2
     metro_numhits = 1
     metro_target_acc = 0.5
-    hmc_integrator = "OMF4"
     hmc_trajectory = 1
-    hmc_friction = π/2
+    hmc_friction = 0
     hmc_steps = 5
-    hmc_numsmear = 5
     hmc_ρstout = 0.12
-    hb_eo = false
+    hb_eo = true
     hb_MAXIT = 10
     numheatbath = 1
-    or_algorithm = "kenney-laub"
     numorelax = 4
 
     updatemethod = Updatemethod(
         U,
         update_method,
-        verbose,
-        1,
+        verbose_level,
         "",
         kind_of_bias,
         metro_ϵ,
@@ -49,10 +45,11 @@ function SU3testupdate()
         numorelax,
     );
 
-    println(typeof(updatemethod)) # To check if we are using the right iterator
+    println(typeof(updatemethod), "\n") # To check if we are using the right iterator
+    println("Starting action is: $(calc_gauge_action(U))")
 
     for _ = 1:10
-        _, runtime = @timed update!(updatemethod, U, verbose, metro_test=false)
+        _, runtime = @timed update!(updatemethod, U, metro_test=false)
         println("Elapsed time: $runtime [s]")
     end
 
@@ -60,7 +57,7 @@ function SU3testupdate()
     nsweeps = 10
 
     for _ = 1:nsweeps
-        value, runtime = @timed update!(updatemethod, U, verbose, metro_test=true)
+        value, runtime = @timed update!(updatemethod, U, metro_test=true)
         println("Elapsed time: $runtime [s]")
         numaccepts += value
     end
@@ -82,6 +79,6 @@ function SU3testupdate()
         end
     end
 
-    println("Acceptance Rate: ", 100 * numaccepts / nsweeps, " %")
-    return numaccepts / nsweeps
+    println("Acceptance Rate: ", 100 * numaccepts / nsweeps, " %\n")
+    return true
 end

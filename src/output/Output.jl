@@ -2,6 +2,7 @@ module Output
 
 using Dates
 using JLD2
+using KernelAbstractions # TODO: save and load of GPUD
 using LinearAlgebra
 using Random
 using StaticArrays
@@ -16,6 +17,7 @@ abstract type SaveFormat end
 # struct BMWFormat end
 struct BridgeFormat <: SaveFormat end
 struct JLD2Format <: SaveFormat end
+function dims end
 
 # include("bmw_format.jl")
 include("bridge_format.jl")

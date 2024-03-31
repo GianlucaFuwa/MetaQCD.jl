@@ -2,9 +2,9 @@ import ..Gaugefields: WilsonGaugeAction, SymanzikTreeGaugeAction, SymanzikTadGau
     IwasakiGaugeAction, DBW2GaugeAction
 
 struct GaugeActionMeasurement{T} <: AbstractMeasurement
-    GA_dict::Dict{String, Float64}
-    factor::Float64
-    fp::T
+    GA_dict::Dict{String, Float64} # gauge action definition => value
+    factor::Float64 # 1 / (6*U.NV*U.β)
+    fp::T # file pointer
 
     function GaugeActionMeasurement(
         U;

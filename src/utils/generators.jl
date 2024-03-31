@@ -28,8 +28,8 @@ const γ₄ = @SArray [
 ]
 
 const σ₁ = @SArray [
-        0 1
-        1 0
+    0 1
+    1 0
 ]
 
 const σ₂ = @SArray [
@@ -212,6 +212,6 @@ function expλ(i, α)
     elseif i == 8
         return expλ₈(α)
     else
-        return eye3
+        return eye3(Float64)
     end
 end

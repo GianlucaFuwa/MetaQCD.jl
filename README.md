@@ -1,3 +1,4 @@
+[![Global Docs](https://img.shields.io/badge/docs-MetaQCD-blue.svg)](https://gianlucafuwa.github.io/MetaQCD.jl/dev/)
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
 # MetaQCD.jl
@@ -13,11 +14,19 @@ Inspired by the [LatticeQCD.jl](https://github.com/akio-tomiya/LatticeQCD.jl/tre
 - Gradient flow with variable integrators (Euler, RK2, RK3, RK3W7)
 - Improved Gauge actions (Symanzik tree, Iwasaki, DBW2)
 - Improved Topological charge definitions (clover, rectangle clover-improved)
+- Support for CUDA and ROCm backends
 
 ## Installation:
 First make sure you have a Julia version at or above 1.9.0 installed. You can use [juliaup](https://github.com/JuliaLang/juliaup) for that or just install the release from the [Julia website](https://julialang.org/downloads/).
 
-The package in not in the general registry. So you will have to:
+The package in not in the general registry. So you will have to either
+- Add the package to your Julia environment via:
+```
+julia> ] add https://github.com/GianlucaFuwa/MetaQCD.jl
+```
+
+or
+
 1. Clone this repository onto your machine.
 2. Open Julia in the directory which you cloned the repo into, with the project specific environment. This can either be done by starting Julia with the command line argument "--project" or by activating the environment within an opened Julia instance via the package manager:
 ``` julia
@@ -36,6 +45,8 @@ or
 ``` julia
 pkg> instantiate
 ```
+
+If you want to use a GPU, make sure you not only have CUDA.jl or AMDGPU.jl installed, but also a fairly recent version of the CUDA Toolkit or ROCm.
 
 ## Quick Start:
 1. Set parameters using one of the templates in template folder
@@ -139,6 +150,8 @@ Base.@kwdef mutable struct PrintBiasParameters
 end
 
 Base.@kwdef mutable struct PrintSystemParameters
+    backend::String = "cpu"
+    float_type::String = "float64"
     log_dir::String = ""
     log_to_console::Bool = true
     verboselevel::Int64 = 1

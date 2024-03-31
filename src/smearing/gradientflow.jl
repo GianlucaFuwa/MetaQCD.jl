@@ -1,13 +1,13 @@
 abstract type AbstractIntegrator end
 
-struct GradientFlow{TI,TG} <: AbstractSmearing
+struct GradientFlow{TI,TG,TT} <: AbstractSmearing
     numflow::Int64
     steps::Int64
     ϵ::Float64
     tf::Float64
     measure_at::Vector{Int64}
     Uflow::TG
-    Z::Liefield
+    Z::TT
 end
 
 include("gradientflow_integrators.jl")
@@ -15,7 +15,7 @@ include("gradientflow_integrators.jl")
 function GradientFlow(U::TG, integrator="euler", numflow=1, steps=1, tf=0.12;
                       measure_every = 1) where {TG}
     @level1("┌ Setting Gradient Flow...")
-    Z = Liefield(U)
+    Z = Temporaryfield(U)
     Uflow = similar(U)
 
     integrator = Unicode.normalize(integrator, casefold=true)
@@ -46,39 +46,52 @@ function GradientFlow(U::TG, integrator="euler", numflow=1, steps=1, tf=0.12;
     @level1("|  INTEGRATION STEP SIZE: $(ϵ)")
     @level1("|  MEASURING ON GFLOW NUMBERS: $(measure_at)")
     @level1("└\n")
-    return GradientFlow{TI,TG}(numflow, steps, ϵ, tf, measure_at, Uflow, Z)
+    return GradientFlow{TI,TG,typeof(Z)}(numflow, steps, ϵ, tf, measure_at, Uflow, Z)
 end
 
-flow!(method::GradientFlow{TI,TG}) where {TI,TG} = flow!(TI(), method)
+flow!(method::GradientFlow{TI}) where {TI} = flow!(TI(), method)
 
-function updateU!(U, Z, ϵ)
-    @batch per=thread for site in eachindex(U)
+function flow!(method::GradientFlow{TI}, Uin) where {TI}
+    substitute_U!(method.Uflow, Uin)
+    flow!(TI(), method)
+    return nothing
+end
+
+function updateU!(U::Gaugefield{CPU,T}, Z::Temporaryfield{CPU,T}, ϵ) where {T}
+    ϵ = T(ϵ)
+
+    @batch for site in eachindex(U)
         for μ in 1:4
-            U[μ][site] = cmatmul_oo(exp_iQ(-im * ϵ * Z[μ][site]), U[μ][site])
+            U[μ,site] = cmatmul_oo(exp_iQ(-im * ϵ * Z[μ,site]), U[μ,site])
         end
     end
 
     return nothing
 end
 
-function calc_Z!(U, Z, ϵ)
-    @batch per=thread for site in eachindex(U)
+function calcZ!(Z::Temporaryfield{CPU,T}, U::Gaugefield{CPU,T}, ϵ) where {T}
+    ϵ = T(ϵ)
+
+    @batch for site in eachindex(U)
         for μ in 1:4
             A = staple(WilsonGaugeAction(), U, μ, site)
-            AU = cmatmul_od(A, U[μ][site])
-            Z[μ][site] = ϵ * traceless_antihermitian(AU)
+            AU = cmatmul_od(A, U[μ,site])
+            Z[μ,site] = ϵ * traceless_antihermitian(AU)
         end
     end
 
     return nothing
 end
 
-function updateZ!(U, Z, ϵ_old, ϵ_new)
-    @batch per=thread for site in eachindex(U)
+function updateZ!(Z::Temporaryfield{CPU,T}, U::Gaugefield{CPU,T}, ϵ_old, ϵ_new) where {T}
+    ϵ_old = T(ϵ_old)
+    ϵ_new = T(ϵ_new)
+    
+    @batch for site in eachindex(U)
         for μ in 1:4
             A = staple(WilsonGaugeAction(), U, μ, site)
-            AU = cmatmul_od(A, U[μ][site])
-            Z[μ][site] = ϵ_old * Z[μ][site] + ϵ_new * traceless_antihermitian(AU)
+            AU = cmatmul_od(A, U[μ,site])
+            Z[μ,site] = ϵ_old * Z[μ,site] + ϵ_new * traceless_antihermitian(AU)
         end
     end
 

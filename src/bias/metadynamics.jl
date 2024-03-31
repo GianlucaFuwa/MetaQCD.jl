@@ -1,9 +1,9 @@
 """
-    Metadynamics(p::ParameterSet; verbose=Verbose1(), instance=1)
+    Metadynamics(; symmetric=true, stride=1, cvlims=(-6, 6), biasfactor=Inf,
+                  bin_width=0.1, weight=0.01, penalty_weight=1000)
+    Metadynamics(p::ParameterSet; instance=1)
 
-Create an instance of a Metadynamics bias using the parameters given in `p`. \\
-`verbose` is used to print all parameters out as they are explicitly defined in the
-constructor.
+Create an instance of a Metadynamics bias using the inputs or the parameters given in `p`.
 
 # Specifiable parameters
 `symmetric::Bool = true` - If `true`, the bias is built symmetrically by updating for both cv and
@@ -30,11 +30,39 @@ struct Metadynamics <: AbstractBias
     values::Vector{Float64}
 end
 
+function Metadynamics(; symmetric=true, stride=1, cvlims=(-6, 6), biasfactor=Inf,
+                        bin_width=0.1, weight=0.01, penalty_weight=1000)
+    @level1("|  STRIDE: $(stride)")
+    @assert stride>0 "STRIDE must be >0"
+    @level1("|  CVLIMS: $(cvlims)")
+    @assert issorted(cvlims) "CVLIMS must be sorted from low to high"
+    @level1("|  BIN_WIDTH: $(bin_width)")
+    @assert bin_width > 0 "BIN_WIDTH must be > 0"
+
+    bin_vals = range(cvlims[1], cvlims[2], step=bin_width)
+    values = zero(bin_vals)
+
+    @level1("|  META_WEIGHT: $(weight)")
+    @assert weight > 0 "META_WEIGHT must be > 0"
+    @level1("|  PENALTY_WEIGHT: $(penalty_weight)")
+    @level1("|  BIASFACTOR: $(biasfactor)")
+    @assert biasfactor > 1 "BIASFACTOR must be > 1"
+    return Metadynamics(symmetric, stride,
+                        cvlims, biasfactor, bin_width, weight, penalty_weight,
+                        bin_vals, values)
+end
+
 function Metadynamics(p::ParameterSet; instance=1)
     symmetric = p.symmetric
     stride = p.stride
     @level1("|  STRIDE: $(stride)")
     @assert stride>0 "STRIDE must be >0"
+
+    @level1("|  CVLIMS: $(p.cvlims)")
+    @assert issorted(p.cvlims) "CVLIMS must be sorted from low to high"
+
+    @level1("|  BIN_WIDTH: $(p.bin_width)")
+    @assert p.bin_width > 0 "BIN_WIDTH must be > 0"
 
     if instance == 0
         bin_vals, values = metad_from_file(p, "")
@@ -44,14 +72,8 @@ function Metadynamics(p::ParameterSet; instance=1)
         bin_vals, values = metad_from_file(p, p.usebiases[instance])
     end
 
-    @level1("|  CVLIMS: $(p.cvlims)")
-    @assert issorted(p.cvlims) "CVLIMS must be sorted from low to high"
-
-    @level1("|  BIN_WIDTH: $(p.bin_width)")
-    @assert p.bin_width > 0 "BIN_WIDTH must be > 0"
-
     @level1("|  META_WEIGHT: $(p.meta_weight)")
-    @assert p.meta_weight > 0 "META_WEIGHT must be > 0, try \"is_static=true\""
+    @assert p.meta_weight > 0 "META_WEIGHT must be > 0"
 
     @level1("|  PENALTY_WEIGHT: $(p.penalty_weight)")
 
@@ -130,7 +152,7 @@ function ∂V∂Q(m::Metadynamics, cv)
 end
 
 function clear!(m::Metadynamics)
-    @batch for i in eachindex(m)
+    @threads for i in eachindex(m)
         m[i] = 0.0
     end
 

@@ -12,4 +12,10 @@ const SiteCoords = CartesianIndex{4}
     return SiteCoords(ix, iy, iz, it)
 end
 
+"""
+    move(s::SiteCoords, μ, steps, lim)
+
+Move a site `s` in the direction `μ` by `steps` steps with periodic boundary conditions.
+The maximum extent of the lattice in the direction `μ` is `lim`.
+"""
 move(s::SiteCoords, μ, steps, lim) = @set s[μ] = mod1(s[μ] + steps, lim)

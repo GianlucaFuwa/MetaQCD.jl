@@ -1,6 +1,6 @@
 struct EnergyDensityMeasurement{T} <: AbstractMeasurement
-    ED_dict::Dict{String, Float64}
-    fp::T
+    ED_dict::Dict{String, Float64} # energy density definition => value
+    fp::T # file pointer
 
     function EnergyDensityMeasurement(
         ::Gaugefield;
@@ -67,7 +67,7 @@ function measure(m::EnergyDensityMeasurement{T}, U; additional_string="") where 
     return output
 end
 
-function energy_density(U::Gaugefield, methodname::String)
+function energy_density(U, methodname::String)
     if methodname == "plaquette"
         E = energy_density(Plaquette(), U)
     elseif methodname == "clover"
@@ -81,59 +81,56 @@ function energy_density(U::Gaugefield, methodname::String)
     return E
 end
 
-function energy_density(::Plaquette, U::Gaugefield)
-    out = zeros(Float64, 8nthreads())
+function energy_density(::Plaquette, U::Gaugefield{CPU})
+    E = 0.0
 
-    @batch per=thread for site in eachindex(U)
+    @batch reduction=(+, E) for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
                 Cμν = plaquette(U, μ, ν, site)
                 Fμν = im * traceless_antihermitian(Cμν)
-                out[8threadid()] += real(multr(Fμν, Fμν))
+                E += real(multr(Fμν, Fμν))
             end
         end
     end
 
-    Eplaq = 1/U.NV * sum(out)
-    return Eplaq
+    return E / U.NV
 end
 
-function energy_density(::Clover, U::Gaugefield)
-    out = zeros(Float64, 8nthreads())
+function energy_density(::Clover, U::Gaugefield{CPU})
+    E = 0.0
 
-    @batch per=thread for site in eachindex(U)
+    @batch reduction=(+, E) for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
                 Cμν = clover_square(U, μ, ν, site, 1)
-                Fμν = im/4 * traceless_antihermitian(Cμν)
-                out[8threadid()] += real(multr(Fμν, Fμν))
+                Fμν = im * 1//4 * traceless_antihermitian(Cμν)
+                E += real(multr(Fμν, Fμν))
             end
         end
     end
 
-    Eclov = 1/U.NV * sum(out)
-    return Eclov
+    return E / U.NV
 end
 
-function energy_density(::Improved, U::Gaugefield)
+function energy_density(::Improved, U::Gaugefield{CPU})
     Eclover = energy_density(Clover(), U)
     Erect = energy_density_rect(U)
     return 5/3*Eclover - 1/12*Erect
 end
 
-function energy_density_rect(U::Gaugefield)
-    out = zeros(Float64, 8nthreads())
+function energy_density_rect(U::Gaugefield{CPU})
+    E = 0.0
 
-    @batch per=thread for site in eachindex(U)
+    @batch reduction=(+, E) for site in eachindex(U)
         for μ in 1:3
             for ν in μ+1:4
                 Cμν = clover_rect(U, μ, ν, site, 1, 2)
-                Fμν = im/8 * traceless_antihermitian(Cμν)
-                out[8threadid()] += real(multr(Fμν, Fμν))
+                Fμν = im * 1//8 * traceless_antihermitian(Cμν)
+                E += real(multr(Fμν, Fμν))
             end
         end
     end
 
-    Erect = 1/U.NV * sum(out)
-    return Erect
+    return E / U.NV
 end

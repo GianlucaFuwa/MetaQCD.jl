@@ -30,13 +30,14 @@ export MetaLogger, current_time, @level1, @level2, @level3, set_global_logger!
 export run_sim, run_build
 
 import .BiasModule: Bias, Metadynamics, OPES, Parametric, calc_CV, update_bias!
+import .Gaugefields: CPU, CUDABackend, ROCBackend
 import .Gaugefields: DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
 import .Gaugefields: SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
-import .Gaugefields: CoeffField, Gaugefield, Temporaryfield
-import .Gaugefields: calc_gauge_action, fieldstrength_eachsite!, identity_gauges, mul!
-import .Gaugefields: normalize!, plaquette, plaquette_trace_sum, random_gauges
-import .Gaugefields: substitute_U!, staple, staple_eachsite!, wilsonloop
-import .Gaugefields: Liefield, calc_kinetic_energy, gaussian_momenta!
+import .Gaugefields: CoeffField, Gaugefield, Temporaryfield, initial_gauges
+import .Gaugefields: calc_gauge_action, fieldstrength_eachsite!, identity_gauges!, mul!
+import .Gaugefields: normalize!, plaquette, plaquette_trace_sum, random_gauges!
+import .Gaugefields: substitute_U!, staple, staple_eachsite!, wilsonloop, to_backend
+import .Gaugefields: Tensorfield, calc_kinetic_energy, gaussian_TA!
 import .Measurements: measure, get_value, top_charge
 import .Measurements: EnergyDensityMeasurement, GaugeActionMeasurement, PlaquetteMeasurement
 import .Measurements: PolyakovMeasurement, TopologicalChargeMeasurement, WilsonLoopMeasurement
@@ -50,13 +51,14 @@ import .Updates: calc_dSdU_bare!, calc_dVdU_bare!, evolve!, update!, ∇trFμνF
 import .Universe: Univ
 
 export Bias, Metadynamics, OPES, Parametric, calc_CV, update_bias!
+export CPU, CUDABackend, ROCBackend
 export DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
 export SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
-export CoeffField, Gaugefield, Temporaryfield
-export calc_gauge_action, fieldstrength_eachsite!, identity_gauges, mul!
-export normalize!, plaquette, plaquette_trace_sum, random_gauges
+export CoeffField, Gaugefield, Temporaryfield, initial_gauges
+export calc_gauge_action, fieldstrength_eachsite!, identity_gauges!, mul!
+export normalize!, plaquette, plaquette_trace_sum, random_gauges!
 export substitute_U!, staple, staple_eachsite!, wilsonloop
-export Liefield, calc_kinetic_energy, gaussian_momenta!
+export Tensorfield, calc_kinetic_energy, gaussian_TA!
 export measure, get_value, top_charge
 export EnergyDensityMeasurement, GaugeActionMeasurement, PlaquetteMeasurement
 export PolyakovMeasurement, TopologicalChargeMeasurement, WilsonLoopMeasurement

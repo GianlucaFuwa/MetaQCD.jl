@@ -1,5 +1,5 @@
 struct PolyakovMeasurement{T} <: AbstractMeasurement
-    fp::T
+    fp::T # file pointer
 
     function PolyakovMeasurement(::Gaugefield; filename="", printvalues=false, flow=false)
         if printvalues
@@ -27,9 +27,8 @@ function PolyakovMeasurement(U, ::PolyakovParameters, filename, flow=false)
 end
 
 function measure(m::PolyakovMeasurement{T}, U; additional_string="") where {T}
-    NX, NY, NZ, _ = size(U)
-    poly = polyakov_traced(U) / (NX * NY * NZ)
     measurestring = ""
+    poly = polyakov_traced(U)
 
     if T ≡ IOStream
         measurestring *= @sprintf("%-9s\t%+22.15E\t%+22.15E",
@@ -43,23 +42,23 @@ function measure(m::PolyakovMeasurement{T}, U; additional_string="") where {T}
     return output
 end
 
-function polyakov_traced(U)
-    out = zeros(ComplexF64, 8nthreads())
-    NX, NY, NZ, NT = size(U)
+function polyakov_traced(U::Gaugefield{CPU})
+    P = 0.0 + 0.0im
+    NX, NY, NZ, NT = dims(U)
 
-    @batch per=thread  for iz in 1:NZ
+    @batch reduction=(+, P) for iz in 1:NZ
         for iy in 1:NY
             for ix in 1:NX
-                polymat = U[4][ix,iy,iz,1]
+                polymat = U[4,ix,iy,iz,1]
 
-                for t in 1:NT-1
-                    polymat = cmatmul_oo(polymat, U[4][ix,iy,iz,1+t])
+                for it in 1:NT-1
+                    polymat = cmatmul_oo(polymat, U[4,ix,iy,iz,1+it])
                 end
 
-                out[8threadid()] += tr(polymat)
+                P += tr(polymat)
             end
         end
     end
 
-    return sum(out)
+    return P / (NX * NY * NZ)
 end

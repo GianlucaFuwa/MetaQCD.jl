@@ -3,9 +3,9 @@ using Random
 
 function SU3testreversibility()
     println("SU3testreversibility")
-    Random.seed!(1206)
+    Random.seed!(123)
     N = 4
-    U = identity_gauges(N, N, N, N, 6.0, WilsonGaugeAction)
+    U = Gaugefield(N, N, N, N, 6.0, GA=WilsonGaugeAction)
     # if it works for dbw2 it should(!) work for the other improved actions
     loadU!(BridgeFormat(), U, "./test/testconf.txt")
 

@@ -1,11 +1,12 @@
 include("opes_kernel.jl")
 
 """
-    OPES(p::ParameterSet; verbose=Verbose1(), instance=1)
+    OPES(; symmetric=true, stride=1, cvlims=(-6, 6), barrier=30,
+         biasfactor=Inf, σ₀=0.1, σ_min=1e-6, fixed_σ=true, opes_epsilon=0.0,
+         no_Z=false, threshold=1.0, cutoff=0.0)
+    OPES(p::ParameterSet; instance=1)
 
-Create an instance of a OPES bias using the parameters given in `p`. \\
-`verbose` is used to print all parameters out as they are explicitly defined in the
-constructor.
+Create an instance of a OPES bias using the parameters given in `p`.
 
 # Specifiable parameters
 `symmetric::Bool = true` - If `true`, the bias is built symmetrically by updating for both cv and
@@ -22,7 +23,7 @@ must be ordered \\
 `no_Z::Bool = false` - If `false` normalization factor `Z` is dynamically adjusted \\
 `threshold::Float64 = 1.0` - Threshold distance for kernel merging; must be >0 \\
 `cutoff::Float64 = sqrt(2barrier/(1-1/biasfactor))` - Cutoff value for kernels; must be >0 \\
-`penalty::Float64 = exp(-0.5cutoff²)` - Penalty for being outside kernel cutoff; must be >0 \\
+`penalty::Float64 = exp(-0.5cutoff²)` - Penalty for being outside kernel cutoff; must be >0
 """
 mutable struct OPES <: AbstractBias
     is_first_step::Bool
@@ -60,6 +61,65 @@ mutable struct OPES <: AbstractBias
     kernels::Vector{Kernel}
     nδker::Int64
     δkernels::Vector{Kernel}
+end
+
+function OPES(; symmetric=true, stride=1, cvlims=(-6, 6), barrier=30, biasfactor=Inf,
+        	    σ₀=0.1, σ_min=1e-6, fixed_σ=true, opes_epsilon=0.0,
+                no_Z=false, threshold=1.0, cutoff=0.0)
+    is_first_step = true
+
+    counter = 1
+
+    biasfactor = biasfactor===0.0 ? barrier : biasfactor
+    bias_prefactor = 1 - 1/biasfactor
+
+    ϵ = opes_epsilon===0.0 ? exp(-barrier/bias_prefactor) : opes_epsilon
+    sum_weights = ϵ^bias_prefactor
+    sum_weights² = sum_weights^2
+    current_bias = 0.0
+    Z = 1.0
+    KDEnorm = sum_weights
+
+    cutoff = cutoff===0.0 ? sqrt(2barrier/bias_prefactor) : cutoff
+    cutoff² = cutoff^2
+    penalty = exp(-0.5cutoff²)
+
+    nker = 0
+    kernels = Vector{Kernel}(undef, 0)
+    nδker = 0
+    δkernels = Vector{Kernel}(undef, 0)
+    @level1("|  SYMMETRIC: $(symmetric)")
+    @level1("|  NKER: $(nker)")
+    @level1("|  COUNTER: $(counter)")
+    @assert counter>0 "COUNTER must be ≥0"
+    @level1("|  STRIDE: $(stride)")
+    @assert stride>0 "STRIDE must be >0"
+    @level1("|  CVLIMS: $(cvlims)")
+    @assert cvlims[1]<cvlims[2] "CVLIMS[1] must be <CVLIMS[2]"
+    @level1("|  BARRIER: $(barrier)")
+    @assert barrier >= 0 "BARRIER must be > 0"
+    @level1("|  BIASFACTOR: $(biasfactor)")
+    @assert biasfactor > 1 "BIASFACTOR must be > 1"
+    @level1("|  SIGMA0: $(σ₀)")
+    @assert σ₀ >= 0 "SIGMA0 must be >= 0"
+    @level1("|  SIGMA_MIN: $(σ_min)")
+    @assert σ_min >= 0 "SIGMA_MIN must be > 0"
+    @level1("|  FIXED_SIGMA: $(fixed_σ)")
+    @level1("|  EPSILON: $(ϵ)")
+    @assert ϵ > 0 "EPSILON must be > 0, maybe your BARRIER is to high?"
+    @level1("|  NO_Z: $(no_Z)")
+    @level1("|  THRESHOLD: $(threshold)")
+    @assert threshold > 0 "THRESHOLD must be > 0"
+    @level1("|  CUTOFF: $(sqrt(cutoff²))")
+    @assert cutoff > 0 "CUTOFF must be > 0"
+    return OPES(is_first_step,
+                symmetric, counter, stride, cvlims,
+                biasfactor, bias_prefactor,
+                σ₀, σ_min, fixed_σ,
+                ϵ, sum_weights, sum_weights², current_bias, 0.0, no_Z, Z, KDEnorm,
+                threshold, cutoff², penalty,
+                sum_weights, Z, KDEnorm,
+                nker, kernels, nδker, δkernels)
 end
 
 function OPES(p::ParameterSet; instance=1)
@@ -123,6 +183,7 @@ function OPES(p::ParameterSet; instance=1)
         penalty = state["penalty"]
     end
 
+    @level1("|  SYMMETRIC: $(symmetric)")
     @level1("|  NKER: $(nker)")
     @level1("|  COUNTER: $(counter)")
     @assert counter>0 "COUNTER must be ≥0"

@@ -23,6 +23,8 @@ const myrank = MPI.Comm_rank(comm)
 const comm_size = MPI.Comm_size(comm)
 
 function print_acceptance_rates(numaccepts, itrj)
+    myrank != 0 && return nothing
+    
     for (i, value) in enumerate(numaccepts)
         @level1("|    Acceptance $i:\t$(100value / itrj) %")
     end

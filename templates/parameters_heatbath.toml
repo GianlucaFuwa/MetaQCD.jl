@@ -3,7 +3,7 @@ L = [12, 12, 12, 12]
 beta = 6.0
 kind_of_gaction = "wilson"
 numtherm = 20
-numsteps = 10
+numsteps = 5
 initial = "cold"
 update_method = "heatbath"
 hb_maxit = 10
@@ -12,7 +12,9 @@ eo = true
 or_algorithm = "kenney-laub"
 numorelax = 4
 
-["System Settings"]               
+["System Settings"]
+backend = "cuda"
+float_type = "float32"               
 log_dir = "L12x12x12x12_wilson_beta6.0/test_heatbath"
 measurement_dir = "L12x12x12x12_wilson_beta6.0/test_heatbath"
 randomseed = 0
