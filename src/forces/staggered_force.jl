@@ -8,6 +8,7 @@ function calc_dSfdU!(
     D = fermion_action.D
     replace_U!(D, U)
     DdagD = DdaggerD(D)
+    clear!(X) # initial guess is zero
     solve_D⁻¹x!(X, DdagD, ψ, Y, temp1, temp2)
     LinearAlgebra.mul!(Y, D, X) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
     TA_from_XY!(dU, U, X, Y)
@@ -17,31 +18,27 @@ end
 function TA_from_XY!(dU, U, X::T, Y::T) where {T<:StaggeredFermionfield}
     @assert dims(dU) == dims(U) == dims(X) == dims(Y)
     NX, NY, NZ, NT = dims(U)
-    onehalf = float_type(U)(0.5)
+    monehalf = float_type(U)(-0.5)
 
-    @batch for site in eachindex(dU)
+    for site in eachindex(dU)
         siteμ⁺ = move(site, 1, 1, NX)
-        η = onehalf * staggered_η(Val(1), site)
-        Bₙ = η * ckron(cmvmul(U[1, site], X[1, siteμ⁺]), Y[1, site])
-        Cₙ = η * ckron(X[1, site], cmvmul(U[1, site], Y[1, siteμ⁺]))
-        dU[1, site] = traceless_antihermitian(Bₙ - Cₙ)
+        η = staggered_η(Val(1), site)
+        temp = ckron(X[siteμ⁺], Y[site]) - ckron(Y[siteμ⁺], X[site])
+        dU[1, site] = monehalf * η * traceless_antihermitian(cmatmul_oo(U[1, site], temp))
 
-        siteμ⁺ = move(site, 1, 1, NY)
-        η = onehalf * staggered_η(Val(2), site)
-        Bₙ = η * ckron(cmvmul(U[2, site], X[1, siteμ⁺]), Y[1, site])
-        Cₙ = η * ckron(X[1, site], cmvmul(U[2, site], Y[1, siteμ⁺]))
-        dU[2, site] = traceless_antihermitian(Bₙ - Cₙ)
+        siteμ⁺ = move(site, 2, 1, NY)
+        η = staggered_η(Val(2), site)
+        temp = ckron(X[siteμ⁺], Y[site]) - ckron(Y[siteμ⁺], X[site])
+        dU[2, site] = monehalf * η * traceless_antihermitian(cmatmul_oo(U[2, site], temp))
 
-        siteμ⁺ = move(site, 1, 1, NZ)
-        η = onehalf * staggered_η(Val(3), site)
-        Bₙ = η * ckron(cmvmul(U[3, site], X[1, siteμ⁺]), Y[1, site])
-        Cₙ = η * ckron(X[1, site], cmvmul(U[3, site], Y[1, siteμ⁺]))
-        dU[3, site] = traceless_antihermitian(Bₙ - Cₙ)
+        siteμ⁺ = move(site, 3, 1, NZ)
+        η = staggered_η(Val(3), site)
+        temp = ckron(X[siteμ⁺], Y[site]) - ckron(Y[siteμ⁺], X[site])
+        dU[3, site] = monehalf * η * traceless_antihermitian(cmatmul_oo(U[3, site], temp))
 
-        siteμ⁺ = move(site, 1, 1, NT)
-        η = onehalf * staggered_η(Val(4), site)
-        Bₙ = η * ckron(cmvmul(U[4, site], X[1, siteμ⁺]), Y[1, site])
-        Cₙ = η * ckron(X[1, site], cmvmul(U[4, site], Y[1, siteμ⁺]))
-        dU[4, site] = traceless_antihermitian(Bₙ - Cₙ)
+        siteμ⁺ = move(site, 4, 1, NT)
+        η = staggered_η(Val(4), site)
+        temp = ckron(X[siteμ⁺], Y[site]) - ckron(Y[siteμ⁺], X[site])
+        dU[4, site] = monehalf * η * traceless_antihermitian(cmatmul_oo(U[4, site], temp))
     end
 end

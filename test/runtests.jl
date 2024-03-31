@@ -8,15 +8,19 @@ using Polyester
 using AMDGPU: ROCBackend
 using CUDA
 
-include("test_meas.jl")
-include("test_derivative.jl")
-include("test_update.jl")
-include("test_gflow.jl")
-include("test_clinalg.jl")
+include("./test_meas.jl")
+include("./test_derivative.jl")
+include("./test_update.jl")
+include("./test_gflow.jl")
+include("./test_clinalg.jl")
 # include("test_reversibility.jl")
 
 @testset "Linear Algebra Tests" begin
-    SU3testlinalg()
+    test_cdot()
+    test_ckron()
+    test_cmvmul()
+    test_spin_color()
+    test_cmatmul()
 end
 
 @testset "CPU Tests" begin

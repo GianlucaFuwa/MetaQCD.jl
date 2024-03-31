@@ -47,7 +47,7 @@ function LinearAlgebra.mul!(
     mass_term = T(8 + 2 * D.mass)
     @assert dims(ϕ) == dims(ψ) == dims(U)
 
-    @batch for site in eachindex(ϕ)
+    for site in eachindex(ϕ)
         ϕ[site] = wilson_kernel(U, ψ, site, mass_term, T)
     end
 
@@ -63,7 +63,7 @@ function LinearAlgebra.mul!(
     mass_term = T(8 + 2 * D.parent.mass)
     @assert dims(ϕ) == dims(ψ) == dims(U)
 
-    @batch for site in eachindex(ϕ)
+    for site in eachindex(ϕ)
         ϕ[site] = wilson_kernel_dagg(U, ψ, site, mass_term, T)
     end
 

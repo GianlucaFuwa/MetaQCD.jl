@@ -23,8 +23,10 @@ using ..Output
 using ..Utils
 
 import KernelAbstractions as KA
-import ..Gaugefields: Gaugefield, calc_gauge_action, clover_rect, clover_square, dims
-import ..Gaugefields: float_type, plaquette, wilsonloop
+import ..DiracOperators: Daggered, Daggered, StaggeredDiracOperator, WilsonDiracOperator
+import ..DiracOperators: solve_D⁻¹x!
+import ..Gaugefields: Gaugefield, Fermionfield, calc_gauge_action, clover_rect
+import ..Gaugefields: clover_square, dims, float_type, plaquette, wilsonloop, ones!
 import ..Gaugefields: @groupreduce, @latsum, Plaquette, Clover, Improved, CPU
 import ..Smearing: StoutSmearing, calc_smearedU!, flow!
 
@@ -55,6 +57,8 @@ include("measure_polyakov.jl")
 include("measure_wilson_loop.jl")
 include("measure_topological_charge.jl")
 include("measure_energy_density.jl")
+
+include("measure_pion_correlator.jl")
 
 include("gpu_kernels/energydensity.jl")
 include("gpu_kernels/polyakov.jl")

@@ -17,7 +17,7 @@ function set_cg_max_iterations!(val)
     return nothing
 end
 
-function cg!(x, b, A, Ap, r, p; tol=TOLERANCE[], maxiter=MAX_ITERATIONS[])
+function cg!(x, b, A, Ap, r, p; tol=TOLERANCE[], maxiter=1000)
     mul!(Ap, A, x)
     copy!(r, b)
     axpy!(-1, Ap, r)

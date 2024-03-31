@@ -1,8 +1,13 @@
+using MetaQCD.Updates: calc_dQdU_bare!
+
 function SU3testderivative(backend=nothing)
     Random.seed!(123)
     println("SU3test_gauge_derivative")
-    NX = 4; NY = 4; NZ = 4; NT = 4;
-    U = initial_gauges("hot", NX, NY, NZ, NT, 6.0, GA=WilsonGaugeAction)
+    NX = 4
+    NY = 4
+    NZ = 4
+    NT = 4
+    U = initial_gauges("hot", NX, NY, NZ, NT, 6.0; GA=WilsonGaugeAction)
     # filename = "./test/testconf.txt"
     # loadU!(BridgeFormat(), U, filename);
     if backend !== nothing
@@ -32,24 +37,24 @@ function SU3testderivative(backend=nothing)
     for group_direction in 1:8
         # Unsmeared
         Ufwd = deepcopy(U)
-        Ufwd[μ,site] = expλ(group_direction, ΔH) * Ufwd[μ,site]
+        Ufwd[μ, site] = expλ(group_direction, ΔH) * Ufwd[μ, site]
         gaction_new_fwd = calc_gauge_action(Ufwd)
         topcharge_new_fwd = top_charge(Clover(), Ufwd)
 
         Ubwd = deepcopy(U)
-        Ubwd[μ,site] = expλ(group_direction, -ΔH) * Ubwd[μ,site]
+        Ubwd[μ, site] = expλ(group_direction, -ΔH) * Ubwd[μ, site]
         gaction_new_bwd = calc_gauge_action(Ubwd)
         topcharge_new_bwd = top_charge(Clover(), Ubwd)
 
         # Smeared
         Ufwd = deepcopy(U)
-        Ufwd[μ,site] = expλ(group_direction, ΔH) * Ufwd[μ,site]
+        Ufwd[μ, site] = expλ(group_direction, ΔH) * Ufwd[μ, site]
         calc_smearedU!(smearing, Ufwd)
         gaction_new_fwd_smeared = calc_gauge_action(smearing.Usmeared_multi[end])
         topcharge_new_fwd_smeared = top_charge(Clover(), smearing.Usmeared_multi[end])
 
         Ubwd = deepcopy(U)
-        Ubwd[μ,site] = expλ(group_direction, -ΔH) * Ubwd[μ,site]
+        Ubwd[μ, site] = expλ(group_direction, -ΔH) * Ubwd[μ, site]
         calc_smearedU!(smearing, Ubwd)
         gaction_new_bwd_smeared = calc_gauge_action(smearing.Usmeared_multi[end])
         topcharge_new_bwd_smeared = top_charge(Clover(), smearing.Usmeared_multi[end])
@@ -59,10 +64,12 @@ function SU3testderivative(backend=nothing)
         calc_dQdU_bare!(Clover(), dQdU, fieldstrength, U)
         calc_dQdU_bare!(Clover(), dQdU_smeared, fieldstrength, U, temp_force, smearing)
 
-        dgaction_proj = real(multr(im * λ[group_direction], dSdU[μ,site]))
-        dtopcharge_proj = real(multr(im * λ[group_direction], dQdU[μ,site]))
-        dgaction_proj_smeared = real(multr(im * λ[group_direction], dSdU_smeared[μ,site]))
-        dtopcharge_proj_smeared = real(multr(im * λ[group_direction], dQdU_smeared[μ,site]))
+        dgaction_proj = real(multr(im * λ[group_direction], dSdU[μ, site]))
+        dtopcharge_proj = real(multr(im * λ[group_direction], dQdU[μ, site]))
+        dgaction_proj_smeared = real(multr(im * λ[group_direction], dSdU_smeared[μ, site]))
+        dtopcharge_proj_smeared = real(
+            multr(im * λ[group_direction], dQdU_smeared[μ, site])
+        )
 
         ga_symm_diff = (gaction_new_fwd - gaction_new_bwd) / 2ΔH
         tc_symm_diff = (topcharge_new_fwd - topcharge_new_bwd) / 2ΔH
@@ -77,15 +84,22 @@ function SU3testderivative(backend=nothing)
             (tc_symm_diff_smeared - dtopcharge_proj_smeared) / tc_symm_diff_smeared
 
         println("================= Group direction $(group_direction) =================")
-        println("/ GA rel. error (unsmeared): \t",
-                (ga_symm_diff - dgaction_proj) / ga_symm_diff)
-        println("/ GA rel. error (smeared):   \t",
-                (ga_symm_diff_smeared - dgaction_proj_smeared) / ga_symm_diff_smeared)
+        println(
+            "/ GA rel. error (unsmeared): \t", (ga_symm_diff - dgaction_proj) / ga_symm_diff
+        )
+        println(
+            "/ GA rel. error (smeared):   \t",
+            (ga_symm_diff_smeared - dgaction_proj_smeared) / ga_symm_diff_smeared,
+        )
         println("")
-        println("/ TC rel. error (unsmeared): \t",
-                (tc_symm_diff - dtopcharge_proj) / tc_symm_diff)
-        println("/ TC rel. error (smeared):   \t",
-                (tc_symm_diff_smeared - dtopcharge_proj_smeared) / tc_symm_diff_smeared)
+        println(
+            "/ TC rel. error (unsmeared): \t",
+            (tc_symm_diff - dtopcharge_proj) / tc_symm_diff,
+        )
+        println(
+            "/ TC rel. error (smeared):   \t",
+            (tc_symm_diff_smeared - dtopcharge_proj_smeared) / tc_symm_diff_smeared,
+        )
     end
     println()
     return relerrors

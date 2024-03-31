@@ -83,7 +83,7 @@ end
 function gaussian_pseudofermions!(f::Fermionfield{CPU,T}) where {T}
     sz = f.ND * f.NC
 
-    @batch for site in eachindex(f)
+    for site in eachindex(f)
         f[site] = @SVector randn(Complex{T}, sz) # σ = 0.5
     end
 end

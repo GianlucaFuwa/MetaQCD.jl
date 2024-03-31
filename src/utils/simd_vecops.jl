@@ -97,8 +97,8 @@ end
         yre = zero(T)
         yim = zero(T)
         for n in Base.Slice(static(1):static(N))
-            yre += A[1, m, n] * x[1, n] + A[2, m, n] * x[2, n]
-            yim += A[1, m, n] * x[2, n] - A[2, m, n] * x[1, n]
+            yre += A[1, n, m] * x[1, n] + A[2, n, m] * x[2, n]
+            yim -= A[1, n, m] * x[2, n] - A[2, n, m] * x[1, n]
         end
         y[1, m] = yre
         y[2, m] = yim
@@ -116,7 +116,7 @@ to be a column vector and therefore the adjoint of `x` is used
 @inline function cvmmul_d(
     x::SVector{N,Complex{T}}, A::SMatrix{M,N,Complex{T},NM}
 ) where {T,N,M,NM}
-    return SVector(cmvmul_d!(MVector{M,Complex{T}}(undef), MVector(x), MMatrix(A)))
+    return SVector(cvmmul_d!(MVector{M,Complex{T}}(undef), MVector(x), MMatrix(A)))
 end
 
 @inline function cvmmul_d!(
@@ -130,8 +130,8 @@ end
         yre = zero(T)
         yim = zero(T)
         for n in Base.Slice(static(1):static(N))
-            yre += A[1, n, m] * x[1, n] - A[2, n, m] * x[2, n]
-            yim += A[1, n, m] * x[2, n] + A[2, n, m] * x[1, n]
+            yre += A[1, m, n] * x[1, n] - A[2, m, n] * x[2, n]
+            yim -= A[1, m, n] * x[2, n] + A[2, m, n] * x[1, n]
         end
         y[1, m] = yre
         y[2, m] = yim
@@ -293,11 +293,83 @@ structure of `x†`.
 @inline function cvmmul_color(
     x::SVector{M,Complex{T}}, A::SMatrix{N,N,Complex{T},N2}
 ) where {T,N,M,N2}
-    return SVector(cvmmul_color!(MVector{N,Complex{T}}(undef), MVector(x), MMatrix(A)))
+    return SVector(cvmmul_color!(MVector{M,Complex{T}}(undef), MVector(x), MMatrix(A)))
 end
 
 @generated function cvmmul_color!(
-    yc::MVector{M,Complex{T}}, Ac::MMatrix{N,N,Complex{T},N2}, xc::MVector{M,Complex{T}}
+    yc::MVector{M,Complex{T}}, xc::MVector{M,Complex{T}}, Ac::MMatrix{N,N,Complex{T},N2}
+) where {T,N,M,N2}
+    if M ÷ N !== 4
+        return :(throw(DimensionMismatch("length(x) must be 4 times the side length of A")))
+    end
+
+    q = quote
+        $(Expr(:meta, :inline))
+        y = reinterpret(reshape, $T, yc)
+        A = reinterpret(reshape, $T, Ac)
+        x = reinterpret(reshape, $T, xc)
+    end
+
+    loop_q = quote
+        @turbo for m in Base.Slice(static(1):static($N))
+            yₘ₁r = $(zero(T))
+            yₘ₁i = $(zero(T))
+            yₘ₂r = $(zero(T))
+            yₘ₂i = $(zero(T))
+            yₘ₃r = $(zero(T))
+            yₘ₃i = $(zero(T))
+            yₘ₄r = $(zero(T))
+            yₘ₄i = $(zero(T))
+            for n in Base.Slice(static(1):static($N))
+                Aₙₘr = A[1, n, m]
+                Aₙₘi = A[2, n, m]
+                xₙ₁r = x[1, n]
+                xₙ₁i = x[2, n]
+                xₙ₂r = x[1, $N+n]
+                xₙ₂i = x[2, $N+n]
+                xₙ₃r = x[1, $(2N)+n]
+                xₙ₃i = x[2, $(2N)+n]
+                xₙ₄r = x[1, $(3N)+n]
+                xₙ₄i = x[2, $(3N)+n]
+                yₘ₁r += Aₙₘr * xₙ₁r + Aₙₘi * xₙ₁i
+                yₘ₁i -= Aₙₘr * xₙ₁i - Aₙₘi * xₙ₁r
+                yₘ₂r += Aₙₘr * xₙ₂r + Aₙₘi * xₙ₂i
+                yₘ₂i -= Aₙₘr * xₙ₂i - Aₙₘi * xₙ₂r
+                yₘ₃r += Aₙₘr * xₙ₃r + Aₙₘi * xₙ₃i
+                yₘ₃i -= Aₙₘr * xₙ₃i - Aₙₘi * xₙ₃r
+                yₘ₄r += Aₙₘr * xₙ₄r + Aₙₘi * xₙ₄i
+                yₘ₄i -= Aₙₘr * xₙ₄i - Aₙₘi * xₙ₄r
+            end
+            y[1, m] = yₘ₁r
+            y[2, m] = yₘ₁i
+            y[1, $N+m] = yₘ₂r
+            y[2, $N+m] = yₘ₂i
+            y[1, $(2N)+m] = yₘ₃r
+            y[2, $(2N)+m] = yₘ₃i
+            y[1, $(3N)+m] = yₘ₄r
+            y[2, $(3N)+m] = yₘ₄i
+        end
+        return yc
+    end
+
+    push!(q.args, loop_q)
+    return q
+end
+
+"""
+    cvmmul_d_color(x, A)
+
+Return the matrix-vector product of `x†` and `A†`, where `A†` only acts on the color
+structure of `x†`.
+"""
+@inline function cvmmul_d_color(
+    x::SVector{M,Complex{T}}, A::SMatrix{N,N,Complex{T},N2}
+) where {T,N,M,N2}
+    return SVector(cvmmul_d_color!(MVector{M,Complex{T}}(undef), MVector(x), MMatrix(A)))
+end
+
+@generated function cvmmul_d_color!(
+    yc::MVector{M,Complex{T}}, xc::MVector{M,Complex{T}}, Ac::MMatrix{N,N,Complex{T},N2}
 ) where {T,N,M,N2}
     if M ÷ N !== 4
         return :(throw(DimensionMismatch("length(x) must be 4 times the side length of A")))
@@ -332,85 +404,13 @@ end
                 xₙ₄r = x[1, $(3N)+n]
                 xₙ₄i = x[2, $(3N)+n]
                 yₘ₁r += Aₙₘr * xₙ₁r - Aₙₘi * xₙ₁i
-                yₘ₁i += Aₙₘr * xₙ₁i + Aₙₘi * xₙ₁r
+                yₘ₁i -= Aₙₘr * xₙ₁i + Aₙₘi * xₙ₁r
                 yₘ₂r += Aₙₘr * xₙ₂r - Aₙₘi * xₙ₂i
-                yₘ₂i += Aₙₘr * xₙ₂i + Aₙₘi * xₙ₂r
+                yₘ₂i -= Aₙₘr * xₙ₂i + Aₙₘi * xₙ₂r
                 yₘ₃r += Aₙₘr * xₙ₃r - Aₙₘi * xₙ₃i
-                yₘ₃i += Aₙₘr * xₙ₃i + Aₙₘi * xₙ₃r
+                yₘ₃i -= Aₙₘr * xₙ₃i + Aₙₘi * xₙ₃r
                 yₘ₄r += Aₙₘr * xₙ₄r - Aₙₘi * xₙ₄i
-                yₘ₄i += Aₙₘr * xₙ₄i + Aₙₘi * xₙ₄r
-            end
-            y[1, m] = yₘ₁r
-            y[2, m] = yₘ₁i
-            y[1, $N+m] = yₘ₂r
-            y[2, $N+m] = yₘ₂i
-            y[1, $(2N)+m] = yₘ₃r
-            y[2, $(2N)+m] = yₘ₃i
-            y[1, $(3N)+m] = yₘ₄r
-            y[2, $(3N)+m] = yₘ₄i
-        end
-        return yc
-    end
-
-    push!(q.args, loop_q)
-    return q
-end
-
-"""
-    cvmmul_d_color(x, A)
-
-Return the matrix-vector product of `x†` and `A`, where `A` only acts on the color
-structure of `x†`.
-"""
-@inline function cvmmul_d_color(
-    x::SVector{M,Complex{T}}, A::SMatrix{N,N,Complex{T},N2}
-) where {T,N,M,N2}
-    return SVector(cvmmul_color!(MVector{N,Complex{T}}(undef), MVector(x), MMatrix(A)))
-end
-
-@generated function cvmmul_d_color!(
-    yc::MVector{M,Complex{T}}, Ac::MMatrix{N,N,Complex{T},N2}, xc::MVector{M,Complex{T}}
-) where {T,N,M,N2}
-    if M ÷ N !== 4
-        return :(throw(DimensionMismatch("length(x) must be 4 times the side length of A")))
-    end
-
-    q = quote
-        $(Expr(:meta, :inline))
-        y = reinterpret(reshape, $T, yc)
-        A = reinterpret(reshape, $T, Ac)
-        x = reinterpret(reshape, $T, xc)
-    end
-
-    loop_q = quote
-        @turbo for m in Base.Slice(static(1):static($N))
-            yₘ₁r = $(zero(T))
-            yₘ₁i = $(zero(T))
-            yₘ₂r = $(zero(T))
-            yₘ₂i = $(zero(T))
-            yₘ₃r = $(zero(T))
-            yₘ₃i = $(zero(T))
-            yₘ₄r = $(zero(T))
-            yₘ₄i = $(zero(T))
-            for n in Base.Slice(static(1):static($N))
-                Aₙₘr = A[1, n, m]
-                Aₙₘi = A[2, n, m]
-                xₙ₁r = x[1, n]
-                xₙ₁i = x[2, n]
-                xₙ₂r = x[1, $N+n]
-                xₙ₂i = x[2, $N+n]
-                xₙ₃r = x[1, $(2N)+n]
-                xₙ₃i = x[2, $(2N)+n]
-                xₙ₄r = x[1, $(3N)+n]
-                xₙ₄i = x[2, $(3N)+n]
-                yₘ₁r += Aₙₘr * xₙ₁r - Aₙₘi * xₙ₁i
-                yₘ₁i += Aₙₘr * xₙ₁i + Aₙₘi * xₙ₁r
-                yₘ₂r += Aₙₘr * xₙ₂r - Aₙₘi * xₙ₂i
-                yₘ₂i += Aₙₘr * xₙ₂i + Aₙₘi * xₙ₂r
-                yₘ₃r += Aₙₘr * xₙ₃r - Aₙₘi * xₙ₃i
-                yₘ₃i += Aₙₘr * xₙ₃i + Aₙₘi * xₙ₃r
-                yₘ₄r += Aₙₘr * xₙ₄r - Aₙₘi * xₙ₄i
-                yₘ₄i += Aₙₘr * xₙ₄i + Aₙₘi * xₙ₄r
+                yₘ₄i -= Aₙₘr * xₙ₄i + Aₙₘi * xₙ₄r
             end
             y[1, m] = yₘ₁r
             y[2, m] = yₘ₁i
@@ -454,8 +454,7 @@ end
 """
     ckron(a, b)
 
-Return the complex Kronecker(outer) product of vectors `a` and `b`, i.e. `a ⊗ b†` or
-of two matrices `a` and `b`, i.e. `a ⊗ b`
+Return the complex Kronecker(outer) product of vectors `a` and `b`, i.e. `a ⊗ b†`
 """
 @inline function ckron(a::SVector{M,Complex{T}}, b::SVector{N,Complex{T}}) where {T,M,N}
     return SMatrix(ckron!(MMatrix{M,N,Complex{T},M * N}(undef), MVector(a), MVector(b)))
@@ -499,28 +498,168 @@ end
 
     @turbo for m in Base.Slice(static(1):static(N))
         for n in Base.Slice(static(1):static(N))
-            c[1, n, m] =
-                a[1, 4*(n-1)+1] * b[1, 4*(m-1)+1] +
-                a[2, 4*(n-1)+1] * b[2, 4*(m-1)+1] +
-                a[1, 4*(n-1)+2] * b[1, 4*(m-1)+2] +
-                a[2, 4*(n-1)+2] * b[2, 4*(m-1)+2] +
-                a[1, 4*(n-1)+3] * b[1, 4*(m-1)+3] +
-                a[2, 4*(n-1)+3] * b[2, 4*(m-1)+3] +
-                a[1, 4*(n-1)+4] * b[1, 4*(m-1)+4] +
-                a[2, 4*(n-1)+4] * b[2, 4*(m-1)+4]
-            c[2, n, m] =
-                -a[1, 4*(n-1)+1] * b[2, 4*(m-1)+1] +
-                a[2, 4*(n-1)+1] * b[1, 4*(m-1)+1] +
-                -a[1, 4*(n-1)+2] * b[2, 4*(m-1)+2] +
-                a[2, 4*(n-1)+2] * b[1, 4*(m-1)+2] +
-                -a[1, 4*(n-1)+3] * b[2, 4*(m-1)+3] +
-                a[2, 4*(n-1)+3] * b[1, 4*(m-1)+3] +
-                -a[1, 4*(n-1)+4] * b[2, 4*(m-1)+4] +
-                a[2, 4*(n-1)+4] * b[1, 4*(m-1)+4]
+            cre = zero(T)
+            cim = zero(T)
+            for k in Base.Slice(static(0):static(3))
+                cre += a[1, (k*N)+n] * b[1, (k*N)+m] + a[2, (k*N)+n] * b[2, (k*N)+m]
+                cim -= a[1, (k*N)+n] * b[2, (k*N)+m] - a[2, (k*N)+n] * b[1, (k*N)+m]
+            end
+            c[1, n, m] = cre
+            c[2, n, m] = cim
         end
     end
 
     return cc
+end
+
+"""
+    spin_proj(x, ::Val{ρ})
+
+Return `(1 ± γᵨ) * x` where `γᵨ` is the ρ-th Euclidean gamma matrix in the Chiral basis.
+and `x` is a 4xN component complex vector. The second argument is ρ wrapped in a `Val` and
+must be within the range [-4,4]. Its sign determines the sign in front of the γᵨ matrix.
+"""
+@inline function spin_proj(x::SVector{M,Complex{T}}, ::Val{ρ}) where {T,M,ρ}
+    return SVector(spin_proj!(MVector{M,Complex{T}}(undef), MVector(x), Val(ρ)))
+end
+
+@generated function spin_proj!(
+    yc::MVector{M,Complex{T}}, xc::MVector{M,Complex{T}}, ::Val{ρ}
+) where {T,M,ρ}
+    if M % 4 != 0
+        return :(throw(DimensionMismatch("length(x) must be a multiple of 4")))
+    end
+
+    N = M ÷ 4
+
+    q = quote
+        $(Expr(:meta, :inline))
+        y = reinterpret(reshape, $T, yc)
+        x = reinterpret(reshape, $T, xc)
+    end
+
+    if ρ === 1
+        calc_hi = quote
+            xₙ₁r = x[1, m] + x[2, $(3N)+m]
+            xₙ₁i = x[2, m] - x[1, $(3N)+m]
+            xₙ₂r = x[1, $N+m] + x[2, $(2N)+m]
+            xₙ₂i = x[2, $N+m] - x[1, $(2N)+m]
+        end
+        set_lo = quote
+            y[1, $(2N)+m] = -xₙ₂i
+            y[2, $(2N)+m] = xₙ₂r
+            y[1, $(3N)+m] = -xₙ₁i
+            y[2, $(3N)+m] = xₙ₁r
+        end
+    elseif ρ === -1
+        calc_hi = quote
+            xₙ₁r = x[1, m] - x[2, $(3N)+m]
+            xₙ₁i = x[2, m] + x[1, $(3N)+m]
+            xₙ₂r = x[1, $N+m] - x[2, $(2N)+m]
+            xₙ₂i = x[2, $N+m] + x[1, $(2N)+m]
+        end
+        set_lo = quote
+            y[1, $(2N)+m] = xₙ₂i
+            y[2, $(2N)+m] = -xₙ₂r
+            y[1, $(3N)+m] = xₙ₁i
+            y[2, $(3N)+m] = -xₙ₁r
+        end
+    elseif ρ === 2
+        calc_hi = quote
+            xₙ₁r = x[1, m] - x[1, $(3N)+m]
+            xₙ₁i = x[2, m] - x[2, $(3N)+m]
+            xₙ₂r = x[1, $N+m] + x[1, $(2N)+m]
+            xₙ₂i = x[2, $N+m] + x[2, $(2N)+m]
+        end
+        set_lo = quote
+            y[1, $(2N)+m] = xₙ₂r
+            y[2, $(2N)+m] = xₙ₂i
+            y[1, $(3N)+m] = -xₙ₁r
+            y[2, $(3N)+m] = -xₙ₁i
+        end
+    elseif ρ === -2
+        calc_hi = quote
+            xₙ₁r = x[1, m] + x[1, $(3N)+m]
+            xₙ₁i = x[2, m] + x[2, $(3N)+m]
+            xₙ₂r = x[1, $N+m] - x[1, $(2N)+m]
+            xₙ₂i = x[2, $N+m] - x[2, $(2N)+m]
+        end
+        set_lo = quote
+            y[1, $(2N)+m] = -xₙ₂r
+            y[2, $(2N)+m] = -xₙ₂i
+            y[1, $(3N)+m] = xₙ₁r
+            y[2, $(3N)+m] = xₙ₁i
+        end
+    elseif ρ === 3
+        calc_hi = quote
+            xₙ₁r = x[1, m] + x[2, $(2N)+m]
+            xₙ₁i = x[2, m] - x[1, $(2N)+m]
+            xₙ₂r = x[1, $N+m] - x[2, $(3N)+m]
+            xₙ₂i = x[2, $N+m] + x[1, $(3N)+m]
+        end
+        set_lo = quote
+            y[1, $(2N)+m] = -xₙ₁i
+            y[2, $(2N)+m] = xₙ₁r
+            y[1, $(3N)+m] = xₙ₂i
+            y[2, $(3N)+m] = -xₙ₂r
+        end
+    elseif ρ === -3
+        calc_hi = quote
+            xₙ₁r = x[1, m] - x[2, $(2N)+m]
+            xₙ₁i = x[2, m] + x[1, $(2N)+m]
+            xₙ₂r = x[1, $N+m] + x[2, $(3N)+m]
+            xₙ₂i = x[2, $N+m] - x[1, $(3N)+m]
+        end
+        set_lo = quote
+            y[1, $(2N)+m] = xₙ₁i
+            y[2, $(2N)+m] = -xₙ₁r
+            y[1, $(3N)+m] = -xₙ₂i
+            y[2, $(3N)+m] = xₙ₂r
+        end
+    elseif ρ === 4
+        calc_hi = quote
+            xₙ₁r = x[1, m] - x[1, $(2N)+m]
+            xₙ₁i = x[2, m] - x[2, $(2N)+m]
+            xₙ₂r = x[1, $N+m] - x[1, $(3N)+m]
+            xₙ₂i = x[2, $N+m] - x[2, $(3N)+m]
+        end
+        set_lo = quote
+            y[1, $(2N)+m] = -xₙ₁r
+            y[2, $(2N)+m] = -xₙ₁i
+            y[1, $(3N)+m] = -xₙ₂r
+            y[2, $(3N)+m] = -xₙ₂i
+        end
+    elseif ρ === -4
+        calc_hi = quote
+            xₙ₁r = x[1, m] + x[1, $(2N)+m]
+            xₙ₁i = x[2, m] + x[2, $(2N)+m]
+            xₙ₂r = x[1, $N+m] + x[1, $(3N)+m]
+            xₙ₂i = x[2, $N+m] + x[2, $(3N)+m]
+        end
+        set_lo = quote
+            y[1, $(2N)+m] = xₙ₁r
+            y[2, $(2N)+m] = xₙ₁i
+            y[1, $(3N)+m] = xₙ₂r
+            y[2, $(3N)+m] = xₙ₂i
+        end
+    else
+        return :(throw(DimensionMismatch("ρ must be in [-4,4]")))
+    end
+
+    loop_q = quote
+        @turbo for m in Base.Slice(static(1):static($N))
+            $calc_hi
+            y[1, m] = xₙ₁r
+            y[2, m] = xₙ₁i
+            y[1, $N+m] = xₙ₂r
+            y[2, $N+m] = xₙ₂i
+            $set_lo
+        end
+        return yc
+    end
+
+    push!(q.args, loop_q)
+    return q
 end
 
 """
@@ -589,8 +728,8 @@ end
         calc_hi = quote
             xₙ₁r = x[1, n] + x[2, $(3N)+n]
             xₙ₁i = x[2, n] - x[1, $(3N)+n]
-            xₙ₂r = x[1, $N+n] - x[2, $(2N)+n]
-            xₙ₂i = x[2, $N+n] + x[1, $(2N)+n]
+            xₙ₂r = x[1, $N+n] + x[2, $(2N)+n]
+            xₙ₂i = x[2, $N+n] - x[1, $(2N)+n]
         end
         set_lo = quote
             y[1, $(2N)+m] = -yₘ₂i
@@ -602,8 +741,8 @@ end
         calc_hi = quote
             xₙ₁r = x[1, n] - x[2, $(3N)+n]
             xₙ₁i = x[2, n] + x[1, $(3N)+n]
-            xₙ₂r = x[1, $N+n] + x[2, $(2N)+n]
-            xₙ₂i = x[2, $N+n] - x[1, $(2N)+n]
+            xₙ₂r = x[1, $N+n] - x[2, $(2N)+n]
+            xₙ₂i = x[2, $N+n] + x[1, $(2N)+n]
         end
         set_lo = quote
             y[1, $(2N)+m] = yₘ₂i
@@ -647,8 +786,8 @@ end
         set_lo = quote
             y[1, $(2N)+m] = -yₘ₁i
             y[2, $(2N)+m] = yₘ₁r
-            y[1, $(3N)+m] = -yₘ₂i
-            y[2, $(3N)+m] = yₘ₂r
+            y[1, $(3N)+m] = yₘ₂i
+            y[2, $(3N)+m] = -yₘ₂r
         end
     elseif ρ === -3
         calc_hi = quote
@@ -660,8 +799,8 @@ end
         set_lo = quote
             y[1, $(2N)+m] = yₘ₁i
             y[2, $(2N)+m] = -yₘ₁r
-            y[1, $(3N)+m] = yₘ₂i
-            y[2, $(3N)+m] = -yₘ₂r
+            y[1, $(3N)+m] = -yₘ₂i
+            y[2, $(3N)+m] = yₘ₂r
         end
     elseif ρ === 4
         calc_hi = quote

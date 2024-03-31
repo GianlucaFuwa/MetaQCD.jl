@@ -15,41 +15,25 @@ function TA_from_XY!(dU, U, X::T, Y::T) where {T<:WilsonFermionfield}
     @assert dims(dU) == dims(U) == dims(X) == dims(Y)
     NX, NY, NZ, NT = dims(U)
 
-    @batch for site in eachindex(dU)
-        site1⁺ = move(site, 1, 1, NX)
-        Bₙ₁ = ckron_sum(
-            cmvmul_spin_proj(U[1, site], X[site1⁺], Val(-1), Val(false)), Y[site]
-        )
-        Cₙ₁ = ckron_sum(
-            Y[site1⁺], cmvmul_spin_proj(U[1, site], X[site], Val(1), Val(false))
-        )
-        dU[1, site] = traceless_antihermitian(Bₙ₁ - Cₙ₁)
+    for site in eachindex(dU)
+        siteμ⁺ = move(site, 1, 1, NX)
+        B = ckron_sum(spin_proj(X[siteμ⁺], Val(-1)), Y[site])
+        C = ckron_sum(spin_proj(Y[siteμ⁺], Val(1)), X[site])
+        dU[1, site] = traceless_antihermitian(cmatmul_oo(U[1, site], B - C))
 
-        site2⁺ = move(site, 1, 1, NY)
-        Bₙ₂ = ckron_sum(
-            cmvmul_spin_proj(U[2, site], X[site2⁺], Val(-2), Val(false)), Y[site]
-        )
-        Cₙ₂ = ckron_sum(
-            Y[site2⁺], cmvmul_spin_proj(U[2, site], X[site], Val(2), Val(false))
-        )
-        dU[2, site] = traceless_antihermitian(Bₙ₂ - Cₙ₂)
+        siteμ⁺ = move(site, 2, 1, NY)
+        B = ckron_sum(spin_proj(X[siteμ⁺], Val(-2)), Y[site])
+        C = ckron_sum(spin_proj(Y[siteμ⁺], Val(2)), X[site])
+        dU[2, site] = traceless_antihermitian(cmatmul_oo(U[2, site], B - C))
 
-        site3⁺ = move(site, 1, 1, NZ)
-        Bₙ₃ = ckron_sum(
-            cmvmul_spin_proj(U[3, site], X[site3⁺], Val(-3), Val(false)), Y[site]
-        )
-        Cₙ₃ = ckron_sum(
-            Y[site3⁺], cmvmul_spin_proj(U[3, site], X[site], Val(3), Val(false))
-        )
-        dU[3, site] = traceless_antihermitian(Bₙ₃ - Cₙ₃)
+        siteμ⁺ = move(site, 3, 1, NZ)
+        B = ckron_sum(spin_proj(X[siteμ⁺], Val(-3)), Y[site])
+        C = ckron_sum(spin_proj(Y[siteμ⁺], Val(3)), X[site])
+        dU[3, site] = traceless_antihermitian(cmatmul_oo(U[3, site], B - C))
 
-        site4⁺ = move(site, 1, 1, NT)
-        Bₙ₄ = ckron_sum(
-            cmvmul_spin_proj(U[4, site], X[site4⁺], Val(-4), Val(false)), Y[site]
-        )
-        Cₙ₄ = ckron_sum(
-            Y[site4⁺], cmvmul_spin_proj(U[4, site], X[site], Val(4), Val(false))
-        )
-        dU[4, site] = traceless_antihermitian(Bₙ₄ - Cₙ₄)
+        siteμ⁺ = move(site, 4, 1, NT)
+        B = ckron_sum(spin_proj(X[siteμ⁺], Val(-4)), Y[site])
+        C = ckron_sum(spin_proj(Y[siteμ⁺], Val(4)), X[site])
+        dU[4, site] = traceless_antihermitian(cmatmul_oo(U[4, site], B - C))
     end
 end

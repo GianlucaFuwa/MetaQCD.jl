@@ -46,10 +46,10 @@ function LinearAlgebra.mul!(
     ψ::StaggeredFermionfield{CPU,T},
 ) where {T}
     U = D.U
-    mass = D.mass
+    mass = T(D.mass)
     @assert dims(ϕ) == dims(ψ) == dims(U)
 
-    @batch for site in eachindex(ϕ)
+    for site in eachindex(ϕ)
         ϕ[site] = staggered_kernel(U, ψ, site, mass, T)
     end
 
@@ -62,10 +62,10 @@ function LinearAlgebra.mul!(
     ψ::StaggeredFermionfield{CPU,T},
 ) where {T,TG,TF}
     U = D.parent.U
-    mass = D.parent.mass
+    mass = T(D.parent.mass)
     @assert dims(ϕ) == dims(ψ) == dims(U)
 
-    @batch for site in eachindex(ϕ)
+    for site in eachindex(ϕ)
         ϕ[site] = staggered_kernel(U, ψ, site, mass, T, -1)
     end
 
@@ -85,21 +85,24 @@ end
 
 @inline function staggered_kernel(U, ψ, site, mass, T, sgn=1)
     NX, NY, NZ, NT = dims(U)
-    ϕₙ = T(2mass) * ψ[site]
+    ϕₙ = 2mass * ψ[site]
     # Cant do a for loop here because Val(μ) cannot be known at compile time and is 
     # therefore dynamically dispatched
     siteμ⁺ = move(site, 1, 1, NX)
     siteμ⁻ = move(site, 1, -1, NX)
     η = sgn * staggered_η(Val(1), site)
     ϕₙ += η * (cmvmul(U[1, site], ψ[siteμ⁺]) - cmvmul_d(U[1, siteμ⁻], ψ[siteμ⁻]))
+
     siteμ⁺ = move(site, 2, 1, NY)
     siteμ⁻ = move(site, 2, -1, NY)
     η = sgn * staggered_η(Val(2), site)
     ϕₙ += η * (cmvmul(U[2, site], ψ[siteμ⁺]) - cmvmul_d(U[2, siteμ⁻], ψ[siteμ⁻]))
+
     siteμ⁺ = move(site, 3, 1, NZ)
     siteμ⁻ = move(site, 3, -1, NZ)
     η = sgn * staggered_η(Val(3), site)
     ϕₙ += η * (cmvmul(U[3, site], ψ[siteμ⁺]) - cmvmul_d(U[3, siteμ⁻], ψ[siteμ⁻]))
+
     siteμ⁺ = move(site, 4, 1, NT)
     siteμ⁻ = move(site, 4, -1, NT)
     η = sgn * staggered_η(Val(4), site)
@@ -112,9 +115,3 @@ end
 @inline staggered_η(::Val{2}, site) = ifelse(iseven(site[1]), 1, -1)
 @inline staggered_η(::Val{3}, site) = ifelse(iseven(site[1] + site[2]), 1, -1)
 @inline staggered_η(::Val{4}, site) = ifelse(iseven(site[1] + site[2] + site[3]), 1, -1)
-@inline staggered_η(::Val{1i32}, site) = 1i32
-@inline staggered_η(::Val{2i32}, site) = ifelse(iseven(site[1i32]), 1i32, -1i32)
-@inline staggered_η(::Val{3i32}, site) =
-    ifelse(iseven(site[1i32] + site[2i32]), 1i32, -1i32)
-@inline staggered_η(::Val{4i32}, site) =
-    ifelse(iseven(site[1i32] + site[2i32] + site[3i32]), 1i32, -1i32)

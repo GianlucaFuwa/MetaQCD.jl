@@ -18,7 +18,7 @@ export antihermitian, hermitian, traceless_antihermitian, traceless_hermitian
 export zero2, zero3, zerov3, eye2, eye3, onev3, δ, ε_tensor, gaussian_TA_mat, rand_SU3
 export SiteCoords, linear_coords, move
 export Sequential, Checkerboard2, Checkerboard4
-export λ, expλ
+export λ, expλ, γ₁, γ₂, γ₃, γ₄, γ₅
 export cmatmul_oo, cmatmul_dd, cmatmul_do, cmatmul_od
 export cmatmul_ooo,
     cmatmul_ood,
@@ -44,7 +44,9 @@ export cmatmul_oooo,
     cmatmul_ddod,
     cmatmul_dodd,
     cmatmul_dddd
-export cdot, cmvmul, cmvmul_d, cvmmul, cvmmul_d, ckron, ckron_sum, cmvmul_spin_proj
+export cdot, cmvmul, cmvmul_d, cvmmul, cvmmul_d
+export cmvmul_color, cmvmul_d_color, cvmmul_color, cvmmul_d_color
+export ckron, ckron_sum, cmvmul_spin_proj, spin_proj
 export _unwrap_val, SU
 
 abstract type AbstractIterator end
