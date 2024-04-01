@@ -70,6 +70,16 @@ function ones!(ψ::Fermionfield{CPU,T}) where {T}
     return nothing
 end
 
+function set_source!(ψ::Fermionfield{CPU,T}, site::SiteCoords, a, μ) where {T}
+    ND = num_dirac(ψ)
+    @assert μ ∈ 1:ND && a ∈ 1:3
+    clear!(ψ)
+    vec_index = (μ - 1) * ND + a
+    tup = ntuple(i -> i == vec_index ? one(Complex{T}) : zero(Complex{T}), 3ND)
+    ψ[site] = SVector{3ND,Complex{T}}(tup)
+    return nothing
+end
+
 function Base.copy!(ϕ::T, ψ::T) where {T<:Fermionfield{CPU}}
     @assert dims(ϕ) == dims(ψ)
 

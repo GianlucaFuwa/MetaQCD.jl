@@ -25,8 +25,8 @@ using ..Utils
 import KernelAbstractions as KA
 import ..DiracOperators: Daggered, Daggered, StaggeredDiracOperator, WilsonDiracOperator
 import ..DiracOperators: solve_D⁻¹x!
-import ..Gaugefields: Gaugefield, Fermionfield, calc_gauge_action, clover_rect
-import ..Gaugefields: clover_square, dims, float_type, plaquette, wilsonloop, ones!
+import ..Gaugefields: Gaugefield, Fermionfield, calc_gauge_action, clover_rect, clear!
+import ..Gaugefields: clover_square, dims, float_type, plaquette, wilsonloop, set_source!
 import ..Gaugefields: @groupreduce, @latsum, Plaquette, Clover, Improved, CPU
 import ..Smearing: StoutSmearing, calc_smearedU!, flow!
 

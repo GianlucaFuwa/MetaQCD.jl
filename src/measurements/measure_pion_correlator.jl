@@ -90,20 +90,17 @@ function measure(m::PionCorrelatorMeasurement{T}, U, ψ; additional_string="") w
     printstring = @sprintf("%-9s", additional_string)
     m.dirac_operator.U = U
 
-    for it in keys(m.pion_dict)
-        pion_corr_it = pion_correlators_temporal!(
-            it,
-            m.dirac_operator,
-            m.temp_fermion,
-            m.temp_cg_fermions[1],
-            m.temp_cg_fermions[2],
-            m.temp_cg_fermions[3],
-            m.temp_cg_fermions[4],
-            m.cg_tolerance,
-            m.cg_maxiters,
-        )
-        m.pion_dict[it] = pion_corr_it
-    end
+    pion_correlators_avg!(
+        m.pion_dict,
+        m.dirac_operator,
+        m.temp_fermion,
+        m.temp_cg_fermions[1],
+        m.temp_cg_fermions[2],
+        m.temp_cg_fermions[3],
+        m.temp_cg_fermions[4],
+        m.cg_tolerance,
+        m.cg_maxiters,
+    )
 
     if T ≡ IOStream
         for value in values(m.pion_dict)
@@ -121,21 +118,36 @@ function measure(m::PionCorrelatorMeasurement{T}, U, ψ; additional_string="") w
     return output
 end
 
-function pion_correlators_temporal!(
-    it, D, ψ, temp1, temp2, temp3, temp4, cg_tolerance, cg_maxiters
+function pion_correlators_avg!(
+    dict, D, ψ, temp1, temp2, temp3, temp4, cg_tolerance, cg_maxiters
 )
     @assert dims(ψ) == dims(temp1) == dims(temp2) == dims(temp3) == dims(temp4) == dims(D.U)
-    NX, NY, NZ, _ = dims(ψ)
+    NX, NY, NZ, NT = dims(ψ)
+    @assert length(dict) == NT
     source = SideCoords(1, 1, 1, 1)
-    ones!(ψ)
 
-    solve_D⁻¹x!(temp1, D, ψ, temp2, temp3, temp4, cg_tolerance, cg_maxiters)
-
-    for iz in 1:NZ
-        for iy in 1:NY
-            for ix in 1:NX
+    for a in 1:ψ.NC
+        for μ in 1:ψ.ND
+            clear!(temp1)
+            set_source!(ψ, source, a, μ)
+            solve_D⁻¹x!(temp1, D, ψ, temp2, temp3, temp4, cg_tolerance, cg_maxiters)
+            for it in 1:NT
+                cit = 0.0
+                @batch reduction = (+, cit) for iz in 1:NZ
+                    for iy in 1:NY
+                        for ix in 1:NX
+                            cit += cdot(temp1[ix, iy, iz, it], temp1[ix, iy, iz, it])
+                        end
+                    end
+                end
+                dict[it] = cit
             end
         end
+    end
+
+    Λₛ = NX * NY * NZ
+    for it in 1:NT
+        dict[it] /= Λₛ
     end
 
     return nothing
