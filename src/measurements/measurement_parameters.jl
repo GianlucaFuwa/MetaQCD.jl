@@ -42,12 +42,12 @@ end
 Base.@kwdef mutable struct PionCorrelatorParameters <: MeasurementParameters
     dirac_type::String = "staggered"
     mass::Float64 = 0.1
-    Nf::Int64 = 2
-    κ::Float64 = 0.12
-    r::Float64 = 1.0
+    # Nf::Int64 = 2
+    # κ::Float64 = 0.12
+    # r::Float64 = 1.0
     cg_tolerance::Float64 = 1e-12
     cg_maxiters::Int64 = 1000
-    boundary_conditions::String = "periodic"
+    anti_periodic::Bool = true
     measure_every::Int64 = 10
     methodname::String = "pion_correlator"
 end

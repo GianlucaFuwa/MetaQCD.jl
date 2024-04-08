@@ -47,6 +47,5 @@ function SU3testmeas(backend=nothing)
     m_gaction = GaugeActionMeasurement(U, GA_methods=GA_methods)
     @time gaction = get_value(measure(m_gaction, U))
     println("GAUGEACTION: $gaction\n")
-
     return plaq, poly, topo["plaquette"], topo["clover"], topo["improved"], wilsonloop[1, 1]
 end

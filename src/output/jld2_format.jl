@@ -7,9 +7,9 @@ function loadU!(::JLD2Format, U, filename::String)
     Unew = jldopen(filename, "r") do file
         file["U"]
     end
-    @assert (size(Unew) == size(U)) "Size of supplied config is wrong"
+    @assert (size(Unew) == size(U.U)) "Size of supplied config is wrong"
 
-    for ii in eachindex(U[1])
+    for ii in eachindex(U)
         for μ in 1:4
             U[μ, ii] = Unew[μ, ii]
         end

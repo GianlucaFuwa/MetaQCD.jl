@@ -165,6 +165,22 @@
         return out
     end
 
+    @inline function restore_last_col(M::SMatrix{3,3,Complex{T},9}) where {T}
+        tmp = MMatrix{3,3,Complex{T},9}(M)
+        tmp[1, 3] = conj(tmp[2, 1] * tmp[3, 2] - tmp[3, 1] * tmp[2, 2])
+        tmp[2, 3] = conj(tmp[3, 1] * tmp[1, 2] - tmp[1, 1] * tmp[3, 2])
+        tmp[3, 3] = conj(tmp[1, 1] * tmp[2, 2] - tmp[2, 1] * tmp[1, 2])
+        return SMatrix{3,3,Complex{T},9}(tmp)
+    end
+
+    @inline function restore_last_row(M::SMatrix{3,3,Complex{T},9}) where {T}
+        tmp = MMatrix{3,3,Complex{T},9}(M)
+        tmp[3, 1] = conj(tmp[1, 2] * tmp[2, 3] - tmp[1, 3] * tmp[2, 2])
+        tmp[3, 2] = conj(tmp[1, 3] * tmp[2, 1] - tmp[1, 1] * tmp[2, 3])
+        tmp[3, 3] = conj(tmp[1, 1] * tmp[2, 2] - tmp[1, 2] * tmp[2, 1])
+        return SMatrix{3,3,Complex{T},9}(tmp)
+    end
+
     """
         kenney_laub(M::SMatrix{3,3,Complex{T},9}) where {T}
     

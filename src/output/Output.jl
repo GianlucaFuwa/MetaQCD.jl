@@ -6,20 +6,20 @@ using KernelAbstractions # TODO: save and load of GPUD
 using LinearAlgebra
 using Random
 using StaticArrays
+using ..Utils: restore_last_row
 
 export MetaLogger, current_time, @level1, @level2, @level3, set_global_logger!
-export BridgeFormat, Checkpointer, JLD2Format, SaveConfigs
+export BMWFormat, BridgeFormat, Checkpointer, JLD2Format, SaveConfigs
 export load_checkpoint, load_gaugefield!, loadU!, save_gaugefield, saveU
 
 include("verbose.jl")
 
-abstract type SaveFormat end
-# struct BMWFormat end
-struct BridgeFormat <: SaveFormat end
-struct JLD2Format <: SaveFormat end
-function dims end
+abstract type AbstractFormat end
+struct BMWFormat <: AbstractFormat end
+struct BridgeFormat <: AbstractFormat end
+struct JLD2Format <: AbstractFormat end
 
-# include("bmw_format.jl")
+include("bmw_format.jl")
 include("bridge_format.jl")
 include("jld2_format.jl")
 
@@ -73,6 +73,9 @@ struct SaveConfigs{T}
         elseif saveU_format == "jld" || saveU_format == "jld2"
             T = JLD2Format
             ext = ".jld2"
+        elseif saveU_format == "bmw"
+            T = BMWFormat
+            ext = ".bmw"
         elseif saveU_format == ""
             T = Nothing
             ext = ""
@@ -95,7 +98,7 @@ function save_gaugefield(saver::SaveConfigs{T}, U, itrj) where {T}
         itrjstring = lpad(itrj, 8, "0")
         filename = saver.saveU_dir * "/config_$(itrjstring)$(saver.ext)"
         saveU(T(), U, filename)
-        @level1("|  Config saved in $(filename)")
+        @level1("|  Config saved in $T in file \"$(filename)\"")
     end
 
     return nothing
@@ -110,6 +113,8 @@ function load_gaugefield!(U, parameters)
         loadU!(BridgeFormat(), U, filename)
     elseif format ∈ ("jld", "jld2")
         loadU!(JLD2Format(), U, filename)
+    elseif format == "bmw"
+        loadU!(BMWFormat(), U, filename)
     else
         error("loadU_format \"$(format)\" not supported.")
     end

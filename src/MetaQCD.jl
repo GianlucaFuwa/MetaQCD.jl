@@ -31,7 +31,7 @@ export MetaLogger, current_time, @level1, @level2, @level3, set_global_logger!
 export run_sim, run_build
 
 import .BiasModule: Bias, Metadynamics, OPES, Parametric, calc_CV, update_bias!
-import .CG: cg!, set_cg_max_iterations!, set_cg_tolerance!
+import .CG: cg!, bicg!
 import .Gaugefields: CPU, CUDABackend, ROCBackend
 import .Gaugefields: DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
 import .Gaugefields: SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
@@ -57,7 +57,7 @@ import .Updates: calc_dSdU_bare!, calc_dSfdU_bare!, calc_dVdU_bare!, ∇trFμνF
 import .Universe: Univ
 
 export Bias, Metadynamics, OPES, Parametric, calc_CV, update_bias!
-export cg!, set_cg_max_iterations!, set_cg_tolerance!
+export cg!, bicg!
 export CPU, CUDABackend, ROCBackend
 export DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
 export SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover

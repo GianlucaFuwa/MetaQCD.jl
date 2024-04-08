@@ -2,9 +2,10 @@ mutable struct StaggeredDiracOperator{B,T,TG,TT} <: AbstractDiracOperator
     U::TG
     temp::TT # temp for storage of intermediate result for DdaggerD operator
     mass::Float64
-    function StaggeredDiracOperator(U::Gaugefield{B,T}, mass) where {B,T}
+    anti_periodic::Bool # Only in time direction
+    function StaggeredDiracOperator(U::Gaugefield{B,T}, mass, anti_periodic) where {B,T}
         temp = Fermionfield(U; staggered=true)
-        return new{B,T,typeof(U),typeof(temp)}(U, temp, mass)
+        return new{B,T,typeof(U),typeof(temp)}(U, temp, mass, anti_periodic)
     end
 end
 
@@ -16,8 +17,8 @@ struct StaggeredFermionAction{Nf,TD,TT} <: AbstractFermionAction
     temp2::TT # temp for A*p in cg
     temp3::TT # temp for r in cg
     temp4::TT # temp for p in cg
-    function StaggeredFermionAction(U, mass; Nf=4)
-        D = StaggeredDiracOperator(U, mass)
+    function StaggeredFermionAction(U, mass; anti_periodic=true, Nf=4)
+        D = StaggeredDiracOperator(U, mass, anti_periodic)
         temp1 = Fermionfield(U; staggered=true)
         temp2 = Fermionfield(temp1)
         temp3 = Fermionfield(temp1)
@@ -26,15 +27,23 @@ struct StaggeredFermionAction{Nf,TD,TT} <: AbstractFermionAction
     end
 end
 
+function solve_D⁻¹x!(
+    ϕ, D::T, ψ, temps...; tol=1e-14, maxiters=1000
+) where {T<:StaggeredDiracOperator}
+    @assert dims(ϕ) == dims(ψ) == dims(D.U)
+    bicg_stab!(ϕ, ψ, D, temps[1:5]..., tol=tol, maxiters=maxiters)
+    return nothing
+end
+
 function calc_fermion_action(
     fermion_action::StaggeredFermionAction, ψ::StaggeredFermionfield
 )
     D = fermion_action.D
     DdagD = DdaggerD(D)
-    temp1, temp2, temp3, temp4 = get_cg_temps(fermion_action)
-    clear!(temp1) # initial guess is zero
-    solve_D⁻¹x!(temp1, DdagD, ψ, temp2, temp3, temp4) # temp1 = (D†D)⁻¹ψ
-    return real(dot(ψ, temp1))
+    ϕ, temps... = get_cg_temps(fermion_action)
+    clear!(ϕ) # initial guess is zero
+    solve_D⁻¹x!(ϕ, DdagD, ψ, temps...) # temp1 = (D†D)⁻¹ψ
+    return real(dot(ψ, ϕ))
 end
 
 # We overload LinearAlgebra.mul! instead of Gaugefields.mul! so we dont have to import
@@ -47,10 +56,11 @@ function LinearAlgebra.mul!(
 ) where {T}
     U = D.U
     mass = T(D.mass)
+    anti = D.anti_periodic
     @assert dims(ϕ) == dims(ψ) == dims(U)
 
     for site in eachindex(ϕ)
-        ϕ[site] = staggered_kernel(U, ψ, site, mass, T)
+        ϕ[site] = staggered_kernel(U, ψ, site, mass, anti, T)
     end
 
     return nothing
@@ -63,10 +73,11 @@ function LinearAlgebra.mul!(
 ) where {T,TG,TF}
     U = D.parent.U
     mass = T(D.parent.mass)
+    anti = D.parent.anti_periodic
     @assert dims(ϕ) == dims(ψ) == dims(U)
 
     for site in eachindex(ϕ)
-        ϕ[site] = staggered_kernel(U, ψ, site, mass, T, -1)
+        ϕ[site] = staggered_kernel(U, ψ, site, mass, anti, T, -1)
     end
 
     return nothing
@@ -78,12 +89,12 @@ function LinearAlgebra.mul!(
     ψ::StaggeredFermionfield{CPU,T},
 ) where {T,TG,TF}
     temp = D.parent.temp
-    mul!(temp, Daggered(D.parent), ψ) # temp = D†ψ
+    mul!(temp, adjoint(D.parent), ψ) # temp = D†ψ
     mul!(ϕ, D.parent, temp) # ϕ = DD†ψ
     return nothing
 end
 
-@inline function staggered_kernel(U, ψ, site, mass, T, sgn=1)
+@inline function staggered_kernel(U, ψ, site, mass, anti, T, sgn=1)
     NX, NY, NZ, NT = dims(U)
     ϕₙ = 2mass * ψ[site]
     # Cant do a for loop here because Val(μ) cannot be known at compile time and is 
@@ -106,7 +117,10 @@ end
     siteμ⁺ = move(site, 4, 1, NT)
     siteμ⁻ = move(site, 4, -1, NT)
     η = sgn * staggered_η(Val(4), site)
-    ϕₙ += η * (cmvmul(U[4, site], ψ[siteμ⁺]) - cmvmul_d(U[4, siteμ⁻], ψ[siteμ⁻]))
+    bc⁺ = boundary_factor(anti, site[4], 1, NT)
+    bc⁻ = boundary_factor(anti, site[4], -1, NT)
+    ϕₙ +=
+        η * (cmvmul(U[4, site], bc⁺ * ψ[siteμ⁺]) - cmvmul_d(U[4, siteμ⁻], bc⁻ * ψ[siteμ⁻]))
     return T(0.5) * ϕₙ
 end
 

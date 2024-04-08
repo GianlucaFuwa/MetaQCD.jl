@@ -44,6 +44,7 @@ end
 Base.size(f::AbstractArray{SVector{N,Complex{T}},4}) where {N,T} = dims(f)
 Base.size(f::Fermionfield) = NTuple{4,Int64}((f.NX, f.NY, f.NZ, f.NT))
 float_type(::AbstractArray{SVector{N,Complex{T}},4}) where {N,T} = T
+num_colors(::Fermionfield{B,T,A,ND}) where {B,T,A,ND} = 3
 num_dirac(::Fermionfield{B,T,A,ND}) where {B,T,A,ND} = ND
 Base.similar(f::Fermionfield) = Fermionfield(f)
 
@@ -71,10 +72,11 @@ function ones!(ψ::Fermionfield{CPU,T}) where {T}
 end
 
 function set_source!(ψ::Fermionfield{CPU,T}, site::SiteCoords, a, μ) where {T}
+    NC = num_colors(ψ)
     ND = num_dirac(ψ)
     @assert μ ∈ 1:ND && a ∈ 1:3
     clear!(ψ)
-    vec_index = (μ - 1) * ND + a
+    vec_index = (μ - 1) * NC + a
     tup = ntuple(i -> i == vec_index ? one(Complex{T}) : zero(Complex{T}), 3ND)
     ψ[site] = SVector{3ND,Complex{T}}(tup)
     return nothing
@@ -100,7 +102,8 @@ end
 
 function LinearAlgebra.axpy!(α, ψ::T, ϕ::T) where {T<:Fermionfield{CPU}}
     @assert dims(ϕ) == dims(ψ)
-    α = float_type(ϕ)(α)
+    FloatT = float_type(ϕ)
+    α = Complex{FloatT}(α)
 
     @batch for site in eachindex(ϕ)
         ϕ[site] += α * ψ[site]
@@ -111,8 +114,9 @@ end
 
 function LinearAlgebra.axpby!(α, ψ::T, β, ϕ::T) where {T<:Fermionfield{CPU}}
     @assert dims(ϕ) == dims(ψ)
-    α = float_type(ϕ)(α)
-    β = float_type(ϕ)(β)
+    FloatT = float_type(ϕ)
+    α = Complex{FloatT}(α)
+    β = Complex{FloatT}(β)
 
     @batch for site in eachindex(ϕ)
         ϕ[site] = α * ψ[site] + β * ϕ[site]

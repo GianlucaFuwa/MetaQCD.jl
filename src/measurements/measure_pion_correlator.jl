@@ -1,9 +1,9 @@
-struct PionCorrelatorMeasurement{T,TD,TF} <: AbstractMeasurement
+struct PionCorrelatorMeasurement{T,TD,TF,N} <: AbstractMeasurement
     dirac_operator::TD
     cg_tolerance::Float64
     cg_maxiters::Int64
-    temp_fermion::Vector{TF} # We need 3 temp fermion fields for propagators
-    temp_cg_fermions::Vector{TF} # We need 3 temp fermion fields for cg
+    temp_fermion::TF # We need 1 temp fermion field for propagators
+    temp_cg_fermions::NTuple{N,TF} # We need 4 temp fermions for cg / 7 for bicg(stab)
     pion_dict::Dict{Int64,Float64} # One value per time slice
     fp::T # file pointer
     function PionCorrelatorMeasurement(
@@ -13,12 +13,12 @@ struct PionCorrelatorMeasurement{T,TD,TF} <: AbstractMeasurement
         dirac_type="staggered",
         flow=false,
         mass=0.1,
-        Nf=2,
-        κ=1,
-        r=1,
-        cg_tolerance=1e-12,
+        # Nf=2,
+        # κ=1,
+        # r=1,
+        cg_tolerance=1e-16,
         cg_maxiters=1000,
-        boundary_conditions="periodic",
+        anti_periodic=true,
     )
         pion_dict = Dict{Int64,Float64}()
         NT = dims(U)[end]
@@ -28,13 +28,15 @@ struct PionCorrelatorMeasurement{T,TD,TF} <: AbstractMeasurement
         end
 
         if dirac_type == "staggered"
-            dirac_operator = StaggeredDiracOperator(U, mass)
+            dirac_operator = StaggeredDiracOperator(U, mass, anti_periodic)
             temp_fermion = Fermionfield(U; staggered=true)
-            temp_cg_fermions = [Fermionfield(U; staggered=true) for _ in 1:3]
+            N = 6
+            temp_cg_fermions = ntuple(_ -> Fermionfield(temp_fermion), 6) # need bicg
         elseif dirac_type == "wilson"
-            dirac_operator = WilsonDiracOperator(U, mass)
+            dirac_operator = WilsonDiracOperator(U, mass, anti_periodic)
             temp_fermion = Fermionfield(U)
-            temp_cg_fermions = [Fermionfield(U) for _ in 1:3]
+            N = 6
+            temp_cg_fermions = ntuple(_ -> Fermionfield(temp_fermion), 6)
         else
             throw(ArgumentError("Dirac operator \"$dirac_type\" is not supported"))
         end
@@ -60,8 +62,14 @@ struct PionCorrelatorMeasurement{T,TD,TF} <: AbstractMeasurement
             fp = nothing
         end
 
-        return new{typeof(fp)}(
-            dirac_operator, cg_tolerance, cg_maxiters, temp_fermion, temp_cg_fermions, fp
+        return new{typeof(fp),typeof(dirac_operator),typeof(temp_fermion),N}(
+            dirac_operator,
+            cg_tolerance,
+            cg_maxiters,
+            temp_fermion,
+            temp_cg_fermions,
+            pion_dict,
+            fp,
         )
     end
 end
@@ -76,16 +84,16 @@ function PionCorrelatorMeasurement(
         flow=flow,
         dirac_type=params.dirac_type,
         mass=params.mass,
-        Nf=params.Nf,
-        κ=params.κ,
-        r=params.r,
+        # Nf=params.Nf,
+        # κ=params.κ,
+        # r=params.r,
         cg_tolerance=params.cg_tolerance,
         cg_maxiters=params.cg_maxiters,
-        boundary_conditions=params.boundary_conditions,
+        anti_periodic=params.anti_periodic,
     )
 end
 
-function measure(m::PionCorrelatorMeasurement{T}, U, ψ; additional_string="") where {T}
+function measure(m::PionCorrelatorMeasurement{T}, U; additional_string="") where {T}
     measurestring = ""
     printstring = @sprintf("%-9s", additional_string)
     m.dirac_operator.U = U
@@ -94,10 +102,7 @@ function measure(m::PionCorrelatorMeasurement{T}, U, ψ; additional_string="") w
         m.pion_dict,
         m.dirac_operator,
         m.temp_fermion,
-        m.temp_cg_fermions[1],
-        m.temp_cg_fermions[2],
-        m.temp_cg_fermions[3],
-        m.temp_cg_fermions[4],
+        m.temp_cg_fermions,
         m.cg_tolerance,
         m.cg_maxiters,
     )
@@ -118,25 +123,35 @@ function measure(m::PionCorrelatorMeasurement{T}, U, ψ; additional_string="") w
     return output
 end
 
-function pion_correlators_avg!(
-    dict, D, ψ, temp1, temp2, temp3, temp4, cg_tolerance, cg_maxiters
-)
-    @assert dims(ψ) == dims(temp1) == dims(temp2) == dims(temp3) == dims(temp4) == dims(D.U)
+"""
+    pion_correlators_avg!(dict, D, ψ, cg_temps, cg_tol, cg_maxiters)
+
+Calculate the pion correlators for a given configuration and store the result for each
+time slice in `dict`. \\
+We follow the procedure outlined in DOI: 10.1007/978-3-642-01850-3 (Gattringer) pages
+135-136 using point sources for each dirac and color index all starting from the origin
+"""
+function pion_correlators_avg!(dict, D, ψ, cg_temps, cg_tol, cg_maxiters)
+    @assert dims(ψ) == dims(D.U)
     NX, NY, NZ, NT = dims(ψ)
     @assert length(dict) == NT
-    source = SideCoords(1, 1, 1, 1)
+    source = SiteCoords(1, 1, 1, 1)
+    propagator, temps... = cg_temps
 
     for a in 1:ψ.NC
         for μ in 1:ψ.ND
-            clear!(temp1)
+            ones!(propagator)
             set_source!(ψ, source, a, μ)
-            solve_D⁻¹x!(temp1, D, ψ, temp2, temp3, temp4, cg_tolerance, cg_maxiters)
+            solve_D⁻¹x!(propagator, D, ψ, temps...; tol=cg_tol, maxiters=cg_maxiters)
+            # propagator = D⁻¹(n|m₀)_a₀μ₀
             for it in 1:NT
                 cit = 0.0
                 @batch reduction = (+, cit) for iz in 1:NZ
                     for iy in 1:NY
                         for ix in 1:NX
-                            cit += cdot(temp1[ix, iy, iz, it], temp1[ix, iy, iz, it])
+                            cit += abs(
+                                cdot(propagator[ix, iy, iz, it], propagator[ix, iy, iz, it])
+                            )
                         end
                     end
                 end

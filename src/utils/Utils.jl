@@ -46,7 +46,7 @@ export cmatmul_oooo,
 export cdot, cmvmul, cmvmul_d, cvmmul, cvmmul_d
 export cmvmul_color, cmvmul_d_color, cvmmul_color, cvmmul_d_color
 export ckron, ckron_sum, cmvmul_spin_proj, spin_proj
-export _unwrap_val, SU
+export _unwrap_val, SU, restore_last_col, restore_last_row
 
 abstract type AbstractIterator end
 struct Sequential <: AbstractIterator end
