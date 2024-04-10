@@ -10,8 +10,11 @@ function cg!(x, b, A, Ap, r, p; tol=1e-12, maxiters=1000)
     axpy!(-1, Ap, r)
     copy!(p, r)
     res = real(dot(r, r))
-    @level1 "|  CG: residual 0 = $res"
-    res < tol && return nothing
+    if res < tol
+        @level2 "|  CG: converged at iter 0 with res = $res_new"
+        return nothing
+    end
+    @level3 "|  CG: residual 0 = $res"
 
     for iter in 1:maxiters
         mul!(Ap, A, p)
@@ -19,8 +22,11 @@ function cg!(x, b, A, Ap, r, p; tol=1e-12, maxiters=1000)
         axpy!(α, p, x)
         axpy!(-α, Ap, r)
         res_new = real(dot(r, r))
-        @level1 "|  CG: residual $(iter) = $res_new"
-        res_new < tol && return nothing
+        @level3 "|  CG: residual $(iter) = $res_new"
+        if res_new < tol
+            @level2 "|  CG: converged at iter $(iter) with res = $res_new"
+            return nothing
+        end
         β = res_new / res
         axpby!(1, r, β, p)
         res = res_new
@@ -43,8 +49,11 @@ function bicg!(x, b, A, Ap, r, p, Ap′, r′, p′; tol=1e-14, maxiters=1000)
     copy!(p′, r′)
     ρ = dot(r′, r)
     res = abs(dot(r, r))
-    @level1 "|  BiCG: residual 0 = $res"
-    res < tol && return nothing
+    if res < tol
+        @level2 "|  BiCG: converged at iter 0 with res = $res_new"
+        return nothing
+    end
+    @level3 "|  BiCG: residual 0 = $res"
 
     for iter in 1:maxiters
         mul!(Ap, A, p)
@@ -55,8 +64,11 @@ function bicg!(x, b, A, Ap, r, p, Ap′, r′, p′; tol=1e-14, maxiters=1000)
         axpy!(-α, Ap′, r′)
         ρ_new = dot(r′, r)
         res = abs(dot(r, r))
-        @level1 "|  BiCG: residual $(iter) = $(res)"
-        res < tol && return nothing
+        @level3 "|  BiCG: residual $(iter) = $res"
+        if res < tol
+            @level2 "|  BiCG: converged at iter $(iter) with res = $res"
+            return nothing
+        end
         β = ρ_new / ρ
         axpby!(1, r, β, p)
         axpby!(1, r′, β, p′)
@@ -85,16 +97,22 @@ function bicg_stab!(x, b, A, v, r, p, r₀, t; tol=1e-14, maxiters=1000)
         axpy!(α, p, x)
         axpy!(-α, v, r)
         res = abs(dot(r, r))
-        @level1 "|  BiCGStab: residual $(iter-1).5 = $(res)"
-        res < tol && return nothing
+        @level3 "|  BiCGStab: residual $(iter).5 = $res"
+        if res < tol
+            @level2 "|  BiCGStab: converged at iter $(iter).5 with res = $res"
+            return nothing
+        end
         @assert isfinite(res) && isfinite(α) "BiCG: NaN or Inf encountered, res = $res, α = $α"
         mul!(t, A, r)
         ω = dot(t, r) / dot(t, t)
         axpy!(ω, r, x)
         axpy!(-ω, t, r)
         res = abs(dot(r, r))
-        @level1 "|  BiCGStab: residual $(iter) = $(res)"
-        res < tol && return nothing
+        @level3 "|  BiCGStab: residual $(iter) = $res"
+        if res < tol
+            @level2 "|  BiCGStab: converged at iter $(iter) with res = $res"
+            return nothing
+        end
         @assert isfinite(res) && isfinite(ω) "BiCG: NaN or Inf encountered, res = $res, ω = $ω"
         ρ_new = dot(r₀, r)
         β = (ρ_new / ρ) * (α / ω)

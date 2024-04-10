@@ -143,7 +143,6 @@ function pion_correlators_avg!(dict, D, ψ, cg_temps, cg_tol, cg_maxiters)
             ones!(propagator)
             set_source!(ψ, source, a, μ)
             solve_D⁻¹x!(propagator, D, ψ, temps...; tol=cg_tol, maxiters=cg_maxiters)
-            # propagator = D⁻¹(n|m₀)_a₀μ₀
             for it in 1:NT
                 cit = 0.0
                 @batch reduction = (+, cit) for iz in 1:NZ
@@ -162,7 +161,7 @@ function pion_correlators_avg!(dict, D, ψ, cg_temps, cg_tol, cg_maxiters)
 
     Λₛ = NX * NY * NZ
     for it in 1:NT
-        dict[it] /= Λₛ
+       dict[it] /= Λₛ
     end
 
     return nothing

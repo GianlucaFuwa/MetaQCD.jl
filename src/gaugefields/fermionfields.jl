@@ -77,7 +77,7 @@ function set_source!(ψ::Fermionfield{CPU,T}, site::SiteCoords, a, μ) where {T}
     @assert μ ∈ 1:ND && a ∈ 1:3
     clear!(ψ)
     vec_index = (μ - 1) * NC + a
-    tup = ntuple(i -> i == vec_index ? one(Complex{T}) : zero(Complex{T}), 3ND)
+    tup = ntuple(i -> i == vec_index ? one(Complex{T}) : zero(Complex{T}), Val(3ND))
     ψ[site] = SVector{3ND,Complex{T}}(tup)
     return nothing
 end

@@ -6,7 +6,7 @@ function SU3testfmeas(backend=nothing)
     Nt = 4
     U = Gaugefield(Ns, Ns, Ns, Nt, 5.7; GA=WilsonGaugeAction)
     filename = "./test/testconf.txt"
-    #random_gauges!(U)
+    # random_gauges!(U)
     loadU!(BridgeFormat(), U, filename)
     if backend !== nothing
         U = MetaQCD.to_backend(backend, U)

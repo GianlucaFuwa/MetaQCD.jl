@@ -113,7 +113,7 @@ function loadU!(::BMWFormat, U, filename)
 
     close(fp)
     adler64_finalize!(checksum_calc)
-    #@assert checksum_read == checksum_calc.final "Checksums do not match (read: $checksum_read, calculated: $(checksum_calc.final))"
+    @assert checksum_read == checksum_calc.final "Checksums do not match (read: $checksum_read, calculated: $(checksum_calc.final))"
     return nothing
 end
 
