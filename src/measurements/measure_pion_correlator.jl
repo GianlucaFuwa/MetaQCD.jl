@@ -148,7 +148,7 @@ function pion_correlators_avg!(dict, D, ψ, cg_temps, cg_tol, cg_maxiters)
                 @batch reduction = (+, cit) for iz in 1:NZ
                     for iy in 1:NY
                         for ix in 1:NX
-                            cit += abs(
+                            cit += real(
                                 cdot(propagator[ix, iy, iz, it], propagator[ix, iy, iz, it])
                             )
                         end
