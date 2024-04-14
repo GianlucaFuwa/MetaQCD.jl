@@ -131,27 +131,27 @@ function wilson_kernel(U, ψ, site, mass_term, anti, T)
     ϕₙ = mass_term * ψ[site] # factor 1/2 is included at the end
     # Cant do a for loop here because Val(μ) cannot be known at compile time and is 
     # therefore dynamically dispatched
-    siteμ⁺ = move(site, 1, 1, NX)
-    siteμ⁻ = move(site, 1, -1, NX)
-    ϕₙ += cmvmul_spin_proj(U[1, site], ψ[siteμ⁺], Val(-1), Val(false))
-    ϕₙ += cmvmul_spin_proj(U[1, siteμ⁻], ψ[siteμ⁻], Val(1), Val(true))
+    siteμ⁺ = move(site, 1i32, 1i32, NX)
+    siteμ⁻ = move(site, 1i32, -1i32, NX)
+    ϕₙ += cmvmul_spin_proj(U[1i32, site], ψ[siteμ⁺], Val(-1), Val(false))
+    ϕₙ += cmvmul_spin_proj(U[1i32, siteμ⁻], ψ[siteμ⁻], Val(1), Val(true))
 
-    siteμ⁺ = move(site, 2, 1, NY)
-    siteμ⁻ = move(site, 2, -1, NY)
-    ϕₙ += cmvmul_spin_proj(U[2, site], ψ[siteμ⁺], Val(-2), Val(false))
-    ϕₙ += cmvmul_spin_proj(U[2, siteμ⁻], ψ[siteμ⁻], Val(2), Val(true))
+    siteμ⁺ = move(site, 2i32, 1i32, NY)
+    siteμ⁻ = move(site, 2i32, -1i32, NY)
+    ϕₙ += cmvmul_spin_proj(U[2i32, site], ψ[siteμ⁺], Val(-2), Val(false))
+    ϕₙ += cmvmul_spin_proj(U[2i32, siteμ⁻], ψ[siteμ⁻], Val(2), Val(true))
 
-    siteμ⁺ = move(site, 3, 1, NZ)
-    siteμ⁻ = move(site, 3, -1, NZ)
-    ϕₙ += cmvmul_spin_proj(U[3, site], ψ[siteμ⁺], Val(-3), Val(false))
-    ϕₙ += cmvmul_spin_proj(U[3, siteμ⁻], ψ[siteμ⁻], Val(3), Val(true))
+    siteμ⁺ = move(site, 3i32, 1i32, NZ)
+    siteμ⁻ = move(site, 3i32, -1i32, NZ)
+    ϕₙ += cmvmul_spin_proj(U[3i32, site], ψ[siteμ⁺], Val(-3), Val(false))
+    ϕₙ += cmvmul_spin_proj(U[3i32, siteμ⁻], ψ[siteμ⁻], Val(3), Val(true))
 
-    siteμ⁺ = move(site, 4, 1, NT)
-    siteμ⁻ = move(site, 4, -1, NT)
-    bc⁺ = boundary_factor(anti, site[4], 1, NT)
-    bc⁻ = boundary_factor(anti, site[4], -1, NT)
-    ϕₙ += cmvmul_spin_proj(U[4, site], bc⁺ * ψ[siteμ⁺], Val(-4), Val(false))
-    ϕₙ += cmvmul_spin_proj(U[4, siteμ⁻], bc⁻ * ψ[siteμ⁻], Val(4), Val(true))
+    siteμ⁺ = move(site, 4i32, 1i32, NT)
+    siteμ⁻ = move(site, 4i32, -1i32, NT)
+    bc⁺ = boundary_factor(anti, site[4i32], 1i32, NT)
+    bc⁻ = boundary_factor(anti, site[4i32], -1i32, NT)
+    ϕₙ += cmvmul_spin_proj(U[4i32, site], bc⁺ * ψ[siteμ⁺], Val(-4), Val(false))
+    ϕₙ += cmvmul_spin_proj(U[4i32, siteμ⁻], bc⁻ * ψ[siteμ⁻], Val(4), Val(true))
     return T(0.5) * ϕₙ
 end
 
@@ -162,25 +162,25 @@ function wilson_kernel_dagg(U, ψ, site, mass_term, anti, T)
     # therefore dynamically dispatched
     siteμ⁺ = move(site, 1i32, 1i32, NX)
     siteμ⁻ = move(site, 1i32, -1i32, NX)
-    ϕₙ += cmvmul_spin_proj(U[1i32, siteμ⁻], ψ[siteμ⁻], Val(-1), Val(true))
     ϕₙ += cmvmul_spin_proj(U[1i32, site], ψ[siteμ⁺], Val(1), Val(false))
+    ϕₙ += cmvmul_spin_proj(U[1i32, siteμ⁻], ψ[siteμ⁻], Val(-1), Val(true))
 
     siteμ⁺ = move(site, 2i32, 1i32, NY)
     siteμ⁻ = move(site, 2i32, -1i32, NY)
-    ϕₙ += cmvmul_spin_proj(U[2, siteμ⁻], ψ[siteμ⁻], Val(-2), Val(true))
     ϕₙ += cmvmul_spin_proj(U[2, site], ψ[siteμ⁺], Val(2), Val(false))
+    ϕₙ += cmvmul_spin_proj(U[2, siteμ⁻], ψ[siteμ⁻], Val(-2), Val(true))
 
     siteμ⁺ = move(site, 3i32, 1i32, NZ)
     siteμ⁻ = move(site, 3i32, -1i32, NZ)
-    ϕₙ += cmvmul_spin_proj(U[3i32, siteμ⁻], ψ[siteμ⁻], Val(-3), Val(true))
     ϕₙ += cmvmul_spin_proj(U[3i32, site], ψ[siteμ⁺], Val(3), Val(false))
+    ϕₙ += cmvmul_spin_proj(U[3i32, siteμ⁻], ψ[siteμ⁻], Val(-3), Val(true))
 
     siteμ⁺ = move(site, 4i32, 1i32, NT)
     siteμ⁻ = move(site, 4i32, -1i32, NT)
     bc⁺ = boundary_factor(anti, site[4i32], 1i32, NT)
     bc⁻ = boundary_factor(anti, site[4i32], -1i32, NT)
-    ϕₙ += cmvmul_spin_proj(U[4i32, siteμ⁻], bc⁻ * ψ[siteμ⁻], Val(-4), Val(true))
     ϕₙ += cmvmul_spin_proj(U[4i32, site], bc⁺ * ψ[siteμ⁺], Val(4), Val(false))
+    ϕₙ += cmvmul_spin_proj(U[4i32, siteμ⁻], bc⁻ * ψ[siteμ⁻], Val(-4), Val(true))
     return T(0.5) * ϕₙ
 end
 

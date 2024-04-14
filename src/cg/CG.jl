@@ -31,8 +31,8 @@ function cg!(x, b, A, Ap, r, p; tol=1e-12, maxiters=1000)
         axpby!(1, r, β, p)
         res = res_new
     end
-    @level1 "|  CG: did not converge in $maxiters iterations"
-    # throw(AssertionError("CG did not converge in $maxiters iterations"))
+    # @level1 "|  CG: did not converge in $maxiters iterations"
+    throw(AssertionError("CG did not converge in $maxiters iterations"))
     return nothing
 end
 
@@ -74,8 +74,8 @@ function bicg!(x, b, A, Ap, r, p, Ap′, r′, p′; tol=1e-14, maxiters=1000)
         axpby!(1, r′, β, p′)
         ρ = ρ_new
     end
-    @level1 "|  BiCG: did not converge in $maxiters iterations"
-    # throw(AssertionError("BiCG did not converge in $maxiters iterations"))
+    # @level1 "|  BiCG: did not converge in $maxiters iterations"
+    throw(AssertionError("BiCG did not converge in $maxiters iterations"))
     return nothing
 end
 
@@ -120,7 +120,8 @@ function bicg_stab!(x, b, A, v, r, p, r₀, t; tol=1e-14, maxiters=1000)
         axpby!(1, r, β, p)
         ρ = ρ_new
     end
-    @level1 "|  BiCGStab: did not converge in $maxiters iterations"
+    # @level1 "|  BiCGStab: did not converge in $maxiters iterations"
+    throw(AssertionError("BiCGStab did not converge in $maxiters iterations"))
     return nothing
 end
 

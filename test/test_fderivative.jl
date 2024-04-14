@@ -92,4 +92,5 @@ function SU3testfderivative(; dirac="staggered", backend=nothing)
     return relerrors
 end
 
-SU3testfderivative(; dirac="staggered")
+SU3testfderivative(; dirac="wilson")
+
