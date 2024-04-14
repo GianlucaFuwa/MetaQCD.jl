@@ -11,7 +11,7 @@ function cg!(x, b, A, Ap, r, p; tol=1e-12, maxiters=1000)
     copy!(p, r)
     res = real(dot(r, r))
     if res < tol
-        @level2 "|  CG: converged at iter 0 with res = $res_new"
+        @level2 "|  CG: converged at iter 0 with res = $res"
         return nothing
     end
     @level3 "|  CG: residual 0 = $res"

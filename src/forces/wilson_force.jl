@@ -6,12 +6,14 @@ function calc_dSfdU!(dU, fermion_action::WilsonFermionAction, U, ψ::WilsonFermi
     D = fermion_action.D
     replace_U!(D, U)
     DdagD = DdaggerD(D)
+    clear!(X)
     solve_D⁻¹x!(X, DdagD, ψ, Y, temp1, temp2)
     LinearAlgebra.mul!(Y, D, X) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
-    return TA_from_XY!(dU, U, X, Y)
+    TA_from_XY!(dU, U, X, Y, D.anti_periodic)
+    return nothing
 end
 
-function TA_from_XY!(dU, U, X::T, Y::T) where {T<:WilsonFermionfield}
+function TA_from_XY!(dU, U, X::T, Y::T, anti) where {T<:WilsonFermionfield}
     @assert dims(dU) == dims(U) == dims(X) == dims(Y)
     NX, NY, NZ, NT = dims(U)
 
@@ -32,8 +34,9 @@ function TA_from_XY!(dU, U, X::T, Y::T) where {T<:WilsonFermionfield}
         dU[3, site] = traceless_antihermitian(cmatmul_oo(U[3, site], B - C))
 
         siteμ⁺ = move(site, 4, 1, NT)
-        B = ckron_sum(spin_proj(X[siteμ⁺], Val(-4)), Y[site])
-        C = ckron_sum(spin_proj(Y[siteμ⁺], Val(4)), X[site])
+        bc⁺ = boundary_factor(anti, site[4], 1, NT)
+        B = ckron_sum(spin_proj(bc⁺ * X[siteμ⁺], Val(-4)), Y[site])
+        C = ckron_sum(spin_proj(bc⁺ * Y[siteμ⁺], Val(4)), X[site])
         dU[4, site] = traceless_antihermitian(cmatmul_oo(U[4, site], B - C))
     end
 end

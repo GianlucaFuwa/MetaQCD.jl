@@ -1,6 +1,6 @@
 import ..DiracOperators: StaggeredDiracOperator, StaggeredFermionAction, solve_D⁻¹x!
 import ..DiracOperators: WilsonDiracOperator, WilsonFermionAction
-import ..DiracOperators: get_cg_temps, staggered_η, solve_D⁻¹x!
+import ..DiracOperators: boundary_factor, get_cg_temps, staggered_η, solve_D⁻¹x!
 
 """
     calc_dSfdU_bare!(dU, U, ψ, fermion_action)

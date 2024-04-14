@@ -11,11 +11,11 @@ function calc_dSfdU!(
     clear!(X) # initial guess is zero
     solve_D⁻¹x!(X, DdagD, ψ, Y, temp1, temp2)
     LinearAlgebra.mul!(Y, D, X) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
-    TA_from_XY!(dU, U, X, Y)
+    TA_from_XY!(dU, U, X, Y, D.anti_periodic)
     return nothing
 end
 
-function TA_from_XY!(dU, U, X::T, Y::T) where {T<:StaggeredFermionfield}
+function TA_from_XY!(dU, U, X::T, Y::T, anti) where {T<:StaggeredFermionfield}
     @assert dims(dU) == dims(U) == dims(X) == dims(Y)
     NX, NY, NZ, NT = dims(U)
     monehalf = float_type(U)(-0.5)
@@ -38,7 +38,8 @@ function TA_from_XY!(dU, U, X::T, Y::T) where {T<:StaggeredFermionfield}
 
         siteμ⁺ = move(site, 4, 1, NT)
         η = staggered_η(Val(4), site)
-        temp = ckron(X[siteμ⁺], Y[site]) - ckron(Y[siteμ⁺], X[site])
+        bc⁺ = boundary_factor(anti, site[4], 1, NT)
+        temp = ckron(bc⁺ * X[siteμ⁺], Y[site]) - ckron(bc⁺ * Y[siteμ⁺], X[site])
         dU[4, site] = monehalf * η * traceless_antihermitian(cmatmul_oo(U[4, site], temp))
     end
 end

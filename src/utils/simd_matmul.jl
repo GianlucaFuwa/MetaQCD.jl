@@ -529,3 +529,16 @@ end
         ),
     )
 end
+
+# Do some precompilation to reduce time to first execution (TTFX)
+PrecompileTools.@compile_workload begin
+    A64 = @SMatrix rand(ComplexF64, 3, 3)
+    B64 = @SMatrix rand(ComplexF64, 3, 3)
+    C64 = @SMatrix rand(ComplexF64, 3, 3)
+    D64 = @SMatrix rand(ComplexF64, 3, 3)
+    cmatmul_oood(A64, B64, C64, D64)
+    cmatmul_dood(A64, B64, C64, D64)
+end
+
+    
+    

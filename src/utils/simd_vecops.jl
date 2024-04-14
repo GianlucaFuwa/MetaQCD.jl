@@ -453,8 +453,10 @@ end
 
 """
     ckron(a, b)
+    ckron(A, B)
 
-Return the complex Kronecker(outer) product of vectors `a` and `b`, i.e. `a ⊗ b†`
+Return the complex Kronecker(outer) product of vectors `a` and `b`, i.e. `a ⊗ b†`, or of
+two matrices `A` and `B`, i.e. `A ⊗ B`.
 """
 @inline function ckron(a::SVector{M,Complex{T}}, b::SVector{N,Complex{T}}) where {T,M,N}
     return SMatrix(ckron!(MMatrix{M,N,Complex{T},M * N}(undef), MVector(a), MVector(b)))
@@ -475,6 +477,37 @@ end
     end
 
     return cc
+end
+
+@inline function ckron(
+    A::SMatrix{N,M,Complex{T},NM}, B::SMatrix{K,L,Complex{T},KL},
+) where {T,N,M,NM,K,L,KL}
+    return SMatrix(ckron!(MMatrix{N*K,M*L,Complex{T},NM*KL}(undef), MMatrix(A), MMatrix(B)))
+end
+
+@inline function ckron!(
+    Cc::MMatrix{NK,ML,Complex{T},NMKL},
+    Ac::MMatrix{N,M,Complex{T},NM},
+    Bc::MMatrix{K,L,Complex{T},KL}
+) where {T,NK,ML,NMKL,N,M,NM,K,L,KL}
+    C = reinterpret(reshape, T, Cc)
+    A = reinterpret(reshape, T, Ac)
+    B = reinterpret(reshape, T, Bc)
+
+    @turbo for m in Base.Slice(static(1):static(M))
+        for n in Base.Slice(static(1):static(N))
+            for l in Base.Slice(static(1):static(L))
+                for k in Base.Slice(static(1):static(K))
+                    C[1, K*(n-1)+k, L*(m-1)+l] =
+                        A[1, n, m] * B[1, k, l] - A[2, n, m] * B[2, k, l]
+                    C[2, K*(n-1)+k, L*(m-1)+l] =
+                        A[1, n, m] * B[2, k, l] + A[2, n, m] * B[1, k, l]
+                end
+            end
+        end
+    end
+
+    return Cc
 end
 
 """
@@ -869,4 +902,12 @@ end
 
     push!(q.args, loop_q)
     return q
+end
+
+PrecompileTools.@compile_workload begin
+    A64 = @SMatrix rand(ComplexF64, 3, 3)
+    v64 = @SVector rand(ComplexF64, 3)
+    cmvmul(A64, v64)
+    cvmmul(v64, A64)
+    ckron(v64, v64)
 end

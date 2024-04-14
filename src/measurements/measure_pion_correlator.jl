@@ -1,5 +1,7 @@
 struct PionCorrelatorMeasurement{T,TD,TF,N} <: AbstractMeasurement
     dirac_operator::TD
+    # eo_precon::Bool
+    # mass_precon::Bool
     cg_tolerance::Float64
     cg_maxiters::Int64
     temp_fermion::TF # We need 1 temp fermion field for propagators
@@ -14,7 +16,7 @@ struct PionCorrelatorMeasurement{T,TD,TF,N} <: AbstractMeasurement
         flow=false,
         mass=0.1,
         # Nf=2,
-        # κ=1,
+        # csw=1,
         # r=1,
         cg_tolerance=1e-16,
         cg_maxiters=1000,

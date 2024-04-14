@@ -8,6 +8,8 @@ using Polyester
 using Random
 using StaticArrays
 
+import PrecompileTools
+
 export exp_iQ, exp_iQ_coeffs, exp_iQ_su3, get_B₁, get_B₂, get_Q, get_Q²
 export gen_SU3_matrix, is_special_unitary, is_traceless_antihermitian
 export kenney_laub, proj_onto_SU3, multr
@@ -17,7 +19,7 @@ export antihermitian, hermitian, traceless_antihermitian, traceless_hermitian
 export zero2, zero3, zerov3, eye2, eye3, onev3, δ, ε_tensor, gaussian_TA_mat, rand_SU3
 export SiteCoords, linear_coords, move
 export Sequential, Checkerboard2, Checkerboard4
-export λ, expλ, γ₁, γ₂, γ₃, γ₄, γ₅
+export λ, expλ, γ₁, γ₂, γ₃, γ₄, γ₅, σ₁₂, σ₁₃, σ₁₄, σ₂₃, σ₂₄, σ₃₄
 export cmatmul_oo, cmatmul_dd, cmatmul_do, cmatmul_od
 export cmatmul_ooo,
     cmatmul_ood,

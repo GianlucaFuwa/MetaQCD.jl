@@ -53,7 +53,7 @@ struct Gaugefield{BACKEND,T,A,GA} <: Abstractfield{BACKEND,T,A}
     NV::Int64 # Total number of lattice sites
     NC::Int64 # Number of colors
 
-    β::Float64 # Coupling parameter
+    β::Float64 # Seems weird to have it here, but I couldnt be bothered passing it as an argument everywhere
     Sg::Base.RefValue{Float64} # Current Gauge action, used to safe work
     CV::Base.RefValue{Float64} # Current collective variable, used to safe work
     function Gaugefield(NX, NY, NZ, NT, β; BACKEND=CPU, T=Float64, GA=WilsonGaugeAction)

@@ -1,11 +1,23 @@
-mutable struct StaggeredDiracOperator{B,T,TG,TT} <: AbstractDiracOperator
-    U::TG
-    temp::TT # temp for storage of intermediate result for DdaggerD operator
+"""
+    StaggeredDiracOperator(U::Gaugefield, mass; anti_periodic=true)
+
+Create an implicit Wilson Dirac Operator with mass `mass`.
+If `anti_periodic` is `true` the fermion fields are anti periodic in the time direction.
+
+# Type Parameters:
+- `B`: Backend (CPU / CUDA / ROCm)
+- `TT`: Type of the `Fermionfield` used to store intermediate results when using the 
+        Hermitian version of the operator
+- `TG`: Type of the underlying `Gaugefield`
+"""
+mutable struct StaggeredDiracOperator{B,T,TF,TG} <: AbstractDiracOperator
     mass::Float64
     anti_periodic::Bool # Only in time direction
+    temp::TF # temp for storage of intermediate result for DdaggerD operator
+    U::TG
     function StaggeredDiracOperator(U::Gaugefield{B,T}, mass, anti_periodic) where {B,T}
         temp = Fermionfield(U; staggered=true)
-        return new{B,T,typeof(U),typeof(temp)}(U, temp, mass, anti_periodic)
+        return new{B,T,typeof(temp),typeof(U)}(mass, anti_periodic, temp, U)
     end
 end
 
@@ -59,7 +71,7 @@ function LinearAlgebra.mul!(
     anti = D.anti_periodic
     @assert dims(ϕ) == dims(ψ) == dims(U)
 
-    for site in eachindex(ϕ)
+    @batch for site in eachindex(ϕ)
         ϕ[site] = staggered_kernel(U, ψ, site, mass, anti, T)
     end
 
@@ -76,7 +88,7 @@ function LinearAlgebra.mul!(
     anti = D.parent.anti_periodic
     @assert dims(ϕ) == dims(ψ) == dims(U)
 
-    for site in eachindex(ϕ)
+    @batch for site in eachindex(ϕ)
         ϕ[site] = staggered_kernel(U, ψ, site, mass, anti, T, -1)
     end
 

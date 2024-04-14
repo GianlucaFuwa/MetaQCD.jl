@@ -9,7 +9,7 @@ using ..CG
 using ..Output
 using ..Utils
 
-import ..Gaugefields: Fermionfield, Gaugefield, clear!, dims
+import ..Gaugefields: Fermionfield, Gaugefield, clear!, clover_square, dims
 
 abstract type AbstractDiracOperator end
 abstract type AbstractFermionAction end
@@ -90,7 +90,7 @@ Solve the equation `Dϕ = ψ` for `ϕ`, where `D` is a Dirac operator
 and store the result in `ϕ`. The `temps` argument is a list of temporary fields that
 are used to store intermediate results.
 """
-function solve_D⁻¹x!(ϕ, D::T, ψ, temps...; tol=1e-10, maxiters=1000) where {T<:DdaggerD}
+function solve_D⁻¹x!(ϕ, D::T, ψ, temps...; tol=1e-14, maxiters=1000) where {T<:DdaggerD}
     @assert dims(ϕ) == dims(ψ)
     cg!(ϕ, ψ, D, temps...; tol=tol, maxiters=maxiters)
     return nothing
