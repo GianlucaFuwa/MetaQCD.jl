@@ -14,19 +14,19 @@ function SU3testfderivative(; dirac="staggered", backend=nothing)
     NZ = 4
     NT = 4
     U = initial_gauges("cold", NX, NY, NZ, NT, 6.0; GA=WilsonGaugeAction)
-    ψ = Fermionfield(NX, NY, NZ, NT; staggered=dirac=="staggered")
+    ψ = Fermionfield(NX, NY, NZ, NT; staggered=dirac == "staggered")
     MetaQCD.Gaugefields.gaussian_pseudofermions!(ψ)
-    
-    action = if dirac == "staggered" 
-        StaggeredFermionAction(U, 1.0)
+
+    action = if dirac == "staggered"
+        StaggeredFermionAction(U, 0.1)
     elseif dirac == "wilson"
-        WilsonFermionAction(U, 1.0)
+        WilsonFermionAction(U, 0.01; csw=1)
     else
         error("dirac operator $dirac not supported")
     end
 
     filename = "./test/testconf.txt"
-    loadU!(BridgeFormat(), U, filename);
+    loadU!(BridgeFormat(), U, filename)
     if backend !== nothing
         U = MetaQCD.to_backend(backend, U)
     end
@@ -73,9 +73,7 @@ function SU3testfderivative(; dirac="staggered", backend=nothing)
         calc_dSfdU_bare!(dSfdU_smeared, action, U, ψ, temp_force, smearing)
 
         daction_proj = real(multr(im * λ[group_direction], dSfdU[μ, site]))
-        daction_proj_smeared = real(
-            multr(im * λ[group_direction], dSfdU_smeared[μ, site])
-        )
+        daction_proj_smeared = real(multr(im * λ[group_direction], dSfdU_smeared[μ, site]))
 
         symm_diff = (action_new_fwd - action_new_bwd) / 2ΔH
         symm_diff_smeared = (action_new_fwd_smeared - action_new_bwd_smeared) / 2ΔH
@@ -92,5 +90,4 @@ function SU3testfderivative(; dirac="staggered", backend=nothing)
     return relerrors
 end
 
-SU3testfderivative(; dirac="wilson")
-
+SU3testfderivative(; dirac="staggered")

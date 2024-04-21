@@ -38,11 +38,20 @@ end
 function test_cmvmul()
     As = @SMatrix rand(ComplexF64, 3, 3)
     vs = @SVector rand(ComplexF64, 3)
+    vs12 = @SVector rand(ComplexF64, 12)
+    vs12_1 = SVector{3,ComplexF64}(vs12[1:3])
+    vs12_2 = SVector{3,ComplexF64}(vs12[4:6])
+    vs12_3 = SVector{3,ComplexF64}(vs12[7:9])
+    vs12_4 = SVector{3,ComplexF64}(vs12[10:12])
+    Avs12 = [As * vs12_1; As * vs12_2; As * vs12_3; As * vs12_4]
+    Avs12d = [As' * vs12_1; As' * vs12_2; As' * vs12_3; As' * vs12_4]
 
     @test isapprox(As * vs, cmvmul(As, vs))
     @test isapprox(As' * vs, cmvmul_d(As, vs))
     @test isapprox(SVector{3,ComplexF64}(vs' * As), cvmmul(vs, As))
     @test isapprox(SVector{3,ComplexF64}(vs' * As'), cvmmul_d(vs, As))
+    @test isapprox(Avs12, cmvmul_color(As, vs12))
+    @test isapprox(Avs12d, cmvmul_d_color(As, vs12))
 end
 
 function test_spin_color()

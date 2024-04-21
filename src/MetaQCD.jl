@@ -5,6 +5,8 @@ using Requires
 include("./utils/Utils.jl")
 include("./output/Output.jl")
 include("./cg/CG.jl")
+include("./rhmc/AlgRemez.jl")
+include("./rhmc/RHMCParameters.jl")
 include("./gaugefields/Gaugefields.jl")
 include("./diracoperators/DiracOperators.jl")
 include("./smearing/Smearing.jl")

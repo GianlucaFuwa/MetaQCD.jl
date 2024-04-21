@@ -10,6 +10,7 @@ using ..Output
 using ..Utils
 
 import ..Gaugefields: Fermionfield, Gaugefield, clear!, clover_square, dims
+import ..RHMCParameters: RHMCParams
 
 abstract type AbstractDiracOperator end
 abstract type AbstractFermionAction end
@@ -29,7 +30,11 @@ function Base.show(io::IO, ::MIME"text/plain", D::T) where {T<:AbstractDiracOper
 end
 
 function get_cg_temps(action::AbstractFermionAction)
-    return action.temp1, action.temp2, action.temp3, action.temp4
+    return action.cg_temps
+end
+
+function get_rhmc_temps(action::AbstractFermionAction)
+    return action.rhmc_temps
 end
 
 function boundary_factor(anti, it, dir, NT)
@@ -84,27 +89,29 @@ function replace_U!(D::Union{Daggered,DdaggerD}, U::Gaugefield)
 end
 
 """
-    solve_D⁻¹x!(ϕ, D, ψ, temps...)
+    solve_D⁻¹x!(ψ, D, ϕ, temps...)
 
-Solve the equation `Dϕ = ψ` for `ϕ`, where `D` is a Dirac operator
-and store the result in `ϕ`. The `temps` argument is a list of temporary fields that
+Solve the equation `Dψ = ϕ` for `ψ`, where `D` is a Dirac operator
+and store the result in `ψ`. The `temps` argument is a list of temporary fields that
 are used to store intermediate results.
 """
-function solve_D⁻¹x!(ϕ, D::T, ψ, temps...; tol=1e-14, maxiters=1000) where {T<:DdaggerD}
+function solve_D⁻¹x!(ψ, D::T, ϕ, temps...; tol=1e-16, maxiters=1000) where {T<:DdaggerD}
     @assert dims(ϕ) == dims(ψ)
-    cg!(ϕ, ψ, D, temps...; tol=tol, maxiters=maxiters)
+    cg!(ψ, ϕ, D, temps...; tol=tol, maxiters=maxiters)
     return nothing
 end
 
 """
-    calc_fermion_action(fermion_action, U, ψ)
+    calc_fermion_action(fermion_action, U, ϕ)
 
-Calculate the fermion action for the fermion field `ψ` on the gauge background `U`
+Calculate the fermion action for the fermion field `ϕ` on the gauge background `U`
 using the fermion action `fermion_action`
 """
-function calc_fermion_action(fermion_action::AbstractFermionAction, U::Gaugefield, ψ::Fermionfield)
+function calc_fermion_action(
+    fermion_action::AbstractFermionAction, U::Gaugefield, ϕ::Fermionfield
+)
     replace_U!(fermion_action.D, U)
-    return calc_fermion_action(fermion_action, ψ)
+    return calc_fermion_action(fermion_action, ϕ)
 end
 
 include("staggered.jl")

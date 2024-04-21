@@ -16,8 +16,8 @@ struct PionCorrelatorMeasurement{T,TD,TF,N} <: AbstractMeasurement
         flow=false,
         mass=0.1,
         # Nf=2,
-        # csw=1,
-        # r=1,
+        csw=1,
+        r=1,
         cg_tolerance=1e-16,
         cg_maxiters=1000,
         anti_periodic=true,
@@ -30,12 +30,14 @@ struct PionCorrelatorMeasurement{T,TD,TF,N} <: AbstractMeasurement
         end
 
         if dirac_type == "staggered"
-            dirac_operator = StaggeredDiracOperator(U, mass, anti_periodic)
+            dirac_operator = StaggeredDiracOperator(U, mass; anti_periodic=anti_periodic)
             temp_fermion = Fermionfield(U; staggered=true)
             N = 6
-            temp_cg_fermions = ntuple(_ -> Fermionfield(temp_fermion), 6) # need bicg
+            temp_cg_fermions = ntuple(_ -> Fermionfield(temp_fermion), 6)
         elseif dirac_type == "wilson"
-            dirac_operator = WilsonDiracOperator(U, mass, anti_periodic)
+            dirac_operator = WilsonDiracOperator(
+                U, mass; anti_periodic=anti_periodic, r=r, csw=csw
+            )
             temp_fermion = Fermionfield(U)
             N = 6
             temp_cg_fermions = ntuple(_ -> Fermionfield(temp_fermion), 6)
@@ -163,7 +165,7 @@ function pion_correlators_avg!(dict, D, ψ, cg_temps, cg_tol, cg_maxiters)
 
     Λₛ = NX * NY * NZ
     for it in 1:NT
-       dict[it] /= Λₛ
+        dict[it] /= Λₛ
     end
 
     return nothing

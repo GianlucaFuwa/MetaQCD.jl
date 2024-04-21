@@ -17,7 +17,7 @@ end
 
 function calc_dSdU!(dU, staples, U)
     @assert dims(dU) == dims(staples) == dims(U)
-    βover6m = float_type(U)(-U.β / 6)
+    mβover6 = float_type(U)(-U.β / 6)
     GA = gauge_action(U)()
 
     @batch for site in eachindex(U)
@@ -25,7 +25,7 @@ function calc_dSdU!(dU, staples, U)
             A = staple(GA, U, μ, site)
             staples[μ, site] = A
             UA = cmatmul_od(U[μ, site], A)
-            dU[μ, site] = βover6m * traceless_antihermitian(UA)
+            dU[μ, site] = mβover6 * traceless_antihermitian(UA)
         end
     end
 

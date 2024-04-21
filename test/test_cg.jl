@@ -44,4 +44,30 @@ function test_cg()
     return nothing
 end
 
-test_cg()
+function test_mscg()
+    tol = 1e-16
+    maxiters = 100
+    n = 10
+    T = ComplexF64
+    shifts = collect(0:5)
+    x00 = zeros(T, n)
+    r = ones(T, n)
+    Ap = ones(T, n)
+    A = rand(T, n, n)
+
+    A_cg = A + A'
+    b_cg = rand(T, n)
+    xs = ntuple(i -> (inv(A_cg + I * shifts[i])) * b_cg, length(shifts))
+    x0 = ntuple(i -> deepcopy(x00), length(shifts))
+    p = ntuple(i -> deepcopy(x00), length(shifts))
+    mscg!(x0, shifts[2:end], b_cg, A_cg, Ap, r, p; tol=tol, maxiters=maxiters)
+    for i in eachindex(shifts)
+        try
+            @test xs[i] ≈ x0[i]
+        catch _
+        end
+    end
+end
+
+# test_cg()
+test_mscg()

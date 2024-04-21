@@ -2,7 +2,7 @@ module CG
 using LinearAlgebra
 using ..Output
 
-export bicg!, bicg_stab!, cg!
+export bicg!, bicg_stab!, cg!, mscg!
 
 function cg!(x, b, A, Ap, r, p; tol=1e-12, maxiters=1000)
     mul!(Ap, A, x)
@@ -36,7 +36,66 @@ function cg!(x, b, A, Ap, r, p; tol=1e-12, maxiters=1000)
     return nothing
 end
 
-function shifted_cg! end
+function mscg!(
+    x::NTuple{N,V}, shifts, b, A, Ap, r, p::NTuple{N,V}; tol=1e-12, maxiters=1000
+) where {N,V} # multishift solver
+    @assert length(shifts) == N - 1
+    α = one(ComplexF64)
+    β = zero(ComplexF64)
+    α′ = ones(ComplexF64, N - 1)
+    ρ′ = ones(ComplexF64, N - 1)
+    γ′ = ones(ComplexF64, N - 1)
+    β′ = zeros(ComplexF64, N - 1)
+
+    mul!(Ap, A, x[1])
+    copy!(r, b)
+    axpy!(-1, Ap, r)
+    for i in 1:N
+        copy!(p[i], r)
+    end
+    res = dot(r, r)
+    res′ = fill(res, N - 1)
+    if abs(res) < tol
+        @level2 "|  MultishiftCG: converged at iter 0 with res = $(abs(res))"
+        return nothing
+    end
+    @level3 "|  MultishiftCG: residual 0 = $(abs(res))"
+
+    for iter in 1:maxiters
+        mul!(Ap, A, p[1])
+        α_new = res / dot(p[1], Ap)
+        ω = (α_new * β) / α
+        @. ρ′ = 1 / (1 + shifts * α_new + (1 - ρ′) * ω)
+        @. α′ = ρ′ * α_new
+        axpy!(α_new, p[1], x[1])
+        axpy!(-α_new, Ap, r)
+        res_new = dot(r, r)
+        α = α_new
+        β = res_new / res
+        for i in 1:N-1
+            abs(res′[i]) < tol && continue
+            axpy!(α′[i], p[i+1], x[i+1])
+            β′[i] = ρ′[i]^2 * β
+            res′[i] = γ′[i] * res_new
+            γ′[i] = ρ′[i] * γ′[i]
+        end
+        res_max = max(abs(res_new), abs.(res′)...)
+        @level1 "|  MultishiftCG: max residual $(iter) = $res_max"
+        if res_max < tol
+            @level2 "|  MultishiftCG: converged at iter $(iter) with max res = $res_max"
+            return nothing
+        end
+        axpby!(1, r, β, p[1])
+        for i in 1:N-1
+            abs(res′[i]) < tol && continue
+            axpby!(γ′[i], r, β′[i], p[i+1])
+        end
+        res = res_new
+    end
+    # @level1 "|  CG: did not converge in $maxiters iterations"
+    throw(AssertionError("MultishiftCG did not converge in $maxiters iterations"))
+    return nothing
+end
 
 function bicg!(x, b, A, Ap, r, p, Ap′, r′, p′; tol=1e-14, maxiters=1000)
     mul!(Ap, A, x)
