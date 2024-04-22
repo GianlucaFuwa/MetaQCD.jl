@@ -52,28 +52,96 @@ function add_clover_derivative!(dU, U, X::T, Y::T, csw) where {T<:WilsonFermionf
     fac = Tf(-csw / 2)
 
     for site in eachindex(dU)
-        tmp1 = ∇σμνFμν(U, Val(1), Tf)
-        tmp2 = ckron_sum(cmvmul_color(tmp1, X[site]), Y[site])
+        tmp1 = ∇σμνFμν(U, site, Val(1), Tf)
+        tmp2 = ckron_sum(cmvmul(tmp1, X[site]), Y[site])
         dU[1, site] += fac * traceless_antihermitian(cmatmul_oo(U[1, site], tmp2 + tmp2'))
 
-        tmp1 = ∇σμνFμν(U, Val(2), Tf)
-        tmp2 = ckron_sum(cmvmul_color(tmp1, X[site]), Y[site])
+        tmp1 = ∇σμνFμν(U, site, Val(2), Tf)
+        tmp2 = ckron_sum(cmvmul(tmp1, X[site]), Y[site])
         dU[2, site] += fac * traceless_antihermitian(cmatmul_oo(U[2, site], tmp2 + tmp2'))
 
-        tmp1 = ∇σμνFμν(U, Val(3), Tf)
-        tmp2 = ckron_sum(cmvmul_color(tmp1, X[site]), Y[site])
+        tmp1 = ∇σμνFμν(U, site, Val(3), Tf)
+        tmp2 = ckron_sum(cmvmul(tmp1, X[site]), Y[site])
         dU[3, site] += fac * traceless_antihermitian(cmatmul_oo(U[3, site], tmp2 + tmp2'))
 
-        tmp1 = ∇σμνFμν(U, Val(4), Tf)
-        tmp2 = ckron_sum(cmvmul_color(tmp1, X[site]), Y[site])
+        tmp1 = ∇σμνFμν(U, site, Val(4), Tf)
+        tmp2 = ckron_sum(cmvmul(tmp1, X[site]), Y[site])
         dU[4, site] += fac * traceless_antihermitian(cmatmul_oo(U[4, site], tmp2 + tmp2'))
     end
 end
 
-function ∇σμνFμν(U, ::Val{1}, ::Type{T}) where {T} end
+function ∇σμνFμν(U, site, ::Val{1}, ::Type{T}) where {T}
+    NX, NY, NZ, NT = dims(U)
+    out = @SMatrix zeros(Complex{T}, 12, 12)
+    siteμ⁺ = move(site, 1i32, 1i32, NX)
 
-function ∇σμνFμν(U, ::Val{2}, ::Type{T}) where {T} end
+    siteν⁺ = move(site, 2i32, 1i32, NY)
+    tmp = cmatmul_odd(U[2i32, siteμ⁺], U[1i32, siteν⁺], U[2i32, site]) 
+    out += ckron(σ₁₂(T), tmp)
 
-function ∇σμνFμν(U, ::Val{3}, ::Type{T}) where {T} end
+    siteν⁺ = move(site, 3i32, 1i32, NZ)
+    tmp = cmatmul_odd(U[3i32, siteμ⁺], U[1i32, siteν⁺], U[3i32, site]) 
+    out += ckron(σ₁₃(T), tmp)
 
-function ∇σμνFμν(U, ::Val{4}, ::Type{T}) where {T} end
+    siteν⁺ = move(site, 4i32, 1i32, NT)
+    tmp = cmatmul_odd(U[4i32, siteμ⁺], U[1i32, siteν⁺], U[4i32, site]) 
+    out += ckron(σ₁₄(T), tmp)
+    return out
+end
+
+function ∇σμνFμν(U, site, ::Val{2}, ::Type{T}) where {T}
+    NX, NY, NZ, NT = dims(U)
+    out = @SMatrix zeros(Complex{T}, 12, 12)
+    siteμ⁺ = move(site, 2i32, 1i32, NX)
+
+    siteν⁺ = move(site, 1i32, 1i32, NY)
+    tmp = cmatmul_odd(U[1i32, siteμ⁺], U[2i32, siteν⁺], U[1i32, site]) 
+    out += ckron(σ₁₂(T), tmp)
+
+    siteν⁺ = move(site, 3i32, 1i32, NZ)
+    tmp = cmatmul_odd(U[3i32, siteμ⁺], U[2i32, siteν⁺], U[3i32, site]) 
+    out += ckron(σ₂₃(T), tmp)
+
+    siteν⁺ = move(site, 4i32, 1i32, NT)
+    tmp = cmatmul_odd(U[4i32, siteμ⁺], U[2i32, siteν⁺], U[4i32, site]) 
+    out += ckron(σ₂₄(T), tmp)
+    return out
+end
+
+function ∇σμνFμν(U, site, ::Val{3}, ::Type{T}) where {T}
+    NX, NY, NZ, NT = dims(U)
+    out = @SMatrix zeros(Complex{T}, 12, 12)
+    siteμ⁺ = move(site, 3i32, 1i32, NX)
+
+    siteν⁺ = move(site, 1i32, 1i32, NY)
+    tmp = cmatmul_odd(U[1i32, siteμ⁺], U[3i32, siteν⁺], U[1i32, site]) 
+    out += ckron(σ₁₃(T), tmp)
+
+    siteν⁺ = move(site, 2i32, 1i32, NZ)
+    tmp = cmatmul_odd(U[2i32, siteμ⁺], U[3i32, siteν⁺], U[2i32, site]) 
+    out += ckron(σ₂₃(T), tmp)
+
+    siteν⁺ = move(site, 4i32, 1i32, NT)
+    tmp = cmatmul_odd(U[4i32, siteμ⁺], U[3i32, siteν⁺], U[4i32, site]) 
+    out += ckron(σ₃₄(T), tmp)
+    return out
+end
+
+function ∇σμνFμν(U, site, ::Val{1}, ::Type{T}) where {T}
+    NX, NY, NZ, NT = dims(U)
+    out = @SMatrix zeros(Complex{T}, 12, 12)
+    siteμ⁺ = move(site, 4i32, 1i32, NX)
+
+    siteν⁺ = move(site, 1i32, 1i32, NY)
+    tmp = cmatmul_odd(U[1i32, siteμ⁺], U[4i32, siteν⁺], U[1i32, site]) 
+    out += ckron(σ₁₄(T), tmp)
+
+    siteν⁺ = move(site, 2i32, 1i32, NZ)
+    tmp = cmatmul_odd(U[2i32, siteμ⁺], U[4i32, siteν⁺], U[2i32, site]) 
+    out += ckron(σ₂₄(T), tmp)
+
+    siteν⁺ = move(site, 3i32, 1i32, NT)
+    tmp = cmatmul_odd(U[3i32, siteμ⁺], U[4i32, siteν⁺], U[3i32, site]) 
+    out += ckron(σ₃₄(T), tmp)
+    return out
+end

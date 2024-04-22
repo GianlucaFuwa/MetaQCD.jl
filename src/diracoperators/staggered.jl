@@ -31,8 +31,9 @@ struct StaggeredFermionAction{Nf,TD,TF} <: AbstractFermionAction
     cg_temps::Vector{TF}
     rhmc_info::Union{Nothing,RHMCParams}
     rhmc_temps::Union{Nothing,Vector{TF}}
+    tol::Float64
     function StaggeredFermionAction(
-        U, mass; anti_periodic=true, Nf=8, rhmc_order=10, rhmc_prec=42
+        U, mass; anti_periodic=true, Nf=8, rhmc_order=10, rhmc_prec=42, tol=1e-14
     )
         D = StaggeredDiracOperator(U, mass; anti_periodic=anti_periodic)
         TD = typeof(D)
@@ -49,7 +50,7 @@ struct StaggeredFermionAction{Nf,TD,TF} <: AbstractFermionAction
             rhmc_info = RHMCParams(power; n=rhmc_order, precision=rhmc_prec)
             rhmc_temps = [Fermionfield(U; staggered=true) for _ in 1:2rhmc_order]
         end
-        return new{Nf,TD,TF}(D, cg_x, cg_temps, rhmc_info, rhmc_temps)
+        return new{Nf,TD,TF}(D, cg_x, cg_temps, rhmc_info, rhmc_temps, tol)
     end
 end
 
@@ -70,7 +71,7 @@ function calc_fermion_action(
     temps = fermion_action.cg_temps
 
     clear!(ψ) # initial guess is zero
-    solve_D⁻¹x!(ψ, DdagD, ϕ, temps...) # ψ = (D†D)⁻¹ϕ
+    solve_D⁻¹x!(ψ, DdagD, ϕ, temps...; tol=fermion_action.tol) # ψ = (D†D)⁻¹ϕ
     Sf = dot(ϕ, ψ)
     return real(Sf)
 end
@@ -97,7 +98,7 @@ function calc_fermion_action(
     shifts = rhmc.coeffs_inverse.β
     coeffs = rhmc.coeffs_inverse.α
     α₀ = rhmc.coeffs_inverse.α0
-    mscg!(ψs, shifts, DdagD, ϕ, temps..., ps)
+    mscg!(ψs, shifts, DdagD, ϕ, temps..., ps; tol=fermion_action.tol)
     clear!(ψ) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
 
     axpy!(α₀, ϕ, ψ)
