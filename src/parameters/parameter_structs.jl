@@ -1,41 +1,13 @@
-const important_parameters = [
-    "L",
-    "beta",
-    "kind_of_gaction",
-    "update_method",
-    "kind_of_bias",
-    "tempering_enabled",
-    "methodname",
-    "measurement_basedir",
-    "has_gradient_flow",
-    "measurement_dir",
-    "kinds_of_topological_charge",
-    "measurements_for_flow",
-    "flow_measurements",
-]
-
-function check_important_parameters(key)
-    findornot = findfirst(x -> x==key, important_parameters)
-
-    if findornot === nothing
-        return false
-    else
-        return true
-    end
-
-    return nothing
-end
-
 function struct2dict(x::T) where {T}
     dict = Dict{String,Any}(string(fn) => getfield(x, fn) for fn in fieldnames(T))
     return dict
 end
 
 Base.@kwdef mutable struct PhysicalParameters
-    L::NTuple{4, Int64} = (4, 4, 4, 4)
+    L::NTuple{4,Int64} = (4, 4, 4, 4)
     beta::Float64 = 5.7
     NC::Int64 = 3
-    kind_of_gaction::String = "wilson"
+    gauge_action::String = "wilson"
     numtherm::Int64 = 10
     numsteps::Int64 = 100
     inital::String = "cold"
@@ -51,15 +23,28 @@ Base.@kwdef mutable struct PhysicalParameters
     parity_update::Bool = false
 end
 
+Base.@kwdef mutable struct DynamicalFermionParameters
+    fermion_action::String = "none"
+    Nf_light::Int64 = 0
+    mass_light::Float64 = 0.0
+    Nf_heavy::Int64 = 0
+    mass_heavy::Float64 = 0.0
+    r::Float64 = 1.0
+    csw::Float64 = 0.0
+    anti_periodic::Bool = true
+    cg_tol::Float64 = 1e-14
+    cg_maxiters::Int64 = 1000
+end
+
 Base.@kwdef mutable struct BiasParameters
     kind_of_bias::String = "none"
     kind_of_cv::String = "clover"
     numsmears_for_cv::Int64 = 4
     rhostout_for_cv::Float64 = 0.125
-    is_static::Union{Bool, Vector{Bool}} = false
+    is_static::Union{Bool,Vector{Bool}} = false
     symmetric::Bool = false
     stride::Int64 = 1
-    cvlims::NTuple{2, Float64} = (-7, 7)
+    cvlims::NTuple{2,Float64} = (-7, 7)
     biasfactor::Float64 = Inf
     kinds_of_weights::Vector{String} = ["tiwari"]
     usebiases::Vector{String} = [""]
@@ -102,9 +87,9 @@ Base.@kwdef mutable struct SystemParameters
     saveU_dir::String = ""
     saveU_format::String = ""
     saveU_every::Int64 = 1
-    randomseed::Union{UInt64, Vector{UInt64}} = 0x0000000000000000
+    randomseed::Union{UInt64,Vector{UInt64}} = 0x0000000000000000
     measurement_dir::String = ""
-    bias_dir::Union{String, Vector{String}} = ""
+    bias_dir::Union{String,Vector{String}} = ""
     overwrite::Bool = false
 end
 
@@ -122,7 +107,7 @@ Base.@kwdef mutable struct GradientFlowParameters
     flow_num::Int64 = 1
     flow_tf::Float64 = 0.1
     flow_steps::Int64 = 10
-    flow_measure_every::Union{Int64, Vector{Int64}} = 1
+    flow_measure_every::Union{Int64,Vector{Int64}} = 1
 end
 
 Base.@kwdef mutable struct MeasurementParameters

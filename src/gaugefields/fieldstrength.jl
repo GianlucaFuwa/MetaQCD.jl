@@ -12,15 +12,14 @@ struct Tensorfield{BACKEND,T,A<:AbstractArray{SU{3,9,T},6}} <: Abstractfield{BAC
     NT::Int64
     NV::Int64
     NC::Int64
-end
-
-function Tensorfield(NX, NY, NZ, NT; BACKEND=CPU, T=Float64)
-    @assert BACKEND ∈ SUPPORTED_BACKENDS "Only CPU, CUDABackend or ROCBackend supported!"
-    # TODO: Reduce size of Tensorfield by using symmetry of the fieldstrength tensor
-    U = KA.zeros(BACKEND(), SMatrix{3,3,Complex{T},9}, 4, 4, NX, NY, NZ, NT)
-    NV = NX * NY * NZ * NT
-    NC = 3
-    return Tensorfield{BACKEND,T,typeof(U)}(U, NX, NY, NZ, NT, NV, NC)
+    function Tensorfield(NX, NY, NZ, NT; BACKEND=CPU, T=Float64)
+        @assert BACKEND ∈ SUPPORTED_BACKENDS "Only CPU, CUDABackend or ROCBackend supported!"
+        # TODO: Reduce size of Tensorfield by using symmetry of the fieldstrength tensor
+        U = KA.zeros(BACKEND(), SMatrix{3,3,Complex{T},9}, 4, 4, NX, NY, NZ, NT)
+        NV = NX * NY * NZ * NT
+        NC = 3
+        return Tensorfield{BACKEND,T,typeof(U)}(U, NX, NY, NZ, NT, NV, NC)
+    end
 end
 
 function Tensorfield(u::Abstractfield{BACKEND,T,A}) where {BACKEND,T,A}
@@ -72,22 +71,25 @@ function fieldstrength_eachsite!(::Plaquette, F::Tensorfield{CPU}, U::Gaugefield
     return nothing
 end
 
-function fieldstrength_eachsite!(::Clover, F::Tensorfield{CPU}, U::Gaugefield{CPU})
+function fieldstrength_eachsite!(
+    ::Clover, F::Tensorfield{CPU,T}, U::Gaugefield{CPU,T}
+) where {T}
     @assert dims(F) == dims(U)
+    fac = Complex{T}(im / 4)
 
     @batch for site in eachindex(U)
         C12 = clover_square(U, 1, 2, site, 1)
-        F[1, 2, site] = im / 4 * traceless_antihermitian(C12)
+        F[1, 2, site] = fac * traceless_antihermitian(C12)
         C13 = clover_square(U, 1, 3, site, 1)
-        F[1, 3, site] = im / 4 * traceless_antihermitian(C13)
+        F[1, 3, site] = fac * traceless_antihermitian(C13)
         C14 = clover_square(U, 1, 4, site, 1)
-        F[1, 4, site] = im / 4 * traceless_antihermitian(C14)
+        F[1, 4, site] = fac * traceless_antihermitian(C14)
         C23 = clover_square(U, 2, 3, site, 1)
-        F[2, 3, site] = im / 4 * traceless_antihermitian(C23)
+        F[2, 3, site] = fac * traceless_antihermitian(C23)
         C24 = clover_square(U, 2, 4, site, 1)
-        F[2, 4, site] = im / 4 * traceless_antihermitian(C24)
+        F[2, 4, site] = fac * traceless_antihermitian(C24)
         C34 = clover_square(U, 3, 4, site, 1)
-        F[3, 4, site] = im / 4 * traceless_antihermitian(C34)
+        F[3, 4, site] = fac * traceless_antihermitian(C34)
     end
 
     return nothing

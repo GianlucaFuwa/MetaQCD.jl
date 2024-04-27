@@ -2,7 +2,7 @@ struct PionCorrelatorMeasurement{T,TD,TF,N} <: AbstractMeasurement
     dirac_operator::TD
     # eo_precon::Bool
     # mass_precon::Bool
-    cg_tolerance::Float64
+    cg_tol::Float64
     cg_maxiters::Int64
     temp_fermion::TF # We need 1 temp fermion field for propagators
     temp_cg_fermions::NTuple{N,TF} # We need 4 temp fermions for cg / 7 for bicg(stab)
@@ -12,13 +12,13 @@ struct PionCorrelatorMeasurement{T,TD,TF,N} <: AbstractMeasurement
         U::Gaugefield;
         filename="",
         printvalues=false,
-        dirac_type="staggered",
+        dirac_type="wilson",
         flow=false,
         mass=0.1,
         # Nf=2,
-        csw=1,
+        csw=0,
         r=1,
-        cg_tolerance=1e-16,
+        cg_tol=1e-16,
         cg_maxiters=1000,
         anti_periodic=true,
     )
@@ -68,7 +68,7 @@ struct PionCorrelatorMeasurement{T,TD,TF,N} <: AbstractMeasurement
 
         return new{typeof(fp),typeof(dirac_operator),typeof(temp_fermion),N}(
             dirac_operator,
-            cg_tolerance,
+            cg_tol,
             cg_maxiters,
             temp_fermion,
             temp_cg_fermions,
@@ -91,7 +91,7 @@ function PionCorrelatorMeasurement(
         # Nf=params.Nf,
         # κ=params.κ,
         # r=params.r,
-        cg_tolerance=params.cg_tolerance,
+        cg_tol=params.cg_tol,
         cg_maxiters=params.cg_maxiters,
         anti_periodic=params.anti_periodic,
     )
@@ -100,14 +100,13 @@ end
 function measure(m::PionCorrelatorMeasurement{T}, U; additional_string="") where {T}
     measurestring = ""
     printstring = @sprintf("%-9s", additional_string)
-    m.dirac_operator.U = U
 
     pion_correlators_avg!(
         m.pion_dict,
-        m.dirac_operator,
+        m.dirac_operator(U),
         m.temp_fermion,
         m.temp_cg_fermions,
-        m.cg_tolerance,
+        m.cg_tol,
         m.cg_maxiters,
     )
 

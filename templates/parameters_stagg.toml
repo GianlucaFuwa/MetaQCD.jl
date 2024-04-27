@@ -1,0 +1,75 @@
+["Physical Settings"]
+L = [4, 4, 4, 4]
+beta = 6.0
+kind_of_gaction = "wilson"
+numtherm = 10
+numsteps = 5
+initial = "cold"
+update_method = "hmc"
+parity_update = false
+
+["Dynamical Fermion Settings"]
+fermion_action = "staggered"
+Nf_light = 2
+mass_light = 0.01
+# Nf_heavy = 1
+# mass_heavy = 0.1
+
+["HMC Settings"]
+hmc_trajectory = 1
+hmc_steps = 5
+hmc_integrator = "OMF4"
+hmc_numsmear = 7
+hmc_rhostout = 0.12
+
+["System Settings"]
+backend = "cpu"
+float_type = "double"
+log_dir = "L4x4x4x4_staggered_beta6.0/test_wilson"
+measurement_dir = "L4x4x4x4_staggered_beta6.0/test_wilson"
+randomseed = 0
+verboselevel = 1
+overwrite = true
+
+["Measurement Settings".measurements.Energy_density]
+measure_every = 1
+kinds_of_energy_density = ["plaquette", "clover", "improved"]
+
+["Measurement Settings".measurements.Gauge_action]
+measure_every = 1
+kinds_of_gauge_action = ["wilson", "symanzik_tree", "iwasaki", "dbw2"]
+
+["Measurement Settings".measurements.Plaquette]
+measure_every = 1
+
+["Measurement Settings".measurements.Polyakov_loop]
+measure_every = 1
+
+["Measurement Settings".measurements.Topological_charge]
+measure_every = 1
+kinds_of_topological_charge = ["plaquette", "clover", "improved"]
+
+["Measurement Settings".measurements.Wilson_loop]
+measure_every = 1
+Rmax = 2
+Tmax = 2
+
+["Measurement Settings".measurements.Pion_correlator]
+measure_every = 1
+dirac_type = "wilson"
+
+["Gradient Flow Settings"]
+flow_integrator = "euler"
+flow_num = 7
+flow_steps = 1
+flow_tf = 0.12 # total flow time is flow_num * flow_tf
+flow_measure_every = 7
+
+["Gradient Flow Settings".measurements_with_flow.Topological_charge]
+measure_every = 10
+kinds_of_topological_charge = ["clover"]
+
+["Gradient Flow Settings".measurements_with_flow.Wilson_loop]
+measure_every = 10
+Rmax = 2
+Tmax = 2

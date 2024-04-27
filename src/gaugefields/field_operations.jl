@@ -32,7 +32,7 @@ function random_gauges!(u::Gaugefield{CPU,T}) where {T}
     return nothing
 end
 
-function clear!(u::Gaugefield{CPU,T}) where {T} # set all link variables to zero
+function clear!(u::Abstractfield{CPU,T}) where {T} # set all link variables to zero
     @batch for site in eachindex(u)
         for μ in 1:4
             u[μ, site] = zero3(T)

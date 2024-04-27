@@ -9,7 +9,8 @@ using ..CG
 using ..Output
 using ..Utils
 
-import ..Gaugefields: Fermionfield, Gaugefield, clear!, clover_square, dims
+import ..Gaugefields: Abstractfield, Fermionfield, Gaugefield, clear!, clover_square, dims
+import ..Gaugefields: gaussian_pseudofermions!
 import ..RHMCParameters: RHMCParams
 
 abstract type AbstractDiracOperator end
@@ -27,28 +28,6 @@ function Base.show(io::IO, ::MIME"text/plain", D::T) where {T<:AbstractDiracOper
     end
     print(io, ")")
     return nothing
-end
-
-function get_cg_temps(action::AbstractFermionAction)
-    return action.cg_temps
-end
-
-function get_rhmc_temps(action::AbstractFermionAction)
-    return action.rhmc_temps
-end
-
-function boundary_factor(anti, it, dir, NT)
-    if !anti
-        return 1
-    else
-        if dir == 1
-            return it == NT ? -1 : 1
-        elseif dir == -1
-            return it == 1 ? -1 : 1
-        else
-            return 1
-        end
-    end
 end
 
 """
@@ -74,44 +53,66 @@ struct DdaggerD{T} <: AbstractDiracOperator
 end
 
 """
-    replace_U!(D, U)
+    solve_D⁻¹x!(ψ, D, ϕ, temp1, temp2, temp3, tol=1e-16, maxiters=1000)
 
-Replace the gauge field that is referenced by `D` with `U`
+Solve the equation `Dψ = ϕ` for `ψ`, where `D` is a Dirac operator and store the result in
+`ψ`.
 """
-function replace_U!(D::AbstractDiracOperator, U::Gaugefield)
-    D.U = U
-    return nothing
-end
-
-function replace_U!(D::Union{Daggered,DdaggerD}, U::Gaugefield)
-    D.parent.U = U
-    return nothing
-end
-
-"""
-    solve_D⁻¹x!(ψ, D, ϕ, temps...)
-
-Solve the equation `Dψ = ϕ` for `ψ`, where `D` is a Dirac operator
-and store the result in `ψ`. The `temps` argument is a list of temporary fields that
-are used to store intermediate results.
-"""
-function solve_D⁻¹x!(ψ, D::T, ϕ, temps...; tol=1e-16, maxiters=1000) where {T<:DdaggerD}
+function solve_D⁻¹x!(
+    ψ, D::T, ϕ, temp1, temp2, temp3, tol=1e-16, maxiters=1000
+) where {T<:DdaggerD}
     @assert dims(ϕ) == dims(ψ)
-    cg!(ψ, ϕ, D, temps...; tol=tol, maxiters=maxiters)
+    cg!(ψ, D, ϕ, temp1, temp2, temp3; tol=tol, maxiters=maxiters)
     return nothing
 end
 
 """
-    calc_fermion_action(fermion_action, U, ϕ)
+    solve_D⁻¹x_multishift!(ψs, shifts, D, ϕ, temps...)
 
-Calculate the fermion action for the fermion field `ϕ` on the gauge background `U`
-using the fermion action `fermion_action`
+Solve the equations `(D + s)ψ = ϕ` for `ψ` for each `s` in `shifts`, where `D` is a
+Dirac operator and store each result in `ψs`.
 """
-function calc_fermion_action(
-    fermion_action::AbstractFermionAction, U::Gaugefield, ϕ::Fermionfield
-)
-    replace_U!(fermion_action.D, U)
-    return calc_fermion_action(fermion_action, ϕ)
+function solve_D⁻¹x_multishift!(
+    ψs, shifts, D::T, ϕ, temp1, temp2, ps, tol=1e-16, maxiters=1000
+) where {T<:DdaggerD}
+    for ψ in ψs
+        @assert dims(ϕ) == dims(ψ)
+    end
+    mscg!(ψs, shifts, D, ϕ, temp1, temp2, ps; tol=tol, maxiters=maxiters)
+    return nothing
+end
+
+"""
+    calc_fermion_action(fermion_action, ϕ)
+
+Calculate the fermion action for the fermion field `ϕ` using the fermion action
+`fermion_action`
+"""
+function calc_fermion_action(fermion_action::TA, U, ϕ::TF) where {TA,TF}
+    @nospecialize fermion_action U ϕ
+    return error("calc_fermion_action is not supported for type $TA with field of type $TF")
+end
+
+"""
+    sample_pseudofermions!(ϕ, fermion_action)
+
+Sample pseudo fermions for an HMC update according to the probability density specified by
+`fermion_action`
+"""
+sample_pseudofermions!(::Nothing, ::Nothing) = nothing
+
+@inline function boundary_factor(anti, it, dir, NT)
+    if !anti
+        return 1
+    else
+        if dir == 1
+            return it == NT ? -1 : 1
+        elseif dir == -1
+            return it == 1 ? -1 : 1
+        else
+            return 1
+        end
+    end
 end
 
 include("staggered.jl")

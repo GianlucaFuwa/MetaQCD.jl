@@ -40,8 +40,7 @@ struct HMC{TI,TG,TT,TF,TS,PO,F2,FS,IO} <: AbstractUpdate
     P::TT
     P_old::PO # second momentum field for GHMC
     U_old::TG
-    χ::TF # normally distributed pseudofermions 
-    ϕ::TF # Dχ
+    ϕ::TF
     staples::TT
     force::TT
     force2::F2 # second force field for smearing
@@ -58,7 +57,8 @@ struct HMC{TI,TG,TT,TF,TS,PO,F2,FS,IO} <: AbstractUpdate
         numsmear=0,
         ρ_stout=0,
         verboselevel=1;
-        fermions="none",
+        fermion_action="none",
+        heavy_flavours=0,
         bias_enabled=false,
         logdir="",
     )
@@ -103,27 +103,24 @@ struct HMC{TI,TG,TT,TF,TS,PO,F2,FS,IO} <: AbstractUpdate
         F2 = typeof(force2)
 
         if TS == NoSmearing
-            @level1("|  ACTION SMEARING: Disabled")
+            @level1("|  Action Smearing disabled")
         else
-            @level1("|  ACTION SMEARING: $(numsmear) x $(ρ_stout) Stout")
+            @level1("|  Action Smearing: $(numsmear) x $(ρ_stout) Stout")
         end
 
-        if fermions == "staggered"
+        if fermion_action == "staggered"
             @level1("|  Dynamical Staggered fermions enabled")
-            χ = Fermionfield(U; staggered=true)
-            ψ = Fermionfield(χ)
-        elseif fermions == "wilson"
+            ϕ = ntuple(_ -> Fermionfield(U; staggered=true), 1 + heavy_flavours)
+        elseif fermion_action == "wilson"
             @level1("|  Dynamical Wilson fermions enabled")
-            χ = Fermionfield(U; staggered=false)
-            ψ = Fermionfield(χ)
-        elseif fermions == "none" || fermions === nothing
+            ϕ = ntuple(_ -> Fermionfield(U), 1 + heavy_flavours)
+        elseif fermion_action == "none" || fermion_action === nothing
             @level1("|  Dynamical fermions disabled")
-            χ = nothing
-            ψ = nothing
+            ϕ = nothing
         else
-            throw(AssertionError("Dynamical fermions \"$fermions\" not supported"))
+            throw(AssertionError("Dynamical fermions \"$fermion_action\" not supported"))
         end
-        TF = typeof(χ)
+        TF = typeof(ϕ)
 
         if bias_enabled
             @level1("|  Bias enabled")
@@ -154,7 +151,6 @@ struct HMC{TI,TG,TT,TF,TS,PO,F2,FS,IO} <: AbstractUpdate
             P,
             P_old,
             U_old,
-            χ,
             ϕ,
             staples,
             force,
@@ -176,6 +172,11 @@ function update!(
     metro_test=true,
     friction=hmc.friction,
 ) where {TI,TF,TB}
+    if TF !== nothing
+        @assert TF <: Tuple "fermion_action must be nothing or a tuple of fermion actions"
+        @assert hmc.ϕ !== nothing "fermion_action passed but not activated in HMC"
+    end
+
     U_old = hmc.U_old
     P_old = hmc.P_old
     P = hmc.P
@@ -184,13 +185,15 @@ function update!(
 
     copy!(U_old, U)
     gaussian_TA!(P, friction)
-    gaussian_pseudofermions!(ϕ)
+    for i in eachindex(fermion_action)
+        sample_pseudofermions!(ϕ[i], fermion_action[i], U)
+    end
     P_old ≢ nothing && copy!(P_old, P)
 
     trP²_old = -calc_kinetic_energy(P)
     Sg_old = U.Sg
 
-    evolve!(TI(), U, hmc, bias)
+    evolve!(TI(), U, hmc, fermion_action, bias)
 
     trP²_new = -calc_kinetic_energy(P)
     Sg_new = calc_gauge_action(smearing, U)
@@ -203,8 +206,12 @@ function update!(
         Sf_new = Sf_old
         ΔSf = 0
     else
-        Sf_old = calc_fermion_action(smearing, fermion_action, U_old, ϕ)
-        Sf_new = calc_fermion_action(smearing, fermion_action, U, ϕ)
+        Sf_old = 0.0
+        Sf_new = 0.0
+        for i in eachindex(fermion_action)
+            Sf_old += calc_fermion_action(smearing, fermion_action[i], U_old, ϕ[i])
+            Sf_new += calc_fermion_action(smearing, fermion_action[i], U, ϕ[i])
+        end
         ΔSf = Sf_new - Sf_old
     end
 
@@ -226,7 +233,6 @@ function update!(
 
     if accept
         U.Sg = Sg_new
-        U.Sf = Sf_new
         U.CV = CV_new
         @level2("|    Accepted")
     else
@@ -262,6 +268,7 @@ function updateP!(U, hmc::HMC, fac, fermion_action::TF, bias::TB) where {TB,TF}
     @assert dims(U) == dims(P)
     staples = hmc.staples
     force = hmc.force
+    ϕ = hmc.ϕ
     temp_force = hmc.force2
     smearing = hmc.smearing
     fieldstrength = hmc.fieldstrength
@@ -272,7 +279,10 @@ function updateP!(U, hmc::HMC, fac, fermion_action::TF, bias::TB) where {TB,TF}
     end
 
     if TF ≢ Nothing
-        calc_dSfdU_bare!(force, fermion_action, U, hmc.ϕ, temp_force, smearing)
+        for i in eachindex(fermion_action)
+            calc_dSfdU_bare!(force, fermion_action[i], U, ϕ[i], temp_force, smearing)
+            add!(P, force, ϵ)
+        end
     end
 
     calc_dSdU_bare!(force, staples, U, temp_force, smearing)
@@ -285,24 +295,28 @@ calc_gauge_action(::NoSmearing, U) = calc_gauge_action(U)
 function calc_gauge_action(smearing::StoutSmearing, U)
     calc_smearedU!(smearing, U)
     fully_smeared_U = smearing.Usmeared_multi[end]
-    smeared_action = calc_gauge_action(fully_smeared_U)
-    return smeared_action
+    smeared_gauge_action = calc_gauge_action(fully_smeared_U)
+    return smeared_gauge_action
 end
 
-calc_fermion_action(::NoSmearing, fermion_action, U, ψ) = calc_fermion_action(U)
+function calc_fermion_action(::NoSmearing, fermion_action, U, ϕ)
+    return calc_fermion_action(fermion_action, U, ϕ)
+end
 
-function calc_fermion_action(smearing::StoutSmearing, fermion_action, U, ψ)
+function calc_fermion_action(smearing::StoutSmearing, fermion_action, U, ϕ)
     calc_smearedU!(smearing, U)
     fully_smeared_U = smearing.Usmeared_multi[end]
-    smeared_action = calc_fermion_action(fermion_action, fully_smeared_U, ψ)
-    return smeared_action
+    smeared_fermion_action = calc_fermion_action(fermion_action, fully_smeared_U, ϕ)
+    return smeared_fermion_action
 end
 
 print_hmc_data(::Nothing, args...) = nothing
 
 function print_hmc_data(fp::T, ΔP², ΔSg, ΔSf, ΔV, ΔH) where {T}
     T ≡ Nothing && return nothing
-    str = @sprintf("%+22.15E\t%+22.15E\t%+22.15E\t%+22.15E", ΔP², ΔSg, ΔSf, ΔV, ΔH)
+    str = @sprintf(
+        "%+22.15E\t%+22.15E\t%+22.15E\t%+22.15E\t%+22.15E", ΔP², ΔSg, ΔSf, ΔV, ΔH
+    )
     println(fp, str)
     flush(fp)
     return nothing

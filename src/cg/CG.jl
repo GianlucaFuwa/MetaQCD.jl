@@ -4,7 +4,8 @@ using ..Output
 
 export bicg!, bicg_stab!, cg!, mscg!
 
-function cg!(x, b, A, Ap, r, p; tol=1e-12, maxiters=1000)
+function cg!(x, A, b, Ap, r, p; tol=1e-12, maxiters=1000)
+    @show Output.GlobalLogger
     mul!(Ap, A, x)
     copy!(r, b)
     axpy!(-1, Ap, r)
@@ -24,7 +25,7 @@ function cg!(x, b, A, Ap, r, p; tol=1e-12, maxiters=1000)
         res_new = real(dot(r, r))
         @level3 "|  CG: residual $(iter) = $res_new"
         if res_new < tol
-            @level2 "|  CG: converged at iter $(iter) with res = $res_new"
+            # @level2 "|  CG: converged at iter $(iter) with res = $res_new"
             return nothing
         end
         β = res_new / res
@@ -37,7 +38,7 @@ function cg!(x, b, A, Ap, r, p; tol=1e-12, maxiters=1000)
 end
 
 function mscg!(
-    x::NTuple{N,V}, shifts, b, A, Ap, r, p::NTuple{N,V}; tol=1e-12, maxiters=1000
+    x::NTuple{N,V}, shifts, A, b, Ap, r, p::NTuple{N,V}; tol=1e-12, maxiters=1000
 ) where {N,V} # multishift solver
     @assert length(shifts) == N - 1
     α = one(ComplexF64)
@@ -56,7 +57,7 @@ function mscg!(
     res = dot(r, r)
     res′ = fill(res, N - 1)
     if abs(res) < tol
-        @level2 "|  MultishiftCG: converged at iter 0 with res = $(abs(res))"
+        # @level2 "|  MultishiftCG: converged at iter 0 with res = $(abs(res))"
         return nothing
     end
     @level3 "|  MultishiftCG: residual 0 = $(abs(res))"
@@ -72,15 +73,17 @@ function mscg!(
         res_new = dot(r, r)
         α = α_new
         β = res_new / res
+        res_max = abs(res_new)
         for i in 1:N-1
             abs(res′[i]) < tol && continue
             axpy!(α′[i], p[i+1], x[i+1])
             β′[i] = ρ′[i]^2 * β
-            res′[i] = γ′[i] * res_new
+            resᵢ = γ′[i] * res_new
+            res′[i] = resᵢ
             γ′[i] = ρ′[i] * γ′[i]
+            res_max = abs(resᵢ) > res_max ? abs(resᵢ) : res_max
         end
-        res_max = max(abs(res_new), abs.(res′)...)
-        @level1 "|  MultishiftCG: max residual $(iter) = $res_max"
+        @level3 "|  MultishiftCG: max residual $(iter) = $res_max"
         if res_max < tol
             @level2 "|  MultishiftCG: converged at iter $(iter) with max res = $res_max"
             return nothing
@@ -97,7 +100,7 @@ function mscg!(
     return nothing
 end
 
-function bicg!(x, b, A, Ap, r, p, Ap′, r′, p′; tol=1e-14, maxiters=1000)
+function bicg!(x, A, b, Ap, r, p, Ap′, r′, p′; tol=1e-14, maxiters=1000)
     mul!(Ap, A, x)
     mul!(Ap′, adjoint(A), x)
     copy!(r, b)
@@ -138,7 +141,7 @@ function bicg!(x, b, A, Ap, r, p, Ap′, r′, p′; tol=1e-14, maxiters=1000)
     return nothing
 end
 
-function bicg_stab!(x, b, A, v, r, p, r₀, t; tol=1e-14, maxiters=1000)
+function bicg_stab!(x, A, b, v, r, p, r₀, t; tol=1e-14, maxiters=1000)
     mul!(v, A, x)
     copy!(r, b)
     axpy!(-1, v, r)
@@ -146,7 +149,7 @@ function bicg_stab!(x, b, A, v, r, p, r₀, t; tol=1e-14, maxiters=1000)
     copy!(p, r)
     ρ = dot(r₀, r)
     res = abs(ρ)
-    @level1 "|  BiCGStab: residual 0 = $res"
+    @level3 "|  BiCGStab: residual 0 = $res"
     res < tol && return nothing
     @assert isfinite(res) && isfinite(ρ) "BiCG: NaN or Inf encountered"
 

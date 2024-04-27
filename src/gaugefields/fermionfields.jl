@@ -1,7 +1,7 @@
 """
 	Fermionfield(NX, NY, NZ, NT; BACKEND=CPU, T=Float64, staggered=false)
 	Fermionfield(ψ::Fermionfield)
-    Fermionfield(f::Fermionfield, staggered)
+    Fermionfield(f::Abstractfield, staggered)
 
 Creates a Fermionfield on `BACKEND`, i.e. an array of link-variables (3D complex vectors
 with `T` precision) of size `ND × NX × NY × NZ × NT` or a zero-initialized copy of `ψ`.

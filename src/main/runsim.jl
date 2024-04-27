@@ -50,6 +50,7 @@ function run_sim!(univ, parameters)
             parameters.hmc_trajectory,
             parameters.hmc_steps,
             parameters.hmc_friction;
+            fermion_action=parameters.fermion_action,
             bias_enabled=true,
         )
         parity = parameters.parity_update ? ParityUpdate(U[1]) : nothing
@@ -166,6 +167,7 @@ function metaqcd!(
     save_configs,
 )
     U = univ.U
+    fermion_action = univ.fermion_actions
     bias = univ.bias
 
     # load in config and recalculate gauge action if given
@@ -176,7 +178,13 @@ function metaqcd!(
         for itrj in 1:(parameters.numtherm)
             @level1("|  itrj = $itrj")
             _, updatetime = @timed begin # time each update iteration
-                update!(updatemethod, U; bias=nothing, metro_test=false)
+                update!(
+                    updatemethod,
+                    U;
+                    fermion_action=fermion_action,
+                    bias=nothing,
+                    metro_test=false,
+                )
             end
             @level1("|  Elapsed time:\t$(updatetime) [s]")
         end
@@ -192,7 +200,13 @@ function metaqcd!(
             @level1("|  itrj = $itrj")
 
             _, updatetime = @timed begin
-                accepted = update!(updatemethod, U; bias=bias, metro_test=true)
+                accepted = update!(
+                    updatemethod,
+                    U;
+                    fermion_action=fermion_action,
+                    bias=bias,
+                    metro_test=true,
+                )
                 rand() < 0.5 && update!(parity, U)
                 accepted == true && update_bias!(bias, U.CV, itrj, true)
                 numaccepts += accepted

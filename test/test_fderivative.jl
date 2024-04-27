@@ -1,5 +1,6 @@
 using MetaQCD
 using MetaQCD.Utils
+using LinearAlgebra
 using Random
 
 const StaggeredFermionAction = MetaQCD.DiracOperators.StaggeredFermionAction
@@ -14,13 +15,14 @@ function SU3testfderivative(; dirac="staggered", backend=nothing)
     NZ = 4
     NT = 4
     U = initial_gauges("cold", NX, NY, NZ, NT, 6.0; GA=WilsonGaugeAction)
+    ϕ = Fermionfield(NX, NY, NZ, NT; staggered=dirac == "staggered")
     ψ = Fermionfield(NX, NY, NZ, NT; staggered=dirac == "staggered")
-    MetaQCD.Gaugefields.gaussian_pseudofermions!(ψ)
+    MetaQCD.Gaugefields.gaussian_pseudofermions!(ϕ)
 
     action = if dirac == "staggered"
-        StaggeredFermionAction(U, 0.1)
+        StaggeredFermionAction(U, 0.1; Nf=2, cg_tol=1e-16)
     elseif dirac == "wilson"
-        WilsonFermionAction(U, 0.01; csw=1)
+        WilsonFermionAction(U, 0.01; csw=0, cg_tol=1e-16)
     else
         error("dirac operator $dirac not supported")
     end
@@ -30,6 +32,7 @@ function SU3testfderivative(; dirac="staggered", backend=nothing)
     if backend !== nothing
         U = MetaQCD.to_backend(backend, U)
     end
+    mul!(ψ, action.D(U), ϕ)
 
     # Test for smearing with 5 steps and stout parameter 0.12
     smearing = StoutSmearing(U, 5, 0.12)
@@ -48,26 +51,26 @@ function SU3testfderivative(; dirac="staggered", backend=nothing)
         # Unsmeared
         Ufwd = deepcopy(U)
         Ufwd[μ, site] = expλ(group_direction, ΔH) * Ufwd[μ, site]
-        MetaQCD.DiracOperators.replace_U!(action.D, Ufwd)
-        action_new_fwd = calc_fermion_action(action, ψ)
+        action_new_fwd = calc_fermion_action(action, Ufwd, ψ)
 
         Ubwd = deepcopy(U)
         Ubwd[μ, site] = expλ(group_direction, -ΔH) * Ubwd[μ, site]
-        MetaQCD.DiracOperators.replace_U!(action.D, Ubwd)
-        action_new_bwd = calc_fermion_action(action, ψ)
+        action_new_bwd = calc_fermion_action(action, Ubwd, ψ)
 
         # Smeared
         Ufwd = deepcopy(U)
         Ufwd[μ, site] = expλ(group_direction, ΔH) * Ufwd[μ, site]
         calc_smearedU!(smearing, Ufwd)
-        MetaQCD.DiracOperators.replace_U!(action.D, smearing.Usmeared_multi[end])
-        action_new_fwd_smeared = calc_fermion_action(action, ψ)
+        action_new_fwd_smeared = calc_fermion_action(
+            action, smearing.Usmeared_multi[end], ψ
+        )
 
         Ubwd = deepcopy(U)
         Ubwd[μ, site] = expλ(group_direction, -ΔH) * Ubwd[μ, site]
         calc_smearedU!(smearing, Ubwd)
-        MetaQCD.DiracOperators.replace_U!(action.D, smearing.Usmeared_multi[end])
-        action_new_bwd_smeared = calc_fermion_action(action, ψ)
+        action_new_bwd_smeared = calc_fermion_action(
+            action, smearing.Usmeared_multi[end], ψ
+        )
 
         calc_dSfdU_bare!(dSfdU, action, U, ψ, nothing, NoSmearing())
         calc_dSfdU_bare!(dSfdU_smeared, action, U, ψ, temp_force, smearing)
@@ -78,6 +81,8 @@ function SU3testfderivative(; dirac="staggered", backend=nothing)
         symm_diff = (action_new_fwd - action_new_bwd) / 2ΔH
         symm_diff_smeared = (action_new_fwd_smeared - action_new_bwd_smeared) / 2ΔH
 
+        @show daction_proj
+        @show symm_diff
         relerrors[1, group_direction] = (symm_diff - daction_proj) / symm_diff
         relerrors[2, group_direction] =
             (symm_diff_smeared - daction_proj_smeared) / symm_diff_smeared
@@ -90,4 +95,4 @@ function SU3testfderivative(; dirac="staggered", backend=nothing)
     return relerrors
 end
 
-SU3testfderivative(; dirac="staggered")
+SU3testfderivative(; dirac="wilson")

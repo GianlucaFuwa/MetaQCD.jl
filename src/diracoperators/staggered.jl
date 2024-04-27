@@ -1,123 +1,213 @@
 """
-    StaggeredDiracOperator(U::Gaugefield, mass; anti_periodic=true)
+    StaggeredDiracOperator(::Abstractfield, mass; anti_periodic=true)
+    StaggeredDiracOperator(D::StaggeredDiracOperator, U::Gaugefield)
 
-Create an implicit Wilson Dirac Operator with mass `mass`.
+Create a free Staggered Dirac Operator with mass `mass`.
 If `anti_periodic` is `true` the fermion fields are anti periodic in the time direction.
+This object cannot be applied to a fermion vector, since it lacks a gauge background.
+A Staggered Dirac operator with gauge background is created by applying it to a `Gaugefield`
+`U` like `D_gauge = D_free(U)`
 
 # Type Parameters:
 - `B`: Backend (CPU / CUDA / ROCm)
+- `T`: Floating point precision
 - `TF`: Type of the `Fermionfield` used to store intermediate results when using the 
         Hermitian version of the operator
 - `TG`: Type of the underlying `Gaugefield`
 """
 mutable struct StaggeredDiracOperator{B,T,TF,TG} <: AbstractDiracOperator
+    U::TG
+    temp::TF # temp for storage of intermediate result for DdaggerD operator
     mass::Float64
     anti_periodic::Bool # Only in time direction
-    temp::TF # temp for storage of intermediate result for DdaggerD operator
-    U::TG
     function StaggeredDiracOperator(
-        U::Gaugefield{B,T}, mass; anti_periodic=anti_periodic
+        f::Abstractfield{B,T}, mass; anti_periodic=anti_periodic
     ) where {B,T}
-        temp = Fermionfield(U; staggered=true)
-        return new{B,T,typeof(temp),typeof(U)}(mass, anti_periodic, temp, U)
+        U = nothing
+        temp = Fermionfield(f; staggered=true)
+        TG = Nothing
+        TF = typeof(temp)
+        return new{B,T,TF,TG}(U, temp, mass, anti_periodic)
     end
+
+    function StaggeredDiracOperator(
+        D::StaggeredDiracOperator{B,T,TF}, U::Gaugefield{B,T}
+    ) where {B,T,TF}
+        TG = typeof(U)
+        return new{B,T,TF,TG}(U, D.temp, D.mass, D.anti_periodic)
+    end
+end
+
+function (D::StaggeredDiracOperator{B,T})(U::Gaugefield{B,T}) where {B,T}
+    return StaggeredDiracOperator(D, U)
 end
 
 const StaggeredFermionfield{B,T,A} = Fermionfield{B,T,A,1}
 
-struct StaggeredFermionAction{Nf,TD,TF} <: AbstractFermionAction
+struct StaggeredFermionAction{Nf,TD,CT,RI,RT} <: AbstractFermionAction
     D::TD
-    cg_x::TF
-    cg_temps::Vector{TF}
-    rhmc_info::Union{Nothing,RHMCParams}
-    rhmc_temps::Union{Nothing,Vector{TF}}
-    tol::Float64
+    cg_temps::CT
+    rhmc_info_action::RI
+    rhmc_info_md::RI
+    rhmc_temps1::RT # this holds the results of multishift cg
+    rhmc_temps2::RT # this holds the basis vectors in multishift cg
+    cg_tol::Float64
+    cg_maxiters::Int64
     function StaggeredFermionAction(
-        U, mass; anti_periodic=true, Nf=8, rhmc_order=10, rhmc_prec=42, tol=1e-14
+        f,
+        mass;
+        anti_periodic=true,
+        Nf=8,
+        rhmc_order=10,
+        rhmc_prec=42,
+        cg_tol=1e-14,
+        cg_maxiters=1000,
     )
-        D = StaggeredDiracOperator(U, mass; anti_periodic=anti_periodic)
+        @level1("┌ Setting Staggered Fermion Action...")
+        @level1("| MASS: $(mass)")
+        @level1("| Nf: $(Nf)")
+        D = StaggeredDiracOperator(f, mass; anti_periodic=anti_periodic)
         TD = typeof(D)
-        cg_x = Fermionfield(U; staggered=true)
-        cg_temps = [Fermionfield(cg_x) for _ in 1:3]
-        TF = typeof(cg_x)
 
         if Nf == 8
-            rhmc_info = nothing
-            rhmc_temps = nothing
+            rhmc_info_md = nothing
+            rhmc_info_action = nothing
+            rhmc_temps1 = nothing
+            rhmc_temps2 = nothing
+            cg_temps = ntuple(_ -> Fermionfield(f; staggered=true), 4)
         else
-            @assert 4 > Nf > 0 "Nf should be between 0 and 4 (was $Nf)"
+            @assert 8 > Nf > 0 "Nf should be between 1 and 8 (was $Nf)"
+            cg_temps = ntuple(_ -> Fermionfield(f; staggered=true), 2)
             power = Nf//8
-            rhmc_info = RHMCParams(power; n=rhmc_order, precision=rhmc_prec)
-            rhmc_temps = [Fermionfield(U; staggered=true) for _ in 1:2rhmc_order]
+            rhmc_info_md = RHMCParams(power; n=rhmc_order, precision=rhmc_prec)
+            # rhmc_info_action = RHMCParams(power; n=rhmc_order, precision=rhmc_prec)
+            rhmc_info_action = rhmc_info_md
+            rhmc_temps1 = ntuple(_ -> Fermionfield(f; staggered=true), rhmc_order + 1)
+            rhmc_temps2 = ntuple(_ -> Fermionfield(f; staggered=true), rhmc_order + 1)
         end
-        return new{Nf,TD,TF}(D, cg_x, cg_temps, rhmc_info, rhmc_temps, tol)
+
+        CT = typeof(cg_temps)
+        RI = typeof(rhmc_info_action)
+        RT = typeof(rhmc_temps1)
+        @level1("└\n")
+        return new{Nf,TD,CT,RI,RT}(
+            D,
+            cg_temps,
+            rhmc_info_action,
+            rhmc_info_md,
+            rhmc_temps1,
+            rhmc_temps2,
+            cg_tol,
+            cg_maxiters,
+        )
     end
 end
 
-function solve_D⁻¹x!(
-    ψ, D::T, ϕ, temps...; tol=1e-14, maxiters=1000
-) where {T<:StaggeredDiracOperator}
-    @assert dims(ψ) == dims(ϕ) == dims(D.U)
-    bicg_stab!(ψ, ϕ, D, temps...; tol=tol, maxiters=maxiters)
+function Base.show(io::IO, ::MIME"text/plain", S::StaggeredFermionAction{Nf}) where {Nf}
+    print(
+        io,
+        "StaggeredFermionAction{Nf=$Nf}(; cg_tol=$(S.cg_tol), cg_maxiters=$(S.cg_maxiters))",
+    )
     return nothing
 end
 
 function calc_fermion_action(
-    fermion_action::StaggeredFermionAction{8}, ϕ::StaggeredFermionfield
+    fermion_action::StaggeredFermionAction{8}, U::Gaugefield, ϕ::StaggeredFermionfield
 )
-    D = fermion_action.D
+    D = fermion_action.D(U)
     DdagD = DdaggerD(D)
-    ψ = fermion_action.cg_x
-    temps = fermion_action.cg_temps
+    ψ, temp1, temp2, temp3 = fermion_action.cg_temps
+    cg_tol = fermion_action.cg_tol
+    cg_maxiters = fermion_action.cg_maxiters
 
     clear!(ψ) # initial guess is zero
-    solve_D⁻¹x!(ψ, DdagD, ϕ, temps...; tol=fermion_action.tol) # ψ = (D†D)⁻¹ϕ
+    solve_D⁻¹x!(ψ, DdagD, ϕ, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
     Sf = dot(ϕ, ψ)
     return real(Sf)
 end
 
 function calc_fermion_action(
-    fermion_action::StaggeredFermionAction{Nf}, ϕ::StaggeredFermionfield
+    fermion_action::StaggeredFermionAction{Nf}, U::Gaugefield, ϕ::StaggeredFermionfield
 ) where {Nf}
-    D = fermion_action.D
+    cg_tol = fermion_action.cg_tol
+    cg_maxiters = fermion_action.cg_maxiters
+    rhmc = fermion_action.rhmc_info_action
+    n = rhmc.coeffs_inverse.n
+    D = fermion_action.D(U)
     DdagD = DdaggerD(D)
-    ψ = fermion_action.cg_x
-    temps, p = fermion_action.cg_temps
-    rhmc = fermion_action.rhmc_info
-    n = rhmc.coeffs.n
-    rhmc_ψ = ntuple(i -> fermion_action.rhmc_temps[i], n)
-    rhmc_p = ntuple(i -> fermion_action.rhmc_temps[n+i], n)
-
-    ψs = (ψ, rhmc_ψ...)
-    ps = (p, rhmc_p...)
+    ψs = fermion_action.rhmc_temps1
+    ps = fermion_action.rhmc_temps2
+    temp1, temp2 = fermion_action.cg_temps
 
     for v in ψs
         clear!(v)
     end
-
     shifts = rhmc.coeffs_inverse.β
     coeffs = rhmc.coeffs_inverse.α
     α₀ = rhmc.coeffs_inverse.α0
-    mscg!(ψs, shifts, DdagD, ϕ, temps..., ps; tol=fermion_action.tol)
+    solve_D⁻¹x_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
+    ψ = ψs[1]
     clear!(ψ) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
 
     axpy!(α₀, ϕ, ψ)
     for i in 1:n
-        axpy!(coeffs[i], rhmc_ψ[i], ψ)
+        axpy!(coeffs[i], ψs[i+1], ψ)
     end
 
     Sf = dot(ϕ, ψ)
     return real(Sf)
+end
+
+function sample_pseudofermions!(ϕ, fermion_action::StaggeredFermionAction{8}, U)
+    D = fermion_action.D(U)
+    temp = fermion_action.cg_temps[1]
+    gaussian_pseudofermions!(temp)
+    mul!(ϕ, D, temp)
+    return nothing
+end
+
+function sample_pseudofermions!(ϕ, fermion_action::StaggeredFermionAction{Nf}, U) where {Nf}
+    cg_tol = fermion_action.cg_tol
+    cg_maxiters = fermion_action.cg_maxiters
+    rhmc = fermion_action.rhmc_info_action
+    n = rhmc.coeffs.n
+    D = fermion_action.D(U)
+    DdagD = DdaggerD(D)
+    ψs = fermion_action.rhmc_temps1
+    ps = fermion_action.rhmc_temps2
+    temp1, temp2 = fermion_action.cg_temps
+
+    for v in ψs
+        clear!(v)
+    end
+    shifts = rhmc.coeffs.β
+    coeffs = rhmc.coeffs.α
+    α₀ = rhmc.coeffs.α0
+    gaussian_pseudofermions!(ϕ) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
+    solve_D⁻¹x_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
+
+    axpy!(α₀, ϕ, ϕ)
+    for i in 1:n
+        axpy!(coeffs[i], ψs[i+1], ϕ)
+    end
+    return nothing
+end
+
+function solve_D⁻¹x!(
+    ψ, D::T, ϕ, temp1, temp2, temp3, temp4, temp5; tol=1e-14, maxiters=1000
+) where {T<:StaggeredDiracOperator}
+    @assert dims(ψ) == dims(ϕ) == dims(D.U)
+    bicg_stab!(ψ, D, ϕ, temp1, temp2, temp3, temp4, temp5; tol=tol, maxiters=maxiters)
+    return nothing
 end
 
 # We overload LinearAlgebra.mul! instead of Gaugefields.mul! so we dont have to import
 # The Gaugefields module into CG.jl, which also allows us to use the solvers for 
 # for arbitrary arrays, not just fermion fields and dirac operators (good for testing)
 function LinearAlgebra.mul!(
-    ψ::StaggeredFermionfield{CPU,T},
-    D::StaggeredDiracOperator{CPU,T},
-    ϕ::StaggeredFermionfield{CPU,T},
-) where {T}
+    ψ::TF, D::StaggeredDiracOperator{CPU,T,TF,TG}, ϕ::TF
+) where {T,TF,TG}
+    @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.U
     mass = T(D.mass)
     anti = D.anti_periodic
@@ -131,10 +221,9 @@ function LinearAlgebra.mul!(
 end
 
 function LinearAlgebra.mul!(
-    ψ::StaggeredFermionfield{CPU,T},
-    D::Daggered{StaggeredDiracOperator{CPU,T,TG,TF}},
-    ϕ::StaggeredFermionfield{CPU,T},
-) where {T,TG,TF}
+    ψ::TF, D::Daggered{StaggeredDiracOperator{CPU,T,TF,TG}}, ϕ::TF
+) where {T,TF,TG}
+    @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.parent.U
     mass = T(D.parent.mass)
     anti = D.parent.anti_periodic
@@ -148,10 +237,8 @@ function LinearAlgebra.mul!(
 end
 
 function LinearAlgebra.mul!(
-    ψ::StaggeredFermionfield{CPU,T},
-    D::DdaggerD{StaggeredDiracOperator{CPU,T,TG,TF}},
-    ϕ::StaggeredFermionfield{CPU,T},
-) where {T,TG,TF}
+    ψ::TF, D::DdaggerD{StaggeredDiracOperator{CPU,T,TF,TG}}, ϕ::TF
+) where {T,TF,TG}
     temp = D.parent.temp
     mul!(temp, adjoint(D.parent), ϕ) # temp = D†ϕ
     mul!(ψ, D.parent, temp) # ψ = DD†ϕ

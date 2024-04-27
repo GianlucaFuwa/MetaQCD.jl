@@ -16,11 +16,12 @@ import KernelAbstractions as KA
 import ..Gaugefields: AbstractGaugeAction, Gaugefield, Temporaryfield
 import ..Gaugefields: WilsonGaugeAction, add!, calc_gauge_action, calc_kinetic_energy
 import ..Gaugefields: clear!, dims, normalize!, fieldstrength_eachsite!, float_type
-import ..Gaugefields: gaussian_TA!, gaussian_pseudofermions!, mul!, staple, staple_eachsite!
+import ..Gaugefields: gaussian_TA!, mul!, staple, staple_eachsite!
 import ..Gaugefields: @groupreduce, @latmap, @latsum, gauge_action
 import ..Gaugefields: Abstractfield, Plaquette, Clover, Tensorfield, Fermionfield
 import ..DiracOperators: AbstractDiracOperator, StaggeredDiracOperator, WilsonDiracOperator
-import ..DiracOperators: DdaggerD, Daggered, replace_U!, calc_fermion_action
+import ..DiracOperators: DdaggerD, Daggered, calc_fermion_action
+import ..DiracOperators: sample_pseudofermions!
 import ..BiasModule: Bias, calc_CV, ∂V∂Q, recalc_CV!
 import ..BiasModule: kind_of_cv, update_bias!
 import ..Parameters: ParameterSet
@@ -52,6 +53,8 @@ function Updatemethod(parameters::ParameterSet, U)
         parameters.update_method,
         parameters.verboselevel,
         parameters.logdir,
+        parameters.fermion_action,
+        parameters.Nf_heavy > 0,
         parameters.kind_of_bias,
         parameters.metro_epsilon,
         parameters.metro_numhits,
@@ -76,6 +79,8 @@ function Updatemethod(
     update_method,
     verboselevel=1,
     logdir="",
+    fermion_action="none",
+    heavy_flavours=false,
     kind_of_bias="none",
     metro_ϵ=0.1,
     metro_numhits=1,
@@ -103,6 +108,8 @@ function Updatemethod(
             hmc_numsmear,
             hmc_ρstout,
             verboselevel;
+            fermion_action=fermion_action,
+            heavy_flavours=heavy_flavours,
             bias_enabled=kind_of_bias != "none",
             logdir=logdir,
         )

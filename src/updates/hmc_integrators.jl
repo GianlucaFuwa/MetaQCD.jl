@@ -1,15 +1,15 @@
 struct Leapfrog <: AbstractIntegrator end
 
-function evolve!(::Leapfrog, U, hmc::HMC, bias)
-    updateP!(U, hmc, 0.5, bias)
+function evolve!(::Leapfrog, U, hmc::HMC, fermion_action, bias)
+    updateP!(U, hmc, 0.5, fermion_action, bias)
 
     for _ in 1:hmc.steps-1
         updateU!(U, hmc, 1.0)
-        updateP!(U, hmc, 1.0, bias)
+        updateP!(U, hmc, 1.0, fermion_action, bias)
     end
 
     updateU!(U, hmc, 1.0)
-    updateP!(U, hmc, 0.5, bias)
+    updateP!(U, hmc, 0.5, fermion_action, bias)
     return nothing
 end
 
@@ -26,13 +26,13 @@ struct OMF2Slow <: AbstractIntegrator
     end
 end
 
-function evolve!(O2S::OMF2Slow, U, hmc::HMC, bias)
+function evolve!(O2S::OMF2Slow, U, hmc::HMC, fermion_action, bias)
     for _ in 1:hmc.steps
-        updateP!(U, hmc, O2S.α, bias)
+        updateP!(U, hmc, O2S.α, fermion_action, bias)
         updateU!(U, hmc, O2S.β)
-        updateP!(U, hmc, O2S.γ, bias)
+        updateP!(U, hmc, O2S.γ, fermion_action, bias)
         updateU!(U, hmc, O2S.β)
-        updateP!(U, hmc, O2S.α, bias)
+        updateP!(U, hmc, O2S.α, fermion_action, bias)
     end
 
     return nothing
@@ -51,20 +51,20 @@ struct OMF2 <: AbstractIntegrator
     end
 end
 
-function evolve!(O2::OMF2, U, hmc::HMC, bias)
-    updateP!(U, hmc, O2.α, bias)
+function evolve!(O2::OMF2, U, hmc::HMC, fermion_action, bias)
+    updateP!(U, hmc, O2.α, fermion_action, bias)
     updateU!(U, hmc, O2.β)
-    updateP!(U, hmc, O2.γ, bias)
+    updateP!(U, hmc, O2.γ, fermion_action, bias)
     updateU!(U, hmc, O2.β)
 
     for _ in 1:hmc.steps-1
-        updateP!(U, hmc, 2 * O2.α, bias)
+        updateP!(U, hmc, 2 * O2.α, fermion_action, bias)
         updateU!(U, hmc, O2.β)
-        updateP!(U, hmc, O2.γ, bias)
+        updateP!(U, hmc, O2.γ, fermion_action, bias)
         updateU!(U, hmc, O2.β)
     end
 
-    updateP!(U, hmc, O2.α, bias)
+    updateP!(U, hmc, O2.α, fermion_action, bias)
     return nothing
 end
 
@@ -87,21 +87,21 @@ struct OMF4Slow <: AbstractIntegrator
     end
 end
 
-function evolve!(O4S::OMF4Slow, U, hmc::HMC, bias)
+function evolve!(O4S::OMF4Slow, U, hmc::HMC, fermion_action, bias)
     for _ in 1:hmc.steps
-        updateP!(U, hmc, O4S.α, bias)
+        updateP!(U, hmc, O4S.α, fermion_action, bias)
         updateU!(U, hmc, O4S.β)
-        updateP!(U, hmc, O4S.γ, bias)
+        updateP!(U, hmc, O4S.γ, fermion_action, bias)
         updateU!(U, hmc, O4S.δ)
 
-        updateP!(U, hmc, O4S.μ, bias)
+        updateP!(U, hmc, O4S.μ, fermion_action, bias)
         updateU!(U, hmc, O4S.ν)
-        updateP!(U, hmc, O4S.μ, bias)
+        updateP!(U, hmc, O4S.μ, fermion_action, bias)
 
         updateU!(U, hmc, O4S.δ)
-        updateP!(U, hmc, O4S.γ, bias)
+        updateP!(U, hmc, O4S.γ, fermion_action, bias)
         updateU!(U, hmc, O4S.β)
-        updateP!(U, hmc, O4S.α, bias)
+        updateP!(U, hmc, O4S.α, fermion_action, bias)
     end
 
     return nothing
@@ -126,35 +126,35 @@ struct OMF4 <: AbstractIntegrator
     end
 end
 
-function evolve!(O4::OMF4, U, hmc::HMC, bias)
-    updateP!(U, hmc, O4.α, bias)
+function evolve!(O4::OMF4, U, hmc::HMC, fermion_action, bias)
+    updateP!(U, hmc, O4.α, fermion_action, bias)
     updateU!(U, hmc, O4.β)
-    updateP!(U, hmc, O4.γ, bias)
+    updateP!(U, hmc, O4.γ, fermion_action, bias)
     updateU!(U, hmc, O4.δ)
 
-    updateP!(U, hmc, O4.μ, bias)
+    updateP!(U, hmc, O4.μ, fermion_action, bias)
     updateU!(U, hmc, O4.ν)
-    updateP!(U, hmc, O4.μ, bias)
+    updateP!(U, hmc, O4.μ, fermion_action, bias)
 
     updateU!(U, hmc, O4.δ)
-    updateP!(U, hmc, O4.γ, bias)
+    updateP!(U, hmc, O4.γ, fermion_action, bias)
     updateU!(U, hmc, O4.β)
 
     for _ in 1:hmc.steps-1
-        updateP!(U, hmc, 2 * O4.α, bias)
+        updateP!(U, hmc, 2 * O4.α, fermion_action, bias)
         updateU!(U, hmc, O4.β)
-        updateP!(U, hmc, O4.γ, bias)
+        updateP!(U, hmc, O4.γ, fermion_action, bias)
         updateU!(U, hmc, O4.δ)
 
-        updateP!(U, hmc, O4.μ, bias)
+        updateP!(U, hmc, O4.μ, fermion_action, bias)
         updateU!(U, hmc, O4.ν)
-        updateP!(U, hmc, O4.μ, bias)
+        updateP!(U, hmc, O4.μ, fermion_action, bias)
 
         updateU!(U, hmc, O4.δ)
-        updateP!(U, hmc, O4.γ, bias)
+        updateP!(U, hmc, O4.γ, fermion_action, bias)
         updateU!(U, hmc, O4.β)
     end
 
-    updateP!(U, hmc, O4.α, bias)
+    updateP!(U, hmc, O4.α, fermion_action, bias)
     return nothing
 end

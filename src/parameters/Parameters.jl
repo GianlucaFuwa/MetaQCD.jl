@@ -15,7 +15,7 @@ function set_params_value!(value_Params, values)
     pnames = fieldnames(ParameterSet)
 
     for (i, pname_i) in enumerate(pnames)
-        if haskey(d,String(pname_i))
+        if haskey(d, String(pname_i))
             value_Params[i] = d[String(pname_i)]
         end
     end
@@ -24,7 +24,6 @@ end
 
 function save_parameters(fp, parameters) # TODO: Print the entirity
     for (key, value) in parameters
-
         println(fp, "[$(key)]")
 
         if key == "Measurement set"
@@ -37,7 +36,6 @@ function save_parameters(fp, parameters) # TODO: Print the entirity
             display(value)
             println(fp, "\t")
         end
-
     end
 
     return nothing
@@ -46,8 +44,8 @@ end
 function construct_params_from_toml(filename::String)
     myrank = MPI.Comm_rank(MPI.COMM_WORLD)
     parameters = TOML.parsefile(filename)
-    myrank==0 && println("inputfile: ", pwd() * "/" * filename * "\n")
-    construct_params_from_toml(parameters, am_rank0 = (myrank==0))
+    myrank == 0 && println("inputfile: ", pwd() * "/" * filename * "\n")
+    return construct_params_from_toml(parameters; am_rank0=(myrank == 0))
 end
 
 function construct_params_from_toml(parameters; am_rank0=true)
@@ -60,6 +58,8 @@ function construct_params_from_toml(parameters; am_rank0=true)
 
     physical = PhysicalParameters()
     set_params_value!(value_Params, physical)
+    fermion = DynamicalFermionParameters()
+    set_params_value!(value_Params, fermion)
     bias = BiasParameters()
     set_params_value!(value_Params, bias)
     system = SystemParameters()
@@ -72,18 +72,18 @@ function construct_params_from_toml(parameters; am_rank0=true)
     set_params_value!(value_Params, gradientflow)
 
     overwrite = try
-                    parameters["System Settings"]["overwrite"]
-                catch
-                    @warn "\"overwrite\" not specified in System Settings; default to true."
-                    true
-                end
+        parameters["System Settings"]["overwrite"]
+    catch
+        @warn "\"overwrite\" not specified in System Settings; default to true."
+        true
+    end
 
     posl = findfirst(x -> String(x) == "logdir", pnames)
     log_dir = try
-                  parameters["System Settings"]["log_dir"]
-              catch
-                  time_now
-              end
+        parameters["System Settings"]["log_dir"]
+    catch
+        time_now
+    end
 
     logdir = pwd() * "/logs/" * log_dir
 
@@ -99,10 +99,10 @@ function construct_params_from_toml(parameters; am_rank0=true)
     value_Params[posl] = logdir
 
     measurement_dir = try
-                          parameters["System Settings"]["measurement_dir"]
-                      catch
-                          time_now
-                      end
+        parameters["System Settings"]["measurement_dir"]
+    catch
+        time_now
+    end
 
     measuredir = pwd() * "/measurements/" * measurement_dir
     if !isdir(measuredir)
@@ -115,16 +115,20 @@ function construct_params_from_toml(parameters; am_rank0=true)
     value_Params[posm] = measuredir
 
     kind_of_bias = try
-                       parameters["Bias Settings"]["kind_of_bias"]
-                   catch
-                       @warn "Bias disabled because not specified"
-                       "none"
-                   end
+        parameters["Bias Settings"]["kind_of_bias"]
+    catch
+        @warn "Bias disabled because not specified"
+        "none"
+    end
 
     pos = findfirst(x -> String(x) == "biasdir", pnames)
 
     if kind_of_bias != "none"
-        bias_dir = try parameters["System Settings"]["bias_dir"] catch _ "$time_now" end
+        bias_dir = try
+            parameters["System Settings"]["bias_dir"]
+        catch _
+            "$time_now"
+        end
         biasdir = pwd() * "/metapotentials/" * bias_dir
 
         if !isdir(biasdir)
@@ -153,7 +157,7 @@ function construct_params_from_toml(parameters; am_rank0=true)
                 elseif String(pname_i) == "biasfactor"
                     val = value[String(pname_i)]
                     num = val == "Inf" ? Inf : val
-                    @assert typeof(num)<:Real && num > 1 "wt_factor must be in (1,Inf]"
+                    @assert typeof(num) <: Real && num > 1 "wt_factor must be in (1,Inf]"
                     value_Params[i] = num
                 elseif String(pname_i) == "randomseed"
                     val = value[String(pname_i)]
@@ -173,7 +177,6 @@ function construct_params_from_toml(parameters; am_rank0=true)
         if isassigned(value_Params, i) == false
             @error "$(pname_i) is not defined!"
         end
-
     end
 
     parameters = ParameterSet(value_Params...)
@@ -187,16 +190,30 @@ end
 parameter_check(::ParameterSet, ::Val{false}) = nothing
 
 function parameter_check(p::ParameterSet, ::Val{true})
-    lower_case(str) = Unicode.normalize(str, casefold=true)
-    if lower_case(p.kind_of_gaction) ∉ ["wilson", "iwasaki", "symanzik_tree", "dbw2"]
+    lower_case(str) = Unicode.normalize(str; casefold=true)
+    if lower_case(p.gauge_action) ∉ ["wilson", "iwasaki", "symanzik_tree", "dbw2"]
+        ga = p.gauge_action
         throw(AssertionError("""
-              kind_of_gaction in [\"Physical Settings\"] = $(p.kind_of_gaction) is not supported.
+              gauge_action in [\"Physical Settings\"] = $(ga) is not supported.
               Supported gactions are:
                 Wilson
                 Iwasaki
                 DBW2
                 Symanzik_tree
               """))
+    end
+
+    if lower_case(p.fermion_action) ∉ ["none", "wilson", "staggered"]
+        fa = p.fermion_action
+        throw(AssertionError("""
+              fermion_action in [\"Physical Settings\"] = $(fa) is not supported.
+              Supported gactions are:
+                None
+                Wilson
+                Staggered
+              """))
+    else
+        @assert lower_case(p.update_method) == "hmc" "Dynamical fermions only with HMC"
     end
 
     if lower_case(p.initial) ∉ ["cold", "hot"]
@@ -209,8 +226,9 @@ function parameter_check(p::ParameterSet, ::Val{true})
     end
 
     if lower_case(p.update_method) ∉ ["hmc", "metropolis", "heatbath"]
+        um = p.update_method
         throw(AssertionError("""
-            update_method in [\"Physical Settings\"] = $(p.update_method) is not supported.
+            update_method in [\"Physical Settings\"] = $(um) is not supported.
             Supported methods are:
                 HMC
                 Metropolis
@@ -251,22 +269,24 @@ function parameter_check(p::ParameterSet, ::Val{true})
     end
 
     if lower_case(p.flow_integrator) ∉ ["euler", "rk2", "rk3", "rk3w7"]
+        fi = p.flow_integrator
         throw(AssertionError("""
-            flow_integrator in [\"Gradient Flow Settings\"] = $(p.flow_integrator) is not supported.
-            Supported methods are:
-                Euler
-                RK2
-                RK3
-                RK3W7
-            """))
+             flow_integrator in [\"Gradient Flow Settings\"] = $(fi) is not supported.
+             Supported methods are:
+                 Euler
+                 RK2
+                 RK3
+                 RK3W7
+             """))
     end
 
-    if lower_case(p.saveU_format) ∉ ["", "bridge", "jld", "jld2"]
+    if lower_case(p.saveU_format) ∉ ["", "bmw", "bridge", "jld", "jld2"]
         throw(AssertionError("""
             saveU_format in [\"System Settings\"] = $(p.saveU_format) is not supported.
             Supported methods are:
                 Bridge
                 JLD or JLD2 (both use JLD2)
+                BMW
             """))
     elseif p.saveU_format != ""
         if p.saveU_dir == ""
@@ -278,12 +298,14 @@ function parameter_check(p::ParameterSet, ::Val{true})
 
     if p.loadU_fromfile
         @assert isfile(p.loadU_dir * "/" * p.loadU_filename) "Your loadU_file doesn't exist"
-        if Unicode.normalize(p.loadU_format, casefold=true) ∉ ["bridge", "jld", "jld2"]
+        if Unicode.normalize(p.loadU_format; casefold=true) ∉
+            ["bmw", "bridge", "jld", "jld2"]
             throw(AssertionError("""
             loadU_format in [\"System Settings\"] = $(p.loadU_format) is not supported.
             Supported methods are:
                 Bridge
                 JLD or JLD2 (both use JLD2)
+                BMW
             """))
         end
     end
