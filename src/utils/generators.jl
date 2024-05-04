@@ -28,19 +28,28 @@ end
 
 @inline function γ₄(::Type{T}) where {T}
     return @SArray [
-        Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(-1, 0) Complex{T}(0, 0)
-        Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(-1, 0)
-        Complex{T}(-1, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0)
-        Complex{T}(0, 0) Complex{T}(-1, 0) Complex{T}(0, 0) Complex{T}(0, 0)
+        Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(1, 0) Complex{T}(0, 0)
+        Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(1, 0)
+        Complex{T}(1, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0)
+        Complex{T}(0, 0) Complex{T}(1, 0) Complex{T}(0, 0) Complex{T}(0, 0)
     ]
 end
 
 @inline function γ₅(::Type{T}) where {T}
     return @SArray [
-        Complex{T}(-1, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0)
-        Complex{T}(0, 0) Complex{T}(-1, 0) Complex{T}(0, 0) Complex{T}(0, 0)
-        Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(1, 0) Complex{T}(0, 0)
-        Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(1, 0)
+        Complex{T}(1, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0)
+        Complex{T}(0, 0) Complex{T}(1, 0) Complex{T}(0, 0) Complex{T}(0, 0)
+        Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(-1, 0) Complex{T}(0, 0)
+        Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(-1, 0)
+    ]
+end
+
+@inline function P₁(::Type{T}) where {T}
+    return @SArray [
+        Complex{T}(0, -1) Complex{T}(0, 0)
+        Complex{T}(0, 0) Complex{T}(1, 0)
+        Complex{T}(0, 0) Complex{T}(0, 1)
+        Complex{T}(1, 0) Complex{T}(0, 0)
     ]
 end
 
@@ -79,10 +88,10 @@ end
 
 @inline function σ₁₄(::Type{T}) where {T}
     return @SArray [
-        Complex{T}(0, 0) Complex{T}(-1, 0) Complex{T}(0, 0) Complex{T}(0, 0)
-        Complex{T}(-1, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0)
-        Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(1, 0)
-        Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(1, 0) Complex{T}(0, 0)
+        Complex{T}(0, 0) Complex{T}(1, 0) Complex{T}(0, 0) Complex{T}(0, 0)
+        Complex{T}(1, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0)
+        Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(-1, 0)
+        Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(-1, 0) Complex{T}(0, 0)
     ]
 end
 
@@ -97,22 +106,21 @@ end
 
 @inline function σ₂₄(::Type{T}) where {T}
     return @SArray [
-        Complex{T}(0, 0) Complex{T}(0, 1) Complex{T}(0, 0) Complex{T}(0, 0)
-        Complex{T}(0, -1) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0)
-        Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, -1)
-        Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 1) Complex{T}(0, 0)
+        Complex{T}(0, 0) Complex{T}(0, -1) Complex{T}(0, 0) Complex{T}(0, 0)
+        Complex{T}(0, 1) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0)
+        Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 1)
+        Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, -1) Complex{T}(0, 0)
     ]
 end
 
 @inline function σ₃₄(::Type{T}) where {T}
     return @SArray [
-        Complex{T}(-1, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0)
-        Complex{T}(0, 0) Complex{T}(1, 0) Complex{T}(0, 0) Complex{T}(0, 0)
-        Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(1, 0) Complex{T}(0, 0)
-        Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(-1, 0)
+        Complex{T}(1, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0)
+        Complex{T}(0, 0) Complex{T}(-1, 0) Complex{T}(0, 0) Complex{T}(0, 0)
+        Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(-1, 0) Complex{T}(0, 0)
+        Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(1, 0)
     ]
 end
-
 
 const λ₁ = @SArray [
     0.0+0.0im 1.0+0.0im 0.0+0.0im

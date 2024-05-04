@@ -83,14 +83,14 @@ end
 function ∇trFμνFρσ(::Plaquette, U, F, μ, ν, ρ, σ, site)
     Nμ = dims(U)[μ]
     Nν = dims(U)[ν]
-    siteμp = move(site, μ, 1i32, Nμ)
-    siteνp = move(site, ν, 1i32, Nν)
-    siteνn = move(site, ν, -1i32, Nν)
-    siteμpνn = move(siteμp, ν, -1i32, Nν)
+    siteμ⁺ = move(site, μ, 1i32, Nμ)
+    siteν⁺ = move(site, ν, 1i32, Nν)
+    siteν⁻ = move(site, ν, -1i32, Nν)
+    siteμ⁺ν⁻ = move(siteμ⁺, ν, -1i32, Nν)
 
     component =
-        cmatmul_oddo(U[ν, siteμp], U[μ, siteνp], U[ν, site], F[ρ, σ, site]) +
-        cmatmul_ddoo(U[ν, siteμpνn], U[μ, siteνn], F[ρ, σ, siteνn], U[ν, siteνn])
+        cmatmul_oddo(U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site], F[ρ, σ, site]) +
+        cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], F[ρ, σ, siteν⁻], U[ν, siteν⁻])
 
     return im * 1//2 * component
 end
@@ -101,29 +101,29 @@ end
 function ∇trFμνFρσ(::Clover, U, F, μ, ν, ρ, σ, site)
     Nμ = dims(U)[μ]
     Nν = dims(U)[ν]
-    siteμp = move(site, μ, 1i32, Nμ)
-    siteνp = move(site, ν, 1i32, Nν)
-    siteνn = move(site, ν, -1i32, Nν)
-    siteμpνp = move(siteμp, ν, 1i32, Nν)
-    siteμpνn = move(siteμp, ν, -1i32, Nν)
+    siteμ⁺ = move(site, μ, 1i32, Nμ)
+    siteν⁺ = move(site, ν, 1i32, Nν)
+    siteν⁻ = move(site, ν, -1i32, Nν)
+    siteμ⁺ν⁺ = move(siteμ⁺, ν, 1i32, Nν)
+    siteμ⁺ν⁻ = move(siteμ⁺, ν, -1i32, Nν)
 
     # get reused matrices up to cache (can precalculate some products too)
-    # Uνsiteμ⁺ = U[ν,siteμp]
-    # Uμsiteν⁺ = U[μ,siteνp]
+    # Uνsiteμ⁺ = U[ν,siteμ⁺]
+    # Uμsiteν⁺ = U[μ,siteν⁺]
     # Uνsite = U[ν,site]
-    # Uνsiteμ⁺ν⁻ = U[ν,siteμpνn]
-    # Uμsiteν⁻ = U[μ,siteνn]
-    # Uνsiteν⁻ = U[ν,siteνn]
+    # Uνsiteμ⁺ν⁻ = U[ν,siteμ⁺ν⁻]
+    # Uμsiteν⁻ = U[μ,siteν⁻]
+    # Uνsiteν⁻ = U[ν,siteν⁻]
 
     component =
-        cmatmul_oddo(U[ν, siteμp], U[μ, siteνp], U[ν, site], F[ρ, σ, site]) +
-        cmatmul_odod(U[ν, siteμp], U[μ, siteνp], F[ρ, σ, siteνp], U[ν, site]) +
-        cmatmul_oodd(U[ν, siteμp], F[ρ, σ, siteμpνp], U[μ, siteνp], U[ν, site]) +
-        cmatmul_oodd(F[ρ, σ, siteμp], U[ν, siteμp], U[μ, siteνp], U[ν, site]) -
-        cmatmul_ddoo(U[ν, siteμpνn], U[μ, siteνn], U[ν, siteνn], F[ρ, σ, site]) -
-        cmatmul_ddoo(U[ν, siteμpνn], U[μ, siteνn], F[ρ, σ, siteνn], U[ν, siteνn]) -
-        cmatmul_dodo(U[ν, siteμpνn], F[ρ, σ, siteμpνn], U[μ, siteνn], U[ν, siteνn]) -
-        cmatmul_oddo(F[ρ, σ, siteμp], U[ν, siteμpνn], U[μ, siteνn], U[ν, siteνn])
+        cmatmul_oddo(U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site], F[ρ, σ, site]) +
+        cmatmul_odod(U[ν, siteμ⁺], U[μ, siteν⁺], F[ρ, σ, siteν⁺], U[ν, site]) +
+        cmatmul_oodd(U[ν, siteμ⁺], F[ρ, σ, siteμ⁺ν⁺], U[μ, siteν⁺], U[ν, site]) +
+        cmatmul_oodd(F[ρ, σ, siteμ⁺], U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site]) -
+        cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻], F[ρ, σ, site]) -
+        cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], F[ρ, σ, siteν⁻], U[ν, siteν⁻]) -
+        cmatmul_dodo(U[ν, siteμ⁺ν⁻], F[ρ, σ, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻]) -
+        cmatmul_oddo(F[ρ, σ, siteμ⁺], U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻])
 
     return im * 1//8 * component
 end

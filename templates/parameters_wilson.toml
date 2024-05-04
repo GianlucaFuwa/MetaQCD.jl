@@ -1,7 +1,7 @@
 ["Physical Settings"]
-L = [4, 4, 4, 4]
+L = [12, 12, 12, 24]
 beta = 6.0
-kind_of_gaction = "iwasaki"
+kind_of_gaction = "symanzik_tree"
 numtherm = 10
 numsteps = 5
 initial = "cold"
@@ -12,20 +12,18 @@ parity_update = false
 fermion_action = "wilson"
 Nf_light = 2
 mass_light = 0.01
-cg_tol = 1e-19
+cg_tol = 1e-14
 
 ["HMC Settings"]
 hmc_trajectory = 1
 hmc_steps = 5
 hmc_integrator = "OMF4"
-hmc_numsmear = 7
-hmc_rhostout = 0.12
 
 ["System Settings"]
 backend = "cpu"
 float_type = "double"         
-log_dir = "L4x4x4x4_wilson_beta6.0/test_wilson"
-measurement_dir = "L4x4x4x4_wilson_beta6.0/test_wilson"
+log_dir = "L12x12x12x24_wilson_beta6.0/test_wilson"
+measurement_dir = "L12x12x12x24_wilson_beta6.0/test_wilson"
 randomseed = 0
 verboselevel = 1
 overwrite = true

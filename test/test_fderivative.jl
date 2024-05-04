@@ -9,7 +9,7 @@ const WilsonFermionAction = MetaQCD.DiracOperators.WilsonFermionAction
 function SU3testfderivative(; dirac="staggered", backend=nothing)
     Random.seed!(123)
     println("Fermion derivative test [$dirac]")
-    MetaQCD.Output.set_global_logger!(1, devnull; tc=false)
+    MetaQCD.Output.set_global_logger!(1, devnull; tc=true)
     NX = 4
     NY = 4
     NZ = 4
@@ -20,9 +20,9 @@ function SU3testfderivative(; dirac="staggered", backend=nothing)
     MetaQCD.Gaugefields.gaussian_pseudofermions!(ϕ)
 
     action = if dirac == "staggered"
-        StaggeredFermionAction(U, 0.1; Nf=2, cg_tol=1e-16)
+        StaggeredFermionAction(U, 0.1; cg_tol=1e-16)
     elseif dirac == "wilson"
-        WilsonFermionAction(U, 0.01; csw=0, cg_tol=1e-16)
+        WilsonFermionAction(U, 0.1; csw=1, cg_tol=1e-19, cg_maxiters=10000)
     else
         error("dirac operator $dirac not supported")
     end
@@ -45,7 +45,7 @@ function SU3testfderivative(; dirac="staggered", backend=nothing)
     μ = 3
     ΔH = 0.000001
 
-    relerrors = Matrix{Float64}(undef, 2, 8)
+    relerrors = Matrix{Float64}(undef, 8, 2)
 
     for group_direction in 1:8
         # Unsmeared
@@ -81,10 +81,10 @@ function SU3testfderivative(; dirac="staggered", backend=nothing)
         symm_diff = (action_new_fwd - action_new_bwd) / 2ΔH
         symm_diff_smeared = (action_new_fwd_smeared - action_new_bwd_smeared) / 2ΔH
 
-        @show daction_proj
-        @show symm_diff
-        relerrors[1, group_direction] = (symm_diff - daction_proj) / symm_diff
-        relerrors[2, group_direction] =
+        # @show daction_proj
+        # @show symm_diff
+        relerrors[group_direction, 1] = (symm_diff - daction_proj) / symm_diff
+        relerrors[group_direction, 2] =
             (symm_diff_smeared - daction_proj_smeared) / symm_diff_smeared
 
         # println("================= Group direction $(group_direction) =================")
@@ -95,4 +95,4 @@ function SU3testfderivative(; dirac="staggered", backend=nothing)
     return relerrors
 end
 
-SU3testfderivative(; dirac="wilson")
+SU3testfderivative(; dirac="staggered")

@@ -8,8 +8,8 @@ using Random
 using StaticArrays
 using ..Utils: restore_last_row
 
-export MetaLogger, current_time, @level1, @level2, @level3, set_global_logger!
-export BMWFormat, BridgeFormat, Checkpointer, JLD2Format, SaveConfigs
+export __GlobalLogger, MetaLogger, current_time, @level1, @level2, @level3
+export BMWFormat, BridgeFormat, Checkpointer, JLD2Format, SaveConfigs, set_global_logger!
 export load_checkpoint, load_gaugefield!, loadU!, save_gaugefield, saveU
 
 include("verbose.jl")

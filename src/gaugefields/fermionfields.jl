@@ -93,7 +93,7 @@ function Base.copy!(ϕ::T, ψ::T) where {T<:Fermionfield{CPU}}
 end
 
 function gaussian_pseudofermions!(f::Fermionfield{CPU,T}) where {T}
-    sz = f.ND * f.NC
+    sz = num_dirac(f) * num_colors(f)
 
     for site in eachindex(f)
         f[site] = @SVector randn(Complex{T}, sz) # σ = 0.5

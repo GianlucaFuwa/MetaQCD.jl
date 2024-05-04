@@ -5,7 +5,6 @@ using ..Output
 export bicg!, bicg_stab!, cg!, mscg!
 
 function cg!(x, A, b, Ap, r, p; tol=1e-12, maxiters=1000)
-    @show Output.GlobalLogger
     mul!(Ap, A, x)
     copy!(r, b)
     axpy!(-1, Ap, r)
@@ -25,7 +24,7 @@ function cg!(x, A, b, Ap, r, p; tol=1e-12, maxiters=1000)
         res_new = real(dot(r, r))
         @level3 "|  CG: residual $(iter) = $res_new"
         if res_new < tol
-            # @level2 "|  CG: converged at iter $(iter) with res = $res_new"
+            @level2 "|  CG: converged at iter $(iter) with res = $res_new"
             return nothing
         end
         β = res_new / res
@@ -57,7 +56,7 @@ function mscg!(
     res = dot(r, r)
     res′ = fill(res, N - 1)
     if abs(res) < tol
-        # @level2 "|  MultishiftCG: converged at iter 0 with res = $(abs(res))"
+        @level2 "|  MultishiftCG: converged at iter 0 with res = $(abs(res))"
         return nothing
     end
     @level3 "|  MultishiftCG: residual 0 = $(abs(res))"

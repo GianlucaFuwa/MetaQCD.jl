@@ -126,6 +126,6 @@ function build!(parameters, univ, updatemethod, gflow, measurements, measurement
     close(measurements)
     close(measurements_with_flow)
     close(bias)
-    close(Output.GlobalLogger[])
+    close(Output.__GlobalLogger[])
     return nothing
 end

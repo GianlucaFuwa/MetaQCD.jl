@@ -25,7 +25,7 @@ array_type(::ROCBackend) = ROCArray
 # Define an abstract field super type that is parametrized by the backend, the precision and
 # the array type (Array, CuArray, ROCArray). Make it a subtype of DenseArray so that
 # @batch knows how to handle it
-abstract type Abstractfield{BACKEND,T,A} <: DenseArray{SU{3,9,T},5} end
+abstract type Abstractfield{BACKEND,T,A} end
 
 """
 	Gaugefield(NX, NY, NZ, NT, β; BACKEND=CPU, T=Float64, GA=WilsonGaugeAction)
@@ -168,9 +168,14 @@ end
 @inline dims(u::Abstractfield{CPU}) = NTuple{4,Int64}((u.NX, u.NY, u.NZ, u.NT))
 Base.ndims(u::Abstractfield) = 4
 Base.size(u::Abstractfield) = NTuple{5,Int64}((4, u.NX, u.NY, u.NZ, u.NT))
+
 Base.eachindex(u::Abstractfield) = CartesianIndices((u.NX, u.NY, u.NZ, u.NT))
 Base.eachindex(::IndexLinear, u::Abstractfield) = Base.OneTo(u.NV)
+function Base.eachindex(even::Bool, u::Abstractfield)
+    return (i for i in eachindex(u) if iseven(sum(i.I)) == even)
+end
 Base.length(u::Abstractfield) = u.NV
+
 gauge_action(::Gaugefield{B,T,A,GA}) where {B,T,A,GA} = GA
 
 # overload get and set for the Abstractfields structs, so we dont have to do u.U[μ,x,y,z,t]
@@ -275,8 +280,10 @@ include("gpu_kernels/liefields.jl")
 include("gpu_kernels/fieldstrength.jl")
 
 # Need to add this function to CUDA, because the base implementation is dynamic
-CUDA.@device_override @noinline Base.__throw_rational_argerror_typemin(
+CUDA.@device_override @noinline function Base.__throw_rational_argerror_typemin(
     ::Type{T}
-) where {T} = CUDA.@print_and_throw "invalid rational: denominator can't be typemin"
+) where {T}
+    CUDA.@print_and_throw "invalid rational: denominator can't be typemin"
+end
 
 end

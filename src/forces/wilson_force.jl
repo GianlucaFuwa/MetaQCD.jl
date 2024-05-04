@@ -11,6 +11,7 @@ function calc_dSfdU!(dU, fermion_action::WilsonFermionAction{2}, U, ϕ::WilsonFe
 
     clear!(X)
     solve_D⁻¹x!(X, DdagD, ϕ, Y, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp LinearAlgebra.mul!(Y, D, X) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
+    LinearAlgebra.mul!(Y, D, X) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
     add_wilson_derivative!(dU, U, X, Y, D.anti_periodic)
     D.csw != 0 && add_clover_derivative!(dU, U, X, Y, D.csw)
     return nothing
@@ -52,30 +53,15 @@ function add_wilson_derivative!(
     dU, U, X::T, Y::T, anti; coeff=1
 ) where {T<:WilsonFermionfield}
     @assert dims(dU) == dims(U) == dims(X) == dims(Y)
-    NX, NY, NZ, NT = dims(U)
+    NT = dims(U)[4]
     fac = float_type(U)(0.5coeff)
 
-    for site in eachindex(dU)
-        siteμ⁺ = move(site, 1, 1, NX)
-        B = ckron_sum(spin_proj(X[siteμ⁺], Val(-1)), Y[site])
-        C = ckron_sum(spin_proj(Y[siteμ⁺], Val(1)), X[site])
-        dU[1, site] += fac * traceless_antihermitian(cmatmul_oo(U[1, site], B + C))
-
-        siteμ⁺ = move(site, 2, 1, NY)
-        B = ckron_sum(spin_proj(X[siteμ⁺], Val(-2)), Y[site])
-        C = ckron_sum(spin_proj(Y[siteμ⁺], Val(2)), X[site])
-        dU[2, site] += fac * traceless_antihermitian(cmatmul_oo(U[2, site], B + C))
-
-        siteμ⁺ = move(site, 3, 1, NZ)
-        B = ckron_sum(spin_proj(X[siteμ⁺], Val(-3)), Y[site])
-        C = ckron_sum(spin_proj(Y[siteμ⁺], Val(3)), X[site])
-        dU[3, site] += fac * traceless_antihermitian(cmatmul_oo(U[3, site], B + C))
-
-        siteμ⁺ = move(site, 4, 1, NT)
+    # If we write out the kernel and use @batch, the program crashes...
+    # Happens in "pload" from StrideArraysCore.jl but ONLY if we write it out AND overload
+    # "object_and_preserve" (I will not give up on Polyester though)
+    @batch for site in eachindex(dU)
         bc⁺ = boundary_factor(anti, site[4], 1, NT)
-        B = ckron_sum(spin_proj(X[siteμ⁺], Val(-4)), Y[site])
-        C = ckron_sum(spin_proj(Y[siteμ⁺], Val(4)), X[site])
-        dU[4, site] += bc⁺ * fac * traceless_antihermitian(cmatmul_oo(U[4, site], B + C))
+        wilson_derivative_kernel!(dU, U, X, Y, site, bc⁺, fac)
     end
 end
 
@@ -86,97 +72,94 @@ function add_clover_derivative!(
     Tf = float_type(U)
     fac = Tf(-csw * coeff / 2)
 
-    for site in eachindex(dU)
-        tmp1 = ∇σμνFμν(U, site, Val(1), Tf)
-        tmp2 = ckron_sum(cmvmul(tmp1, X[site]), Y[site])
-        dU[1, site] += fac * traceless_antihermitian(cmatmul_oo(U[1, site], tmp2 + tmp2'))
-
-        tmp1 = ∇σμνFμν(U, site, Val(2), Tf)
-        tmp2 = ckron_sum(cmvmul(tmp1, X[site]), Y[site])
-        dU[2, site] += fac * traceless_antihermitian(cmatmul_oo(U[2, site], tmp2 + tmp2'))
-
-        tmp1 = ∇σμνFμν(U, site, Val(3), Tf)
-        tmp2 = ckron_sum(cmvmul(tmp1, X[site]), Y[site])
-        dU[3, site] += fac * traceless_antihermitian(cmatmul_oo(U[3, site], tmp2 + tmp2'))
-
-        tmp1 = ∇σμνFμν(U, site, Val(4), Tf)
-        tmp2 = ckron_sum(cmvmul(tmp1, X[site]), Y[site])
-        dU[4, site] += fac * traceless_antihermitian(cmatmul_oo(U[4, site], tmp2 + tmp2'))
+    @batch for site in eachindex(dU)
+        clover_derivative_kernel!(dU, U, X, Y, site, fac, Tf)
     end
 end
 
-function ∇σμνFμν(U, site, ::Val{1}, ::Type{T}) where {T}
+function wilson_derivative_kernel!(dU, U, X, Y, site, bc⁺, fac)
     NX, NY, NZ, NT = dims(U)
-    out = @SMatrix zeros(Complex{T}, 12, 12)
-    siteμ⁺ = move(site, 1i32, 1i32, NX)
+    siteμ⁺ = move(site, 1, 1, NX)
+    B = spintrace(spin_proj(X[siteμ⁺], Val(-1)), Y[site])
+    C = spintrace(spin_proj(Y[siteμ⁺], Val(1)), X[site])
+    dU[1, site] = fac * traceless_antihermitian(cmatmul_oo(U[1, site], B + C))
 
-    siteν⁺ = move(site, 2i32, 1i32, NY)
-    tmp = cmatmul_odd(U[2i32, siteμ⁺], U[1i32, siteν⁺], U[2i32, site])
-    out += ckron(σ₁₂(T), tmp)
+    siteμ⁺ = move(site, 2, 1, NY)
+    B = spintrace(spin_proj(X[siteμ⁺], Val(-2)), Y[site])
+    C = spintrace(spin_proj(Y[siteμ⁺], Val(2)), X[site])
+    dU[2, site] = fac * traceless_antihermitian(cmatmul_oo(U[2, site], B + C))
 
-    siteν⁺ = move(site, 3i32, 1i32, NZ)
-    tmp = cmatmul_odd(U[3i32, siteμ⁺], U[1i32, siteν⁺], U[3i32, site])
-    out += ckron(σ₁₃(T), tmp)
+    siteμ⁺ = move(site, 3, 1, NZ)
+    B = spintrace(spin_proj(X[siteμ⁺], Val(-3)), Y[site])
+    C = spintrace(spin_proj(Y[siteμ⁺], Val(3)), X[site])
+    dU[3, site] = fac * traceless_antihermitian(cmatmul_oo(U[3, site], B + C))
 
-    siteν⁺ = move(site, 4i32, 1i32, NT)
-    tmp = cmatmul_odd(U[4i32, siteμ⁺], U[1i32, siteν⁺], U[4i32, site])
-    out += ckron(σ₁₄(T), tmp)
-    return Complex{T}(im / 4) * out
+    siteμ⁺ = move(site, 4, 1, NT)
+    B = spintrace(spin_proj(X[siteμ⁺], Val(-4)), Y[site])
+    C = spintrace(spin_proj(Y[siteμ⁺], Val(4)), X[site])
+    dU[4, site] = bc⁺ * fac * traceless_antihermitian(cmatmul_oo(U[4, site], B + C))
+    return nothing
 end
 
-function ∇σμνFμν(U, site, ::Val{2}, ::Type{T}) where {T}
-    NX, NY, NZ, NT = dims(U)
-    out = @SMatrix zeros(Complex{T}, 12, 12)
-    siteμ⁺ = move(site, 2i32, 1i32, NX)
+function clover_derivative_kernel!(dU, U, X, Y, site, fac, ::Type{T}) where {T}
+    tmp =
+        Xμν∇Fμν(X, Y, U, Val(1), Val(2), site) +
+        Xμν∇Fμν(X, Y, U, Val(1), Val(3), site) +
+        Xμν∇Fμν(X, Y, U, Val(1), Val(4), site)
+    dU[1, site] += fac * traceless_antihermitian(cmatmul_oo(U[1, site], tmp))
 
-    siteν⁺ = move(site, 1i32, 1i32, NY)
-    tmp = cmatmul_odd(U[1i32, siteμ⁺], U[2i32, siteν⁺], U[1i32, site])
-    out += ckron(σ₁₂(T), tmp)
+    tmp =
+        Xμν∇Fμν(X, Y, U, Val(1), Val(2), site) +
+        Xμν∇Fμν(X, Y, U, Val(2), Val(3), site) +
+        Xμν∇Fμν(X, Y, U, Val(2), Val(4), site)
+    dU[2, site] += fac * traceless_antihermitian(cmatmul_oo(U[2, site], tmp))
 
-    siteν⁺ = move(site, 3i32, 1i32, NZ)
-    tmp = cmatmul_odd(U[3i32, siteμ⁺], U[2i32, siteν⁺], U[3i32, site])
-    out += ckron(σ₂₃(T), tmp)
+    tmp =
+        Xμν∇Fμν(X, Y, U, Val(1), Val(3), site) +
+        Xμν∇Fμν(X, Y, U, Val(2), Val(3), site) +
+        Xμν∇Fμν(X, Y, U, Val(3), Val(4), site)
+    dU[3, site] += fac * traceless_antihermitian(cmatmul_oo(U[3, site], tmp))
 
-    siteν⁺ = move(site, 4i32, 1i32, NT)
-    tmp = cmatmul_odd(U[4i32, siteμ⁺], U[2i32, siteν⁺], U[4i32, site])
-    out += ckron(σ₂₄(T), tmp)
-    return Complex{T}(im / 4) * out
+    tmp =
+        Xμν∇Fμν(X, Y, U, Val(1), Val(4), site) +
+        Xμν∇Fμν(X, Y, U, Val(2), Val(4), site) +
+        Xμν∇Fμν(X, Y, U, Val(3), Val(4), site)
+    dU[4, site] += fac * traceless_antihermitian(cmatmul_oo(U[4, site], tmp))
+    return nothing
 end
 
-function ∇σμνFμν(U, site, ::Val{3}, ::Type{T}) where {T}
-    NX, NY, NZ, NT = dims(U)
-    out = @SMatrix zeros(Complex{T}, 12, 12)
-    siteμ⁺ = move(site, 3i32, 1i32, NX)
+function Xμν∇Fμν(X, Y, U, ::Val{μ}, ::Val{ν}, site) where {μ,ν}
+    Nμ = dims(U)[μ]
+    Nν = dims(U)[ν]
+    siteμ⁺ = move(site, μ, 1i32, Nμ)
+    siteν⁺ = move(site, ν, 1i32, Nν)
+    siteν⁻ = move(site, ν, -1i32, Nν)
+    siteμ⁺ν⁺ = move(siteμ⁺, ν, 1i32, Nν)
+    siteμ⁺ν⁻ = move(siteμ⁺, ν, -1i32, Nν)
 
-    siteν⁺ = move(site, 1i32, 1i32, NY)
-    tmp = cmatmul_odd(U[1i32, siteμ⁺], U[3i32, siteν⁺], U[1i32, site])
-    out += ckron(σ₁₃(T), tmp)
+    # get reused matrices up to cache (can precalculate some products too)
+    # Uνsiteμ⁺ = U[ν,siteμ⁺]
+    # Uμsiteν⁺ = U[μ,siteν⁺]
+    # Uνsite = U[ν,site]
+    # Uνsiteμ⁺ν⁻ = U[ν,siteμ⁺ν⁻]
+    # Uμsiteν⁻ = U[μ,siteν⁻]
+    # Uνsiteν⁻ = U[ν,siteν⁻]
+    XY_site = spintrace(σμν_spin_mul(X[site], Val(μ), Val(ν)), Y[site])
+    XY_siteν⁺ = spintrace(σμν_spin_mul(X[siteν⁺], Val(μ), Val(ν)), Y[siteν⁺])
+    XY_siteμ⁺ν⁺ = spintrace(σμν_spin_mul(X[siteμ⁺ν⁺], Val(μ), Val(ν)), Y[siteμ⁺ν⁺])
+    XY_siteμ⁺ = spintrace(σμν_spin_mul(X[siteμ⁺], Val(μ), Val(ν)), Y[siteμ⁺])
+    XY_siteν⁻ = spintrace(σμν_spin_mul(X[siteν⁻], Val(μ), Val(ν)), Y[siteν⁻])
+    XY_siteμ⁺ν⁻ = spintrace(σμν_spin_mul(X[siteμ⁺ν⁻], Val(μ), Val(ν)), Y[siteμ⁺ν⁻])
 
-    siteν⁺ = move(site, 2i32, 1i32, NZ)
-    tmp = cmatmul_odd(U[2i32, siteμ⁺], U[3i32, siteν⁺], U[2i32, site])
-    out += ckron(σ₂₃(T), tmp)
+    component =
+        cmatmul_oddo(U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site], XY_site) +
+        cmatmul_odod(U[ν, siteμ⁺], U[μ, siteν⁺], XY_siteν⁺, U[ν, site]) +
+        cmatmul_oodd(U[ν, siteμ⁺], XY_siteμ⁺ν⁺, U[μ, siteν⁺], U[ν, site]) +
+        cmatmul_oodd(XY_siteμ⁺, U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site]) -
+        cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻], XY_site) -
+        cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], XY_siteν⁻, U[ν, siteν⁻]) -
+        cmatmul_dodo(U[ν, siteμ⁺ν⁻], XY_siteμ⁺ν⁻, U[μ, siteν⁻], U[ν, siteν⁻]) -
+        cmatmul_oddo(XY_siteμ⁺, U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻])
 
-    siteν⁺ = move(site, 4i32, 1i32, NT)
-    tmp = cmatmul_odd(U[4i32, siteμ⁺], U[3i32, siteν⁺], U[4i32, site])
-    out += ckron(σ₃₄(T), tmp)
-    return Complex{T}(im / 4) * out
-end
-
-function ∇σμνFμν(U, site, ::Val{4}, ::Type{T}) where {T}
-    NX, NY, NZ, NT = dims(U)
-    out = @SMatrix zeros(Complex{T}, 12, 12)
-    siteμ⁺ = move(site, 4i32, 1i32, NX)
-
-    siteν⁺ = move(site, 1i32, 1i32, NY)
-    tmp = cmatmul_odd(U[1i32, siteμ⁺], U[4i32, siteν⁺], U[1i32, site])
-    out += ckron(σ₁₄(T), tmp)
-
-    siteν⁺ = move(site, 2i32, 1i32, NZ)
-    tmp = cmatmul_odd(U[2i32, siteμ⁺], U[4i32, siteν⁺], U[2i32, site])
-    out += ckron(σ₂₄(T), tmp)
-
-    siteν⁺ = move(site, 3i32, 1i32, NT)
-    tmp = cmatmul_odd(U[3i32, siteμ⁺], U[4i32, siteν⁺], U[3i32, site])
-    out += ckron(σ₃₄(T), tmp)
-    return Complex{T}(im / 4) * out
+    return (im//4) * component
 end

@@ -10,7 +10,7 @@ using ..Output
 using ..Utils
 
 import ..Gaugefields: Abstractfield, Fermionfield, Gaugefield, clear!, clover_square, dims
-import ..Gaugefields: gaussian_pseudofermions!
+import ..Gaugefields: gaussian_pseudofermions!, set_source!
 import ..RHMCParameters: RHMCParams
 
 abstract type AbstractDiracOperator end
@@ -51,6 +51,13 @@ struct DdaggerD{T} <: AbstractDiracOperator
     parent::T
     DdaggerD(D::T) where {T<:AbstractDiracOperator} = new{T}(D)
 end
+
+"""
+    evenodd(D::AbstractDiracOperator)
+
+Create the even-odd preconditioned version of the Dirac Operator `D`
+"""
+function evenodd end
 
 """
     solve_D⁻¹x!(ψ, D, ϕ, temp1, temp2, temp3, tol=1e-16, maxiters=1000)
@@ -100,6 +107,37 @@ Sample pseudo fermions for an HMC update according to the probability density sp
 `fermion_action`
 """
 sample_pseudofermions!(::Nothing, ::Nothing) = nothing
+
+function _construct_diracmatrix(D::AbstractDiracOperator, U, f1, f2)
+    NX, NY, NZ, _ = dims(U)
+    NV = U.NV
+    NC = U.NC
+    ND = f1.ND
+    temp = D.temp
+    @assert NC * NV * ND < 5000 "I will NOT construct a matrix THAT big"
+    out = Matrix{ComplexF64}(undef, NC * NV * ND, NC * NV * ND)
+
+    for i in 1:NV
+        sitei = linear_coords(i, NX, NY, NZ)
+        for a in 1:NC
+            for α in 1:ND
+                set_source!(f1, sitei, a, α)
+                for j in 1:NV
+                    sitej = linear_coords(j, NX, NY, NZ)
+                    for b in 1:NC
+                        for β in 1:ND
+                            set_source!(f2, sitej, b, β)
+                            mul!(temp, D, f2)
+                            out[j, i] = dot(f1, f2)
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return out
+end
 
 @inline function boundary_factor(anti, it, dir, NT)
     if !anti

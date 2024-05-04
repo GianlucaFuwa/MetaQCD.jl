@@ -8,7 +8,7 @@ using Polyester
 using Random
 using StaticArrays
 
-import PrecompileTools
+using PrecompileTools: PrecompileTools
 
 export exp_iQ, exp_iQ_coeffs, exp_iQ_su3, get_B₁, get_B₂, get_Q, get_Q²
 export gen_SU3_matrix, is_special_unitary, is_traceless_antihermitian
@@ -47,7 +47,7 @@ export cmatmul_oooo,
     cmatmul_dddd
 export cdot, cmvmul, cmvmul_d, cvmmul, cvmmul_d
 export cmvmul_color, cmvmul_d_color, cvmmul_color, cvmmul_d_color
-export ckron, ckron_sum, cmvmul_spin_proj, spin_proj
+export ckron, spintrace, cmvmul_spin_proj, spin_proj, σμν_spin_mul
 export _unwrap_val, SU, restore_last_col, restore_last_row
 
 abstract type AbstractIterator end
@@ -57,26 +57,33 @@ struct Checkerboard4 <: AbstractIterator end
 
 _unwrap_val(::Val{B}) where {B} = B
 
+@inline eye2(::Type{T}) where {T<:AbstractFloat} = @SArray [
+    one(Complex{T}) zero(Complex{T})
+    zero(Complex{T}) one(Complex{T})
+]
+
 @inline eye3(::Type{T}) where {T<:AbstractFloat} = @SArray [
     one(Complex{T}) zero(Complex{T}) zero(Complex{T})
     zero(Complex{T}) one(Complex{T}) zero(Complex{T})
     zero(Complex{T}) zero(Complex{T}) one(Complex{T})
 ]
 
-@inline zero3(::Type{T}) where {T<:AbstractFloat} = @SArray [
-    zero(Complex{T}) zero(Complex{T}) zero(Complex{T})
-    zero(Complex{T}) zero(Complex{T}) zero(Complex{T})
-    zero(Complex{T}) zero(Complex{T}) zero(Complex{T})
-]
-
-@inline eye2(::Type{T}) where {T<:AbstractFloat} = @SArray [
-    one(Complex{T}) zero(Complex{T})
-    zero(Complex{T}) one(Complex{T})
+@inline eye4(::Type{T}) where {T<:AbstractFloat} = @SArray [
+    one(Complex{T}) zero(Complex{T}) zero(Complex{T}) zero(Complex{T})
+    zero(Complex{T}) one(Complex{T}) zero(Complex{T}) zero(Complex{T})
+    zero(Complex{T}) zero(Complex{T}) one(Complex{T}) zero(Complex{T})
+    zero(Complex{T}) zero(Complex{T}) zero(Complex{T}) one(Complex{T})
 ]
 
 @inline zero2(::Type{T}) where {T<:AbstractFloat} = @SArray [
     zero(Complex{T}) zero(Complex{T})
     zero(Complex{T}) zero(Complex{T})
+]
+
+@inline zero3(::Type{T}) where {T<:AbstractFloat} = @SArray [
+    zero(Complex{T}) zero(Complex{T}) zero(Complex{T})
+    zero(Complex{T}) zero(Complex{T}) zero(Complex{T})
+    zero(Complex{T}) zero(Complex{T}) zero(Complex{T})
 ]
 
 @inline zerov3(::Type{T}) where {T<:AbstractFloat} = @SVector [
@@ -90,30 +97,6 @@ _unwrap_val(::Val{B}) where {B} = B
     one(Complex{T})
     one(Complex{T})
 ]
-
-δ(x, y) = x == y
-
-function ε_tensor(p::NTuple{N,Int}) where {N}
-    todo = Vector{Bool}(undef, N)
-    todo .= true
-    first = 1
-    cycles = flips = 0
-
-    while cycles + flips < N
-        first = coalesce(findnext(todo, first), 0)
-        (todo[first] = !todo[first]) && return 0
-        j = p[first]
-        cycles += 1
-
-        while j != first
-            (todo[j] = !todo[j]) && return 0
-            j = p[j]
-            flips += 1
-        end
-    end
-
-    return iseven(flips) ? 1 : -1
-end
 
 const SU{N,N²,T} = SMatrix{N,N,Complex{T},N²}
 

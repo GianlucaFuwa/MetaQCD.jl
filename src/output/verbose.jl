@@ -16,13 +16,13 @@ struct MetaLogger
     MetaLogger(LEVEL, io::IO, tc::Bool=true) = new(LEVEL, io, tc)
 end
 
-const GlobalLogger = Ref(MetaLogger(2))
+const __GlobalLogger = Ref(MetaLogger(2))
 
 Base.flush(logger::MetaLogger) = flush(logger.io)
 Base.close(logger::MetaLogger) = close(logger.io)
 
 function set_global_logger!(level, io=devnull; tc=true)
-    GlobalLogger[] = MetaLogger(level, io, tc)
+    __GlobalLogger[] = MetaLogger(level, io, tc)
     return nothing
 end
 
@@ -36,11 +36,12 @@ end
 for input_level in 1:3
     # Create the functions that the macros @level1, @level2, and @level3 call
     @eval function $(Symbol("level$(input_level)"))(val...)
-        GlobalLogger[].LEVEL < $(input_level) && return nothing
         return quote
-            GlobalLogger[].to_console && println(stdout, $(esc(val...)))
-            println(GlobalLogger[].io, $(esc(val...)))
-            flush(GlobalLogger[].io)
+            if Output.__GlobalLogger[].LEVEL >= $($input_level)
+                Output.__GlobalLogger[].to_console && println(stdout, $(esc(val...)))
+                println(Output.__GlobalLogger[].io, $(esc(val...)))
+                flush(Output.__GlobalLogger[].io)
+            end
         end
     end
 end

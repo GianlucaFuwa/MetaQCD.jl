@@ -37,12 +37,12 @@ function staple(::DBW2GaugeAction, U::AbstractArray{SU{3,9,T}}, μ, site) where 
     return (1 - 8c₁) * staple_p + c₁′ * staple_r
 end
 
-function staple_plaq(U::AbstractArray{SU{3,9,T}}, μ, site) where {T}
+function staple_plaq(U, μ, site)
     Nμ = dims(U)[μ]
     siteμ⁺ = move(site, μ, 1i32, Nμ)
-    staple = zero3(T)
+    staple = zero(U[μ, site])
 
-    for ν = (1i32):(4i32)
+    for ν in (1i32):(4i32)
         if ν == μ
             continue
         end
@@ -58,15 +58,15 @@ function staple_plaq(U::AbstractArray{SU{3,9,T}}, μ, site) where {T}
     return staple
 end
 
-function staple_rect(U::AbstractArray{SU{3,9,T}}, μ, site) where {T}
+function staple_rect(U, μ, site)
     Nμ = dims(U)[μ]
     siteμ⁺ = move(site, μ, 1i32, Nμ)
     siteμ⁻ = move(site, μ, -1i32, Nμ)
     siteμ²⁺ = move(site, μ, 2i32, Nμ)
 
-    staple = zero3(T)
+    staple = zero(U[μ, site])
 
-    for ν = (1i32):(4i32)
+    for ν in (1i32):(4i32)
         if ν == μ
             continue
         end
@@ -140,7 +140,7 @@ end
 
 function staple_eachsite!(staples::Temporaryfield{CPU}, U::Gaugefield{CPU})
     @batch for site in eachindex(U)
-        for μ = 1:4
+        for μ in 1:4
             staples[μ, site] = staple(U, μ, site)
         end
     end

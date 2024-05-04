@@ -236,7 +236,7 @@ function metaqcd!(
     close(measurements)
     close(measurements_with_flow)
     bias ≢ nothing && close(bias)
-    close(Output.GlobalLogger[])
+    close(Output.__GlobalLogger[])
     return nothing
 end
 
@@ -327,6 +327,6 @@ function metaqcd_PT!(
     [close(m) for m in measurements]
     [close(mf) for mf in measurements_with_flow]
     [close(b) for b in bias]
-    close(Output.GlobalLogger[])
+    close(Output.__GlobalLogger[])
     return nothing
 end

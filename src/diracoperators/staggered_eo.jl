@@ -1,12 +1,15 @@
+# TODO
 """
-    WilsonDiracOperator(::Abstractfield, mass; anti_periodic=true, r=1, csw=0)
-    WilsonDiracOperator(D::WilsonDiracOperator, U::Gaugefield)
+    StaggeredEOPreDiracOperator(::Abstractfield, mass; anti_periodic=true)
+    StaggeredEOPreDiracOperator(
+        D::Union{StaggeredDiracOperator,StaggeredEOPreDiracOperator},
+        U::Gaugefield
+    )
 
-Create a free Wilson Dirac Operator with mass `mass` and Wilson parameter `r`.
+Create a free even-odd preconditioned Staggered Dirac Operator with mass `mass`.
 If `anti_periodic` is `true` the fermion fields are anti periodic in the time direction.
-If `csw ≠ 0`, a clover term is included. 
 This object cannot be applied to a fermion vector, since it lacks a gauge background.
-A Wilson Dirac operator with gauge background is created by applying it to a `Gaugefield`
+A Staggered Dirac operator with gauge background is created by applying it to a `Gaugefield`
 `U` like `D_gauge = D_free(U)`
 
 # Type Parameters:
@@ -16,41 +19,40 @@ A Wilson Dirac operator with gauge background is created by applying it to a `Ga
         Hermitian version of the operator
 - `TG`: Type of the underlying `Gaugefield`
 """
-struct WilsonDiracOperator{B,T,TF,TG} <: AbstractDiracOperator
+mutable struct StaggeredEOPreDiracOperator{B,T,TOO,TF,TG} <: AbstractDiracOperator
     U::TG
+    Dₒₒ⁻¹::TOO
     temp::TF # temp for storage of intermediate result for DdaggerD operator
     mass::Float64
-    κ::Float64
-    r::Float64
-    csw::Float64
     anti_periodic::Bool # Only in time direction
-    function WilsonDiracOperator(
-        f::Abstractfield{B,T}, mass; anti_periodic=true, r=1, csw=0
+    function StaggeredEOPreDiracOperator(
+        f::Abstractfield{B,T}, mass; anti_periodic=anti_periodic
     ) where {B,T}
-        @assert r === 1 "Only r=1 in Wilson Dirac supported for now"
-        κ = 1 / (2mass + 8)
         U = nothing
-        temp = Fermionfield(f)
+        Dₒₒ⁻¹ = KernelAbstractions.zeros(B(), SMatrix{3,3,Complex{T},9}, f.NV)
+        temp = Fermionfield(f; staggered=true)
         TG = Nothing
+        TOO = typeof(Dₒₒ⁻¹)
         TF = typeof(temp)
-        return new{B,T,TF,TG}(U, temp, mass, κ, r, csw, anti_periodic)
+        return new{B,T,TOO,TF,TG}(U, Dₒₒ⁻¹, temp, mass, anti_periodic)
     end
 
-    function WilsonDiracOperator(
-        D::WilsonDiracOperator{B,T,TF}, U::Gaugefield{B,T}
+    function StaggeredEOPreDiracOperator(
+        D::Union{StaggeredDiracOperator{B,T,TF},StaggeredEOPreDiracOperator{B,T,TF}},
+        U::Gaugefield{B,T},
     ) where {B,T,TF}
         TG = typeof(U)
-        return new{B,T,TF,TG}(U, D.temp, D.mass, D.κ, D.r, D.csw, D.anti_periodic)
+        return new{B,T,TF,TG}(U, D.Dₒₒ⁻¹, D.temp, D.mass, D.anti_periodic)
     end
 end
 
-function (D::WilsonDiracOperator{B,T})(U::Gaugefield{B,T}) where {B,T}
-    return WilsonDiracOperator(D, U)
+function (D::StaggeredEOPreDiracOperator{B,T})(U::Gaugefield{B,T}) where {B,T}
+    return StaggeredEOPreDiracOperator(D, U)
 end
 
-const WilsonFermionfield{B,T,A} = Fermionfield{B,T,A,4}
+const StaggeredFermionfield{B,T,A} = Fermionfield{B,T,A,1}
 
-struct WilsonFermionAction{Nf,TD,CT,RI,RT} <: AbstractFermionAction
+struct StaggeredEOPreFermionAction{Nf,TD,CT,RI,RT} <: AbstractFermionAction
     D::TD
     cg_temps::CT
     rhmc_info_action::RI
@@ -59,53 +61,49 @@ struct WilsonFermionAction{Nf,TD,CT,RI,RT} <: AbstractFermionAction
     rhmc_temps2::RT # this holds the basis vectors in multishift cg
     cg_tol::Float64
     cg_maxiters::Int64
-    function WilsonFermionAction(
+    function StaggeredEOPreFermionAction(
         f,
         mass;
         anti_periodic=true,
-        r=1,
-        csw=nothing,
-        Nf=2,
+        Nf=8,
         rhmc_order=10,
         rhmc_prec=42,
+        # eo_precond=false,
         cg_tol=1e-14,
         cg_maxiters=1000,
     )
-        @level1("┌ Setting Wilson Fermion Action...")
-        @level1("|  MASS: $(mass)")
-        @level1("|  Nf: $(Nf)")
-        @level1("|  r: $(r)")
-        @level1("|  CSW: $(csw)")
-        @level1("|  CG TOLERANCE: $(cg_tol)")
-        D = WilsonDiracOperator(f, mass; anti_periodic=anti_periodic, r=r, csw=csw)
+        @level1("┌ Setting Staggered Fermion Action...")
+        @level1("| MASS: $(mass)")
+        @level1("| Nf: $(Nf)")
+        D = StaggeredEOPreDiracOperator(f, mass; anti_periodic=anti_periodic)
         TD = typeof(D)
 
-        if Nf == 2
+        if Nf == 8
             rhmc_info_md = nothing
             rhmc_info_action = nothing
             rhmc_temps1 = nothing
             rhmc_temps2 = nothing
-            cg_temps = ntuple(_ -> Fermionfield(f), 4)
+            cg_temps = ntuple(_ -> Fermionfield(f; staggered=true), 4)
         else
-            @assert Nf == 1 "Nf should be 1 or 2 (was $Nf). If you want Nf > 2, use multiple actions"
-            cg_temps = ntuple(_ -> Fermionfield(f), 2)
-            power = Nf//2
+            @assert 8 > Nf > 0 "Nf should be between 1 and 8 (was $Nf)"
+            cg_temps = ntuple(_ -> Fermionfield(f; staggered=true), 2)
+            power = Nf//8
             rhmc_info_md = RHMCParams(power; n=rhmc_order, precision=rhmc_prec)
             # rhmc_info_action = RHMCParams(power; n=rhmc_order, precision=rhmc_prec)
             rhmc_info_action = rhmc_info_md
-            rhmc_temps1 = ntuple(_ -> Fermionfield(f), rhmc_order + 1)
-            rhmc_temps2 = ntuple(_ -> Fermionfield(f), rhmc_order + 1)
+            rhmc_temps1 = ntuple(_ -> Fermionfield(f; staggered=true), rhmc_order + 1)
+            rhmc_temps2 = ntuple(_ -> Fermionfield(f; staggered=true), rhmc_order + 1)
         end
 
         CT = typeof(cg_temps)
-        RI = typeof(rhmc_info_md)
+        RI = typeof(rhmc_info_action)
         RT = typeof(rhmc_temps1)
         @level1("└\n")
         return new{Nf,TD,CT,RI,RT}(
             D,
             cg_temps,
-            rhmc_info_md,
             rhmc_info_action,
+            rhmc_info_md,
             rhmc_temps1,
             rhmc_temps2,
             cg_tol,
@@ -114,16 +112,16 @@ struct WilsonFermionAction{Nf,TD,CT,RI,RT} <: AbstractFermionAction
     end
 end
 
-function Base.show(io::IO, ::MIME"text/plain", S::WilsonFermionAction{Nf}) where {Nf}
+function Base.show(io::IO, ::MIME"text/plain", S::StaggeredFermionAction{Nf}) where {Nf}
     print(
         io,
-        "WilsonFermionAction{Nf=$Nf}(; cg_tol=$(S.cg_tol), cg_maxiters=$(S.cg_maxiters))",
+        "StaggeredFermionAction{Nf=$Nf}(; cg_tol=$(S.cg_tol), cg_maxiters=$(S.cg_maxiters))",
     )
     return nothing
 end
 
 function calc_fermion_action(
-    fermion_action::WilsonFermionAction{2}, U::Gaugefield, ϕ::WilsonFermionfield
+    fermion_action::StaggeredFermionAction{8}, U::Gaugefield, ϕ::StaggeredFermionfield
 )
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
@@ -138,7 +136,7 @@ function calc_fermion_action(
 end
 
 function calc_fermion_action(
-    fermion_action::WilsonFermionAction{Nf}, U::Gaugefield, ϕ::WilsonFermionfield
+    fermion_action::StaggeredFermionAction{Nf}, U::Gaugefield, ϕ::StaggeredFermionfield
 ) where {Nf}
     cg_tol = fermion_action.cg_tol
     cg_maxiters = fermion_action.cg_maxiters
@@ -153,7 +151,6 @@ function calc_fermion_action(
     for v in ψs
         clear!(v)
     end
-
     shifts = rhmc.coeffs_inverse.β
     coeffs = rhmc.coeffs_inverse.α
     α₀ = rhmc.coeffs_inverse.α0
@@ -170,7 +167,7 @@ function calc_fermion_action(
     return real(Sf)
 end
 
-function sample_pseudofermions!(ϕ, fermion_action::WilsonFermionAction{2}, U)
+function sample_pseudofermions!(ϕ, fermion_action::StaggeredFermionAction{8}, U)
     D = fermion_action.D(U)
     temp = fermion_action.cg_temps[1]
     gaussian_pseudofermions!(temp)
@@ -178,7 +175,7 @@ function sample_pseudofermions!(ϕ, fermion_action::WilsonFermionAction{2}, U)
     return nothing
 end
 
-function sample_pseudofermions!(ϕ, fermion_action::WilsonFermionAction{Nf}, U) where {Nf}
+function sample_pseudofermions!(ϕ, fermion_action::StaggeredFermionAction{Nf}, U) where {Nf}
     cg_tol = fermion_action.cg_tol
     cg_maxiters = fermion_action.cg_maxiters
     rhmc = fermion_action.rhmc_info_action
@@ -206,8 +203,8 @@ function sample_pseudofermions!(ϕ, fermion_action::WilsonFermionAction{Nf}, U) 
 end
 
 function solve_D⁻¹x!(
-    ψ, D::T, ϕ, temp1, temp2, temp3, temp4, temp5; tol=1e-16, maxiters=1000
-) where {T<:WilsonDiracOperator}
+    ψ, D::T, ϕ, temp1, temp2, temp3, temp4, temp5; tol=1e-14, maxiters=1000
+) where {T<:StaggeredDiracOperator}
     @assert dims(ψ) == dims(ϕ) == dims(D.U)
     bicg_stab!(ψ, D, ϕ, temp1, temp2, temp3, temp4, temp5; tol=tol, maxiters=maxiters)
     return nothing
@@ -217,55 +214,39 @@ end
 # The Gaugefields module into CG.jl, which also allows us to use the solvers for 
 # for arbitrary arrays, not just fermion fields and dirac operators (good for testing)
 function LinearAlgebra.mul!(
-    ψ::TF, D::WilsonDiracOperator{CPU,T,TF,TG}, ϕ::TF
+    ψ::TF, D::StaggeredDiracOperator{CPU,T,TF,TG}, ϕ::TF
 ) where {T,TF,TG}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.U
-    mass_term = T(8 + 2 * D.mass)
-    csw = D.csw
+    mass = T(D.mass)
     anti = D.anti_periodic
     @assert dims(ψ) == dims(ϕ) == dims(U)
 
     @batch for site in eachindex(ψ)
-        ψ[site] = wilson_kernel(U, ϕ, site, mass_term, anti, T, Val(1))
-    end
-
-    if csw != 0
-        fac = T(-csw / 2)
-        @batch for site in eachindex(ψ)
-            ψ[site] += clover_kernel(U, ϕ, site, fac, T)
-        end
+        ψ[site] = staggered_kernel(U, ϕ, site, mass, anti, T, 1)
     end
 
     return nothing
 end
 
 function LinearAlgebra.mul!(
-    ψ::TF, D::Daggered{WilsonDiracOperator{CPU,T,TF,TG}}, ϕ::TF
+    ψ::TF, D::Daggered{StaggeredDiracOperator{CPU,T,TF,TG}}, ϕ::TF
 ) where {T,TF,TG}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.parent.U
-    mass_term = T(8 + 2 * D.parent.mass)
-    csw = D.parent.csw
+    mass = T(D.parent.mass)
     anti = D.parent.anti_periodic
     @assert dims(ψ) == dims(ϕ) == dims(U)
 
     @batch for site in eachindex(ψ)
-        ψ[site] = wilson_kernel(U, ϕ, site, mass_term, anti, T, Val(-1))
-    end
-
-    if csw != 0
-        fac = T(-csw / 2)
-        @batch for site in eachindex(ψ)
-            ψ[site] += clover_kernel(U, ϕ, site, fac, T)
-        end
+        ψ[site] = staggered_kernel(U, ϕ, site, mass, anti, T, -1)
     end
 
     return nothing
 end
 
 function LinearAlgebra.mul!(
-    ψ::TF, D::DdaggerD{WilsonDiracOperator{CPU,T,TF,TG}}, ϕ::TF
+    ψ::TF, D::DdaggerD{StaggeredDiracOperator{CPU,T,TF,TG}}, ϕ::TF
 ) where {T,TF,TG}
     temp = D.parent.temp
     mul!(temp, D.parent, ϕ) # temp = Dϕ
@@ -273,62 +254,41 @@ function LinearAlgebra.mul!(
     return nothing
 end
 
-function wilson_kernel(U, ϕ, site, mass_term, anti, ::Type{T}, ::Val{dagg}) where {T,dagg}
-    # dagg can be 1 or -1; if it's -1 then we swap (1 - γᵨ) with (1 + γᵨ) and vice versa
-    # We have to wrap in a Val for the same reason as in the next comment
+function staggered_kernel(U, ϕ, site, mass, anti, ::Type{T}, sgn=1) where {T}
     NX, NY, NZ, NT = dims(U)
-    ψₙ = mass_term * ϕ[site] # factor 1/2 is included at the end
+    ψₙ = 2mass * ϕ[site]
     # Cant do a for loop here because Val(μ) cannot be known at compile time and is 
     # therefore dynamically dispatched
     siteμ⁺ = move(site, 1, 1, NX)
     siteμ⁻ = move(site, 1, -1, NX)
-    ψₙ -= cmvmul_spin_proj(U[1, site], ϕ[siteμ⁺], Val(-1dagg), Val(false))
-    ψₙ -= cmvmul_spin_proj(U[1, siteμ⁻], ϕ[siteμ⁻], Val(1dagg), Val(true))
+    η = sgn * staggered_η(Val(1), site)
+    ψₙ += η * cmvmul(U[1, site], ϕ[siteμ⁺])
+    ψₙ -= η * cmvmul_d(U[1, siteμ⁻], ϕ[siteμ⁻])
 
     siteμ⁺ = move(site, 2, 1, NY)
     siteμ⁻ = move(site, 2, -1, NY)
-    ψₙ -= cmvmul_spin_proj(U[2, site], ϕ[siteμ⁺], Val(-2dagg), Val(false))
-    ψₙ -= cmvmul_spin_proj(U[2, siteμ⁻], ϕ[siteμ⁻], Val(2dagg), Val(true))
+    η = sgn * staggered_η(Val(2), site)
+    ψₙ += η * cmvmul(U[2, site], ϕ[siteμ⁺])
+    ψₙ -= η * cmvmul_d(U[2, siteμ⁻], ϕ[siteμ⁻])
 
     siteμ⁺ = move(site, 3, 1, NZ)
     siteμ⁻ = move(site, 3, -1, NZ)
-    ψₙ -= cmvmul_spin_proj(U[3, site], ϕ[siteμ⁺], Val(-3dagg), Val(false))
-    ψₙ -= cmvmul_spin_proj(U[3, siteμ⁻], ϕ[siteμ⁻], Val(3dagg), Val(true))
+    η = sgn * staggered_η(Val(3), site)
+    ψₙ += η * cmvmul(U[3, site], ϕ[siteμ⁺])
+    ψₙ -= η * cmvmul_d(U[3, siteμ⁻], ϕ[siteμ⁻])
 
     siteμ⁺ = move(site, 4, 1, NT)
     siteμ⁻ = move(site, 4, -1, NT)
     bc⁺ = boundary_factor(anti, site[4], 1, NT)
     bc⁻ = boundary_factor(anti, site[4], -1, NT)
-    ψₙ -= cmvmul_spin_proj(U[4, site], bc⁺ * ϕ[siteμ⁺], Val(-4dagg), Val(false))
-    ψₙ -= cmvmul_spin_proj(U[4, siteμ⁻], bc⁻ * ϕ[siteμ⁻], Val(4dagg), Val(true))
+    η = sgn * staggered_η(Val(4), site)
+    ψₙ += η * cmvmul(U[4, site], bc⁺ * ϕ[siteμ⁺])
+    ψₙ -= η * cmvmul_d(U[4, siteμ⁻], bc⁻ * ϕ[siteμ⁻])
     return T(0.5) * ψₙ
 end
 
-function clover_kernel(U, ϕ, site, fac, ::Type{T}) where {T}
-    Cₙₘ = zero(ϕ[site])
-
-    C₁₂ = clover_square(U, 1, 2, site, 1)
-    F₁₂ = traceless_antihermitian(C₁₂)
-    Cₙₘ += cmvmul(F₁₂, σμν_spin_mul(ϕ[site], Val(1), Val(2)))
-
-    C₁₃ = clover_square(U, 1, 3, site, 1)
-    F₁₃ = traceless_antihermitian(C₁₃)
-    Cₙₘ += cmvmul(F₁₃, σμν_spin_mul(ϕ[site], Val(1), Val(3)))
-
-    C₁₄ = clover_square(U, 1, 4, site, 1)
-    F₁₄ = traceless_antihermitian(C₁₄)
-    Cₙₘ += cmvmul(F₁₄, σμν_spin_mul(ϕ[site], Val(1), Val(4)))
-
-    C₂₃ = clover_square(U, 2, 3, site, 1)
-    F₂₃ = traceless_antihermitian(C₂₃)
-    Cₙₘ += cmvmul(F₂₃, σμν_spin_mul(ϕ[site], Val(2), Val(3)))
-
-    C₂₄ = clover_square(U, 2, 4, site, 1)
-    F₂₄ = traceless_antihermitian(C₂₄)
-    Cₙₘ += cmvmul(F₂₄, σμν_spin_mul(ϕ[site], Val(2), Val(4)))
-
-    C₃₄ = clover_square(U, 3, 4, site, 1)
-    F₃₄ = traceless_antihermitian(C₃₄)
-    Cₙₘ += cmvmul(F₃₄, σμν_spin_mul(ϕ[site], Val(3), Val(4)))
-    return (fac * im * T(1 / 4)) * Cₙₘ
-end
+# Use Val to reduce the amount of if-statements in the kernel
+@inline staggered_η(::Val{1}, site) = 1
+@inline staggered_η(::Val{2}, site) = ifelse(iseven(site[1]), 1, -1)
+@inline staggered_η(::Val{3}, site) = ifelse(iseven(site[1] + site[2]), 1, -1)
+@inline staggered_η(::Val{4}, site) = ifelse(iseven(site[1] + site[2] + site[3]), 1, -1)

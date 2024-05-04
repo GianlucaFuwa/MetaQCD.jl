@@ -77,8 +77,7 @@ end
 """
     cvmmul(x, A)
 
-Return the vector-matrix product of `x` and `A`. `x` is implicitly assumed to be a column
-vector and therefore the adjoint of `x` is used
+Return the vector-matrix product of `x†` and `A`.
 """
 @inline function cvmmul(
     x::SVector{N,Complex{T}}, A::SMatrix{M,N,Complex{T},NM}
@@ -480,15 +479,17 @@ end
 end
 
 @inline function ckron(
-    A::SMatrix{N,M,Complex{T},NM}, B::SMatrix{K,L,Complex{T},KL},
+    A::SMatrix{N,M,Complex{T},NM}, B::SMatrix{K,L,Complex{T},KL}
 ) where {T,N,M,NM,K,L,KL}
-    return SMatrix(ckron!(MMatrix{N*K,M*L,Complex{T},NM*KL}(undef), MMatrix(A), MMatrix(B)))
+    return SMatrix(
+        ckron!(MMatrix{N * K,M * L,Complex{T},NM * KL}(undef), MMatrix(A), MMatrix(B))
+    )
 end
 
 @inline function ckron!(
     Cc::MMatrix{NK,ML,Complex{T},NMKL},
     Ac::MMatrix{N,M,Complex{T},NM},
-    Bc::MMatrix{K,L,Complex{T},KL}
+    Bc::MMatrix{K,L,Complex{T},KL},
 ) where {T,NK,ML,NMKL,N,M,NM,K,L,KL}
     C = reinterpret(reshape, T, Cc)
     A = reinterpret(reshape, T, Ac)
@@ -511,31 +512,31 @@ end
 end
 
 """
-    ckron_sum(a, b)
+    spintrace(a, b)
 
 Return the complex Kronecker(outer) product of vectors `a` and `b`, summing over dirac
 indices, i.e. `∑ ᵨ aᵨ ⊗ bᵨ†`
 """
-@inline function ckron_sum(a::SVector{M,Complex{T}}, b::SVector{M,Complex{T}}) where {T,M}
+@inline function spintrace(a::SVector{M,Complex{T}}, b::SVector{M,Complex{T}}) where {T,M}
     @assert M % 4 == 0 "length of inputs must be a multiple of 4"
     N = M ÷ 4
-    return SMatrix(ckron_sum!(MMatrix{N,N,Complex{T},N * N}(undef), MVector(a), MVector(b)))
+    return SMatrix(spintrace!(MMatrix{N,N,Complex{T},N * N}(undef), MVector(a), MVector(b)))
 end
 
-@inline function ckron_sum!(
+@inline function spintrace!(
     cc::MMatrix{N,N,Complex{T},NN}, ac::MVector{M,Complex{T}}, bc::MVector{M,Complex{T}}
 ) where {T,M,N,NN}
     c = reinterpret(reshape, T, cc)
     a = reinterpret(reshape, T, ac)
     b = reinterpret(reshape, T, bc)
 
-    @turbo for m in Base.Slice(static(1):static(N))
+    for m in Base.Slice(static(1):static(N))
         for n in Base.Slice(static(1):static(N))
             cre = zero(T)
             cim = zero(T)
-            for k in Base.Slice(static(0):static(3))
-                cre += a[1, (k*N)+n] * b[1, (k*N)+m] + a[2, (k*N)+n] * b[2, (k*N)+m]
-                cim -= a[1, (k*N)+n] * b[2, (k*N)+m] - a[2, (k*N)+n] * b[1, (k*N)+m]
+            for k in Base.Slice(static(1):static(4))
+                cre += a[1, N*(k-1)+n] * b[1, N*(k-1)+m] + a[2, N*(k-1)+n] * b[2, N*(k-1)+m]
+                cim -= a[1, N*(k-1)+n] * b[2, N*(k-1)+m] - a[2, N*(k-1)+n] * b[1, N*(k-1)+m]
             end
             c[1, n, m] = cre
             c[2, n, m] = cim
@@ -651,19 +652,6 @@ end
         end
     elseif ρ === 4
         calc_hi = quote
-            xₙ₁r = x[1, m] - x[1, $(2N)+m]
-            xₙ₁i = x[2, m] - x[2, $(2N)+m]
-            xₙ₂r = x[1, $N+m] - x[1, $(3N)+m]
-            xₙ₂i = x[2, $N+m] - x[2, $(3N)+m]
-        end
-        set_lo = quote
-            y[1, $(2N)+m] = -xₙ₁r
-            y[2, $(2N)+m] = -xₙ₁i
-            y[1, $(3N)+m] = -xₙ₂r
-            y[2, $(3N)+m] = -xₙ₂i
-        end
-    elseif ρ === -4
-        calc_hi = quote
             xₙ₁r = x[1, m] + x[1, $(2N)+m]
             xₙ₁i = x[2, m] + x[2, $(2N)+m]
             xₙ₂r = x[1, $N+m] + x[1, $(3N)+m]
@@ -674,6 +662,19 @@ end
             y[2, $(2N)+m] = xₙ₁i
             y[1, $(3N)+m] = xₙ₂r
             y[2, $(3N)+m] = xₙ₂i
+        end
+    elseif ρ === -4
+        calc_hi = quote
+            xₙ₁r = x[1, m] - x[1, $(2N)+m]
+            xₙ₁i = x[2, m] - x[2, $(2N)+m]
+            xₙ₂r = x[1, $N+m] - x[1, $(3N)+m]
+            xₙ₂i = x[2, $N+m] - x[2, $(3N)+m]
+        end
+        set_lo = quote
+            y[1, $(2N)+m] = -xₙ₁r
+            y[2, $(2N)+m] = -xₙ₁i
+            y[1, $(3N)+m] = -xₙ₂r
+            y[2, $(3N)+m] = -xₙ₂i
         end
     else
         return :(throw(DimensionMismatch("ρ must be in [-4,4]")))
@@ -837,19 +838,6 @@ end
         end
     elseif ρ === 4
         calc_hi = quote
-            xₙ₁r = x[1, n] - x[1, $(2N)+n]
-            xₙ₁i = x[2, n] - x[2, $(2N)+n]
-            xₙ₂r = x[1, $N+n] - x[1, $(3N)+n]
-            xₙ₂i = x[2, $N+n] - x[2, $(3N)+n]
-        end
-        set_lo = quote
-            y[1, $(2N)+m] = -yₘ₁r
-            y[2, $(2N)+m] = -yₘ₁i
-            y[1, $(3N)+m] = -yₘ₂r
-            y[2, $(3N)+m] = -yₘ₂i
-        end
-    elseif ρ === -4
-        calc_hi = quote
             xₙ₁r = x[1, n] + x[1, $(2N)+n]
             xₙ₁i = x[2, n] + x[2, $(2N)+n]
             xₙ₂r = x[1, $N+n] + x[1, $(3N)+n]
@@ -860,6 +848,19 @@ end
             y[2, $(2N)+m] = yₘ₁i
             y[1, $(3N)+m] = yₘ₂r
             y[2, $(3N)+m] = yₘ₂i
+        end
+    elseif ρ === -4
+        calc_hi = quote
+            xₙ₁r = x[1, n] - x[1, $(2N)+n]
+            xₙ₁i = x[2, n] - x[2, $(2N)+n]
+            xₙ₂r = x[1, $N+n] - x[1, $(3N)+n]
+            xₙ₂i = x[2, $N+n] - x[2, $(3N)+n]
+        end
+        set_lo = quote
+            y[1, $(2N)+m] = -yₘ₁r
+            y[2, $(2N)+m] = -yₘ₁i
+            y[1, $(3N)+m] = -yₘ₂r
+            y[2, $(3N)+m] = -yₘ₂i
         end
     else
         return :(throw(DimensionMismatch("ρ must be in [-4,4]")))
@@ -904,10 +905,126 @@ end
     return q
 end
 
+"""
+    σμν_spin_mul(x, ::Val{μ}, ::Val{ν})
+
+Return `σμν * x` where `σμν = i/2 * [γμ, γν]` with the gamma matrices in the Chiral basis.
+and `x` is a 4xN component complex vector. The latter two arguments are μ and ν wrapped in
+a `Val` and must be within the range [1,4] with μ < ν
+"""
+@inline function σμν_spin_mul(x::SVector{M,Complex{T}}, ::Val{μ}, ::Val{ν}) where {T,M,μ,ν}
+    return SVector(σμν_spin_mul!(MVector{M,Complex{T}}(undef), MVector(x), Val(μ), Val(ν)))
+end
+
+@generated function σμν_spin_mul!(
+    yc::MVector{M,Complex{T}}, xc::MVector{M,Complex{T}}, ::Val{μ}, ::Val{ν}
+) where {T,M,μ,ν}
+    if M % 4 != 0
+        return :(throw(DimensionMismatch("length(x) must be a multiple of 4")))
+    end
+
+    N = M ÷ 4
+
+    q = quote
+        $(Expr(:meta, :inline))
+        y = reinterpret(reshape, $T, yc)
+        x = reinterpret(reshape, $T, xc)
+    end
+
+    if μ === 1 && ν === 2
+        inner_q = quote
+            y[1, m] = -x[1, m]
+            y[2, m] = -x[2, m]
+            y[1, $N+m] = x[1, $N+m]
+            y[2, $N+m] = x[2, $N+m]
+            y[1, $(2N)+m] = -x[1, $(2N)+m]
+            y[2, $(2N)+m] = -x[2, $(2N)+m]
+            y[1, $(3N)+m] = x[1, $(3N)+m]
+            y[2, $(3N)+m] = x[2, $(3N)+m]
+        end
+    elseif μ === 1 && ν === 3
+        inner_q = quote
+            y[1, m] = x[2, $N+m]
+            y[2, m] = -x[1, $N+m]
+            y[1, $N+m] = -x[2, m]
+            y[2, $N+m] = x[1, m]
+            y[1, $(2N)+m] = x[2, $(3N)+m]
+            y[2, $(2N)+m] = -x[1, $(3N)+m]
+            y[1, $(3N)+m] = -x[2, $(2N)+m]
+            y[2, $(3N)+m] = x[1, $(2N)+m]
+        end
+    elseif μ === 1 && ν === 4
+        inner_q = quote
+            y[1, m] = x[1, $N+m]
+            y[2, m] = x[2, $N+m]
+            y[1, $N+m] = x[1, m]
+            y[2, $N+m] = x[2, m]
+            y[1, $(2N)+m] = -x[1, $(3N)+m]
+            y[2, $(2N)+m] = -x[2, $(3N)+m]
+            y[1, $(3N)+m] = -x[1, $(2N)+m]
+            y[2, $(3N)+m] = -x[2, $(2N)+m]
+        end
+    elseif μ === 2 && ν === 3
+        inner_q = quote
+            y[1, m] = -x[1, $N+m]
+            y[2, m] = -x[2, $N+m]
+            y[1, $N+m] = -x[1, m]
+            y[2, $N+m] = -x[2, m]
+            y[1, $(2N)+m] = -x[1, $(3N)+m]
+            y[2, $(2N)+m] = -x[2, $(3N)+m]
+            y[1, $(3N)+m] = -x[1, $(2N)+m]
+            y[2, $(3N)+m] = -x[2, $(2N)+m]
+        end
+    elseif μ === 2 && ν === 4
+        inner_q = quote
+            y[1, m] = x[2, $N+m]
+            y[2, m] = -x[1, $N+m]
+            y[1, $N+m] = -x[2, m]
+            y[2, $N+m] = x[1, m]
+            y[1, $(2N)+m] = -x[2, $(3N)+m]
+            y[2, $(2N)+m] = x[1, $(3N)+m]
+            y[1, $(3N)+m] = x[2, $(2N)+m]
+            y[2, $(3N)+m] = -x[1, $(2N)+m]
+        end
+    elseif μ === 3 && ν === 4
+        inner_q = quote
+            y[1, m] = x[1, m]
+            y[2, m] = x[2, m]
+            y[1, $N+m] = -x[1, $N+m]
+            y[2, $N+m] = -x[2, $N+m]
+            y[1, $(2N)+m] = -x[1, $(2N)+m]
+            y[2, $(2N)+m] = -x[2, $(2N)+m]
+            y[1, $(3N)+m] = x[1, $(3N)+m]
+            y[2, $(3N)+m] = x[2, $(3N)+m]
+        end
+    else
+        return :(throw(DimensionMismatch("Invalid combination of μ and ν")))
+    end
+
+    loop_q = quote
+        @turbo for m in Base.Slice(static(1):static($N))
+            $inner_q
+        end
+        return yc
+    end
+
+    push!(q.args, loop_q)
+    return q
+end
+
 PrecompileTools.@compile_workload begin
     A64 = @SMatrix rand(ComplexF64, 3, 3)
     v64 = @SVector rand(ComplexF64, 3)
+    v164 = @SVector rand(ComplexF64, 12)
     cmvmul(A64, v64)
     cvmmul(v64, A64)
     ckron(v64, v64)
+    cmvmul_spin_proj(A64, v164, Val(-1))
+    cmvmul_spin_proj(A64, v164, Val(-2))
+    cmvmul_spin_proj(A64, v164, Val(-3))
+    cmvmul_spin_proj(A64, v164, Val(-4))
+    cmvmul_spin_proj(A64, v164, Val(1))
+    cmvmul_spin_proj(A64, v164, Val(2))
+    cmvmul_spin_proj(A64, v164, Val(3))
+    cmvmul_spin_proj(A64, v164, Val(4))
 end

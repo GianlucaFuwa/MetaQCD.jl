@@ -60,6 +60,7 @@ struct StaggeredFermionAction{Nf,TD,CT,RI,RT} <: AbstractFermionAction
         Nf=8,
         rhmc_order=10,
         rhmc_prec=42,
+        eo_precond=false,
         cg_tol=1e-14,
         cg_maxiters=1000,
     )
@@ -214,7 +215,7 @@ function LinearAlgebra.mul!(
     @assert dims(ψ) == dims(ϕ) == dims(U)
 
     @batch for site in eachindex(ψ)
-        ψ[site] = staggered_kernel(U, ϕ, site, mass, anti, T)
+        ψ[site] = staggered_kernel(U, ϕ, site, mass, anti, T, 1)
     end
 
     return nothing
@@ -240,12 +241,12 @@ function LinearAlgebra.mul!(
     ψ::TF, D::DdaggerD{StaggeredDiracOperator{CPU,T,TF,TG}}, ϕ::TF
 ) where {T,TF,TG}
     temp = D.parent.temp
-    mul!(temp, adjoint(D.parent), ϕ) # temp = D†ϕ
-    mul!(ψ, D.parent, temp) # ψ = DD†ϕ
+    mul!(temp, D.parent, ϕ) # temp = Dϕ
+    mul!(ψ, adjoint(D.parent), temp) # ψ = D†Dϕ
     return nothing
 end
 
-function staggered_kernel(U, ϕ, site, mass, anti, T, sgn=1)
+function staggered_kernel(U, ϕ, site, mass, anti, ::Type{T}, sgn=1) where {T}
     NX, NY, NZ, NT = dims(U)
     ψₙ = 2mass * ϕ[site]
     # Cant do a for loop here because Val(μ) cannot be known at compile time and is 

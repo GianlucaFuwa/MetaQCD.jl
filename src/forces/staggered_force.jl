@@ -5,12 +5,14 @@ function calc_dSfdU!(
 )
     @assert dims(dU) == dims(U) == dims(ϕ)
     clear!(dU)
+    cg_tol = fermion_action.cg_tol
+    cg_maxiters = fermion_action.cg_maxiters
     X, Y, temp1, temp2 = fermion_action.cg_temps
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
 
     clear!(X) # initial guess is zero
-    solve_D⁻¹x!(X, DdagD, ϕ, Y, temp1, temp2) # Y is used here merely as a temp
+    solve_D⁻¹x!(X, DdagD, ϕ, Y, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp
     LinearAlgebra.mul!(Y, D, X) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
     add_staggered_derivative!(dU, U, X, Y, D.anti_periodic)
     return nothing
