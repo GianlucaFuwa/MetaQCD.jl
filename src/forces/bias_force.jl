@@ -32,7 +32,7 @@ function calc_dQdU_bare!(kind_of_cv, dU, F, U, temp_force=nothing, smearing=NoSm
 end
 
 function calc_dQdU!(kind_of_charge, dU, F, U, fac=1.0)
-    @assert dims(dU) == dims(F) == dims(U)
+    check_dims(dU, F, U)
     c = float_type(U)(fac / 4π^2)
 
     @batch for site in eachindex(U)

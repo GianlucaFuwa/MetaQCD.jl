@@ -15,7 +15,7 @@ A Staggered Dirac operator with gauge background is created by applying it to a 
         Hermitian version of the operator
 - `TG`: Type of the underlying `Gaugefield`
 """
-mutable struct StaggeredDiracOperator{B,T,TF,TG} <: AbstractDiracOperator
+struct StaggeredDiracOperator{B,T,TF,TG} <: AbstractDiracOperator
     U::TG
     temp::TF # temp for storage of intermediate result for DdaggerD operator
     mass::Float64
@@ -58,9 +58,10 @@ struct StaggeredFermionAction{Nf,TD,CT,RI,RT} <: AbstractFermionAction
         mass;
         anti_periodic=true,
         Nf=8,
-        rhmc_order=10,
-        rhmc_prec=42,
-        eo_precond=false,
+        rhmc_order_for_md=10,
+        rhmc_prec_for_md=42,
+        rhmc_order_for_action=15,
+        rhmc_prec_for_action=42,
         cg_tol=1e-14,
         cg_maxiters=1000,
     )
@@ -80,11 +81,17 @@ struct StaggeredFermionAction{Nf,TD,CT,RI,RT} <: AbstractFermionAction
             @assert 8 > Nf > 0 "Nf should be between 1 and 8 (was $Nf)"
             cg_temps = ntuple(_ -> Fermionfield(f; staggered=true), 2)
             power = Nf//8
-            rhmc_info_md = RHMCParams(power; n=rhmc_order, precision=rhmc_prec)
+            rhmc_info_md = RHMCParams(
+                power; n=rhmc_order_for_md, precision=rhmc_prec_for_md
+            )
             # rhmc_info_action = RHMCParams(power; n=rhmc_order, precision=rhmc_prec)
-            rhmc_info_action = rhmc_info_md
-            rhmc_temps1 = ntuple(_ -> Fermionfield(f; staggered=true), rhmc_order + 1)
-            rhmc_temps2 = ntuple(_ -> Fermionfield(f; staggered=true), rhmc_order + 1)
+            power = Nf//16
+            rhmc_info_action = RHMCParams(
+                power; n=rhmc_order_for_action, precision=rhmc_prec_for_action
+            )
+            n_temps = max(rhmc_order_for_md, rhmc_order_for_action)
+            rhmc_temps1 = ntuple(_ -> Fermionfield(f; staggered=true), n_temps + 1)
+            rhmc_temps2 = ntuple(_ -> Fermionfield(f; staggered=true), n_temps + 1)
         end
 
         CT = typeof(cg_temps)
@@ -122,7 +129,7 @@ function calc_fermion_action(
     cg_maxiters = fermion_action.cg_maxiters
 
     clear!(ψ) # initial guess is zero
-    solve_D⁻¹x!(ψ, DdagD, ϕ, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
+    solve_dirac!(ψ, DdagD, ϕ, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
     Sf = dot(ϕ, ψ)
     return real(Sf)
 end
@@ -136,8 +143,8 @@ function calc_fermion_action(
     n = rhmc.coeffs_inverse.n
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
-    ψs = fermion_action.rhmc_temps1
-    ps = fermion_action.rhmc_temps2
+    ψs = fermion_action.rhmc_temps1[1:n+1]
+    ps = fermion_action.rhmc_temps2[1:n+1]
     temp1, temp2 = fermion_action.cg_temps
 
     for v in ψs
@@ -146,7 +153,7 @@ function calc_fermion_action(
     shifts = rhmc.coeffs_inverse.β
     coeffs = rhmc.coeffs_inverse.α
     α₀ = rhmc.coeffs_inverse.α0
-    solve_D⁻¹x_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
+    solve_dirac_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
     ψ = ψs[1]
     clear!(ψ) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
 
@@ -155,7 +162,7 @@ function calc_fermion_action(
         axpy!(coeffs[i], ψs[i+1], ψ)
     end
 
-    Sf = dot(ϕ, ψ)
+    Sf = dot(ψ, ψ)
     return real(Sf)
 end
 
@@ -163,7 +170,7 @@ function sample_pseudofermions!(ϕ, fermion_action::StaggeredFermionAction{8}, U
     D = fermion_action.D(U)
     temp = fermion_action.cg_temps[1]
     gaussian_pseudofermions!(temp)
-    mul!(ϕ, D, temp)
+    LinearAlgebra.mul!(ϕ, D, temp)
     return nothing
 end
 
@@ -174,8 +181,8 @@ function sample_pseudofermions!(ϕ, fermion_action::StaggeredFermionAction{Nf}, 
     n = rhmc.coeffs.n
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
-    ψs = fermion_action.rhmc_temps1
-    ps = fermion_action.rhmc_temps2
+    ψs = fermion_action.rhmc_temps1[1:n+1]
+    ps = fermion_action.rhmc_temps2[1:n+1]
     temp1, temp2 = fermion_action.cg_temps
 
     for v in ψs
@@ -185,7 +192,7 @@ function sample_pseudofermions!(ϕ, fermion_action::StaggeredFermionAction{Nf}, 
     coeffs = rhmc.coeffs.α
     α₀ = rhmc.coeffs.α0
     gaussian_pseudofermions!(ϕ) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
-    solve_D⁻¹x_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
+    solve_dirac_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
 
     axpy!(α₀, ϕ, ϕ)
     for i in 1:n
@@ -194,10 +201,10 @@ function sample_pseudofermions!(ϕ, fermion_action::StaggeredFermionAction{Nf}, 
     return nothing
 end
 
-function solve_D⁻¹x!(
+function solve_dirac!(
     ψ, D::T, ϕ, temp1, temp2, temp3, temp4, temp5; tol=1e-14, maxiters=1000
 ) where {T<:StaggeredDiracOperator}
-    @assert dims(ψ) == dims(ϕ) == dims(D.U)
+    check_dims(ψ, ϕ, D.U, temp1, temp2, temp3, temp4, temp5)
     bicg_stab!(ψ, D, ϕ, temp1, temp2, temp3, temp4, temp5; tol=tol, maxiters=maxiters)
     return nothing
 end
@@ -212,10 +219,10 @@ function LinearAlgebra.mul!(
     U = D.U
     mass = T(D.mass)
     anti = D.anti_periodic
-    @assert dims(ψ) == dims(ϕ) == dims(U)
+    check_dims(ψ, ϕ, U)
 
     @batch for site in eachindex(ψ)
-        ψ[site] = staggered_kernel(U, ϕ, site, mass, anti, T, 1)
+        ψ[site] = staggered_kernel(U, ϕ, site, mass, anti, T, false)
     end
 
     return nothing
@@ -228,10 +235,10 @@ function LinearAlgebra.mul!(
     U = D.parent.U
     mass = T(D.parent.mass)
     anti = D.parent.anti_periodic
-    @assert dims(ψ) == dims(ϕ) == dims(U)
+    check_dims(ψ, ϕ, U)
 
     @batch for site in eachindex(ψ)
-        ψ[site] = staggered_kernel(U, ϕ, site, mass, anti, T, -1)
+        ψ[site] = staggered_kernel(U, ϕ, site, mass, anti, T, true)
     end
 
     return nothing
@@ -246,7 +253,8 @@ function LinearAlgebra.mul!(
     return nothing
 end
 
-function staggered_kernel(U, ϕ, site, mass, anti, ::Type{T}, sgn=1) where {T}
+function staggered_kernel(U, ϕ, site, mass, anti, ::Type{T}, dagg::Bool) where {T}
+    sgn = dagg ? -1 : 1
     NX, NY, NZ, NT = dims(U)
     ψₙ = 2mass * ϕ[site]
     # Cant do a for loop here because Val(μ) cannot be known at compile time and is 

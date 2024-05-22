@@ -18,14 +18,13 @@ struct Tensorfield{BACKEND,T,A<:AbstractArray{SU{3,9,T},6}} <: Abstractfield{BAC
         U = KA.zeros(BACKEND(), SMatrix{3,3,Complex{T},9}, 4, 4, NX, NY, NZ, NT)
         NV = NX * NY * NZ * NT
         NC = 3
-        return Tensorfield{BACKEND,T,typeof(U)}(U, NX, NY, NZ, NT, NV, NC)
+        return new{BACKEND,T,typeof(U)}(U, NX, NY, NZ, NT, NV, NC)
     end
 end
 
 function Tensorfield(u::Abstractfield{BACKEND,T,A}) where {BACKEND,T,A}
     NX, NY, NZ, NT = dims(u)
-    U = KA.zeros(BACKEND(), SU{3,9,T}, 4, 4, NX, NY, NZ, NT)
-    return Tensorfield{BACKEND,T,typeof(U)}(U, NX, NY, NZ, NT, u.NV, u.NC)
+    return Tensorfield(NX, NY, NZ, NT; BACKEND=BACKEND, T=T)
 end
 
 # overload get and set for the Tensorfields, so we dont have to do u.U[μ,ν,x,y,z,t]
@@ -51,7 +50,7 @@ function fieldstrength_eachsite!(F::Tensorfield, U, kind_of_fs::String)
 end
 
 function fieldstrength_eachsite!(::Plaquette, F::Tensorfield{CPU}, U::Gaugefield{CPU})
-    @assert dims(F) == dims(U)
+    check_dims(F, U)
 
     @batch for site in eachindex(U)
         C12 = plaquette(U, 1, 2, site)
@@ -74,7 +73,7 @@ end
 function fieldstrength_eachsite!(
     ::Clover, F::Tensorfield{CPU,T}, U::Gaugefield{CPU,T}
 ) where {T}
-    @assert dims(F) == dims(U)
+    check_dims(F, U)
     fac = Complex{T}(im / 4)
 
     @batch for site in eachindex(U)

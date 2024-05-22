@@ -1,9 +1,20 @@
-import ..Gaugefields: SymanzikTadGaugeAction
 abstract type AbstractIntegrator end
 
 """
-    HMC(U, integrator, trajectory, steps, friction = 0, numsmear = 0, ρ_stout = 0,
-        verboselevel = 1; bias_enabled = false, logdir = "")
+    HMC(
+        U,
+        integrator,
+        trajectory,
+        steps,
+        friction = 0,
+        numsmear = 0,
+        ρ_stout = 0,
+        verboselevel = 1;
+        fermion_action = nothing,
+        heavy_flavours = 0,
+        bias_enabled = false,
+        logdir = "",
+    )
 
 Create an `HMC` object, that can be used as an update algorithm.
 
@@ -17,6 +28,9 @@ Create an `HMC` object, that can be used as an update algorithm.
 - `ρ_stout`: Step length of the Stout smearing applied to the gauge action.
 - `verboselevel`: If `2` or higher, creates a logfile in `logdir` containing information
 on the trajectories
+- `fermion_action`: An `AbstratFermionAction` to initialize the appropriate fermion fields
+- `heavy_flavours`: The number of non-degenerate heavy flavours, again to initialize the
+right number of fermion fields
 - `bias_enabled`: If `true`, additional fields are initialized that are needed for Stout
 force recursion when using a bias.
 
@@ -27,12 +41,15 @@ force recursion when using a bias.
 - `OMF4`
 - `OMF4Slow`
 
+# Supported Fermion Actions
+- `WilsonFermionAction`
+- `StaggeredFermionAction`
+- `StaggeredEOPreFermionAction`
+
 # Returns
-An HMC object. If `bias_enabled` is `true` then a bias can be passed when updating
-a `Gaugefield` with this object. If not, then the required tensors and so on are not
-initialized during construction.
+An HMC object, which can be used as an argument in the `update!` function.
 """
-struct HMC{TI,TG,TT,TF,TS,PO,F2,FS,IO} <: AbstractUpdate
+struct HMC{TI,TG,TT,TF,TS,PO,F2,FS,TIO} <: AbstractUpdate
     steps::Int64
     Δτ::Float64
     friction::Float64
@@ -47,39 +64,23 @@ struct HMC{TI,TG,TT,TF,TS,PO,F2,FS,IO} <: AbstractUpdate
     fieldstrength::FS # fieldstrength fields for Bias
     smearing::TS
 
-    fp::IO
+    fp::TIO
     function HMC(
         U,
-        integrator,
+        integrator::Type{<:AbstractIntegrator},
         trajectory,
         steps,
         friction=0,
         numsmear=0,
         ρ_stout=0,
         verboselevel=1;
-        fermion_action="none",
+        fermion_action=nothing,
         heavy_flavours=0,
         bias_enabled=false,
         logdir="",
     )
         @level1("┌ Setting HMC...")
-        integrator = Unicode.normalize(integrator; casefold=true)
-
-        if integrator == "leapfrog"
-            TI = Leapfrog
-        elseif integrator == "omf2slow"
-            TI = OMF2Slow
-        elseif integrator == "omf2"
-            TI = OMF2
-        elseif integrator == "omf4slow"
-            TI = OMF4Slow
-        elseif integrator == "omf4"
-            TI = OMF4
-        else
-            error("HMC integrator \"$(integrator)\" not supported")
-        end
-
-        @level1("|  INTEGRATOR: $(TI)")
+        @level1("|  INTEGRATOR: $(integrator)")
         TG = typeof(U)
         Δτ = trajectory / steps
 
@@ -108,10 +109,13 @@ struct HMC{TI,TG,TT,TF,TS,PO,F2,FS,IO} <: AbstractUpdate
             @level1("|  Action Smearing: $(numsmear) x $(ρ_stout) Stout")
         end
 
-        if fermion_action == "staggered"
+        if fermion_action === StaggeredFermionAction
             @level1("|  Dynamical Staggered fermions enabled")
             ϕ = ntuple(_ -> Fermionfield(U; staggered=true), 1 + heavy_flavours)
-        elseif fermion_action == "wilson"
+        elseif fermion_action === StaggeredEOPreFermionAction
+            @level1("|  Dynamical EO-Pre Staggered fermions enabled")
+            ϕ = ntuple(_ -> even_odd(Fermionfield(U; staggered=true)), 1 + heavy_flavours)
+        elseif fermion_action === WilsonFermionAction
             @level1("|  Dynamical Wilson fermions enabled")
             ϕ = ntuple(_ -> Fermionfield(U), 1 + heavy_flavours)
         elseif fermion_action == "none" || fermion_action === nothing
@@ -144,7 +148,7 @@ struct HMC{TI,TG,TT,TF,TS,PO,F2,FS,IO} <: AbstractUpdate
         end
 
         @level1("└\n")
-        return new{TI,TG,TT,TF,TS,PO,F2,FS,typeof(fp)}(
+        return new{integrator,TG,TT,TF,TS,PO,F2,FS,typeof(fp)}(
             steps,
             Δτ,
             friction,
@@ -251,7 +255,7 @@ end
 function updateU!(U::Gaugefield{CPU,T}, hmc, fac) where {T}
     ϵ = T(hmc.Δτ * fac)
     P = hmc.P
-    @assert dims(U) == dims(P)
+    check_dims(U, P)
 
     @batch for site in eachindex(U)
         for μ in 1:4
@@ -265,7 +269,6 @@ end
 function updateP!(U, hmc::HMC, fac, fermion_action::TF, bias::TB) where {TB,TF}
     ϵ = hmc.Δτ * fac
     P = hmc.P
-    @assert dims(U) == dims(P)
     staples = hmc.staples
     force = hmc.force
     ϕ = hmc.ϕ

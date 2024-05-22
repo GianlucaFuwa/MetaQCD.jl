@@ -6,6 +6,13 @@ struct SymanzikTadGaugeAction <: AbstractGaugeAction end
 struct IwasakiGaugeAction <: AbstractGaugeAction end
 struct DBW2GaugeAction <: AbstractGaugeAction end
 
+const GAUGE_ACTION = Dict{String,Type{<:AbstractGaugeAction}}(
+    "wilson" => WilsonGaugeAction,
+    "symanzik_tree" => SymanzikTreeGaugeAction,
+    "iwasaki" => IwasakiGaugeAction,
+    "dbw2" => DBW2GaugeAction,
+)
+
 function calc_gauge_action(U::Gaugefield, methodname::String)
     if methodname == "wilson"
         Sg = calc_gauge_action(WilsonGaugeAction(), U)
@@ -74,7 +81,7 @@ function plaquette_trace_sum(U::Gaugefield{CPU})
 
     @batch reduction = (+, P) for site in eachindex(U)
         for μ in 1:3
-            for ν in (μ + 1):4
+            for ν in (μ+1):4
                 P += real(tr(plaquette(U, μ, ν, site)))
             end
         end
@@ -88,7 +95,7 @@ function rect_trace_sum(U::Gaugefield{CPU})
 
     @batch reduction = (+, R) for site in eachindex(U)
         for μ in 1:3
-            for ν in (μ + 1):4
+            for ν in (μ+1):4
                 R += real(tr(rect_1x2(U, μ, ν, site))) + real(tr(rect_2x1(U, μ, ν, site)))
             end
         end

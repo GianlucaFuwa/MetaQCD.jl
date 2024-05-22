@@ -10,6 +10,8 @@ include("./parameter_set.jl")
 
 export ParameterSet
 
+lower_case(str) = Unicode.normalize(str; casefold=true)
+
 function set_params_value!(value_Params, values)
     d = struct2dict(values)
     pnames = fieldnames(ParameterSet)
@@ -44,17 +46,20 @@ end
 function construct_params_from_toml(filename::String)
     myrank = MPI.Comm_rank(MPI.COMM_WORLD)
     parameters = TOML.parsefile(filename)
-    myrank == 0 && println("inputfile: ", pwd() * "/" * filename * "\n")
-    return construct_params_from_toml(parameters; am_rank0=(myrank == 0))
+    inputfile = pwd() * "/" * filename
+    myrank == 0 && println("inputfile: ", inputfile * "\n")
+    return construct_params_from_toml(parameters, inputfile; am_rank0=(myrank == 0))
 end
 
-function construct_params_from_toml(parameters; am_rank0=true)
+function construct_params_from_toml(parameters, inputfile; am_rank0=true)
     # am_rank0 ? save_parameters(fp, parameters) : nothing
 
     pnames = fieldnames(ParameterSet)
     numparams = length(pnames)
     value_Params = Vector{Any}(undef, numparams)
-    time_now = Dates.format(now(), "YYYY-mm-dd-HH_MM_SS_ss")
+    generated_dirname = Dates.format(now(), "YYYY-mm-dd-HH_MM_SS_ss")
+    # generated_dirname = generate_dirname(parameters)
+    # @show generated_dirname
 
     physical = PhysicalParameters()
     set_params_value!(value_Params, physical)
@@ -82,7 +87,7 @@ function construct_params_from_toml(parameters; am_rank0=true)
     log_dir = try
         parameters["System Settings"]["log_dir"]
     catch
-        time_now
+        generated_dirname
     end
 
     logdir = pwd() * "/logs/" * log_dir
@@ -90,7 +95,8 @@ function construct_params_from_toml(parameters; am_rank0=true)
     if !isdir(logdir)
         am_rank0 && mkpath(logdir)
     end
-
+    # make a copy of the parsed parameter file, in case you want to reuse or check
+    cp(inputfile, logdir * "/used_parameterfile.toml"; force=true)
     logfile = logdir * "/logs.txt"
 
     if isfile(logfile)
@@ -101,7 +107,7 @@ function construct_params_from_toml(parameters; am_rank0=true)
     measurement_dir = try
         parameters["System Settings"]["measurement_dir"]
     catch
-        time_now
+        generated_dirname
     end
 
     measuredir = pwd() * "/measurements/" * measurement_dir
@@ -127,7 +133,7 @@ function construct_params_from_toml(parameters; am_rank0=true)
         bias_dir = try
             parameters["System Settings"]["bias_dir"]
         catch _
-            "$time_now"
+            generated_dirname
         end
         biasdir = pwd() * "/metapotentials/" * bias_dir
 
@@ -181,16 +187,15 @@ function construct_params_from_toml(parameters; am_rank0=true)
 
     parameters = ParameterSet(value_Params...)
 
-    parameter_check(parameters, Val{am_rank0}())
+    parameter_check(parameters, am_rank0)
     MPI.Barrier(MPI.COMM_WORLD)
 
     return parameters
 end
 
-parameter_check(::ParameterSet, ::Val{false}) = nothing
+function parameter_check(p::ParameterSet, am_rank0)
+    am_rank0 || return nothing
 
-function parameter_check(p::ParameterSet, ::Val{true})
-    lower_case(str) = Unicode.normalize(str; casefold=true)
     if lower_case(p.gauge_action) ∉ ["wilson", "iwasaki", "symanzik_tree", "dbw2"]
         ga = p.gauge_action
         throw(AssertionError("""
@@ -248,6 +253,17 @@ function parameter_check(p::ParameterSet, ::Val{true})
             """))
     end
 
+    if lower_case(p.fermion_action) ∉ ["none", "wilson", "staggered"]
+        fa = p.fermion_action
+        throw(AssertionError("""
+            fermion_action in [\"Dynamical Fermion Settings\"] = $(fa) is not supported.
+            Supported fermion actions are:
+                None
+                Wilson
+                Staggered
+            """))
+    end
+
     if lower_case(p.kind_of_bias) ∉ ["none", "metad", "metadynamics", "opes", "parametric"]
         throw(AssertionError("""
             kind_of_bias in [\"Bias Settings\"] = $(p.kind_of_bias) is not supported.
@@ -298,8 +314,7 @@ function parameter_check(p::ParameterSet, ::Val{true})
 
     if p.loadU_fromfile
         @assert isfile(p.loadU_dir * "/" * p.loadU_filename) "Your loadU_file doesn't exist"
-        if Unicode.normalize(p.loadU_format; casefold=true) ∉
-            ["bmw", "bridge", "jld", "jld2"]
+        if lower_case(p.loadU_format) ∉ ["bmw", "bridge", "jld", "jld2"]
             throw(AssertionError("""
             loadU_format in [\"System Settings\"] = $(p.loadU_format) is not supported.
             Supported methods are:
@@ -335,6 +350,60 @@ end
                     and \"overwrite\" in [\"System Settings\"] is set to false.
                     """))
     return nothing
+end
+
+function generate_dirname(parameters)
+    time_now = Dates.format(now(), "YYYY-mm-dd-HH_MM_SS_ss")
+    NX, NY, NZ, NT = parameters["Physical Settings"]["L"]
+
+    gauge_str = try
+        parameters["Physical Settings"]["gauge_action"]
+    catch _
+        "wilson"
+    end
+    beta_str = try
+        parameters["Physical Settings"]["beta"]
+    catch
+        error("beta has to defined in [\"Physical Settings\"]")
+    end
+    fermion_str = try
+        parameters["Dynamical Fermion Settings"]["fermion_action"]
+    catch _
+        ""
+    end
+    Nf_str = if fermion_str != ""
+        try
+            Nf = parameters["Dynamical Fermion Settings"]["Nf"]
+            str = "_Nf"
+            for i in eachindex(Nf)
+                i == length(Nf) && continue
+                str *= "$(Nf[i])+"
+            end
+            str *= "$(Nf[end])"
+        catch _
+            error("Nf has to be defined in [\"Dynamical Fermion Settings\"]")
+        end
+    else
+        ""
+    end
+    mass_str = if fermion_str != ""
+        try
+            mass = parameters["Dynamical Fermion Settings"]["mass"]
+            str = "_mass"
+            for i in eachindex(mass)
+                i == length(mass) && continue
+                str *= "$(mass[i])+"
+            end
+            str *= "$(mass[end])"
+        catch _
+            error("mass has to be defined in [\"Dynamical Fermion Settings\"]")
+        end
+    else
+        ""
+    end
+
+    dirname = "$(NX)x$(NY)x$(NZ)x$(NT)_$(gauge_str)_beta$(beta_str)_$(fermion_str)$(Nf_str)$(mass_str)"
+    return dirname * "_$(time_now)"
 end
 
 end

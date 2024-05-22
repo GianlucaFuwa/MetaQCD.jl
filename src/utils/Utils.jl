@@ -7,7 +7,6 @@ using MuladdMacro: @muladd
 using Polyester
 using Random
 using StaticArrays
-
 using PrecompileTools: PrecompileTools
 
 export exp_iQ, exp_iQ_coeffs, exp_iQ_su3, get_B₁, get_B₂, get_Q, get_Q²
@@ -16,8 +15,8 @@ export kenney_laub, proj_onto_SU3, multr
 export make_submatrix_12, make_submatrix_13, make_submatrix_23
 export embed_into_SU3_12, embed_into_SU3_13, embed_into_SU3_23
 export antihermitian, hermitian, traceless_antihermitian, traceless_hermitian
-export zero2, zero3, zerov3, eye2, eye3, onev3, δ, ε_tensor, gaussian_TA_mat, rand_SU3
-export SiteCoords, linear_coords, move
+export zero2, zero3, zerov3, eye2, eye3, onev3, gaussian_TA_mat, rand_SU3
+export SiteCoords, eo_site, eo_site_switch, move, switch_sides
 export Sequential, Checkerboard2, Checkerboard4
 export λ, expλ, γ₁, γ₂, γ₃, γ₄, γ₅, σ₁₂, σ₁₃, σ₁₄, σ₂₃, σ₂₄, σ₃₄
 export cmatmul_oo, cmatmul_dd, cmatmul_do, cmatmul_od
@@ -48,7 +47,7 @@ export cmatmul_oooo,
 export cdot, cmvmul, cmvmul_d, cvmmul, cvmmul_d
 export cmvmul_color, cmvmul_d_color, cvmmul_color, cvmmul_d_color
 export ckron, spintrace, cmvmul_spin_proj, spin_proj, σμν_spin_mul
-export _unwrap_val, SU, restore_last_col, restore_last_row
+export _unwrap_val, SU, restore_last_col, restore_last_row, FLOAT_TYPE
 
 abstract type AbstractIterator end
 struct Sequential <: AbstractIterator end
@@ -56,6 +55,15 @@ struct Checkerboard2 <: AbstractIterator end
 struct Checkerboard4 <: AbstractIterator end
 
 _unwrap_val(::Val{B}) where {B} = B
+
+const FLOAT_TYPE = Dict{String,DataType}(
+    "float16" => Float16,
+    "half" => Float16,
+    "float32" => Float32,
+    "single" => Float32,
+    "float64" => Float64,
+    "double" => Float64,
+)
 
 @inline eye2(::Type{T}) where {T<:AbstractFloat} = @SArray [
     one(Complex{T}) zero(Complex{T})

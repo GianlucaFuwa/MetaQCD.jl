@@ -49,8 +49,26 @@ the inverse of the approximation to f(x) = x^(y/z).
 """
 function calc_coefficients(y::Int, z::Int, n::Int, lambda_low, lambda_high; precision=42)
     @assert y > 0 && z > 0 "Inputs y and z need to be positive"
-    run(`$exe $y $z $n $n $lambda_low $lambda_high $precision`)
-    datas = readlines("approx.dat")
+    # Save and reuse already calcuatated approximations
+    dirname = pwd() * "/src/rhmc/"
+    filename = "approx_$(y)_$(z)_$(n)_$(lambda_low)_$(lambda_high)_$precision.dat"
+    filename_err = "error_$(y)_$(z)_$(n)_$(lambda_low)_$(lambda_high)_$precision.dat"
+    pathname = dirname * filename
+    if !(filename in readdir(dirname))
+        try
+            run(`$exe $y $z $n $n $lambda_low $lambda_high $precision`)
+        catch _
+            error(
+                """
+          Running algremez.exe failed. If you're on Windows, please add your julia \"bin\"
+          directory to your PATH in case it isn't already.
+          """
+            )
+        end
+        mv("approx.dat", pathname)
+        mv("error.dat", dirname * filename_err)
+    end
+    datas = readlines(pathname)
     icount = 3
     αplus0 = parse(Float64, split(datas[icount], "=")[2])
     αplus = zeros(Float64, n)
@@ -77,7 +95,6 @@ function calc_coefficients(y::Int, z::Int, n::Int, lambda_low, lambda_high; prec
     end
 
     coeff_minus = AlgRemezCoeffs(αminus0, αminus, βminus, n) # x^(-y/z)
-    rm("approx.dat")
     return coeff_plus, coeff_minus
 end
 

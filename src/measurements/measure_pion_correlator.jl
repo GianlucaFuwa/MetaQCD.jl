@@ -47,21 +47,19 @@ struct PionCorrelatorMeasurement{T,TD,TF,N} <: AbstractMeasurement
 
         if printvalues
             fp = open(filename, "w")
+            header = ""
 
             if flow
-                str = @sprintf("%-9s\t%-7s\t%-9s", "itrj", "iflow", "tflow")
-                println(fp, str)
+                header *= @sprintf("%-9s\t%-7s\t%-9s", "itrj", "iflow", "tflow")
             else
-                str = @sprintf("%-9s", "itrj")
-                println(fp, str)
+                header *= @sprintf("%-9s", "itrj")
             end
 
             for it in 1:NT
-                str = @sprintf("\t%-22s", "pion_corr_$(it)")
-                println(fp, str)
+                header *= @sprintf("\t%-22s", "pion_corr_$(it)")
             end
 
-            println(fp)
+            println(fp, header)
         else
             fp = nothing
         end
@@ -135,7 +133,7 @@ We follow the procedure outlined in DOI: 10.1007/978-3-642-01850-3 (Gattringer) 
 135-136 using point sources for each dirac and color index all starting from the origin
 """
 function pion_correlators_avg!(dict, D, ψ, cg_temps, cg_tol, cg_maxiters)
-    @assert dims(ψ) == dims(D.U)
+    check_dims(D.U, ψ, cg_temps...)
     NX, NY, NZ, NT = dims(ψ)
     @assert length(dict) == NT
     source = SiteCoords(1, 1, 1, 1)
@@ -145,7 +143,7 @@ function pion_correlators_avg!(dict, D, ψ, cg_temps, cg_tol, cg_maxiters)
         for μ in 1:ψ.ND
             ones!(propagator)
             set_source!(ψ, source, a, μ)
-            solve_D⁻¹x!(propagator, D, ψ, temps...; tol=cg_tol, maxiters=cg_maxiters)
+            solve_dirac!(propagator, D, ψ, temps...; tol=cg_tol, maxiters=cg_maxiters)
             for it in 1:NT
                 cit = 0.0
                 @batch reduction = (+, cit) for iz in 1:NZ

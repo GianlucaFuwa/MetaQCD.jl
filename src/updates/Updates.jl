@@ -16,11 +16,10 @@ import KernelAbstractions as KA
 import ..Gaugefields: AbstractGaugeAction, Gaugefield, Temporaryfield
 import ..Gaugefields: WilsonGaugeAction, add!, calc_gauge_action, calc_kinetic_energy
 import ..Gaugefields: clear!, dims, normalize!, fieldstrength_eachsite!, float_type
-import ..Gaugefields: gaussian_TA!, mul!, staple, staple_eachsite!
+import ..Gaugefields: check_dims, even_odd, gaussian_TA!, mul!, staple, staple_eachsite!
 import ..Gaugefields: @groupreduce, @latmap, @latsum, gauge_action
-import ..Gaugefields: Abstractfield, Plaquette, Clover, Tensorfield, Fermionfield
-import ..DiracOperators: AbstractDiracOperator, StaggeredDiracOperator, WilsonDiracOperator
-import ..DiracOperators: DdaggerD, Daggered, calc_fermion_action
+import ..Gaugefields: Abstractfield, Plaquette, Clover, Fermionfield, Tensorfield
+import ..DiracOperators: AbstractDiracOperator, calc_fermion_action, fermaction_from_str
 import ..DiracOperators: sample_pseudofermions!
 import ..BiasModule: Bias, calc_CV, ∂V∂Q, recalc_CV!
 import ..BiasModule: kind_of_cv, update_bias!
@@ -39,7 +38,6 @@ include("./overrelaxation.jl")
 include("./parity.jl")
 include("./tempering.jl")
 
-include("../forces/gpu_kernels/forces.jl")
 include("gpu_kernels/heatbath.jl")
 include("gpu_kernels/hmc.jl")
 include("gpu_kernels/metropolis.jl")
@@ -54,7 +52,8 @@ function Updatemethod(parameters::ParameterSet, U)
         parameters.verboselevel,
         parameters.logdir,
         parameters.fermion_action,
-        parameters.Nf_heavy > 0,
+        parameters.eo_precon,
+        parameters.Nf,
         parameters.kind_of_bias,
         parameters.metro_epsilon,
         parameters.metro_numhits,
@@ -80,12 +79,13 @@ function Updatemethod(
     verboselevel=1,
     logdir="",
     fermion_action="none",
-    heavy_flavours=false,
+    eo_precon=false,
+    Nf=0,
     kind_of_bias="none",
     metro_ϵ=0.1,
     metro_numhits=1,
     metro_target_acc=0.5,
-    hmc_integrator="Leapfrog",
+    hmc_integrator="leapfrog",
     hmc_steps=10,
     hmc_trajectory=1,
     hmc_friction=π / 2,
@@ -101,15 +101,15 @@ function Updatemethod(
     if lower_case(update_method) == "hmc"
         updatemethod = HMC(
             U,
-            hmc_integrator,
+            integrator_from_str(hmc_integrator),
             hmc_trajectory,
             hmc_steps,
             hmc_friction,
             hmc_numsmear,
             hmc_ρstout,
             verboselevel;
-            fermion_action=fermion_action,
-            heavy_flavours=heavy_flavours,
+            fermion_action=fermaction_from_str(lower_case(fermion_action), eo_precon),
+            heavy_flavours=length(Nf) - 1,
             bias_enabled=kind_of_bias != "none",
             logdir=logdir,
         )

@@ -16,7 +16,7 @@ function calc_dSdU_bare!(dU, staples, U, temp_force, smearing)
 end
 
 function calc_dSdU!(dU, staples, U)
-    @assert dims(dU) == dims(staples) == dims(U)
+    check_dims(dU, staples, U)
     mβover6 = float_type(U)(-U.β / 6)
     GA = gauge_action(U)()
 

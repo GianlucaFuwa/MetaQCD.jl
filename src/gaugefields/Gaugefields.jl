@@ -1,5 +1,6 @@
 module Gaugefields
 
+using StaticArrays: check_dims
 using AMDGPU: ROCArray, ROCBackend
 using CUDA
 using CUDA: i32
@@ -15,12 +16,15 @@ import KernelAbstractions as KA # With this we can write generic GPU kernels for
 import StrideArraysCore: object_and_preserve # This is used to convert the Abstractfield to a PtrArray in the @batch loop
 
 const SUPPORTED_BACKENDS = (CPU, CUDABackend, ROCBackend)
+const BACKEND = Dict{String,Type{<:Backend}}(
+    "cpu" => CPU, "cuda" => CUDABackend, "roc" => ROCBackend
+)
 
 # We are going to need these if we want to transfer a field from one backend to another
 # see `to_backend` function
-array_type(::CPU) = Array
-array_type(::CUDABackend) = CuArray
-array_type(::ROCBackend) = ROCArray
+array_type(::Type{CPU}) = Array
+array_type(::Type{CUDABackend}) = CuArray
+array_type(::Type{ROCBackend}) = ROCArray
 
 # Define an abstract field super type that is parametrized by the backend, the precision and
 # the array type (Array, CuArray, ROCArray). Make it a subtype of DenseArray so that
@@ -64,6 +68,26 @@ struct Gaugefield{BACKEND,T,A,GA} <: Abstractfield{BACKEND,T,A}
         CV = Base.RefValue{Float64}(0.0)
         return new{BACKEND,T,typeof(U),GA}(U, NX, NY, NZ, NT, NV, 3, β, Sg, CV)
     end
+end
+
+function Gaugefield(parameters)
+    NX, NY, NZ, NT = parameters.L
+    β = parameters.beta
+    GA = GAUGE_ACTION[parameters.gauge_action]
+    T = FLOAT_TYPE[parameters.float_type]
+    B = BACKEND[parameters.backend]
+    U = Gaugefield(NX, NY, NZ, NT, β; BACKEND=B, T=T, GA=GA)
+
+    initial = parameters.initial
+    if initial == "cold"
+        identity_gauges!(U)
+    elseif initial == "hot"
+        random_gauges!(U)
+    else
+        error("intial condition \"$(initial)\" not supported, only \"cold\" or \"hot\"")
+    end
+
+    return U
 end
 
 function Gaugefield(u::Gaugefield{BACKEND,T,A,GA}) where {BACKEND,T,A,GA}
@@ -166,13 +190,27 @@ end
 # can use it, and once for Abstractfields, such that CPU can use it
 @inline dims(u) = NTuple{4,Int64}((size(u, 2), size(u, 3), size(u, 4), size(u, 5)))
 @inline dims(u::Abstractfield{CPU}) = NTuple{4,Int64}((u.NX, u.NY, u.NZ, u.NT))
+@inline volume(u::Abstractfield) = u.NV
 Base.ndims(u::Abstractfield) = 4
 Base.size(u::Abstractfield) = NTuple{5,Int64}((4, u.NX, u.NY, u.NZ, u.NT))
+
+function Gaugefields.check_dims(u, rest...)
+    @nospecialize u rest
+    udims = dims(u)
+
+    for field in rest
+        @assert dims(field) == udims
+    end
+    return nothing
+end
 
 Base.eachindex(u::Abstractfield) = CartesianIndices((u.NX, u.NY, u.NZ, u.NT))
 Base.eachindex(::IndexLinear, u::Abstractfield) = Base.OneTo(u.NV)
 function Base.eachindex(even::Bool, u::Abstractfield)
-    return (i for i in eachindex(u) if iseven(sum(i.I)) == even)
+    NX, NY, NZ, NT = dims(u)
+    @assert iseven(NT)
+    last_range = even ? (1:div(NT, 2)) : (div(NT, 2)+1:NT)
+    return CartesianIndices((NX, NY, NZ, last_range))
 end
 Base.length(u::Abstractfield) = u.NV
 
@@ -225,7 +263,7 @@ Ports the Abstractfield u to the backend Bout, maintaining all link variables
 """
 function to_backend(::Type{Bout}, u::Abstractfield{Bin,T}) where {Bout,Bin,T}
     Bout === Bin && return u # no need to do anything if the backends are the same
-    A = array_type(Bout())
+    A = array_type(Bout)
     sizeU = dims(u)
     Uout = A(u.U)
 
@@ -243,21 +281,6 @@ function to_backend(::Type{Bout}, u::Abstractfield{Bin,T}) where {Bout,Bin,T}
     else
         throw(ArgumentError("Unsupported field type"))
     end
-end
-
-function initial_gauges(initial, args...; BACKEND=CPU, T=Float64, GA=WilsonGaugeAction)
-    @assert BACKEND ∈ SUPPORTED_BACKENDS "Only CPU, CUDABackend or ROCBackend supported!"
-    u = Gaugefield(args...; BACKEND=BACKEND, T=T, GA=GA)
-
-    if initial == "cold"
-        identity_gauges!(u)
-    elseif initial === "hot"
-        random_gauges!(u)
-    else
-        throw(AssertionError("Only COLD or HOT initial configs supported"))
-    end
-
-    return u
 end
 
 include("iterators.jl")

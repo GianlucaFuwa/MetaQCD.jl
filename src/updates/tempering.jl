@@ -36,7 +36,7 @@ function temper!(
 end
 
 function swap_U!(a, b)
-    @assert dims(a) == dims(b)
+    check_dims(a, b)
     a_Sg_tmp = deepcopy(a.Sg)
     a_CV_tmp = deepcopy(a.CV)
 

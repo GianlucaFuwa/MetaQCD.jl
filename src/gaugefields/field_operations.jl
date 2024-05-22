@@ -1,5 +1,5 @@
 function Base.copy!(a::Abstractfield{CPU,T}, b::Abstractfield{CPU,T}) where {T}
-    @assert dims(a) == dims(b)
+    check_dims(a, b)
 
     @batch for site in eachindex(a)
         for μ in 1:4
@@ -53,7 +53,7 @@ function normalize!(u::Gaugefield{CPU})
 end
 
 function add!(a::Abstractfield{CPU,T}, b::Abstractfield{CPU}, fac) where {T}
-    @assert dims(a) == dims(b)
+    check_dims(a, b)
     fac = T(fac)
 
     @batch for site in eachindex(a)
@@ -65,12 +65,12 @@ function add!(a::Abstractfield{CPU,T}, b::Abstractfield{CPU}, fac) where {T}
     return nothing
 end
 
-function mul!(u::Gaugefield{CPU,T}, α::Number) where {T}
+function mul!(a::Abstractfield{CPU,T}, α::Number) where {T}
     α = T(α)
 
-    @batch for site in eachindex(u)
+    @batch for site in eachindex(a)
         for μ in 1:4
-            u[μ, site] *= α
+            a[μ, site] *= α
         end
     end
 
@@ -78,7 +78,7 @@ function mul!(u::Gaugefield{CPU,T}, α::Number) where {T}
 end
 
 function leftmul!(a::Abstractfield{CPU}, b::Abstractfield{CPU})
-    @assert dims(a) == dims(b)
+    check_dims(a, b)
 
     @batch for site in eachindex(a)
         for μ in 1:4
@@ -90,7 +90,7 @@ function leftmul!(a::Abstractfield{CPU}, b::Abstractfield{CPU})
 end
 
 function leftmul_dagg!(a::Abstractfield{CPU}, b::Abstractfield{CPU})
-    @assert dims(a) == dims(b)
+    check_dims(a, b)
 
     @batch for site in eachindex(a)
         for μ in 1:4
@@ -102,7 +102,7 @@ function leftmul_dagg!(a::Abstractfield{CPU}, b::Abstractfield{CPU})
 end
 
 function rightmul!(a::Abstractfield{CPU}, b::Abstractfield{CPU})
-    @assert dims(a) == dims(b)
+    check_dims(a, b)
 
     @batch for site in eachindex(a)
         for μ in 1:4
@@ -114,7 +114,7 @@ function rightmul!(a::Abstractfield{CPU}, b::Abstractfield{CPU})
 end
 
 function rightmul_dagg!(a::Abstractfield{CPU,T}, b::Abstractfield{CPU,T}) where {T}
-    @assert dims(a) == dims(b)
+    check_dims(a, b)
 
     @batch for site in eachindex(a)
         for μ in 1:4

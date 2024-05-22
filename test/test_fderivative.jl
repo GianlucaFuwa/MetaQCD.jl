@@ -1,12 +1,12 @@
 using MetaQCD
+using MetaQCD
 using MetaQCD.Utils
 using LinearAlgebra
 using Random
 
-const StaggeredFermionAction = MetaQCD.DiracOperators.StaggeredFermionAction
-const WilsonFermionAction = MetaQCD.DiracOperators.WilsonFermionAction
-
-function SU3testfderivative(; dirac="staggered", backend=nothing)
+function SU3testfderivative(;
+    dirac="staggered", eoprec=false, single_flavor=false, backend=nothing
+)
     Random.seed!(123)
     println("Fermion derivative test [$dirac]")
     MetaQCD.Output.set_global_logger!(1, devnull; tc=true)
@@ -15,14 +15,30 @@ function SU3testfderivative(; dirac="staggered", backend=nothing)
     NZ = 4
     NT = 4
     U = initial_gauges("cold", NX, NY, NZ, NT, 6.0; GA=WilsonGaugeAction)
-    ϕ = Fermionfield(NX, NY, NZ, NT; staggered=dirac == "staggered")
-    ψ = Fermionfield(NX, NY, NZ, NT; staggered=dirac == "staggered")
+    if eoprec
+        ϕ = even_odd(Fermionfield(NX, NY, NZ, NT; staggered=dirac == "staggered"))
+        ψ = even_odd(Fermionfield(NX, NY, NZ, NT; staggered=dirac == "staggered"))
+    else
+        ϕ = Fermionfield(NX, NY, NZ, NT; staggered=dirac == "staggered")
+        ψ = Fermionfield(NX, NY, NZ, NT; staggered=dirac == "staggered")
+    end
     MetaQCD.Gaugefields.gaussian_pseudofermions!(ϕ)
 
     action = if dirac == "staggered"
-        StaggeredFermionAction(U, 0.1; cg_tol=1e-16)
+        if eoprec
+            Nf = single_flavor ? 1 : 4
+            StaggeredEOPreFermionAction(U, 0.1; Nf=Nf, cg_tol=1e-16)
+        else
+            Nf = single_flavor ? 1 : 8
+            StaggeredFermionAction(U, 0.1; Nf=Nf, cg_tol=1e-16)
+        end
     elseif dirac == "wilson"
-        WilsonFermionAction(U, 0.1; csw=1, cg_tol=1e-19, cg_maxiters=10000)
+        if eoprec
+            WilsonEOPreFermionAction(U, 0.1; csw=1.78, cg_tol=1e-16, cg_maxiters=10000)
+        else
+            Nf = single_flavor ? 1 : 2
+            WilsonFermionAction(U, 0.1; Nf=Nf, csw=1.78, cg_tol=1e-16, cg_maxiters=10000)
+        end
     else
         error("dirac operator $dirac not supported")
     end
@@ -32,7 +48,7 @@ function SU3testfderivative(; dirac="staggered", backend=nothing)
     if backend !== nothing
         U = MetaQCD.to_backend(backend, U)
     end
-    mul!(ψ, action.D(U), ϕ)
+    sample_pseudofermions!(ψ, action, U)
 
     # Test for smearing with 5 steps and stout parameter 0.12
     smearing = StoutSmearing(U, 5, 0.12)
@@ -95,4 +111,4 @@ function SU3testfderivative(; dirac="staggered", backend=nothing)
     return relerrors
 end
 
-SU3testfderivative(; dirac="staggered")
+SU3testfderivative(; dirac="staggered", eoprec=false, single_flavor=true)

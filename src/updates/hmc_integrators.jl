@@ -158,3 +158,19 @@ function evolve!(O4::OMF4, U, hmc::HMC, fermion_action, bias)
     updateP!(U, hmc, O4.α, fermion_action, bias)
     return nothing
 end
+
+function integrator_from_str(str::String)
+    if str == "leapfrog" || str == "Leapfrog"
+        return Leapfrog
+    elseif str == "omf2" || str == "OMF2"
+        return OMF2
+    elseif str == "omf2slow" || str == "OMF2Slow"
+        return OMF2Slow
+    elseif str == "omf4" || str == "OMF4"
+        return OMF4
+    elseif str == "omf4slow" || str == "OMF4Slow"
+        return OMF4Slow
+    else
+        error("integrator \"$(str)\" not supported")
+    end
+end

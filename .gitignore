@@ -16,3 +16,5 @@
 *#*#
 *.pb.gz
 ignore/
+approx*.dat
+error*.dat

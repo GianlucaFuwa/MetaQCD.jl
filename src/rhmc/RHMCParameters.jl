@@ -10,7 +10,7 @@ Return an `RHMCParams` which is a container for the Remez coefficients calculate
 the specified `order` on the interval `[lambda_low, lamda_high]` and the specified
 `precision`.
 """
-struct RHMCParams #type for the rational Hybrid Monte Carlo
+struct RHMCParams
     y::Int64
     z::Int64
     coeffs::AlgRemezCoeffs

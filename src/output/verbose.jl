@@ -1,4 +1,9 @@
 using InteractiveUtils: InteractiveUtils
+using MPI
+
+MPI.Initialized() || MPI.Init()
+const COMM = MPI.COMM_WORLD
+const MYRANK = MPI.Comm_rank(COMM)
 
 """
     MetaLogger(LEVEL::Int64, io::IO, to_console::Bool)
@@ -37,7 +42,7 @@ for input_level in 1:3
     # Create the functions that the macros @level1, @level2, and @level3 call
     @eval function $(Symbol("level$(input_level)"))(val...)
         return quote
-            if Output.__GlobalLogger[].LEVEL >= $($input_level)
+            if Output.__GlobalLogger[].LEVEL >= $($input_level) && MYRANK == 0
                 Output.__GlobalLogger[].to_console && println(stdout, $(esc(val...)))
                 println(Output.__GlobalLogger[].io, $(esc(val...)))
                 flush(Output.__GlobalLogger[].io)

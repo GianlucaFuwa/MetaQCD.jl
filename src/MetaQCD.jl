@@ -37,14 +37,17 @@ import .CG: cg!, bicg!, bicg_stab!
 import .Gaugefields: CPU, CUDABackend, ROCBackend
 import .Gaugefields: DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
 import .Gaugefields: SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
-import .Gaugefields: CoeffField, Gaugefield, Temporaryfield, initial_gauges
+import .Gaugefields: CoeffField, Gaugefield, Temporaryfield
 import .Gaugefields: calc_gauge_action, fieldstrength_eachsite!, identity_gauges!
 import .Gaugefields: normalize!, plaquette, plaquette_trace_sum, random_gauges!
 import .Gaugefields: staple, staple_eachsite!, wilsonloop, to_backend
 import .Gaugefields: Tensorfield, calc_kinetic_energy, gaussian_TA!
 import .Gaugefields: Fermionfield, gaussian_pseudofermions!
-import .DiracOperators: AbstractDiracOperator, Daggered, Hermitian, calc_fermion_action
-import .DiracOperators: StaggeredDiracOperator, WilsonDiracOperator
+import .DiracOperators: AbstractDiracOperator, Daggered, DdaggerD, calc_fermion_action
+import .DiracOperators: StaggeredDiracOperator, StaggeredEOPreDiracOperator, even_odd
+import .DiracOperators: WilsonDiracOperator, sample_pseudofermions!
+import .DiracOperators: StaggeredFermionAction, StaggeredEOPreFermionAction
+import .DiracOperators: WilsonFermionAction
 import .Measurements: measure, get_value, top_charge
 import .Measurements: EnergyDensityMeasurement, GaugeActionMeasurement, PlaquetteMeasurement
 import .Measurements: PolyakovMeasurement, TopologicalChargeMeasurement
@@ -63,12 +66,14 @@ export cg!, bicg!, bicg_stab!
 export CPU, CUDABackend, ROCBackend
 export DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
 export SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
-export CoeffField, Gaugefield, Temporaryfield, initial_gauges
+export CoeffField, Gaugefield, Temporaryfield
 export calc_gauge_action, fieldstrength_eachsite!, identity_gauges!
 export normalize!, plaquette, plaquette_trace_sum, random_gauges!
 export staple, staple_eachsite!, wilsonloop
 export Tensorfield, calc_kinetic_energy, gaussian_TA!
-export Fermionfield, StaggeredDiracOperator, Daggered, Hermitian, WilsonDiracOperator
+export Fermionfield, StaggeredDiracOperator, Daggered, DdaggerD, WilsonDiracOperator
+export StaggeredEOPreDiracOperator, even_odd, sample_pseudofermions!
+export StaggeredFermionAction, StaggeredEOPreFermionAction, WilsonFermionAction
 export calc_fermion_action, gaussian_pseudofermions!
 export measure, get_value, top_charge
 export EnergyDensityMeasurement, GaugeActionMeasurement, PlaquetteMeasurement

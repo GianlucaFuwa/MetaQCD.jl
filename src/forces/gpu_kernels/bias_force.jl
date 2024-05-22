@@ -1,23 +1,3 @@
-function calc_dSdU!(
-    dU::Temporaryfield{B,T}, staples::Temporaryfield{B,T}, U::Gaugefield{B,T,A,GA}
-) where {B<:GPU,T,A,GA}
-    @assert dims(U) == dims(dU) == dims(staples)
-    fac = convert(T, -U.β / 6)
-    @latmap(Sequential(), Val(1), calc_dSdU_kernel!, dU, staples, U, GA(), fac)
-    return nothing
-end
-
-@kernel function calc_dSdU_kernel!(dU, staples, @Const(U), GA, fac)
-    site = @index(Global, Cartesian)
-
-    @unroll for μ in (1i32):(4i32)
-        A = staple(GA, U, μ, site)
-        @inbounds staples[μ, site] = A
-        @inbounds UA = cmatmul_od(U[μ, site], A)
-        @inbounds dU[μ, site] = fac * traceless_antihermitian(UA)
-    end
-end
-
 function calc_dQdU!(
     kind_of_charge,
     dU::Temporaryfield{B,T},
@@ -25,7 +5,7 @@ function calc_dQdU!(
     U::Gaugefield{B,T},
     fac=1.0,
 ) where {B<:GPU,T}
-    @assert dims(U) == dims(dU) == dims(F)
+    check_dims(dU, U, F)
     fac = convert(T, fac / 4π^2)
     @latmap(Sequential(), Val(1), calc_dQdU_kernel!, dU, F, U, kind_of_charge, fac)
     return nothing

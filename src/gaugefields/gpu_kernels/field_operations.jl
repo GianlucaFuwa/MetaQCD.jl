@@ -25,7 +25,7 @@ end
 end
 
 function Base.copy!(a::Abstractfield{B,T}, b::Abstractfield{B,T}) where {B,T}
-    @assert dims(b) == dims(a)
+    check_dims(a, b)
     @latmap(Sequential(), Val(1), copy_kernel!, a, b)
     return nothing
 end
@@ -63,7 +63,7 @@ end
 end
 
 function add!(a::Abstractfield{B,T}, b::Abstractfield{B,T}, fac) where {B,T}
-    @assert dims(b) == dims(a)
+    check_dims(a, b)
     @latmap(Sequential(), Val(1), add_kernel!, a, b, T(fac))
     return nothing
 end
@@ -89,7 +89,7 @@ end
 end
 
 function leftmul!(a::Abstractfield{B,T}, b::Abstractfield{B,T}) where {B,T}
-    @assert dims(b) == dims(a)
+    check_dims(a, b)
     @latmap(Sequential(), Val(1), leftmul_kernel!, a, b)
     return nothing
 end
@@ -103,7 +103,7 @@ end
 end
 
 function leftmul_dagg!(a::Abstractfield{B,T}, b::Abstractfield{B,T}) where {B,T}
-    @assert dims(b) == dims(a)
+    check_dims(a, b)
     @latmap(Sequential(), Val(1), leftmul_dagg_kernel!, a, b)
     return nothing
 end
@@ -117,7 +117,7 @@ end
 end
 
 function rightmul!(a::Abstractfield{B,T}, b::Abstractfield{B,T}) where {B,T}
-    @assert dims(b) == dims(a)
+    check_dims(a, b)
     @latmap(Sequential(), Val(1), rightmul_kernel!, a, b)
     return nothing
 end
@@ -131,7 +131,7 @@ end
 end
 
 function rightmul_dagg!(a::Abstractfield{B,T}, b::Abstractfield{B,T}) where {B,T}
-    @assert dims(b) == dims(a)
+    check_dims(a, b)
     @latmap(Sequential(), Val(1), rightmul_dagg_kernel!, a, b)
     return nothing
 end

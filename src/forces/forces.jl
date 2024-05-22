@@ -1,6 +1,9 @@
 import ..DiracOperators: StaggeredDiracOperator, StaggeredFermionAction
+import ..DiracOperators: StaggeredEOPreDiracOperator, StaggeredEOPreFermionAction
 import ..DiracOperators: WilsonDiracOperator, WilsonFermionAction
-import ..DiracOperators: boundary_factor, staggered_η, solve_D⁻¹x!, solve_D⁻¹x_multishift!
+import ..DiracOperators: Daggered, DdaggerD, EvenOdd
+import ..DiracOperators: boundary_factor, staggered_η, solve_dirac!, solve_dirac_multishift!
+import ..DiracOperators: mul_oe!, mul_eo!
 
 """
     calc_dSfdU_bare!(dU, fermion_action, U, ϕ, ::Any, ::NoSmearing)
@@ -33,3 +36,9 @@ include("gauge_force.jl")
 include("bias_force.jl")
 include("wilson_force.jl")
 include("staggered_force.jl")
+include("staggered_eo_force.jl")
+
+include("gpu_kernels/gauge_force.jl")
+include("gpu_kernels/bias_force.jl")
+include("gpu_kernels/wilson_force.jl")
+include("gpu_kernels/staggered_force.jl")

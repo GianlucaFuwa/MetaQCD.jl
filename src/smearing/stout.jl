@@ -63,7 +63,7 @@ function apply_smearing!(smearing, Uin)
 end
 
 function apply_stout_smearing!(Uout, C, Q, U, ρ)
-    @assert dims(Uout) == dims(C) == dims(Q) == dims(U)
+    check_dims(Uout, C, Q, U)
 
     @batch for site in eachindex(U)
         for μ in 1:4
@@ -94,7 +94,8 @@ Stout-Force recursion \\
 See [hep-lat/0311018] by Morningstar & Peardon
 """
 function stout_recursion!(Σ, Σ′, U′, U, C, Q, Λ, ρ)
-    @assert dims(Σ) == dims(Σ′) == dims(U′) == dims(U) == dims(C) == dims(Q) == dims(Λ)
+    check_dims(Σ, Σ′, U′, U, C, Q, Λ)
+
     leftmul_dagg!(Σ′, U′)
     calc_stout_Λ!(Λ, Σ′, Q, U)
     dimsΣ′ = dims(Σ′)
@@ -146,7 +147,7 @@ function stout_recursion!(Σ, Σ′, U′, U, C, Q, Λ, ρ)
 end
 
 function calc_stout_Λ!(Λ, Σ′, Q, U)
-    @assert dims(Λ) == dims(Σ′) == dims(Q) == dims(U)
+    check_dims(Λ, Σ′, Q, U)
 
     @batch for site in eachindex(Λ)
         for μ in 1:4

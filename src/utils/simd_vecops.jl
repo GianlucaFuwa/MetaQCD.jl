@@ -908,9 +908,9 @@ end
 """
     σμν_spin_mul(x, ::Val{μ}, ::Val{ν})
 
-Return `σμν * x` where `σμν = i/2 * [γμ, γν]` with the gamma matrices in the Chiral basis.
+Return `σμν * x` where `σμν = i/2 * [γμ, γν]` with the gamma matrices in the Chiral basis
 and `x` is a 4xN component complex vector. The latter two arguments are μ and ν wrapped in
-a `Val` and must be within the range [1,4] with μ < ν
+a `Val` and must be within the range `[1,4]` with `μ < ν`
 """
 @inline function σμν_spin_mul(x::SVector{M,Complex{T}}, ::Val{μ}, ::Val{ν}) where {T,M,μ,ν}
     return SVector(σμν_spin_mul!(MVector{M,Complex{T}}(undef), MVector(x), Val(μ), Val(ν)))

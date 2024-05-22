@@ -19,9 +19,8 @@ A Staggered Dirac operator with gauge background is created by applying it to a 
         Hermitian version of the operator
 - `TG`: Type of the underlying `Gaugefield`
 """
-mutable struct StaggeredEOPreDiracOperator{B,T,TOO,TF,TG} <: AbstractDiracOperator
+struct StaggeredEOPreDiracOperator{B,T,TF,TG} <: AbstractDiracOperator
     U::TG
-    Dₒₒ⁻¹::TOO
     temp::TF # temp for storage of intermediate result for DdaggerD operator
     mass::Float64
     anti_periodic::Bool # Only in time direction
@@ -29,20 +28,28 @@ mutable struct StaggeredEOPreDiracOperator{B,T,TOO,TF,TG} <: AbstractDiracOperat
         f::Abstractfield{B,T}, mass; anti_periodic=anti_periodic
     ) where {B,T}
         U = nothing
-        Dₒₒ⁻¹ = KernelAbstractions.zeros(B(), SMatrix{3,3,Complex{T},9}, f.NV)
-        temp = Fermionfield(f; staggered=true)
+        temp = even_odd(Fermionfield(f; staggered=true))
         TG = Nothing
-        TOO = typeof(Dₒₒ⁻¹)
         TF = typeof(temp)
-        return new{B,T,TOO,TF,TG}(U, Dₒₒ⁻¹, temp, mass, anti_periodic)
+        return new{B,T,TF,TG}(U, temp, mass, anti_periodic)
     end
 
     function StaggeredEOPreDiracOperator(
-        D::Union{StaggeredDiracOperator{B,T,TF},StaggeredEOPreDiracOperator{B,T,TF}},
-        U::Gaugefield{B,T},
+        D::StaggeredDiracOperator{B,T,TF}, U::Gaugefield{B,T}
     ) where {B,T,TF}
+        check_dims(U, D.temp)
+        temp = even_odd(D.temp)
+        TF_new = typeof(temp)
         TG = typeof(U)
-        return new{B,T,TF,TG}(U, D.Dₒₒ⁻¹, D.temp, D.mass, D.anti_periodic)
+        return new{B,T,TF_new,TG}(U, temp, D.mass, D.anti_periodic)
+    end
+
+    function StaggeredEOPreDiracOperator(
+        D::StaggeredEOPreDiracOperator{B,T,TF}, U::Gaugefield{B,T}
+    ) where {B,T,TF}
+        check_dims(U, D.temp.parent)
+        TG = typeof(U)
+        return new{B,T,TF,TG}(U, D.temp, D.mass, D.anti_periodic)
     end
 end
 
@@ -50,13 +57,13 @@ function (D::StaggeredEOPreDiracOperator{B,T})(U::Gaugefield{B,T}) where {B,T}
     return StaggeredEOPreDiracOperator(D, U)
 end
 
-const StaggeredFermionfield{B,T,A} = Fermionfield{B,T,A,1}
+const StaggeredEOPreFermionfield{B,T,A} = EvenOdd{B,T,A,1}
 
-struct StaggeredEOPreFermionAction{Nf,TD,CT,RI,RT} <: AbstractFermionAction
+struct StaggeredEOPreFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
     D::TD
     cg_temps::CT
-    rhmc_info_action::RI
-    rhmc_info_md::RI
+    rhmc_info_action::RI1
+    rhmc_info_md::RI2
     rhmc_temps1::RT # this holds the results of multishift cg
     rhmc_temps2::RT # this holds the basis vectors in multishift cg
     cg_tol::Float64
@@ -65,41 +72,60 @@ struct StaggeredEOPreFermionAction{Nf,TD,CT,RI,RT} <: AbstractFermionAction
         f,
         mass;
         anti_periodic=true,
-        Nf=8,
-        rhmc_order=10,
-        rhmc_prec=42,
-        # eo_precond=false,
+        Nf=4,
+        rhmc_order_for_md=10,
+        rhmc_prec_for_md=42,
+        rhmc_order_for_action=15,
+        rhmc_prec_for_action=42,
         cg_tol=1e-14,
         cg_maxiters=1000,
     )
-        @level1("┌ Setting Staggered Fermion Action...")
+        @level1("┌ Setting Even-Odd Preconditioned Staggered Fermion Action...")
         @level1("| MASS: $(mass)")
         @level1("| Nf: $(Nf)")
         D = StaggeredEOPreDiracOperator(f, mass; anti_periodic=anti_periodic)
         TD = typeof(D)
 
-        if Nf == 8
+        if Nf == 4
             rhmc_info_md = nothing
-            rhmc_info_action = nothing
-            rhmc_temps1 = nothing
-            rhmc_temps2 = nothing
-            cg_temps = ntuple(_ -> Fermionfield(f; staggered=true), 4)
-        else
-            @assert 8 > Nf > 0 "Nf should be between 1 and 8 (was $Nf)"
-            cg_temps = ntuple(_ -> Fermionfield(f; staggered=true), 2)
             power = Nf//8
-            rhmc_info_md = RHMCParams(power; n=rhmc_order, precision=rhmc_prec)
-            # rhmc_info_action = RHMCParams(power; n=rhmc_order, precision=rhmc_prec)
-            rhmc_info_action = rhmc_info_md
-            rhmc_temps1 = ntuple(_ -> Fermionfield(f; staggered=true), rhmc_order + 1)
-            rhmc_temps2 = ntuple(_ -> Fermionfield(f; staggered=true), rhmc_order + 1)
+            rhmc_info_action = RHMCParams(
+                power; n=rhmc_order_for_action, precision=rhmc_prec_for_action
+            )
+            n_temps = rhmc_order_for_action
+            rhmc_temps1 = ntuple(
+                _ -> even_odd(Fermionfield(f; staggered=true)), n_temps + 1
+            )
+            rhmc_temps2 = ntuple(
+                _ -> even_odd(Fermionfield(f; staggered=true)), n_temps + 1
+            )
+            cg_temps = ntuple(_ -> even_odd(Fermionfield(f; staggered=true)), 4)
+        else
+            @assert 4 > Nf > 0 "Nf should be between 1 and 4 (was $Nf)"
+            cg_temps = ntuple(_ -> even_odd(Fermionfield(f; staggered=true)), 2)
+            power = Nf//4
+            rhmc_info_md = RHMCParams(
+                power; n=rhmc_order_for_md, precision=rhmc_prec_for_md
+            )
+            power = Nf//8
+            rhmc_info_action = RHMCParams(
+                power; n=rhmc_order_for_action, precision=rhmc_prec_for_action
+            )
+            n_temps = max(rhmc_order_for_md, rhmc_order_for_action)
+            rhmc_temps1 = ntuple(
+                _ -> even_odd(Fermionfield(f; staggered=true)), n_temps + 1
+            )
+            rhmc_temps2 = ntuple(
+                _ -> even_odd(Fermionfield(f; staggered=true)), n_temps + 1
+            )
         end
 
         CT = typeof(cg_temps)
-        RI = typeof(rhmc_info_action)
+        RI1 = typeof(rhmc_info_action)
+        RI2 = typeof(rhmc_info_md)
         RT = typeof(rhmc_temps1)
         @level1("└\n")
-        return new{Nf,TD,CT,RI,RT}(
+        return new{Nf,TD,CT,RI1,RI2,RT}(
             D,
             cg_temps,
             rhmc_info_action,
@@ -112,31 +138,37 @@ struct StaggeredEOPreFermionAction{Nf,TD,CT,RI,RT} <: AbstractFermionAction
     end
 end
 
-function Base.show(io::IO, ::MIME"text/plain", S::StaggeredFermionAction{Nf}) where {Nf}
+function Base.show(
+    io::IO, ::MIME"text/plain", S::StaggeredEOPreFermionAction{Nf}
+) where {Nf}
     print(
         io,
-        "StaggeredFermionAction{Nf=$Nf}(; cg_tol=$(S.cg_tol), cg_maxiters=$(S.cg_maxiters))",
+        "StaggeredEOPreFermionAction{Nf=$Nf}(; cg_tol=$(S.cg_tol), cg_maxiters=$(S.cg_maxiters))",
     )
     return nothing
 end
 
 function calc_fermion_action(
-    fermion_action::StaggeredFermionAction{8}, U::Gaugefield, ϕ::StaggeredFermionfield
+    fermion_action::StaggeredEOPreFermionAction{4},
+    U::Gaugefield,
+    ϕ_eo::StaggeredEOPreFermionfield,
 )
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
-    ψ, temp1, temp2, temp3 = fermion_action.cg_temps
+    ψ_eo, temp1, temp2, temp3 = fermion_action.cg_temps
     cg_tol = fermion_action.cg_tol
     cg_maxiters = fermion_action.cg_maxiters
 
-    clear!(ψ) # initial guess is zero
-    solve_D⁻¹x!(ψ, DdagD, ϕ, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
-    Sf = dot(ϕ, ψ)
+    clear!(ψ_eo) # initial guess is zero
+    solve_dirac!(ψ_eo, DdagD, ϕ_eo, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
+    Sf = dot(ϕ_eo, ψ_eo)
     return real(Sf)
 end
 
 function calc_fermion_action(
-    fermion_action::StaggeredFermionAction{Nf}, U::Gaugefield, ϕ::StaggeredFermionfield
+    fermion_action::StaggeredEOPreFermionAction{Nf},
+    U::Gaugefield,
+    ϕ_eo::StaggeredEOPreFermionfield,
 ) where {Nf}
     cg_tol = fermion_action.cg_tol
     cg_maxiters = fermion_action.cg_maxiters
@@ -144,46 +176,49 @@ function calc_fermion_action(
     n = rhmc.coeffs_inverse.n
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
-    ψs = fermion_action.rhmc_temps1
-    ps = fermion_action.rhmc_temps2
+    ψs = fermion_action.rhmc_temps1[1:n+1]
+    ps = fermion_action.rhmc_temps2[1:n+1]
     temp1, temp2 = fermion_action.cg_temps
 
-    for v in ψs
-        clear!(v)
+    for v_eo in ψs
+        clear!(v_eo)
     end
+
     shifts = rhmc.coeffs_inverse.β
     coeffs = rhmc.coeffs_inverse.α
     α₀ = rhmc.coeffs_inverse.α0
-    solve_D⁻¹x_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
-    ψ = ψs[1]
-    clear!(ψ) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
+    solve_dirac_multishift!(ψs, shifts, DdagD, ϕ_eo, temp1, temp2, ps, cg_tol, cg_maxiters)
+    ψ_eo = ψs[1]
+    clear!(ψ_eo) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
 
-    axpy!(α₀, ϕ, ψ)
+    axpy!(α₀, ϕ_eo, ψ_eo)
     for i in 1:n
-        axpy!(coeffs[i], ψs[i+1], ψ)
+        axpy!(coeffs[i], ψs[i+1], ψ_eo)
     end
 
-    Sf = dot(ϕ, ψ)
+    Sf = dot(ψ_eo, ψ_eo)
     return real(Sf)
 end
 
-function sample_pseudofermions!(ϕ, fermion_action::StaggeredFermionAction{8}, U)
-    D = fermion_action.D(U)
-    temp = fermion_action.cg_temps[1]
-    gaussian_pseudofermions!(temp)
-    mul!(ϕ, D, temp)
-    return nothing
-end
+# function sample_pseudofermions!(ϕ_eo, fermion_action::StaggeredEOPreFermionAction{4}, U)
+#     D = fermion_action.D(U)
+#     temp = fermion_action.cg_temps[1]
+#     gaussian_pseudofermions!(temp)
+#     LinearAlgebra.mul!(ϕ_eo, D, temp)
+#     return nothing
+# end
 
-function sample_pseudofermions!(ϕ, fermion_action::StaggeredFermionAction{Nf}, U) where {Nf}
+function sample_pseudofermions!(
+    ϕ_eo, fermion_action::StaggeredEOPreFermionAction{Nf}, U
+) where {Nf}
     cg_tol = fermion_action.cg_tol
     cg_maxiters = fermion_action.cg_maxiters
     rhmc = fermion_action.rhmc_info_action
     n = rhmc.coeffs.n
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
-    ψs = fermion_action.rhmc_temps1
-    ps = fermion_action.rhmc_temps2
+    ψs = fermion_action.rhmc_temps1[1:n+1]
+    ps = fermion_action.rhmc_temps2[1:n+1]
     temp1, temp2 = fermion_action.cg_temps
 
     for v in ψs
@@ -192,21 +227,20 @@ function sample_pseudofermions!(ϕ, fermion_action::StaggeredFermionAction{Nf}, 
     shifts = rhmc.coeffs.β
     coeffs = rhmc.coeffs.α
     α₀ = rhmc.coeffs.α0
-    gaussian_pseudofermions!(ϕ) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
-    solve_D⁻¹x_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
+    gaussian_pseudofermions!(ϕ_eo) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
+    solve_dirac_multishift!(ψs, shifts, DdagD, ϕ_eo, temp1, temp2, ps, cg_tol, cg_maxiters)
 
-    axpy!(α₀, ϕ, ϕ)
+    axpy!(α₀, ϕ_eo, ϕ_eo)
     for i in 1:n
-        axpy!(coeffs[i], ψs[i+1], ϕ)
+        axpy!(coeffs[i], ψs[i+1], ϕ_eo)
     end
     return nothing
 end
 
-function solve_D⁻¹x!(
-    ψ, D::T, ϕ, temp1, temp2, temp3, temp4, temp5; tol=1e-14, maxiters=1000
-) where {T<:StaggeredDiracOperator}
-    @assert dims(ψ) == dims(ϕ) == dims(D.U)
-    bicg_stab!(ψ, D, ϕ, temp1, temp2, temp3, temp4, temp5; tol=tol, maxiters=maxiters)
+function solve_dirac!(
+    ψ_eo, D::T, ϕ_eo, temp1, temp2, temp3, temp4, temp5; tol=1e-14, maxiters=1000
+) where {T<:StaggeredEOPreDiracOperator}
+    bicg_stab!(ψ_eo, D, ϕ_eo, temp1, temp2, temp3, temp4, temp5; tol=tol, maxiters=maxiters)
     return nothing
 end
 
@@ -214,81 +248,130 @@ end
 # The Gaugefields module into CG.jl, which also allows us to use the solvers for 
 # for arbitrary arrays, not just fermion fields and dirac operators (good for testing)
 function LinearAlgebra.mul!(
-    ψ::TF, D::StaggeredDiracOperator{CPU,T,TF,TG}, ϕ::TF
+    ψ_eo::TF, D::StaggeredEOPreDiracOperator{CPU,T,TF,TG}, ϕ_eo::TF
 ) where {T,TF,TG}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.U
     mass = T(D.mass)
     anti = D.anti_periodic
-    @assert dims(ψ) == dims(ϕ) == dims(U)
 
-    @batch for site in eachindex(ψ)
-        ψ[site] = staggered_kernel(U, ϕ, site, mass, anti, T, 1)
-    end
-
+    # ψₑ = Dₒₑϕₑ
+    mul_oe!(ψ_eo, U, ϕ_eo, anti, true, false)
+    # ψₑ = DₑₒDₒₑϕₑ
+    mul_eo!(ψ_eo, U, ψ_eo, anti, false, false)
+    axpby!(mass, ϕ_eo, -1 / mass, ψ_eo) # ψₑ = Dₑₑϕₑ - DₑₒDₒₒ⁻¹Dₒₑϕₑ
     return nothing
 end
 
 function LinearAlgebra.mul!(
-    ψ::TF, D::Daggered{StaggeredDiracOperator{CPU,T,TF,TG}}, ϕ::TF
+    ψ_eo::TF, D::Daggered{StaggeredEOPreDiracOperator{CPU,T,TF,TG}}, ϕ_eo::TF
 ) where {T,TF,TG}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.parent.U
     mass = T(D.parent.mass)
     anti = D.parent.anti_periodic
-    @assert dims(ψ) == dims(ϕ) == dims(U)
 
-    @batch for site in eachindex(ψ)
-        ψ[site] = staggered_kernel(U, ϕ, site, mass, anti, T, -1)
-    end
-
+    # ψₒ = Dₒₑϕₑ
+    mul_oe!(ψ_eo, U, ϕ_eo, anti, true, true)
+    # ψₑ = DₑₒDₒₑϕₑ
+    mul_eo!(ψ_eo, U, ψ_eo, anti, false, true)
+    axpby!(mass, ϕ_eo, -1 / mass, ψ_eo) # ψₑ = Dₑₑϕₑ - Dₑₒ†Dₒₒ⁻¹Dₒₑ†ϕₑ
     return nothing
 end
 
 function LinearAlgebra.mul!(
-    ψ::TF, D::DdaggerD{StaggeredDiracOperator{CPU,T,TF,TG}}, ϕ::TF
+    ψ_eo::TF, D::DdaggerD{StaggeredEOPreDiracOperator{CPU,T,TF,TG}}, ϕ_eo::TF
 ) where {T,TF,TG}
-    temp = D.parent.temp
-    mul!(temp, D.parent, ϕ) # temp = Dϕ
-    mul!(ψ, adjoint(D.parent), temp) # ψ = D†Dϕ
+    @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
+    U = D.parent.U
+    mass = T(D.parent.mass)
+    anti = D.parent.anti_periodic
+
+    # ψₒ = Dₒₑϕₑ
+    mul_oe!(ψ_eo, U, ϕ_eo, anti, true, true)
+    # ψₑ = DₑₒDₒₑϕₑ
+    mul_eo!(ψ_eo, U, ψ_eo, anti, false, true)
+    axpby!(mass^2, ϕ_eo, -1, ψ_eo) # ψₑ = m²ϕₑ - DₑₒDₒₑϕₑ
     return nothing
 end
 
-function staggered_kernel(U, ϕ, site, mass, anti, ::Type{T}, sgn=1) where {T}
+function mul_oe!(
+    ψ_eo::TF, U::Gaugefield{CPU,T}, ϕ_eo::TF, anti, into_odd, dagg::Bool; fac=1
+) where {T,TF<:EvenOdd{CPU,T}}
+    check_dims(ψ_eo, ϕ_eo, U)
+    ψ = ψ_eo.parent
+    ϕ = ϕ_eo.parent
+    fdims = dims(ψ)
+    NV = ψ.NV
+
+    @batch for site in eachindex(ψ)
+        isodd(site) || continue
+        _site = if into_odd
+            eo_site(site, fdims..., NV)
+        else
+            eo_site_switch(site, fdims..., NV)
+        end
+        ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, anti, T, dagg)
+    end
+end
+
+function mul_eo!(
+    ψ_eo::TF, U::Gaugefield{CPU,T}, ϕ_eo::TF, anti, into_odd, dagg::Bool; fac=1
+) where {T,TF<:EvenOdd{CPU,T}}
+    check_dims(ψ_eo, ϕ_eo, U)
+    ψ = ψ_eo.parent
+    ϕ = ϕ_eo.parent
+    fdims = dims(ψ)
+    NV = ψ.NV
+
+    @batch for site in eachindex(ψ)
+        iseven(site) || continue
+        _site = if into_odd
+            eo_site_switch(site, fdims..., NV)
+        else
+            eo_site(site, fdims..., NV)
+        end
+        ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, anti, T, dagg)
+    end
+end
+
+function staggered_eo_kernel(U, ϕ, site, anti, ::Type{T}, dagg::Bool) where {T}
+    sgn = dagg ? -1 : 1
+    # sites that begin with a "_" are meant for indexing into the even-odd preconn'ed
+    # fermion field 
     NX, NY, NZ, NT = dims(U)
-    ψₙ = 2mass * ϕ[site]
+    NV = NX * NY * NZ * NT
+    ψₙ = zero(ϕ[site])
     # Cant do a for loop here because Val(μ) cannot be known at compile time and is 
     # therefore dynamically dispatched
-    siteμ⁺ = move(site, 1, 1, NX)
+    _siteμ⁺ = eo_site(move(site, 1, 1, NX), NX, NY, NZ, NT, NV)
     siteμ⁻ = move(site, 1, -1, NX)
+    _siteμ⁻ = eo_site(siteμ⁻, NX, NY, NZ, NT, NV)
     η = sgn * staggered_η(Val(1), site)
-    ψₙ += η * cmvmul(U[1, site], ϕ[siteμ⁺])
-    ψₙ -= η * cmvmul_d(U[1, siteμ⁻], ϕ[siteμ⁻])
+    ψₙ += η * cmvmul(U[1, site], ϕ[_siteμ⁺])
+    ψₙ -= η * cmvmul_d(U[1, siteμ⁻], ϕ[_siteμ⁻])
 
-    siteμ⁺ = move(site, 2, 1, NY)
-    siteμ⁻ = move(site, 2, -1, NY)
+    _siteμ⁺ = eo_site(move(site, 2, 1, NX), NX, NY, NZ, NT, NV)
+    siteμ⁻ = move(site, 2, -1, NX)
+    _siteμ⁻ = eo_site(siteμ⁻, NX, NY, NZ, NT, NV)
     η = sgn * staggered_η(Val(2), site)
-    ψₙ += η * cmvmul(U[2, site], ϕ[siteμ⁺])
-    ψₙ -= η * cmvmul_d(U[2, siteμ⁻], ϕ[siteμ⁻])
+    ψₙ += η * cmvmul(U[2, site], ϕ[_siteμ⁺])
+    ψₙ -= η * cmvmul_d(U[2, siteμ⁻], ϕ[_siteμ⁻])
 
-    siteμ⁺ = move(site, 3, 1, NZ)
-    siteμ⁻ = move(site, 3, -1, NZ)
+    _siteμ⁺ = eo_site(move(site, 3, 1, NX), NX, NY, NZ, NT, NV)
+    siteμ⁻ = move(site, 3, -1, NX)
+    _siteμ⁻ = eo_site(siteμ⁻, NX, NY, NZ, NT, NV)
     η = sgn * staggered_η(Val(3), site)
-    ψₙ += η * cmvmul(U[3, site], ϕ[siteμ⁺])
-    ψₙ -= η * cmvmul_d(U[3, siteμ⁻], ϕ[siteμ⁻])
+    ψₙ += η * cmvmul(U[3, site], ϕ[_siteμ⁺])
+    ψₙ -= η * cmvmul_d(U[3, siteμ⁻], ϕ[_siteμ⁻])
 
-    siteμ⁺ = move(site, 4, 1, NT)
-    siteμ⁻ = move(site, 4, -1, NT)
+    _siteμ⁺ = eo_site(move(site, 4, 1, NX), NX, NY, NZ, NT, NV)
+    siteμ⁻ = move(site, 4, -1, NX)
+    _siteμ⁻ = eo_site(siteμ⁻, NX, NY, NZ, NT, NV)
     bc⁺ = boundary_factor(anti, site[4], 1, NT)
     bc⁻ = boundary_factor(anti, site[4], -1, NT)
     η = sgn * staggered_η(Val(4), site)
-    ψₙ += η * cmvmul(U[4, site], bc⁺ * ϕ[siteμ⁺])
-    ψₙ -= η * cmvmul_d(U[4, siteμ⁻], bc⁻ * ϕ[siteμ⁻])
+    ψₙ += η * cmvmul(U[4, site], bc⁺ * ϕ[_siteμ⁺])
+    ψₙ -= η * cmvmul_d(U[4, siteμ⁻], bc⁻ * ϕ[_siteμ⁻])
     return T(0.5) * ψₙ
 end
-
-# Use Val to reduce the amount of if-statements in the kernel
-@inline staggered_η(::Val{1}, site) = 1
-@inline staggered_η(::Val{2}, site) = ifelse(iseven(site[1]), 1, -1)
-@inline staggered_η(::Val{3}, site) = ifelse(iseven(site[1] + site[2]), 1, -1)
-@inline staggered_η(::Val{4}, site) = ifelse(iseven(site[1] + site[2] + site[3]), 1, -1)

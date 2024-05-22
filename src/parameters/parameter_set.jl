@@ -9,15 +9,18 @@ struct ParameterSet
 
     # dynamical fermion parameters
     fermion_action::String
-    Nf_light::Int64
-    mass_light::Float64
-    Nf_heavy::Int64
-    mass_heavy::Float64
+    Nf::Union{Int,Vector{Int}}
+    mass::Union{Float64,Vector{Float64}}
     r::Float64
     csw::Float64
     anti_periodic::Bool
     cg_tol::Float64
     cg_maxiters::Int64
+    rhmc_order_for_action::Int64
+    rhmc_prec_for_action::Int64
+    rhmc_order_for_md::Int64
+    rhmc_prec_for_md::Int64
+    eo_precon::Bool
 
     # bias parameters
     kind_of_bias::String

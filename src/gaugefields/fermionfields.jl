@@ -55,30 +55,30 @@ Base.@propagate_inbounds Base.setindex!(f::Fermionfield, v, x, y, z, t) =
 Base.@propagate_inbounds Base.setindex!(f::Fermionfield, v, site::SiteCoords) =
     setindex!(f.U, v, site)
 
-function clear!(ψ::Fermionfield{CPU,T}) where {T}
-    @batch for site in eachindex(ψ)
-        ψ[site] = zero(ψ[site])
+function clear!(ϕ::Fermionfield{CPU,T}) where {T}
+    @batch for site in eachindex(ϕ)
+        ϕ[site] = zero(ϕ[site])
     end
 
     return nothing
 end
 
-function ones!(ψ::Fermionfield{CPU,T}) where {T}
-    @batch for site in eachindex(ψ)
-        ψ[site] = fill(1, ψ[site])
+function ones!(ϕ::Fermionfield{CPU,T}) where {T}
+    @batch for site in eachindex(ϕ)
+        ϕ[site] = fill(1, ϕ[site])
     end
 
     return nothing
 end
 
-function set_source!(ψ::Fermionfield{CPU,T}, site::SiteCoords, a, μ) where {T}
-    NC = num_colors(ψ)
-    ND = num_dirac(ψ)
+function set_source!(ϕ::Fermionfield{CPU,T}, site::SiteCoords, a, μ) where {T}
+    NC = num_colors(ϕ)
+    ND = num_dirac(ϕ)
     @assert μ ∈ 1:ND && a ∈ 1:3
-    clear!(ψ)
+    clear!(ϕ)
     vec_index = (μ - 1) * NC + a
     tup = ntuple(i -> i == vec_index ? one(Complex{T}) : zero(Complex{T}), Val(3ND))
-    ψ[site] = SVector{3ND,Complex{T}}(tup)
+    ϕ[site] = SVector{3ND,Complex{T}}(tup)
     return nothing
 end
 
@@ -131,6 +131,173 @@ function LinearAlgebra.dot(ϕ::T, ψ::T) where {T<:Fermionfield{CPU}}
 
     @batch reduction = (+, res) for site in eachindex(ϕ)
         res += cdot(ϕ[site], ψ[site])
+    end
+
+    return res
+end
+
+"""
+    even_odd(f::Fermionfield)
+
+Create a wrapper around a `Fermionfield` to signal that it is meant to be used in the context
+of even-odd preconditioning. What this amounts to is that we realign the entries such that
+`ϕ -> (ϕₑ, ϕₒ)`, which is achieved by recalculating the index whenever we index into `ϕ`
+"""
+even_odd(f::Fermionfield) = EvenOdd(f)
+
+struct EvenOdd{B,T,A,ND} <: Abstractfield{B,T,A}
+    parent::Fermionfield{B,T,A,ND}
+    EvenOdd(f::Fermionfield{B,T,A,ND}) where {B,T,A,ND} = new{B,T,A,ND}(f)
+end
+
+@inline dims(f::EvenOdd) = dims(f.parent)
+Base.size(f::EvenOdd) = size(f.parent)
+num_colors(::EvenOdd{B,T,A,ND}) where {B,T,A,ND} = 3
+num_dirac(::EvenOdd{B,T,A,ND}) where {B,T,A,ND} = ND
+
+clear!(ϕ_eo::EvenOdd) = clear!(ϕ_eo.parent)
+ones!(ϕ_eo::EvenOdd) = ones!(ϕ_eo.parent)
+
+function set_source!(ϕ_eo::EvenOdd{CPU,T}, site::CartesianIndex{4}, a, μ) where {T}
+    ϕ = ϕ_eo.parent
+    NC = num_colors(ϕ)
+    ND = num_dirac(ϕ)
+    @assert μ ∈ 1:ND && a ∈ 1:3
+    clear!(ϕ)
+    vec_index = (μ - 1) * NC + a
+    tup = ntuple(i -> i == vec_index ? one(Complex{T}) : zero(Complex{T}), Val(3ND))
+    _site = eo_site(site, dims(ϕ)..., ϕ.NV)
+    ϕ[_site] = SVector{3ND,Complex{T}}(tup)
+    return nothing
+end
+
+function Base.copy!(ϕ_eo::T, ψ_eo::T, even=true) where {T<:EvenOdd{CPU}}
+    check_dims(ϕ_eo, ψ_eo)
+    ϕ = ϕ_eo.parent
+    ψ = ψ_eo.parent
+
+    @batch for e_site in eachindex(even, ϕ)
+        ϕ[e_site] = ψ[e_site]
+    end
+
+    return nothing
+end
+
+function copy_eo!(ϕ_eo::T, ψ_eo::T) where {T<:EvenOdd{CPU}}
+    check_dims(ϕ_eo, ψ_eo)
+    ϕ = ϕ_eo.parent
+    ψ = ψ_eo.parent
+    fdims = dims(ϕ)
+    NV = ϕ.NV
+    even = true
+
+    for e_site in eachindex(even, ϕ)
+        o_site = switch_sides(e_site, fdims..., NV)
+        ϕ[e_site] = ψ[o_site]
+    end
+
+    return nothing
+end
+
+function copy_oe!(ϕ_eo::T, ψ_eo::T) where {T<:EvenOdd{CPU}}
+    check_dims(ϕ_eo, ψ_eo)
+    ϕ = ϕ_eo.parent
+    ψ = ψ_eo.parent
+    fdims = dims(ϕ)
+    NV = ϕ.NV
+    odd = false
+
+    for o_site in eachindex(odd, ϕ)
+        e_site = switch_sides(o_site, fdims..., NV)
+        ϕ[o_site] = ψ[e_site]
+    end
+
+    return nothing
+end
+
+function gaussian_pseudofermions!(ϕ_eo::EvenOdd{CPU,T}) where {T}
+    ϕ = ϕ_eo.parent
+    sz = num_dirac(ϕ) * num_colors(ϕ)
+    even = true
+
+    for e_site in eachindex(even, ϕ)
+        ϕ[e_site] = @SVector randn(Complex{T}, sz) # σ = 0.5
+    end
+end
+
+function LinearAlgebra.axpy!(α, ψ_eo::T, ϕ_eo::T, even=true) where {T<:EvenOdd{CPU}} # even on even is the default
+    check_dims(ϕ_eo, ψ_eo)
+    ϕ = ϕ_eo.parent
+    ψ = ψ_eo.parent
+    FloatT = float_type(ϕ)
+    α = Complex{FloatT}(α)
+
+    @batch for _site in eachindex(even, ϕ)
+        ϕ[_site] += α * ψ[_site]
+    end
+
+    return nothing
+end
+
+function axpy_oe!(α, ψ_eo::T, ϕ_eo::T) where {T<:EvenOdd{CPU}}
+    check_dims(ϕ_eo, ψ_eo)
+    ϕ = ϕ_eo.parent
+    ψ = ψ_eo.parent
+    FloatT = float_type(ϕ)
+    α = Complex{FloatT}(α)
+    fdims = dims(ϕ)
+    NV = ϕ.NV
+    even = true
+
+    for e_site in eachindex(even, ϕ)
+        o_site = switch_sides(e_site, fdims..., NV)
+        ϕ[e_site] += α * ψ[o_site]
+    end
+
+    return nothing
+end
+
+function axpy_eo!(α, ψ_eo::T, ϕ_eo::T) where {T<:EvenOdd{CPU}}
+    check_dims(ϕ_eo, ψ_eo)
+    ϕ = ϕ_eo.parent
+    ψ = ψ_eo.parent
+    FloatT = float_type(ϕ)
+    α = Complex{FloatT}(α)
+    fdims = dims(ϕ)
+    NV = ϕ.NV
+    odd = false
+
+    for o_site in eachindex(odd, ϕ)
+        e_site = switch_sides(o_site, fdims..., NV)
+        ϕ[o_site] += α * ψ[e_site]
+    end
+
+    return nothing
+end
+
+function LinearAlgebra.axpby!(α, ψ_eo::T, β, ϕ_eo::T, even=true) where {T<:EvenOdd{CPU}}
+    check_dims(ϕ_eo, ψ_eo)
+    ϕ = ϕ_eo.parent
+    ψ = ψ_eo.parent
+    FloatT = float_type(ϕ)
+    α = Complex{FloatT}(α)
+    β = Complex{FloatT}(β)
+
+    @batch for _site in eachindex(even, ϕ)
+        ϕ[_site] = α * ψ[_site] + β * ϕ[_site]
+    end
+
+    return nothing
+end
+
+function LinearAlgebra.dot(ϕ_eo::T, ψ_eo::T, even=true) where {T<:EvenOdd{CPU}}
+    check_dims(ϕ_eo, ψ_eo)
+    ϕ = ϕ_eo.parent
+    ψ = ψ_eo.parent
+    res = 0.0 + 0.0im # res is always double precision, even if T is single precision
+
+    @batch reduction = (+, res) for _site in eachindex(even, ϕ)
+        res += cdot(ϕ[_site], ψ[_site])
     end
 
     return res

@@ -44,15 +44,6 @@ end
     ]
 end
 
-@inline function P₁(::Type{T}) where {T}
-    return @SArray [
-        Complex{T}(0, -1) Complex{T}(0, 0)
-        Complex{T}(0, 0) Complex{T}(1, 0)
-        Complex{T}(0, 0) Complex{T}(0, 1)
-        Complex{T}(1, 0) Complex{T}(0, 0)
-    ]
-end
-
 const σ₁ = @SArray [
     0 1
     1 0

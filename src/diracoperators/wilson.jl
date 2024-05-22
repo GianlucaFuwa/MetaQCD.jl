@@ -16,7 +16,7 @@ A Wilson Dirac operator with gauge background is created by applying it to a `Ga
         Hermitian version of the operator
 - `TG`: Type of the underlying `Gaugefield`
 """
-struct WilsonDiracOperator{B,T,TF,TG} <: AbstractDiracOperator
+struct WilsonDiracOperator{B,T,C,TF,TG} <: AbstractDiracOperator
     U::TG
     temp::TF # temp for storage of intermediate result for DdaggerD operator
     mass::Float64
@@ -30,17 +30,19 @@ struct WilsonDiracOperator{B,T,TF,TG} <: AbstractDiracOperator
         @assert r === 1 "Only r=1 in Wilson Dirac supported for now"
         κ = 1 / (2mass + 8)
         U = nothing
+        C = csw == 0 ? false : true
         temp = Fermionfield(f)
         TG = Nothing
         TF = typeof(temp)
-        return new{B,T,TF,TG}(U, temp, mass, κ, r, csw, anti_periodic)
+        return new{B,T,C,TF,TG}(U, temp, mass, κ, r, csw, anti_periodic)
     end
 
     function WilsonDiracOperator(
-        D::WilsonDiracOperator{B,T,TF}, U::Gaugefield{B,T}
-    ) where {B,T,TF}
+        D::WilsonDiracOperator{B,T,C,TF}, U::Gaugefield{B,T}
+    ) where {B,T,C,TF}
+        check_dims(U, D.temp)
         TG = typeof(U)
-        return new{B,T,TF,TG}(U, D.temp, D.mass, D.κ, D.r, D.csw, D.anti_periodic)
+        return new{B,T,C,TF,TG}(U, D.temp, D.mass, D.κ, D.r, D.csw, D.anti_periodic)
     end
 end
 
@@ -50,13 +52,14 @@ end
 
 const WilsonFermionfield{B,T,A} = Fermionfield{B,T,A,4}
 
-struct WilsonFermionAction{Nf,TD,CT,RI,RT} <: AbstractFermionAction
+struct WilsonFermionAction{Nf,C,TD,CT,RI,RT,TX} <: AbstractFermionAction
     D::TD
     cg_temps::CT
     rhmc_info_action::RI
     rhmc_info_md::RI
     rhmc_temps1::RT # this holds the results of multishift cg
     rhmc_temps2::RT # this holds the basis vectors in multishift cg
+    Xμν::TX
     cg_tol::Float64
     cg_maxiters::Int64
     function WilsonFermionAction(
@@ -64,10 +67,12 @@ struct WilsonFermionAction{Nf,TD,CT,RI,RT} <: AbstractFermionAction
         mass;
         anti_periodic=true,
         r=1,
-        csw=nothing,
+        csw=0,
         Nf=2,
-        rhmc_order=10,
-        rhmc_prec=42,
+        rhmc_order_for_md=10,
+        rhmc_prec_for_md=42,
+        rhmc_order_for_action=15,
+        rhmc_prec_for_action=42,
         cg_tol=1e-14,
         cg_maxiters=1000,
     )
@@ -90,24 +95,39 @@ struct WilsonFermionAction{Nf,TD,CT,RI,RT} <: AbstractFermionAction
             @assert Nf == 1 "Nf should be 1 or 2 (was $Nf). If you want Nf > 2, use multiple actions"
             cg_temps = ntuple(_ -> Fermionfield(f), 2)
             power = Nf//2
-            rhmc_info_md = RHMCParams(power; n=rhmc_order, precision=rhmc_prec)
-            # rhmc_info_action = RHMCParams(power; n=rhmc_order, precision=rhmc_prec)
-            rhmc_info_action = rhmc_info_md
-            rhmc_temps1 = ntuple(_ -> Fermionfield(f), rhmc_order + 1)
-            rhmc_temps2 = ntuple(_ -> Fermionfield(f), rhmc_order + 1)
+            rhmc_info_md = RHMCParams(
+                power; n=rhmc_order_for_md, precision=rhmc_prec_for_md
+            )
+            power = Nf//4
+            rhmc_info_action = RHMCParams(
+                power; n=rhmc_order_for_action, precision=rhmc_prec_for_action
+            )
+            n_temps = max(rhmc_order_for_md, rhmc_order_for_action)
+            rhmc_temps1 = ntuple(_ -> Fermionfield(f), n_temps + 1)
+            rhmc_temps2 = ntuple(_ -> Fermionfield(f), n_temps + 1)
+        end
+
+        if csw != 0
+            C = true
+            Xμν = Tensorfield(f)
+        else
+            C = false
+            Xμν = nothing
         end
 
         CT = typeof(cg_temps)
         RI = typeof(rhmc_info_md)
         RT = typeof(rhmc_temps1)
+        TX = typeof(Xμν)
         @level1("└\n")
-        return new{Nf,TD,CT,RI,RT}(
+        return new{Nf,C,TD,CT,RI,RT,TX}(
             D,
             cg_temps,
             rhmc_info_md,
             rhmc_info_action,
             rhmc_temps1,
             rhmc_temps2,
+            Xμν,
             cg_tol,
             cg_maxiters,
         )
@@ -132,7 +152,7 @@ function calc_fermion_action(
     cg_maxiters = fermion_action.cg_maxiters
 
     clear!(ψ) # initial guess is zero
-    solve_D⁻¹x!(ψ, DdagD, ϕ, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
+    solve_dirac!(ψ, DdagD, ϕ, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
     Sf = dot(ϕ, ψ)
     return real(Sf)
 end
@@ -157,7 +177,7 @@ function calc_fermion_action(
     shifts = rhmc.coeffs_inverse.β
     coeffs = rhmc.coeffs_inverse.α
     α₀ = rhmc.coeffs_inverse.α0
-    solve_D⁻¹x_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
+    solve_dirac_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
     ψ = ψs[1]
     clear!(ψ) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
 
@@ -196,7 +216,7 @@ function sample_pseudofermions!(ϕ, fermion_action::WilsonFermionAction{Nf}, U) 
     coeffs = rhmc.coeffs.α
     α₀ = rhmc.coeffs.α0
     gaussian_pseudofermions!(ϕ) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
-    solve_D⁻¹x_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
+    solve_dirac_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
 
     axpy!(α₀, ϕ, ϕ)
     for i in 1:n
@@ -205,10 +225,10 @@ function sample_pseudofermions!(ϕ, fermion_action::WilsonFermionAction{Nf}, U) 
     return nothing
 end
 
-function solve_D⁻¹x!(
+function solve_dirac!(
     ψ, D::T, ϕ, temp1, temp2, temp3, temp4, temp5; tol=1e-16, maxiters=1000
 ) where {T<:WilsonDiracOperator}
-    @assert dims(ψ) == dims(ϕ) == dims(D.U)
+    check_dims(ψ, ϕ, D.U, temp1, temp2, temp3, temp4, temp5)
     bicg_stab!(ψ, D, ϕ, temp1, temp2, temp3, temp4, temp5; tol=tol, maxiters=maxiters)
     return nothing
 end
@@ -217,20 +237,20 @@ end
 # The Gaugefields module into CG.jl, which also allows us to use the solvers for 
 # for arbitrary arrays, not just fermion fields and dirac operators (good for testing)
 function LinearAlgebra.mul!(
-    ψ::TF, D::WilsonDiracOperator{CPU,T,TF,TG}, ϕ::TF
-) where {T,TF,TG}
+    ψ::TF, D::WilsonDiracOperator{CPU,T,C,TF,TG}, ϕ::TF
+) where {T,C,TF,TG}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.U
     mass_term = T(8 + 2 * D.mass)
     csw = D.csw
     anti = D.anti_periodic
-    @assert dims(ψ) == dims(ϕ) == dims(U)
+    check_dims(ψ, ϕ, U)
 
     @batch for site in eachindex(ψ)
         ψ[site] = wilson_kernel(U, ϕ, site, mass_term, anti, T, Val(1))
     end
 
-    if csw != 0
+    if C
         fac = T(-csw / 2)
         @batch for site in eachindex(ψ)
             ψ[site] += clover_kernel(U, ϕ, site, fac, T)
@@ -241,20 +261,20 @@ function LinearAlgebra.mul!(
 end
 
 function LinearAlgebra.mul!(
-    ψ::TF, D::Daggered{WilsonDiracOperator{CPU,T,TF,TG}}, ϕ::TF
-) where {T,TF,TG}
+    ψ::TF, D::Daggered{WilsonDiracOperator{CPU,T,C,TF,TG}}, ϕ::TF
+) where {T,C,TF,TG}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.parent.U
     mass_term = T(8 + 2 * D.parent.mass)
     csw = D.parent.csw
     anti = D.parent.anti_periodic
-    @assert dims(ψ) == dims(ϕ) == dims(U)
+    check_dims(ψ, ϕ, U)
 
     @batch for site in eachindex(ψ)
         ψ[site] = wilson_kernel(U, ϕ, site, mass_term, anti, T, Val(-1))
     end
 
-    if csw != 0
+    if C
         fac = T(-csw / 2)
         @batch for site in eachindex(ψ)
             ψ[site] += clover_kernel(U, ϕ, site, fac, T)
@@ -265,8 +285,8 @@ function LinearAlgebra.mul!(
 end
 
 function LinearAlgebra.mul!(
-    ψ::TF, D::DdaggerD{WilsonDiracOperator{CPU,T,TF,TG}}, ϕ::TF
-) where {T,TF,TG}
+    ψ::TF, D::DdaggerD{WilsonDiracOperator{CPU,T,C,TF,TG}}, ϕ::TF
+) where {T,C,TF,TG}
     temp = D.parent.temp
     mul!(temp, D.parent, ϕ) # temp = Dϕ
     mul!(ψ, adjoint(D.parent), temp) # ψ = D†Dϕ
@@ -305,30 +325,33 @@ function wilson_kernel(U, ϕ, site, mass_term, anti, ::Type{T}, ::Val{dagg}) whe
 end
 
 function clover_kernel(U, ϕ, site, fac, ::Type{T}) where {T}
+    # Observed that it makes a difference whether we only make F antihermitian or traceless
+    # antihermitian in the accuracy of the derivative --> TA makes it worse
+    # is most severe when U is unsmeared
     Cₙₘ = zero(ϕ[site])
 
     C₁₂ = clover_square(U, 1, 2, site, 1)
-    F₁₂ = traceless_antihermitian(C₁₂)
-    Cₙₘ += cmvmul(F₁₂, σμν_spin_mul(ϕ[site], Val(1), Val(2)))
+    F₁₂ = antihermitian(C₁₂)
+    Cₙₘ += cmvmul_color(F₁₂, σμν_spin_mul(ϕ[site], Val(1), Val(2)))
 
     C₁₃ = clover_square(U, 1, 3, site, 1)
-    F₁₃ = traceless_antihermitian(C₁₃)
-    Cₙₘ += cmvmul(F₁₃, σμν_spin_mul(ϕ[site], Val(1), Val(3)))
+    F₁₃ = antihermitian(C₁₃)
+    Cₙₘ += cmvmul_color(F₁₃, σμν_spin_mul(ϕ[site], Val(1), Val(3)))
 
     C₁₄ = clover_square(U, 1, 4, site, 1)
-    F₁₄ = traceless_antihermitian(C₁₄)
-    Cₙₘ += cmvmul(F₁₄, σμν_spin_mul(ϕ[site], Val(1), Val(4)))
+    F₁₄ = antihermitian(C₁₄)
+    Cₙₘ += cmvmul_color(F₁₄, σμν_spin_mul(ϕ[site], Val(1), Val(4)))
 
     C₂₃ = clover_square(U, 2, 3, site, 1)
-    F₂₃ = traceless_antihermitian(C₂₃)
-    Cₙₘ += cmvmul(F₂₃, σμν_spin_mul(ϕ[site], Val(2), Val(3)))
+    F₂₃ = antihermitian(C₂₃)
+    Cₙₘ += cmvmul_color(F₂₃, σμν_spin_mul(ϕ[site], Val(2), Val(3)))
 
     C₂₄ = clover_square(U, 2, 4, site, 1)
-    F₂₄ = traceless_antihermitian(C₂₄)
-    Cₙₘ += cmvmul(F₂₄, σμν_spin_mul(ϕ[site], Val(2), Val(4)))
+    F₂₄ = antihermitian(C₂₄)
+    Cₙₘ += cmvmul_color(F₂₄, σμν_spin_mul(ϕ[site], Val(2), Val(4)))
 
     C₃₄ = clover_square(U, 3, 4, site, 1)
-    F₃₄ = traceless_antihermitian(C₃₄)
-    Cₙₘ += cmvmul(F₃₄, σμν_spin_mul(ϕ[site], Val(3), Val(4)))
-    return (fac * im * T(1 / 4)) * Cₙₘ
+    F₃₄ = antihermitian(C₃₄)
+    Cₙₘ += cmvmul_color(F₃₄, σμν_spin_mul(ϕ[site], Val(3), Val(4)))
+    return Complex{T}(fac * im / 4) * Cₙₘ
 end
