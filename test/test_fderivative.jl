@@ -14,15 +14,13 @@ function SU3testfderivative(;
     NY = 4
     NZ = 4
     NT = 4
-    U = initial_gauges("cold", NX, NY, NZ, NT, 6.0; GA=WilsonGaugeAction)
+    U = Gaugefield(NX, NY, NZ, NT, 6.0; GA=WilsonGaugeAction)
+
     if eoprec
-        ϕ = even_odd(Fermionfield(NX, NY, NZ, NT; staggered=dirac == "staggered"))
         ψ = even_odd(Fermionfield(NX, NY, NZ, NT; staggered=dirac == "staggered"))
     else
-        ϕ = Fermionfield(NX, NY, NZ, NT; staggered=dirac == "staggered")
         ψ = Fermionfield(NX, NY, NZ, NT; staggered=dirac == "staggered")
     end
-    MetaQCD.Gaugefields.gaussian_pseudofermions!(ϕ)
 
     action = if dirac == "staggered"
         if eoprec
@@ -34,7 +32,7 @@ function SU3testfderivative(;
         end
     elseif dirac == "wilson"
         if eoprec
-            WilsonEOPreFermionAction(U, 0.1; csw=1.78, cg_tol=1e-16, cg_maxiters=10000)
+            WilsonEOPreFermionAction(U, 0.1; Nf=Nf, csw=1.78, cg_tol=1e-16, cg_maxiters=10000)
         else
             Nf = single_flavor ? 1 : 2
             WilsonFermionAction(U, 0.1; Nf=Nf, csw=1.78, cg_tol=1e-16, cg_maxiters=10000)
@@ -42,6 +40,7 @@ function SU3testfderivative(;
     else
         error("dirac operator $dirac not supported")
     end
+    @show action
 
     filename = "./test/testconf.txt"
     loadU!(BridgeFormat(), U, filename)
@@ -111,4 +110,4 @@ function SU3testfderivative(;
     return relerrors
 end
 
-SU3testfderivative(; dirac="staggered", eoprec=false, single_flavor=true)
+SU3testfderivative(; dirac="wilson", eoprec=false, single_flavor=true)

@@ -143,7 +143,17 @@ function Base.show(
 ) where {Nf}
     print(
         io,
-        "StaggeredEOPreFermionAction{Nf=$Nf}(; cg_tol=$(S.cg_tol), cg_maxiters=$(S.cg_maxiters))",
+        "StaggeredEOPreFermionAction{Nf=$Nf}(; mass=$(S.D.mass), " *
+        "cg_tol=$(S.cg_tol), cg_maxiters=$(S.cg_maxiters))",
+    )
+    return nothing
+end
+
+function Base.show(io::IO, S::StaggeredEOPreFermionAction{Nf}) where {Nf}
+    print(
+        io,
+        "StaggeredEOPreFermionAction{Nf=$Nf}(; mass=$(S.D.mass), " *
+        "cg_tol=$(S.cg_tol), cg_maxiters=$(S.cg_maxiters))",
     )
     return nothing
 end

@@ -80,7 +80,6 @@ struct WilsonFermionAction{Nf,C,TD,CT,RI,RT,TX} <: AbstractFermionAction
         @level1("|  MASS: $(mass)")
         @level1("|  Nf: $(Nf)")
         @level1("|  r: $(r)")
-        @level1("|  CSW: $(csw)")
         @level1("|  CG TOLERANCE: $(cg_tol)")
         D = WilsonDiracOperator(f, mass; anti_periodic=anti_periodic, r=r, csw=csw)
         TD = typeof(D)
@@ -108,9 +107,11 @@ struct WilsonFermionAction{Nf,C,TD,CT,RI,RT,TX} <: AbstractFermionAction
         end
 
         if csw != 0
+            @level1("|  CSW: $(csw) -> C = true")
             C = true
             Xμν = Tensorfield(f)
         else
+            @level1("|  CSW: $(csw) -> C = false")
             C = false
             Xμν = nothing
         end
@@ -123,8 +124,8 @@ struct WilsonFermionAction{Nf,C,TD,CT,RI,RT,TX} <: AbstractFermionAction
         return new{Nf,C,TD,CT,RI,RT,TX}(
             D,
             cg_temps,
-            rhmc_info_md,
             rhmc_info_action,
+            rhmc_info_md,
             rhmc_temps1,
             rhmc_temps2,
             Xμν,
@@ -137,7 +138,17 @@ end
 function Base.show(io::IO, ::MIME"text/plain", S::WilsonFermionAction{Nf}) where {Nf}
     print(
         io,
-        "WilsonFermionAction{Nf=$Nf}(; cg_tol=$(S.cg_tol), cg_maxiters=$(S.cg_maxiters))",
+        "WilsonFermionAction{Nf=$Nf}(; mass=$(S.D.mass), r=$(S.D.r), csw=$(S.D.csw), " *
+        "cg_tol=$(S.cg_tol), cg_maxiters=$(S.cg_maxiters))",
+    )
+    return nothing
+end
+
+function Base.show(io::IO, S::WilsonFermionAction{Nf}) where {Nf}
+    print(
+        io,
+        "WilsonFermionAction{Nf=$Nf}(; mass=$(S.D.mass), r=$(S.D.r), csw=$(S.D.csw), " *
+        "cg_tol=$(S.cg_tol), cg_maxiters=$(S.cg_maxiters))",
     )
     return nothing
 end
@@ -166,8 +177,8 @@ function calc_fermion_action(
     n = rhmc.coeffs_inverse.n
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
-    ψs = fermion_action.rhmc_temps1
-    ps = fermion_action.rhmc_temps2
+    ψs = fermion_action.rhmc_temps1[1:n+1]
+    ps = fermion_action.rhmc_temps2[1:n+1]
     temp1, temp2 = fermion_action.cg_temps
 
     for v in ψs
@@ -186,7 +197,7 @@ function calc_fermion_action(
         axpy!(coeffs[i], ψs[i+1], ψ)
     end
 
-    Sf = dot(ϕ, ψ)
+    Sf = dot(ψ, ψ)
     return real(Sf)
 end
 
@@ -205,8 +216,8 @@ function sample_pseudofermions!(ϕ, fermion_action::WilsonFermionAction{Nf}, U) 
     n = rhmc.coeffs.n
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
-    ψs = fermion_action.rhmc_temps1
-    ps = fermion_action.rhmc_temps2
+    ψs = fermion_action.rhmc_temps1[1:n+1]
+    ps = fermion_action.rhmc_temps2[1:n+1]
     temp1, temp2 = fermion_action.cg_temps
 
     for v in ψs
@@ -228,7 +239,6 @@ end
 function solve_dirac!(
     ψ, D::T, ϕ, temp1, temp2, temp3, temp4, temp5; tol=1e-16, maxiters=1000
 ) where {T<:WilsonDiracOperator}
-    check_dims(ψ, ϕ, D.U, temp1, temp2, temp3, temp4, temp5)
     bicg_stab!(ψ, D, ϕ, temp1, temp2, temp3, temp4, temp5; tol=tol, maxiters=maxiters)
     return nothing
 end

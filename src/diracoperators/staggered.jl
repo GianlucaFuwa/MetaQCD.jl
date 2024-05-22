@@ -114,7 +114,17 @@ end
 function Base.show(io::IO, ::MIME"text/plain", S::StaggeredFermionAction{Nf}) where {Nf}
     print(
         io,
-        "StaggeredFermionAction{Nf=$Nf}(; cg_tol=$(S.cg_tol), cg_maxiters=$(S.cg_maxiters))",
+        "StaggeredFermionAction{Nf=$Nf}(; mass=$(S.D.mass), " *
+        "cg_tol=$(S.cg_tol), cg_maxiters=$(S.cg_maxiters))",
+    )
+    return nothing
+end
+
+function Base.show(io::IO, S::StaggeredFermionAction{Nf}) where {Nf}
+    print(
+        io,
+        "StaggeredFermionAction{Nf=$Nf}(; mass=$(S.D.mass), " *
+        "cg_tol=$(S.cg_tol), cg_maxiters=$(S.cg_maxiters))",
     )
     return nothing
 end
@@ -150,6 +160,7 @@ function calc_fermion_action(
     for v in ψs
         clear!(v)
     end
+
     shifts = rhmc.coeffs_inverse.β
     coeffs = rhmc.coeffs_inverse.α
     α₀ = rhmc.coeffs_inverse.α0

@@ -25,7 +25,7 @@ function calc_dSfdU!(
     cg_tol = fermion_action.cg_tol
     cg_maxiters = fermion_action.cg_maxiters
     rhmc = fermion_action.rhmc_info_md
-    n = rhmc.coeffs.n
+    n = rhmc.coeffs_inverse.n
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     anti = D.anti_periodic
@@ -36,6 +36,7 @@ function calc_dSfdU!(
     for X in Xs
         clear!(X)
     end
+
     shifts = rhmc.coeffs_inverse.β
     coeffs = rhmc.coeffs_inverse.α
     solve_dirac_multishift!(Xs, shifts, DdagD, ϕ, temp1, temp2, Ys, cg_tol, cg_maxiters)

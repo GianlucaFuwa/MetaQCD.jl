@@ -3,7 +3,6 @@ const WilsonFermionfield{B,T,A} = Fermionfield{B,T,A,4}
 function calc_dSfdU!(
     dU, fermion_action::WilsonFermionAction{2,C}, U, ϕ::WilsonFermionfield
 ) where {C}
-    check_dims(dU, U, ϕ)
     clear!(dU)
     cg_tol = fermion_action.cg_tol
     cg_maxiters = fermion_action.cg_maxiters
@@ -26,28 +25,29 @@ end
 function calc_dSfdU!(
     dU, fermion_action::WilsonFermionAction{Nf,C}, U, ϕ::WilsonFermionfield
 ) where {Nf,C}
-    check_dims(dU, U, ϕ)
     clear!(dU)
     cg_tol = fermion_action.cg_tol
     cg_maxiters = fermion_action.cg_maxiters
     rhmc = fermion_action.rhmc_info_md
-    n = rhmc.coeffs.n
+    n = rhmc.coeffs_inverse.n
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
-    Xs = fermion_action.rhmc_temps1
-    Ys = fermion_action.rhmc_temps2
+    anti = D.anti_periodic
+    Xs = fermion_action.rhmc_temps1[1:n+1]
+    Ys = fermion_action.rhmc_temps2[1:n+1]
     temp1, temp2 = fermion_action.cg_temps
 
-    for v in Xs
-        clear!(v)
+    for X in Xs
+        clear!(X)
     end
+
     shifts = rhmc.coeffs_inverse.β
     coeffs = rhmc.coeffs_inverse.α
     solve_dirac_multishift!(Xs, shifts, DdagD, ϕ, temp1, temp2, Ys, cg_tol, cg_maxiters)
 
     for i in 1:n
         LinearAlgebra.mul!(Ys[i+1], D, Xs[i+1]) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
-        add_wilson_derivative!(dU, U, Xs[i+1], Ys[i+1], D.anti_periodic; coeff=coeffs[i])
+        add_wilson_derivative!(dU, U, Xs[i+1], Ys[i+1], anti; coeff=coeffs[i])
         if C
             Xμν = fermion_action.Xμν
             calc_Xμν_eachsite!(Xμν, Xs[i+1], Ys[i+1])
