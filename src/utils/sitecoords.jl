@@ -1,6 +1,5 @@
 const SiteCoords = CartesianIndex{4}
 
-using Base: AbstractCartesianIndex
 @inline function linear_to_cartesian(i::T, NX::T, NY::T, NZ::T) where {T<:Integer}
     ix = (i - 1) % NX + 1
     ii = div(i - ix, NX)

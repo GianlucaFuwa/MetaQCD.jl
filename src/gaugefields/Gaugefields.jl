@@ -1,6 +1,5 @@
 module Gaugefields
 
-using StaticArrays: check_dims
 using AMDGPU: ROCArray, ROCBackend
 using CUDA
 using CUDA: i32
@@ -9,6 +8,7 @@ using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
 using Polyester # Used for the @batch macro, which enables multi threading
 using StaticArrays # Used for the SU3 matrices
+using StaticArrays: check_dims
 using Random
 using ..Utils # Contains utility functions, such as projections and the exponential map
 

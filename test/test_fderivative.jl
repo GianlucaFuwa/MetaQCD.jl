@@ -13,7 +13,7 @@ function SU3testfderivative(;
     NX = 4
     NY = 4
     NZ = 4
-    NT = 4
+    NT = 8
     U = Gaugefield(NX, NY, NZ, NT, 6.0; GA=WilsonGaugeAction)
 
     if eoprec
@@ -42,11 +42,12 @@ function SU3testfderivative(;
     end
     @show action
 
-    filename = "./test/testconf.txt"
-    loadU!(BridgeFormat(), U, filename)
-    if backend !== nothing
-        U = MetaQCD.to_backend(backend, U)
-    end
+    # filename = "./test/testconf.txt"
+    # loadU!(BridgeFormat(), U, filename)
+    # if backend !== nothing
+    #     U = MetaQCD.to_backend(backend, U)
+    # end
+    random_gauges!(U)
     sample_pseudofermions!(ψ, action, U)
 
     # Test for smearing with 5 steps and stout parameter 0.12
@@ -110,4 +111,4 @@ function SU3testfderivative(;
     return relerrors
 end
 
-SU3testfderivative(; dirac="wilson", eoprec=false, single_flavor=true)
+SU3testfderivative(; dirac="staggered", eoprec=true, single_flavor=true)

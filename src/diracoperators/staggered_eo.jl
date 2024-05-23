@@ -210,13 +210,13 @@ function calc_fermion_action(
     return real(Sf)
 end
 
-# function sample_pseudofermions!(ϕ_eo, fermion_action::StaggeredEOPreFermionAction{4}, U)
-#     D = fermion_action.D(U)
-#     temp = fermion_action.cg_temps[1]
-#     gaussian_pseudofermions!(temp)
-#     LinearAlgebra.mul!(ϕ_eo, D, temp)
-#     return nothing
-# end
+function sample_pseudofermions!(ϕ_eo, fermion_action::StaggeredEOPreFermionAction{4}, U)
+    D = fermion_action.D(U)
+    temp = fermion_action.cg_temps[1]
+    gaussian_pseudofermions!(temp)
+    LinearAlgebra.mul!(ϕ_eo, D, temp)
+    return nothing
+end
 
 function sample_pseudofermions!(
     ϕ_eo, fermion_action::StaggeredEOPreFermionAction{Nf}, U
@@ -298,9 +298,9 @@ function LinearAlgebra.mul!(
     anti = D.parent.anti_periodic
 
     # ψₒ = Dₒₑϕₑ
-    mul_oe!(ψ_eo, U, ϕ_eo, anti, true, true)
+    mul_oe!(ψ_eo, U, ϕ_eo, anti, true, false)
     # ψₑ = DₑₒDₒₑϕₑ
-    mul_eo!(ψ_eo, U, ψ_eo, anti, false, true)
+    mul_eo!(ψ_eo, U, ψ_eo, anti, false, false)
     axpby!(mass^2, ϕ_eo, -1, ψ_eo) # ψₑ = m²ϕₑ - DₑₒDₒₑϕₑ
     return nothing
 end
@@ -361,22 +361,22 @@ function staggered_eo_kernel(U, ϕ, site, anti, ::Type{T}, dagg::Bool) where {T}
     ψₙ += η * cmvmul(U[1, site], ϕ[_siteμ⁺])
     ψₙ -= η * cmvmul_d(U[1, siteμ⁻], ϕ[_siteμ⁻])
 
-    _siteμ⁺ = eo_site(move(site, 2, 1, NX), NX, NY, NZ, NT, NV)
-    siteμ⁻ = move(site, 2, -1, NX)
+    _siteμ⁺ = eo_site(move(site, 2, 1, NY), NX, NY, NZ, NT, NV)
+    siteμ⁻ = move(site, 2, -1, NY)
     _siteμ⁻ = eo_site(siteμ⁻, NX, NY, NZ, NT, NV)
     η = sgn * staggered_η(Val(2), site)
     ψₙ += η * cmvmul(U[2, site], ϕ[_siteμ⁺])
     ψₙ -= η * cmvmul_d(U[2, siteμ⁻], ϕ[_siteμ⁻])
 
-    _siteμ⁺ = eo_site(move(site, 3, 1, NX), NX, NY, NZ, NT, NV)
-    siteμ⁻ = move(site, 3, -1, NX)
+    _siteμ⁺ = eo_site(move(site, 3, 1, NZ), NX, NY, NZ, NT, NV)
+    siteμ⁻ = move(site, 3, -1, NZ)
     _siteμ⁻ = eo_site(siteμ⁻, NX, NY, NZ, NT, NV)
     η = sgn * staggered_η(Val(3), site)
     ψₙ += η * cmvmul(U[3, site], ϕ[_siteμ⁺])
     ψₙ -= η * cmvmul_d(U[3, siteμ⁻], ϕ[_siteμ⁻])
 
-    _siteμ⁺ = eo_site(move(site, 4, 1, NX), NX, NY, NZ, NT, NV)
-    siteμ⁻ = move(site, 4, -1, NX)
+    _siteμ⁺ = eo_site(move(site, 4, 1, NT), NX, NY, NZ, NT, NV)
+    siteμ⁻ = move(site, 4, -1, NT)
     _siteμ⁻ = eo_site(siteμ⁻, NX, NY, NZ, NT, NV)
     bc⁺ = boundary_factor(anti, site[4], 1, NT)
     bc⁻ = boundary_factor(anti, site[4], -1, NT)

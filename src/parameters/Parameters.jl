@@ -123,7 +123,6 @@ function construct_params_from_toml(parameters, inputfile; am_rank0=true)
     kind_of_bias = try
         parameters["Bias Settings"]["kind_of_bias"]
     catch
-        @warn "Bias disabled because not specified"
         "none"
     end
 

@@ -31,11 +31,19 @@ function set_global_logger!(level, io=devnull; tc=true)
     return nothing
 end
 
-for input_level in 1:3
-    # Create the macros @level1, @level2, and @level3
-    @eval macro $(Symbol("level$(input_level)"))(val...)
-        return $(Symbol("level$(input_level)"))(val...)
-    end
+# functions would be enough, but macros look cooler
+# Could also define them using @eval as below, but then the LSP doesn't register them and
+# we get "Missing reference" everywhere
+macro level1(val...)
+    return level1(val...)
+end
+
+macro level2(val...)
+    return level2(val...)
+end
+
+macro level3(val...)
+    return level3(val...)
 end
 
 for input_level in 1:3

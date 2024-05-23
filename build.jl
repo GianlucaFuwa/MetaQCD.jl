@@ -1,5 +1,5 @@
 include("./src/MetaQCD.jl")
-using .MetaQCD
+using .MetaQCD: run_build
 
 if length(ARGS) == 0
     error("""

@@ -3,7 +3,7 @@ Calculate the bias force for a molecular dynamics step, i.e. the derivative of t
 bias potential w.r.t. the bare/unsmeared field U. \\
 Needs the additional field "temp_force" to be a TemporaryField when doing recursion
 """
-function calc_dVdU_bare!(dU, F, U, temp_force, bias::Bias)
+function calc_dVdU_bare!(dU, F, U, temp_force, bias)
     smearing = bias.smearing
     cv = calc_CV(U, bias)
     bias_derivative = ∂V∂Q(bias, cv)

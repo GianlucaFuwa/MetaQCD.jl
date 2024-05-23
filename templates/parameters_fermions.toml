@@ -1,17 +1,18 @@
 ["Physical Settings"]
-L = [4, 4, 4, 8]
+L = [8, 8, 8, 16]
 beta = 3.5
 kind_of_gaction = "symanzik_tree"
-numtherm = 10
-numsteps = 5
-initial = "cold"
+numtherm = 1
+numsteps = 0
+initial = "hot"
 update_method = "hmc"
 parity_update = false
 
 ["Dynamical Fermion Settings"]
-fermion_action = "wilson"
-Nf = [2, 1]
-mass = [0.01, 0.2]
+fermion_action = "staggered"
+eo_precon = true
+Nf = [2]
+mass = [0.01]
 cg_tol = 1e-14
 cg_maxiters = 5000
 

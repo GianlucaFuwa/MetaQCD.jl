@@ -111,7 +111,7 @@ function bicg!(x, A, b, Ap, r, p, Ap′, r′, p′; tol=1e-14, maxiters=1000)
     ρ = dot(r′, r)
     res = abs(dot(r, r))
     if res < tol
-        @level2 "|  BiCG: converged at iter 0 with res = $res_new"
+        @level2 "|  BiCG: converged at iter 0 with res = $res"
         return nothing
     end
     @level3 "|  BiCG: residual 0 = $res"
