@@ -8,8 +8,8 @@ abstract type AbstractIntegrator end
         steps,
         friction = 0,
         numsmear = 0,
-        ρ_stout = 0,
-        verboselevel = 1;
+        ρ_stout = 0;
+        hmc_logging = true,
         fermion_action = nothing,
         heavy_flavours = 0,
         bias_enabled = false,
@@ -26,8 +26,8 @@ Create an `HMC` object, that can be used as an update algorithm.
 - `friction`: Friction factor in the GHMC algorithm. Has to be in the range [0, 1].
 - `numsmear`: Number of Stout smearing steps applied to the gauge action.
 - `ρ_stout`: Step length of the Stout smearing applied to the gauge action.
-- `verboselevel`: If `2` or higher, creates a logfile in `logdir` containing information
-on the trajectories
+- `hmc_logging`: If true, creates a logfile in `logdir` containing information
+on the trajectories, unless `logdir = ""`
 - `fermion_action`: An `AbstratFermionAction` to initialize the appropriate fermion fields
 - `heavy_flavours`: The number of non-degenerate heavy flavours, again to initialize the
 right number of fermion fields
@@ -72,8 +72,8 @@ struct HMC{TI,TG,TT,TF,TS,PO,F2,FS,TIO} <: AbstractUpdate
         steps,
         friction=0,
         numsmear=0,
-        ρ_stout=0,
-        verboselevel=1;
+        ρ_stout=0;
+        hmc_logging=true,
         fermion_action=nothing,
         heavy_flavours=0,
         bias_enabled=false,
@@ -135,7 +135,7 @@ struct HMC{TI,TG,TT,TF,TS,PO,F2,FS,TIO} <: AbstractUpdate
         end
         FS = typeof(fieldstrength)
 
-        if verboselevel >= 2 && logdir != ""
+        if hmc_logging && logdir != ""
             hmc_log_file = logdir * "/hmc_acc_logs.txt"
             @level1("|  Acceptance data tracked in $(hmc_log_file)")
             fp = open(hmc_log_file, "w")
@@ -176,7 +176,7 @@ function update!(
     metro_test=true,
     friction=hmc.friction,
 ) where {TI,TF,TB}
-    if TF !== nothing
+    if TF !== Nothing
         @assert TF <: Tuple "fermion_action must be nothing or a tuple of fermion actions"
         @assert hmc.ϕ !== nothing "fermion_action passed but not activated in HMC"
     end
@@ -189,8 +189,10 @@ function update!(
 
     copy!(U_old, U)
     gaussian_TA!(P, friction)
-    for i in eachindex(fermion_action)
-        sample_pseudofermions!(ϕ[i], fermion_action[i], U)
+    if TF !== Nothing
+        for i in eachindex(fermion_action)
+            sample_pseudofermions!(ϕ[i], fermion_action[i], U)
+        end
     end
     P_old ≢ nothing && copy!(P_old, P)
 
@@ -206,8 +208,8 @@ function update!(
     ΔSg = Sg_new - Sg_old
 
     if TF ≡ Nothing
-        Sf_old = U.Sf
-        Sf_new = Sf_old
+        Sf_old = 0.0
+        Sf_new = 0.0
         ΔSf = 0
     else
         Sf_old = 0.0

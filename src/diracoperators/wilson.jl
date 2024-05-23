@@ -60,8 +60,10 @@ struct WilsonFermionAction{Nf,C,TD,CT,RI,RT,TX} <: AbstractFermionAction
     rhmc_temps1::RT # this holds the results of multishift cg
     rhmc_temps2::RT # this holds the basis vectors in multishift cg
     Xμν::TX
-    cg_tol::Float64
-    cg_maxiters::Int64
+    cg_tol_action::Float64
+    cg_tol_md::Float64
+    cg_maxiters_action::Int64
+    cg_maxiters_md::Int64
     function WilsonFermionAction(
         f,
         mass;
@@ -73,14 +75,20 @@ struct WilsonFermionAction{Nf,C,TD,CT,RI,RT,TX} <: AbstractFermionAction
         rhmc_prec_for_md=42,
         rhmc_order_for_action=15,
         rhmc_prec_for_action=42,
-        cg_tol=1e-14,
-        cg_maxiters=1000,
+        cg_tol_action=1e-14,
+        cg_tol_md=1e-12,
+        cg_maxiters_action=1000,
+        cg_maxiters_md=1000,
     )
         @level1("┌ Setting Wilson Fermion Action...")
         @level1("|  MASS: $(mass)")
         @level1("|  Nf: $(Nf)")
         @level1("|  r: $(r)")
-        @level1("|  CG TOLERANCE: $(cg_tol)")
+        @level1("|  CSW: $(csw)")
+        @level1("|  CG TOLERANCE (Action): $(cg_tol_action)")
+        @level1("|  CG TOLERANCE (MD): $(cg_tol_md)")
+        @level1("|  CG MAX ITERS (Action): $(cg_maxiters_action)")
+        @level1("|  CG MAX ITERS (MD): $(cg_maxiters_md)")
         D = WilsonDiracOperator(f, mass; anti_periodic=anti_periodic, r=r, csw=csw)
         TD = typeof(D)
 
@@ -129,8 +137,10 @@ struct WilsonFermionAction{Nf,C,TD,CT,RI,RT,TX} <: AbstractFermionAction
             rhmc_temps1,
             rhmc_temps2,
             Xμν,
-            cg_tol,
-            cg_maxiters,
+            cg_tol_action,
+            cg_tol_md,
+            cg_maxiters_action,
+            cg_maxiters_md,
         )
     end
 end
@@ -139,7 +149,8 @@ function Base.show(io::IO, ::MIME"text/plain", S::WilsonFermionAction{Nf}) where
     print(
         io,
         "WilsonFermionAction{Nf=$Nf}(; mass=$(S.D.mass), r=$(S.D.r), csw=$(S.D.csw), " *
-        "cg_tol=$(S.cg_tol), cg_maxiters=$(S.cg_maxiters))",
+        "cg_tol_action=$(S.cg_tol_action), cg_tol_md=$(S.cg_tol_md), " *
+        "cg_maxiters_action=$(S.cg_maxiters_action), cg_maxiters_md=$(S.cg_maxiters_md))",
     )
     return nothing
 end
@@ -148,7 +159,8 @@ function Base.show(io::IO, S::WilsonFermionAction{Nf}) where {Nf}
     print(
         io,
         "WilsonFermionAction{Nf=$Nf}(; mass=$(S.D.mass), r=$(S.D.r), csw=$(S.D.csw), " *
-        "cg_tol=$(S.cg_tol), cg_maxiters=$(S.cg_maxiters))",
+        "cg_tol_action=$(S.cg_tol_action), cg_tol_md=$(S.cg_tol_md), " *
+        "cg_maxiters_action=$(S.cg_maxiters_action), cg_maxiters_md=$(S.cg_maxiters_md))",
     )
     return nothing
 end
@@ -159,8 +171,8 @@ function calc_fermion_action(
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     ψ, temp1, temp2, temp3 = fermion_action.cg_temps
-    cg_tol = fermion_action.cg_tol
-    cg_maxiters = fermion_action.cg_maxiters
+    cg_tol = fermion_action.cg_tol_action
+    cg_maxiters = fermion_action.cg_maxiters_action
 
     clear!(ψ) # initial guess is zero
     solve_dirac!(ψ, DdagD, ϕ, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
@@ -171,8 +183,8 @@ end
 function calc_fermion_action(
     fermion_action::WilsonFermionAction{Nf}, U::Gaugefield, ϕ::WilsonFermionfield
 ) where {Nf}
-    cg_tol = fermion_action.cg_tol
-    cg_maxiters = fermion_action.cg_maxiters
+    cg_tol = fermion_action.cg_tol_action
+    cg_maxiters = fermion_action.cg_maxiters_action
     rhmc = fermion_action.rhmc_info_action
     n = rhmc.coeffs_inverse.n
     D = fermion_action.D(U)
@@ -210,8 +222,8 @@ function sample_pseudofermions!(ϕ, fermion_action::WilsonFermionAction{2}, U)
 end
 
 function sample_pseudofermions!(ϕ, fermion_action::WilsonFermionAction{Nf}, U) where {Nf}
-    cg_tol = fermion_action.cg_tol
-    cg_maxiters = fermion_action.cg_maxiters
+    cg_tol = fermion_action.cg_tol_action
+    cg_maxiters = fermion_action.cg_maxiters_action
     rhmc = fermion_action.rhmc_info_action
     n = rhmc.coeffs.n
     D = fermion_action.D(U)

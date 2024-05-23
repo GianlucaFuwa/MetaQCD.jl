@@ -7,6 +7,7 @@ Inspired by the [LatticeQCD.jl](https://github.com/akio-tomiya/LatticeQCD.jl/tre
 
 ## Features:
 - Simulations of 4D-SU(3) Yang-Mills (Pure Gauge) theory
+- Simulations of full lattice QCD with multiple non-degenerate flavours
 - [Metadynamics](https://www.researchgate.net/publication/224908601_Metadynamics_A_method_to_simulate_rare_events_and_reconstruct_the_free_energy_in_biophysics_chemistry_and_material_science)
 - [PT-MetaD](https://arxiv.org/abs/2307.04742)
 - Several update algorithms (HMC, Metropolis, Heatbath, Overrelaxation)
@@ -14,6 +15,10 @@ Inspired by the [LatticeQCD.jl](https://github.com/akio-tomiya/LatticeQCD.jl/tre
 - Gradient flow with variable integrators (Euler, RK2, RK3, RK3W7)
 - Improved Gauge actions (Symanzik tree, Iwasaki, DBW2)
 - Improved Topological charge definitions (clover, rectangle clover-improved)
+- Wilson fermions with and without clover improvement
+- Staggered fermions
+- Even-odd preconditioner
+- RHMC to simulate odd number of flavours
 - Support for CUDA and ROCm backends
 
 ## Installation:
@@ -91,11 +96,12 @@ biaspotential(bias)
 
 ## Full Parameter list (= default):
 ```julia
-Base.@kwdef mutable struct PrintPhysicalParameters
-    L::NTuple{4, Int64} = (4, 4, 4, 4)
+Base.@kwdef mutable struct PhysicalParameters
+    # gauge parameters
+    L::NTuple{4,Int64} = (4, 4, 4, 4)
     beta::Float64 = 5.7
     NC::Int64 = 3
-    kind_of_gaction::String = "wilson"
+    gauge_action::String = "wilson"
     numtherm::Int64 = 10
     numsteps::Int64 = 100
     inital::String = "cold"
@@ -111,15 +117,31 @@ Base.@kwdef mutable struct PrintPhysicalParameters
     parity_update::Bool = false
 end
 
-Base.@kwdef mutable struct PrintBiasParameters
+Base.@kwdef mutable struct DynamicalFermionParameters
+    fermion_action::String = "none"
+    Nf::Union{Int,Vector{Int}} = 0
+    mass::Union{Float64,Vector{Float64}} = 0.0
+    wilson_r::Float64 = 1.0
+    wilson_csw::Float64 = 0.0
+    anti_periodic::Bool = true
+    cg_tol::Float64 = 1e-14
+    cg_maxiters::Int64 = 1000
+    rhmc_order_for_action::Int64 = 15
+    rhmc_prec_for_action::Int64 = 42
+    rhmc_order_for_md::Int64 = 10
+    rhmc_prec_for_md::Int64 = 42
+    eo_precon::Bool = false
+end
+
+Base.@kwdef mutable struct BiasParameters
     kind_of_bias::String = "none"
     kind_of_cv::String = "clover"
     numsmears_for_cv::Int64 = 4
     rhostout_for_cv::Float64 = 0.125
-    is_static::Union{Bool, Vector{Bool}} = false
+    is_static::Union{Bool,Vector{Bool}} = false
     symmetric::Bool = false
     stride::Int64 = 1
-    cvlims::NTuple{2, Float64} = (-7, 7)
+    cvlims::NTuple{2,Float64} = (-7, 7)
     biasfactor::Float64 = Inf
     kinds_of_weights::Vector{String} = ["tiwari"]
     usebiases::Vector{String} = [""]
@@ -149,7 +171,24 @@ Base.@kwdef mutable struct PrintBiasParameters
     measure_on_all::Bool = false
 end
 
-Base.@kwdef mutable struct PrintSystemParameters
+Base.@kwdef mutable struct HMCParameters
+    hmc_trajectory::Float64 = 1
+    hmc_steps::Int64 = 10
+    hmc_friction::Float64 = 0.0
+    hmc_integrator::String = "Leapfrog"
+    hmc_numsmear::Int64 = 0
+    hmc_rhostout::Float64 = 0.0
+end
+
+Base.@kwdef mutable struct GradientFlowParameters
+    flow_integrator::String = "euler"
+    flow_num::Int64 = 1
+    flow_tf::Float64 = 0.1
+    flow_steps::Int64 = 10
+    flow_measure_every::Union{Int64,Vector{Int64}} = 1
+end
+
+Base.@kwdef mutable struct SystemParameters
     backend::String = "cpu"
     float_type::String = "float64"
     log_dir::String = ""
@@ -162,30 +201,9 @@ Base.@kwdef mutable struct PrintSystemParameters
     saveU_dir::String = ""
     saveU_format::String = ""
     saveU_every::Int64 = 1
-    randomseed::Union{UInt64, Vector{UInt64}} = 0x0000000000000000
+    randomseed::Union{UInt64,Vector{UInt64}} = 0x0000000000000000
     measurement_dir::String = ""
-    bias_dir::Union{String, Vector{String}} = ""
+    bias_dir::Union{String,Vector{String}} = ""
     overwrite::Bool = false
-end
-
-Base.@kwdef mutable struct PrintHMCParameters
-    hmc_trajectory::Float64 = 1
-    hmc_steps::Int64 = 10
-    hmc_friction::Float64 = π/2
-    hmc_integrator::String = "Leapfrog"
-    hmc_numsmear::Int64 = 0
-    hmc_rhostout::Float64 = 0.0
-end
-
-Base.@kwdef mutable struct PrintGradientFlowParameters
-    flow_integrator::String = "euler"
-    flow_num::Int64 = 1
-    flow_tf::Float64 = 0.1
-    flow_steps::Int64 = 10
-    flow_measure_every::Union{Int64, Vector{Int64}} = 1
-end
-
-Base.@kwdef mutable struct PrintMeasurementParameters
-    measurement_method::Vector{Dict} = Dict[]
 end
 ```

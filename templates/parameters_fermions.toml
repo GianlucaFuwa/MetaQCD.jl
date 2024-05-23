@@ -1,33 +1,35 @@
 ["Physical Settings"]
-L = [8, 8, 8, 16]
+L = [4, 4, 4, 4]
 beta = 3.5
 kind_of_gaction = "symanzik_tree"
-numtherm = 1
-numsteps = 0
+numtherm = 20
+numsteps = 10
 initial = "hot"
 update_method = "hmc"
 parity_update = false
 
 ["Dynamical Fermion Settings"]
 fermion_action = "staggered"
-eo_precon = true
+eo_precon = false
 Nf = [2]
-mass = [0.01]
-cg_tol = 1e-14
-cg_maxiters = 5000
+mass = [0.1]
+cg_tol_action = 1e-16
+cg_tol_md = 1e-16
+cg_maxiters_action = 5000
+cg_maxiters_md = 5000
 
 ["HMC Settings"]
 hmc_trajectory = 1
 hmc_steps = 5
 hmc_integrator = "OMF4"
+hmc_logging = true
 # hmc_numsmear = 7
 # hmc_rhostout = 0.12
 
 ["System Settings"]
 backend = "cpu"
 float_type = "double"
-# log_dir = ""
-# measurement_dir = ""
+ensemble_dir = "fermion_test"
 randomseed = 0
 verboselevel = 1
 overwrite = true

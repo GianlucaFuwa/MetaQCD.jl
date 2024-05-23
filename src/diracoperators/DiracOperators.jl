@@ -104,16 +104,6 @@ sample_pseudofermions!(::Nothing, ::Nothing) = nothing
     end
 end
 
-function fermaction_from_str(str::String, eo_precon::Bool)
-    if str == "wilson"
-        return WilsonFermionAction
-    elseif str == "staggered"
-        return eo_precon ? StaggeredEOPreFermionAction : StaggeredFermionAction
-    else
-        error("fermion action \"$(str)\" not supported")
-    end
-end
-
 # So we don't print the entire array in the REPL...
 function Base.show(io::IO, ::MIME"text/plain", D::T) where {T<:AbstractDiracOperator}
     print(io, "$(typeof(D))", "(;")
@@ -132,6 +122,18 @@ include("staggered.jl")
 include("staggered_eo.jl")
 include("wilson.jl")
 # include("wilson_eo.jl")
+
+function fermaction_from_str(str, eo_precon::Bool)
+    if str == "wilson"
+        return WilsonFermionAction
+    elseif str == "staggered"
+        return eo_precon ? StaggeredEOPreFermionAction : StaggeredFermionAction
+    elseif str == "none" || str === nothing
+        return nothing
+    else
+        error("fermion action \"$(str)\" not supported")
+    end
+end
 
 const FERMION_ACTION = Dict{Tuple{String,Bool},Type{<:AbstractFermionAction}}(
     # boolean determines whether even-odd or not

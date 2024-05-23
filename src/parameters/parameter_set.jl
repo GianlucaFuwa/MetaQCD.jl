@@ -11,14 +11,16 @@ struct ParameterSet
     fermion_action::String
     Nf::Union{Int,Vector{Int}}
     mass::Union{Float64,Vector{Float64}}
-    r::Float64
-    csw::Float64
+    wilson_r::Float64
+    wilson_csw::Float64
     anti_periodic::Bool
-    cg_tol::Float64
-    cg_maxiters::Int64
+    cg_tol_action::Float64
+    cg_tol_md::Float64
+    cg_maxiters_action::Int64
+    cg_maxiters_md::Int64
     rhmc_order_for_action::Int64
-    rhmc_prec_for_action::Int64
     rhmc_order_for_md::Int64
+    rhmc_prec_for_action::Int64
     rhmc_prec_for_md::Int64
     eo_precon::Bool
 
@@ -71,6 +73,7 @@ struct ParameterSet
     hmc_steps::Int64
     hmc_numsmear::Int64
     hmc_rhostout::Float64
+    hmc_logging::Bool
     hb_maxit::Int64
     numheatbath::Int64
     eo::Bool
@@ -100,6 +103,7 @@ struct ParameterSet
     loadU_filename::String
 
     randomseed::Union{UInt64,Vector{UInt64}}
+    ensembledir::String
     logdir::String
     log_to_console::Bool
     measuredir::String

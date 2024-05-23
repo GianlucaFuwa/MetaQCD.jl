@@ -5,7 +5,7 @@ using LinearAlgebra
 using Random
 
 function SU3testfderivative(;
-    dirac="staggered", eoprec=false, single_flavor=false, backend=nothing
+    dirac="staggered", mass=0.1, eoprec=false, single_flavor=false, backend=nothing
 )
     Random.seed!(123)
     println("Fermion derivative test [$dirac]")
@@ -25,17 +25,51 @@ function SU3testfderivative(;
     action = if dirac == "staggered"
         if eoprec
             Nf = single_flavor ? 1 : 4
-            StaggeredEOPreFermionAction(U, 0.1; Nf=Nf, cg_tol=1e-16)
+            StaggeredEOPreFermionAction(
+                U,
+                mass;
+                Nf=Nf,
+                cg_maxiters_action=5000,
+                cg_maxiters_md=5000,
+                cg_tol_action=1e-16,
+                cg_tol_md=1e-16,
+            )
         else
             Nf = single_flavor ? 1 : 8
-            StaggeredFermionAction(U, 0.1; Nf=Nf, cg_tol=1e-16)
+            StaggeredFermionAction(
+                U,
+                mass;
+                Nf=Nf,
+                cg_maxiters_action=5000,
+                cg_maxiters_md=5000,
+                cg_tol_action=1e-16,
+                cg_tol_md=1e-16,
+            )
         end
     elseif dirac == "wilson"
         if eoprec
-            WilsonEOPreFermionAction(U, 0.1; Nf=Nf, csw=1.78, cg_tol=1e-16, cg_maxiters=10000)
+            WilsonEOPreFermionAction(
+                U,
+                mass;
+                Nf=Nf,
+                csw=1.78,
+                cg_maxiters_action=5000,
+                cg_maxiters_md=5000,
+                cg_tol_action=1e-16,
+                cg_tol_md=1e-16,
+            )
         else
             Nf = single_flavor ? 1 : 2
-            WilsonFermionAction(U, 0.1; Nf=Nf, csw=1.78, cg_tol=1e-16, cg_maxiters=10000)
+            WilsonFermionAction(
+                U,
+                mass;
+                Nf=Nf,
+                csw=1.78,
+                cg_maxiters_action=5000,
+                cg_maxiters_md=5000,
+                cg_tol_action=1e-16,
+                cg_tol_md=1e-16,
+            )
         end
     else
         error("dirac operator $dirac not supported")

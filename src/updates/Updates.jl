@@ -64,6 +64,7 @@ function Updatemethod(parameters::ParameterSet, U)
         parameters.hmc_friction,
         parameters.hmc_numsmear,
         parameters.hmc_rhostout,
+        parameters.hmc_logging,
         parameters.hb_maxit,
         parameters.numheatbath,
         parameters.eo,
@@ -91,6 +92,7 @@ function Updatemethod(
     hmc_friction=π / 2,
     hmc_numsmear=0,
     hmc_ρstout=0,
+    hmc_logging=true,
     hb_MAXIT=1,
     hb_numHB=1,
     eo=true,
@@ -106,8 +108,8 @@ function Updatemethod(
             hmc_steps,
             hmc_friction,
             hmc_numsmear,
-            hmc_ρstout,
-            verboselevel;
+            hmc_ρstout;
+            hmc_logging=hmc_logging,
             fermion_action=fermaction_from_str(lower_case(fermion_action), eo_precon),
             heavy_flavours=length(Nf) - 1,
             bias_enabled=kind_of_bias != "none",
@@ -126,8 +128,8 @@ function Updatemethod(
     return updatemethod
 end
 
-update!(::T, U) where {T<:AbstractUpdate} = nothing
-update!(::Nothing, U) = nothing
+update!(::T, ::Any) where {T<:AbstractUpdate} = nothing
+update!(::Nothing, ::Any) = nothing
 
 Base.close(::T) where {T<:AbstractUpdate} = nothing
 

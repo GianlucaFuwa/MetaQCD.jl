@@ -52,8 +52,6 @@ function construct_params_from_toml(filename::String)
 end
 
 function construct_params_from_toml(parameters, inputfile; am_rank0=true)
-    # am_rank0 ? save_parameters(fp, parameters) : nothing
-
     pnames = fieldnames(ParameterSet)
     numparams = length(pnames)
     value_Params = Vector{Any}(undef, numparams)
@@ -83,42 +81,52 @@ function construct_params_from_toml(parameters, inputfile; am_rank0=true)
         true
     end
 
-    posl = findfirst(x -> String(x) == "logdir", pnames)
-    log_dir = try
-        parameters["System Settings"]["log_dir"]
+    ensemble_dir = try
+        parameters["System Settings"]["ensemble_dir"]
     catch
         generated_dirname
     end
+    ensembledir = pwd() * "/ensembles/" * ensemble_dir
 
-    logdir = pwd() * "/logs/" * log_dir
-
-    if !isdir(logdir)
-        am_rank0 && mkpath(logdir)
-    end
-    # make a copy of the parsed parameter file, in case you want to reuse or check
-    cp(inputfile, logdir * "/used_parameterfile.toml"; force=true)
-    logfile = logdir * "/logs.txt"
-
-    if isfile(logfile)
-        overwrite || overwrite_detected("logfile", am_rank0)
-    end
-    value_Params[posl] = logdir
-
-    measurement_dir = try
-        parameters["System Settings"]["measurement_dir"]
-    catch
-        generated_dirname
-    end
-
-    measuredir = pwd() * "/measurements/" * measurement_dir
-    if !isdir(measuredir)
-        am_rank0 && mkpath(measuredir)
+    if !overwrite
+        i = 1
+        tmp = ensembledir
+        while isdir(tmp) && !overwrite
+            tmp = ensembledir * "_$(i)"
+            i += 1
+            i > 100 && error("ensemble directory name gen timed out, try \"overwrite = true\"")
+        end
+        ensembledir = tmp
+        am_rank0 && mkpath(ensembledir)
     else
-        overwrite || overwrite_detected("measurement", am_rank0)
+        if !isdir(ensembledir) && am_rank0
+            mkpath(ensembledir)
+        end
     end
 
+    am_rank0 && cp(inputfile, ensembledir * "/used_parameterfile.toml"; force=true)
+    pose = findfirst(x -> String(x) == "ensembledir", pnames)
+    value_Params[pose] = ensembledir
+
+    logdir = ensembledir * "/logs/"
+    measuredir = ensembledir * "/measurements/"
+    saveU_dir = ensembledir * "/configs/"
+    if !isdir(logdir) && am_rank0
+        mkpath(logdir)
+    end
+    if !isdir(measuredir) && am_rank0
+        mkpath(measuredir)
+    end
+    if !isdir(saveU_dir) && am_rank0
+        mkpath(saveU_dir)
+    end
+    
+    posl = findfirst(x -> String(x) == "logdir", pnames)
     posm = findfirst(x -> String(x) == "measuredir", pnames)
+    poss = findfirst(x -> String(x) == "saveU_dir", pnames)
+    value_Params[posl] = logdir
     value_Params[posm] = measuredir
+    value_Params[poss] = saveU_dir
 
     kind_of_bias = try
         parameters["Bias Settings"]["kind_of_bias"]
@@ -129,12 +137,7 @@ function construct_params_from_toml(parameters, inputfile; am_rank0=true)
     pos = findfirst(x -> String(x) == "biasdir", pnames)
 
     if kind_of_bias != "none"
-        bias_dir = try
-            parameters["System Settings"]["bias_dir"]
-        catch _
-            generated_dirname
-        end
-        biasdir = pwd() * "/metapotentials/" * bias_dir
+        biasdir = ensembledir * "/metapotentials/"
 
         if !isdir(biasdir)
             am_rank0 && mkpath(biasdir)
@@ -188,7 +191,6 @@ function construct_params_from_toml(parameters, inputfile; am_rank0=true)
 
     parameter_check(parameters, am_rank0)
     MPI.Barrier(MPI.COMM_WORLD)
-
     return parameters
 end
 

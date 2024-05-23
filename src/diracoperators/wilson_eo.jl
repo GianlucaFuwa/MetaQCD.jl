@@ -87,8 +87,10 @@ struct WilsonEOPreFermionAction{Nf,TD,CT,RI,RT,TX} <: AbstractFermionAction
     rhmc_temps1::RT # this holds the results of multishift cg
     rhmc_temps2::RT # this holds the basis vectors in multishift cg
     Xμν::TX
-    cg_tol::Float64
-    cg_maxiters::Int64
+    cg_tol_action::Float64
+    cg_tol_md::Float64
+    cg_maxiters_action::Int64
+    cg_maxiters_md::Int64
     function WilsonEOPreFermionAction(
         f::Abstractfield{B,T},
         mass;
@@ -100,15 +102,20 @@ struct WilsonEOPreFermionAction{Nf,TD,CT,RI,RT,TX} <: AbstractFermionAction
         rhmc_prec_for_md=42,
         rhmc_order_for_action=15,
         rhmc_prec_for_action=42,
-        cg_tol=1e-14,
-        cg_maxiters=1000,
+        cg_tol_action=1e-14,
+        cg_tol_md=1e-12,
+        cg_maxiters_action=1000,
+        cg_maxiters_md=1000,
     ) where {B,T}
         @level1("┌ Setting Even-Odd Preconditioned Wilson Fermion Action...")
         @level1("|  MASS: $(mass)")
         @level1("|  Nf: $(Nf)")
         @level1("|  r: $(r)")
         @level1("|  CSW: $(csw)")
-        @level1("|  CG TOLERANCE: $(cg_tol)")
+        @level1("|  CG TOLERANCE (Action): $(cg_tol_action)")
+        @level1("|  CG TOLERANCE (MD): $(cg_tol_md)")
+        @level1("|  CG MAX ITERS (Action): $(cg_maxiters_action)")
+        @level1("|  CG MAX ITERS (MD): $(cg_maxiters_md)")
         D = WilsonEOPreDiracOperator(f, mass; anti_periodic=anti_periodic, r=r, csw=csw)
         TD = typeof(D)
 
@@ -155,8 +162,10 @@ struct WilsonEOPreFermionAction{Nf,TD,CT,RI,RT,TX} <: AbstractFermionAction
             rhmc_temps1,
             rhmc_temps2,
             Xμν,
-            cg_tol,
-            cg_maxiters,
+            cg_tol_action,
+            cg_tol_md,
+            cg_maxiters_action,
+            cg_maxiters_md,
         )
     end
 end
@@ -164,7 +173,19 @@ end
 function Base.show(io::IO, ::MIME"text/plain", S::WilsonEOPreFermionAction{Nf}) where {Nf}
     print(
         io,
-        "WilsonEOPreFermionAction{Nf=$Nf}(; cg_tol=$(S.cg_tol), cg_maxiters=$(S.cg_maxiters))",
+        "WilsonEOPreFermionAction{Nf=$Nf}(; mass=$(S.D.mass), r=$(S.D.r), csw=$(S.D.csw), " *
+        "cg_tol_action=$(S.cg_tol_action), cg_tol_md=$(S.cg_tol_md), " *
+        "cg_maxiters_action=$(S.cg_maxiters_action), cg_maxiters_md=$(S.cg_maxiters_md))",
+    )
+    return nothing
+end
+
+function Base.show(io::IO, S::WilsonEOPreFermionAction{Nf}) where {Nf}
+    print(
+        io,
+        "WilsonEOPreFermionAction{Nf=$Nf}(; mass=$(S.D.mass), r=$(S.D.r), csw=$(S.D.csw), " *
+        "cg_tol_action=$(S.cg_tol_action), cg_tol_md=$(S.cg_tol_md), " *
+        "cg_maxiters_action=$(S.cg_maxiters_action), cg_maxiters_md=$(S.cg_maxiters_md))",
     )
     return nothing
 end

@@ -186,7 +186,7 @@ function metaqcd!(
                     metro_test=false,
                 )
             end
-            @level1("|  Elapsed time:\t$(updatetime) [s]")
+            @level1("|  Elapsed time:\t$(updatetime) [s]\n-")
         end
     end
 
@@ -213,7 +213,7 @@ function metaqcd!(
             end
 
             print_acceptance_rates(numaccepts, itrj)
-            @level1("|  Elapsed time:\t$(updatetime) [s]\n")
+            @level1("|  Elapsed time:\t$(updatetime) [s]")
 
             save_gaugefield(save_configs, U, itrj)
 
@@ -224,7 +224,7 @@ function metaqcd!(
             calc_weights(bias, U.CV, itrj)
             @level1(
                 "|  Meas. elapsed time:     $(mtime)  [s]\n" *
-                    "|  FlowMeas. elapsed time: $(fmtime) [s]"
+                    "|  FlowMeas. elapsed time: $(fmtime) [s]\n-"
             )
         end
     end

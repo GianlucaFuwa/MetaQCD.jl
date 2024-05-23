@@ -4,8 +4,8 @@ function calc_dSfdU!(
     dU, fermion_action::WilsonFermionAction{2,C}, U, ϕ::WilsonFermionfield
 ) where {C}
     clear!(dU)
-    cg_tol = fermion_action.cg_tol
-    cg_maxiters = fermion_action.cg_maxiters
+    cg_tol = fermion_action.cg_tol_md
+    cg_maxiters = fermion_action.cg_maxiters_md
     X, Y, temp1, temp2 = fermion_action.cg_temps
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
@@ -26,8 +26,8 @@ function calc_dSfdU!(
     dU, fermion_action::WilsonFermionAction{Nf,C}, U, ϕ::WilsonFermionfield
 ) where {Nf,C}
     clear!(dU)
-    cg_tol = fermion_action.cg_tol
-    cg_maxiters = fermion_action.cg_maxiters
+    cg_tol = fermion_action.cg_tol_md
+    cg_maxiters = fermion_action.cg_maxiters_md
     rhmc = fermion_action.rhmc_info_md
     n = rhmc.coeffs_inverse.n
     D = fermion_action.D(U)

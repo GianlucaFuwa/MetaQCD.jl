@@ -2,6 +2,7 @@
 /measurements/
 /metapotentials/
 /configs/
+/ensembles/
 /test/test.jl
 /test/logger.jl
 /test/test_JET.jl
