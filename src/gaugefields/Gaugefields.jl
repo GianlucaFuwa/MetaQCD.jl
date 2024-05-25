@@ -1,8 +1,5 @@
 module Gaugefields
 
-using AMDGPU: ROCArray, ROCBackend
-using CUDA
-using CUDA: i32
 using KernelAbstractions # With this we can write generic GPU kernels for ROC and CUDA
 using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
@@ -15,16 +12,11 @@ using ..Utils # Contains utility functions, such as projections and the exponent
 import KernelAbstractions as KA # With this we can write generic GPU kernels for ROC and CUDA
 import StrideArraysCore: object_and_preserve # This is used to convert the Abstractfield to a PtrArray in the @batch loop
 
-const SUPPORTED_BACKENDS = (CPU, CUDABackend, ROCBackend)
-const BACKEND = Dict{String,Type{<:Backend}}(
-    "cpu" => CPU, "cuda" => CUDABackend, "roc" => ROCBackend
-)
+const BACKEND = Dict{String,Type{<:Backend}}("cpu" => CPU)
 
 # We are going to need these if we want to transfer a field from one backend to another
 # see `to_backend` function
 array_type(::Type{CPU}) = Array
-array_type(::Type{CUDABackend}) = CuArray
-array_type(::Type{ROCBackend}) = ROCArray
 
 # Define an abstract field super type that is parametrized by the backend, the precision and
 # the array type (Array, CuArray, ROCArray). Make it a subtype of DenseArray so that
@@ -61,7 +53,6 @@ struct Gaugefield{BACKEND,T,A,GA} <: Abstractfield{BACKEND,T,A}
     Sg::Base.RefValue{Float64} # Current Gauge action, used to safe work
     CV::Base.RefValue{Float64} # Current collective variable, used to safe work
     function Gaugefield(NX, NY, NZ, NT, β; BACKEND=CPU, T=Float64, GA=WilsonGaugeAction)
-        @assert BACKEND ∈ SUPPORTED_BACKENDS "Only CPU, CUDABackend or ROCBackend supported!"
         U = KA.zeros(BACKEND(), SU{3,9,T}, 4, NX, NY, NZ, NT)
         NV = NX * NY * NZ * NT
         Sg = Base.RefValue{Float64}(0.0)
@@ -74,7 +65,7 @@ function Gaugefield(parameters)
     NX, NY, NZ, NT = parameters.L
     β = parameters.beta
     GA = GAUGE_ACTION[parameters.gauge_action]
-    T = FLOAT_TYPE[parameters.float_type]
+    T = Utils.FLOAT_TYPE[parameters.float_type]
     B = BACKEND[parameters.backend]
     U = Gaugefield(NX, NY, NZ, NT, β; BACKEND=B, T=T, GA=GA)
 
@@ -114,7 +105,6 @@ struct Temporaryfield{BACKEND,T,A} <: Abstractfield{BACKEND,T,A}
     NV::Int64
     NC::Int64
     function Temporaryfield(NX, NY, NZ, NT; BACKEND=CPU, T=Float64)
-        @assert BACKEND ∈ SUPPORTED_BACKENDS "Only CPU, CUDABackend or ROCBackend supported!"
         U = KA.zeros(BACKEND(), SU{3,9,T}, 4, NX, NY, NZ, NT)
         NV = NX * NY * NZ * NT
         NC = 3
@@ -146,7 +136,6 @@ struct CoeffField{BACKEND,T,A} <: Abstractfield{BACKEND,T,A}
     NT::Int64
     NV::Int64
     function CoeffField(NX, NY, NZ, NT; BACKEND=CPU, T=Float64)
-        @assert BACKEND ∈ SUPPORTED_BACKENDS "Only CPU, CUDABackend or ROCBackend supported!"
         U = KA.zeros(BACKEND(), exp_iQ_su3{T}, 4, NX, NY, NZ, NT)
         NV = NX * NY * NZ * NT
         return new{BACKEND,T,typeof(U)}(U, NX, NY, NZ, NT, NV)
@@ -301,12 +290,5 @@ include("gpu_kernels/wilsonloops.jl")
 include("gpu_kernels/actions.jl")
 include("gpu_kernels/liefields.jl")
 include("gpu_kernels/fieldstrength.jl")
-
-# Need to add this function to CUDA, because the base implementation is dynamic
-CUDA.@device_override @noinline function Base.__throw_rational_argerror_typemin(
-    ::Type{T}
-) where {T}
-    CUDA.@print_and_throw "invalid rational: denominator can't be typemin"
-end
 
 end

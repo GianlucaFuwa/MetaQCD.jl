@@ -4,7 +4,7 @@ beta = 3.5
 kind_of_gaction = "symanzik_tree"
 numtherm = 20
 numsteps = 10
-initial = "hot"
+initial = "cold"
 update_method = "hmc"
 parity_update = false
 
@@ -22,9 +22,8 @@ cg_maxiters_md = 5000
 hmc_trajectory = 1
 hmc_steps = 5
 hmc_integrator = "OMF4"
-hmc_logging = true
-# hmc_numsmear = 7
-# hmc_rhostout = 0.12
+# hmc_numsmear_fermion = 7
+# hmc_rhostout_fermion = 0.12
 
 ["System Settings"]
 backend = "cpu"

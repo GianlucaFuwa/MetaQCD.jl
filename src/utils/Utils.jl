@@ -48,6 +48,7 @@ export cdot, cmvmul, cmvmul_d, cvmmul, cvmmul_d
 export cmvmul_color, cmvmul_d_color, cvmmul_color, cvmmul_d_color
 export ckron, spintrace, cmvmul_spin_proj, spin_proj, σμν_spin_mul
 export _unwrap_val, SU, restore_last_col, restore_last_row, FLOAT_TYPE
+export i32
 
 abstract type AbstractIterator end
 struct Sequential <: AbstractIterator end
@@ -64,6 +65,10 @@ const FLOAT_TYPE = Dict{String,DataType}(
     "float64" => Float64,
     "double" => Float64,
 )
+
+struct Literal{T} end
+Base.:(*)(x::Number, ::Type{Literal{T}}) where {T} = T(x)
+const i32 = Literal{Int32}
 
 @inline eye2(::Type{T}) where {T<:AbstractFloat} = @SArray [
     one(Complex{T}) zero(Complex{T})

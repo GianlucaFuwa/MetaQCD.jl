@@ -71,8 +71,10 @@ struct ParameterSet
     hmc_trajectory::Float64
     hmc_friction::Float64
     hmc_steps::Int64
-    hmc_numsmear::Int64
-    hmc_rhostout::Float64
+    hmc_numsmear_gauge::Int64
+    hmc_numsmear_fermion::Int64
+    hmc_rhostout_gauge::Float64
+    hmc_rhostout_fermion::Float64
     hmc_logging::Bool
     hb_maxit::Int64
     numheatbath::Int64

@@ -34,8 +34,7 @@ export run_sim, run_build
 
 import .BiasModule: Bias, Metadynamics, OPES, Parametric, calc_CV, update_bias!
 import .CG: cg!, bicg!, bicg_stab!
-import .Gaugefields: CPU, CUDABackend, ROCBackend
-import .Gaugefields: DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
+import .Gaugefields: CPU, DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
 import .Gaugefields: SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
 import .Gaugefields: CoeffField, Gaugefield, Temporaryfield
 import .Gaugefields: calc_gauge_action, fieldstrength_eachsite!, identity_gauges!
@@ -63,8 +62,7 @@ import .Universe: Univ
 
 export Bias, Metadynamics, OPES, Parametric, calc_CV, update_bias!
 export cg!, bicg!, bicg_stab!
-export CPU, CUDABackend, ROCBackend
-export DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
+export CPU, DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
 export SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
 export CoeffField, Gaugefield, Temporaryfield
 export calc_gauge_action, fieldstrength_eachsite!, identity_gauges!

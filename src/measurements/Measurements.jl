@@ -11,7 +11,6 @@ Module containing all measurement methods and their parameters. Also handles I/O
 """
 module Measurements
 
-using CUDA: i32
 using KernelAbstractions
 using KernelAbstractions.Extras: @unroll
 using LinearAlgebra

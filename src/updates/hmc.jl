@@ -49,7 +49,7 @@ force recursion when using a bias.
 # Returns
 An HMC object, which can be used as an argument in the `update!` function.
 """
-struct HMC{TI,TG,TT,TF,TS,PO,F2,FS,TIO} <: AbstractUpdate
+struct HMC{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TIO} <: AbstractUpdate
     steps::Int64
     Δτ::Float64
     friction::Float64
@@ -62,7 +62,8 @@ struct HMC{TI,TG,TT,TF,TS,PO,F2,FS,TIO} <: AbstractUpdate
     force::TT
     force2::F2 # second force field for smearing
     fieldstrength::FS # fieldstrength fields for Bias
-    smearing::TS
+    smearing_gauge::TSG
+    smearing_fermion::TSF
 
     fp::TIO
     function HMC(
@@ -71,8 +72,10 @@ struct HMC{TI,TG,TT,TF,TS,PO,F2,FS,TIO} <: AbstractUpdate
         trajectory,
         steps,
         friction=0,
-        numsmear=0,
-        ρ_stout=0;
+        numsmear_gauge=0,
+        numsmear_fermion=0,
+        ρ_stout_gauge=0,
+        ρ_stout_fermion=0;
         hmc_logging=true,
         fermion_action=nothing,
         heavy_flavours=0,
@@ -98,15 +101,26 @@ struct HMC{TI,TG,TT,TF,TS,PO,F2,FS,TIO} <: AbstractUpdate
         staples = Temporaryfield(U)
         force = Temporaryfield(U)
 
-        smearing = StoutSmearing(U, numsmear, ρ_stout)
-        TS = typeof(smearing)
-        force2 = (TS == NoSmearing && !bias_enabled) ? nothing : Temporaryfield(U)
+        smearing_gauge = StoutSmearing(U, numsmear_gauge, ρ_stout_gauge)
+        smearing_fermion = StoutSmearing(U, numsmear_fermion, ρ_stout_fermion)
+        TSG = typeof(smearing_gauge)
+        TSF = typeof(smearing_fermion)
+        has_smearing = TSG != NoSmearing || TSF != NoSmearing
+        force2 = (!has_smearing && !bias_enabled) ? nothing : Temporaryfield(U)
         F2 = typeof(force2)
 
-        if TS == NoSmearing
-            @level1("|  Action Smearing disabled")
+        if TSG == NoSmearing
+            @level1("|  Gauge Action Smearing disabled")
         else
-            @level1("|  Action Smearing: $(numsmear) x $(ρ_stout) Stout")
+            @level1("|  Gauge Action Smearing: $(numsmear_gauge) x $(ρ_stout_gauge) Stout")
+        end
+
+        if TSF == NoSmearing
+            @level1("|  Fermion Action Smearing disabled")
+        else
+            @level1(
+                "|  Fermion Action Smearing: $(numsmear_fermion) x $(ρ_stout_fermion) Stout"
+            )
         end
 
         if fermion_action === StaggeredFermionAction
@@ -148,7 +162,7 @@ struct HMC{TI,TG,TT,TF,TS,PO,F2,FS,TIO} <: AbstractUpdate
         end
 
         @level1("└\n")
-        return new{integrator,TG,TT,TF,TS,PO,F2,FS,typeof(fp)}(
+        return new{integrator,TG,TT,TF,TSG,TSF,PO,F2,FS,typeof(fp)}(
             steps,
             Δτ,
             friction,
@@ -160,7 +174,8 @@ struct HMC{TI,TG,TT,TF,TS,PO,F2,FS,TIO} <: AbstractUpdate
             force,
             force2,
             fieldstrength,
-            smearing,
+            smearing_gauge,
+            smearing_fermion,
             fp,
         )
     end
@@ -185,13 +200,14 @@ function update!(
     P_old = hmc.P_old
     P = hmc.P
     ϕ = hmc.ϕ
-    smearing = hmc.smearing
+    smearing_gauge = hmc.smearing_gauge
+    smearing_fermion = hmc.smearing_fermion
 
     copy!(U_old, U)
     gaussian_TA!(P, friction)
     if TF !== Nothing
         for i in eachindex(fermion_action)
-            sample_pseudofermions!(ϕ[i], fermion_action[i], U)
+            sample_pseudofermions!(smearing_fermion, ϕ[i], fermion_action[i], U, i)
         end
     end
     P_old ≢ nothing && copy!(P_old, P)
@@ -202,7 +218,7 @@ function update!(
     evolve!(TI(), U, hmc, fermion_action, bias)
 
     trP²_new = -calc_kinetic_energy(P)
-    Sg_new = calc_gauge_action(smearing, U)
+    Sg_new = calc_gauge_action(smearing_gauge, U)
 
     ΔP² = trP²_new - trP²_old
     ΔSg = Sg_new - Sg_old
@@ -215,8 +231,8 @@ function update!(
         Sf_old = 0.0
         Sf_new = 0.0
         for i in eachindex(fermion_action)
-            Sf_old += calc_fermion_action(smearing, fermion_action[i], U_old, ϕ[i])
-            Sf_new += calc_fermion_action(smearing, fermion_action[i], U, ϕ[i])
+            Sf_old += calc_fermion_action(smearing_fermion, fermion_action[i], U_old, ϕ[i])
+            Sf_new += calc_fermion_action(smearing_fermion, fermion_action[i], U, ϕ[i])
         end
         ΔSf = Sf_new - Sf_old
     end
@@ -275,7 +291,8 @@ function updateP!(U, hmc::HMC, fac, fermion_action::TF, bias::TB) where {TB,TF}
     force = hmc.force
     ϕ = hmc.ϕ
     temp_force = hmc.force2
-    smearing = hmc.smearing
+    smearing_gauge = hmc.smearing_gauge
+    smearing_fermion = hmc.smearing_fermion
     fieldstrength = hmc.fieldstrength
 
     if TB ≢ Nothing
@@ -285,12 +302,14 @@ function updateP!(U, hmc::HMC, fac, fermion_action::TF, bias::TB) where {TB,TF}
 
     if TF ≢ Nothing
         for i in eachindex(fermion_action)
-            calc_dSfdU_bare!(force, fermion_action[i], U, ϕ[i], temp_force, smearing)
+            calc_dSfdU_bare!(
+                force, fermion_action[i], U, ϕ[i], temp_force, smearing_fermion
+            )
             add!(P, force, ϵ)
         end
     end
 
-    calc_dSdU_bare!(force, staples, U, temp_force, smearing)
+    calc_dSdU_bare!(force, staples, U, temp_force, smearing_gauge)
     add!(P, force, ϵ)
     return nothing
 end
@@ -313,6 +332,19 @@ function calc_fermion_action(smearing::StoutSmearing, fermion_action, U, ϕ)
     fully_smeared_U = smearing.Usmeared_multi[end]
     smeared_fermion_action = calc_fermion_action(fermion_action, fully_smeared_U, ϕ)
     return smeared_fermion_action
+end
+
+function sample_pseudofermions!(::NoSmearing, ϕ, fermion_action, U, ::Any)
+    sample_pseudofermions!(ϕ, fermion_action, U)
+    return nothing
+end
+
+function sample_pseudofermions!(smearing::StoutSmearing, ϕ, fermion_action, U, i)
+    # we only need to smear once even if we have multiple fermion actions
+    i == 1 && calc_smearedU!(smearing, U)
+    fully_smeared_U = smearing.Usmeared_multi[end]
+    sample_pseudofermions!(ϕ, fermion_action, fully_smeared_U)
+    return nothing
 end
 
 print_hmc_data(::Nothing, args...) = nothing

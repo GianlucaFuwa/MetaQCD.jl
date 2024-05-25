@@ -1,6 +1,5 @@
 module DiracOperators
 
-using CUDA: i32
 using KernelAbstractions # With this we can write generic GPU kernels for ROC and CUDA
 using LinearAlgebra
 using Polyester

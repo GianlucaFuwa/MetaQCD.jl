@@ -222,14 +222,6 @@ function calc_fermion_action(
     return real(Sf)
 end
 
-function sample_pseudofermions!(ϕ_eo, fermion_action::StaggeredEOPreFermionAction{4}, U)
-    D = fermion_action.D(U)
-    temp = fermion_action.cg_temps[1]
-    gaussian_pseudofermions!(temp)
-    LinearAlgebra.mul!(ϕ_eo, D, temp)
-    return nothing
-end
-
 function sample_pseudofermions!(
     ϕ_eo, fermion_action::StaggeredEOPreFermionAction{Nf}, U
 ) where {Nf}

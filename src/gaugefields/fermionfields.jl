@@ -21,7 +21,6 @@ struct Fermionfield{BACKEND,T,A,ND} <: Abstractfield{BACKEND,T,A}
     NC::Int64 # Number of colors
     ND::Int64 # Number of dirac indices
     function Fermionfield(NX, NY, NZ, NT; BACKEND=CPU, T=Float64, staggered=false)
-        @assert BACKEND ∈ SUPPORTED_BACKENDS "Only CPU, CUDABackend or ROCBackend supported!"
         ND = staggered ? 1 : 4
         U = KA.zeros(BACKEND(), SVector{3ND,Complex{T}}, NX, NY, NZ, NT)
         NV = NX * NY * NZ * NT

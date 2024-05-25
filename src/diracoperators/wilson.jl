@@ -27,7 +27,7 @@ struct WilsonDiracOperator{B,T,C,TF,TG} <: AbstractDiracOperator
     function WilsonDiracOperator(
         f::Abstractfield{B,T}, mass; anti_periodic=true, r=1, csw=0
     ) where {B,T}
-        @assert r === 1 "Only r=1 in Wilson Dirac supported for now"
+        @assert r == 1 "Only r=1 in Wilson Dirac supported for now"
         κ = 1 / (2mass + 8)
         U = nothing
         C = csw == 0 ? false : true

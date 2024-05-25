@@ -1,6 +1,5 @@
 module Updates
 
-using CUDA: i32
 using KernelAbstractions
 using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
@@ -49,7 +48,6 @@ function Updatemethod(parameters::ParameterSet, U)
     updatemethod = Updatemethod(
         U,
         parameters.update_method,
-        parameters.verboselevel,
         parameters.logdir,
         parameters.fermion_action,
         parameters.eo_precon,
@@ -62,8 +60,10 @@ function Updatemethod(parameters::ParameterSet, U)
         parameters.hmc_steps,
         parameters.hmc_trajectory,
         parameters.hmc_friction,
-        parameters.hmc_numsmear,
-        parameters.hmc_rhostout,
+        parameters.hmc_numsmear_gauge,
+        parameters.hmc_numsmear_fermion,
+        parameters.hmc_rhostout_gauge,
+        parameters.hmc_rhostout_fermion,
         parameters.hmc_logging,
         parameters.hb_maxit,
         parameters.numheatbath,
@@ -77,7 +77,6 @@ end
 function Updatemethod(
     U,
     update_method,
-    verboselevel=1,
     logdir="",
     fermion_action="none",
     eo_precon=false,
@@ -90,8 +89,10 @@ function Updatemethod(
     hmc_steps=10,
     hmc_trajectory=1,
     hmc_friction=π / 2,
-    hmc_numsmear=0,
-    hmc_ρstout=0,
+    hmc_numsmear_gauge=0,
+    hmc_numsmear_fermion=0,
+    hmc_rhostout_gauge=0,
+    hmc_rhostout_fermion=0,
     hmc_logging=true,
     hb_MAXIT=1,
     hb_numHB=1,
@@ -107,8 +108,10 @@ function Updatemethod(
             hmc_trajectory,
             hmc_steps,
             hmc_friction,
-            hmc_numsmear,
-            hmc_ρstout;
+            hmc_numsmear_gauge,
+            hmc_numsmear_fermion,
+            hmc_rhostout_gauge,
+            hmc_rhostout_fermion;
             hmc_logging=hmc_logging,
             fermion_action=fermaction_from_str(lower_case(fermion_action), eo_precon),
             heavy_flavours=length(Nf) - 1,

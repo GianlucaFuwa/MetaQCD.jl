@@ -8,8 +8,8 @@ using ..Output
 
 import ..DiracOperators: WilsonFermionAction
 import ..DiracOperators: StaggeredFermionAction, StaggeredEOPreFermionAction
-import ..Gaugefields: Gaugefield, CPU, CUDABackend, ROCBackend, WilsonGaugeAction
-import ..Gaugefields: IwasakiGaugeAction, DBW2GaugeAction, SymanzikTreeGaugeAction
+import ..Gaugefields: Gaugefield, WilsonGaugeAction, IwasakiGaugeAction, DBW2GaugeAction
+import ..Gaugefields: SymanzikTreeGaugeAction
 import ..BiasModule: Bias
 import ..Parameters: ParameterSet
 

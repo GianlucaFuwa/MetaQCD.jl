@@ -85,8 +85,10 @@ Base.@kwdef mutable struct HMCParameters
     hmc_steps::Int64 = 10
     hmc_friction::Float64 = 0.0
     hmc_integrator::String = "Leapfrog"
-    hmc_numsmear::Int64 = 0
-    hmc_rhostout::Float64 = 0.0
+    hmc_numsmear_gauge::Int64 = 0
+    hmc_numsmear_fermion::Int64 = 0
+    hmc_rhostout_gauge::Float64 = 0.0
+    hmc_rhostout_fermion::Float64 = 0.0
     hmc_logging::Bool = true
 end
 
