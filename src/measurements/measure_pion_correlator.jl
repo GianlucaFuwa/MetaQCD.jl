@@ -1,25 +1,30 @@
-struct PionCorrelatorMeasurement{T,TD,TF,N} <: AbstractMeasurement
+struct PionCorrelatorMeasurement{T,TD,TF,CT,RT,RI} <: AbstractMeasurement
     dirac_operator::TD
-    # eo_precon::Bool
-    # mass_precon::Bool
+    temp::TF # We need 1 temp fermion field for propagators
+    cg_temps::CT # We need 4 temp fermions for cg / 7 for bicg(stab)
+    rhmc_temps1::RT # this holds the results of multishift cg
+    rhmc_temps2::RT # this holds the basis vectors in multishift cg
+    pion_dict::Dict{Int64,Float64} # One value per time slice
+    rhmc_info::RI
     cg_tol::Float64
     cg_maxiters::Int64
-    temp_fermion::TF # We need 1 temp fermion field for propagators
-    temp_cg_fermions::NTuple{N,TF} # We need 4 temp fermions for cg / 7 for bicg(stab)
-    pion_dict::Dict{Int64,Float64} # One value per time slice
+    # mass_precon::Bool
     fp::T # file pointer
     function PionCorrelatorMeasurement(
         U::Gaugefield;
         filename="",
         printvalues=false,
         dirac_type="wilson",
+        eo_precon=false,
         flow=false,
         mass=0.1,
-        # Nf=2,
+        Nf=1,
         csw=0,
         r=1,
         cg_tol=1e-16,
         cg_maxiters=1000,
+        rhmc_order=15,
+        rhmc_prec=42,
         anti_periodic=true,
     )
         pion_dict = Dict{Int64,Float64}()
@@ -30,17 +35,36 @@ struct PionCorrelatorMeasurement{T,TD,TF,N} <: AbstractMeasurement
         end
 
         if dirac_type == "staggered"
-            dirac_operator = StaggeredDiracOperator(U, mass; anti_periodic=anti_periodic)
-            temp_fermion = Fermionfield(U; staggered=true)
-            N = 6
-            temp_cg_fermions = ntuple(_ -> Fermionfield(temp_fermion), 6)
+            if eo_precon
+                error(
+                    "Even-odd preconditioned staggered not yet supported in pion correlator"
+                )
+                dirac_operator = StaggeredEOPreDiracOperator(
+                    U, mass; anti_periodic=anti_periodic
+                )
+                temp = Fermionfield(U; staggered=true)
+                cg_temps = ntuple(_ -> even_odd(similar(temp)), 6)
+                # TODO
+                power = Nf//4
+                # rhmc_info = RHMCParams(power; n=rhmc_order, precision=rhmc_prec)
+                rhmc_info = rhmc_temps1 = rhmc_temps2 = nothing
+            else
+                dirac_operator = StaggeredDiracOperator(
+                    U, mass; anti_periodic=anti_periodic
+                )
+                temp = Fermionfield(U; staggered=true)
+                cg_temps = ntuple(_ -> similar(temp), 6)
+                power = Nf//4
+                # rhmc_info = RHMCParams(power; n=rhmc_order, precision=rhmc_prec)
+                rhmc_info = rhmc_temps1 = rhmc_temps2 = nothing
+            end
         elseif dirac_type == "wilson"
             dirac_operator = WilsonDiracOperator(
                 U, mass; anti_periodic=anti_periodic, r=r, csw=csw
             )
-            temp_fermion = Fermionfield(U)
-            N = 6
-            temp_cg_fermions = ntuple(_ -> Fermionfield(temp_fermion), 6)
+            temp = Fermionfield(U)
+            cg_temps = ntuple(_ -> Fermionfield(temp), 6)
+            rhmc_info = rhmc_temps1 = rhmc_temps2 = nothing
         else
             throw(ArgumentError("Dirac operator \"$dirac_type\" is not supported"))
         end
@@ -64,13 +88,22 @@ struct PionCorrelatorMeasurement{T,TD,TF,N} <: AbstractMeasurement
             fp = nothing
         end
 
-        return new{typeof(fp),typeof(dirac_operator),typeof(temp_fermion),N}(
+        T = typeof(fp)
+        TD = typeof(dirac_operator)
+        TF = typeof(temp)
+        CT = typeof(cg_temps)
+        RT = typeof(rhmc_temps1)
+        RI = typeof(rhmc_info)
+        return new{T,TD,TF,CT,RT,RI}(
             dirac_operator,
+            temp,
+            cg_temps,
+            rhmc_temps1,
+            rhmc_temps2,
+            pion_dict,
+            rhmc_info,
             cg_tol,
             cg_maxiters,
-            temp_fermion,
-            temp_cg_fermions,
-            pion_dict,
             fp,
         )
     end
@@ -87,7 +120,6 @@ function PionCorrelatorMeasurement(
         dirac_type=params.dirac_type,
         mass=params.mass,
         # Nf=params.Nf,
-        # κ=params.κ,
         # r=params.r,
         cg_tol=params.cg_tol,
         cg_maxiters=params.cg_maxiters,
@@ -102,8 +134,8 @@ function measure(m::PionCorrelatorMeasurement{T}, U; additional_string="") where
     pion_correlators_avg!(
         m.pion_dict,
         m.dirac_operator(U),
-        m.temp_fermion,
-        m.temp_cg_fermions,
+        m.temp,
+        m.cg_temps,
         m.cg_tol,
         m.cg_maxiters,
     )
