@@ -44,11 +44,11 @@ end
 
 const StaggeredFermionfield{B,T,A} = Fermionfield{B,T,A,1}
 
-struct StaggeredFermionAction{Nf,TD,CT,RI,RT} <: AbstractFermionAction
+struct StaggeredFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
     D::TD
     cg_temps::CT
-    rhmc_info_action::RI
-    rhmc_info_md::RI
+    rhmc_info_action::RI1
+    rhmc_info_md::RI2
     rhmc_temps1::RT # this holds the results of multishift cg
     rhmc_temps2::RT # this holds the basis vectors in multishift cg
     cg_tol_action::Float64
@@ -80,33 +80,34 @@ struct StaggeredFermionAction{Nf,TD,CT,RI,RT} <: AbstractFermionAction
         TD = typeof(D)
 
         if Nf == 8
-            rhmc_info_md = nothing
             rhmc_info_action = nothing
+            rhmc_info_md = nothing
             rhmc_temps1 = nothing
             rhmc_temps2 = nothing
             cg_temps = ntuple(_ -> Fermionfield(f; staggered=true), 4)
         else
             @assert 8 > Nf > 0 "Nf should be between 1 and 8 (was $Nf)"
             cg_temps = ntuple(_ -> Fermionfield(f; staggered=true), 2)
+            power = Nf//16
+            rhmc_info_action = RHMCParams(
+                power; n=rhmc_order_for_action, precision=rhmc_prec_for_action
+            )
             power = Nf//8
             rhmc_info_md = RHMCParams(
                 power; n=rhmc_order_for_md, precision=rhmc_prec_for_md
             )
             # rhmc_info_action = RHMCParams(power; n=rhmc_order, precision=rhmc_prec)
-            power = Nf//16
-            rhmc_info_action = RHMCParams(
-                power; n=rhmc_order_for_action, precision=rhmc_prec_for_action
-            )
             n_temps = max(rhmc_order_for_md, rhmc_order_for_action)
             rhmc_temps1 = ntuple(_ -> Fermionfield(f; staggered=true), n_temps + 1)
             rhmc_temps2 = ntuple(_ -> Fermionfield(f; staggered=true), n_temps + 1)
         end
 
         CT = typeof(cg_temps)
-        RI = typeof(rhmc_info_action)
+        RI1 = typeof(rhmc_info_action)
+        RI2 = typeof(rhmc_info_md)
         RT = typeof(rhmc_temps1)
         @level1("└\n")
-        return new{Nf,TD,CT,RI,RT}(
+        return new{Nf,TD,CT,RI1,RI2,RT}(
             D,
             cg_temps,
             rhmc_info_action,
@@ -162,7 +163,7 @@ function calc_fermion_action(
     cg_tol = fermion_action.cg_tol_action
     cg_maxiters = fermion_action.cg_maxiters_action
     rhmc = fermion_action.rhmc_info_action
-    n = rhmc.coeffs_inverse.n
+    n = get_order(rhmc)
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     ψs = fermion_action.rhmc_temps1[1:n+1]
@@ -173,9 +174,9 @@ function calc_fermion_action(
         clear!(v)
     end
 
-    shifts = rhmc.coeffs_inverse.β
-    coeffs = rhmc.coeffs_inverse.α
-    α₀ = rhmc.coeffs_inverse.α0
+    shifts = get_β_inverse(rhmc)
+    coeffs = get_α_inverse(rhmc)
+    α₀ = get_α0_inverse(rhmc)
     solve_dirac_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
     ψ = ψs[1]
     clear!(ψ) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
@@ -201,7 +202,7 @@ function sample_pseudofermions!(ϕ, fermion_action::StaggeredFermionAction{Nf}, 
     cg_tol = fermion_action.cg_tol_action
     cg_maxiters = fermion_action.cg_maxiters_action
     rhmc = fermion_action.rhmc_info_action
-    n = rhmc.coeffs.n
+    n = get_order(rhmc)
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     ψs = fermion_action.rhmc_temps1[1:n+1]
@@ -211,9 +212,10 @@ function sample_pseudofermions!(ϕ, fermion_action::StaggeredFermionAction{Nf}, 
     for v in ψs
         clear!(v)
     end
-    shifts = rhmc.coeffs.β
-    coeffs = rhmc.coeffs.α
-    α₀ = rhmc.coeffs.α0
+
+    shifts = get_β_inverse(rhmc)
+    coeffs = get_α_inverse(rhmc)
+    α₀ = get_α0_inverse(rhmc)
     gaussian_pseudofermions!(ϕ) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
     solve_dirac_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
 

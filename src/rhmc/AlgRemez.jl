@@ -10,10 +10,10 @@ using AlgRemez_jll
 
 const exe = algremez(x -> x)
 
-struct AlgRemezCoeffs
+struct AlgRemezCoeffs{N}
     α0::Float64
-    α::Vector{Float64}
-    β::Vector{Float64}
+    α::NTuple{N,Float64}
+    β::NTuple{N,Float64}
     n::Int64
 end
 
@@ -81,7 +81,9 @@ function calc_coefficients(y::Int, z::Int, n::Int, lambda_low, lambda_high; prec
         βplus[i] = parse(Float64, split(u[2], "=")[2])
     end
 
-    coeff_plus = AlgRemezCoeffs(αplus0, αplus, βplus, n) # x^(y/z)
+    αplus_tup = tuple(αplus...)
+    βplus_tup = tuple(βplus...)
+    coeff_plus = AlgRemezCoeffs(αplus0, αplus_tup, βplus_tup, n) # x^(y/z)
     icount += 4
     αminus0 = parse(Float64, split(datas[icount], "=")[2])
     αminus = zeros(Float64, n)
@@ -94,7 +96,9 @@ function calc_coefficients(y::Int, z::Int, n::Int, lambda_low, lambda_high; prec
         βminus[i] = parse(Float64, split(u[2], "=")[2])
     end
 
-    coeff_minus = AlgRemezCoeffs(αminus0, αminus, βminus, n) # x^(-y/z)
+    αminus_tup = tuple(αminus...)
+    βminus_tup = tuple(βminus...)
+    coeff_minus = AlgRemezCoeffs(αminus0, αminus_tup, βminus_tup, n) # x^(-y/z)
     return coeff_plus, coeff_minus
 end
 

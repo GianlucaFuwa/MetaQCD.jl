@@ -14,12 +14,11 @@ import StrideArraysCore: object_and_preserve # This is used to convert the Abstr
 const BACKEND = Dict{String,Type{<:Backend}}("cpu" => CPU)
 
 # We are going to need these if we want to transfer a field from one backend to another
-# see `to_backend` function
+# For other backends, we overload this method in their respective extensions
 array_type(::Type{CPU}) = Array
 
 # Define an abstract field super type that is parametrized by the backend, the precision and
-# the array type (Array, CuArray, ROCArray). Make it a subtype of DenseArray so that
-# @batch knows how to handle it
+# the array type (Array, CuArray, ROCArray)
 abstract type Abstractfield{BACKEND,T,A} end
 
 """
@@ -145,14 +144,14 @@ function CoeffField(u::Abstractfield{BACKEND,T,A}) where {BACKEND,T,A}
     return CoeffField(u.NX, u.NY, u.NZ, u.NT; BACKEND=BACKEND, T=T)
 end
 
-# overload some function such that @batch knows how to handle Abstractfields
+# XXX: might not be needed
 Base.eltype(u::Abstractfield) = eltype(u.U)
 Base.elsize(u::Abstractfield) = Base.elsize(u.U)
 Base.parent(u::Abstractfield) = u.U
 Base.pointer(u::Abstractfield) = pointer(u.U)
 Base.strides(u::Abstractfield) = strides(u.U)
-# This converts u to a PtrArray pointing the entries of u.U, meaning that we shouldnt access
-# any of the fields of u within the @batch loop
+# This converts u to a PtrArray pointing to the entries of u.U, meaning that we cant
+# access any of the fields of u within the @batch loop
 @inline object_and_preserve(u::Abstractfield) = object_and_preserve(u.U)
 float_type(::AbstractArray{SMatrix{3,3,Complex{T},9},5}) where {T} = T
 float_type(::Abstractfield{BACKEND,T}) where {BACKEND,T} = T
@@ -174,8 +173,23 @@ function Base.show(io::IO, ::MIME"text/plain", u::T) where {T<:Abstractfield}
     return nothing
 end
 
-# define dims() function twice --- once for generic arrays, such that CUDA and ROC
-# can use it, and once for Abstractfields, such that CPU can use it
+function Base.show(io::IO, u::T) where {T<:Abstractfield}
+    print(io, "$(typeof(u))", "(;")
+    for fieldname in fieldnames(T)
+        fieldname ∈ (:U, :NV) && continue
+
+        if fieldname ∈ (:Sf, :Sg, :CV)
+            print(io, " ", fieldname, " = ", getfield(u, fieldname)[], ",")
+        else
+            print(io, " ", fieldname, " = ", getfield(u, fieldname), ",")
+        end
+    end
+    print(io, ")")
+    return nothing
+end
+
+# define dims() function twice --- once for generic arrays, such that GPUs and @batch
+# can use it, and once for Abstractfields for any other case
 @inline dims(u) = NTuple{4,Int64}((size(u, 2), size(u, 3), size(u, 4), size(u, 5)))
 @inline dims(u::Abstractfield{CPU}) = NTuple{4,Int64}((u.NX, u.NY, u.NZ, u.NT))
 @inline volume(u) = prod(dims(u))
@@ -188,7 +202,7 @@ Base.size(u::Abstractfield) = NTuple{5,Int64}((4, u.NX, u.NY, u.NZ, u.NT))
 
 Check if all fields have the same dimensions. Throw an `AssertionError` otherwise.
 """
-@generated function Gaugefields.check_dims(x1, rest::Vararg{Any,N}) where {N}
+@generated function check_dims(x1, rest::Vararg{Any,N}) where {N}
     q_inner = Expr(:comparison, :(dims(x1)))
     for i in 1:N
         push!(q_inner.args, :(==))
@@ -218,8 +232,7 @@ Base.@propagate_inbounds Base.setindex!(u::Abstractfield, v, μ, x, y, z, t) =
 Base.@propagate_inbounds Base.setindex!(u::Abstractfield, v, μ, site::SiteCoords) =
     setindex!(u.U, v, μ, site)
 
-# overload getproperty and setproperty!, because we dont want to deal with Base.RefValues
-# all the time
+# overload getproperty and setproperty! for convenience
 function Base.getproperty(u::Gaugefield, p::Symbol)
     if p == :Sg
         return getfield(u, :Sg)[]
@@ -249,7 +262,7 @@ Base.similar(u::CoeffField) = CoeffField(u)
 """
 	to_backend(Bout, u::Abstractfield{Bin,T})
 
-Ports the Abstractfield u to the backend Bout, maintaining all link variables
+Ports the Abstractfield u to the backend Bout, maintaining all elements
 # Supported backends
 `CPU` \\
 `CUDABackend` \\

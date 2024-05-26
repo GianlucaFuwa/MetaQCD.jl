@@ -3,9 +3,9 @@
 	Fermionfield(ψ::Fermionfield)
     Fermionfield(f::Abstractfield, staggered)
 
-Creates a Fermionfield on `BACKEND`, i.e. an array of link-variables (3D complex vectors
-with `T` precision) of size `ND × NX × NY × NZ × NT` or a zero-initialized copy of `ψ`.
-If `staggered=true`, the number of Dirac degrees of freedom is reduced to 1 instead of 4.
+Creates a Fermionfield on `BACKEND`, i.e. an array of link-variables (NC×ND complex vectors
+with `T` precision) of size `NX × NY × NZ × NT` or a zero-initialized copy of `ψ`.
+If `staggered=true`, the number of Dirac degrees of freedom (ND) is reduced to 1 instead of 4.
 # Supported backends
 `CPU` \\
 `CUDABackend` \\
@@ -141,6 +141,7 @@ end
 Create a wrapper around a `Fermionfield` to signal that it is meant to be used in the context
 of even-odd preconditioning. What this amounts to is that we realign the entries such that
 `ϕ -> (ϕₑ, ϕₒ)`, which is achieved by recalculating the index whenever we index into `ϕ`
+or iterating only over one half of its indices.
 """
 even_odd(f::Fermionfield) = EvenOdd(f)
 
@@ -170,7 +171,7 @@ function set_source!(ϕ_eo::EvenOdd{CPU,T}, site::SiteCoords, a, μ) where {T}
     return nothing
 end
 
-function Base.copy!(ϕ_eo::T, ψ_eo::T) where {T<:EvenOdd{CPU}}
+function Base.copy!(ϕ_eo::TF, ψ_eo::TF) where {TF<:EvenOdd{CPU}}
     check_dims(ϕ_eo, ψ_eo)
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent

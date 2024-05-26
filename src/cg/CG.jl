@@ -1,5 +1,8 @@
 module CG
+
+using Accessors
 using LinearAlgebra
+using StaticArrays
 using ..Output
 
 export bicg!, bicg_stab!, cg!, mscg!
@@ -42,10 +45,10 @@ function mscg!(
     @assert length(shifts) == N - 1
     α = one(ComplexF64)
     β = zero(ComplexF64)
-    α′ = ones(ComplexF64, N - 1)
-    ρ′ = ones(ComplexF64, N - 1)
-    γ′ = ones(ComplexF64, N - 1)
-    β′ = zeros(ComplexF64, N - 1)
+    α′ = @SVector ones(ComplexF64, N - 1)
+    ρ′ = @SVector ones(ComplexF64, N - 1)
+    γ′ = @SVector ones(ComplexF64, N - 1)
+    β′ = @SVector zeros(ComplexF64, N - 1)
 
     mul!(Ap, A, x[1])
     copy!(r, b)
@@ -54,7 +57,7 @@ function mscg!(
         copy!(p[i], r)
     end
     res = dot(r, r)
-    res′ = fill(res, N - 1)
+    res′ = @SVector fill(res, N - 1)
     if abs(res) < tol
         @level2 "|  MultishiftCG: converged at iter 0 with res = $(abs(res))"
         return nothing
@@ -65,8 +68,8 @@ function mscg!(
         mul!(Ap, A, p[1])
         α_new = res / dot(p[1], Ap)
         ω = (α_new * β) / α
-        @. ρ′ = 1 / (1 + shifts * α_new + (1 - ρ′) * ω)
-        @. α′ = ρ′ * α_new
+        ρ′ = 1 ./ (1 .+ shifts * α_new .+ (1 .- ρ′) .* ω)
+        α′ = α_new * ρ′
         axpy!(α_new, p[1], x[1])
         axpy!(-α_new, Ap, r)
         res_new = dot(r, r)
@@ -76,10 +79,10 @@ function mscg!(
         for i in 1:N-1
             abs(res′[i]) < tol && continue
             axpy!(α′[i], p[i+1], x[i+1])
-            β′[i] = ρ′[i]^2 * β
+            @reset β′[i] = ρ′[i]^2 * β
             resᵢ = γ′[i] * res_new
-            res′[i] = resᵢ
-            γ′[i] = ρ′[i] * γ′[i]
+            @reset res′[i] = resᵢ
+            @reset γ′[i] = ρ′[i] * γ′[i]
             res_max = abs(resᵢ) > res_max ? abs(resᵢ) : res_max
         end
         @level3 "|  MultishiftCG: max residual $(iter) = $res_max"

@@ -3,24 +3,27 @@ module RHMCParameters
 
 import ..AlgRemez: AlgRemezCoeffs, calc_coefficients
 
+export RHMCParams
+export get_order, get_α, get_α0, get_β, get_α_inverse, get_α0_inverse, get_β_inverse
+
 """
-    RHMCParams(order::Rational; n=10, lambda_low=0.0004, lambda_high=64, precision=42)
+    RHMCParams(power::Rational; n=10, lambda_low=0.0004, lambda_high=64, precision=42)
 
 Return an `RHMCParams` which is a container for the Remez coefficients calculated with
-the specified `order` on the interval `[lambda_low, lamda_high]` and the specified
+the specified `power` on the interval `[lambda_low, lamda_high]` and the specified
 `precision`.
 """
-struct RHMCParams
+struct RHMCParams{N}
     y::Int64
     z::Int64
-    coeffs::AlgRemezCoeffs
-    coeffs_inverse::AlgRemezCoeffs
+    coeffs::AlgRemezCoeffs{N}
+    coeffs_inverse::AlgRemezCoeffs{N}
 
     function RHMCParams(
-        order::Rational; n=10, lambda_low=0.0004, lambda_high=64, precision=42
+        power::Rational; n=10, lambda_low=0.0004, lambda_high=64, precision=42
     )
-        num = numerator(order)
-        den = denominator(order)
+        num = numerator(power)
+        den = denominator(power)
         return RHMCParams(
             num,
             den;
@@ -34,9 +37,9 @@ struct RHMCParams
     function RHMCParams(
         y::Int, z::Int; n::Int=10, lambda_low=4e-4, lambda_high=64, precision=42
     )
-        order = y//z
-        num = numerator(order)
-        den = denominator(order)
+        power = y//z
+        num = numerator(power)
+        den = denominator(power)
         @assert num != 0 "numerator should not be zero!"
         @assert num * den != 1 "$(num ÷ den) should not be 1!"
 
@@ -51,36 +54,16 @@ struct RHMCParams
             coeffs_inverse = coeff_plus
             coeffs = coeff_minus
         end
-        return new(num, den, coeffs, coeffs_inverse)
+        return new{n}(num, den, coeffs, coeffs_inverse)
     end
 end
 
-function get_α(x::RHMCParams)
-    return x.coeffs.α
-end
-
-function get_α0(x::RHMCParams)
-    return x.coeffs.α0
-end
-
-function get_β(x::RHMCParams)
-    return x.coeffs.β
-end
-
-function get_order(x::RHMCParams)
-    return x.coeffs.n
-end
-
-function get_α_inverse(x::RHMCParams)
-    return x.coeffs_inverse.α
-end
-
-function get_α0_inverse(x::RHMCParams)
-    return x.coeffs_inverse.α0
-end
-
-function get_β_inverse(x::RHMCParams)
-    return x.coeffs_inverse.β
-end
+get_order(::RHMCParams{N}) where {N} = N
+get_α(x::RHMCParams) = x.coeffs.α
+get_α0(x::RHMCParams) = x.coeffs.α0
+get_β(x::RHMCParams) = x.coeffs.β
+get_α_inverse(x::RHMCParams) = x.coeffs_inverse.α
+get_α0_inverse(x::RHMCParams) = x.coeffs_inverse.α0
+get_β_inverse(x::RHMCParams) = x.coeffs_inverse.β
 
 end

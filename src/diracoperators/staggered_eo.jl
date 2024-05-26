@@ -35,16 +35,6 @@ struct StaggeredEOPreDiracOperator{B,T,TF,TG} <: AbstractDiracOperator
     end
 
     function StaggeredEOPreDiracOperator(
-        D::StaggeredDiracOperator{B,T,TF}, U::Gaugefield{B,T}
-    ) where {B,T,TF}
-        check_dims(U, D.temp)
-        temp = even_odd(D.temp)
-        TF_new = typeof(temp)
-        TG = typeof(U)
-        return new{B,T,TF_new,TG}(U, temp, D.mass, D.anti_periodic)
-    end
-
-    function StaggeredEOPreDiracOperator(
         D::StaggeredEOPreDiracOperator{B,T,TF}, U::Gaugefield{B,T}
     ) where {B,T,TF}
         check_dims(U, D.temp.parent)
@@ -75,10 +65,10 @@ struct StaggeredEOPreFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
         mass;
         anti_periodic=true,
         Nf=4,
-        rhmc_order_for_md=10,
-        rhmc_prec_for_md=42,
         rhmc_order_for_action=15,
         rhmc_prec_for_action=42,
+        rhmc_order_for_md=10,
+        rhmc_prec_for_md=42,
         cg_tol_action=1e-14,
         cg_tol_md=1e-12,
         cg_maxiters_action=1000,
@@ -95,7 +85,7 @@ struct StaggeredEOPreFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
         TD = typeof(D)
 
         if Nf == 4
-            rhmc_info_md = nothing
+            cg_temps = ntuple(_ -> even_odd(Fermionfield(f; staggered=true)), 4)
             power = Nf//8
             rhmc_info_action = RHMCParams(
                 power; n=rhmc_order_for_action, precision=rhmc_prec_for_action
@@ -107,17 +97,17 @@ struct StaggeredEOPreFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
             rhmc_temps2 = ntuple(
                 _ -> even_odd(Fermionfield(f; staggered=true)), n_temps + 1
             )
-            cg_temps = ntuple(_ -> even_odd(Fermionfield(f; staggered=true)), 4)
+            rhmc_info_md = nothing
         else
             @assert 4 > Nf > 0 "Nf should be between 1 and 4 (was $Nf)"
             cg_temps = ntuple(_ -> even_odd(Fermionfield(f; staggered=true)), 2)
-            power = Nf//4
-            rhmc_info_md = RHMCParams(
-                power; n=rhmc_order_for_md, precision=rhmc_prec_for_md
-            )
             power = Nf//8
             rhmc_info_action = RHMCParams(
                 power; n=rhmc_order_for_action, precision=rhmc_prec_for_action
+            )
+            power = Nf//4
+            rhmc_info_md = RHMCParams(
+                power; n=rhmc_order_for_md, precision=rhmc_prec_for_md
             )
             n_temps = max(rhmc_order_for_md, rhmc_order_for_action)
             rhmc_temps1 = ntuple(
@@ -195,7 +185,7 @@ function calc_fermion_action(
     cg_tol = fermion_action.cg_tol_action
     cg_maxiters = fermion_action.cg_maxiters_action
     rhmc = fermion_action.rhmc_info_action
-    n = rhmc.coeffs_inverse.n
+    n = get_order(rhmc)
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     ψs = fermion_action.rhmc_temps1[1:n+1]
@@ -206,9 +196,9 @@ function calc_fermion_action(
         clear!(v_eo)
     end
 
-    shifts = rhmc.coeffs_inverse.β
-    coeffs = rhmc.coeffs_inverse.α
-    α₀ = rhmc.coeffs_inverse.α0
+    shifts = get_β_inverse(rhmc)
+    coeffs = get_α_inverse(rhmc)
+    α₀ = get_α0_inverse(rhmc)
     solve_dirac_multishift!(ψs, shifts, DdagD, ϕ_eo, temp1, temp2, ps, cg_tol, cg_maxiters)
     ψ_eo = ψs[1]
     clear!(ψ_eo) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
@@ -228,7 +218,7 @@ function sample_pseudofermions!(
     cg_tol = fermion_action.cg_tol_action
     cg_maxiters = fermion_action.cg_maxiters_action
     rhmc = fermion_action.rhmc_info_action
-    n = rhmc.coeffs.n
+    n = get_order(rhmc)
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     ψs = fermion_action.rhmc_temps1[1:n+1]
@@ -238,9 +228,10 @@ function sample_pseudofermions!(
     for v in ψs
         clear!(v)
     end
-    shifts = rhmc.coeffs.β
-    coeffs = rhmc.coeffs.α
-    α₀ = rhmc.coeffs.α0
+
+    shifts = get_β_inverse(rhmc)
+    coeffs = get_α_inverse(rhmc)
+    α₀ = get_α0_inverse(rhmc)
     gaussian_pseudofermions!(ϕ_eo) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
     solve_dirac_multishift!(ψs, shifts, DdagD, ϕ_eo, temp1, temp2, ps, cg_tol, cg_maxiters)
 

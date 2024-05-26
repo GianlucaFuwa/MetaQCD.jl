@@ -52,11 +52,11 @@ end
 
 const WilsonFermionfield{B,T,A} = Fermionfield{B,T,A,4}
 
-struct WilsonFermionAction{Nf,C,TD,CT,RI,RT,TX} <: AbstractFermionAction
+struct WilsonFermionAction{Nf,C,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction
     D::TD
     cg_temps::CT
-    rhmc_info_action::RI
-    rhmc_info_md::RI
+    rhmc_info_action::RI1
+    rhmc_info_md::RI2
     rhmc_temps1::RT # this holds the results of multishift cg
     rhmc_temps2::RT # this holds the basis vectors in multishift cg
     Xμν::TX
@@ -71,10 +71,10 @@ struct WilsonFermionAction{Nf,C,TD,CT,RI,RT,TX} <: AbstractFermionAction
         r=1,
         csw=0,
         Nf=2,
-        rhmc_order_for_md=10,
-        rhmc_prec_for_md=42,
         rhmc_order_for_action=15,
         rhmc_prec_for_action=42,
+        rhmc_order_for_md=10,
+        rhmc_prec_for_md=42,
         cg_tol_action=1e-14,
         cg_tol_md=1e-12,
         cg_maxiters_action=1000,
@@ -93,21 +93,21 @@ struct WilsonFermionAction{Nf,C,TD,CT,RI,RT,TX} <: AbstractFermionAction
         TD = typeof(D)
 
         if Nf == 2
-            rhmc_info_md = nothing
             rhmc_info_action = nothing
+            rhmc_info_md = nothing
             rhmc_temps1 = nothing
             rhmc_temps2 = nothing
             cg_temps = ntuple(_ -> Fermionfield(f), 4)
         else
             @assert Nf == 1 "Nf should be 1 or 2 (was $Nf). If you want Nf > 2, use multiple actions"
             cg_temps = ntuple(_ -> Fermionfield(f), 2)
-            power = Nf//2
-            rhmc_info_md = RHMCParams(
-                power; n=rhmc_order_for_md, precision=rhmc_prec_for_md
-            )
             power = Nf//4
             rhmc_info_action = RHMCParams(
                 power; n=rhmc_order_for_action, precision=rhmc_prec_for_action
+            )
+            power = Nf//2
+            rhmc_info_md = RHMCParams(
+                power; n=rhmc_order_for_md, precision=rhmc_prec_for_md
             )
             n_temps = max(rhmc_order_for_md, rhmc_order_for_action)
             rhmc_temps1 = ntuple(_ -> Fermionfield(f), n_temps + 1)
@@ -125,11 +125,12 @@ struct WilsonFermionAction{Nf,C,TD,CT,RI,RT,TX} <: AbstractFermionAction
         end
 
         CT = typeof(cg_temps)
-        RI = typeof(rhmc_info_md)
+        RI1 = typeof(rhmc_info_action)
+        RI2 = typeof(rhmc_info_md)
         RT = typeof(rhmc_temps1)
         TX = typeof(Xμν)
         @level1("└\n")
-        return new{Nf,C,TD,CT,RI,RT,TX}(
+        return new{Nf,C,TD,CT,RI1,RI2,RT,TX}(
             D,
             cg_temps,
             rhmc_info_action,
@@ -186,7 +187,7 @@ function calc_fermion_action(
     cg_tol = fermion_action.cg_tol_action
     cg_maxiters = fermion_action.cg_maxiters_action
     rhmc = fermion_action.rhmc_info_action
-    n = rhmc.coeffs_inverse.n
+    n = get_order(rhmc)
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     ψs = fermion_action.rhmc_temps1[1:n+1]
@@ -197,9 +198,9 @@ function calc_fermion_action(
         clear!(v)
     end
 
-    shifts = rhmc.coeffs_inverse.β
-    coeffs = rhmc.coeffs_inverse.α
-    α₀ = rhmc.coeffs_inverse.α0
+    shifts = get_β_inverse(rhmc)
+    coeffs = get_α_inverse(rhmc)
+    α₀ = get_α0_inverse(rhmc)
     solve_dirac_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
     ψ = ψs[1]
     clear!(ψ) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
@@ -225,7 +226,7 @@ function sample_pseudofermions!(ϕ, fermion_action::WilsonFermionAction{Nf}, U) 
     cg_tol = fermion_action.cg_tol_action
     cg_maxiters = fermion_action.cg_maxiters_action
     rhmc = fermion_action.rhmc_info_action
-    n = rhmc.coeffs.n
+    n = get_order(rhmc)
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     ψs = fermion_action.rhmc_temps1[1:n+1]
@@ -235,9 +236,10 @@ function sample_pseudofermions!(ϕ, fermion_action::WilsonFermionAction{Nf}, U) 
     for v in ψs
         clear!(v)
     end
-    shifts = rhmc.coeffs.β
-    coeffs = rhmc.coeffs.α
-    α₀ = rhmc.coeffs.α0
+
+    shifts = get_β_inverse(rhmc)
+    coeffs = get_α_inverse(rhmc)
+    α₀ = get_α0_inverse(rhmc)
     gaussian_pseudofermions!(ϕ) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
     solve_dirac_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
 

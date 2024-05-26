@@ -6,12 +6,12 @@ using Polyester
 using StaticArrays
 using ..CG
 using ..Output
+using ..RHMCParameters
 using ..Utils
 
 import ..Gaugefields: Abstractfield, EvenOdd, Fermionfield, Gaugefield, Tensorfield, clear!
 import ..Gaugefields: check_dims, clover_square, dims, even_odd, gaussian_pseudofermions!
 import ..Gaugefields: Checkerboard2, Sequential, @latmap, @latsum, set_source!
-import ..RHMCParameters: RHMCParams
 
 abstract type AbstractDiracOperator end
 abstract type AbstractFermionAction end
@@ -66,7 +66,7 @@ files.
 function solve_dirac_multishift!(
     ψs, shifts, D::T, ϕ, temp1, temp2, ps, tol=1e-16, maxiters=1000
 ) where {T<:DdaggerD}
-    mscg!(ψs, shifts, D, ϕ, temp1, temp2, ps; tol=tol, maxiters=maxiters)
+    mscg!(ψs, SVector(shifts), D, ϕ, temp1, temp2, ps; tol=tol, maxiters=maxiters)
     return nothing
 end
 
