@@ -5,7 +5,6 @@ using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
 using Polyester # Used for the @batch macro, which enables multi threading
 using StaticArrays # Used for the SU3 matrices
-using StaticArrays: check_dims
 using Random
 using ..Utils # Contains utility functions, such as projections and the exponential map
 
@@ -179,18 +178,24 @@ end
 # can use it, and once for Abstractfields, such that CPU can use it
 @inline dims(u) = NTuple{4,Int64}((size(u, 2), size(u, 3), size(u, 4), size(u, 5)))
 @inline dims(u::Abstractfield{CPU}) = NTuple{4,Int64}((u.NX, u.NY, u.NZ, u.NT))
+@inline volume(u) = prod(dims(u))
 @inline volume(u::Abstractfield) = u.NV
 Base.ndims(u::Abstractfield) = 4
 Base.size(u::Abstractfield) = NTuple{5,Int64}((4, u.NX, u.NY, u.NZ, u.NT))
 
-function Gaugefields.check_dims(u, rest...)
-    @nospecialize u rest
-    udims = dims(u)
+"""
+    check_dims(x1, rest...)
 
-    for field in rest
-        @assert dims(field) == udims
+Check if all fields have the same dimensions. Throw an `AssertionError` otherwise.
+"""
+@generated function Gaugefields.check_dims(x1, rest::Vararg{Any,N}) where {N}
+    q_inner = Expr(:comparison, :(dims(x1)))
+    for i in 1:N
+        push!(q_inner.args, :(==))
+        push!(q_inner.args, :(dims(rest[$i])))
     end
-    return nothing
+    q = Expr(:macrocall, Symbol("@assert"), :(), q_inner)
+    return q
 end
 
 Base.eachindex(u::Abstractfield) = CartesianIndices((u.NX, u.NY, u.NZ, u.NT))
@@ -272,6 +277,9 @@ function to_backend(::Type{Bout}, u::Abstractfield{Bin,T}) where {Bout,Bin,T}
     end
 end
 
+include("liefields.jl")
+include("fieldstrength.jl")
+include("fermionfields.jl")
 include("iterators.jl")
 include("gpu_iterators.jl")
 include("gpu_kernels/utils.jl")
@@ -281,14 +289,12 @@ include("wilsonloops.jl")
 include("actions.jl")
 include("staples.jl")
 include("clovers.jl")
-include("liefields.jl")
-include("fieldstrength.jl")
-include("fermionfields.jl")
 
 include("gpu_kernels/field_operations.jl")
 include("gpu_kernels/wilsonloops.jl")
 include("gpu_kernels/actions.jl")
 include("gpu_kernels/liefields.jl")
 include("gpu_kernels/fieldstrength.jl")
+include("gpu_kernels/fermionfields.jl")
 
 end

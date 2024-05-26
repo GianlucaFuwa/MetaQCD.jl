@@ -62,6 +62,16 @@ function clear!(ϕ::Fermionfield{CPU,T}) where {T}
     return nothing
 end
 
+function Base.copy!(ϕ::T, ψ::T) where {T<:Fermionfield{CPU}}
+    check_dims(ψ, ϕ)
+
+    @batch for site in eachindex(ϕ)
+        ϕ[site] = ψ[site]
+    end
+
+    return nothing
+end
+
 function ones!(ϕ::Fermionfield{CPU,T}) where {T}
     @batch for site in eachindex(ϕ)
         ϕ[site] = fill(1, ϕ[site])
@@ -73,7 +83,7 @@ end
 function set_source!(ϕ::Fermionfield{CPU,T}, site::SiteCoords, a, μ) where {T}
     NC = num_colors(ϕ)
     ND = num_dirac(ϕ)
-    @assert μ ∈ 1:ND && a ∈ 1:3
+    @assert μ ∈ 1:ND && a ∈ 1:NC
     clear!(ϕ)
     vec_index = (μ - 1) * NC + a
     tup = ntuple(i -> i == vec_index ? one(Complex{T}) : zero(Complex{T}), Val(3ND))
@@ -81,26 +91,16 @@ function set_source!(ϕ::Fermionfield{CPU,T}, site::SiteCoords, a, μ) where {T}
     return nothing
 end
 
-function Base.copy!(ϕ::T, ψ::T) where {T<:Fermionfield{CPU}}
-    @assert dims(ϕ) == dims(ψ)
+function gaussian_pseudofermions!(ϕ::Fermionfield{CPU,T}) where {T}
+    sz = num_dirac(ϕ) * num_colors(ϕ)
 
-    @batch for site in eachindex(ϕ)
-        ϕ[site] = ψ[site]
-    end
-
-    return nothing
-end
-
-function gaussian_pseudofermions!(f::Fermionfield{CPU,T}) where {T}
-    sz = num_dirac(f) * num_colors(f)
-
-    for site in eachindex(f)
-        f[site] = @SVector randn(Complex{T}, sz) # σ = 0.5
+    for site in eachindex(ϕ)
+        ϕ[site] = @SVector randn(Complex{T}, sz) # σ = 0.5
     end
 end
 
 function LinearAlgebra.axpy!(α, ψ::T, ϕ::T) where {T<:Fermionfield{CPU}}
-    @assert dims(ϕ) == dims(ψ)
+    check_dims(ψ, ϕ)
     FloatT = float_type(ϕ)
     α = Complex{FloatT}(α)
 
@@ -112,7 +112,7 @@ function LinearAlgebra.axpy!(α, ψ::T, ϕ::T) where {T<:Fermionfield{CPU}}
 end
 
 function LinearAlgebra.axpby!(α, ψ::T, β, ϕ::T) where {T<:Fermionfield{CPU}}
-    @assert dims(ϕ) == dims(ψ)
+    check_dims(ψ, ϕ)
     FloatT = float_type(ϕ)
     α = Complex{FloatT}(α)
     β = Complex{FloatT}(β)
@@ -125,7 +125,7 @@ function LinearAlgebra.axpby!(α, ψ::T, β, ϕ::T) where {T<:Fermionfield{CPU}}
 end
 
 function LinearAlgebra.dot(ϕ::T, ψ::T) where {T<:Fermionfield{CPU}}
-    @assert dims(ϕ) == dims(ψ)
+    check_dims(ψ, ϕ)
     res = 0.0 + 0.0im # res is always double precision, even if T is single precision
 
     @batch reduction = (+, res) for site in eachindex(ϕ)
@@ -157,7 +157,7 @@ num_dirac(::EvenOdd{B,T,A,ND}) where {B,T,A,ND} = ND
 clear!(ϕ_eo::EvenOdd) = clear!(ϕ_eo.parent)
 ones!(ϕ_eo::EvenOdd) = ones!(ϕ_eo.parent)
 
-function set_source!(ϕ_eo::EvenOdd{CPU,T}, site::CartesianIndex{4}, a, μ) where {T}
+function set_source!(ϕ_eo::EvenOdd{CPU,T}, site::SiteCoords, a, μ) where {T}
     ϕ = ϕ_eo.parent
     NC = num_colors(ϕ)
     ND = num_dirac(ϕ)
@@ -170,16 +170,72 @@ function set_source!(ϕ_eo::EvenOdd{CPU,T}, site::CartesianIndex{4}, a, μ) wher
     return nothing
 end
 
-function Base.copy!(ϕ_eo::T, ψ_eo::T, even=true) where {T<:EvenOdd{CPU}}
+function Base.copy!(ϕ_eo::T, ψ_eo::T) where {T<:EvenOdd{CPU}}
     check_dims(ϕ_eo, ψ_eo)
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent
+    even = true
 
     @batch for e_site in eachindex(even, ϕ)
         ϕ[e_site] = ψ[e_site]
     end
 
     return nothing
+end
+
+function gaussian_pseudofermions!(ϕ_eo::EvenOdd{CPU,T}) where {T}
+    ϕ = ϕ_eo.parent
+    sz = num_dirac(ϕ) * num_colors(ϕ)
+    even = true
+
+    for e_site in eachindex(even, ϕ)
+        ϕ[e_site] = @SVector randn(Complex{T}, sz) # σ = 0.5
+    end
+end
+
+function LinearAlgebra.axpy!(α, ψ_eo::T, ϕ_eo::T) where {T<:EvenOdd{CPU}} # even on even is the default
+    check_dims(ϕ_eo, ψ_eo)
+    ϕ = ϕ_eo.parent
+    ψ = ψ_eo.parent
+    FloatT = float_type(ϕ)
+    α = Complex{FloatT}(α)
+    even = true
+
+    @batch for _site in eachindex(even, ϕ)
+        ϕ[_site] += α * ψ[_site]
+    end
+
+    return nothing
+end
+
+function LinearAlgebra.axpby!(α, ψ_eo::T, β, ϕ_eo::T) where {T<:EvenOdd{CPU}}
+    check_dims(ϕ_eo, ψ_eo)
+    ϕ = ϕ_eo.parent
+    ψ = ψ_eo.parent
+    FloatT = float_type(ϕ)
+    α = Complex{FloatT}(α)
+    β = Complex{FloatT}(β)
+    even = true
+
+    @batch for _site in eachindex(even, ϕ)
+        ϕ[_site] = α * ψ[_site] + β * ϕ[_site]
+    end
+
+    return nothing
+end
+
+function LinearAlgebra.dot(ϕ_eo::T, ψ_eo::T) where {T<:EvenOdd{CPU}}
+    check_dims(ϕ_eo, ψ_eo)
+    ϕ = ϕ_eo.parent
+    ψ = ψ_eo.parent
+    res = 0.0 + 0.0im # res is always double precision, even if T is single precision
+    even = true
+
+    @batch reduction = (+, res) for _site in eachindex(even, ϕ)
+        res += cdot(ϕ[_site], ψ[_site])
+    end
+
+    return res
 end
 
 function copy_eo!(ϕ_eo::T, ψ_eo::T) where {T<:EvenOdd{CPU}}
@@ -209,30 +265,6 @@ function copy_oe!(ϕ_eo::T, ψ_eo::T) where {T<:EvenOdd{CPU}}
     for o_site in eachindex(odd, ϕ)
         e_site = switch_sides(o_site, fdims..., NV)
         ϕ[o_site] = ψ[e_site]
-    end
-
-    return nothing
-end
-
-function gaussian_pseudofermions!(ϕ_eo::EvenOdd{CPU,T}) where {T}
-    ϕ = ϕ_eo.parent
-    sz = num_dirac(ϕ) * num_colors(ϕ)
-    even = true
-
-    for e_site in eachindex(even, ϕ)
-        ϕ[e_site] = @SVector randn(Complex{T}, sz) # σ = 0.5
-    end
-end
-
-function LinearAlgebra.axpy!(α, ψ_eo::T, ϕ_eo::T, even=true) where {T<:EvenOdd{CPU}} # even on even is the default
-    check_dims(ϕ_eo, ψ_eo)
-    ϕ = ϕ_eo.parent
-    ψ = ψ_eo.parent
-    FloatT = float_type(ϕ)
-    α = Complex{FloatT}(α)
-
-    @batch for _site in eachindex(even, ϕ)
-        ϕ[_site] += α * ψ[_site]
     end
 
     return nothing
@@ -272,32 +304,4 @@ function axpy_eo!(α, ψ_eo::T, ϕ_eo::T) where {T<:EvenOdd{CPU}}
     end
 
     return nothing
-end
-
-function LinearAlgebra.axpby!(α, ψ_eo::T, β, ϕ_eo::T, even=true) where {T<:EvenOdd{CPU}}
-    check_dims(ϕ_eo, ψ_eo)
-    ϕ = ϕ_eo.parent
-    ψ = ψ_eo.parent
-    FloatT = float_type(ϕ)
-    α = Complex{FloatT}(α)
-    β = Complex{FloatT}(β)
-
-    @batch for _site in eachindex(even, ϕ)
-        ϕ[_site] = α * ψ[_site] + β * ϕ[_site]
-    end
-
-    return nothing
-end
-
-function LinearAlgebra.dot(ϕ_eo::T, ψ_eo::T, even=true) where {T<:EvenOdd{CPU}}
-    check_dims(ϕ_eo, ψ_eo)
-    ϕ = ϕ_eo.parent
-    ψ = ψ_eo.parent
-    res = 0.0 + 0.0im # res is always double precision, even if T is single precision
-
-    @batch reduction = (+, res) for _site in eachindex(even, ϕ)
-        res += cdot(ϕ[_site], ψ[_site])
-    end
-
-    return res
 end

@@ -11,7 +11,7 @@ end
 end
 
 function calc_kinetic_energy(p::Temporaryfield{B}) where {B}
-    @latsum(Sequential(), Val(1), calc_kinetic_energy_kernel!, p)
+    return @latsum(Sequential(), Val(1), calc_kinetic_energy_kernel!, p)
 end
 
 @kernel function calc_kinetic_energy_kernel!(out, @Const(P))

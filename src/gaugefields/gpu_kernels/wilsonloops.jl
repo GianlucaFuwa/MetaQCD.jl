@@ -1,5 +1,5 @@
 function wilsonloop(U::Gaugefield{B}, Lμ, Lν) where {B}
-    @latsum(Sequential(), Val(1), wilsonloop_kernel!, U, Lμ, Lν)
+    return @latsum(Sequential(), Val(1), wilsonloop_kernel!, U, Lμ, Lν)
 end
 
 @kernel function wilsonloop_kernel!(out, @Const(U), Lμ, Lν)
@@ -10,7 +10,7 @@ end
 
     wl = T(0.0)
     @unroll for μ in (1i32):(3i32)
-        for ν in (μ + 1i32):(4i32)
+        for ν in (μ+1i32):(4i32)
             wl += real(tr(wilsonloop(U, μ, ν, site, Lμ, Lν)))
         end
     end

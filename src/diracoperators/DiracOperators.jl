@@ -10,7 +10,7 @@ using ..Utils
 
 import ..Gaugefields: Abstractfield, EvenOdd, Fermionfield, Gaugefield, Tensorfield, clear!
 import ..Gaugefields: check_dims, clover_square, dims, even_odd, gaussian_pseudofermions!
-import ..Gaugefields: set_source!, volume
+import ..Gaugefields: Checkerboard2, Sequential, @latmap, @latsum, set_source!
 import ..RHMCParameters: RHMCParams
 
 abstract type AbstractDiracOperator end
@@ -121,6 +121,9 @@ include("staggered.jl")
 include("staggered_eo.jl")
 include("wilson.jl")
 # include("wilson_eo.jl")
+include("gpu_kernels/staggered.jl")
+include("gpu_kernels/staggered_eo.jl")
+include("gpu_kernels/wilson.jl")
 
 function fermaction_from_str(str, eo_precon::Bool)
     if str == "wilson"

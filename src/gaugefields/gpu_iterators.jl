@@ -28,6 +28,31 @@ function __latmap(
 end
 
 function __latmap(
+    ::Sequential, ::Val{COUNT}, f!::F, ϕ_eo::EvenOdd{B}, args...
+) where {COUNT,F,B<:GPU}
+    COUNT == 0 && return nothing
+    # KernelAbstractions requires an ndrange (indices we iterate over) and a 
+    # workgroupsize (number of threads in each workgroup / thread block on the GPU)
+    NX, NY, NZ, NT = dims(ϕ_eo)
+    @assert iseven(NT) "NT must be even for even-odd preconditioned fermions"
+    ndrange = (NX, NY, NZ, div(NT, 2))
+    workgroupsize = (4, 4, 4, 4) # 4^4 = 256 threads per workgroup should be fine
+    kernel! = f!(B(), workgroupsize)
+    # I couldn't be bothered working out how to make CUDA work with array wrappers such as
+    # Abstractfield, so we extract the actual array from all Abstractfields in the args
+    # In case some C/C++/Fortran programmer is reading this: We are not creating a copy
+    # we are just getting the reference
+    raw_args = get_raws(args...)
+
+    for _ in 1:COUNT
+        kernel!(ϕ_eo.parent.U, raw_args...; ndrange=ndrange)
+        KA.synchronize(B())
+    end
+
+    return nothing
+end
+
+function __latmap(
     ::Checkerboard2, ::Val{COUNT}, f!::F, U::Abstractfield{B}, args...
 ) where {COUNT,F,B<:GPU}
     COUNT == 0 && return nothing
@@ -105,6 +130,27 @@ function __latsum(
 end
 
 function __latsum(
+    ::Sequential, ::Val{COUNT}, f!::F, ϕ_eo::EvenOdd{B}, args...
+) where {COUNT,F,B<:GPU}
+    COUNT == 0 && return 0.0
+    NX, NY, NZ, NT = dims(ϕ_eo)
+    @assert iseven(NT) "NT must be even for even-odd preconditioned fermions"
+    ndrange = (NX, NY, NZ, div(NT, 2))
+    workgroupsize = (4, 4, 4, 4)
+    numblocks = cld(div(ϕ_eo.parent.NV, 2), prod(workgroupsize))
+    out = KA.zeros(B(), Float64, numblocks)
+    kernel! = f!(B(), workgroupsize)
+    raw_args = get_raws(args...)
+
+    for _ in 1:COUNT
+        kernel!(out, ϕ_eo.parent.U, raw_args...; ndrange=ndrange)
+        KA.synchronize(B())
+    end
+
+    return sum(out)
+end
+
+function __latsum(
     ::Checkerboard2, ::Val{COUNT}, f!::F, U::Abstractfield{B}, args...
 ) where {COUNT,F,B<:GPU}
     COUNT == 0 && return 0.0
@@ -119,10 +165,11 @@ function __latsum(
     out = KA.zeros(B(), Float64, numblocks)
     kernel! = f!(B(), workgroupsize)
     raw_args = get_raws(args...)
+    numpasses = U isa EvenOdd ? 2 : 1
 
     for _ in 1:COUNT
         for μ in 1:4
-            for pass in 1:2
+            for pass in 1:numpasses
                 kernel!(out, U.U, μ, pass, raw_args...; ndrange=ndrange)
                 KA.synchronize(B())
             end
@@ -163,5 +210,8 @@ end
 @inline function get_raws(args...)
     fields = filter(x -> x isa Abstractfield, args)
     rest = filter(x -> !(x isa Abstractfield), args)
-    return (ntuple(i -> fields[i].U, length(fields))..., rest...)
+    raw_fields = ntuple(
+        i -> fields[i] isa EvenOdd ? fields[i].parent.U : fields[i].U, length(fields)
+    )
+    return (raw_fields..., rest...)
 end

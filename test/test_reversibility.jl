@@ -1,6 +1,7 @@
 using MetaQCD
 using Random
 using Printf
+using TimerOutputs
 
 function SU3testreversibility(;
     integrator=Leapfrog, gaction=WilsonGaugeAction, faction=nothing, with_bias=false
@@ -19,8 +20,10 @@ function SU3testreversibility(;
     else
         (faction(U, 0.1),)
     end
-    # if it works for dbw2 it should(!) work for the other improved actions
-    loadU!(BridgeFormat(), U, "./test/testconf.txt")
+
+    to = TimerOutput()
+
+    @timeit to "loadU!" loadU!(BridgeFormat(), U, "./test/testconf.txt")
 
     hmc_trajectory = 1
     hmc_steps = 10
@@ -47,32 +50,38 @@ function SU3testreversibility(;
         nothing
     end
 
-    dH_n = reversibility_test(hmc, U, fermion, nothing, "without bias")
-    dH_b = with_bias ? reversibility_test(hmcB, U, fermion, bias, "with bias") : nothing
-
+    dH_n = reversibility_test(hmc, U, fermion, nothing, "without bias", to)
+    dH_b = with_bias ? reversibility_test(hmcB, U, fermion, bias, "with bias", to) : nothing
+    show(to)
     return dH_n, dH_b
 end
 
-function reversibility_test(hmc::HMC{TI}, U, fermion, bias, str) where {TI}
-    isnothing(fermion) ? nothing : sample_pseudofermions!(hmc.ϕ[1], fermion[1], U)
-    gaussian_TA!(hmc.P, hmc.friction)
-    Sg_old = calc_gauge_action(U)
-    trP²_old = -calc_kinetic_energy(hmc.P)
-    Sf_old = isnothing(fermion) ? 0.0 : calc_fermion_action(fermion[1], U, hmc.ϕ[1])
-    CV_old = isnothing(bias) ? 0.0 : calc_CV(U, bias)
+function reversibility_test(hmc::HMC{TI}, U, fermion, bias, str, to) where {TI}
+    @timeit to "sample_pseudofermions!" if isnothing(fermion)
+        nothing
+    else
+        sample_pseudofermions!(hmc.ϕ[1], fermion[1], U)
+    end
+    @timeit to "gaussian_TA!" gaussian_TA!(hmc.P, hmc.friction)
+    @timeit to "gauge action" Sg_old = calc_gauge_action(U)
+    @timeit to "kinetic energy" trP²_old = -calc_kinetic_energy(hmc.P)
+    @timeit to "fermion action" Sf_old =
+        isnothing(fermion) ? 0.0 : calc_fermion_action(fermion[1], U, hmc.ϕ[1])
+    @timeit to "CV" CV_old = isnothing(bias) ? 0.0 : calc_CV(U, bias)
     V_old = isnothing(bias) ? 0.0 : bias(CV_old)
     H_old = Sg_old + trP²_old + Sf_old + V_old
 
-    evolve!(TI(), U, hmc, fermion, bias)
-    MetaQCD.normalize!(U)
-    MetaQCD.Gaugefields.mul!(hmc.P, -1)
-    evolve!(TI(), U, hmc, fermion, bias)
-    MetaQCD.normalize!(U)
+    @timeit to "evolve!" evolve!(TI(), U, hmc, fermion, bias)
+    @timeit to "normalize!" MetaQCD.normalize!(U)
+    @timeit to "invert momenta" MetaQCD.Gaugefields.mul!(hmc.P, -1)
+    @timeit to "evolve!" evolve!(TI(), U, hmc, fermion, bias)
+    @timeit to "normalize!" MetaQCD.normalize!(U)
 
-    Sg_new = calc_gauge_action(U)
-    trP²_new = -calc_kinetic_energy(hmc.P)
-    Sf_new = isnothing(fermion) ? 0.0 : calc_fermion_action(fermion[1], U, hmc.ϕ[1])
-    CV_new = isnothing(bias) ? 0.0 : calc_CV(U, bias)
+    @timeit to "gauge action" Sg_new = calc_gauge_action(U)
+    @timeit to "kinetic energy" trP²_new = -calc_kinetic_energy(hmc.P)
+    @timeit to "fermion action" Sf_new =
+        isnothing(fermion) ? 0.0 : calc_fermion_action(fermion[1], U, hmc.ϕ[1])
+    @timeit to "CV" CV_new = isnothing(bias) ? 0.0 : calc_CV(U, bias)
     V_new = isnothing(bias) ? 0.0 : bias(CV_new)
     H_new = Sg_new + trP²_new + Sf_new + V_new
 
