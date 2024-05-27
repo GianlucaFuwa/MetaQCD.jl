@@ -1,11 +1,8 @@
-struct PionCorrelatorMeasurement{T,TD,TF,CT,RT,RI} <: AbstractMeasurement
+struct PionCorrelatorMeasurement{T,TD,TF,CT} <: AbstractMeasurement
     dirac_operator::TD
     temp::TF # We need 1 temp fermion field for propagators
     cg_temps::CT # We need 4 temp fermions for cg / 7 for bicg(stab)
-    rhmc_temps1::RT # this holds the results of multishift cg
-    rhmc_temps2::RT # this holds the basis vectors in multishift cg
     pion_dict::Dict{Int64,Float64} # One value per time slice
-    rhmc_info::RI
     cg_tol::Float64
     cg_maxiters::Int64
     # mass_precon::Bool
@@ -18,13 +15,10 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT,RT,RI} <: AbstractMeasurement
         eo_precon=false,
         flow=false,
         mass=0.1,
-        Nf=1,
         csw=0,
         r=1,
         cg_tol=1e-16,
         cg_maxiters=1000,
-        rhmc_order=15,
-        rhmc_prec=42,
         anti_periodic=true,
     )
         pion_dict = Dict{Int64,Float64}()
@@ -36,27 +30,17 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT,RT,RI} <: AbstractMeasurement
 
         if dirac_type == "staggered"
             if eo_precon
-                error(
-                    "Even-odd preconditioned staggered not yet supported in pion correlator"
-                )
                 dirac_operator = StaggeredEOPreDiracOperator(
                     U, mass; anti_periodic=anti_periodic
                 )
                 temp = Fermionfield(U; staggered=true)
                 cg_temps = ntuple(_ -> even_odd(similar(temp)), 6)
-                # TODO
-                power = Nf//4
-                # rhmc_info = RHMCParams(power; n=rhmc_order, precision=rhmc_prec)
-                rhmc_info = rhmc_temps1 = rhmc_temps2 = nothing
             else
                 dirac_operator = StaggeredDiracOperator(
                     U, mass; anti_periodic=anti_periodic
                 )
                 temp = Fermionfield(U; staggered=true)
                 cg_temps = ntuple(_ -> similar(temp), 6)
-                power = Nf//4
-                # rhmc_info = RHMCParams(power; n=rhmc_order, precision=rhmc_prec)
-                rhmc_info = rhmc_temps1 = rhmc_temps2 = nothing
             end
         elseif dirac_type == "wilson"
             dirac_operator = WilsonDiracOperator(
@@ -64,7 +48,6 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT,RT,RI} <: AbstractMeasurement
             )
             temp = Fermionfield(U)
             cg_temps = ntuple(_ -> Fermionfield(temp), 6)
-            rhmc_info = rhmc_temps1 = rhmc_temps2 = nothing
         else
             throw(ArgumentError("Dirac operator \"$dirac_type\" is not supported"))
         end
@@ -92,16 +75,11 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT,RT,RI} <: AbstractMeasurement
         TD = typeof(dirac_operator)
         TF = typeof(temp)
         CT = typeof(cg_temps)
-        RT = typeof(rhmc_temps1)
-        RI = typeof(rhmc_info)
-        return new{T,TD,TF,CT,RT,RI}(
+        return new{T,TD,TF,CT}(
             dirac_operator,
             temp,
             cg_temps,
-            rhmc_temps1,
-            rhmc_temps2,
             pion_dict,
-            rhmc_info,
             cg_tol,
             cg_maxiters,
             fp,
@@ -119,8 +97,6 @@ function PionCorrelatorMeasurement(
         flow=flow,
         dirac_type=params.dirac_type,
         mass=params.mass,
-        # Nf=params.Nf,
-        # r=params.r,
         cg_tol=params.cg_tol,
         cg_maxiters=params.cg_maxiters,
         anti_periodic=params.anti_periodic,
