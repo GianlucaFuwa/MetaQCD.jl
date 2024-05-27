@@ -13,7 +13,6 @@ struct Tensorfield{BACKEND,T,A<:AbstractArray{SU{3,9,T},6}} <: Abstractfield{BAC
     NV::Int64
     NC::Int64
     function Tensorfield(NX, NY, NZ, NT; BACKEND=CPU, T=Float64)
-        @assert BACKEND ∈ SUPPORTED_BACKENDS "Only CPU, CUDABackend or ROCBackend supported!"
         # TODO: Reduce size of Tensorfield by using symmetry of the fieldstrength tensor
         U = KA.zeros(BACKEND(), SMatrix{3,3,Complex{T},9}, 4, 4, NX, NY, NZ, NT)
         NV = NX * NY * NZ * NT

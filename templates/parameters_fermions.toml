@@ -1,20 +1,21 @@
 ["Physical Settings"]
-L = [4, 4, 4, 4]
-beta = 3.5
+L = [12, 12, 12, 12]
+beta = 4.0
 kind_of_gaction = "symanzik_tree"
-numtherm = 20
+numtherm = 10
 numsteps = 10
 initial = "cold"
 update_method = "hmc"
 parity_update = false
 
 ["Dynamical Fermion Settings"]
-fermion_action = "staggered"
-eo_precon = true
-Nf = [4]
-mass = [0.1]
-cg_tol_action = 1e-16
-cg_tol_md = 1e-16
+fermion_action = "wilson"
+eo_precon = false
+Nf = [2]
+mass = [0.01]
+wilson_csw = 1.78
+cg_tol_action = 1e-14
+cg_tol_md = 1e-10
 cg_maxiters_action = 5000
 cg_maxiters_md = 5000
 
@@ -34,12 +35,16 @@ verboselevel = 1
 overwrite = true
 
 ["Measurement Settings".measurements.Plaquette]
-measure_every = 5
+measure_every = 10
 
 ["Measurement Settings".measurements.Pion_correlator]
-measure_every = 5
+measure_every = 10
 dirac_type = "wilson"
 
+["Measurement Settings".measurements.Topological_charge]
+measure_every = 10
+kinds_of_topological_charge = ["clover"]
+    
 ["Gradient Flow Settings"]
 flow_integrator = "euler"
 flow_num = 7
@@ -47,4 +52,17 @@ flow_steps = 1
 flow_tf = 0.12 # total flow time is flow_num * flow_tf
 flow_measure_every = 7
 
-["Gradient Flow Settings".measurements_with_flow]
+    ["Gradient Flow Settings".measurements_with_flow.Plaquette]
+    measure_every = 10
+
+    ["Gradient Flow Settings".measurements_with_flow.Pion_correlator]
+    measure_every = 10
+    kinds_of_topological_charge = ["wilson"]
+    mass = 0.01
+    cg_tol = 1e-14
+    cg_maxiters = 5000
+    csw = 1.78
+
+    ["Gradient Flow Settings".measurements_with_flow.Topological_charge]
+    measure_every = 10
+    kinds_of_topological_charge = ["clover"]
