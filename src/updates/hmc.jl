@@ -207,7 +207,7 @@ function update!(
     gaussian_TA!(P, friction)
     if TF !== Nothing
         for i in eachindex(fermion_action)
-            sample_pseudofermions!(smearing_fermion, ϕ[i], fermion_action[i], U, i)
+            sample_pseudofermions!(ϕ[i], fermion_action[i], U, smearing_fermion, i)
         end
     end
     P_old ≢ nothing && copy!(P_old, P)
@@ -334,12 +334,12 @@ function calc_fermion_action(smearing::StoutSmearing, fermion_action, U, ϕ)
     return smeared_fermion_action
 end
 
-function sample_pseudofermions!(::NoSmearing, ϕ, fermion_action, U, ::Any)
+function sample_pseudofermions!(ϕ, fermion_action, U, ::NoSmearing, ::Any)
     sample_pseudofermions!(ϕ, fermion_action, U)
     return nothing
 end
 
-function sample_pseudofermions!(smearing::StoutSmearing, ϕ, fermion_action, U, i)
+function sample_pseudofermions!(ϕ, fermion_action, U, smearing::StoutSmearing, i)
     # we only need to smear once even if we have multiple fermion actions
     i == 1 && calc_smearedU!(smearing, U)
     fully_smeared_U = smearing.Usmeared_multi[end]

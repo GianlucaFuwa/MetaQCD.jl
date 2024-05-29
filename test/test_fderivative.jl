@@ -145,4 +145,4 @@ function SU3testfderivative(;
     return relerrors
 end
 
-SU3testfderivative(; dirac="staggered", eoprec=true, single_flavor=false)
+SU3testfderivative(; dirac="staggered", eoprec=false, single_flavor=false)

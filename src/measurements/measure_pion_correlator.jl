@@ -2,7 +2,7 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT} <: AbstractMeasurement
     dirac_operator::TD
     temp::TF # We need 1 temp fermion field for propagators
     cg_temps::CT # We need 4 temp fermions for cg / 7 for bicg(stab)
-    pion_dict::Dict{Int64,Float64} # One value per time slice
+    pion_corr::Vector{Float64} # One value per time slice
     cg_tol::Float64
     cg_maxiters::Int64
     # mass_precon::Bool
@@ -21,12 +21,8 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT} <: AbstractMeasurement
         cg_maxiters=1000,
         anti_periodic=true,
     )
-        pion_dict = Dict{Int64,Float64}()
         NT = dims(U)[end]
-
-        for it in 1:NT
-            pion_dict[it] = 0.0
-        end
+        pion_corr = zeros(Float64, NT)
 
         if dirac_type == "staggered"
             if eo_precon
@@ -79,7 +75,7 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT} <: AbstractMeasurement
             dirac_operator,
             temp,
             cg_temps,
-            pion_dict,
+            pion_corr,
             cg_tol,
             cg_maxiters,
             fp,
@@ -108,7 +104,7 @@ function measure(m::PionCorrelatorMeasurement{T}, U; additional_string="") where
     printstring = @sprintf("%-9s", additional_string)
 
     pion_correlators_avg!(
-        m.pion_dict,
+        m.pion_corr,
         m.dirac_operator(U),
         m.temp,
         m.cg_temps,
@@ -117,7 +113,7 @@ function measure(m::PionCorrelatorMeasurement{T}, U; additional_string="") where
     )
 
     if T ≡ IOStream
-        for value in values(m.pion_dict)
+        for value in m.pion_corr
             svalue = @sprintf("%+-22.15E", value)
             printstring *= "\t$svalue"
         end
@@ -128,24 +124,25 @@ function measure(m::PionCorrelatorMeasurement{T}, U; additional_string="") where
         measurestring *= " # pion_correlator"
     end
 
-    output = MeasurementOutput(m.pion_dict, measurestring)
+    output = MeasurementOutput(m.pion_corr, measurestring)
     return output
 end
 
 """
-    pion_correlators_avg!(dict, D, ψ, cg_temps, cg_tol, cg_maxiters)
+    pion_correlators_avg!(pion_corr, D, ψ, cg_temps, cg_tol, cg_maxiters)
 
 Calculate the pion correlators for a given configuration and store the result for each
-time slice in `dict`. \\
+time slice in `pion_corr`. \\
 We follow the procedure outlined in DOI: 10.1007/978-3-642-01850-3 (Gattringer) pages
 135-136 using point sources for each dirac and color index all starting from the origin
 """
-function pion_correlators_avg!(dict, D, ψ, cg_temps, cg_tol, cg_maxiters)
+function pion_correlators_avg!(pion_corr, D, ψ, cg_temps, cg_tol, cg_maxiters)
     check_dims(D.U, ψ, cg_temps...)
     NX, NY, NZ, NT = dims(ψ)
-    @assert length(dict) == NT
+    @assert length(pion_corr) == NT
     source = SiteCoords(1, 1, 1, 1)
     propagator, temps... = cg_temps
+    pion_corr .= 0.0
 
     for a in 1:ψ.NC
         for μ in 1:ψ.ND
@@ -163,14 +160,14 @@ function pion_correlators_avg!(dict, D, ψ, cg_temps, cg_tol, cg_maxiters)
                         end
                     end
                 end
-                dict[it] = cit
+                pion_corr[it] += cit
             end
         end
     end
 
     Λₛ = NX * NY * NZ
     for it in 1:NT
-        dict[it] /= Λₛ
+        pion_corr[it] /= Λₛ
     end
 
     return nothing
