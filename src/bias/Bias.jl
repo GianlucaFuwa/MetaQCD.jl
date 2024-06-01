@@ -20,6 +20,9 @@ const comm_size = MPI.Comm_size(comm)
 
 abstract type AbstractBias end
 
+struct NoBias end
+(b::NoBias)(::Real) = 0.0
+
 """
     Bias(p::ParameterSet, U::Gaugefield; instance=1)
 
@@ -119,8 +122,12 @@ function Base.show(io::IO, b::Bias)
 end
 
 (b::Bias)(cv) = b.bias(cv)
+
+kind_of_cv(::NoBias) = nothing
 kind_of_cv(b::Bias) = b.kind_of_cv
+Base.close(::NoBias) = nothing
 Base.close(b::Bias{TCV,TS,TB,T}) where {TCV,TS,TB,T} = T ≢ Nothing ? close(b.fp) : nothing
+update_bias!(::NoBias, args...) = nothing
 update_bias!(::Nothing, args...) = nothing
 write_to_file(::AbstractBias, args...) = nothing
 
@@ -136,6 +143,7 @@ function update_bias!(b::Bias, values, itrj, write)
 end
 
 recalc_CV!(::Gaugefield, ::Nothing) = nothing
+recalc_CV!(::Gaugefield, ::NoBias) = nothing
 
 function recalc_CV!(U::Gaugefield, b::Bias)
     CV_new = calc_CV(U, b)
@@ -150,6 +158,9 @@ function recalc_CV!(U::Vector{TG}, b::Vector{TB}) where {TG<:Gaugefield,TB<:Bias
     return nothing
 end
 
+calc_CV(U, ::Nothing) = U.CV
+calc_CV(U, ::NoBias) = U.CV
+
 function calc_CV(U, ::Bias{TCV,TS}) where {TCV,TS<:NoSmearing}
     return top_charge(TCV(), U)
 end
@@ -161,6 +172,7 @@ function calc_CV(U, b::Bias{TCV}) where {TCV}
     return CV_new
 end
 
+∂V∂Q(b::NoBias, ::Real) = 0.0
 ∂V∂Q(b::Bias, cv) = ∂V∂Q(b.bias, cv)
 
 function get_cvtype_from_parameters(p::ParameterSet)

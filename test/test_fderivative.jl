@@ -52,7 +52,7 @@ function SU3testfderivative(;
                 U,
                 mass;
                 Nf=Nf,
-                csw=1.78,
+                csw=1.0,
                 cg_maxiters_action=5000,
                 cg_maxiters_md=5000,
                 cg_tol_action=1e-16,
@@ -64,7 +64,7 @@ function SU3testfderivative(;
                 U,
                 mass;
                 Nf=Nf,
-                csw=1.78,
+                csw=1.0,
                 cg_maxiters_action=5000,
                 cg_maxiters_md=5000,
                 cg_tol_action=1e-16,
@@ -145,4 +145,4 @@ function SU3testfderivative(;
     return relerrors
 end
 
-SU3testfderivative(; dirac="staggered", eoprec=false, single_flavor=false)
+SU3testfderivative(; dirac="wilson", eoprec=false, single_flavor=false)

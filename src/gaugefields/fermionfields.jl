@@ -99,6 +99,16 @@ function gaussian_pseudofermions!(ϕ::Fermionfield{CPU,T}) where {T}
     end
 end
 
+function LinearAlgebra.mul!(ϕ::Fermionfield{CPU,T}, α) where {T}
+    α = T(α)
+
+    @batch for site in eachindex(ϕ)
+        ϕ[site] *= α
+    end
+
+    return nothing
+end
+
 function LinearAlgebra.axpy!(α, ψ::T, ϕ::T) where {T<:Fermionfield{CPU}}
     check_dims(ψ, ϕ)
     FloatT = float_type(ϕ)
@@ -192,6 +202,17 @@ function gaussian_pseudofermions!(ϕ_eo::EvenOdd{CPU,T}) where {T}
     for e_site in eachindex(even, ϕ)
         ϕ[e_site] = @SVector randn(Complex{T}, sz) # σ = 0.5
     end
+end
+
+function LinearAlgebra.mul!(ϕ_eo::EvenOdd{CPU,T}, α) where {T}
+    α = T(α)
+    even = true
+
+    @batch for _site in eachindex(even, ϕ_eo)
+        ϕ_eo[site] *= α
+    end
+
+    return nothing
 end
 
 function LinearAlgebra.axpy!(α, ψ_eo::T, ϕ_eo::T) where {T<:EvenOdd{CPU}} # even on even is the default

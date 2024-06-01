@@ -10,7 +10,7 @@ import ..DiracOperators: WilsonFermionAction
 import ..DiracOperators: StaggeredFermionAction, StaggeredEOPreFermionAction
 import ..Gaugefields: Gaugefield, WilsonGaugeAction, IwasakiGaugeAction, DBW2GaugeAction
 import ..Gaugefields: SymanzikTreeGaugeAction
-import ..BiasModule: Bias
+import ..BiasModule: Bias, NoBias
 import ..Parameters: ParameterSet
 
 const PACKAGE_VERSION = let
@@ -78,7 +78,7 @@ function Univ(parameters::ParameterSet; use_mpi=false)
         numinstances = 1
         U = Gaugefield(parameters)
         fermion_actions = init_fermion_actions(parameters, U)
-        bias = nothing
+        bias = NoBias()
     end
 
     @level1("└\n")

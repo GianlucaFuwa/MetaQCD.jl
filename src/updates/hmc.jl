@@ -187,7 +187,7 @@ function update!(
     hmc::HMC{TI},
     U;
     fermion_action::TF=nothing,
-    bias::TB=nothing,
+    bias::TB=NoBias(),
     metro_test=true,
     friction=hmc.friction,
 ) where {TI,TF,TB}
@@ -205,53 +205,31 @@ function update!(
 
     copy!(U_old, U)
     gaussian_TA!(P, friction)
-    if TF !== Nothing
-        for i in eachindex(fermion_action)
-            sample_pseudofermions!(ϕ[i], fermion_action[i], U, smearing_fermion, i)
-        end
-    end
-    P_old ≢ nothing && copy!(P_old, P)
+    !isnothing(P_old) && copy!(P_old, P)
+    sample_pseudofermions!(ϕ, fermion_action, U, smearing_fermion, false)
 
     trP²_old = -calc_kinetic_energy(P)
-    Sg_old = U.Sg
+    Sg_old = calc_gauge_action(U, smearing_gauge)
+    CV_old = calc_CV(U, bias)
+    V_old = bias(CV_old)
+    Sf_old = calc_fermion_action(fermion_action, U, ϕ, smearing_fermion, true)
 
     evolve!(TI(), U, hmc, fermion_action, bias)
 
     trP²_new = -calc_kinetic_energy(P)
-    Sg_new = calc_gauge_action(smearing_gauge, U)
+    Sg_new = calc_gauge_action(U, smearing_gauge)
+    CV_new = calc_CV(U, bias)
+    V_new = bias(CV_new)
+    Sf_new = calc_fermion_action(fermion_action, U, ϕ, smearing_fermion, false)
 
     ΔP² = trP²_new - trP²_old
     ΔSg = Sg_new - Sg_old
-
-    if TF ≡ Nothing
-        Sf_old = 0.0
-        Sf_new = 0.0
-        ΔSf = 0
-    else
-        Sf_old = 0.0
-        Sf_new = 0.0
-        for i in eachindex(fermion_action)
-            Sf_old += calc_fermion_action(smearing_fermion, fermion_action[i], U_old, ϕ[i])
-            Sf_new += calc_fermion_action(smearing_fermion, fermion_action[i], U, ϕ[i])
-        end
-        ΔSf = Sf_new - Sf_old
-    end
-
-    if TB ≡ Nothing
-        CV_old = U.CV
-        CV_new = CV_old
-        ΔV = 0
-    else
-        CV_old = calc_CV(U_old, bias)
-        CV_new = calc_CV(U, bias)
-        ΔV = bias(CV_new) - bias(CV_old)
-    end
+    ΔV = V_new - V_old
+    ΔSf = Sf_new - Sf_old
 
     ΔH = ΔP² + ΔSg + ΔV + ΔSf
-
-    print_hmc_data(hmc.fp, ΔP², ΔSg, ΔSf, ΔV, ΔH)
-
     accept = metro_test ? rand() ≤ exp(-ΔH) : true
+    print_hmc_data(hmc.fp, ΔP², ΔSg, ΔSf, ΔV, ΔH)
 
     if accept
         U.Sg = Sg_new
@@ -260,7 +238,7 @@ function update!(
     else
         copy!(U, U_old)
 
-        if P_old ≢ nothing # flip momenta if rejected
+        if !isnothing(P_old) # flip momenta if rejected
             copy!(P, P_old)
             mul!(P, -1)
         end
@@ -284,7 +262,7 @@ function updateU!(U::Gaugefield{CPU,T}, hmc, fac) where {T}
     return nothing
 end
 
-function updateP!(U, hmc::HMC, fac, fermion_action::TF, bias::TB) where {TB,TF}
+function updateP!(U, hmc::HMC, fac, fermion_action, bias)
     ϵ = hmc.Δτ * fac
     P = hmc.P
     staples = hmc.staples
@@ -295,12 +273,12 @@ function updateP!(U, hmc::HMC, fac, fermion_action::TF, bias::TB) where {TB,TF}
     smearing_fermion = hmc.smearing_fermion
     fieldstrength = hmc.fieldstrength
 
-    if TB ≢ Nothing
+    if bias isa Bias
         calc_dVdU_bare!(force, fieldstrength, U, temp_force, bias)
         add!(P, force, ϵ)
     end
 
-    if TF ≢ Nothing
+    if fermion_action ≢ nothing
         for i in eachindex(fermion_action)
             calc_dSfdU_bare!(
                 force, fermion_action[i], U, ϕ[i], temp_force, smearing_fermion
@@ -314,37 +292,53 @@ function updateP!(U, hmc::HMC, fac, fermion_action::TF, bias::TB) where {TB,TF}
     return nothing
 end
 
-calc_gauge_action(::NoSmearing, U) = calc_gauge_action(U)
+calc_gauge_action(U, ::NoSmearing) = calc_gauge_action(U)
 
-function calc_gauge_action(smearing::StoutSmearing, U)
+function calc_gauge_action(U, smearing::StoutSmearing)
     calc_smearedU!(smearing, U)
     fully_smeared_U = smearing.Usmeared_multi[end]
     smeared_gauge_action = calc_gauge_action(fully_smeared_U)
     return smeared_gauge_action
 end
 
-function calc_fermion_action(::NoSmearing, fermion_action, U, ϕ)
-    return calc_fermion_action(fermion_action, U, ϕ)
-end
-
-function calc_fermion_action(smearing::StoutSmearing, fermion_action, U, ϕ)
-    calc_smearedU!(smearing, U)
-    fully_smeared_U = smearing.Usmeared_multi[end]
-    smeared_fermion_action = calc_fermion_action(fermion_action, fully_smeared_U, ϕ)
-    return smeared_fermion_action
-end
+sample_pseudofermions!(::Any, ::Nothing, ::Any, ::NoSmearing, ::Bool) = nothing
 
 function sample_pseudofermions!(ϕ, fermion_action, U, ::NoSmearing, ::Any)
-    sample_pseudofermions!(ϕ, fermion_action, U)
+    for i in eachindex(fermion_action)
+        sample_pseudofermions!(ϕ[i], fermion_action[i], U)
+    end
     return nothing
 end
 
-function sample_pseudofermions!(ϕ, fermion_action, U, smearing::StoutSmearing, i)
+function sample_pseudofermions!(ϕ, fermion_action, U, smearing::StoutSmearing, is_smeared)
     # we only need to smear once even if we have multiple fermion actions
-    i == 1 && calc_smearedU!(smearing, U)
+    is_smeared || calc_smearedU!(smearing, U)
+    calc_smearedU!(smearing, U)
     fully_smeared_U = smearing.Usmeared_multi[end]
-    sample_pseudofermions!(ϕ, fermion_action, fully_smeared_U)
+    for i in eachindex(fermion_action)
+        sample_pseudofermions!(ϕ[i], fermion_action[i], fully_smeared_U)
+    end
     return nothing
+end
+
+calc_fermion_action(::Nothing, ::Any, ::Any, ::NoSmearing, ::Any) = 0.0
+
+function calc_fermion_action(fermion_action, U, ϕ, ::NoSmearing, ::Any)
+    Sf = 0.0
+    for i in eachindex(fermion_action)
+        Sf += calc_fermion_action(fermion_action[i], U, ϕ[i])
+    end
+    return Sf
+end
+
+function calc_fermion_action(fermion_action, U, ϕ, smearing::StoutSmearing, is_smeared)
+    is_smeared || calc_smearedU!(smearing, U)
+    fully_smeared_U = smearing.Usmeared_multi[end]
+    Sf = 0.0
+    for i in eachindex(fermion_action)
+        Sf += calc_fermion_action(fermion_action[i], fully_smeared_U, ϕ[i])
+    end
+    return Sf
 end
 
 print_hmc_data(::Nothing, args...) = nothing

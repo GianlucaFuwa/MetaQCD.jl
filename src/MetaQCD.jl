@@ -32,7 +32,7 @@ export BridgeFormat, JLD2Format, loadU!, saveU
 export MetaLogger, current_time, @level1, @level2, @level3, set_global_logger!
 export run_sim, run_build
 
-import .BiasModule: Bias, Metadynamics, OPES, Parametric, calc_CV, update_bias!
+import .BiasModule: Bias, Metadynamics, NoBias, OPES, Parametric, calc_CV, update_bias!
 import .CG: cg!, bicg!, bicg_stab!
 import .Gaugefields: CPU, DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
 import .Gaugefields: SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
@@ -60,7 +60,7 @@ import .Updates: Overrelaxation, Subgroups, KenneyLaub
 import .Updates: calc_dSdU_bare!, calc_dSfdU_bare!, calc_dVdU_bare!, ∇trFμνFρσ
 import .Universe: Univ
 
-export Bias, Metadynamics, OPES, Parametric, calc_CV, update_bias!
+export Bias, Metadynamics, NoBias, OPES, Parametric, calc_CV, update_bias!
 export cg!, bicg!, bicg_stab!
 export CPU, DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
 export SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover

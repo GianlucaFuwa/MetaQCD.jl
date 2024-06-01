@@ -229,13 +229,13 @@ function sample_pseudofermions!(
         clear!(v)
     end
 
-    shifts = get_β_inverse(rhmc)
-    coeffs = get_α_inverse(rhmc)
-    α₀ = get_α0_inverse(rhmc)
+    shifts = get_β(rhmc)
+    coeffs = get_α(rhmc)
+    α₀ = get_α0(rhmc)
     gaussian_pseudofermions!(ϕ_eo) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
     solve_dirac_multishift!(ψs, shifts, DdagD, ϕ_eo, temp1, temp2, ps, cg_tol, cg_maxiters)
 
-    axpy!(α₀, ϕ_eo, ϕ_eo)
+    mul!(ϕ_eo, α₀)
     for i in 1:n
         axpy!(coeffs[i], ψs[i+1], ϕ_eo)
     end

@@ -194,7 +194,7 @@ function sample_pseudofermions!(ϕ, fermion_action::StaggeredFermionAction{8}, U
     D = fermion_action.D(U)
     temp = fermion_action.cg_temps[1]
     gaussian_pseudofermions!(temp)
-    LinearAlgebra.mul!(ϕ, D, temp)
+    LinearAlgebra.mul!(ϕ, Daggered(D), temp)
     return nothing
 end
 
@@ -213,13 +213,13 @@ function sample_pseudofermions!(ϕ, fermion_action::StaggeredFermionAction{Nf}, 
         clear!(v)
     end
 
-    shifts = get_β_inverse(rhmc)
-    coeffs = get_α_inverse(rhmc)
-    α₀ = get_α0_inverse(rhmc)
+    shifts = get_β(rhmc)
+    coeffs = get_α(rhmc)
+    α₀ = get_α0(rhmc)
     gaussian_pseudofermions!(ϕ) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
     solve_dirac_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
 
-    axpy!(α₀, ϕ, ϕ)
+    mul!(ϕ, α₀)
     for i in 1:n
         axpy!(coeffs[i], ψs[i+1], ϕ)
     end

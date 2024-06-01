@@ -3,6 +3,7 @@ Weighting schemes based on the ones compared in \\
 https://pubs.acs.org/doi/pdf/10.1021/acs.jctc.9b00867
 """
 calc_weights(::Nothing, args...) = nothing
+calc_weights(::NoBias, args...) = nothing
 
 function calc_weights(b::Vector{<:Bias}, cv, itrj)
     for i in eachindex(b)

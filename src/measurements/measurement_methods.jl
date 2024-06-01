@@ -22,7 +22,24 @@ function MeasurementMethods(
         intervals[i] = measurement_parameters.measure_every
         @level1("|    every $(intervals[i]) updates")
         if measurement_parameters.methodname == "wilson_loop"
+            T = measurement_parameters.Tmax 
+            R = measurement_parameters.Rmax 
+            @level1("|    Maximum Extends: $T x $R (only even extends are measured, sorry, will fix soon)")
             @level1("|    @info: Wilson loop measurements are not printed to console")
+        end
+        if measurement_parameters.methodname == "pion_correlator"
+            dirac_type = measurement_parameters.dirac_type
+            mass = measurement_parameters.mass
+            csw = dirac_type == "wilson" ? measurement_parameters.csw : nothing
+            eo_precon = measurement_parameters.eo_precon
+            cg_tol = measurement_parameters.cg_tol
+            cg_maxiters = measurement_parameters.cg_maxiters
+            @level1("|    Dirac Operator: $(dirac_type)")
+            @level1("|    Mass: $(mass)")
+            dirac_type == "wilson" && @level1("|    CSW: $(csw)")
+            @level1("|    Even-odd preconditioned: $(eo_precon)")
+            @level1("|    CG Tolerance: $(cg_tol)")
+            @level1("|    CG Max Iterations: $(cg_maxiters)")
         end
         filename =
             measurement_dir *

@@ -4,7 +4,7 @@ using Printf
 using TimerOutputs
 
 function SU3testreversibility(;
-    integrator=Leapfrog, gaction=WilsonGaugeAction, faction=nothing, with_bias=false
+    integrator=Leapfrog, gaction=WilsonGaugeAction, faction=nothing, Nf=2, with_bias=false
 )
     println("┌ Testing reversibility of $integrator")
     println("|  gauge action: $gaction")
@@ -18,7 +18,7 @@ function SU3testreversibility(;
     fermion = if faction === nothing
         nothing
     else
-        (faction(U, 0.1),)
+        (faction(U, 0.01; Nf=Nf, cg_tol_md=1e-7, cg_tol_action=1e-9),)
     end
 
     to = TimerOutput()
@@ -52,7 +52,7 @@ function SU3testreversibility(;
 
     dH_n = reversibility_test(hmc, U, fermion, nothing, "without bias", to)
     dH_b = with_bias ? reversibility_test(hmcB, U, fermion, bias, "with bias", to) : nothing
-    show(to)
+    # show(to)
     return dH_n, dH_b
 end
 
@@ -73,7 +73,10 @@ function reversibility_test(hmc::HMC{TI}, U, fermion, bias, str, to) where {TI}
 
     @timeit to "evolve!" evolve!(TI(), U, hmc, fermion, bias)
     @timeit to "normalize!" MetaQCD.normalize!(U)
+
+    @show calc_gauge_action(U)
     @timeit to "invert momenta" MetaQCD.Gaugefields.mul!(hmc.P, -1)
+
     @timeit to "evolve!" evolve!(TI(), U, hmc, fermion, bias)
     @timeit to "normalize!" MetaQCD.normalize!(U)
 

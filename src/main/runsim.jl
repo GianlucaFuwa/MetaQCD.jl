@@ -182,7 +182,7 @@ function metaqcd!(
                     updatemethod,
                     U;
                     fermion_action=fermion_action,
-                    bias=nothing,
+                    bias=NoBias(),
                     metro_test=false,
                 )
             end
@@ -270,7 +270,7 @@ function metaqcd_PT!(
                     # thermalize all streams with the updatemethod of stream 1
                     # shouldnt be a problem for HMC, since we force 0-friction
                     # for thermalization updates and reverse the order, so stream 1 is last
-                    update!(updatemethod, U[i]; bias=nothing, metro_test=false, friction=0)
+                    update!(updatemethod, U[i]; bias=NoBias(), metro_test=false, friction=0)
                 end
             end
             @level1("|  Elapsed time:\t$(updatetime) [s]")
@@ -290,7 +290,7 @@ function metaqcd_PT!(
             _, updatetime = @timed begin
                 tmp = 0.0
                 for _ in 1:rank0_updates
-                    tmp += update!(updatemethod, U[1]; bias=nothing)
+                    tmp += update!(updatemethod, U[1]; bias=NoBias())
                 end
                 numaccepts[1] += tmp / rank0_updates
                 rand() < 0.5 && update!(parity, U[1])

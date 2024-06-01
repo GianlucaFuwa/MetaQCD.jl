@@ -7,7 +7,7 @@ using MPI
 using Random
 using ..Output
 
-import ..BiasModule: calc_weights, recalc_CV!, update_bias!, write_to_file
+import ..BiasModule: NoBias, calc_weights, recalc_CV!, update_bias!, write_to_file
 import ..Gaugefields: calc_gauge_action, normalize!
 import ..Measurements: MeasurementMethods, calc_measurements, calc_measurements_flowed
 import ..Parameters: construct_params_from_toml

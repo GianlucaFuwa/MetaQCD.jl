@@ -1,19 +1,19 @@
 ["Physical Settings"]
-L = [4, 4, 4, 8]
+L = [4, 4, 4, 4]
 beta = 4.0
-kind_of_gaction = "symanzik_tree"
-numtherm = 20
+gauge_action = "symanzik_tree"
+numtherm = 0
 numsteps = 100
-initial = "hot"
+initial = "cold"
 update_method = "hmc"
 parity_update = false
 
 ["Dynamical Fermion Settings"]
-fermion_action = "wilson"
+fermion_action = "staggered"
 eo_precon = false
-Nf = [2]
+Nf = [1]
 mass = [0.01]
-wilson_csw = 1.0
+wilson_csw = 0.0
 cg_tol_action = 1e-16
 cg_tol_md = 1e-16
 cg_maxiters_action = 5000
@@ -23,8 +23,8 @@ cg_maxiters_md = 5000
 hmc_trajectory = 1
 hmc_steps = 5
 hmc_integrator = "OMF4"
-hmc_numsmear_fermion = 4
-hmc_rhostout_fermion = 0.12
+# hmc_numsmear_fermion = 4
+# hmc_rhostout_fermion = 0.12
 
 ["System Settings"]
 backend = "cpu"
@@ -34,12 +34,13 @@ randomseed = 0
 verboselevel = 1
 overwrite = true
 
-["Measurement Settings".measurements.Plaquette]
-measure_every = 10
-
-["Measurement Settings".measurements.Topological_charge]
-measure_every = 10
-kinds_of_topological_charge = ["clover"]
+["Measurement Settings".measurements]
+# ["Measurement Settings".measurements.Plaquette]
+# measure_every = 10
+#
+# ["Measurement Settings".measurements.Topological_charge]
+# measure_every = 10
+# kinds_of_topological_charge = ["clover"]
     
 ["Gradient Flow Settings"]
 flow_integrator = "euler"
@@ -48,17 +49,18 @@ flow_steps = 1
 flow_tf = 0.12 # total flow time is flow_num * flow_tf
 flow_measure_every = 30
 
-    ["Gradient Flow Settings".measurements_with_flow.Plaquette]
-    measure_every = 10
-
-    ["Gradient Flow Settings".measurements_with_flow.Pion_correlator]
-    measure_every = 10
-    kinds_of_topological_charge = ["wilson"]
-    mass = 0.01
-    cg_tol = 1e-16
-    cg_maxiters = 5000
-    csw = 1.0
-
-    ["Gradient Flow Settings".measurements_with_flow.Topological_charge]
-    measure_every = 10
-    kinds_of_topological_charge = ["clover"]
+    ["Gradient Flow Settings".measurements_with_flow]
+    # ["Gradient Flow Settings".measurements_with_flow.Plaquette]
+    # measure_every = 10
+    #
+    # ["Gradient Flow Settings".measurements_with_flow.Pion_correlator]
+    # measure_every = 10
+    # dirac_type = "wilson"
+    # mass = 0.01
+    # csw = 1.0
+    # cg_tol = 1e-16
+    # cg_maxiters = 5000
+    #
+    # ["Gradient Flow Settings".measurements_with_flow.Topological_charge]
+    # measure_every = 10
+    # kinds_of_topological_charge = ["clover"]

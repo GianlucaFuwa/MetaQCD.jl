@@ -20,7 +20,7 @@ import ..Gaugefields: @groupreduce, @latmap, @latsum, gauge_action
 import ..Gaugefields: Abstractfield, Plaquette, Clover, Fermionfield, Tensorfield
 import ..DiracOperators: AbstractDiracOperator, calc_fermion_action, fermaction_from_str
 import ..DiracOperators: sample_pseudofermions!
-import ..BiasModule: Bias, calc_CV, ∂V∂Q, recalc_CV!
+import ..BiasModule: Bias, NoBias, calc_CV, ∂V∂Q, recalc_CV!
 import ..BiasModule: kind_of_cv, update_bias!
 import ..Parameters: ParameterSet
 import ..Smearing: AbstractSmearing, NoSmearing, StoutSmearing
