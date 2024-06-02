@@ -1,22 +1,25 @@
 using MetaQCD: OPES, Metadynamics
 using DelimitedFiles
-using Plots
+using Plots; gr()
 using RecipesBase
+using Roots
 using SingularSpectrumAnalysis
 
 # Use Wong colors as default
-const default_colors = [RGBA{Float32}(0.0f0,0.44705883f0,0.69803923f0,1.0f0),
-                        RGBA{Float32}(0.9019608f0,0.62352943f0,0.0f0,1.0f0),
-                        RGBA{Float32}(0.0f0,0.61960787f0,0.4509804f0,1.0f0),
-                        RGBA{Float32}(0.8f0,0.4745098f0,0.654902f0,1.0f0),
-                        RGBA{Float32}(0.3372549f0,0.7058824f0,0.9137255f0,1.0f0),
-                        RGBA{Float32}(0.8352941f0,0.36862746f0,0.0f0,1.0f0),
-                        RGBA{Float32}(0.9411765f0,0.89411765f0,0.25882354f0,1.0f0)]
+const default_colors = [
+    RGBA{Float32}(0.0f0,0.44705883f0,0.69803923f0,1.0f0),
+    RGBA{Float32}(0.9019608f0,0.62352943f0,0.0f0,1.0f0),
+    RGBA{Float32}(0.0f0,0.61960787f0,0.4509804f0,1.0f0),
+    RGBA{Float32}(0.8f0,0.4745098f0,0.654902f0,1.0f0),
+    RGBA{Float32}(0.3372549f0,0.7058824f0,0.9137255f0,1.0f0),
+    RGBA{Float32}(0.8352941f0,0.36862746f0,0.0f0,1.0f0),
+    RGBA{Float32}(0.9411765f0,0.89411765f0,0.25882354f0,1.0f0),
+]
 
 """
-    MetaMeasurements(dirname::String, fullpath::Bool = false)
+    MetaMeasurements(ensemblename::String, fullpath::Bool = false)
 
-Create a `MetaMeasurements` object using all measurement files in the directory `dirname`.
+Create a `MetaMeasurements` object using all measurement files in the directory `ensemblename`.
 Stores measurements taken from files as a `Dict{String, Dict}`,
 where the keys of the toplevel Dict are the names of the observables and the sub-Dicts
 contain the iterations at which measurements took place and all values.\\
@@ -31,9 +34,9 @@ struct MetaMeasurements
 end
 
 """
-    MetaBias(dirname::String; which = nothing, stream::Int = 1, fullpath::Bool = false)
+    MetaBias(ensemblename::String; which = nothing, stream::Int = 1, fullpath::Bool = false)
 
-Create a `MetaBias` object using the bias from stream `stream` in the directory `dirname`.
+Create a `MetaBias` object using the bias from stream `stream` in the directory `ensemblename`.
 This serves as a functor returning the bias value at an input cv. \\
 The constructor by default only searches for the directory in the ./metapotentials folder,
 but if you want any directory on your machine to be used, specify `fullpath = true`.
@@ -71,16 +74,24 @@ end
 
 observables(m::MetaMeasurements) = m.observables
 
-function MetaMeasurements(dirname::String; fullpath=false)
-    dir = fullpath ? dirname : pwd()*"/measurements/$(dirname)"
+function MetaMeasurements(ensemblename::String)
+    dir = pwd()*"/ensembles/$(ensemblename)/measurements"
+    hmc_logfile = pwd()*"/ensembles/$(ensemblename)/logs/hmc_acc_logs.txt"
     @assert isdir(dir) "Directory \"$(dir)\" doesn't exist."
     measurement_dict = Dict{String, Dict{String, Vector{Float64}}}()
 
     filenames = readdir(dir)
+    isfile(hmc_logfile) && push!(filenames, hmc_logfile)
     for name in filenames
         name_no_ext = splitext(name)[1]
         measurement = Dict{String, Vector{Float64}}()
-        if occursin("flowed", name_no_ext)
+        if name == hmc_logfile
+            data, header = readdlm(hmc_logfile; header=true)
+            for i in eachindex(header)
+                measurement[header[i]] = data[:, i]
+            end
+            measurement_dict["hmc_data"] = measurement
+        elseif occursin("flowed", name_no_ext)
             data, header = readdlm(dir*"/$(name)"; header=true)
             measurement["itrj"] = data[:, 1]
             unique_tflow = unique(data[:, 3])
@@ -106,8 +117,8 @@ function MetaMeasurements(dirname::String; fullpath=false)
     return MetaMeasurements(measurement_dict, Symbol.(keys(measurement_dict)))
 end
 
-function MetaBias(dirname::String; which=nothing, stream=1, fullpath=false)
-    dir = fullpath ? dirname : pwd()*"/metapotentials/$(dirname)/bias/"
+function MetaBias(ensemblename::String; which=nothing, stream=1, fullpath=false)
+    dir = fullpath ? ensemblename : pwd()*"/ensembles/$(ensemblename)/metapotentials/bias/"
     @assert isdir(dir) "Directory \"$(dir)\" doesn't exist."
     filenames = readdir(dir)
     streams = [occursin("stream_$(stream)", name) for name in filenames]
@@ -142,12 +153,17 @@ Plot the time series of the observable `observable` from the measurements in `m`
 """
 RecipesBase.@recipe function timeseries(ts::TimeSeries; seriestype=:line)
     m, observable = ts.args[1:2]
+    @assert !occursin("correlator", string(observable)) "timeseries not supported for correlators"
     @assert observable ∈ observables(m) "Observable $observable is not in Measurements"
     seriestype := seriestype
     obs_keys = collect(keys(getproperty(m, observable)))
     filter!(x->x≠"itrj", obs_keys)
     palette --> default_colors
-    x = getproperty(m, observable)["itrj"]
+    x = try
+        getproperty(m, observable)["itrj"]
+    catch _
+        nothing
+    end
 
     if occursin("bias_data", string(observable))
         size --> (600, 200*length(obs_keys))
@@ -176,6 +192,17 @@ RecipesBase.@recipe function timeseries(ts::TimeSeries; seriestype=:line)
                 x, y
             end
         end
+    elseif occursin("hmc_data", string(observable))
+        xlabel --> "Monte Carlo Time"
+        ylabel --> "$(observable)"
+
+        # for name in obs_keys
+            @series begin
+                label --> "ΔH"
+                y = getproperty(m, observable)["ΔH"]
+                11:length(y), y[11:end]
+            end
+        # end
     else
         xlabel --> "Monte Carlo Time"
         ylabel --> "$(observable)"
@@ -212,6 +239,44 @@ RecipesBase.@recipe function biaspotential(bp::BiasPotential; cvlims=nothing)
     x = (bias isa OPES) ? (xlims[1]:0.001:xlims[2]-0.001) : bias.bin_vals
     y = b.(x)
     x, y
+end
+
+@userplot HadronCorrelator
+
+"""
+    hadroncorrelator(m::MetaMeasurements, correlator::Symbol)
+
+Plot the effective mass plot of the hadron correlator `correlator` from the measurements in `m`.
+"""
+RecipesBase.@recipe function hadroncorrelator(hc::HadronCorrelator; style=:line)
+    m, correlator = hc.args[1:2]
+    observable = Symbol(correlator, :_correlator) 
+    @assert observable ∈ observables(m) "Observable $observable is not in Measurements"
+    seriestype := style
+    obs_keys = collect(keys(getproperty(m, observable)))
+    filter!(x->x≠"itrj", obs_keys)
+    palette --> default_colors
+    x = collect(1:length(obs_keys))
+    len = length(x)
+    C = zeros(len)
+    nums = parse.(Int, last.(split.(obs_keys, "_")))
+
+    for it in nums
+        tmp = getproperty(m, observable)["$(correlator)_corr_$(it)"]
+        C[it] = sum(tmp) / length(tmp)  
+    end
+
+    xlabel --> "Time Extent"
+    ylabel --> "⟨C(t)⟩"
+    xticks := 1:len
+    linecolor := default_colors[1]
+    markercolor := default_colors[1]
+    markershape := :circ
+
+    @series begin
+        label --> string(observable)
+        x, C
+    end
 end
 
 function create_modified(b::MetaBias)

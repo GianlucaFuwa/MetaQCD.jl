@@ -92,7 +92,7 @@ function ∇trFμνFρσ(::Plaquette, U, F, μ, ν, ρ, σ, site)
         cmatmul_oddo(U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site], F[ρ, σ, site]) +
         cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], F[ρ, σ, siteν⁻], U[ν, siteν⁻])
 
-    return im * 1//2 * component
+    return eltype(component)(im * 1 / 2) * component
 end
 
 # """
@@ -125,5 +125,5 @@ function ∇trFμνFρσ(::Clover, U, F, μ, ν, ρ, σ, site)
         cmatmul_dodo(U[ν, siteμ⁺ν⁻], F[ρ, σ, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻]) -
         cmatmul_oddo(F[ρ, σ, siteμ⁺], U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻])
 
-    return im * 1//8 * component
+    return eltype(component)(im * 1 / 8) * component
 end

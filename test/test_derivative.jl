@@ -7,7 +7,8 @@ function SU3testderivative(backend=nothing)
     NY = 4
     NZ = 4
     NT = 4
-    U = initial_gauges("hot", NX, NY, NZ, NT, 6.0; GA=WilsonGaugeAction)
+    U = Gaugefield(NX, NY, NZ, NT, 6.0; GA=WilsonGaugeAction)
+    random_gauges!(U)
     # filename = "./test/testconf.txt"
     # loadU!(BridgeFormat(), U, filename);
     if backend !== nothing
