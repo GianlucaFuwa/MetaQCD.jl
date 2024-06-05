@@ -52,6 +52,24 @@ Base.@kwdef mutable struct PionCorrelatorParameters <: MeasurementParameters
     methodname::String = "pion_correlator"
 end
 
+Base.@kwdef mutable struct EigenvaluesParameters <: MeasurementParameters
+    dirac_type::String = "staggered"
+    mass::Float64 = 0.1
+    r::Float64 = 1.0
+    csw::Float64 = 0.0
+    eo_precon::Bool = false
+    anti_periodic::Bool = true
+    nev::Int64 = 10
+    which::String = "LM"
+    mindim::Int64 = max(10, nev)
+    maxdim::Int64 = min(20, 2nev)
+    tol::Float64 = sqrt(eps(Float64))
+    restarts::Int64 = 200
+    ddaggerd::Bool = false
+    measure_every::Int64 = 10
+    methodname::String = "eigenvalues"
+end
+
 function initialize_measurement_parameters(methodname)
     if Unicode.normalize(methodname; casefold=true) == "gauge_action"
         method = GaugeActionParameters()
@@ -67,6 +85,8 @@ function initialize_measurement_parameters(methodname)
         method = EnergyDensityParameters()
     elseif Unicode.normalize(methodname; casefold=true) == "pion_correlator"
         method = PionCorrelatorParameters()
+    elseif Unicode.normalize(methodname; casefold=true) == "eigenvalues"
+        method = EigenvaluesParameters()
     else
         error("$methodname is not implemented")
     end
@@ -113,6 +133,9 @@ function prepare_measurement(U, meas_parameters::T, filename="", flow=false) whe
     elseif T == PionCorrelatorParameters
         filename_input = ifelse(filename == "", "pion_correlator.txt", filename)
         measurement = PionCorrelatorMeasurement(U, meas_parameters, filename_input, flow)
+    elseif T == EigenvaluesParameters
+        filename_input = ifelse(filename == "", "eigenvalues.txt", filename)
+        measurement = EigenvaluesMeasurement(U, meas_parameters, filename_input, flow)
     else
         error(T, " is not supported in measurements")
     end

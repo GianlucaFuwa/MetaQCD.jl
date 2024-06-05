@@ -71,10 +71,11 @@ struct WilsonFermionAction{Nf,C,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction
         r=1,
         csw=0,
         Nf=2,
-        rhmc_order_for_action=15,
-        rhmc_prec_for_action=42,
-        rhmc_order_for_md=10,
-        rhmc_prec_for_md=42,
+        rhmc_spectral_bound=(mass^2, 64.0),
+        rhmc_order_action=15,
+        rhmc_prec_action=42,
+        rhmc_order_md=10,
+        rhmc_prec_md=42,
         cg_tol_action=1e-14,
         cg_tol_md=1e-12,
         cg_maxiters_action=1000,
@@ -100,16 +101,31 @@ struct WilsonFermionAction{Nf,C,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction
             cg_temps = ntuple(_ -> Fermionfield(f), 4)
         else
             @assert Nf == 1 "Nf should be 1 or 2 (was $Nf). If you want Nf > 2, use multiple actions"
+            rhmc_lambda_low = rhmc_spectral_bound[1]
+            rhmc_lambda_high = rhmc_spectral_bound[2]
+            @level1("|  RHMC START SPECTRAL RANGE: [$(rhmc_lambda_low), $(rhmc_lambda_high)]")
+            @level1("|  RHMC ORDER (Action): $(rhmc_order_action)")
+            @level1("|  RHMC ORDER (MD): $(rhmc_order_md)")
+            @level1("|  RHMC PREC (Action): $(rhmc_prec_action)")
+            @level1("|  RHMC PREC (MD): $(rhmc_prec_md)")
             cg_temps = ntuple(_ -> Fermionfield(f), 2)
             power = Nf//4
             rhmc_info_action = RHMCParams(
-                power; n=rhmc_order_for_action, precision=rhmc_prec_for_action
+                power;
+                n=rhmc_order_action,
+                precision=rhmc_prec_action,
+                lambda_low=rhmc_lambda_low,
+                lambda_high=rhmc_lambda_high,
             )
             power = Nf//2
             rhmc_info_md = RHMCParams(
-                power; n=rhmc_order_for_md, precision=rhmc_prec_for_md
+                power;
+                n=rhmc_order_action,
+                precision=rhmc_prec_action,
+                lambda_low=rhmc_lambda_low,
+                lambda_high=rhmc_lambda_high,
             )
-            n_temps = max(rhmc_order_for_md, rhmc_order_for_action)
+            n_temps = max(rhmc_order_md, rhmc_order_action)
             rhmc_temps1 = ntuple(_ -> Fermionfield(f), n_temps + 1)
             rhmc_temps2 = ntuple(_ -> Fermionfield(f), n_temps + 1)
         end

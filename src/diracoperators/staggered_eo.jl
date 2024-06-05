@@ -25,7 +25,7 @@ struct StaggeredEOPreDiracOperator{B,T,TF,TG} <: AbstractDiracOperator
     mass::Float64
     anti_periodic::Bool # Only in time direction
     function StaggeredEOPreDiracOperator(
-        f::Abstractfield{B,T}, mass; anti_periodic=anti_periodic
+        f::Abstractfield{B,T}, mass; anti_periodic=true
     ) where {B,T}
         U = nothing
         temp = even_odd(Fermionfield(f; staggered=true))
@@ -65,10 +65,11 @@ struct StaggeredEOPreFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
         mass;
         anti_periodic=true,
         Nf=4,
-        rhmc_order_for_action=15,
-        rhmc_prec_for_action=42,
-        rhmc_order_for_md=10,
-        rhmc_prec_for_md=42,
+        rhmc_spectral_bound=(mass^2, 16.0),
+        rhmc_order_action=15,
+        rhmc_prec_action=42,
+        rhmc_order_md=10,
+        rhmc_prec_md=42,
         cg_tol_action=1e-14,
         cg_tol_md=1e-12,
         cg_maxiters_action=1000,
@@ -81,16 +82,31 @@ struct StaggeredEOPreFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
         @level1("|  CG TOLERANCE (MD): $(cg_tol_md)")
         @level1("|  CG MAX ITERS (Action): $(cg_maxiters_action)")
         @level1("|  CG MAX ITERS (MD): $(cg_maxiters_md)")
+        if Nf > 4
+            rhmc_lambda_low = rhmc_spectral_bound[1]
+            rhmc_lambda_high = rhmc_spectral_bound[2]
+            @level1("|  RHMC START SPECTRAL RANGE: [$(rhmc_lambda_low), $(rhmc_lambda_high)]")
+            @level1("|  RHMC ORDER (Action): $(rhmc_order_action)")
+            @level1("|  RHMC ORDER (MD): $(rhmc_order_md)")
+            @level1("|  RHMC PREC (Action): $(rhmc_prec_action)")
+            @level1("|  RHMC PREC (MD): $(rhmc_prec_md)")
+        end
         D = StaggeredEOPreDiracOperator(f, mass; anti_periodic=anti_periodic)
         TD = typeof(D)
 
         if Nf == 4
             cg_temps = ntuple(_ -> even_odd(Fermionfield(f; staggered=true)), 4)
             power = Nf//8
+            rhmc_lambda_low = rhmc_spectral_bound[1]
+            rhmc_lambda_high = rhmc_spectral_bound[2]
             rhmc_info_action = RHMCParams(
-                power; n=rhmc_order_for_action, precision=rhmc_prec_for_action
+                power;
+                n=rhmc_order_action,
+                precision=rhmc_prec_action,
+                lambda_low=rhmc_lambda_low,
+                lambda_high=rhmc_lambda_high,
             )
-            n_temps = rhmc_order_for_action
+            n_temps = rhmc_order_action
             rhmc_temps1 = ntuple(
                 _ -> even_odd(Fermionfield(f; staggered=true)), n_temps + 1
             )
@@ -103,13 +119,21 @@ struct StaggeredEOPreFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
             cg_temps = ntuple(_ -> even_odd(Fermionfield(f; staggered=true)), 2)
             power = Nf//8
             rhmc_info_action = RHMCParams(
-                power; n=rhmc_order_for_action, precision=rhmc_prec_for_action
+                power;
+                n=rhmc_order_action,
+                precision=rhmc_prec_action,
+                lambda_low=rhmc_lambda_low,
+                lambda_high=rhmc_lambda_high,
             )
             power = Nf//4
             rhmc_info_md = RHMCParams(
-                power; n=rhmc_order_for_md, precision=rhmc_prec_for_md
+                power;
+                n=rhmc_order_action,
+                precision=rhmc_prec_action,
+                lambda_low=rhmc_lambda_low,
+                lambda_high=rhmc_lambda_high,
             )
-            n_temps = max(rhmc_order_for_md, rhmc_order_for_action)
+            n_temps = max(rhmc_order_md, rhmc_order_action)
             rhmc_temps1 = ntuple(
                 _ -> even_odd(Fermionfield(f; staggered=true)), n_temps + 1
             )

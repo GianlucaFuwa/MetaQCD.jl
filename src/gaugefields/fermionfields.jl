@@ -46,9 +46,14 @@ float_type(::AbstractArray{SVector{N,Complex{T}},4}) where {N,T} = T
 num_colors(::Fermionfield{B,T,A,ND}) where {B,T,A,ND} = 3
 num_dirac(::Fermionfield{B,T,A,ND}) where {B,T,A,ND} = ND
 Base.similar(f::Fermionfield) = Fermionfield(f)
+Base.eltype(f::Fermionfield{B,T}) where {B,T} = Complex{T}
+LinearAlgebra.checksquare(f::Fermionfield) = f.NV * num_dirac(f) * num_colors(f)
 
+Base.@propagate_inbounds Base.getindex(f::Fermionfield, i::Integer) = f.U[i]
 Base.@propagate_inbounds Base.getindex(f::Fermionfield, x, y, z, t) = f.U[x, y, z, t]
 Base.@propagate_inbounds Base.getindex(f::Fermionfield, site::SiteCoords) = f.U[site]
+Base.@propagate_inbounds Base.setindex!(f::Fermionfield, v, i::Integer) =
+    setindex!(f.U, v, i)
 Base.@propagate_inbounds Base.setindex!(f::Fermionfield, v, x, y, z, t) =
     setindex!(f.U, v, x, y, z, t)
 Base.@propagate_inbounds Base.setindex!(f::Fermionfield, v, site::SiteCoords) =
@@ -133,6 +138,8 @@ function LinearAlgebra.axpby!(α, ψ::T, β, ϕ::T) where {T<:Fermionfield{CPU}}
 
     return nothing
 end
+
+LinearAlgebra.norm(ϕ::Fermionfield) = sqrt(real(dot(ϕ, ϕ)))
 
 function LinearAlgebra.dot(ϕ::T, ψ::T) where {T<:Fermionfield{CPU}}
     check_dims(ψ, ϕ)

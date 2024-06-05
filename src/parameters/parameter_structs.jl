@@ -35,10 +35,12 @@ Base.@kwdef mutable struct DynamicalFermionParameters
     cg_tol_md::Float64 = 1e-14
     cg_maxiters_action::Int64 = 1000
     cg_maxiters_md::Int64 = 1000
-    rhmc_order_for_action::Int64 = 15
-    rhmc_order_for_md::Int64 = 10
-    rhmc_prec_for_action::Int64 = 42
-    rhmc_prec_for_md::Int64 = 42
+    rhmc_spectral_bound::NTuple{2,Float64} = (0.0, 64.0)
+    rhmc_recalc_spectral_bound::Bool = false
+    rhmc_order_action::Int64 = 15
+    rhmc_order_md::Int64 = 10
+    rhmc_prec_action::Int64 = 42
+    rhmc_prec_md::Int64 = 42
     eo_precon::Bool = false
 end
 

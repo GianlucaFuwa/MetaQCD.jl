@@ -12,9 +12,14 @@ using ..Utils
 import ..Gaugefields: Abstractfield, EvenOdd, Fermionfield, Gaugefield, Tensorfield, clear!
 import ..Gaugefields: check_dims, clover_square, dims, even_odd, gaussian_pseudofermions!
 import ..Gaugefields: Checkerboard2, Sequential, @latmap, @latsum, set_source!
+import ..Gaugefields: num_colors, num_dirac
 
 abstract type AbstractDiracOperator end
 abstract type AbstractFermionAction end
+
+Base.eltype(D::AbstractDiracOperator) = eltype(D.temp)
+LinearAlgebra.checksquare(D::AbstractDiracOperator) = LinearAlgebra.checksquare(D.temp)
+get_temp(D::AbstractDiracOperator) = D.temp
 
 """
     Daggered(D::AbstractDiracOperator)
@@ -27,6 +32,9 @@ struct Daggered{T} <: AbstractDiracOperator
 end
 
 LinearAlgebra.adjoint(D::AbstractDiracOperator) = Daggered(D)
+LinearAlgebra.checksquare(D::Daggered) = LinearAlgebra.checksquare(D.parent)
+Base.eltype(D::Daggered) = eltype(D.parent)
+get_temp(D::Daggered) = D.parent.temp
 
 """
     DdaggerD(D::AbstractDiracOperator)
@@ -37,6 +45,10 @@ struct DdaggerD{T} <: AbstractDiracOperator
     parent::T
     DdaggerD(D::T) where {T<:AbstractDiracOperator} = new{T}(D)
 end
+
+LinearAlgebra.checksquare(D::DdaggerD) = LinearAlgebra.checksquare(D.parent)
+Base.eltype(D::DdaggerD) = eltype(D.parent)
+get_temp(D::DdaggerD) = D.parent.temp
 
 """
     solve_dirac!(ψ, D, ϕ, temp1, temp2, temp3, tol=1e-16, maxiters=1000)
@@ -124,6 +136,7 @@ include("wilson.jl")
 include("gpu_kernels/staggered.jl")
 include("gpu_kernels/staggered_eo.jl")
 include("gpu_kernels/wilson.jl")
+include("arnoldi.jl")
 
 function fermaction_from_str(str, eo_precon::Bool)
     if str == "wilson"

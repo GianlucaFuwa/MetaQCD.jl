@@ -72,13 +72,7 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT} <: AbstractMeasurement
         TF = typeof(temp)
         CT = typeof(cg_temps)
         return new{T,TD,TF,CT}(
-            dirac_operator,
-            temp,
-            cg_temps,
-            pion_corr,
-            cg_tol,
-            cg_maxiters,
-            fp,
+            dirac_operator, temp, cg_temps, pion_corr, cg_tol, cg_maxiters, fp
         )
     end
 end
@@ -93,6 +87,8 @@ function PionCorrelatorMeasurement(
         flow=flow,
         dirac_type=params.dirac_type,
         mass=params.mass,
+        csw=params.csw,
+        eo_precon=params.eo_precon,
         cg_tol=params.cg_tol,
         cg_maxiters=params.cg_maxiters,
         anti_periodic=params.anti_periodic,
@@ -104,12 +100,7 @@ function measure(m::PionCorrelatorMeasurement{T}, U; additional_string="") where
     printstring = @sprintf("%-9s", additional_string)
 
     pion_correlators_avg!(
-        m.pion_corr,
-        m.dirac_operator(U),
-        m.temp,
-        m.cg_temps,
-        m.cg_tol,
-        m.cg_maxiters,
+        m.pion_corr, m.dirac_operator(U), m.temp, m.cg_temps, m.cg_tol, m.cg_maxiters
     )
 
     if T ≡ IOStream

@@ -160,6 +160,8 @@ function construct_params_from_toml(parameters, inputfile; am_rank0=true)
                     value_Params[i] = valuedir
                 elseif String(pname_i) == "L"
                     value_Params[i] = Tuple(value[String(pname_i)])
+                elseif String(pname_i) == "rhmc_spectral_bound"
+                    value_Params[i] = Tuple(value[String(pname_i)])
                 elseif String(pname_i) == "cvlims"
                     value_Params[i] = Tuple(value[String(pname_i)])
                 elseif String(pname_i) == "biasfactor"

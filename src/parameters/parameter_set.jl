@@ -18,10 +18,12 @@ struct ParameterSet
     cg_tol_md::Float64
     cg_maxiters_action::Int64
     cg_maxiters_md::Int64
-    rhmc_order_for_action::Int64
-    rhmc_order_for_md::Int64
-    rhmc_prec_for_action::Int64
-    rhmc_prec_for_md::Int64
+    rhmc_spectral_bound::NTuple{2,Float64}
+    rhmc_recalc_spectral_bound::Bool
+    rhmc_order_action::Int64
+    rhmc_order_md::Int64
+    rhmc_prec_action::Int64
+    rhmc_prec_md::Int64
     eo_precon::Bool
 
     # bias parameters

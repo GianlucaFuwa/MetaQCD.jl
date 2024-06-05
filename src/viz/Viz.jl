@@ -265,6 +265,7 @@ RecipesBase.@recipe function hadroncorrelator(
     len = length(x)
     C = zeros(len)
     Cr = zeros(len)
+    meff = zeros(len)
     tmp = last.(split.(obs_keys, "_"))
     if tf > 0
         tmp = split.(tmp, " ")
@@ -282,11 +283,22 @@ RecipesBase.@recipe function hadroncorrelator(
     if calc_meff
         for it in nums
             Cr[it] = log(C[it] / C[mod1(it + 1, len)])
+            if it > 1
+                meff[it] = try
+                    acosh((C[mod1(it + 1, len)] + C[mod1(it - 1, len)]) / 2C[it])
+                catch _ 
+                    0.0
+                end
+            else
+                meff[it] = 0
+            end
         end
     end
 
+    ylab = calc_meff ? "log ⟨C(t)⟩ / ⟨C(t+1)⟩" : "⟨C(t)⟩"
+
     xlabel --> "Time Extent"
-    ylabel --> "⟨C(t)⟩"
+    ylabel --> ylab
     xticks := 1:len
     yscale := logscale ? :log10 : :identity
     linecolor := default_colors[1]
@@ -295,7 +307,7 @@ RecipesBase.@recipe function hadroncorrelator(
 
     @series begin
         label --> string(observable)
-        y = calc_meff ? Cr : C
+        y = calc_meff ? meff : C
         x, y
     end
 end

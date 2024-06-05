@@ -102,7 +102,11 @@ struct HMC{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TIO} <: AbstractUpdate
         force = Temporaryfield(U)
 
         smearing_gauge = StoutSmearing(U, numsmear_gauge, ρ_stout_gauge)
-        smearing_fermion = StoutSmearing(U, numsmear_fermion, ρ_stout_fermion)
+        smearing_fermion = if isnothing(fermion_action)
+            NoSmearing()
+        else
+            StoutSmearing(U, numsmear_fermion, ρ_stout_fermion)
+        end
         TSG = typeof(smearing_gauge)
         TSF = typeof(smearing_fermion)
         has_smearing = TSG != NoSmearing || TSF != NoSmearing
