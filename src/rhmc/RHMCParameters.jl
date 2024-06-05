@@ -4,7 +4,7 @@ module RHMCParameters
 import ..AlgRemez: AlgRemezCoeffs, calc_coefficients
 
 export RHMCParams
-export get_order, get_α, get_α0, get_β, get_α_inverse, get_α0_inverse, get_β_inverse
+export get_n, get_α, get_α0, get_β, get_α_inverse, get_α0_inverse, get_β_inverse
 
 """
     RHMCParams(power::Rational; n=10, lambda_low=0.0004, lambda_high=64, precision=42)
@@ -58,7 +58,7 @@ struct RHMCParams{N}
     end
 end
 
-get_order(::RHMCParams{N}) where {N} = N
+get_n(::RHMCParams{N}) where {N} = N
 get_α(x::RHMCParams) = x.coeffs.α
 get_α0(x::RHMCParams) = x.coeffs.α0
 get_β(x::RHMCParams) = x.coeffs.β
