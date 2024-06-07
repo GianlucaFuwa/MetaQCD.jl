@@ -46,7 +46,7 @@ float_type(::AbstractArray{SVector{N,Complex{T}},4}) where {N,T} = T
 num_colors(::Fermionfield{B,T,A,ND}) where {B,T,A,ND} = 3
 num_dirac(::Fermionfield{B,T,A,ND}) where {B,T,A,ND} = ND
 Base.similar(f::Fermionfield) = Fermionfield(f)
-Base.eltype(f::Fermionfield{B,T}) where {B,T} = Complex{T}
+Base.eltype(::Fermionfield{B,T}) where {B,T} = Complex{T}
 LinearAlgebra.checksquare(f::Fermionfield) = f.NV * num_dirac(f) * num_colors(f)
 
 Base.@propagate_inbounds Base.getindex(f::Fermionfield, i::Integer) = f.U[i]
@@ -169,6 +169,9 @@ end
 
 @inline dims(f::EvenOdd) = dims(f.parent)
 Base.size(f::EvenOdd) = size(f.parent)
+Base.similar(f::EvenOdd) = even_odd(Fermionfield(f.parent))
+Base.eltype(::EvenOdd{B,T}) where {B,T} = Complex{T}
+LinearAlgebra.checksquare(f::EvenOdd) = LinearAlgebra.checksquare(f.parent)
 num_colors(::EvenOdd{B,T,A,ND}) where {B,T,A,ND} = 3
 num_dirac(::EvenOdd{B,T,A,ND}) where {B,T,A,ND} = ND
 
@@ -212,11 +215,12 @@ function gaussian_pseudofermions!(ϕ_eo::EvenOdd{CPU,T}) where {T}
 end
 
 function LinearAlgebra.mul!(ϕ_eo::EvenOdd{CPU,T}, α) where {T}
+    ϕ = ϕ_eo.parent
     α = T(α)
     even = true
 
-    @batch for _site in eachindex(even, ϕ_eo)
-        ϕ_eo[site] *= α
+    @batch for _site in eachindex(even, ϕ)
+        ϕ[_site] *= α
     end
 
     return nothing
@@ -252,6 +256,8 @@ function LinearAlgebra.axpby!(α, ψ_eo::T, β, ϕ_eo::T) where {T<:EvenOdd{CPU}
 
     return nothing
 end
+
+LinearAlgebra.norm(ϕ_eo::EvenOdd) = sqrt(real(dot(ϕ_eo, ϕ_eo)))
 
 function LinearAlgebra.dot(ϕ_eo::T, ψ_eo::T) where {T<:EvenOdd{CPU}}
     check_dims(ϕ_eo, ψ_eo)

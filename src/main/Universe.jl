@@ -13,11 +13,7 @@ import ..Gaugefields: SymanzikTreeGaugeAction
 import ..BiasModule: Bias, NoBias
 import ..Parameters: ParameterSet
 
-const PACKAGE_VERSION = let
-    project = parsefile(joinpath(pkgdir(@__MODULE__), "Project.toml"))
-    VersionNumber(project["version"])
-end
-
+const PACKAGE_VERSION = "1.0.0"
 """
     Univ(parameters::ParameterSet; use_mpi=false)
 

@@ -33,7 +33,7 @@ using .Viz
 export BridgeFormat, JLD2Format, loadU!, saveU
 export MetaLogger, current_time, @level1, @level2, @level3, set_global_logger!
 export run_sim, run_build
-export MetaMeasurements, MetaBias, biaspotential, hadroncorrelator, timeseries
+export MetaMeasurements, MetaBias, biaspotential, eigenvalues, hadroncorrelator, timeseries
 
 import .BiasModule: Bias, Metadynamics, NoBias, OPES, Parametric, calc_CV, update_bias!
 import .CG: cg!, bicg!, bicg_stab!

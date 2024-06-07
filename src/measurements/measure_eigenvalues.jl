@@ -59,19 +59,16 @@ struct EigenvaluesMeasurement{T,TA,TD} <: AbstractMeasurement
 
             if which == "LM" || which == "LR" || which == "LI"
                 vals = zeros(ComplexF64, nev)
-                str = "max"
             elseif which == "SM" || which == "SR" || which == "SI"
                 vals = zeros(ComplexF64, nev)
-                str = "min"
             elseif which == "LSM"
                 vals = zeros(ComplexF64, 2nev)
-                str = "minmax"
             else
                 error("\"which\" in eigenvalue measurement can only be LM, LR, LI, SM, SR, SI or LSM. Was $which")
             end
             
             for i in eachindex(vals)
-                header *= @sprintf("\t%-22s\t%-22s", "λ$(i)_$(str)_re", "λ$(i)_$(str)_im")
+                header *= @sprintf("\t%-22s\t%-22s", "eig_re_$(i)", "eig_im_$(i)")
             end
 
             println(fp, header)
@@ -135,7 +132,6 @@ function measure(m::EigenvaluesMeasurement{T}, U; additional_string="") where {T
             which=:LM, 
             tol=m.tol,
             mindim=m.mindim,
-            maxdim=m.maxdim,
             restarts=m.restarts,
             ddaggerd=m.ddaggerd,
         )
@@ -147,7 +143,6 @@ function measure(m::EigenvaluesMeasurement{T}, U; additional_string="") where {T
             which=:SM, 
             tol=m.tol,
             mindim=m.mindim,
-            maxdim=m.maxdim,
             restarts=m.restarts,
             ddaggerd=m.ddaggerd,
         )
@@ -160,7 +155,6 @@ function measure(m::EigenvaluesMeasurement{T}, U; additional_string="") where {T
             which=:SM, 
             tol=m.tol,
             mindim=m.mindim,
-            maxdim=m.maxdim,
             restarts=m.restarts,
             ddaggerd=m.ddaggerd,
         )
@@ -175,9 +169,8 @@ function measure(m::EigenvaluesMeasurement{T}, U; additional_string="") where {T
         measurestring = printstring
         println(m.fp, measurestring)
         flush(m.fp)
-        measurestring *= " # eigenvalues"
     end
 
-    output = MeasurementOutput(vals, measurestring)
+    output = MeasurementOutput(vals, "")
     return output
 end

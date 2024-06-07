@@ -62,7 +62,7 @@ Base.@kwdef mutable struct EigenvaluesParameters <: MeasurementParameters
     nev::Int64 = 10
     which::String = "LM"
     mindim::Int64 = max(10, nev)
-    maxdim::Int64 = min(20, 2nev)
+    maxdim::Int64 = max(20, 2nev)
     tol::Float64 = sqrt(eps(Float64))
     restarts::Int64 = 200
     ddaggerd::Bool = false

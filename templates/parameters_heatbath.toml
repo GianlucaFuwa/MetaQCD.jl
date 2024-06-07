@@ -1,7 +1,7 @@
 ["Physical Settings"]
 L = [12, 12, 12, 12]
 beta = 6.0
-kind_of_gaction = "wilson"
+gauge_action = "wilson"
 numtherm = 20
 numsteps = 5
 initial = "cold"
@@ -13,10 +13,9 @@ or_algorithm = "kenney-laub"
 numorelax = 4
 
 ["System Settings"]
-backend = "cuda"
-float_type = "float32"               
-log_dir = "L12x12x12x12_wilson_beta6.0/test_heatbath"
-measurement_dir = "L12x12x12x12_wilson_beta6.0/test_heatbath"
+backend = "cpu"
+float_type = "double"               
+ensemble_dir = "test_heatbath"
 randomseed = 0
 verboselevel = 2
 overwrite = true

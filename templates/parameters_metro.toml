@@ -1,7 +1,7 @@
 ["Physical Settings"]
 L = [12, 12, 12, 12]
 beta = 6.0
-kind_of_gaction = "wilson"
+gauge_action = "wilson"
 numtherm = 20
 numsteps = 10
 initial = "cold"
@@ -14,8 +14,7 @@ or_algorithm = "subgroups"
 numorelax = 4
 
 ["System Settings"]               
-log_dir = "L12x12x12x12_wilson_beta6.0/test_metro"
-measurement_dir = "L12x12x12x12_wilson_beta6.0/test_metro"
+ensemble_dir = "test_metropolis"
 randomseed = 0
 verboselevel = 2
 overwrite = true

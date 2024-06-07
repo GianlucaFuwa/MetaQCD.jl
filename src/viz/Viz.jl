@@ -4,7 +4,7 @@ using ..BiasModule: OPES, Metadynamics
 using DelimitedFiles
 using RecipesBase
 
-export MetaMeasurements, MetaBias, biaspotential, hadroncorrelator, timeseries
+export MetaMeasurements, MetaBias, biaspotential, eigenvalues, hadroncorrelator, timeseries
 
 # Use Wong colors as default
 const default_colors = ["#0072b2", "#e69f00", "#009e73", "#cc79a7", "#56b4e9", "#d55e00"]
@@ -53,7 +53,7 @@ struct MetaMeasurements
 
                 for i in 4:length(header)
                     for (j, tflow) in enumerate(unique_tflow)
-                        measurement[header[i]*" (tf=$(tflow[j]))"] = data[
+                        measurement[header[i]*" (tf=$(tflow))"] = data[
                             unique_indices[j], i
                         ]
                     end
@@ -155,6 +155,7 @@ Plot the time series of the observable `observable` from the measurements in `m`
 RecipesBase.@recipe function timeseries(ts::TimeSeries; seriestype=:line)
     m, observable = ts.args[1:2]
     @assert !occursin("correlator", string(observable)) "timeseries not supported for correlators"
+    @assert !occursin("eigenvalues", string(observable)) "timeseries not supported for eigenvalues"
     @assert observable ∈ observables(m) "Observable $observable is not in Measurements"
     seriestype := seriestype
     obs_keys = collect(keys(getproperty(m, observable)))
@@ -309,6 +310,52 @@ RecipesBase.@recipe function hadroncorrelator(
         label --> string(observable)
         y = calc_meff ? meff : C
         x, y
+    end
+end
+
+@userplot Eigenvalues
+
+"""
+    eigenvalues(m::MetaMeasurements)
+
+Plot the `nev` mean eigenvalues in `m`.
+"""
+RecipesBase.@recipe function eigenvalues(ev::Eigenvalues; tf=0, xlims=(-1, 16), ylims=(-6, 6))
+    m = ev.args[1]
+    obs_sym = tf > 0 ? :eigenvalues_flowed : :eigenvalues
+    @assert obs_sym ∈ observables(m) "Observable tmp is not in Measurements"
+    obs_keys = collect(keys(getproperty(m, obs_sym)))
+    filter!(x -> x ≠ "itrj", obs_keys)
+    tf > 0 && filter(x -> x ∉ ("iflow", "tflow"), obs_keys)
+    tmp = last.(split.(obs_keys, "_"))
+    if tf > 0
+        tmp = split.(tmp, " ")
+        tmp = [tmp[i][1] for i in eachindex(tmp)]
+    end
+    nums = unique(parse.(Int, tmp))
+    yre = zeros(length(nums))
+    yim = zeros(length(nums))
+    str(i, t) = tf > 0 ? "eig_$(t)_$(i) (tf=$(tf))" : "eig_$(t)_$(i)"
+    for i in unique(nums)
+        tmpre = getproperty(m, obs_sym)[str(i, "re")]
+        tmpim = getproperty(m, obs_sym)[str(i, "im")]
+        # yre[i] = sum(tmpre) / length(tmpre)
+        # yim[i] = sum(tmpim) / length(tmpim)
+        yre[i] = tmpre[end]
+        yim[i] = tmpim[end]
+    end
+
+    seriestype := :scatter
+    xlabel --> "Re(λ)"
+    ylabel --> "Im(λ)"
+    xlims --> xlims
+    ylims --> ylims
+    markercolor := default_colors[1]
+    markershape := :circ
+
+    @series begin
+        label --> "dirac eigenvalues"
+        yre, yim
     end
 end
 

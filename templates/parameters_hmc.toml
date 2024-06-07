@@ -14,10 +14,9 @@ hmc_steps = 5
 hmc_integrator = "OMF4"
 
 ["System Settings"]
-backend = "cuda"
-float_type = "single"         
-log_dir = "L12x12x12x12_wilson_beta6.0/test_hmc"
-measurement_dir = "L12x12x12x12_wilson_beta6.0/test_hmc"
+backend = "cpu"
+float_type = "double"         
+ensemble_dir = "L12x12x12x12_wilson_beta6.0/test_hmc"
 randomseed = 0
 verboselevel = 2
 overwrite = true

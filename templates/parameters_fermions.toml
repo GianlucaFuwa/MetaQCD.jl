@@ -1,35 +1,38 @@
 ["Physical Settings"]
 L = [4, 4, 4, 4]
-beta = 4.0
+beta = 4.3
 gauge_action = "symanzik_tree"
-numtherm = 0
+numtherm = 20
 numsteps = 100
 initial = "cold"
 update_method = "hmc"
 parity_update = false
 
 ["Dynamical Fermion Settings"]
-fermion_action = "staggered"
+fermion_action = "none"
 eo_precon = false
-Nf = [1]
+Nf = [2]
 mass = [0.01]
-wilson_csw = 0.0
+wilson_csw = 1.0
 cg_tol_action = 1e-16
 cg_tol_md = 1e-16
 cg_maxiters_action = 5000
 cg_maxiters_md = 5000
+rhmc_spectral_bound = [0.0001, 6.0]
+rhmc_prec_action = 64
+rhmc_prec_md = 64
 
 ["HMC Settings"]
 hmc_trajectory = 1
 hmc_steps = 5
 hmc_integrator = "OMF4"
-# hmc_numsmear_fermion = 4
-# hmc_rhostout_fermion = 0.12
+hmc_numsmear_fermion = 4
+hmc_rhostout_fermion = 0.12
 
 ["System Settings"]
 backend = "cpu"
 float_type = "double"
-ensemble_dir = "fermion_test"
+ensemble_dir = "test_fermions"
 randomseed = 0
 verboselevel = 1
 overwrite = true
@@ -41,13 +44,21 @@ overwrite = true
 # ["Measurement Settings".measurements.Topological_charge]
 # measure_every = 10
 # kinds_of_topological_charge = ["clover"]
+["Measurement Settings".measurements.Eigenvalues]
+measure_every = 10
+dirac_type = "staggered"
+mass = 0.01
+nev = 1
+which = "LSM"
+ddaggerd = true
+maxdim = 20
     
 ["Gradient Flow Settings"]
 flow_integrator = "euler"
 flow_num = 30
 flow_steps = 1
 flow_tf = 0.12 # total flow time is flow_num * flow_tf
-flow_measure_every = 30
+flow_measure_every = 5
 
     ["Gradient Flow Settings".measurements_with_flow]
     # ["Gradient Flow Settings".measurements_with_flow.Plaquette]
@@ -64,3 +75,12 @@ flow_measure_every = 30
     # ["Gradient Flow Settings".measurements_with_flow.Topological_charge]
     # measure_every = 10
     # kinds_of_topological_charge = ["clover"]
+    ["Gradient Flow Settings".measurements_with_flow.Eigenvalues]
+    measure_every = 10
+    dirac_type = "staggered"
+    mass = 0.01
+    nev = 20
+    which = "SI"
+    ddaggerd = false
+    mindim = 20
+    maxdim = 40

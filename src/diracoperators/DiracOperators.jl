@@ -1,8 +1,10 @@
 module DiracOperators
 
+using LinearAlgebra: checksquare
 using KernelAbstractions # With this we can write generic GPU kernels for ROC and CUDA
 using LinearAlgebra
 using Polyester
+using SparseArrays
 using StaticArrays
 using ..CG
 using ..Output
@@ -127,6 +129,39 @@ function Base.show(io::IO, ::MIME"text/plain", D::T) where {T<:AbstractDiracOper
     end
     print(io, ")")
     return nothing
+end
+
+function construct_diracmatrix(D, U)
+    n = checksquare(D)
+    Du = D(U)
+    M = spzeros(ComplexF64, n, n) 
+    temp1 = similar(get_temp(D))
+    temp2 = similar(get_temp(D))
+    ND = num_dirac(temp1)
+    @assert n < 5000
+   
+    ii = 1
+    for isite in eachindex(U)
+        for α in 1:ND
+            for a in 1:3
+                set_source!(temp1, isite, a, α)
+                mul!(temp2, Du, temp1)
+                jj = 1
+                for jsite in eachindex(U)
+                    for β in 1:ND
+                        for b in 1:3
+                            ind = (β - 1) * 3 + b
+                            M[jj, ii] = temp2[jsite][ind]
+                            jj += 1
+                        end
+                    end
+                end
+                ii += 1
+            end
+        end
+    end
+
+    return M
 end
 
 include("staggered.jl")

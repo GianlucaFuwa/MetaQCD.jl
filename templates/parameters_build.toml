@@ -1,7 +1,7 @@
 ["Physical Settings"]
 L = [16, 16, 16, 16]
 beta = 1.25
-kind_of_gaction = "dbw2"
+gauge_action = "dbw2"
 numtherm = 10
 numsteps = 10
 initial = "cold"
@@ -31,9 +31,7 @@ hmc_steps = 5
 hmc_integrator = "OMF4"
 
 ["System Settings"]               
-log_dir = "L16x16x16x16_dbw2_beta1.25/test_build"
-measurement_dir = "L16x16x16x16_dbw2_beta1.25/test_build"
-bias_basedir = "L16x16x16x16_dbw2_beta1.25/test_build"
+ensemble_dir = "test_build"
 randomseed = 0
 verboselevel = 2
 overwrite = true
