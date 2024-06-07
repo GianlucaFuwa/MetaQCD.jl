@@ -8,8 +8,6 @@ module AlgRemez
 
 using AlgRemez_jll
 
-const exe = algremez(x -> x)
-
 struct AlgRemezCoeffs{N}
     α0::Float64
     α::NTuple{N,Float64}
@@ -56,14 +54,12 @@ function calc_coefficients(y::Int, z::Int, n::Int, lambda_low, lambda_high; prec
     pathname = dirname * filename
     if !(filename in readdir(dirname))
         try
-            run(`$exe $y $z $n $n $lambda_low $lambda_high $precision`)
+            run(`$(algremez()) $y $z $n $n $lambda_low $lambda_high $precision`)
         catch _
-            error(
-                """
-          Running algremez.exe failed. If you're on Windows, please add your julia \"bin\"
-          directory to your PATH in case it isn't already.
-          """
-            )
+            error("""
+                  Running algremez.exe failed. The most likely reason is that the required
+                  shared libraries cannot be found / aren't on the PATH or LD_LIBRARY_PATH
+                  """)
         end
         mv("approx.dat", pathname)
         mv("error.dat", dirname * filename_err)
