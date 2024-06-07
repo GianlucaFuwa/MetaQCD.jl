@@ -124,40 +124,55 @@ function measure(m::EigenvaluesMeasurement{T}, U; additional_string="") where {T
     vals = m.vals
 
     if m.which == :LSM
-        view(vals, 1:m.nev) .= get_eigenvalues(
-            U,
-            m.dirac_operator,
-            m.arnoldi;
-            nev=m.nev,
-            which=:LM, 
-            tol=m.tol,
-            mindim=m.mindim,
-            restarts=m.restarts,
-            ddaggerd=m.ddaggerd,
-        )
-        view(vals, m.nev+1:2m.nev) .= get_eigenvalues(
-            U,
-            m.dirac_operator,
-            m.arnoldi;
-            nev=m.nev,
-            which=:SM, 
-            tol=m.tol,
-            mindim=m.mindim,
-            restarts=m.restarts,
-            ddaggerd=m.ddaggerd,
-        )
+        view(vals, 1:m.nev) .= try
+            get_eigenvalues(
+                U,
+                m.dirac_operator,
+                m.arnoldi;
+                nev=m.nev,
+                which=:LM, 
+                tol=m.tol,
+                mindim=m.mindim,
+                restarts=m.restarts,
+                ddaggerd=m.ddaggerd,
+            )
+        catch _
+            @level1("@Warning: Eigenvalue calculation did not converge, will be set to 0")
+            0
+        end
+        view(vals, m.nev+1:2m.nev) .= try
+            get_eigenvalues(
+                U,
+                m.dirac_operator,
+                m.arnoldi;
+                nev=m.nev,
+                which=:SM, 
+                tol=m.tol,
+                mindim=m.mindim,
+                restarts=m.restarts,
+                ddaggerd=m.ddaggerd,
+            )
+        catch _
+            @level1("@Warning: Eigenvalue calculation did not converge, will be set to 0")
+            0
+        end
     else
-        vals .= get_eigenvalues(
-            U,
-            m.dirac_operator,
-            m.arnoldi;
-            nev=m.nev,
-            which=:SM, 
-            tol=m.tol,
-            mindim=m.mindim,
-            restarts=m.restarts,
-            ddaggerd=m.ddaggerd,
-        )
+        vals .= try 
+            get_eigenvalues(
+                U,
+                m.dirac_operator,
+                m.arnoldi;
+                nev=m.nev,
+                which=m.which, 
+                tol=m.tol,
+                mindim=m.mindim,
+                restarts=m.restarts,
+                ddaggerd=m.ddaggerd,
+            )
+        catch _
+            @level1("@Warning: Eigenvalue calculation did not converge, will be set to 0")
+            0
+        end
     end
 
     if T ≡ IOStream
