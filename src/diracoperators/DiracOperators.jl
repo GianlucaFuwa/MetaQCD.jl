@@ -133,25 +133,37 @@ end
 
 function construct_diracmatrix(D, U)
     n = checksquare(D)
-    Du = D(U)
+    Du = DdaggerD(D(U))
     M = spzeros(ComplexF64, n, n) 
     temp1 = similar(get_temp(D))
     temp2 = similar(get_temp(D))
     ND = num_dirac(temp1)
+    fdims = dims(U)
+    NV = U.NV
     @assert n < 5000
+    is_evenodd = temp1 isa EvenOdd
    
     ii = 1
     for isite in eachindex(U)
+        if is_evenodd
+            iseven(isite) || continue
+        end
         for α in 1:ND
             for a in 1:3
                 set_source!(temp1, isite, a, α)
                 mul!(temp2, Du, temp1)
                 jj = 1
                 for jsite in eachindex(U)
+                    if is_evenodd
+                        iseven(jsite) || continue
+                        _jsite = eo_site(jsite, fdims..., NV)
+                    else
+                        _jsite = jsite
+                    end
                     for β in 1:ND
                         for b in 1:3
                             ind = (β - 1) * 3 + b
-                            M[jj, ii] = temp2[jsite][ind]
+                            M[jj, ii] = temp2[_jsite][ind]
                             jj += 1
                         end
                     end

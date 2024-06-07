@@ -34,6 +34,8 @@ struct EigenvaluesMeasurement{T,TA,TD} <: AbstractMeasurement
                 dirac_operator = StaggeredEOPreDiracOperator(
                     U, mass; anti_periodic=anti_periodic
                 )
+                @level1("@Warn Eigenvalues with \"eo_precon=true\" defaults to DdaggerD")
+                ddaggerd = true
             else
                 dirac_operator = StaggeredDiracOperator(
                     U, mass; anti_periodic=anti_periodic

@@ -171,9 +171,20 @@ end
 Base.size(f::EvenOdd) = size(f.parent)
 Base.similar(f::EvenOdd) = even_odd(Fermionfield(f.parent))
 Base.eltype(::EvenOdd{B,T}) where {B,T} = Complex{T}
-LinearAlgebra.checksquare(f::EvenOdd) = LinearAlgebra.checksquare(f.parent)
+LinearAlgebra.checksquare(f::EvenOdd) = LinearAlgebra.checksquare(f.parent) ÷ 2
 num_colors(::EvenOdd{B,T,A,ND}) where {B,T,A,ND} = 3
 num_dirac(::EvenOdd{B,T,A,ND}) where {B,T,A,ND} = ND
+
+Base.@propagate_inbounds Base.getindex(f::EvenOdd, i::Integer) = f.parent.U[i]
+Base.@propagate_inbounds Base.getindex(f::EvenOdd, x, y, z, t) = f.parent.U[x, y, z, t]
+Base.@propagate_inbounds Base.getindex(f::EvenOdd, site::SiteCoords) = f.parent.U[site]
+Base.@propagate_inbounds Base.setindex!(f::EvenOdd, v, i::Integer) =
+    setindex!(f.parent.U, v, i)
+Base.@propagate_inbounds Base.setindex!(f::EvenOdd, v, x, y, z, t) =
+    setindex!(f.parent.U, v, x, y, z, t)
+Base.@propagate_inbounds Base.setindex!(f::EvenOdd, v, site::SiteCoords) =
+    setindex!(f.parent.U, v, site)
+
 
 clear!(ϕ_eo::EvenOdd) = clear!(ϕ_eo.parent)
 ones!(ϕ_eo::EvenOdd) = ones!(ϕ_eo.parent)
