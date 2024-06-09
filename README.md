@@ -24,7 +24,7 @@ Inspired by the [LatticeQCD.jl](https://github.com/akio-tomiya/LatticeQCD.jl/tre
 ## Installation:
 First make sure you have a Julia version 1.9.x or 1.10.x installed. You can use [juliaup](https://github.com/JuliaLang/juliaup) for that or just install the release from the [Julia website](https://julialang.org/downloads/).
 
-The package in not in the general registry. So you will have to either
+The package is not in the general registry. So you will have to either
 - Add the package to your Julia environment (**not recommended**) via:
 ```
 julia> ] add https://github.com/GianlucaFuwa/MetaQCD.jl
