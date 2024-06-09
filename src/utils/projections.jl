@@ -210,35 +210,49 @@
     end
 
     @inline function is_traceless_antihermitian(
-        M::SMatrix{3,3,Complex{T},9}, prec=1e-12
-    ) where {T}
+        M::SMatrix{N,N,Complex{T},N²}, prec=1e-12
+    ) where {T,N,N²}
         is_TA = norm(M + M') < prec && abs(tr(M)) < prec
         return is_TA
     end
 
+    @inline function is_antihermitian(
+        M::SMatrix{N,N,Complex{T},N²}, prec=1e-12
+    ) where {T,N,N²}
+        is_TA = norm(M + M') < prec
+        return is_TA
+    end
+
     @inline function is_traceless_hermitian(
-        M::SMatrix{3,3,Complex{T},9}, prec=1e-12
-    ) where {T}
+        M::SMatrix{N,N,Complex{T},N²}, prec=1e-12
+    ) where {T,N,N²}
         is_TH = norm(M - M') < prec && abs(tr(M)) < prec
         return is_TH
     end
 
-    @inline function traceless_antihermitian(M::SMatrix{3,3,Complex{T},9}) where {T}
-        out = T(0.5) * (M - M') - T(1 / 6) * tr(M - M') * eye3(T)
+    @inline function is_hermitian(
+        M::SMatrix{N,N,Complex{T},N²}, prec=1e-12
+    ) where {T,N,N²}
+        is_TH = norm(M - M') < prec
+        return is_TH
+    end
+
+    @inline function traceless_antihermitian(M::SMatrix{N,N,Complex{T},N²}) where {T,N,N²}
+        out = T(0.5) * (M - M') - T(1 / 2N) * tr(M - M') * one(M)
         return out
     end
 
-    @inline function antihermitian(M::SMatrix{3,3,Complex{T},9}) where {T}
+    @inline function antihermitian(M::SMatrix{N,N,Complex{T},N²}) where {T,N,N²}
         out = T(0.5) * (M - M')
         return out
     end
 
-    @inline function traceless_hermitian(M::SMatrix{3,3,Complex{T},9}) where {T}
-        out = T(0.5) * (M + M') - T(1 / 6) * tr(M + M') * eye3(T)
+    @inline function traceless_hermitian(M::SMatrix{N,N,Complex{T},N²}) where {T,N,N²}
+        out = T(0.5) * (M + M') - T(1 / 2N) * tr(M + M') * one(M)
         return out
     end
 
-    @inline function hermitian(M::SMatrix{3,3,Complex{T},9}) where {T}
+    @inline function hermitian(M::SMatrix{N,N,Complex{T},N²}) where {T,N,N²}
         out = T(0.5) * (M + M')
         return out
     end

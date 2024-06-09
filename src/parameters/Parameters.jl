@@ -24,7 +24,7 @@ function set_params_value!(value_Params, values)
     return nothing
 end
 
-function save_parameters(fp, parameters) # TODO: Print the entirity
+function save_parameters(fp, parameters) # XXX: We already create a copy of the parameter file
     for (key, value) in parameters
         println(fp, "[$(key)]")
 

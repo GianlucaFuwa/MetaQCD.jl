@@ -15,6 +15,7 @@ A Wilson Dirac operator with gauge background is created by applying it to a `Ga
 - `TF`: Type of the `Fermionfield` used to store intermediate results when using the 
         Hermitian version of the operator
 - `TG`: Type of the underlying `Gaugefield`
+- `C`: Boolean declaring whether the operator is clover improved or not
 """
 struct WilsonDiracOperator{B,T,C,TF,TG} <: AbstractDiracOperator
     U::TG

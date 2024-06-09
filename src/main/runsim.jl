@@ -184,6 +184,7 @@ function metaqcd!(
                     fermion_action=fermion_action,
                     bias=NoBias(),
                     metro_test=false,
+                    friction=0,
                 )
             end
             @level1("|  Elapsed time:\t$(updatetime) [s]\n-")

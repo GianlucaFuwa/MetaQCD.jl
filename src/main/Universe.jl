@@ -32,6 +32,8 @@ end
 function Univ(parameters::ParameterSet; use_mpi=false)
     @level1("[ Running MetaQCD.jl version $(PACKAGE_VERSION)\n")
     @level1("┌ Setting Universe...")
+    @level1("|  MPI $(ifelse(use_mpi, "enabled", "disabled"))")
+    @level1("|  Number of instances: $(parameters.numinstances)")
     NX, NY, NZ, NT = parameters.L
     β = parameters.beta
     backend = parameters.backend

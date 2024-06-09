@@ -916,6 +916,7 @@ a `Val` and must be within the range `[1,4]` with `μ < ν`
     return SVector(σμν_spin_mul!(MVector{M,Complex{T}}(undef), MVector(x), Val(μ), Val(ν)))
 end
 
+# TODO: make it return two 2Mx2M matrices instead of one 4Mx4M
 @generated function σμν_spin_mul!(
     yc::MVector{M,Complex{T}}, xc::MVector{M,Complex{T}}, ::Val{μ}, ::Val{ν}
 ) where {T,M,μ,ν}

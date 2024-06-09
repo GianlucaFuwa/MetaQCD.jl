@@ -1,7 +1,6 @@
 function run_build(filenamein::String; MPIparallel=false)
     # When using MPI we make sure that only rank 0 prints to the console
     if myrank == 0
-        MPIparallel && println("\t>> MPI enabled with $(comm_size) procs\n")
         ext = splitext(filenamein)[end]
         @assert (ext == ".toml") """
             input file format \"$ext\" not supported. Use TOML format
@@ -11,8 +10,13 @@ function run_build(filenamein::String; MPIparallel=false)
     parameters = construct_params_from_toml(filenamein)
     MPI.Barrier(comm)
 
-    @assert parameters.kind_of_bias != "none" "bias has to be enabled in build"
-    @assert parameters.is_static == false "Bias $(myrank+1) cannot be static in build"
+    if myrank == 0
+        oneinst = parameters.numinstances == 1
+        @assert MPIparallel ⊻ oneinst "MPI must be enabled if and only if numinstances > 1, numinstances was $(parameters.numinstances)"
+        @assert comm_size == parameters.numinstances "numinstances has to be equal to the number of MPI ranks"
+        @assert parameters.kind_of_bias != "none" "bias has to be enabled in build, i.e. not \"none\", which is default"
+        @assert parameters.is_static == false "Bias cannot be static in build"
+    end
 
     if parameters.randomseed != 0
         seed = parameters.randomseed
@@ -77,16 +81,25 @@ end
 
 function build!(parameters, univ, updatemethod, gflow, measurements, measurements_with_flow)
     U = univ.U
+    fermion_action = univ.fermion_actions
     bias = univ.bias
+    MPI.Barrier(comm)
 
     @level1("┌ Thermalization:")
     _, runtime_therm = @timed begin
         for itrj in 1:(parameters.numtherm)
             @level1("|  itrj = $itrj")
             _, updatetime = @timed begin
-                update!(updatemethod, U; bias=nothing, metro_test=false, friction=π / 2)
+                update!(
+                    updatemethod,
+                    U;
+                    fermion_action=fermion_action,
+                    bias=NoBias(),
+                    metro_test=false,
+                    friction=0,
+                )
             end
-            @level1("|  Elapsed time:\t$(updatetime) [s]")
+            @level1("|  Elapsed time:\t$(updatetime) [s]\n-")
         end
     end
 
@@ -98,12 +111,17 @@ function build!(parameters, univ, updatemethod, gflow, measurements, measurement
     @level1("┌ Production:")
     _, runtime_all = @timed begin
         numaccepts = 0.0
-
         for itrj in 1:(parameters.numsteps)
             @level1("|  itrj = $itrj")
 
             _, updatetime = @timed begin
-                accepted = update!(updatemethod, U; bias=bias)
+                accepted = update!(
+                    updatemethod,
+                    U;
+                    fermion_action=fermion_action,
+                    bias=bias,
+                    metro_test=true,
+                )
                 numaccepts += accepted
             end
 
@@ -111,7 +129,7 @@ function build!(parameters, univ, updatemethod, gflow, measurements, measurement
             # all procs send their CVs to all other procs and update their copy of the bias
             CVs = MPI.Allgather(U.CV::Float64, comm)
             accepted == true && update_bias!(bias, CVs, itrj, myrank == 0)
-            acceptances = MPI.Allgather(numaccepts::Float64, comm) # FIXME: should use MPI.gather
+            acceptances = MPI.Allgather(numaccepts::Float64, comm) # FIXME: should use MPI.gather?
             print_acceptance_rates(acceptances, itrj)
 
             calc_measurements(measurements, U, itrj)
@@ -122,6 +140,7 @@ function build!(parameters, univ, updatemethod, gflow, measurements, measurement
 
     @level1("└\nTotal elapsed time:\t$(convert_seconds(runtime_all))\n@ $(current_time())")
     flush(stdout)
+    # close all the I/O streams
     close(updatemethod)
     close(measurements)
     close(measurements_with_flow)

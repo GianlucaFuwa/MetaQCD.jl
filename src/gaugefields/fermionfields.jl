@@ -164,7 +164,11 @@ even_odd(f::Fermionfield) = EvenOdd(f)
 
 struct EvenOdd{B,T,A,ND} <: Abstractfield{B,T,A}
     parent::Fermionfield{B,T,A,ND}
-    EvenOdd(f::Fermionfield{B,T,A,ND}) where {B,T,A,ND} = new{B,T,A,ND}(f)
+    function EvenOdd(f::Fermionfield{B,T,A,ND}) where {B,T,A,ND}
+        _, _, _, NT = dims(f)
+        @assert iseven(NT) "Need even time extent for even-odd preconditioning"
+        return new{B,T,A,ND}(f)
+    end
 end
 
 @inline dims(f::EvenOdd) = dims(f.parent)

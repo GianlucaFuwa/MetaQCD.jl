@@ -33,14 +33,14 @@ The `instance` keyword is used in case of PT-MetaD and multiple walkers to assig
 correct `usebias` to each stream. `has_fp` indicates whether the stream prints to file
 at any point, since only rank 0 should print in case of MPI usage.
 """
-struct Bias{TCV,TS,TB,T}
+struct Bias{TCV,TS,TB,TW,T}
     kind_of_cv::TCV
     smearing::TS
     is_static::Bool
     bias::TB
     biasfile::String
     write_bias_every::Int64
-    kinds_of_weights::Vector{String}
+    kinds_of_weights::TW
     fp::T
 end
 

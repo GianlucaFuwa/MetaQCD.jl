@@ -1,4 +1,3 @@
-# TODO
 """
     WilsonEOPreDiracOperator(::Abstractfield, mass; anti_periodic=true)
     WilsonEOPreDiracOperator(
@@ -18,12 +17,15 @@ A Wilson Dirac operator with gauge background is created by applying it to a `Ga
 - `TF`: Type of the `Fermionfield` used to store intermediate results when using the 
         Hermitian version of the operator
 - `TG`: Type of the underlying `Gaugefield`
+- `C`: Boolean declaring whether the operator is clover improved or not
 """
 struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TC,TO} <: AbstractDiracOperator
     U::TG
     temp::TF # temp for storage of intermediate result for DdaggerD operator
     Fμν::TC # Holds the fieldstrength in case we use clover-improved fermions (C==true)
     D_ee_oo::TO
+    D_oo_inv::TO
+    mass::Float64
     κ::Float64
     r::Float64
     csw::Float64
@@ -35,27 +37,32 @@ struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TC,TO} <: AbstractDiracOperator
         κ = 1 / (2mass + 8)
         U = nothing
         C = csw == 0 ? false : true
+        NX, NY, NZ, NT = dims(U)
         temp = even_odd(Fermionfield(f))
-        D_ee_oo = KA.zeros(B(), SMatrix{12,12,Complex{T},144}, dims(U)...)
+        D_ee_oo = KA.zeros(B(), SMatrix{6,6,Complex{T},36}, 2, NX, NY, NZ, NT)
+        D_oo_inv = KA.zeros(B(), SMatrix{6,6,Complex{T},36}, 2, NX, NY, NZ, NT÷2)
 
         TG = Nothing
         TF = typeof(temp)
         TO = typeof(D_ee_oo)
-        return new{B,T,C,TF,TG,TO}(U, temp, D_ee_oo, mass, κ, r, csw, anti_periodic)
+        return new{B,T,C,TF,TG,TO}(U, temp, D_ee_oo, D_oo_inv, mass, κ, r, csw, anti_periodic)
     end
 
     function WilsonEOPreDiracOperator(
         D::WilsonDiracOperator{B,T,C,TF}, U::Gaugefield{B,T}
     ) where {B,T,C,TF}
         check_dims(U, D.temp)
+        NX, NY, NZ, NT = dims(U)
         temp = even_odd(D.temp)
-        D_ee_oo = KA.zeros(B(), SMatrix{12,12,Complex{T},144}, dims(U)...)
+        D_ee_oo = KA.zeros(B(), SMatrix{6,6,Complex{T},36}, 2, NX, NY, NZ, NT)
+        D_oo_inv = KA.zeros(B(), SMatrix{6,6,Complex{T},36}, 2, NX, NY, NZ, NT÷2)
+        calc_ee_oo!(D_ee_oo, D_oo_inv, U, D.mass)
 
         TF_new = typeof(temp)
         TG = typeof(U)
         TO = typeof(D_ee_oo)
         return new{B,T,C,TF_new,TG,TO}(
-            U, temp, D_ee_oo, D.mass, D.κ, D.r, D.csw, D.anti_periodic
+            U, temp, D_ee_oo, D_oo_inv, D.mass, D.κ, D.r, D.csw, D.anti_periodic
         )
     end
 
@@ -63,12 +70,11 @@ struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TC,TO} <: AbstractDiracOperator
         D::WilsonEOPreDiracOperator{B,T,C,TF}, U::Gaugefield{B,T}
     ) where {B,T,C,TF}
         check_dims(U, D.temp.parent)
-        D_ee_oo = D.D_ee_oo
-        calc_ee_oo!(D_ee_oo, U)
+        calc_ee_oo!(D.D_ee_oo, D.D_oo_inv, U, D.mass)
         TG = typeof(U)
-        TO = typeof(D_ee_oo)
+        TO = typeof(D.D_ee_oo)
         return new{B,T,C,TF,TG,TO}(
-            U, D.temp, D_ee_oo, D.mass, D.κ, D.r, D.csw, D.anti_periodic
+            U, D.temp, D.D_ee_oo, D.D_oo_inv, D.mass, D.κ, D.r, D.csw, D.anti_periodic
         )
     end
 end
@@ -259,12 +265,10 @@ function LinearAlgebra.mul!(
     U = D.U
     check_dims(ψ_eo, ϕ_eo, U)
     anti = D.anti_periodic
-    D_ee_oo = D.D_ee_oo
+    D_oo_inv = D.D_oo_inv
 
-    # ψₒ = Dₒₑϕₑ
-    mul_oe!(ψ_eo, U, ϕ_eo, D_ee_oo, anti, true, false)
-    # ψₑ = DₑₒDₒₑϕₑ
-    mul_eo!(ψ_eo, U, ψ_eo, anti, false, false)
+    mul_oe!(ψ_eo, U, ϕ_eo, anti, true, Val(false)) # ψₒ = Dₒₑϕₑ
+    mul!(D_oo_inv, ψ_eo) # ψₒ = Dₒₒ⁻¹Dₒₑϕₑ
     axpy!(D_ee_oo, ϕ_eo, ψ_eo) # ψₑ = Dₑₑϕₑ - DₑₒDₒₒ⁻¹Dₒₑϕₑ
     return nothing
 end
@@ -276,12 +280,10 @@ function LinearAlgebra.mul!(
     U = D.parent.U
     check_dims(ψ_eo, ϕ_eo, U)
     anti = D.parent.anti_periodic
-    D_ee_oo = D.D_ee_oo
+    D_oo_inv = D.D_oo_inv
 
-    # ψₒ = Dₒₑϕₑ
-    mul_oe!(ψ_eo, U, ϕ_eo, D_ee_oo, anti, true, true)
-    # ψₑ = DₑₒDₒₑϕₑ
-    mul_eo!(ψ_eo, U, ψ_eo, anti, false, true)
+    mul_oe!(ψ_eo, U, ϕ_eo, anti, true, Val(true)) # ψₒ = Dₒₑϕₑ
+    mul!(D_oo_inv, ψ_eo) # ψₒ = Dₒₒ⁻¹Dₒₑϕₑ
     axpy!(D_ee_oo, ϕ_eo, ψ_eo) # ψₑ = Dₑₑϕₑ - DₑₒDₒₒ⁻¹Dₒₑϕₑ
     return nothing
 end
@@ -331,41 +333,50 @@ function mul_eo!(
     end
 end
 
-function calc_oo_inv!(D_oo_inv, U::Gaugefield{CPU,T}, mass) where {T}
-    @assert size(D_oo_inv) == dims(U)
+function calc_ee_oo!(D_ee_oo, D_oo_inv, U::Gaugefield{CPU,T}, mass) where {T}
+    check_dims(D_ee_oo, U)
     mass_term = Complex{T}(4 + mass)
     fdims = dims(U)
-    NV = volume(U)
+    NV = U.NV
 
     @batch for site in eachindex(U)
-        isodd(site) || continue
         _site = eo_site(site, fdims..., NV)
-
         M = @SMatrix fill(mass_term, 12, 12)
+
+        # TODO: make σμν_spin_mul return two 6x6 matrices instead of one 12x12
         C₁₂ = clover_square(U, 1, 2, site, 1)
         F₁₂ = antihermitian(C₁₂)
-        M += ckron(F₁₂, σμν_spin_mul(ϕ[o_site], Val(1), Val(2)))
+        M += ckron(F₁₂, σμν_spin_mul(ϕ[_site], Val(1), Val(2)))
 
         C₁₃ = clover_square(U, 1, 3, site, 1)
         F₁₃ = antihermitian(C₁₃)
-        M += ckron(F₁₃, σμν_spin_mul(ϕ[o_site], Val(1), Val(3)))
+        M += ckron(F₁₃, σμν_spin_mul(ϕ[_site], Val(1), Val(3)))
 
         C₁₄ = clover_square(U, 1, 4, site, 1)
         F₁₄ = antihermitian(C₁₄)
-        M += ckron(F₁₄, σμν_spin_mul(ϕ[o_site], Val(1), Val(4)))
+        M += ckron(F₁₄, σμν_spin_mul(ϕ[_site], Val(1), Val(4)))
 
         C₂₃ = clover_square(U, 2, 3, site, 1)
         F₂₃ = antihermitian(C₂₃)
-        M += ckron(F₂₃, σμν_spin_mul(ϕ[o_site], Val(2), Val(3)))
+        M += ckron(F₂₃, σμν_spin_mul(ϕ[_site], Val(2), Val(3)))
 
         C₂₄ = clover_square(U, 2, 4, site, 1)
         F₂₄ = antihermitian(C₂₄)
-        M += ckron(F₂₄, σμν_spin_mul(ϕ[o_site], Val(2), Val(4)))
+        M += ckron(F₂₄, σμν_spin_mul(ϕ[_site], Val(2), Val(4)))
 
         C₃₄ = clover_square(U, 3, 4, site, 1)
         F₃₄ = antihermitian(C₃₄)
-        M += ckron(F₃₄, σμν_spin_mul(ϕ[o_site], Val(3), Val(4)))
-        D_oo_inv[o_site] = inv(M)
+        M += ckron(F₃₄, σμν_spin_mul(ϕ[_site], Val(3), Val(4)))
+
+        M1 = SMatrix{6,6,Complex{T},36}(view(M, 1:6, 1:6))
+        M2 = SMatrix{6,6,Complex{T},36}(view(M, 7:12, 7:12))
+        D_ee_oo[1, _site] = M1 
+        D_ee_oo[2, _site] = M2 
+
+        if isodd(site)
+            D_oo_inv[1, _site] = inv(M1)
+            D_oo_inv[2, _site] = inv(M2)
+        end
     end
 end
 

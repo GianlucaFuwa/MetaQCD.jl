@@ -90,7 +90,7 @@ struct HMC{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TIO} <: AbstractUpdate
         @level1("|  TRAJECTORY LENGTH: $(trajectory)")
         @level1("|  STEPS: $(steps)")
         @level1("|  STEP LENGTH: $(Δτ)")
-        @level1("|  FRICTION: $(friction) $(ifelse(friction==π/2, "(default)", ""))")
+        @level1("|  FRICTION: $(friction) $(ifelse(friction==0, "(default)", ""))")
 
         P = Temporaryfield(U)
         TT = typeof(P)
