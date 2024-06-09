@@ -7,7 +7,7 @@ Inspired by the [LatticeQCD.jl](https://github.com/akio-tomiya/LatticeQCD.jl/tre
 
 ## Features:
 - Simulations of 4D-SU(3) Yang-Mills (Pure Gauge) theory
-- Simulations of full lattice QCD with multiple non-degenerate flavours
+- Simulations of full lattice QCD with arbitrary number of flavours (Staggered, Wilson-Clover)
 - [Metadynamics](https://www.researchgate.net/publication/224908601_Metadynamics_A_method_to_simulate_rare_events_and_reconstruct_the_free_energy_in_biophysics_chemistry_and_material_science)
 - [PT-MetaD](https://arxiv.org/abs/2307.04742)
 - Several update algorithms (HMC, Metropolis, Heatbath, Overrelaxation)
@@ -22,15 +22,15 @@ Inspired by the [LatticeQCD.jl](https://github.com/akio-tomiya/LatticeQCD.jl/tre
 - Support for CUDA and ROCm backends
 
 ## Installation:
-First make sure you have a Julia version at or above 1.9.0 installed. You can use [juliaup](https://github.com/JuliaLang/juliaup) for that or just install the release from the [Julia website](https://julialang.org/downloads/).
+First make sure you have a Julia version 1.9.x or 1.10.x installed. You can use [juliaup](https://github.com/JuliaLang/juliaup) for that or just install the release from the [Julia website](https://julialang.org/downloads/).
 
 The package in not in the general registry. So you will have to either
-- Add the package to your Julia environment via:
+- Add the package to your Julia environment (**not recommended**) via:
 ```
 julia> ] add https://github.com/GianlucaFuwa/MetaQCD.jl
 ```
 
-or
+or (**recommended**)
 
 1. Clone this repository onto your machine.
 2. Open Julia in the directory which you cloned the repo into, with the project specific environment. This can either be done by starting Julia with the command line argument "--project" or by activating the environment within an opened Julia instance via the package manager:
@@ -66,7 +66,7 @@ or
 ```
 julia --threads=auto --project
 ```
-3. Import MetaQCD package (this may prompt you to install dependencies):
+3. Import MetaQCD package:
 ``` julia
 using MetaQCD
 ```
@@ -76,16 +76,11 @@ run_sim("parameters.toml")
 ```
 
 ## Visualization:
-We include the ability to visualize your data. For that, you have to activate and instantiate the visualization project:
+We include the ability to visualize your data. For that, you just have to pass the directory where your ensemble lives:
 ```julia
-pkg> activate ./visualize
-pkg> instantiate
-```
-
-Now you can create a holder for all measurements in a directory and plot a time series of an observable, specifying its filename (without extenstion) as a symbol:
-```julia
-measurements = MetaMeasurements(mydir)
-timeseries(measurements, :myobservable)
+pkg> ens = "my_ensemble"
+pkg> measurements = MetaMeasurements(ens)
+pkg> timeseries(measurements, :my_observable)
 ```
 
 You can also create a holder of a bias potential and plot it. MetaQCD.jl creates the bias files with an extension that gives their type (.metad or .opes), but if you changed the extension you have to provide the bias type as a symbol under the kwarg `which`:
@@ -124,12 +119,16 @@ Base.@kwdef mutable struct DynamicalFermionParameters
     wilson_r::Float64 = 1.0
     wilson_csw::Float64 = 0.0
     anti_periodic::Bool = true
-    cg_tol::Float64 = 1e-14
-    cg_maxiters::Int64 = 1000
-    rhmc_order_for_action::Int64 = 15
-    rhmc_prec_for_action::Int64 = 42
-    rhmc_order_for_md::Int64 = 10
-    rhmc_prec_for_md::Int64 = 42
+    cg_tol_action::Float64 = 1e-12
+    cg_tol_md::Float64 = 1e-14
+    cg_maxiters_action::Int64 = 1000
+    cg_maxiters_md::Int64 = 1000
+    rhmc_spectral_bound::NTuple{2,Float64} = (0.0, 64.0)
+    rhmc_recalc_spectral_bound::Bool = false
+    rhmc_order_action::Int64 = 15
+    rhmc_order_md::Int64 = 10
+    rhmc_prec_action::Int64 = 42
+    rhmc_prec_md::Int64 = 42
     eo_precon::Bool = false
 end
 
@@ -176,8 +175,11 @@ Base.@kwdef mutable struct HMCParameters
     hmc_steps::Int64 = 10
     hmc_friction::Float64 = 0.0
     hmc_integrator::String = "Leapfrog"
-    hmc_numsmear::Int64 = 0
-    hmc_rhostout::Float64 = 0.0
+    hmc_numsmear_gauge::Int64 = 0
+    hmc_numsmear_fermion::Int64 = 0
+    hmc_rhostout_gauge::Float64 = 0.0
+    hmc_rhostout_fermion::Float64 = 0.0
+    hmc_logging::Bool = true
 end
 
 Base.@kwdef mutable struct GradientFlowParameters
@@ -191,19 +193,20 @@ end
 Base.@kwdef mutable struct SystemParameters
     backend::String = "cpu"
     float_type::String = "float64"
-    log_dir::String = ""
+    ensemble_dir::String = ""
     log_to_console::Bool = true
     verboselevel::Int64 = 1
     loadU_format::String = ""
     loadU_dir::String = ""
     loadU_fromfile::Bool = false
     loadU_filename::String = ""
-    saveU_dir::String = ""
     saveU_format::String = ""
     saveU_every::Int64 = 1
     randomseed::Union{UInt64,Vector{UInt64}} = 0x0000000000000000
-    measurement_dir::String = ""
-    bias_dir::Union{String,Vector{String}} = ""
     overwrite::Bool = false
+end
+
+Base.@kwdef mutable struct MeasurementParameters
+    measurement_method::Vector{Dict} = Dict[]
 end
 ```
