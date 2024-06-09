@@ -22,3 +22,7 @@ using MetaQCD
 ``` julia
 run_sim("parameters.toml")
 ```
+
+Logs, measurements and the lot are all written to files in the `ensembles` directory under
+the specified directory name. If no directory name is provided, one is generated based on
+time the simulation was started at.

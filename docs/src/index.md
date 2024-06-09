@@ -2,8 +2,9 @@
 
 Inspired by the [LatticeQCD.jl](https://github.com/akio-tomiya/LatticeQCD.jl/tree/master) package by Akio Tomiya et al.
 
-## Features
+## Features:
 - Simulations of 4D-SU(3) Yang-Mills (Pure Gauge) theory
+- Simulations of full lattice QCD with arbitrary number of flavours (Staggered, Wilson-Clover)
 - [Metadynamics](https://www.researchgate.net/publication/224908601_Metadynamics_A_method_to_simulate_rare_events_and_reconstruct_the_free_energy_in_biophysics_chemistry_and_material_science)
 - [PT-MetaD](https://arxiv.org/abs/2307.04742)
 - Several update algorithms (HMC, Metropolis, Heatbath, Overrelaxation)
@@ -11,18 +12,22 @@ Inspired by the [LatticeQCD.jl](https://github.com/akio-tomiya/LatticeQCD.jl/tre
 - Gradient flow with variable integrators (Euler, RK2, RK3, RK3W7)
 - Improved Gauge actions (Symanzik tree, Iwasaki, DBW2)
 - Improved Topological charge definitions (clover, rectangle clover-improved)
+- Wilson fermions with and without clover improvement
+- Staggered fermions
+- Even-odd preconditioner
+- RHMC to simulate odd number of flavours
 - Support for CUDA and ROCm backends
 
-## Installation
-First make sure you have a Julia version at or above 1.9.0 installed. You can use [juliaup](https://github.com/JuliaLang/juliaup) for that or just install the release from the [Julia website](https://julialang.org/downloads/).
+## Installation:
+First make sure you have a Julia version 1.9.x or 1.10.x installed. You can use [juliaup](https://github.com/JuliaLang/juliaup) for that or just install the release from the [Julia website](https://julialang.org/downloads/).
 
 The package in not in the general registry. So you will have to either
-- Add the package to your Julia environment via:
+- Add the package to your Julia environment (**not recommended**) via:
 ```
 julia> ] add https://github.com/GianlucaFuwa/MetaQCD.jl
 ```
 
-or
+or (**recommended**)
 
 1. Clone this repository onto your machine.
 2. Open Julia in the directory which you cloned the repo into, with the project specific environment. This can either be done by starting Julia with the command line argument "--project" or by activating the environment within an opened Julia instance via the package manager:
@@ -41,6 +46,30 @@ Pkg.instantiate()
 or
 ``` julia
 pkg> instantiate
+```
+
+If you want to use a GPU, make sure you not only have CUDA.jl or AMDGPU.jl installed, but also a fairly recent version of the CUDA Toolkit or ROCm.
+
+## Quick Start:
+1. Set parameters using one of the templates in template folder
+2. From shell, do:
+```
+julia --threads=auto run.jl parameters.toml
+```
+
+or
+
+2. Start Julia (with project):
+```
+julia --threads=auto --project
+```
+3. Import MetaQCD package:
+``` julia
+using MetaQCD
+```
+4. Begin Simulation with prepared parameter file "parameters.toml":
+``` julia
+run_sim("parameters.toml")
 ```
 
 If you want to use a GPU, make sure you not only have CUDA.jl or AMDGPU.jl installed, but also a fairly recent version of the CUDA Toolkit or ROCm.

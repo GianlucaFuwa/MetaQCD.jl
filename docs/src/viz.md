@@ -1,4 +1,4 @@
-# Visualization:
+# Visualization
 We include the ability to visualize your data. For that, you have pass the the directory
 under "ensembles" that contains your measurements, creating a `MetaMeasuremnts` object
 holding all the measurements in `Dict` where the keys are symbols denoting the observable.
