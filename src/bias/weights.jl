@@ -14,6 +14,7 @@ function calc_weights(b::Vector{<:Bias}, cv, itrj)
 end
 
 function calc_weights(b::Bias{TCV,TS,TB,T}, cv, itrj) where {TCV,TS,TB,T}
+    b.kinds_of_weights === nothing && return nothing
     str = @sprintf("%-9i\t%+-22.15E", itrj, cv)
     for method in b.kinds_of_weights
         w = calc_weight(b.bias, cv, method)

@@ -99,7 +99,7 @@ function build!(parameters, univ, updatemethod, gflow, measurements, measurement
                     friction=0,
                 )
             end
-            @level1("|  Elapsed time:\t$(updatetime) [s]\n-")
+            @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())\n-")
         end
     end
 
@@ -125,7 +125,7 @@ function build!(parameters, univ, updatemethod, gflow, measurements, measurement
                 numaccepts += accepted
             end
 
-            @level1("|  Elapsed time:\t$(updatetime) [s]\n")
+            @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())\n")
             # all procs send their CVs to all other procs and update their copy of the bias
             CVs = MPI.Allgather(U.CV::Float64, comm)
             accepted == true && update_bias!(bias, CVs, itrj, myrank == 0)

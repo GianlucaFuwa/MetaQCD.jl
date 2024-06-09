@@ -69,7 +69,7 @@ function Univ(parameters::ParameterSet; use_mpi=false)
             numinstances = 1
             U = Gaugefield(parameters)
             fermion_actions = init_fermion_actions(parameters, U)
-            bias = Bias(parameters, U)
+            bias = Bias(parameters, U; use_mpi=use_mpi)
         end
     else
         @assert parameters.tempering_enabled == false "tempering can only be enabled with bias"

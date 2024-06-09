@@ -4,33 +4,33 @@ function staple(::WilsonGaugeAction, U, μ, site)
     return staple_plaq(U, μ, site)
 end
 
-function staple(::SymanzikTreeGaugeAction, U::AbstractArray{SU{3,9,T}}, μ, site) where {T}
-    c₁ = -1//12
+function staple(::SymanzikTreeGaugeAction, U, μ, site)
+    c₁ = float_type(U)(-1/12)
     c₁′ = c₁
     staple_p = staple_plaq(U, μ, site)
     staple_r = staple_rect(U, μ, site)
     return (1 - 8c₁) * staple_p + c₁′ * staple_r
 end
 
-function staple(::SymanzikTadGaugeAction, U::AbstractArray{SU{3,9,T}}, μ, site) where {T}
+function staple(::SymanzikTadGaugeAction, U, μ, site)
     # u0sq = sqrt(plaquette_trace_sum(U))
-    c₁ = -1//12
+    c₁ = float_type(U)(-1/12)
     c₁′ = c₁
     staple_p = staple_plaq(U, μ, site)
     staple_r = staple_rect(U, μ, site)
     return (1 - 8c₁) * staple_p + c₁′ * staple_r
 end
 
-function staple(::IwasakiGaugeAction, U::AbstractArray{SU{3,9,T}}, μ, site) where {T}
-    c₁ = T(-0.331)
+function staple(::IwasakiGaugeAction, U, μ, site)
+    c₁ = float_type(U)(-0.331)
     c₁′ = c₁
     staple_p = staple_plaq(U, μ, site)
     staple_r = staple_rect(U, μ, site)
     return (1 - 8c₁) * staple_p + c₁′ * staple_r
 end
 
-function staple(::DBW2GaugeAction, U::AbstractArray{SU{3,9,T}}, μ, site) where {T}
-    c₁ = T(-1.409)
+function staple(::DBW2GaugeAction, U, μ, site)
+    c₁ = float_type(U)(-1.409)
     c₁′ = c₁
     staple_p = staple_plaq(U, μ, site)
     staple_r = staple_rect(U, μ, site)

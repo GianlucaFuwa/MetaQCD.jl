@@ -187,7 +187,7 @@ function metaqcd!(
                     friction=0,
                 )
             end
-            @level1("|  Elapsed time:\t$(updatetime) [s]\n-")
+            @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())\n-")
         end
     end
 
@@ -214,7 +214,7 @@ function metaqcd!(
             end
 
             print_acceptance_rates(numaccepts, itrj)
-            @level1("|  Elapsed time:\t$(updatetime) [s]")
+            @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())")
 
             save_gaugefield(save_configs, U, itrj)
 
@@ -274,7 +274,7 @@ function metaqcd_PT!(
                     update!(updatemethod, U[i]; bias=NoBias(), metro_test=false, friction=0)
                 end
             end
-            @level1("|  Elapsed time:\t$(updatetime) [s]")
+            @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())")
         end
     end
 
@@ -304,7 +304,7 @@ function metaqcd_PT!(
             end
 
             print_acceptance_rates(numaccepts, itrj)
-            @level1("|  Elapsed time:\t$(updatetime) [s]")
+            @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())")
 
             temper!(U, bias, numaccepts_temper, swap_every, itrj; recalc=!uses_hmc)
 

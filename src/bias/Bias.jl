@@ -30,8 +30,7 @@ Container that holds general parameters of bias enhanced sampling, like the kind
 its smearing and filenames/-pointers relevant to the bias. Also holds the specific kind
 of bias (`Metadynamics`, `OPES` or `Parametric` for now). \\
 The `instance` keyword is used in case of PT-MetaD and multiple walkers to assign the
-correct `usebias` to each stream. `has_fp` indicates whether the stream prints to file
-at any point, since only rank 0 should print in case of MPI usage.
+correct `usebias` to each stream.
 """
 struct Bias{TCV,TS,TB,TW,T}
     kind_of_cv::TCV
@@ -44,13 +43,14 @@ struct Bias{TCV,TS,TB,TW,T}
     fp::T
 end
 
-function Bias(p::ParameterSet, U; instance=1)
+function Bias(p::ParameterSet, U; use_mpi=false, instance=1)
     @level1("┌ Setting Bias instance $(instance)...")
     kind_of_bias = Unicode.normalize(p.kind_of_bias; casefold=true)
     TCV = get_cvtype_from_parameters(p)
     smearing = StoutSmearing(U, p.numsmears_for_cv, p.rhostout_for_cv)
     is_static = instance == 0 ? true : p.is_static[instance]
     sstr = (is_static || kind_of_bias == "parametric") ? "static" : "dynamic"
+    inum = use_mpi ? myrank+1 : instance
     @level1("|  Type: $(sstr) $(kind_of_bias)")
 
     if kind_of_bias ∈ ["metad", "metadynamics"]
@@ -65,11 +65,11 @@ function Bias(p::ParameterSet, U; instance=1)
 
     @level1("|  CV: $TCV with $(p.numsmears_for_cv) x $(p.rhostout_for_cv) Stout")
 
-    if myrank == 0 && !(bias isa Parametric)
+    if !(bias isa Parametric)
         is_opes = bias isa OPES
         ext = is_opes ? "opes" : "metad"
-        biasfile = p.biasdir * "/stream_$(instance).$(ext)"
-        fp = open(p.measuredir * "/bias_data_$instance.txt", "w")
+        biasfile = myrank==0 ? p.biasdir * "/stream_$(inum).$(ext)" : ""
+        fp = open(p.measuredir * "/bias_data_$inum.txt", "w")
         kinds_of_weights = is_opes ? ["opes"] : p.kinds_of_weights
         str = @sprintf("%-9s\t%-22s", "itrj", "cv")
         print(fp, str)
@@ -80,8 +80,8 @@ function Bias(p::ParameterSet, U; instance=1)
         end
 
         println(fp)
-    elseif myrank == 0 && (bias isa Parametric)
-        fp = open(p.measuredir * "/bias_data_$instance.txt", "w")
+    elseif bias isa Parametric
+        fp = open(p.measuredir * "/bias_data_$inum.txt", "w")
         kinds_of_weights = ["branduardi"]
         str = @sprintf("%-9s\t%-22s\t%-22s\n", "itrj", "cv", "weight_branduardi")
         println(fp, str)
