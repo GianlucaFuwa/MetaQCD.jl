@@ -14,10 +14,12 @@ makedocs(
     doctest = false,
     modules = [MetaQCD],
     pages = [
-        "MetaQCD.jl: Metadynamics in Lattice Yang-Mills" => "index.md",
+        "MetaQCD.jl: Metadynamics in Lattice QCD" => "index.md",
         "Usage" => "usage.md",
         "Creating Gaugefields" => "gaugefields.md",
         "Updating a Gaugefield" => "updates.md",
+        "Dirac Operators" => "dirac.md",
+        # "Fermion Actions" => "fermion_actions.md",
         "Biased Sampling Methods" => "biased_sampling.md",
         "Visualization" => "viz.md",
         "Parameters" => "parameters.md",
@@ -29,4 +31,4 @@ makedocs(
     format = Documenter.HTML(),
 )
 
-deploydocs(repo = "github.com/GianlucaFuwa/MetaQCD.jl.git", devbranch="main")
+deploydocs(repo = "github.com/GianlucaFuwa/MetaQCD.jl.git", devbranch="dirac")
