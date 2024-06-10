@@ -20,7 +20,7 @@ function test_cg()
     cg!(x0, b_cg, A_cg, Ap, r, p; tol=tol, maxiters=maxiters)
     try
         @test x ≈ x0
-    catch e
+    catch _
     end
 
     Ap′ = zeros(T, n)
@@ -31,14 +31,14 @@ function test_cg()
     bicg!(x0, b_bicg, A, Ap, r, p, Ap′, r′, p′; tol=tol, maxiters=maxiters)
     try
         @test x ≈ x0
-    catch e
+    catch _
     end
 
     x0 = deepcopy(x00)
-    CG.bicg_stab0!(x0, b_bicg, A, Ap, r, p, Ap′, r′; tol=tol, maxiters=maxiters)
+    bicg_stab!(x0, b_bicg, A, Ap, r, p, Ap′, r′; tol=tol, maxiters=maxiters)
     try
         @test x ≈ x0
-    catch e
+    catch _
     end
 
     return nothing
@@ -69,5 +69,5 @@ function test_mscg()
     end
 end
 
-# test_cg()
+test_cg()
 test_mscg()

@@ -88,7 +88,7 @@ struct MetaBias{F}
         dir = if fullpath
             ensemblename
         else
-            pwd() * "/ensembles/$(ensemblename)/metapotentials/bias/"
+            pwd() * "/ensembles/$(ensemblename)/metapotentials/"
         end
         @assert isdir(dir) "Directory \"$(dir)\" doesn't exist."
         filenames = readdir(dir)
@@ -152,7 +152,7 @@ observables(m::MetaMeasurements) = m.observables
 
 Plot the time series of the observable `observable` from the measurements in `m`.
 """
-RecipesBase.@recipe function timeseries(ts::TimeSeries; seriestype=:line)
+RecipesBase.@recipe function timeseries(ts::TimeSeries; seriestype=:line, tf=0)
     m, observable = ts.args[1:2]
     @assert !occursin("correlator", string(observable)) "timeseries not supported for correlators"
     @assert !occursin("eigenvalues", string(observable)) "timeseries not supported for eigenvalues"
@@ -205,6 +205,22 @@ RecipesBase.@recipe function timeseries(ts::TimeSeries; seriestype=:line)
             11:length(y), y[11:end]
         end
         # end
+    elseif occursin("flowed", string(observable))
+        size --> (600, 250 * length(obs_keys))
+        xlabel --> "Monte Carlo Time"
+        ylabel --> first(split(obs_keys[1], " "))
+        layout := (length(obs_keys), 1)
+        nlabel = last.(split.(obs_keys, " "))
+        iordered = sortperm(parse.(Float64, filter.(x -> isdigit(x) || x=='.', nlabel)))        
+
+        for (j, i) in enumerate(iordered)
+            @series begin
+                subplot := j
+                label --> nlabel[i]
+                y = getproperty(m, observable)[obs_keys[i]]
+                x[1:length(obs_keys):end], y
+            end
+        end
     else
         xlabel --> "Monte Carlo Time"
         ylabel --> "$(observable)"
