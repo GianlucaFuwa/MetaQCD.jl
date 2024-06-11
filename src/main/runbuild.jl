@@ -14,7 +14,7 @@ function run_build(filenamein::String; MPIparallel=false)
         oneinst = parameters.numinstances == 1
         @assert MPIparallel ⊻ oneinst "MPI must be enabled if and only if numinstances > 1, numinstances was $(parameters.numinstances)"
         @assert comm_size == parameters.numinstances "numinstances has to be equal to the number of MPI ranks"
-        @assert parameters.kind_of_bias != "none" "bias has to be enabled in build, i.e. not \"none\", which is default"
+        @assert parameters.kind_of_bias ∉ ("none", "parametric") "bias has to be \"metad\" or \"opes\" in build, was $(parameters.kind_of_bias)"
         @assert parameters.is_static == false "Bias cannot be static in build"
     end
 

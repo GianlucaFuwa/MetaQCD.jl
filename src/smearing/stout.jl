@@ -38,6 +38,16 @@ struct StoutSmearing{TG,TT,TC} <: AbstractSmearing
     end
 end
 
+function Base.show(io::IO, ::MIME"text/plain", stout::T) where {T<:StoutSmearing}
+    println(io, "StoutSmearing(; numlayers = $(stout.numlayers), ρ = $(stout.ρ))")
+    return nothing
+end
+
+function Base.show(io::IO, stout::T) where {T<:StoutSmearing}
+    println(io, "StoutSmearing(; numlayers = $(stout.numlayers), ρ = $(stout.ρ))")
+    return nothing
+end
+
 function Base.length(s::T) where {T<:StoutSmearing}
     return s.numlayers
 end
@@ -76,6 +86,8 @@ function apply_stout_smearing!(Uout, C, Q, U, ρ)
 end
 
 function stout_backprop!(Σ′, Σ, smearing)
+    # Variable names might be misleading---the bare force Σ⁰ will be stored in Σ′, contrary
+    # to the naming convention in [hep-lat/0311018]
     Usmeared = smearing.Usmeared_multi
     C = smearing.C_multi
     Q = smearing.Q_multi

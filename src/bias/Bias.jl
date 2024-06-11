@@ -63,7 +63,7 @@ function Bias(p::ParameterSet, U; use_mpi=false, instance=1)
         error("kind_of_bias $(kind_of_bias) not supported. Try metad, opes or parametric")
     end
 
-    @level1("|  CV: $TCV with $(p.numsmears_for_cv) x $(p.rhostout_for_cv) Stout")
+    @level1("|  CV: $TCV with $(smearing)")
 
     if !(bias isa Parametric)
         is_opes = bias isa OPES

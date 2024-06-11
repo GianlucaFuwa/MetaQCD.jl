@@ -1,3 +1,6 @@
+using Random
+using MetaQCD
+using MetaQCD.Utils
 using MetaQCD.Updates: calc_dQdU_bare!
 
 function SU3testderivative(backend=nothing)
@@ -62,7 +65,7 @@ function SU3testderivative(backend=nothing)
 
         calc_dSdU_bare!(dSdU, staples, U, nothing, NoSmearing())
         calc_dSdU_bare!(dSdU_smeared, staples, U, temp_force, smearing)
-        calc_dQdU_bare!(Clover(), dQdU, fieldstrength, U)
+        calc_dQdU_bare!(Clover(), dQdU, fieldstrength, U, nothing, NoSmearing())
         calc_dQdU_bare!(Clover(), dQdU_smeared, fieldstrength, U, temp_force, smearing)
 
         dgaction_proj = real(multr(im * λ[group_direction], dSdU[μ, site]))
@@ -77,6 +80,11 @@ function SU3testderivative(backend=nothing)
         ga_symm_diff_smeared = (gaction_new_fwd_smeared - gaction_new_bwd_smeared) / 2ΔH
         tc_symm_diff_smeared = (topcharge_new_fwd_smeared - topcharge_new_bwd_smeared) / 2ΔH
 
+        # @show tc_symm_diff
+        # @show dtopcharge_proj
+        # println("---")
+        # @show tc_symm_diff_smeared
+        # @show dtopcharge_proj_smeared
         relerrors[1, group_direction] = (ga_symm_diff - dgaction_proj) / ga_symm_diff
         relerrors[2, group_direction] =
             (ga_symm_diff_smeared - dgaction_proj_smeared) / ga_symm_diff_smeared
@@ -84,24 +92,24 @@ function SU3testderivative(backend=nothing)
         relerrors[4, group_direction] =
             (tc_symm_diff_smeared - dtopcharge_proj_smeared) / tc_symm_diff_smeared
 
-        println("================= Group direction $(group_direction) =================")
-        println(
-            "/ GA rel. error (unsmeared): \t", (ga_symm_diff - dgaction_proj) / ga_symm_diff
-        )
-        println(
-            "/ GA rel. error (smeared):   \t",
-            (ga_symm_diff_smeared - dgaction_proj_smeared) / ga_symm_diff_smeared,
-        )
-        println("")
-        println(
-            "/ TC rel. error (unsmeared): \t",
-            (tc_symm_diff - dtopcharge_proj) / tc_symm_diff,
-        )
-        println(
-            "/ TC rel. error (smeared):   \t",
-            (tc_symm_diff_smeared - dtopcharge_proj_smeared) / tc_symm_diff_smeared,
-        )
+    #     println("================= Group direction $(group_direction) =================")
+    #     println(
+    #         "/ GA rel. error (unsmeared): \t", (ga_symm_diff - dgaction_proj) / ga_symm_diff
+    #     )
+    #     println(
+    #         "/ GA rel. error (smeared):   \t",
+    #         (ga_symm_diff_smeared - dgaction_proj_smeared) / ga_symm_diff_smeared,
+    #     )
+    #     println("")
+    #     println(
+    #         "/ TC rel. error (unsmeared): \t",
+    #         (tc_symm_diff - dtopcharge_proj) / tc_symm_diff,
+    #     )
+    #     println(
+    #         "/ TC rel. error (smeared):   \t",
+    #         (tc_symm_diff_smeared - dtopcharge_proj_smeared) / tc_symm_diff_smeared,
+    #     )
     end
-    println()
+    # println()
     return relerrors
 end

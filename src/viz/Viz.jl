@@ -174,6 +174,7 @@ RecipesBase.@recipe function timeseries(ts::TimeSeries; seriestype=:line, tf=0)
         link := :x
         layout := (length(obs_keys) + 1, 1)
         legend := false
+        palette --> default_colors
 
         @series begin
             xlabel --> ""
@@ -195,6 +196,7 @@ RecipesBase.@recipe function timeseries(ts::TimeSeries; seriestype=:line, tf=0)
             end
         end
     elseif occursin("hmc_data", string(observable))
+        palette --> default_colors
         xlabel --> "Monte Carlo Time"
         ylabel --> "$(observable)"
 
@@ -206,16 +208,19 @@ RecipesBase.@recipe function timeseries(ts::TimeSeries; seriestype=:line, tf=0)
         end
         # end
     elseif occursin("flowed", string(observable))
-        size --> (600, 250 * length(obs_keys))
+        # size --> (600, 250 * length(obs_keys))
+        palette --> default_colors
         xlabel --> "Monte Carlo Time"
         ylabel --> first(split(obs_keys[1], " "))
-        layout := (length(obs_keys), 1)
+        linewidth --> 2
+        legend --> :outertopright
+        # layout := (length(obs_keys), 1)
         nlabel = last.(split.(obs_keys, " "))
         iordered = sortperm(parse.(Float64, filter.(x -> isdigit(x) || x=='.', nlabel)))        
 
         for (j, i) in enumerate(iordered)
             @series begin
-                subplot := j
+                # subplot := j
                 label --> nlabel[i]
                 y = getproperty(m, observable)[obs_keys[i]]
                 x[1:length(obs_keys):end], y
@@ -224,6 +229,7 @@ RecipesBase.@recipe function timeseries(ts::TimeSeries; seriestype=:line, tf=0)
     else
         xlabel --> "Monte Carlo Time"
         ylabel --> "$(observable)"
+        palette --> default_colors
 
         for name in obs_keys
             @series begin
@@ -251,7 +257,6 @@ RecipesBase.@recipe function biaspotential(bp::BiasPotential; cvlims=nothing)
     isinf(sum(xlims)) && (xlims = (-5, 5))
 
     legend := false
-    palette --> default_colors
     xlabel --> "Collective Variable"
     ylabel --> "Bias Potential ($(typeof(bias)))"
     x = (bias isa OPES) ? (xlims[1]:0.001:xlims[2]-0.001) : bias.bin_vals

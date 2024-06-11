@@ -107,25 +107,14 @@ struct HMC{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TIO} <: AbstractUpdate
         else
             StoutSmearing(U, numsmear_fermion, ρ_stout_fermion)
         end
+
+        @level1("|  Gauge Action Smearing: $(smearing_gauge)")
+        @level1("|  Fermion Action Smearing: $(smearing_fermion)")
         TSG = typeof(smearing_gauge)
         TSF = typeof(smearing_fermion)
         has_smearing = TSG != NoSmearing || TSF != NoSmearing
         force2 = (!has_smearing && !bias_enabled) ? nothing : Temporaryfield(U)
         F2 = typeof(force2)
-
-        if TSG == NoSmearing
-            @level1("|  Gauge Action Smearing disabled")
-        else
-            @level1("|  Gauge Action Smearing: $(numsmear_gauge) x $(ρ_stout_gauge) Stout")
-        end
-
-        if TSF == NoSmearing
-            @level1("|  Fermion Action Smearing disabled")
-        else
-            @level1(
-                "|  Fermion Action Smearing: $(numsmear_fermion) x $(ρ_stout_fermion) Stout"
-            )
-        end
 
         if fermion_action === StaggeredFermionAction
             @level1("|  Dynamical Staggered fermions enabled")

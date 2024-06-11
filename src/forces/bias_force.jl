@@ -7,33 +7,29 @@ function calc_dVdU_bare!(dU, F, U, temp_force, bias)
     smearing = bias.smearing
     cv = calc_CV(U, bias)
     bias_derivative = ∂V∂Q(bias, cv)
-
-    if typeof(smearing) == NoSmearing
-        calc_dQdU!(kind_of_cv(bias), dU, F, U, bias_derivative)
-    else
-        fully_smeared_U = smearing.Usmeared_multi[end]
-        calc_dQdU!(kind_of_cv(bias), dU, F, fully_smeared_U, bias_derivative)
-        stout_backprop!(dU, temp_force, smearing)
-    end
+    calc_dQdU_bare!(kind_of_cv(bias), dU, F, U, temp_force, smearing, bias_derivative)
     return nothing
 end
 
-function calc_dQdU_bare!(kind_of_cv, dU, F, U, temp_force=nothing, smearing=NoSmearing())
-    if typeof(smearing) == NoSmearing
-        fieldstrength_eachsite!(kind_of_cv, F, U)
-        calc_dQdU!(kind_of_cv, dU, F, U)
-    else
-        fully_smeared_U = smearing.Usmeared_multi[end]
-        fieldstrength_eachsite!(kind_of_cv, F, fully_smeared_U)
-        calc_dQdU!(kind_of_cv, dU, F, fully_smeared_U)
-        stout_backprop!(dU, temp_force, smearing)
-    end
+function calc_dQdU_bare!(kind_of_cv, dU, F, U, ::Nothing, ::NoSmearing, fac=1)
+    calc_dQdU!(kind_of_cv, dU, F, U, fac)
+    return nothing
+end
+
+function calc_dQdU_bare!(
+    kind_of_cv, dU, F, ::Gaugefield, temp_force, smearing::StoutSmearing, fac=1
+)
+    fully_smeared_U = smearing.Usmeared_multi[end]
+    calc_dQdU!(kind_of_cv, dU, F, fully_smeared_U, fac)
+    stout_backprop!(dU, temp_force, smearing)
     return nothing
 end
 
 function calc_dQdU!(kind_of_charge, dU, F, U, fac=1.0)
     check_dims(dU, F, U)
     c = float_type(U)(fac / 4π^2)
+
+    fieldstrength_eachsite!(kind_of_charge, F, U)
 
     @batch for site in eachindex(U)
         tmp1 = cmatmul_oo(
