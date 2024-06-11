@@ -11,7 +11,7 @@ function calc_dVdU_bare!(dU, F, U, temp_force, bias)
     return nothing
 end
 
-function calc_dQdU_bare!(kind_of_cv, dU, F, U, ::Nothing, ::NoSmearing, fac=1)
+function calc_dQdU_bare!(kind_of_cv, dU, F, U, ::Any, ::NoSmearing, fac=1)
     calc_dQdU!(kind_of_cv, dU, F, U, fac)
     return nothing
 end
