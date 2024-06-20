@@ -1,10 +1,3 @@
-import ..Gaugefields:
-    WilsonGaugeAction,
-    SymanzikTreeGaugeAction,
-    SymanzikTadGaugeAction,
-    IwasakiGaugeAction,
-    DBW2GaugeAction
-
 struct GaugeActionMeasurement{T} <: AbstractMeasurement
     GA_dict::Dict{String,Float64} # gauge action definition => value
     factor::Float64 # 1 / (6*U.NV*U.β)

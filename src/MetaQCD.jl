@@ -4,10 +4,10 @@ using Requires
 
 include("./utils/Utils.jl")
 include("./output/Output.jl")
-include("./cg/CG.jl")
+include("./solvers/Solvers.jl")
 include("./rhmc/AlgRemez.jl")
 include("./rhmc/RHMCParameters.jl")
-include("./gaugefields/Gaugefields.jl")
+include("./fields/Fields.jl")
 include("./diracoperators/DiracOperators.jl")
 include("./smearing/Smearing.jl")
 include("./measurements/Measurements.jl")
@@ -28,28 +28,30 @@ include("./main/Main.jl")
 using .Output
 using .Utils
 using .Main
+using .Solvers
 using .Viz
+using Unicode
 
 export BridgeFormat, JLD2Format, loadU!, saveU
 export MetaLogger, current_time, @level1, @level2, @level3, set_global_logger!
-export run_sim, run_build
+export run_sim, build_bias
 export MetaMeasurements, MetaBias, biaspotential, eigenvalues, hadroncorrelator, timeseries
+export ibegin, iend
 
 import .BiasModule: Bias, Metadynamics, NoBias, OPES, Parametric, calc_CV, update_bias!
-import .CG: cg!, bicg!, bicg_stab!
-import .Gaugefields: CPU, DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
-import .Gaugefields: SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
-import .Gaugefields: CoeffField, Gaugefield, Temporaryfield
-import .Gaugefields: calc_gauge_action, fieldstrength_eachsite!, identity_gauges!
-import .Gaugefields: normalize!, plaquette, plaquette_trace_sum, random_gauges!
-import .Gaugefields: staple, staple_eachsite!, wilsonloop, to_backend
-import .Gaugefields: Tensorfield, calc_kinetic_energy, gaussian_TA!
-import .Gaugefields: Fermionfield, gaussian_pseudofermions!
 import .DiracOperators: AbstractDiracOperator, Daggered, DdaggerD, calc_fermion_action
 import .DiracOperators: StaggeredDiracOperator, StaggeredEOPreDiracOperator, even_odd
 import .DiracOperators: WilsonDiracOperator, sample_pseudofermions!
 import .DiracOperators: StaggeredFermionAction, StaggeredEOPreFermionAction
 import .DiracOperators: WilsonFermionAction
+import .Fields: CPU, DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
+import .Fields: SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
+import .Fields: Expfield, Colorfield, Gaugefield
+import .Fields: calc_gauge_action, fieldstrength_eachsite!, identity_gauges!
+import .Fields: normalize!, plaquette, plaquette_trace_sum, random_gauges!
+import .Fields: staple, staple_eachsite!, wilsonloop, to_backend
+import .Fields: Tensorfield, calc_kinetic_energy, gaussian_TA!
+import .Fields: Fermionfield, gaussian_pseudofermions!
 import .Measurements: measure, get_value, top_charge
 import .Measurements: EnergyDensityMeasurement, GaugeActionMeasurement, PlaquetteMeasurement
 import .Measurements: PolyakovMeasurement, TopologicalChargeMeasurement
@@ -64,10 +66,9 @@ import .Updates: calc_dSdU_bare!, calc_dSfdU_bare!, calc_dVdU_bare!, ∇trFμνF
 import .Universe: Univ
 
 export Bias, Metadynamics, NoBias, OPES, Parametric, calc_CV, update_bias!
-export cg!, bicg!, bicg_stab!
 export CPU, DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
 export SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
-export CoeffField, Gaugefield, Temporaryfield
+export Expfield, Colorfield, Gaugefield
 export calc_gauge_action, fieldstrength_eachsite!, identity_gauges!
 export normalize!, plaquette, plaquette_trace_sum, random_gauges!
 export staple, staple_eachsite!, wilsonloop

@@ -1013,6 +1013,22 @@ end
     return q
 end
 
+"""
+    cmvmul_pauli(A₊, A₋, x)
+
+Return the matrix-vector product of of the block diagonal matrix made up of and `A₊` and
+`A₋` and the vector `x`        
+"""
+@inline function cmvmul_pauli(
+    A₊::SMatrix{N,N,Complex{T},NN},
+    A₋::SMatrix{N,N,Complex{T},NN},
+    x::SVector{N2,Complex{T}}
+) where {T,N,NN,N2}
+    x₊ = cmvmul(A₊, SVector{N,Complex{T}}(view(x, 1:N)))
+    x₋ = cmvmul(A₊, SVector{N,Complex{T}}(view(x, N+1:2N)))
+    return vcat(x₊, x₋)  
+end
+
 PrecompileTools.@compile_workload begin
     A64 = @SMatrix rand(ComplexF64, 3, 3)
     v64 = @SVector rand(ComplexF64, 3)

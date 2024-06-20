@@ -17,6 +17,7 @@ function identity_gauges!(u::Gaugefield{CPU,T}) where {T}
         end
     end
 
+    u.Sg = 0
     return nothing
 end
 
@@ -27,8 +28,7 @@ function random_gauges!(u::Gaugefield{CPU,T}) where {T}
         end
     end
 
-    Sg = calc_gauge_action(u)
-    u.Sg = Sg
+    u.Sg = calc_gauge_action(u)
     return nothing
 end
 

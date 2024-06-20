@@ -57,14 +57,14 @@ If you want to use a GPU, make sure you not only have CUDA.jl or AMDGPU.jl insta
 1. Set parameters using one of the templates in template folder
 2. From shell, do:
 ```
-julia --threads=auto run.jl parameters.toml
+julia --threads=auto metaqcd_sim.jl parameters.toml
 ```
 
 or
 
 2. Start Julia (with project):
 ```
-julia --threads=auto --project
+julia --threads=auto --project=/path/to/dir/containing/MetaQCD.jl
 ```
 3. Import MetaQCD package:
 ``` julia
@@ -78,8 +78,7 @@ run_sim("parameters.toml")
 ## Visualization:
 We include the ability to visualize your data. For that, you just have to pass the directory where your ensemble lives:
 ```julia
-pkg> ens = "my_ensemble"
-pkg> measurements = MetaMeasurements(ens)
+pkg> measurements = MetaMeasurements("my_ensemble")
 pkg> timeseries(measurements, :my_observable)
 ```
 
@@ -204,9 +203,5 @@ Base.@kwdef mutable struct SystemParameters
     saveU_every::Int64 = 1
     randomseed::Union{UInt64,Vector{UInt64}} = 0x0000000000000000
     overwrite::Bool = false
-end
-
-Base.@kwdef mutable struct MeasurementParameters
-    measurement_method::Vector{Dict} = Dict[]
 end
 ```

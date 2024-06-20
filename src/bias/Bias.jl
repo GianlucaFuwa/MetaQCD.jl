@@ -9,14 +9,14 @@ using Unicode
 using ..Parameters: ParameterSet
 using ..Output
 
-import ..Gaugefields: Gaugefield, Plaquette, Clover
+import ..Fields: Gaugefield, Plaquette, Clover
 import ..Measurements: top_charge
 import ..Smearing: AbstractSmearing, NoSmearing, StoutSmearing, calc_smearedU!
 
 MPI.Initialized() || MPI.Init()
-const comm = MPI.COMM_WORLD
-const myrank = MPI.Comm_rank(comm)
-const comm_size = MPI.Comm_size(comm)
+const COMM = MPI.COMM_WORLD
+const MYRANK = MPI.Comm_rank(COMM)
+const COMM_SIZE = MPI.Comm_size(COMM)
 
 abstract type AbstractBias end
 
@@ -50,7 +50,7 @@ function Bias(p::ParameterSet, U; use_mpi=false, instance=1)
     smearing = StoutSmearing(U, p.numsmears_for_cv, p.rhostout_for_cv)
     is_static = instance == 0 ? true : p.is_static[instance]
     sstr = (is_static || kind_of_bias == "parametric") ? "static" : "dynamic"
-    inum = use_mpi ? myrank+1 : instance
+    inum = use_mpi ? MYRANK+1 : instance
     @level1("|  Type: $(sstr) $(kind_of_bias)")
 
     if kind_of_bias ∈ ["metad", "metadynamics"]
@@ -68,7 +68,7 @@ function Bias(p::ParameterSet, U; use_mpi=false, instance=1)
     if !(bias isa Parametric)
         is_opes = bias isa OPES
         ext = is_opes ? "opes" : "metad"
-        biasfile = myrank==0 ? p.biasdir * "/stream_$(inum).$(ext)" : ""
+        biasfile = MYRANK==0 ? p.biasdir * "/stream_$(inum).$(ext)" : ""
         fp = open(p.measuredir * "/bias_data_$inum.txt", "w")
         kinds_of_weights = is_opes ? ["opes"] : p.kinds_of_weights
         str = @sprintf("%-9s\t%-22s", "itrj", "cv")
@@ -97,11 +97,14 @@ function Bias(p::ParameterSet, U; use_mpi=false, instance=1)
 
     @level1("|  BIASFILE: $(biasfile)")
     write_bias_every = p.write_bias_every
+    if write_bias_every <= p.stride
+        write_bias_every = p.stride
+    end
     @level1("|  WRITE_BIAS_EVERY: $(write_bias_every)")
-    @assert (write_bias_every == 0) || (write_bias_every >= p.stride)
+    @assert write_bias_every == 0
 
     # write to file after construction to make sure nothing went wrong
-    write_to_file(bias, biasfile)
+    MYRANK == 0 && write_to_file(bias, biasfile)
     @level1("└\n")
     return Bias(
         TCV(), smearing, is_static, bias, biasfile, write_bias_every, kinds_of_weights, fp
@@ -135,10 +138,12 @@ include("metadynamics.jl")
 include("opes.jl")
 include("parametric.jl")
 
-function update_bias!(b::Bias, values, itrj, write)
-    b.is_static && return nothing
+function update_bias!(b::Bias, values, itrj)
+    (b.is_static || length(values) == 0) && return nothing
     update!(b.bias, values, itrj)
-    write && write_to_file(b.bias, b.biasfile)
+    if itrj % b.write_bias_every == 0
+        (MYRANK == 0) && write_to_file(b.bias, b.biasfile)
+    end
     return nothing
 end
 

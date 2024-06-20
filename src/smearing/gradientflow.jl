@@ -16,7 +16,7 @@ function GradientFlow(
     U::TG, integrator="euler", numflow=1, steps=1, tf=0.12; measure_every=1
 ) where {TG}
     @level1("┌ Setting Gradient Flow...")
-    Z = Temporaryfield(U)
+    Z = Colorfield(U)
     Uflow = similar(U)
 
     integrator = Unicode.normalize(integrator; casefold=true)
@@ -58,7 +58,7 @@ function flow!(method::GradientFlow{TI}, Uin) where {TI}
     return nothing
 end
 
-function updateU!(U::Gaugefield{CPU,T}, Z::Temporaryfield{CPU,T}, ϵ) where {T}
+function updateU!(U::Gaugefield{CPU,T}, Z::Colorfield{CPU,T}, ϵ) where {T}
     ϵ = T(ϵ)
 
     @batch for site in eachindex(U)
@@ -70,7 +70,7 @@ function updateU!(U::Gaugefield{CPU,T}, Z::Temporaryfield{CPU,T}, ϵ) where {T}
     return nothing
 end
 
-function calcZ!(Z::Temporaryfield{CPU,T}, U::Gaugefield{CPU,T}, ϵ) where {T}
+function calcZ!(Z::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, ϵ) where {T}
     ϵ = T(ϵ)
 
     @batch for site in eachindex(U)
@@ -84,7 +84,7 @@ function calcZ!(Z::Temporaryfield{CPU,T}, U::Gaugefield{CPU,T}, ϵ) where {T}
     return nothing
 end
 
-function updateZ!(Z::Temporaryfield{CPU,T}, U::Gaugefield{CPU,T}, ϵ_old, ϵ_new) where {T}
+function updateZ!(Z::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, ϵ_old, ϵ_new) where {T}
     ϵ_old = T(ϵ_old)
     ϵ_new = T(ϵ_new)
 

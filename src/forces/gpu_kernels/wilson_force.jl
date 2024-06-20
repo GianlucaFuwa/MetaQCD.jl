@@ -1,11 +1,6 @@
 function add_wilson_derivative!(
-    dU::Temporaryfield{B,T},
-    U::Gaugefield{B,T},
-    X::WilsonFermionfield{B,T},
-    Y::WilsonFermionfield{B,T},
-    anti;
-    coeff=1,
-) where {B<:GPU,T}
+    dU::Colorfield{B,T}, U::Gaugefield{B,T}, X::TF, Y::TF, anti; coeff=1
+) where {B<:GPU,T,TF<:WilsonFermionfield{B,T}}
     check_dims(dU, U, X, Y)
     fac = T(0.5coeff)
     @latmap(Sequential(), Val(1), add_wilson_derivative_kernel!, dU, U, X, Y, anti, fac)
@@ -24,7 +19,7 @@ end
 end
 
 function add_clover_derivative!(
-    dU::Temporaryfield{B,T}, U::Gaugefield{B,T}, Xμν::Tensorfield{B,T}, csw; coeff=1
+    dU::Colorfield{B,T}, U::Gaugefield{B,T}, Xμν::Tensorfield{B,T}, csw; coeff=1
 ) where {B<:GPU,T}
     check_dims(dU, U, Xμν)
     fac = T(csw * coeff / 2)
@@ -41,10 +36,9 @@ end
     end
 end
 
-# TODO
 function calc_Xμν_eachsite!(
-    Xμν::Tensorfield{B,T}, X::WilsonFermionfield{B,T}, Y::WilsonFermionfield{B,T}
-) where {B<:GPU,T}
+    Xμν::Tensorfield{B,T}, X::TF, Y::TF
+) where {B<:GPU,T,TF<:WilsonFermionfield{B,T}}
     check_dims(Xμν, X, Y)
     @latmap(Sequential(), Val(1), calc_Xμν_kernel!, dU, U, Xμν, fac, T)
 end

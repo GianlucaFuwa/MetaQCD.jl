@@ -32,7 +32,7 @@ struct WilsonDiracOperator{B,T,C,TF,TG} <: AbstractDiracOperator
         κ = 1 / (2mass + 8)
         U = nothing
         C = csw == 0 ? false : true
-        temp = Fermionfield(f)
+        temp = Fermionfield{B,T,4}(dims(f)...)
         TG = Nothing
         TF = typeof(temp)
         return new{B,T,C,TF,TG}(U, temp, mass, κ, r, csw, anti_periodic)
@@ -199,8 +199,8 @@ function calc_fermion_action(
 end
 
 function calc_fermion_action(
-    fermion_action::WilsonFermionAction{Nf}, U::Gaugefield, ϕ::WilsonFermionfield
-) where {Nf}
+    fermion_action::WilsonFermionAction{1}, U::Gaugefield, ϕ::WilsonFermionfield
+)
     cg_tol = fermion_action.cg_tol_action
     cg_maxiters = fermion_action.cg_maxiters_action
     rhmc = fermion_action.rhmc_info_action

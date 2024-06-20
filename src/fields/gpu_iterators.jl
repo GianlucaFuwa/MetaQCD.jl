@@ -15,8 +15,6 @@ function __latmap(
     kernel! = f!(B(), workgroupsize)
     # I couldn't be bothered working out how to make CUDA work with array wrappers such as
     # Abstractfield, so we extract the actual array from all Abstractfields in the args
-    # In case some C/C++/Fortran programmer is reading this: We are not creating a copy
-    # we are just getting the reference
     raw_args = get_raws(args...)
 
     for _ in 1:COUNT
@@ -36,12 +34,10 @@ function __latmap(
     NX, NY, NZ, NT = dims(ϕ_eo)
     @assert iseven(NT) "NT must be even for even-odd preconditioned fermions"
     ndrange = (NX, NY, NZ, div(NT, 2))
-    workgroupsize = (4, 4, 4, 4) # 4^4 = 256 threads per workgroup should be fine
+    workgroupsize = (4, 4, 4, 2)
     kernel! = f!(B(), workgroupsize)
     # I couldn't be bothered working out how to make CUDA work with array wrappers such as
     # Abstractfield, so we extract the actual array from all Abstractfields in the args
-    # In case some C/C++/Fortran programmer is reading this: We are not creating a copy
-    # we are just getting the reference
     raw_args = get_raws(args...)
 
     for _ in 1:COUNT
@@ -136,7 +132,7 @@ function __latsum(
     NX, NY, NZ, NT = dims(ϕ_eo)
     @assert iseven(NT) "NT must be even for even-odd preconditioned fermions"
     ndrange = (NX, NY, NZ, div(NT, 2))
-    workgroupsize = (4, 4, 4, 4)
+    workgroupsize = (4, 4, 4, 2)
     numblocks = cld(div(ϕ_eo.parent.NV, 2), prod(workgroupsize))
     out = KA.zeros(B(), Float64, numblocks)
     kernel! = f!(B(), workgroupsize)

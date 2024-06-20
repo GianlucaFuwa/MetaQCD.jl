@@ -1,5 +1,5 @@
 function apply_stout_smearing!(
-    Uout::Gaugefield{B,T}, C::Temporaryfield{B,T}, Q::CoeffField{B,T}, U::Gaugefield{B}, ρ
+    Uout::Gaugefield{B,T}, C::Colorfield{B,T}, Q::Expfield{B,T}, U::Gaugefield{B,T}, ρ
 ) where {B<:GPU,T}
     @assert dims(Uout) == dims(U) == dims(C) == dims(Q)
     @latmap(Sequential(), Val(1), apply_stout_smearing_kernel!, Uout, C, Q, U, T(ρ))
@@ -16,13 +16,13 @@ end
 end
 
 function stout_recursion!(
-    Σ::Temporaryfield{B,T},
-    Σ′::Temporaryfield{B},
-    U′::Gaugefield{B},
-    U::Gaugefield{B},
-    C::Temporaryfield{B},
-    Q::CoeffField{B},
-    Λ::Temporaryfield{B},
+    Σ::Colorfield{B,T},
+    Σ′::Colorfield{B,T},
+    U′::Gaugefield{B,T},
+    U::Gaugefield{B,T},
+    C::Colorfield{B,T},
+    Q::Expfield{B,T},
+    Λ::Colorfield{B,T},
     ρ,
 ) where {B<:GPU,T}
     @assert dims(U) == dims(Σ) == dims(Σ′) == dims(U′) == dims(C) == dims(Q) == dims(Λ)
@@ -83,8 +83,8 @@ end
 end
 
 function calc_stout_Λ!(
-    Λ::Temporaryfield{B}, Σ′::Temporaryfield{B}, Q::CoeffField{B}, U::Gaugefield{B}
-) where {B<:GPU}
+    Λ::Colorfield{B,T}, Σ′::Colorfield{B,T}, Q::Expfield{B,T}, U::Gaugefield{B,T}
+) where {B<:GPU,T}
     @assert dims(U) == dims(Λ) == dims(Σ′) == dims(Q)
     @latmap(Sequential(), Val(1), calc_stout_Λ_kernel!, Λ, Σ′, Q, U)
     return nothing

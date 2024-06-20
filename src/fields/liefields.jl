@@ -1,4 +1,4 @@
-function gaussian_TA!(p::Temporaryfield{CPU,T}, ϕ) where {T}
+function gaussian_TA!(p::Colorfield{CPU,T}, ϕ) where {T}
     # friction is a number in the range [0,1] instead of an angle; it's easier to use
     # have to make sure that ϕ₁² + ϕ₂² = 1
     ϕ₁ = T(sqrt(1 - ϕ^2))
@@ -13,7 +13,7 @@ function gaussian_TA!(p::Temporaryfield{CPU,T}, ϕ) where {T}
     return nothing
 end
 
-function calc_kinetic_energy(p::Temporaryfield{CPU})
+function calc_kinetic_energy(p::Colorfield{CPU})
     K = 0.0
 
     @batch reduction = (+, K) for site in eachindex(p)

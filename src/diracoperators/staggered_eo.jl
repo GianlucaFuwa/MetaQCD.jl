@@ -28,7 +28,7 @@ struct StaggeredEOPreDiracOperator{B,T,TF,TG} <: AbstractDiracOperator
         f::Abstractfield{B,T}, mass; anti_periodic=true
     ) where {B,T}
         U = nothing
-        temp = even_odd(Fermionfield(f; staggered=true))
+        temp = even_odd(Fermionfield{B,T,1}(dims(f)...))
         TG = Nothing
         TF = typeof(temp)
         return new{B,T,TF,TG}(U, temp, mass, anti_periodic)

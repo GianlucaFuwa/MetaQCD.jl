@@ -6,15 +6,16 @@ using LinearAlgebra
 using Polyester
 using SparseArrays
 using StaticArrays
-using ..CG
 using ..Output
 using ..RHMCParameters
+using ..Solvers
 using ..Utils
 
-import ..Gaugefields: Abstractfield, EvenOdd, Fermionfield, Gaugefield, Tensorfield, clear!
-import ..Gaugefields: check_dims, clover_square, dims, even_odd, gaussian_pseudofermions!
-import ..Gaugefields: Checkerboard2, Sequential, @latmap, @latsum, set_source!
-import ..Gaugefields: num_colors, num_dirac
+import KernelAbstractions as KA
+import ..Fields: Abstractfield, EvenOdd, Fermionfield, Gaugefield, Tensorfield, clear!
+import ..Fields: check_dims, clover_square, dims, even_odd, gaussian_pseudofermions!
+import ..Fields: Checkerboard2, Sequential, @latmap, @latsum, set_source!
+import ..Fields: num_colors, num_dirac, volume
 
 abstract type AbstractDiracOperator end
 abstract type AbstractFermionAction end
@@ -133,7 +134,7 @@ end
 
 function construct_diracmatrix(D, U)
     n = checksquare(D)
-    Du = DdaggerD(D(U))
+    Du = D(U)
     M = spzeros(ComplexF64, n, n) 
     temp1 = similar(get_temp(D))
     temp2 = similar(get_temp(D))
@@ -179,7 +180,7 @@ end
 include("staggered.jl")
 include("staggered_eo.jl")
 include("wilson.jl")
-# include("wilson_eo.jl")
+include("wilson_eo.jl")
 include("gpu_kernels/staggered.jl")
 include("gpu_kernels/staggered_eo.jl")
 include("gpu_kernels/wilson.jl")

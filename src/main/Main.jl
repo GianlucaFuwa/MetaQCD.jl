@@ -8,22 +8,22 @@ using Random
 using ..Output
 
 import ..BiasModule: NoBias, calc_weights, recalc_CV!, update_bias!, write_to_file
-import ..Gaugefields: calc_gauge_action, normalize!
+import ..Fields: calc_gauge_action, normalize!
 import ..Measurements: MeasurementMethods, calc_measurements, calc_measurements_flowed
 import ..Parameters: construct_params_from_toml
 import ..Smearing: GradientFlow
 import ..Universe: Univ
 import ..Updates: HMC, ParityUpdate, Updatemethod, update!, temper!
 
-export run_build, run_sim
+export build_bias, run_sim
 
 MPI.Initialized() || MPI.Init()
-const comm = MPI.COMM_WORLD
-const myrank = MPI.Comm_rank(comm)
-const comm_size = MPI.Comm_size(comm)
+const COMM = MPI.COMM_WORLD
+const MYRANK = MPI.Comm_rank(COMM)
+const COMM_SIZE = MPI.Comm_size(COMM)
 
 function print_acceptance_rates(numaccepts, itrj)
-    myrank != 0 && return nothing
+    MYRANK != 0 && return nothing
 
     for (i, value) in enumerate(numaccepts)
         @level1("|    Acceptance $i:\t$(100value / itrj) %")

@@ -1,9 +1,5 @@
 function calc_dQdU!(
-    kind_of_charge,
-    dU::Temporaryfield{B,T},
-    F::Tensorfield{B,T},
-    U::Gaugefield{B,T},
-    fac=1.0,
+    kind_of_charge, dU::Colorfield{B,T}, F::Tensorfield{B,T}, U::Gaugefield{B,T}, fac=1.0,
 ) where {B<:GPU,T}
     check_dims(dU, U, F)
     fac = convert(T, fac / 4π^2)

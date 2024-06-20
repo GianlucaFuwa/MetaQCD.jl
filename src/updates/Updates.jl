@@ -9,19 +9,20 @@ using Printf
 using Random: rand, default_rng
 using Unicode
 using ..Output
+using ..RHMCParameters
 using ..Utils
 
 import KernelAbstractions as KA
-import ..Gaugefields: AbstractGaugeAction, Gaugefield, Temporaryfield
-import ..Gaugefields: WilsonGaugeAction, add!, calc_gauge_action, calc_kinetic_energy
-import ..Gaugefields: clear!, dims, normalize!, fieldstrength_eachsite!, float_type
-import ..Gaugefields: check_dims, even_odd, gaussian_TA!, mul!, staple, staple_eachsite!
-import ..Gaugefields: @groupreduce, @latmap, @latsum, gauge_action
-import ..Gaugefields: Abstractfield, Plaquette, Clover, Fermionfield, Tensorfield
-import ..DiracOperators: AbstractDiracOperator, calc_fermion_action, fermaction_from_str
-import ..DiracOperators: sample_pseudofermions!
 import ..BiasModule: Bias, NoBias, calc_CV, ∂V∂Q, recalc_CV!
 import ..BiasModule: kind_of_cv, update_bias!
+import ..DiracOperators: AbstractDiracOperator, calc_fermion_action, fermaction_from_str
+import ..DiracOperators: sample_pseudofermions!
+import ..Fields: AbstractGaugeAction, Gaugefield, Colorfield
+import ..Fields: WilsonGaugeAction, add!, calc_gauge_action, calc_kinetic_energy
+import ..Fields: clear!, dims, normalize!, fieldstrength_eachsite!, float_type
+import ..Fields: check_dims, even_odd, gaussian_TA!, mul!, staple, staple_eachsite!
+import ..Fields: @groupreduce, @latmap, @latsum, gauge_action
+import ..Fields: Abstractfield, Plaquette, Clover, Fermionfield, Tensorfield
 import ..Parameters: ParameterSet
 import ..Smearing: AbstractSmearing, NoSmearing, StoutSmearing
 import ..Smearing: calc_smearedU!, get_layer, stout_backprop!

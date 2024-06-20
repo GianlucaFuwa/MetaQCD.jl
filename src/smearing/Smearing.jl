@@ -1,18 +1,3 @@
-"""
-    AbstractSmearingModule
-
-Module containing all smearing routines (stout for HMC/MetaD and gradflow for measurements)
-Smearing types are subtypes of AbstractSmearing
-
-    StoutSmearing -> struct holding temporary fields for stout smearing and stout force
-                     recursion and the stout smearing parameters
-                     is parametrized by TG, i.e. the type of Gaugefield and action
-
-    GradientFlow -> struct holding temporary fields for flow and its parameters
-                    is parametrized by the integrator, with supported integrators being
-                    Euler, RK3 and RK3W7
-
-"""
 module Smearing
 
 using KernelAbstractions
@@ -24,9 +9,9 @@ using Unicode
 using ..Output
 using ..Utils
 
-import ..Gaugefields: AbstractGaugeAction, CoeffField, Gaugefield, Temporaryfield
-import ..Gaugefields: check_dims, leftmul_dagg!, staple, staple_eachsite!, @groupreduce
-import ..Gaugefields: Abstractfield, dims, float_type, @latmap
+import ..Fields: AbstractGaugeAction, Expfield, Colorfield, Gaugefield, WilsonGaugeAction
+import ..Fields: check_dims, leftmul_dagg!, staple, staple_eachsite!, @groupreduce
+import ..Fields: Abstractfield, dims, float_type, @latmap
 
 abstract type AbstractSmearing end
 
@@ -34,7 +19,6 @@ struct NoSmearing <: AbstractSmearing end
 
 include("./stout.jl")
 include("./gradientflow.jl")
-
 include("gpu_kernels/gradientflow.jl")
 include("gpu_kernels/stout.jl")
 

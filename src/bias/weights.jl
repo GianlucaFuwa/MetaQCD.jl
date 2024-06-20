@@ -53,13 +53,13 @@ function calc_weight(m::Metadynamics, cv, weight_method)
 end
 
 function calc_weight_tiwari(m::Metadynamics, cv)
-    norm = mean(exp.(m.values))
+    norm = mean(exp(val) for val in m.values)
     w = exp(m(cv)) / norm
     return w
 end
 
 function calc_weight_balanced_exp(m::Metadynamics, cv)
-    norm = exp(mean(m.values))
+    norm = exp(mean(val for val in m.values))
     w = exp(m(cv)) / norm
     return w
 end

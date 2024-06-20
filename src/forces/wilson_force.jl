@@ -29,7 +29,7 @@ function calc_dSfdU!(
     cg_tol = fermion_action.cg_tol_md
     cg_maxiters = fermion_action.cg_maxiters_md
     rhmc = fermion_action.rhmc_info_md
-    n = rhmc.coeffs_inverse.n
+    n = get_n(rhmc)
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     anti = D.anti_periodic
@@ -41,8 +41,8 @@ function calc_dSfdU!(
         clear!(X)
     end
 
-    shifts = rhmc.coeffs_inverse.β
-    coeffs = rhmc.coeffs_inverse.α
+    shifts = get_β_inverse(rhmc)
+    coeffs = get_α_inverse(rhmc)
     solve_dirac_multishift!(Xs, shifts, DdagD, ϕ, temp1, temp2, Ys, cg_tol, cg_maxiters)
 
     for i in 1:n
@@ -58,8 +58,8 @@ function calc_dSfdU!(
 end
 
 function add_wilson_derivative!(
-    dU::Temporaryfield{CPU,T}, U::Gaugefield{CPU,T}, X::TF, Y::TF, anti; coeff=1
-) where {T,TF<:WilsonFermionfield}
+    dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, X::TF, Y::TF, anti; coeff=1
+) where {T,TF<:WilsonFermionfield{CPU,T}}
     check_dims(dU, U, X, Y)
     NT = dims(U)[4]
     fac = T(0.5coeff)
@@ -99,7 +99,7 @@ function add_wilson_derivative_kernel!(dU, U, X, Y, site, bc⁺, fac)
 end
 
 function add_clover_derivative!(
-    dU::Temporaryfield{CPU,T}, U::Gaugefield{CPU,T}, Xμν::Tensorfield{CPU,T}, csw; coeff=1
+    dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, Xμν::Tensorfield{CPU,T}, csw; coeff=1
 ) where {T}
     check_dims(dU, U, Xμν)
     fac = T(csw * coeff / 2)

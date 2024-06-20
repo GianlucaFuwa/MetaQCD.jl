@@ -1,13 +1,10 @@
 """
     MeasurementModule
 
-Module containing all measurement methods and their parameters. Also handles I/O
-
-    MeasurementParameters -> Holds the parameters for each measurement supported, like
-                             the interval of measurement and their methods (for TC and GA)
-
-    MeasurementMethods -> Holds all measurements specified in parameter file and is accessed
-                          in mainrun with 'calc_measurements' and 'calc_measurements_flowed'
+Module containing all measurement methods and their parameters. In particular, all
+observables get a struct (subtype of `AbstractMeasurement`) with its parameters, file name
+and so on. We then define a `measure` function for each observable which calculates the
+observable and prints it to file and/or console.
 """
 module Measurements
 
@@ -25,10 +22,12 @@ import KernelAbstractions as KA
 import ..DiracOperators: Daggered, DdaggerD, StaggeredDiracOperator, WilsonDiracOperator
 import ..DiracOperators: StaggeredEOPreDiracOperator, even_odd, solve_dirac!
 import ..DiracOperators: ArnoldiWorkspaceMeta, get_eigenvalues
-import ..Gaugefields: Gaugefield, Fermionfield, calc_gauge_action, clover_rect, clear!
-import ..Gaugefields: clover_square, dims, float_type, plaquette, wilsonloop, set_source!
-import ..Gaugefields: @groupreduce, @latsum, Plaquette, Clover, Improved, CPU, ones!
-import ..Gaugefields: check_dims
+import ..Fields: WilsonGaugeAction, SymanzikTreeGaugeAction, SymanzikTadGaugeAction
+import ..Fields: IwasakiGaugeAction, DBW2GaugeAction
+import ..Fields: Gaugefield, Fermionfield, calc_gauge_action, clover_rect, clear!
+import ..Fields: clover_square, dims, float_type, plaquette, wilsonloop, set_source!
+import ..Fields: @groupreduce, @latsum, Plaquette, Clover, Improved, CPU, ones!
+import ..Fields: check_dims, plaquette_trace_sum, wilsonloop
 import ..Smearing: StoutSmearing, calc_smearedU!, flow!
 
 abstract type AbstractMeasurement end

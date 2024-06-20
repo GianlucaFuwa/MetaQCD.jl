@@ -6,8 +6,8 @@ import ..DiracOperators: boundary_factor, staggered_η, solve_dirac!, solve_dira
 import ..DiracOperators: mul_oe!, mul_eo!
 
 """
-    calc_dSfdU_bare!(dU, fermion_action, U, ϕ, ::Any, ::NoSmearing)
-    calc_dSfdU_bare!(dU, fermion_action, U, ϕ, temp_force, smearing)
+    calc_dSfdU_bare!(dU::Colorfield, fermion_action, U, ϕ, ::Any, ::NoSmearing)
+    calc_dSfdU_bare!(dU::Colorfield, fermion_action, U, ϕ, temp_force, smearing)
 
 Calculate the derivative of `fermion_action` w.r.t. the gauge field `U` on the fermion
 background `ϕ` and store the result in `dU`.

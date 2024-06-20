@@ -92,14 +92,14 @@ struct HMC{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TIO} <: AbstractUpdate
         @level1("|  STEP LENGTH: $(Δτ)")
         @level1("|  FRICTION: $(friction) $(ifelse(friction==0, "(default)", ""))")
 
-        P = Temporaryfield(U)
+        P = Colorfield(U)
         TT = typeof(P)
         gaussian_TA!(P, 0)
-        P_old = friction == 0 ? nothing : Temporaryfield(U)
+        P_old = friction == 0 ? nothing : Colorfield(U)
         PO = typeof(P_old)
         U_old = Gaugefield(U)
-        staples = Temporaryfield(U)
-        force = Temporaryfield(U)
+        staples = Colorfield(U)
+        force = Colorfield(U)
 
         smearing_gauge = StoutSmearing(U, numsmear_gauge, ρ_stout_gauge)
         smearing_fermion = if isnothing(fermion_action)
@@ -113,7 +113,7 @@ struct HMC{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TIO} <: AbstractUpdate
         TSG = typeof(smearing_gauge)
         TSF = typeof(smearing_fermion)
         has_smearing = TSG != NoSmearing || TSF != NoSmearing
-        force2 = (!has_smearing && !bias_enabled) ? nothing : Temporaryfield(U)
+        force2 = (!has_smearing && !bias_enabled) ? nothing : Colorfield(U)
         F2 = typeof(force2)
 
         if fermion_action === StaggeredFermionAction
@@ -181,8 +181,8 @@ function update!(
     U;
     fermion_action::TF=nothing,
     bias::TB=NoBias(),
-    metro_test=true,
-    friction=hmc.friction,
+    metro_test::Bool=true,
+    friction::Float64=hmc.friction,
 ) where {TI,TF,TB}
     if TF !== Nothing
         @assert TF <: Tuple "fermion_action must be nothing or a tuple of fermion actions"

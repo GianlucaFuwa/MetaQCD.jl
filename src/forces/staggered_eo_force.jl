@@ -25,7 +25,7 @@ function calc_dSfdU!(
     cg_tol = fermion_action.cg_tol_md
     cg_maxiters = fermion_action.cg_maxiters_md
     rhmc = fermion_action.rhmc_info_md
-    n = rhmc.coeffs.n
+    n = get_n(rhmc)
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     anti = D.anti_periodic
@@ -36,8 +36,9 @@ function calc_dSfdU!(
     for X in Xs
         clear!(X)
     end
-    shifts = rhmc.coeffs_inverse.β
-    coeffs = rhmc.coeffs_inverse.α
+
+    shifts = get_β_inverse(rhmc)
+    coeffs = get_α_inverse(rhmc)
     solve_dirac_multishift!(Xs, shifts, DdagD, ϕ_eo, temp1, temp2, Ys, cg_tol, cg_maxiters)
 
     for i in 1:n
@@ -48,13 +49,13 @@ function calc_dSfdU!(
 end
 
 function add_staggered_eo_derivative!(
-    dU, U, X_eo::T, Y_eo::T, anti; coeff=1
-) where {T<:StaggeredEOPreFermionfield}
+    dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, X_eo::TF, Y_eo::TF, anti; coeff=1
+) where {T,TF<:StaggeredEOPreFermionfield{CPU,T}}
     check_dims(dU, U, X_eo, Y_eo)
     X = X_eo.parent
     Y = Y_eo.parent
     NT = dims(U)[4]
-    fac = float_type(U)(-0.5coeff)
+    fac = T(-0.5coeff)
 
     @batch for site in eachindex(dU)
         bc⁺ = boundary_factor(anti, site[4], 1, NT)

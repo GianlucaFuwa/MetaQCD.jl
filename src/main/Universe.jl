@@ -8,12 +8,13 @@ using ..Output
 
 import ..DiracOperators: WilsonFermionAction
 import ..DiracOperators: StaggeredFermionAction, StaggeredEOPreFermionAction
-import ..Gaugefields: Gaugefield, WilsonGaugeAction, IwasakiGaugeAction, DBW2GaugeAction
-import ..Gaugefields: SymanzikTreeGaugeAction
+import ..Fields: Gaugefield, WilsonGaugeAction, IwasakiGaugeAction, DBW2GaugeAction
+import ..Fields: SymanzikTreeGaugeAction
 import ..BiasModule: Bias, NoBias
 import ..Parameters: ParameterSet
 
 const PACKAGE_VERSION = "1.0.0"
+
 """
     Univ(parameters::ParameterSet; use_mpi=false)
 

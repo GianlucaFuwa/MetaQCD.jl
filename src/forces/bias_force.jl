@@ -1,12 +1,14 @@
 """
+    calc_dVdU_bare!(dU::Colorfield, F::Tensorfield, U::Gaugefield, temp_force, bias::Bias)
+
 Calculate the bias force for a molecular dynamics step, i.e. the derivative of the
-bias potential w.r.t. the bare/unsmeared field U. \\
-Needs the additional field "temp_force" to be a TemporaryField when doing recursion
+bias potential w.r.t. the bare/unsmeared field U. \
+Needs the additional field `temp_force` to be a `Colorfield` when doing recursion.
 """
 function calc_dVdU_bare!(dU, F, U, temp_force, bias)
-    smearing = bias.smearing
     cv = calc_CV(U, bias)
     bias_derivative = ∂V∂Q(bias, cv)
+    smearing = bias.smearing
     calc_dQdU_bare!(kind_of_cv(bias), dU, F, U, temp_force, smearing, bias_derivative)
     return nothing
 end
@@ -19,6 +21,9 @@ end
 function calc_dQdU_bare!(
     kind_of_cv, dU, F, ::Gaugefield, temp_force, smearing::StoutSmearing, fac=1
 )
+    # We don't need to smear here, because the calc_CV() call from above has already
+    # done it, meaning that bias.smearing.Usmeared_mulit[end] is the fully smeared field
+    # that we need
     fully_smeared_U = smearing.Usmeared_multi[end]
     calc_dQdU!(kind_of_cv, dU, F, fully_smeared_U, fac)
     stout_backprop!(dU, temp_force, smearing)

@@ -1,4 +1,3 @@
-import ..Gaugefields: WilsonGaugeAction
 """
 	StoutSmearing(U::Gaugefield, numlayers, ρ)
 	
@@ -19,16 +18,16 @@ struct StoutSmearing{TG,TT,TC} <: AbstractSmearing
             return NoSmearing()
         else
             Usmeared_multi = Vector{TG}(undef, numlayers + 1)
-            C_multi = Vector{Temporaryfield}(undef, numlayers)
-            Q_multi = Vector{CoeffField}(undef, numlayers)
-            Λ = Temporaryfield(U)
+            C_multi = Vector{Colorfield}(undef, numlayers)
+            Q_multi = Vector{Expfield}(undef, numlayers)
+            Λ = Colorfield(U)
 
             Usmeared_multi[1] = similar(U)
 
             for i in 1:numlayers
                 Usmeared_multi[i+1] = similar(U)
-                C_multi[i] = Temporaryfield(U)
-                Q_multi[i] = CoeffField(U)
+                C_multi[i] = Colorfield(U)
+                Q_multi[i] = Expfield(U)
             end
 
             return new{typeof(U),typeof(C_multi[1]),typeof(Q_multi[1])}(

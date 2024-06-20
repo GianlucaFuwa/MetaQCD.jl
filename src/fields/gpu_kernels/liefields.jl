@@ -1,8 +1,8 @@
-function gaussian_TA!(p::Temporaryfield{B,T}, ϕ) where {B,T}
+function gaussian_TA!(p::Colorfield{B,T}, ϕ) where {B,T}
     @latmap(Sequential(), Val(1), gaussian_TA_kernel!, p, T(sqrt(1 - ϕ^2)), T(ϕ), T)
 end
 
-@kernel function gaussian_TA_kernel!(P, ϕ₁, ϕ₂, T)
+@kernel function gaussian_TA_kernel!(P, ϕ₁, ϕ₂, ::Type{T}) where {T}
     site = @index(Global, Cartesian)
 
     @unroll for μ in (1i32):(4i32)
@@ -10,7 +10,7 @@ end
     end
 end
 
-function calc_kinetic_energy(p::Temporaryfield{B}) where {B}
+function calc_kinetic_energy(p::Colorfield{B}) where {B}
     return @latsum(Sequential(), Val(1), calc_kinetic_energy_kernel!, p)
 end
 

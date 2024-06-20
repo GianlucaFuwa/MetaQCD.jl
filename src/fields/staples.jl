@@ -138,7 +138,7 @@ function staple_rect(U, μ, site)
     return staple
 end
 
-function staple_eachsite!(staples::Temporaryfield{CPU}, U::Gaugefield{CPU})
+function staple_eachsite!(staples::Colorfield{CPU}, U::Gaugefield{CPU})
     @batch for site in eachindex(U)
         for μ in 1:4
             staples[μ, site] = staple(U, μ, site)

@@ -4,7 +4,10 @@ using ..BiasModule: OPES, Metadynamics
 using DelimitedFiles
 using RecipesBase
 
+include("endpointranges.jl")
+
 export MetaMeasurements, MetaBias, biaspotential, eigenvalues, hadroncorrelator, timeseries
+export ibegin, iend
 
 # Use Wong colors as default
 const default_colors = ["#0072b2", "#e69f00", "#009e73", "#cc79a7", "#56b4e9", "#d55e00"]
@@ -25,9 +28,13 @@ struct MetaMeasurements
     measurement_dict::Dict{String,Dict{String,Vector{Float64}}}
     observables::Vector{Symbol}
     ensemble::String
-    function MetaMeasurements(ensemblename::String)
-        dir = pwd() * "/ensembles/$(ensemblename)/measurements"
-        hmc_logfile = pwd() * "/ensembles/$(ensemblename)/logs/hmc_acc_logs.txt"
+    function MetaMeasurements(ensemblename::String; fullpath=false)
+        dir = if fullpath
+            ensemblename
+        else
+            pkgdir(Viz) * "/ensembles/$(ensemblename)/measurements"
+        end
+        hmc_logfile = pkgdir(Viz) * "/ensembles/$(ensemblename)/logs/hmc_acc_logs.txt"
         @assert isdir(dir) "Directory \"$(dir)\" doesn't exist."
         measurement_dict = Dict{String,Dict{String,Vector{Float64}}}()
 
@@ -44,9 +51,9 @@ struct MetaMeasurements
                 measurement_dict["hmc_data"] = measurement
             elseif occursin("flowed", name_no_ext)
                 data, header = readdlm(dir * "/$(name)"; header=true)
-                measurement["itrj"] = data[:, 1]
                 unique_tflow = unique(data[:, 3])
                 unique_indices = Vector{Int64}[]
+                measurement["itrj"] = data[1:length(unique_tflow):end, 1]
                 for tflow in unique_tflow
                     push!(unique_indices, findall(x -> isapprox(tflow, x), data[:, 3]))
                 end
@@ -88,7 +95,7 @@ struct MetaBias{F}
         dir = if fullpath
             ensemblename
         else
-            pwd() * "/ensembles/$(ensemblename)/metapotentials/"
+            pkgdir(Viz) * "/ensembles/$(ensemblename)/metapotentials/"
         end
         @assert isdir(dir) "Directory \"$(dir)\" doesn't exist."
         filenames = readdir(dir)
@@ -106,7 +113,17 @@ struct MetaBias{F}
             bin_width = data[2, 1] - data[1, 1]
             bin_vals = data[:, 1]
             values = data[:, 2]
-            bias = Metadynamics(true, 1, cvlims, Inf, bin_width, 1.0, 100, bin_vals, values)
+            bias = Metadynamics(
+                true,
+                1,
+                cvlims,
+                Inf,
+                bin_width,
+                1.0,
+                100,
+                bin_vals,
+                values,
+            )
         elseif ext == ".opes" || which == :opes
             bias = OPES(file)
         else
@@ -148,11 +165,15 @@ observables(m::MetaMeasurements) = m.observables
 @userplot TimeSeries
 
 """
-    timeseries(m::MetaMeasurements, observable::Symbol)
+timeseries(m::MetaMeasurements, observable::Symbol, seriestype=:line, irange=Colon())
 
-Plot the time series of the observable `observable` from the measurements in `m`.
+Plot the time series of the observable `observable` from the measurements in `m` in the
+between the iteration specified by `irange`. If you want to, e.g., plot from iteration
+50 till the end, do `irange=50:iend`
 """
-RecipesBase.@recipe function timeseries(ts::TimeSeries; seriestype=:line, tf=0)
+RecipesBase.@recipe function timeseries(
+    ts::TimeSeries; seriestype=:line, irange=Colon(), tf=nothing,
+)
     m, observable = ts.args[1:2]
     @assert !occursin("correlator", string(observable)) "timeseries not supported for correlators"
     @assert !occursin("eigenvalues", string(observable)) "timeseries not supported for eigenvalues"
@@ -162,7 +183,7 @@ RecipesBase.@recipe function timeseries(ts::TimeSeries; seriestype=:line, tf=0)
     filter!(x -> x ≠ "itrj", obs_keys)
     palette --> default_colors
     x = try
-        getproperty(m, observable)["itrj"]
+        view(getproperty(m, observable)["itrj"], irange)
     catch _
         nothing
     end
@@ -179,8 +200,9 @@ RecipesBase.@recipe function timeseries(ts::TimeSeries; seriestype=:line, tf=0)
         @series begin
             xlabel --> ""
             ylabel --> "cv"
+            yticks --> floor(minimum(cv)):ceil(maximum(cv))
             subplot := 1
-            y = cv
+            y = view(cv, irange)
             x, y
         end
 
@@ -191,7 +213,7 @@ RecipesBase.@recipe function timeseries(ts::TimeSeries; seriestype=:line, tf=0)
                 ylabel --> name
                 color --> default_colors[i+1]
                 subplot := i + 1
-                y = getproperty(m, observable)[name]
+                y = view(getproperty(m, observable)[name], irange)
                 x, y
             end
         end
@@ -203,8 +225,8 @@ RecipesBase.@recipe function timeseries(ts::TimeSeries; seriestype=:line, tf=0)
         # for name in obs_keys
         @series begin
             label --> "ΔH"
-            y = getproperty(m, observable)["ΔH"]
-            11:length(y), y[11:end]
+            y = view(getproperty(m, observable)["ΔH"], irange)
+            x, y
         end
         # end
     elseif occursin("flowed", string(observable))
@@ -216,14 +238,19 @@ RecipesBase.@recipe function timeseries(ts::TimeSeries; seriestype=:line, tf=0)
         legend --> :outertopright
         # layout := (length(obs_keys), 1)
         nlabel = last.(split.(obs_keys, " "))
-        iordered = sortperm(parse.(Float64, filter.(x -> isdigit(x) || x=='.', nlabel)))        
+        tf_digits = parse.(Float64, filter.(x -> isdigit(x) || x=='.', nlabel))
+        if tf === nothing 
+            iordered = sortperm(tf_digits)        
+        else
+            iordered = findall(x -> x==tf, tf_digits)
+        end
 
         for (j, i) in enumerate(iordered)
             @series begin
                 # subplot := j
                 label --> nlabel[i]
-                y = getproperty(m, observable)[obs_keys[i]]
-                x[1:length(obs_keys):end], y
+                y = view(getproperty(m, observable)[obs_keys[i]], irange)
+                x, y
             end
         end
     else
@@ -234,7 +261,7 @@ RecipesBase.@recipe function timeseries(ts::TimeSeries; seriestype=:line, tf=0)
         for name in obs_keys
             @series begin
                 label --> name
-                y = getproperty(m, observable)[name]
+                y = view(getproperty(m, observable)[name], irange)
                 x, y
             end
         end
@@ -254,9 +281,10 @@ RecipesBase.@recipe function biaspotential(bp::BiasPotential; cvlims=nothing)
     b = bp.args[1]
     bias = b.bias
     xlims = cvlims ≡ nothing ? bias.cvlims : cvlims
-    isinf(sum(xlims)) && (xlims = (-5, 5))
+    isinf(sum(xlims)) && (xlims = (-6, 6))
 
     legend := false
+    xticks --> xlims[1]:xlims[2]
     xlabel --> "Collective Variable"
     ylabel --> "Bias Potential ($(typeof(bias)))"
     x = (bias isa OPES) ? (xlims[1]:0.001:xlims[2]-0.001) : bias.bin_vals
@@ -272,14 +300,15 @@ end
 Plot the effective mass plot of the hadron correlator `correlator` from the measurements in `m`.
 """
 RecipesBase.@recipe function hadroncorrelator(
-    hc::HadronCorrelator; logscale=false, style=:line, tf=0, calc_meff=false
+    hc::HadronCorrelator; logscale=false, style=:line, tf=0
 )
+    size --> (600, 500)
+    link := :x
+    layout := (2, 1)
     m, correlator = hc.args[1:2]
-    tmp = tf > 0 ? :_correlator_flowed : :_correlator
-    observable = Symbol(correlator, tmp)
-    @assert observable ∈ observables(m) "Observable $observable is not in Measurements"
+    @assert correlator ∈ observables(m) "Observable $correlator is not in Measurements"
     seriestype := style
-    obs_keys = collect(keys(getproperty(m, observable)))
+    obs_keys = collect(keys(getproperty(m, correlator)))
     filter!(x -> x ≠ "itrj", obs_keys)
     filter!(x -> x ≠ "C" && x ≠ "C_flowed", obs_keys)
     palette --> default_colors
@@ -294,42 +323,45 @@ RecipesBase.@recipe function hadroncorrelator(
         tmp = [tmp[i][1] for i in eachindex(tmp)]
     end
     nums = parse.(Int, tmp)
+    corr = first(split(string(correlator), "_"))
 
-    str(it) = tf > 0 ? "$(correlator)_corr_$(it) (tf=$tf)" : "$(correlator)_corr_$(it)"
+    str(it) = tf > 0 ? "$(corr)_corr_$(it) (tf=$tf)" : "$(corr)_corr_$(it)"
     for it in nums
-        tmp = getproperty(m, observable)[str(it)]
+        tmp = getproperty(m, correlator)[str(it)]
         C[it] = sum(tmp) / length(tmp)
     end
     key_str = tf > 0 ? "C_flowed" : "C"
-    haskey(getproperty(m, observable), key_str) || (getproperty(m, observable)[key_str] = C)
-    if calc_meff
-        for it in nums
-            Cr[it] = log(C[it] / C[mod1(it + 1, len)])
-            if it > 1
-                meff[it] = try
-                    acosh((C[mod1(it + 1, len)] + C[mod1(it - 1, len)]) / 2C[it])
-                catch _ 
-                    0.0
-                end
-            else
-                meff[it] = 0
-            end
+    haskey(getproperty(m, correlator), key_str) || (getproperty(m, correlator)[key_str] = C)
+    for it in nums
+        Cr[it] = log(C[it] / C[mod1(it + 1, len)])
+        meff[it] = try
+            acosh((C[mod1(it + 1, len)] + C[mod1(it - 1, len)]) / 2C[it])
+        catch _ 
+            0.0
         end
     end
 
-    ylab = calc_meff ? "log ⟨C(t)⟩ / ⟨C(t+1)⟩" : "⟨C(t)⟩"
-
     xlabel --> "Time Extent"
-    ylabel --> ylab
-    xticks := 1:len
-    yscale := logscale ? :log10 : :identity
     linecolor := default_colors[1]
     markercolor := default_colors[1]
     markershape := :circ
 
     @series begin
-        label --> string(observable)
-        y = calc_meff ? meff : C
+        subplot := 1
+        xticks := 1:len
+        ylabel --> "⟨C(t)⟩"
+        label --> string(correlator)
+        yscale := logscale ? :log10 : :identity
+        y = C
+        x, y
+    end
+    @series begin
+        subplot := 2
+        xticks := 1:len
+        ylabel --> "m_eff"
+        label --> string(correlator)
+        yscale --> :identity
+        y = meff
         x, y
     end
 end

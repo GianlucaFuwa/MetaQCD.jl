@@ -4,7 +4,7 @@ struct Plaquette <: AbstractFieldstrength end
 struct Clover <: AbstractFieldstrength end
 struct Improved <: AbstractFieldstrength end
 
-struct Tensorfield{BACKEND,T,A<:AbstractArray{SU{3,9,T},6}} <: Abstractfield{BACKEND,T,A}
+struct Tensorfield{BACKEND,T,A} <: Abstractfield{BACKEND,T,A}
     U::A
     NX::Int64
     NY::Int64
@@ -12,7 +12,7 @@ struct Tensorfield{BACKEND,T,A<:AbstractArray{SU{3,9,T},6}} <: Abstractfield{BAC
     NT::Int64
     NV::Int64
     NC::Int64
-    function Tensorfield(NX, NY, NZ, NT; BACKEND=CPU, T=Float64)
+    function Tensorfield{BACKEND,T}(NX, NY, NZ, NT) where {BACKEND,T}
         # TODO: Reduce size of Tensorfield by using symmetry of the fieldstrength tensor
         U = KA.zeros(BACKEND(), SMatrix{3,3,Complex{T},9}, 4, 4, NX, NY, NZ, NT)
         NV = NX * NY * NZ * NT
@@ -23,7 +23,7 @@ end
 
 function Tensorfield(u::Abstractfield{BACKEND,T,A}) where {BACKEND,T,A}
     NX, NY, NZ, NT = dims(u)
-    return Tensorfield(NX, NY, NZ, NT; BACKEND=BACKEND, T=T)
+    return Tensorfield{BACKEND,T}(NX, NY, NZ, NT)
 end
 
 # overload get and set for the Tensorfields, so we dont have to do u.U[μ,ν,x,y,z,t]

@@ -1,5 +1,3 @@
-import ..Gaugefields: wilsonloop
-
 struct WilsonLoopMeasurement{T} <: AbstractMeasurement
     WL_dict::Dict{NTuple{2,Int64},Float64} # (R, T) => value
     Tmax::Int64 # maximum width of the Wilson loop

@@ -1,29 +1,6 @@
-module Gaugefields
-
-using KernelAbstractions # With this we can write generic GPU kernels for ROC and CUDA
-using KernelAbstractions.Extras: @unroll
-using LinearAlgebra
-using Polyester # Used for the @batch macro, which enables multi threading
-using StaticArrays # Used for the SU3 matrices
-using Random
-using ..Utils # Contains utility functions, such as projections and the exponential map
-
-import KernelAbstractions as KA # With this we can write generic GPU kernels for ROC and CUDA
-import StrideArraysCore: object_and_preserve # This is used to convert the Abstractfield to a PtrArray in the @batch loop
-
-const BACKEND = Dict{String,Type{<:Backend}}("cpu" => CPU)
-
-# We are going to need these if we want to transfer a field from one backend to another
-# For other backends, we overload this method in their respective extensions
-array_type(::Type{CPU}) = Array
-
-# Define an abstract field super type that is parametrized by the backend, the precision and
-# the array type (Array, CuArray, ROCArray)
-abstract type Abstractfield{BACKEND,T,A} end
-
 """
-	Gaugefield(NX, NY, NZ, NT, β; BACKEND=CPU, T=Float64, GA=WilsonGaugeAction)
-	Gaugefield(U::Gaugefield)
+    Gaugefield{BACKEND,T,GA}(NX, NY, NZ, NT, β)
+    Gaugefield(U::Gaugefield)
 
 Creates a Gaugefield on `BACKEND`, i.e. an array of link-variables (SU3 matrices with `T`
 precision) of size `4 × NX × NY × NZ × NT` with coupling parameter `β` and gauge action `GA`
@@ -50,7 +27,7 @@ struct Gaugefield{BACKEND,T,A,GA} <: Abstractfield{BACKEND,T,A}
     β::Float64 # Seems weird to have it here, but I couldnt be bothered passing it as an argument everywhere
     Sg::Base.RefValue{Float64} # Current Gauge action, used to safe work
     CV::Base.RefValue{Float64} # Current collective variable, used to safe work
-    function Gaugefield(NX, NY, NZ, NT, β; BACKEND=CPU, T=Float64, GA=WilsonGaugeAction)
+    function Gaugefield{BACKEND,T,GA}(NX, NY, NZ, NT, β) where {BACKEND,T,GA}
         U = KA.zeros(BACKEND(), SU{3,9,T}, 4, NX, NY, NZ, NT)
         NV = NX * NY * NZ * NT
         Sg = Base.RefValue{Float64}(0.0)
@@ -65,7 +42,7 @@ function Gaugefield(parameters)
     GA = GAUGE_ACTION[parameters.gauge_action]
     T = Utils.FLOAT_TYPE[parameters.float_type]
     B = BACKEND[parameters.backend]
-    U = Gaugefield(NX, NY, NZ, NT, β; BACKEND=B, T=T, GA=GA)
+    U = Gaugefield{B,T,GA}(NX, NY, NZ, NT, β)
 
     initial = parameters.initial
     if initial == "cold"
@@ -80,21 +57,21 @@ function Gaugefield(parameters)
 end
 
 function Gaugefield(u::Gaugefield{BACKEND,T,A,GA}) where {BACKEND,T,A,GA}
-    return Gaugefield(u.NX, u.NY, u.NZ, u.NT, u.β; BACKEND=BACKEND, T=T, GA=GA)
+    return Gaugefield{BACKEND,T,GA}(u.NX, u.NY, u.NZ, u.NT, u.β)
 end
 
 """
-	Temporaryfield(NX, NY, NZ, NT; backend=CPU(), T=Val(Float64))
-	Temporaryfield(u::Abstractfield)
+    Colorfield(NX, NY, NZ, NT; backend=CPU(), T=Val(Float64))
+    Colorfield(u::Abstractfield)
 
-Creates a Temporaryfield on `backend`, i.e. an array of 3-by-3 `T`-precision matrices of
-size `4 × NX × NY × NZ × NT` or a zero-initialized Temporaryfield of the same size as `u`
+Creates a Colorfield on `backend`, i.e. an array of 3-by-3 `T`-precision matrices of
+size `4 × NX × NY × NZ × NT` or a zero-initialized Colorfield of the same size as `u`
 # Supported backends
 `CPU` \\
 `CUDABackend` \\
 `ROCBackend`
 """
-struct Temporaryfield{BACKEND,T,A} <: Abstractfield{BACKEND,T,A}
+struct Colorfield{BACKEND,T,A} <: Abstractfield{BACKEND,T,A}
     U::A
     NX::Int64
     NY::Int64
@@ -102,7 +79,7 @@ struct Temporaryfield{BACKEND,T,A} <: Abstractfield{BACKEND,T,A}
     NT::Int64
     NV::Int64
     NC::Int64
-    function Temporaryfield(NX, NY, NZ, NT; BACKEND=CPU, T=Float64)
+    function Colorfield{BACKEND,T}(NX, NY, NZ, NT) where {BACKEND,T}
         U = KA.zeros(BACKEND(), SU{3,9,T}, 4, NX, NY, NZ, NT)
         NV = NX * NY * NZ * NT
         NC = 3
@@ -110,15 +87,15 @@ struct Temporaryfield{BACKEND,T,A} <: Abstractfield{BACKEND,T,A}
     end
 end
 
-function Temporaryfield(u::Abstractfield{BACKEND,T,A}) where {BACKEND,T,A}
-    return Temporaryfield(u.NX, u.NY, u.NZ, u.NT; BACKEND=BACKEND, T=T)
+function Colorfield(u::Abstractfield{BACKEND,T,A}) where {BACKEND,T,A}
+    return Colorfield{BACKEND,T}(u.NX, u.NY, u.NZ, u.NT)
 end
 
 """
-	CoeffField(NX, NY, NZ, NT; backend=CPU(), T=Val(Float64))
-	CoeffField(u::Abstractfield)
+    Expfield(NX, NY, NZ, NT; backend=CPU(), T=Val(Float64))
+    Expfield(u::Abstractfield)
 
-Creates a CoeffField on `backend`, i.e. an array of `T`-precison `exp_iQ_su3` objects of
+Creates a Expfield on `backend`, i.e. an array of `T`-precison `exp_iQ_su3` objects of
 size `4 × NX × NY × NZ × NT` or of the same size as `u`. The objects hold the `Q`-matrices
 and all the exponential parameters needed for stout-force recursion
 # Supported backends
@@ -126,22 +103,22 @@ and all the exponential parameters needed for stout-force recursion
 `CUDABackend` \\
 `ROCBackend`
 """
-struct CoeffField{BACKEND,T,A} <: Abstractfield{BACKEND,T,A}
+struct Expfield{BACKEND,T,A} <: Abstractfield{BACKEND,T,A}
     U::A # TODO: Add support for arbitrary NC
     NX::Int64
     NY::Int64
     NZ::Int64
     NT::Int64
     NV::Int64
-    function CoeffField(NX, NY, NZ, NT; BACKEND=CPU, T=Float64)
+    function Expfield{BACKEND,T}(NX, NY, NZ, NT) where {BACKEND,T}
         U = KA.zeros(BACKEND(), exp_iQ_su3{T}, 4, NX, NY, NZ, NT)
         NV = NX * NY * NZ * NT
         return new{BACKEND,T,typeof(U)}(U, NX, NY, NZ, NT, NV)
     end
 end
 
-function CoeffField(u::Abstractfield{BACKEND,T,A}) where {BACKEND,T,A}
-    return CoeffField(u.NX, u.NY, u.NZ, u.NT; BACKEND=BACKEND, T=T)
+function Expfield(u::Abstractfield{BACKEND,T,A}) where {BACKEND,T,A}
+    return Expfield{BACKEND,T}(u.NX, u.NY, u.NZ, u.NT)
 end
 
 # XXX: might not be needed
@@ -256,8 +233,8 @@ function Base.setproperty!(u::Gaugefield, p::Symbol, val)
 end
 
 Base.similar(u::Gaugefield) = Gaugefield(u)
-Base.similar(u::Temporaryfield) = Temporaryfield(u)
-Base.similar(u::CoeffField) = CoeffField(u)
+Base.similar(u::Colorfield) = Colorfield(u)
+Base.similar(u::Expfield) = Expfield(u)
 
 """
 	to_backend(Bout, u::Abstractfield{Bin,T})
@@ -279,35 +256,13 @@ function to_backend(::Type{Bout}, u::Abstractfield{Bin,T}) where {Bout,Bin,T}
         Sg = Base.RefValue{Float64}(u.Sg)
         CV = Base.RefValue{Float64}(u.CV)
         return Gaugefield{Bout,T,typeof(Uout),GA}(Uout, sizeU..., u.NV, 3, u.β, Sg, CV)
-    elseif u isa CoeffField
-        return CoeffField{Bout,T,typeof(Uout)}(Uout, sizeU..., u.NV, 3)
-    elseif u isa Temporaryfield
-        return Temporaryfield{Bout,T,typeof(Uout)}(Uout, sizeU..., u.NV, 3)
+    elseif u isa Expfield
+        return Expfield{Bout,T,typeof(Uout)}(Uout, sizeU..., u.NV, 3)
+    elseif u isa Colorfield
+        return Colorfield{Bout,T,typeof(Uout)}(Uout, sizeU..., u.NV, 3)
     elseif u isa Tensorfield
         return Tensorfield{Bout,T,typeof(Uout)}(Uout, sizeU..., u.NV, 3)
     else
         throw(ArgumentError("Unsupported field type"))
     end
-end
-
-include("liefields.jl")
-include("fieldstrength.jl")
-include("fermionfields.jl")
-include("iterators.jl")
-include("gpu_iterators.jl")
-include("gpu_kernels/utils.jl")
-
-include("field_operations.jl")
-include("wilsonloops.jl")
-include("actions.jl")
-include("staples.jl")
-include("clovers.jl")
-
-include("gpu_kernels/field_operations.jl")
-include("gpu_kernels/wilsonloops.jl")
-include("gpu_kernels/actions.jl")
-include("gpu_kernels/liefields.jl")
-include("gpu_kernels/fieldstrength.jl")
-include("gpu_kernels/fermionfields.jl")
-
 end

@@ -24,7 +24,7 @@ struct StaggeredDiracOperator{B,T,TF,TG} <: AbstractDiracOperator
         f::Abstractfield{B,T}, mass; anti_periodic=true
     ) where {B,T}
         U = nothing
-        temp = Fermionfield(f; staggered=true)
+        temp = Fermionfield{B,T,1}(dims(f)...)
         TG = Nothing
         TF = typeof(temp)
         return new{B,T,TF,TG}(U, temp, mass, anti_periodic)

@@ -1,6 +1,6 @@
-function run_build(filenamein::String; MPIparallel=false)
+function build_bias(filenamein::String; MPIparallel=false)
     # When using MPI we make sure that only rank 0 prints to the console
-    if myrank == 0
+    if MYRANK == 0
         ext = splitext(filenamein)[end]
         @assert (ext == ".toml") """
             input file format \"$ext\" not supported. Use TOML format
@@ -8,25 +8,25 @@ function run_build(filenamein::String; MPIparallel=false)
     end
 
     parameters = construct_params_from_toml(filenamein)
-    MPI.Barrier(comm)
+    MPI.Barrier(COMM)
 
-    if myrank == 0
+    if MYRANK == 0
         oneinst = parameters.numinstances == 1
         @assert MPIparallel ⊻ oneinst "MPI must be enabled if and only if numinstances > 1, numinstances was $(parameters.numinstances)"
-        @assert comm_size == parameters.numinstances "numinstances has to be equal to the number of MPI ranks"
+        @assert COMM_SIZE == parameters.numinstances "numinstances has to be equal to the number of MPI ranks"
         @assert parameters.kind_of_bias ∉ ("none", "parametric") "bias has to be \"metad\" or \"opes\" in build, was $(parameters.kind_of_bias)"
         @assert parameters.is_static == false "Bias cannot be static in build"
     end
 
     if parameters.randomseed != 0
         seed = parameters.randomseed
-        Random.seed!(seed * (myrank + 1))
+        Random.seed!(seed * (MYRANK + 1))
     else
         seed = rand(UInt64)
         Random.seed!(seed)
     end
 
-    logger_io = myrank == 0 ? parameters.logdir * "/logs.txt" : devnull
+    logger_io = MYRANK == 0 ? parameters.logdir * "/logs.txt" : devnull
     set_global_logger!(parameters.verboselevel, logger_io; tc=parameters.log_to_console)
 
     # print time and system info, because it looks cool I guess
@@ -41,11 +41,11 @@ function run_build(filenamein::String; MPIparallel=false)
 
     univ = Univ(parameters; use_mpi=MPIparallel)
 
-    run_build!(univ, parameters)
+    build_bias!(univ, parameters)
     return nothing
 end
 
-function run_build!(univ, parameters)
+function build_bias!(univ, parameters)
     U = univ.U
     updatemethod = Updatemethod(parameters, U)
 
@@ -58,7 +58,7 @@ function run_build!(univ, parameters)
         measure_every=parameters.flow_measure_every,
     )
 
-    additional_string = "_$(myrank+1)"
+    additional_string = "_$(MYRANK+1)"
 
     measurements = MeasurementMethods(
         U,
@@ -75,15 +75,15 @@ function run_build!(univ, parameters)
         flow=true,
     )
 
-    build!(parameters, univ, updatemethod, gflow, measurements, measurements_with_flow)
+    metabuild!(parameters, univ, updatemethod, gflow, measurements, measurements_with_flow)
     return nothing
 end
 
-function build!(parameters, univ, updatemethod, gflow, measurements, measurements_with_flow)
+function metabuild!(parameters, univ, updatemethod, gflow, measurements, measurements_with_flow)
     U = univ.U
     fermion_action = univ.fermion_actions
     bias = univ.bias
-    MPI.Barrier(comm)
+    MPI.Barrier(COMM)
 
     @level1("┌ Thermalization:")
     _, runtime_therm = @timed begin
@@ -95,8 +95,8 @@ function build!(parameters, univ, updatemethod, gflow, measurements, measurement
                     U;
                     fermion_action=fermion_action,
                     bias=NoBias(),
-                    metro_test=false,
-                    friction=0,
+                    metro_test=itrj>10, # So we dont get stuck at the beginning
+                    friction=0.0,
                 )
             end
             @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())\n-")
@@ -106,7 +106,7 @@ function build!(parameters, univ, updatemethod, gflow, measurements, measurement
     @level1("└ Total elapsed time:\t$(runtime_therm) [s]\n")
     recalc_CV!(U, bias) # need to recalc cv since it was not updated during therm
 
-    MPI.Barrier(comm)
+    MPI.Barrier(COMM)
 
     @level1("┌ Production:")
     _, runtime_all = @timed begin
@@ -127,9 +127,11 @@ function build!(parameters, univ, updatemethod, gflow, measurements, measurement
 
             @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())\n")
             # all procs send their CVs to all other procs and update their copy of the bias
-            CVs = MPI.Allgather(U.CV::Float64, comm)
-            accepted == true && update_bias!(bias, CVs, itrj, myrank == 0)
-            acceptances = MPI.Allgather(numaccepts::Float64, comm) # FIXME: should use MPI.gather?
+            CVs = MPI.Allgather(U.CV::Float64, COMM)
+            accepteds = MPI.Allgather(accepted::Bool, COMM)
+            accepted_CVs = CVs[findall(accepteds)] # update only on those CVs that were accepted
+            update_bias!(bias, accepted_CVs, itrj)
+            acceptances = MPI.Allgather(numaccepts::Float64, COMM) # XXX: should use MPI.gather?
             print_acceptance_rates(acceptances, itrj)
 
             calc_measurements(measurements, U, itrj)

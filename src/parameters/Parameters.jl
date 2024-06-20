@@ -81,12 +81,11 @@ function construct_params_from_toml(parameters, inputfile; am_rank0=true)
         true
     end
 
-    ensemble_dir = try
+    ensembledir = try
         parameters["System Settings"]["ensemble_dir"]
     catch
-        generated_dirname
+        "/data/MetaQCD/$(generated_dirname)"
     end
-    ensembledir = pwd() * "/ensembles/" * ensemble_dir
 
     if !overwrite
         i = 1
@@ -136,7 +135,7 @@ function construct_params_from_toml(parameters, inputfile; am_rank0=true)
 
     pos = findfirst(x -> String(x) == "biasdir", pnames)
 
-    if kind_of_bias != "none"
+    if kind_of_bias != "none" || kind_of_bias != "parametric"
         biasdir = ensembledir * "/metapotentials/"
 
         if !isdir(biasdir)
@@ -173,6 +172,8 @@ function construct_params_from_toml(parameters, inputfile; am_rank0=true)
                     val = value[String(pname_i)]
                     if typeof(val) == Int64
                         value_Params[i] = UInt64(val)
+                    elseif typeof(val) == Vector{Int64}
+                        value_Params[i] = [UInt64(v) for v in val]
                     elseif typeof(val) == Vector{String}
                         value_Params[i] = [parse(UInt64, v) for v in val]
                     else

@@ -42,9 +42,13 @@ struct EigenvaluesMeasurement{T,TA,TD} <: AbstractMeasurement
                 )
             end
         elseif dirac_type == "wilson"
-            dirac_operator = WilsonDiracOperator(
-                U, mass; anti_periodic=anti_periodic, r=r, csw=csw
-            )
+            if eo_precon
+                error("Even-odd preconditioned Wilson Operator not supported in Eigenvalues")
+            else
+                dirac_operator = WilsonDiracOperator(
+                    U, mass; anti_periodic=anti_periodic, r=r, csw=csw
+                )
+            end
         else
             throw(ArgumentError("Dirac operator \"$dirac_type\" is not supported"))
         end

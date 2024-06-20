@@ -1,9 +1,10 @@
-function identity_gauges!(u::Gaugefield{B,T}) where {B,T}
+function identity_gauges!(u::Gaugefield{B,T}) where {B<:GPU,T}
     @latmap(Sequential(), Val(1), identity_gauges_kernel!, u, T)
+    u.Sg = 0
     return nothing
 end
 
-@kernel function identity_gauges_kernel!(u, T)
+@kernel function identity_gauges_kernel!(u, ::Type{T}) where {T}
     site = @index(Global, Cartesian)
 
     @unroll for μ in (1i32):(4i32)
@@ -11,12 +12,13 @@ end
     end
 end
 
-function random_gauges!(u::Gaugefield{B,T}) where {B,T}
+function random_gauges!(u::Gaugefield{B,T}) where {B<:GPU,T}
     @latmap(Sequential(), Val(1), random_gauges_kernel!, u, T)
+    u.Sg = calc_gauge_action(u)
     return nothing
 end
 
-@kernel function random_gauges_kernel!(u, T)
+@kernel function random_gauges_kernel!(u, ::Type{T}) where {T}
     site = @index(Global, Cartesian)
 
     @unroll for μ in (1i32):(4i32)
@@ -24,7 +26,7 @@ end
     end
 end
 
-function Base.copy!(a::Abstractfield{B,T}, b::Abstractfield{B,T}) where {B,T}
+function Base.copy!(a::Abstractfield{B,T}, b::Abstractfield{B,T}) where {B<:GPU,T}
     check_dims(a, b)
     @latmap(Sequential(), Val(1), copy_kernel!, a, b)
     return nothing
@@ -38,11 +40,11 @@ end
     end
 end
 
-function clear!(u::Abstractfield{B,T}) where {B,T}
+function clear!(u::Abstractfield{B,T}) where {B<:GPU,T}
     @latmap(Sequential(), Val(1), clear_kernel!, u, T)
 end
 
-@kernel function clear_kernel!(U, T)
+@kernel function clear_kernel!(U, ::Type{T}) where {T}
     site = @index(Global, Cartesian)
 
     @unroll for μ in (1i32):(4i32)
@@ -50,7 +52,7 @@ end
     end
 end
 
-function normalize!(u::Abstractfield{B}) where {B}
+function normalize!(u::Abstractfield{B}) where {B<:GPU}
     @latmap(Sequential(), Val(1), normalize_kernel!, u)
 end
 
@@ -62,7 +64,7 @@ end
     end
 end
 
-function add!(a::Abstractfield{B,T}, b::Abstractfield{B,T}, fac) where {B,T}
+function add!(a::Abstractfield{B,T}, b::Abstractfield{B,T}, fac) where {B<:GPU,T}
     check_dims(a, b)
     @latmap(Sequential(), Val(1), add_kernel!, a, b, T(fac))
     return nothing
@@ -76,7 +78,7 @@ end
     end
 end
 
-function mul!(a::Abstractfield{B,T}, α) where {B,T}
+function mul!(a::Abstractfield{B,T}, α) where {B<:GPU,T}
     @latmap(Sequential(), Val(1), mul_kernel!, a, T(α))
 end
 
@@ -88,7 +90,7 @@ end
     end
 end
 
-function leftmul!(a::Abstractfield{B,T}, b::Abstractfield{B,T}) where {B,T}
+function leftmul!(a::Abstractfield{B,T}, b::Abstractfield{B,T}) where {B<:GPU,T}
     check_dims(a, b)
     @latmap(Sequential(), Val(1), leftmul_kernel!, a, b)
     return nothing
@@ -102,7 +104,7 @@ end
     end
 end
 
-function leftmul_dagg!(a::Abstractfield{B,T}, b::Abstractfield{B,T}) where {B,T}
+function leftmul_dagg!(a::Abstractfield{B,T}, b::Abstractfield{B,T}) where {B<:GPU,T}
     check_dims(a, b)
     @latmap(Sequential(), Val(1), leftmul_dagg_kernel!, a, b)
     return nothing
@@ -116,7 +118,7 @@ end
     end
 end
 
-function rightmul!(a::Abstractfield{B,T}, b::Abstractfield{B,T}) where {B,T}
+function rightmul!(a::Abstractfield{B,T}, b::Abstractfield{B,T}) where {B<:GPU,T}
     check_dims(a, b)
     @latmap(Sequential(), Val(1), rightmul_kernel!, a, b)
     return nothing
@@ -130,7 +132,7 @@ end
     end
 end
 
-function rightmul_dagg!(a::Abstractfield{B,T}, b::Abstractfield{B,T}) where {B,T}
+function rightmul_dagg!(a::Abstractfield{B,T}, b::Abstractfield{B,T}) where {B<:GPU,T}
     check_dims(a, b)
     @latmap(Sequential(), Val(1), rightmul_dagg_kernel!, a, b)
     return nothing

@@ -195,6 +195,7 @@ function OPES(p::ParameterSet; instance=1)
         "sigma0" => σ₀,
         "epsilon" => ϵ,
         "sum_weights" => sum_weights,
+        "sum_weights²" => sum_weights²,
         "Z" => Z,
         "threshold" => threshold,
         "cutoff" => cutoff,
@@ -210,6 +211,7 @@ function OPES(p::ParameterSet; instance=1)
         σ₀ = state["sigma0"]
         ϵ = state["epsilon"]
         sum_weights = state["sum_weights"]
+        sum_weights² = state["sum_weights²"]
         Z = state["Z"]
         threshold = state["threshold"]
         cutoff² = state["cutoff"]^2
@@ -510,7 +512,7 @@ const state_vars = [
     "sigma0",
     "epsilon",
     "sum_weights",
-    # "sum_weights²",
+    "sum_weights²",
     "Z",
     "threshold",
     "cutoff",

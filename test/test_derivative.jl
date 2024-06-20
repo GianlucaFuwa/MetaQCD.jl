@@ -82,9 +82,9 @@ function SU3testderivative(backend=nothing)
 
         # @show tc_symm_diff
         # @show dtopcharge_proj
-        # println("---")
         # @show tc_symm_diff_smeared
         # @show dtopcharge_proj_smeared
+        # println("---")
         relerrors[1, group_direction] = (ga_symm_diff - dgaction_proj) / ga_symm_diff
         relerrors[2, group_direction] =
             (ga_symm_diff_smeared - dgaction_proj_smeared) / ga_symm_diff_smeared

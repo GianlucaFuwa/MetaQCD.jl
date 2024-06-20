@@ -1,12 +1,3 @@
-module CG
-
-using Accessors
-using LinearAlgebra
-using StaticArrays
-using ..Output
-
-export bicg!, bicg_stab!, cg!, mscg!
-
 function cg!(x, A, b, Ap, r, p; tol=1e-12, maxiters=1000)
     mul!(Ap, A, x)
     copy!(r, b)
@@ -188,5 +179,3 @@ function bicg_stab!(x, A, b, v, r, p, r₀, t; tol=1e-14, maxiters=1000)
     throw(AssertionError("BiCGStab did not converge in $maxiters iterations"))
     return nothing
 end
-
-end # module CG

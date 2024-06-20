@@ -44,11 +44,11 @@ export cmatmul_oooo,
     cmatmul_ddod,
     cmatmul_dodd,
     cmatmul_dddd
-export cdot, cmvmul, cmvmul_d, cvmmul, cvmmul_d
+export cdot, cmvmul, cmvmul_d, cvmmul, cvmmul_d, cmvmul_pauli
 export cmvmul_color, cmvmul_d_color, cvmmul_color, cvmmul_d_color
 export ckron, spintrace, cmvmul_spin_proj, spin_proj, σμν_spin_mul
 export _unwrap_val, SU, restore_last_col, restore_last_row, FLOAT_TYPE
-export i32
+export cinv, i32
 
 abstract type AbstractIterator end
 struct Sequential <: AbstractIterator end
@@ -132,6 +132,54 @@ Calculate the trace of the product of two SU(N) matrices `A` and `B` of precisio
     end
 
     return Complex{T}(re, im)
+end
+
+"""
+    cinv(M)
+
+Calculate the inverse of the complex matrix `M`.
+"""
+@inline cinv(M::SMatrix{2,2,Complex{T},4}) where {T} = inv(M)
+@inline cinv(M::SMatrix{3,3,Complex{T},9}) where {T} = inv(M)
+@inline cinv(M::SMatrix{4,4,Complex{T},16}) where {T} = inv(M)
+# StaticArrays has speical implementations for small sizes
+@inline function cinv(M::SMatrix{N,N,Complex{T},N²}) where {N,N²,T}
+    Q, R = qr(M)
+    S = inv_upper_tri(R)
+    Minv = cmatmul_od(S, Q)
+    return Minv
+end
+
+@generated function inv_upper_tri(R::SMatrix{N,N,Complex{T},N²}) where {N,N²,T}
+    q = quote
+        $(Expr(:meta, :inline))
+        Mc = MMatrix(R)
+        M = reinterpret(reshape, $T, Mc)
+        v = reinterpret(reshape, $T, MVector{$N,Complex{$T}}(undef))
+        @turbo for i in Base.Slice(static(1):static($N))
+            den = 1 / (M[1, i, i]^2 + M[2, i, i]^2)
+            v[1, i] = M[1, i, i] * den 
+            v[2, i] = -M[2, i, i] * den 
+        end
+    end
+
+    for k in N:-1:1
+        push!(q.args, :(M[1, $k, $k] = v[1, $k]))
+        push!(q.args, :(M[2, $k, $k] = v[2, $k]))
+        for i in k-1:-1:1
+            push!(q.args, :(Mre = zero($T)))
+            push!(q.args, :(Mim = zero($T)))
+            for j in i+1:k
+                push!(q.args, :(Mre += M[1, $i, $j] * M[1, $j, $k] - M[2, $i, $j] * M[2, $j, $k]))
+                push!(q.args, :(Mim += M[1, $i, $j] * M[2, $j, $k] + M[2, $i, $j] * M[1, $j, $k]))
+            end
+            push!(q.args, :(M[1, $i, $k] = -v[1, $i] * Mre + v[2, $i] * Mim))
+            push!(q.args, :(M[2, $i, $k] = -v[1, $i] * Mim - v[2, $i] * Mre))
+        end
+    end 
+
+    push!(q.args, :(return SMatrix(Mc)))
+    return q
 end
 
 include("simd_matmul.jl")

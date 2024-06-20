@@ -183,8 +183,8 @@ function metaqcd!(
                     U;
                     fermion_action=fermion_action,
                     bias=NoBias(),
-                    metro_test=false,
-                    friction=0,
+                    metro_test=itrj>10, # So we dont get stuck at the beginning
+                    friction=0.0,
                 )
             end
             @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())\n-")
@@ -209,7 +209,7 @@ function metaqcd!(
                     metro_test=true,
                 )
                 rand() < 0.5 && update!(parity, U)
-                accepted == true && update_bias!(bias, U.CV, itrj, true)
+                accepted == true && update_bias!(bias, U.CV, itrj)
                 numaccepts += accepted
             end
 
@@ -298,7 +298,7 @@ function metaqcd_PT!(
 
                 for i in 2:numinstances
                     accepted = update!(updatemethod_pt, U[i]; bias=bias[i])
-                    accepted == true && update_bias!(bias[i], U[i].CV, itrj, true)
+                    accepted == true && update_bias!(bias[i], U[i].CV, itrj)
                     numaccepts[i] += accepted
                 end
             end

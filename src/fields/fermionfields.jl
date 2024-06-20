@@ -1,6 +1,6 @@
 """
-	Fermionfield(NX, NY, NZ, NT; BACKEND=CPU, T=Float64, staggered=false)
-	Fermionfield(ψ::Fermionfield)
+    Fermionfield{BACKEND,T,ND}(NX, NY, NZ, NT)
+    Fermionfield(ψ::Fermionfield)
     Fermionfield(f::Abstractfield, staggered)
 
 Creates a Fermionfield on `BACKEND`, i.e. an array of link-variables (NC×ND complex vectors
@@ -20,8 +20,7 @@ struct Fermionfield{BACKEND,T,A,ND} <: Abstractfield{BACKEND,T,A}
     NV::Int64 # Total number of lattice sites
     NC::Int64 # Number of colors
     ND::Int64 # Number of dirac indices
-    function Fermionfield(NX, NY, NZ, NT; BACKEND=CPU, T=Float64, staggered=false)
-        ND = staggered ? 1 : 4
+    function Fermionfield{BACKEND,T,ND}(NX, NY, NZ, NT) where {BACKEND,T,ND}
         U = KA.zeros(BACKEND(), SVector{3ND,Complex{T}}, NX, NY, NZ, NT)
         NV = NX * NY * NZ * NT
         return new{BACKEND,T,typeof(U),ND}(U, NX, NY, NZ, NT, NV, 3, ND)
@@ -29,12 +28,12 @@ struct Fermionfield{BACKEND,T,A,ND} <: Abstractfield{BACKEND,T,A}
 end
 
 function Fermionfield(f::Fermionfield{BACKEND,T,A,ND}) where {BACKEND,T,A,ND}
-    staggered = ND == 1
-    return Fermionfield(dims(f)...; BACKEND=BACKEND, T=T, staggered=staggered)
+    return Fermionfield{BACKEND,T,ND}(dims(f)...)
 end
 
 function Fermionfield(f::Abstractfield{BACKEND,T}; staggered=false) where {BACKEND,T}
-    return Fermionfield(dims(f)...; BACKEND=BACKEND, T=T, staggered=staggered)
+    ND = staggered ? 1 : 4
+    return Fermionfield{BACKEND,T,ND}(dims(f)...)
 end
 
 # Need to overload dims and size again, because we are using 4D arrays for fermions
@@ -178,6 +177,7 @@ Base.eltype(::EvenOdd{B,T}) where {B,T} = Complex{T}
 LinearAlgebra.checksquare(f::EvenOdd) = LinearAlgebra.checksquare(f.parent) ÷ 2
 num_colors(::EvenOdd{B,T,A,ND}) where {B,T,A,ND} = 3
 num_dirac(::EvenOdd{B,T,A,ND}) where {B,T,A,ND} = ND
+volume(f::EvenOdd) = volume(f.parent)
 
 Base.@propagate_inbounds Base.getindex(f::EvenOdd, i::Integer) = f.parent.U[i]
 Base.@propagate_inbounds Base.getindex(f::EvenOdd, x, y, z, t) = f.parent.U[x, y, z, t]
@@ -231,7 +231,7 @@ end
 
 function LinearAlgebra.mul!(ϕ_eo::EvenOdd{CPU,T}, α) where {T}
     ϕ = ϕ_eo.parent
-    α = T(α)
+    α = Complex{T}(α)
     even = true
 
     @batch for _site in eachindex(even, ϕ)
@@ -256,14 +256,13 @@ function LinearAlgebra.axpy!(α, ψ_eo::T, ϕ_eo::T) where {T<:EvenOdd{CPU}} # e
     return nothing
 end
 
-function LinearAlgebra.axpby!(α, ψ_eo::T, β, ϕ_eo::T) where {T<:EvenOdd{CPU}}
+function LinearAlgebra.axpby!(α, ψ_eo::T, β, ϕ_eo::T, even=true) where {T<:EvenOdd{CPU}}
     check_dims(ϕ_eo, ψ_eo)
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent
     FloatT = float_type(ϕ)
     α = Complex{FloatT}(α)
     β = Complex{FloatT}(β)
-    even = true
 
     @batch for _site in eachindex(even, ϕ)
         ϕ[_site] = α * ψ[_site] + β * ϕ[_site]
