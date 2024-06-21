@@ -1,9 +1,9 @@
-function run_sim(filenamein::String)
+function run_sim(filenamein::String; backend="cpu")
     filename_head = splitext(filenamein)[1]
     filename = filename_head * ".toml"
 
     # load parameters from toml file
-    parameters = construct_params_from_toml(filename)
+    parameters = construct_params_from_toml(filename; backend=backend)
 
     # set random seed if provided, otherwise generate one
     if parameters.randomseed != 0

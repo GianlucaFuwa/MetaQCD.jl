@@ -1,7 +1,7 @@
 @kernel function overrelaxation_C2_kernel!(out, U, μ, pass, ALG, GA, fac)
-	# workgroup index, that we use to pass the reduced value to global "out"
-	bi = @index(Group, Linear)
-	iy, iz, it = @index(Global, NTuple)
+    # workgroup index, that we use to pass the reduced value to global "out"
+    bi = @index(Group, Linear)
+    iy, iz, it = @index(Global, NTuple)
     numaccepts = 0i32
 
     for ix in 1+iseven(iy+iz+it+pass):2:size(U, 2)
@@ -21,16 +21,16 @@
 
     out_group = @groupreduce(+, numaccepts, 0i32)
 
-	ti = @index(Local)
-	if ti == 1
-		@inbounds out[bi] += out_group
-	end
+    ti = @index(Local)
+    if ti == 1
+        @inbounds out[bi] += out_group
+    end
 end
 
 @kernel function overrelaxation_C4_kernel!(out, U, μ, pass, ALG, GA, fac)
-	# workgroup index, that we use to pass the reduced value to global "out"
-	bi = @index(Group, Linear)
-	iy, iz, it = @index(Global, NTuple)
+    # workgroup index, that we use to pass the reduced value to global "out"
+    bi = @index(Group, Linear)
+    iy, iz, it = @index(Global, NTuple)
     numaccepts = 0i32
 
     for ix in axes(U, 2)
@@ -53,8 +53,8 @@ end
 
     out_group = @groupreduce(+, numaccepts, 0i32)
 
-	ti = @index(Local)
-	if ti == 1
-		@inbounds out[bi] += out_group
-	end
+    ti = @index(Local)
+    if ti == 1
+        @inbounds out[bi] += out_group
+    end
 end

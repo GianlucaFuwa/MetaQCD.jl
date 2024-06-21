@@ -96,14 +96,15 @@ function energy_density(::Plaquette, U::Gaugefield{CPU})
     return E / U.NV
 end
 
-function energy_density(::Clover, U::Gaugefield{CPU})
+function energy_density(::Clover, U::Gaugefield{CPU,T}) where {T}
     E = 0.0
+    fac = im * T(1/4)
 
     @batch reduction = (+, E) for site in eachindex(U)
         for μ in 1:3
             for ν in (μ+1):4
                 Cμν = clover_square(U, μ, ν, site, 1)
-                Fμν = im * 1//4 * traceless_antihermitian(Cμν)
+                Fμν = fac * traceless_antihermitian(Cμν)
                 E += real(multr(Fμν, Fμν))
             end
         end
@@ -118,14 +119,15 @@ function energy_density(::Improved, U::Gaugefield{CPU})
     return 5 / 3 * Eclover - 1 / 12 * Erect
 end
 
-function energy_density_rect(U::Gaugefield{CPU})
+function energy_density_rect(U::Gaugefield{CPU,T}) where {T}
     E = 0.0
+    fac = im * T(1/8)
 
     @batch reduction = (+, E) for site in eachindex(U)
         for μ in 1:3
             for ν in (μ+1):4
                 Cμν = clover_rect(U, μ, ν, site, 1, 2)
-                Fμν = im * 1//8 * traceless_antihermitian(Cμν)
+                Fμν = fac * traceless_antihermitian(Cμν)
                 E += real(multr(Fμν, Fμν))
             end
         end

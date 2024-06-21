@@ -15,16 +15,20 @@ if length(ARGS) == 0 && MYRANK == 0
     """)
 end
 
+backend = "cpu"
+
 if length(ARGS) == 2
     MYRANK == 0 && @info(
-        "If you get prompted to install a package here, make sure you do it in your
-        GLOBAL julia environment, i.e., not under a project environment"
+        "If you get prompted to install a package here, make sure you do it in your" *
+        "GLOBAL julia environment, i.e., not under a project environment"
     )
     if lower_case(ARGS[2]) == "cpu"
     elseif lower_case(ARGS[2]) == "cuda"
         using CUDA
+        backend = "cuda"
     elseif lower_case(ARGS[2]) == "rocm"
         using AMDGPU
+        backend = "rocm"
     else
         MYRANK == 0 && error("""
               When a second input is given, it has to specify the backend to be used, so the package can be loaded.
@@ -45,4 +49,4 @@ end
 
 MPI.Barrier(COMM)
 
-build_bias(ARGS[1], MPIparallel=with_mpi)
+build_bias(ARGS[1], mpi_enabled=with_mpi)

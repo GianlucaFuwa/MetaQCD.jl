@@ -1,5 +1,6 @@
-function update!(metro::Metropolis{ITR,NH,TOR,NOR}, U::Gaugefield{B,T,A,GA};
-                 kwargs...) where {ITR,NH,TOR,NOR,B<:GPU,T,A,GA}
+function update!(
+    metro::Metropolis{ITR,NH,TOR,NOR}, U::Gaugefield{B,T,A,GA}; kwargs...
+) where {ITR,NH,TOR,NOR,B<:GPU,T,A,GA}
     fac = T(-U.β/U.NC)
     ϵ = T(metro.ϵ[])
     hits = _unwrap_val(NH())
@@ -20,9 +21,9 @@ function update!(metro::Metropolis{ITR,NH,TOR,NOR}, U::Gaugefield{B,T,A,GA};
 end
 
 @kernel function metropolis_C2_kernel!(out, U, μ, pass, GA, ϵ, fac, numhits)
-	# workgroup index, that we use to pass the reduced value to global "out"
-	bi = @index(Group, Linear)
-	iy, iz, it = @index(Global, NTuple)
+    # workgroup index, that we use to pass the reduced value to global "out"
+    bi = @index(Group, Linear)
+    iy, iz, it = @index(Global, NTuple)
     numaccepts = 0i32
 
     for ix in 1+iseven(iy+iz+it+pass):2:size(U, 2)
@@ -46,15 +47,15 @@ end
 
     out_group = @groupreduce(+, numaccepts, 0i32)
 
-	ti = @index(Local)
-	if ti == 1
-		@inbounds out[bi] += out_group
-	end
+    ti = @index(Local)
+    if ti == 1
+        @inbounds out[bi] += out_group
+    end
 end
 
 @kernel function metropolis_C4_kernel!(out, U, μ, pass, GA, ϵ, fac, numhits)
-	# workgroup index, that we use to pass the reduced value to global "out"
-	bi = @index(Group, Linear)
+    # workgroup index, that we use to pass the reduced value to global "out"
+    bi = @index(Group, Linear)
     iy, iz, it = @index(Global, NTuple)
     numaccepts = 0i32
 
@@ -81,8 +82,8 @@ end
 
     out_group = @groupreduce(+, numaccepts, 0i32)
 
-	ti = @index(Local)
-	if ti == 1
-		@inbounds out[bi] += out_group
-	end
+    ti = @index(Local)
+    if ti == 1
+        @inbounds out[bi] += out_group
+    end
 end

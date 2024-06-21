@@ -140,7 +140,8 @@ struct WilsonEOPreFermionAction{Nf,C,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionActi
         cg_maxiters_action=1000,
         cg_maxiters_md=1000,
     ) where {B,T}
-        @level1("┌ Setting Even-Odd Preconditioned Wilson Fermion Action...")
+        @level1("|")
+        @level1("|  Fermion Action: Wilson (Even-Odd Preconditioned)")
         @level1("|  MASS: $(mass)")
         @level1("|  Nf: $(Nf)")
         @level1("|  r: $(r)")
@@ -187,7 +188,7 @@ struct WilsonEOPreFermionAction{Nf,C,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionActi
         RI2 = typeof(rhmc_info_md)
         RT = typeof(rhmc_temps1)
         TX = typeof(Xμν)
-        @level1("└\n")
+        @level1("|")
         return new{Nf,C,TD,CT,RI1,RI2,RT,TX}(
             D,
             cg_temps,

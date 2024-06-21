@@ -1,4 +1,4 @@
-function build_bias(filenamein::String; MPIparallel=false)
+function build_bias(filenamein::String; mpi_enabled=false, backend="cpu")
     # When using MPI we make sure that only rank 0 prints to the console
     if MYRANK == 0
         ext = splitext(filenamein)[end]
@@ -7,12 +7,12 @@ function build_bias(filenamein::String; MPIparallel=false)
         """
     end
 
-    parameters = construct_params_from_toml(filenamein)
+    parameters = construct_params_from_toml(filenamein; backend=backend)
     MPI.Barrier(COMM)
 
     if MYRANK == 0
         oneinst = parameters.numinstances == 1
-        @assert MPIparallel ⊻ oneinst "MPI must be enabled if and only if numinstances > 1, numinstances was $(parameters.numinstances)"
+        @assert mpi_enabled ⊻ oneinst "MPI must be enabled if and only if numinstances > 1, numinstances was $(parameters.numinstances)"
         @assert COMM_SIZE == parameters.numinstances "numinstances has to be equal to the number of MPI ranks"
         @assert parameters.kind_of_bias ∉ ("none", "parametric") "bias has to be \"metad\" or \"opes\" in build, was $(parameters.kind_of_bias)"
         @assert parameters.is_static == false "Bias cannot be static in build"
@@ -39,7 +39,7 @@ function build_bias(filenamein::String; MPIparallel=false)
     @level1(versioninfo)
     @level1("Random seed is: $seed\n")
 
-    univ = Univ(parameters; use_mpi=MPIparallel)
+    univ = Univ(parameters; use_mpi=mpi_enabled)
 
     build_bias!(univ, parameters)
     return nothing

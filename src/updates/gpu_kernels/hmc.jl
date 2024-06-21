@@ -7,9 +7,9 @@ function updateU!(U::Gaugefield{B,T}, hmc::HMC, fac) where {B<:GPU,T}
 end
 
 @kernel function updateU_kernel!(U, @Const(P), ϵ)
-	site = @index(Global, Cartesian)
+    site = @index(Global, Cartesian)
 
-	@unroll for μ in 1:4
+    @unroll for μ in 1:4
         @inbounds U[μ,site] = cmatmul_oo(exp_iQ(-im*ϵ*P[μ,site]), U[μ,site])
     end
 end

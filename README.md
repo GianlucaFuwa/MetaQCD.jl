@@ -19,7 +19,7 @@ Inspired by the [LatticeQCD.jl](https://github.com/akio-tomiya/LatticeQCD.jl/tre
 - Staggered fermions
 - Even-odd preconditioner
 - RHMC to simulate odd number of flavours
-- Support for CUDA and ROCm backends
+- Support for CUDA and ROCm(not tested) backends
 
 ## Installation:
 First make sure you have a Julia version 1.9.x or 1.10.x installed. You can use [juliaup](https://github.com/JuliaLang/juliaup) for that or just install the release from the [Julia website](https://julialang.org/downloads/).
@@ -51,7 +51,7 @@ or
 pkg> instantiate
 ```
 
-If you want to use a GPU, make sure you not only have CUDA.jl or AMDGPU.jl installed, but also a fairly recent version of the CUDA Toolkit or ROCm.
+If you want to use a GPU, make sure you not only have CUDA.jl (v4.4.2) or AMDGPU.jl installed, but also a fairly recent version of the CUDA Toolkit or ROCm.
 
 ## Quick Start:
 1. Set parameters using one of the templates in template folder
@@ -73,6 +73,32 @@ using MetaQCD
 4. Begin Simulation with prepared parameter file "parameters.toml":
 ``` julia
 run_sim("parameters.toml")
+```
+To use another backend, just append its name to the command:
+```
+julia --threads=auto metaqcd_sim.jl parameters.toml cuda
+```
+
+## Build a Bias:
+1. Set parameters using the "parameters_build.toml" example in template folder
+2. From shell, do:
+```
+julia --threads=auto metaqcd_build.jl parameters.toml
+```
+
+or
+
+2. Start Julia (with project):
+```
+julia --threads=auto --project=/path/to/dir/containing/MetaQCD.jl
+```
+3. Import MetaQCD package:
+``` julia
+using MetaQCD
+```
+4. Begin build with prepared parameter file "parameters.toml":
+``` julia
+build_bias("parameters.toml")
 ```
 
 ## Visualization:

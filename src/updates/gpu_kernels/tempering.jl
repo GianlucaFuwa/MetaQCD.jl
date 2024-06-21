@@ -9,7 +9,7 @@ end
 
 	@unroll for μ in 1i32:4i32
 		@inbounds a_tmp = a[μ,site]
-        @inbounds a[μ,site] = b[μ,site]
-        @inbounds b[μ,site] = a_tmp
+		@inbounds a[μ,site] = b[μ,site]
+		@inbounds b[μ,site] = a_tmp
 	end
 end

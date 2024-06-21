@@ -18,7 +18,7 @@ function update!(
 end
 
 @kernel function heatbath_C2_kernel!(U, μ, pass, GA, action_factor, MAXIT)
-	iy, iz, it = @index(Global, NTuple)
+    iy, iz, it = @index(Global, NTuple)
 
     for ix in 1+iseven(iy+iz+it+pass):2:size(U, 2)
         site = SiteCoords(ix, iy, iz, it)
@@ -29,7 +29,7 @@ end
 end
 
 @kernel function heatbath_C4_kernel!(U, μ, pass, GA, action_factor, MAXIT)
-	iy, iz, it = @index(Global, NTuple)
+    iy, iz, it = @index(Global, NTuple)
 
     for ix in axes(U, 2)
         site = SiteCoords(ix, iy, iz, it)

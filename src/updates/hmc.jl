@@ -108,8 +108,6 @@ struct HMC{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TIO} <: AbstractUpdate
             StoutSmearing(U, numsmear_fermion, ρ_stout_fermion)
         end
 
-        @level1("|  Gauge Action Smearing: $(smearing_gauge)")
-        @level1("|  Fermion Action Smearing: $(smearing_fermion)")
         TSG = typeof(smearing_gauge)
         TSF = typeof(smearing_fermion)
         has_smearing = TSG != NoSmearing || TSF != NoSmearing
@@ -134,13 +132,16 @@ struct HMC{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TIO} <: AbstractUpdate
         TF = typeof(ϕ)
 
         if bias_enabled
-            @level1("|  Bias enabled")
+            @level1("|  BIAS ENABLED")
             fieldstrength = Tensorfield(U)
         else
-            @level1("|  Bias disabled")
+            @level1("|  BIAS DISABLED")
             fieldstrength = nothing
         end
         FS = typeof(fieldstrength)
+
+        @level1("|  GAUGE SMEARING: $(smearing_gauge)")
+        @level1("|  FERMION SMEARING: $(smearing_fermion)")
 
         if hmc_logging && logdir != ""
             hmc_log_file = logdir * "/hmc_acc_logs.txt"

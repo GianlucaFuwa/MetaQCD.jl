@@ -37,14 +37,14 @@ AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 
 [extensions]
-GaugefieldsAMDGPUExt = "AMDGPU"
-GaugefieldsCUDAExt = "CUDA"
+MetaAMDGPUExt = "AMDGPU"
+MetaCUDAExt = "CUDA"
 
 [compat]
 AMDGPU = "0.7, 0.8"
 Accessors = "0.1"
 Aqua = "0.6"
-CUDA = "4, 5"
+CUDA = "4.4.2"
 DelimitedFiles = "1.9"
 JLD2 = "0.4"
 KernelAbstractions = "0.9"
@@ -54,7 +54,7 @@ Polyester = "0.7.14"
 Requires = "1.3"
 StaticArrays = "1.6"
 TimerOutputs = "0.5"
-julia = "1.9, 1.10"
+julia = "~1.9"
 
 [extras]
 MPIPreferences = "3da0fdf6-3ccc-4f1b-acd9-58baa6c99267"

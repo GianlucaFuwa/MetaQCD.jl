@@ -82,7 +82,8 @@ struct WilsonFermionAction{Nf,C,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction
         cg_maxiters_action=1000,
         cg_maxiters_md=1000,
     )
-        @level1("┌ Setting Wilson Fermion Action...")
+        @level1("|")
+        @level1("|  Fermion Action: Wilson")
         @level1("|  MASS: $(mass)")
         @level1("|  Nf: $(Nf)")
         @level1("|  r: $(r)")
@@ -146,7 +147,7 @@ struct WilsonFermionAction{Nf,C,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction
         RI2 = typeof(rhmc_info_md)
         RT = typeof(rhmc_temps1)
         TX = typeof(Xμν)
-        @level1("└\n")
+        @level1("|")
         return new{Nf,C,TD,CT,RI1,RI2,RT,TX}(
             D,
             cg_temps,

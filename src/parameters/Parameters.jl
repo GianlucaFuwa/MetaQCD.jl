@@ -8,6 +8,9 @@ using TOML
 include("./parameter_structs.jl")
 include("./parameter_set.jl")
 
+const COMM = MPI.COMM_WORLD
+const MYRANK = MPI.Comm_rank(COMM)
+
 export ParameterSet
 
 lower_case(str) = Unicode.normalize(str; casefold=true)
@@ -43,15 +46,16 @@ function save_parameters(fp, parameters) # XXX: We already create a copy of the 
     return nothing
 end
 
-function construct_params_from_toml(filename::String)
-    myrank = MPI.Comm_rank(MPI.COMM_WORLD)
+function construct_params_from_toml(filename::String; backend="cpu")
     parameters = TOML.parsefile(filename)
     inputfile = pwd() * "/" * filename
-    myrank == 0 && println("inputfile: ", inputfile * "\n")
-    return construct_params_from_toml(parameters, inputfile; am_rank0=(myrank == 0))
+    MYRANK == 0 && println("inputfile: ", inputfile * "\n")
+    return construct_params_from_toml(
+        parameters, inputfile; am_rank0=(MYRANK == 0), backend=backend
+    )
 end
 
-function construct_params_from_toml(parameters, inputfile; am_rank0=true)
+function construct_params_from_toml(parameters, inputfile; am_rank0=true, backend="cpu")
     pnames = fieldnames(ParameterSet)
     numparams = length(pnames)
     value_Params = Vector{Any}(undef, numparams)
@@ -179,6 +183,8 @@ function construct_params_from_toml(parameters, inputfile; am_rank0=true)
                     else
                         value_Params[i] = val
                     end
+                elseif String(pname_i) == "backend"
+                    value_Params[i] = backend
                 else
                     value_Params[i] = value[String(pname_i)]
                 end

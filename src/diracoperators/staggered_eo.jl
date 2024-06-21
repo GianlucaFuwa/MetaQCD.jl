@@ -75,7 +75,8 @@ struct StaggeredEOPreFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
         cg_maxiters_action=1000,
         cg_maxiters_md=1000,
     )
-        @level1("┌ Setting Even-Odd Preconditioned Staggered Fermion Action...")
+        @level1("|")
+        @level1("|  Fermion Action: Staggered (Even-Odd Preconditioned)")
         @level1("|  MASS: $(mass)")
         @level1("|  Nf: $(Nf)")
         @level1("|  CG TOLERANCE (Action): $(cg_tol_action)")
@@ -146,7 +147,7 @@ struct StaggeredEOPreFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
         RI1 = typeof(rhmc_info_action)
         RI2 = typeof(rhmc_info_md)
         RT = typeof(rhmc_temps1)
-        @level1("└\n")
+        @level1("|")
         return new{Nf,TD,CT,RI1,RI2,RT}(
             D,
             cg_temps,

@@ -168,7 +168,7 @@ end
 # define dims() function twice --- once for generic arrays, such that GPUs and @batch
 # can use it, and once for Abstractfields for any other case
 @inline dims(u) = NTuple{4,Int64}((size(u, 2), size(u, 3), size(u, 4), size(u, 5)))
-@inline dims(u::Abstractfield{CPU}) = NTuple{4,Int64}((u.NX, u.NY, u.NZ, u.NT))
+@inline dims(u::Abstractfield) = NTuple{4,Int64}((u.NX, u.NY, u.NZ, u.NT))
 @inline volume(u) = prod(dims(u))
 @inline volume(u::Abstractfield) = u.NV
 Base.ndims(u::Abstractfield) = 4

@@ -33,23 +33,22 @@ end
 function Univ(parameters::ParameterSet; use_mpi=false)
     @level1("[ Running MetaQCD.jl version $(PACKAGE_VERSION)\n")
     @level1("┌ Setting Universe...")
-    @level1("|  MPI $(ifelse(use_mpi, "enabled", "disabled"))")
-    @level1("|  Number of instances: $(parameters.numinstances)")
+    @level1("|  MPI $(ifelse(use_mpi, "ENABLED", "DISABLED"))")
+    @level1("|  NUM INSTANCES: $(parameters.numinstances)")
     NX, NY, NZ, NT = parameters.L
     β = parameters.beta
     backend = parameters.backend
     fp_prec = parameters.float_type
     gauge_action = parameters.gauge_action
-    @level1("|  Backend: $(backend)")
-    @level1("|  Floating Point Precision: $(fp_prec)")
+    @level1("|  BACKEND: $(backend)")
+    @level1("|  FP PREC: $(fp_prec)")
     @level1("|  L: $(NX)x$(NY)x$(NZ)x$(NT)")
-    @level1("|  Gauge Action: $(gauge_action)")
-    @level1("|  beta: $β")
+    @level1("|  GAUGE ACTION: $(gauge_action)")
+    @level1("|  BETA: $β")
 
     if parameters.kind_of_bias != "none"
         if parameters.tempering_enabled && use_mpi == false
             numinstances = parameters.numinstances
-            @level1("|  Using 1 + $(numinstances-1) instances\n")
             U₁ = Gaugefield(parameters)
             fermion_actions₁ = init_fermion_actions(parameters, U₁)
             bias₁ = Bias(parameters, U₁; instance=0) # instance=0 -> dummy bias for non-MetaD stream
