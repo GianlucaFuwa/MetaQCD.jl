@@ -11,7 +11,7 @@ using PrecompileTools: PrecompileTools
 
 export exp_iQ, exp_iQ_coeffs, exp_iQ_su3, get_B₁, get_B₂, get_Q, get_Q²
 export gen_SU3_matrix, is_special_unitary, is_traceless_antihermitian
-export kenney_laub, proj_onto_SU3, multr
+export kenney_laub, proj_onto_SU3, multr, cnorm2
 export make_submatrix_12, make_submatrix_13, make_submatrix_23
 export embed_into_SU3_12, embed_into_SU3_13, embed_into_SU3_23
 export antihermitian, hermitian, traceless_antihermitian, traceless_hermitian
@@ -114,24 +114,42 @@ const i32 = Literal{Int32}
 const SU{N,N²,T} = SMatrix{N,N,Complex{T},N²}
 
 """
-    multr(A::SU{N,N²,T}, B::SU{N,N²,T}) where {N,N²,T}
+    multr(A::SMatrix{N,N,Complex{T},N²}, B::SMatrix{N,N,Complex{T},N²}) where {N,N²,T}
 
-Calculate the trace of the product of two SU(N) matrices `A` and `B` of precision `T`.
+Calculate the trace of the product of two complex NxN matrices `A` and `B` of precision `T`.
 """
 @inline function multr(A::SU{N,N²,T}, B::SU{N,N²,T}) where {N,N²,T}
     # for some reason we have to convert A and B to MArrays, otherwise we get a dynamic
     # function invocation for reinterpret(...) on CUDA
     a = reinterpret(reshape, T, MMatrix(A))
     b = reinterpret(reshape, T, MMatrix(B))
-    re = zero(T)
-    im = zero(T)
+    re = zero(Float64)
+    im = zero(Float64)
 
     @turbo for i in Base.Slice(static(1):static(N)), j in Base.Slice(static(1):static(N))
         re += a[1, i, j] * b[1, j, i] - a[2, i, j] * b[2, j, i]
         im += a[1, i, j] * b[2, j, i] + a[2, i, j] * b[1, j, i]
     end
 
-    return Complex{T}(re, im)
+    return ComplexF64(re, im)
+end
+
+"""
+    cnorm2(A::SMatrix{N,N,Complex{T},N²}) where {N,N²,T}
+
+Calculate the 2-norm of the complex NxN matrix `M`
+"""
+@inline function cnorm2(M::SU{N,N²,T}) where {N,N²,T}
+    # for some reason we have to convert A and B to MArrays, otherwise we get a dynamic
+    # function invocation for reinterpret(...) on CUDA
+    m = reinterpret(reshape, T, MMatrix(M))
+    re = zero(Float64)
+
+    @turbo for i in Base.Slice(static(1):static(N)), j in Base.Slice(static(1):static(N))
+        re += m[1, j, i] * m[1, j, i] + m[2, j, i] * m[2, j, i]
+    end
+
+    return sqrt(re)
 end
 
 """

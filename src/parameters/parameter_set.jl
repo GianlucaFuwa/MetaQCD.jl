@@ -72,6 +72,7 @@ struct ParameterSet
     hmc_integrator::String
     hmc_trajectory::Float64
     hmc_friction::Float64
+    hmc_rafriction::Float64
     hmc_steps::Int64
     hmc_numsmear_gauge::Int64
     hmc_numsmear_fermion::Int64
@@ -98,13 +99,14 @@ struct ParameterSet
     backend::String
     float_type::String
     verboselevel::Int64
-    saveU_format::String
-    saveU_every::Int64
-    saveU_dir::String
-    loadU_format::String
-    loadU_dir::String
-    loadU_fromfile::Bool
-    loadU_filename::String
+    save_config_format::String
+    save_config_every::Int64
+    save_checkpoint_every::Int64
+    load_config_fromfile::Bool
+    load_config_format::String
+    load_config_path::String
+    load_checkpoint_fromfile::Bool
+    load_checkpoint_path::String
 
     randomseed::Union{UInt64,Vector{UInt64}}
     ensembledir::String

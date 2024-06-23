@@ -52,6 +52,18 @@ function normalize!(u::Gaugefield{CPU})
     return nothing
 end
 
+function LinearAlgebra.norm(u::Abstractfield{CPU})
+    norm2 = 0.0
+
+    @batch reduction=(+, norm2) for site in eachindex(u)
+        for μ in 1:4
+            norm2 += cnorm2(u[μ, site], Float64)
+        end
+    end
+
+    return norm2
+end
+
 function add!(a::Abstractfield{CPU,T}, b::Abstractfield{CPU}, fac) where {T}
     check_dims(a, b)
     fac = T(fac)

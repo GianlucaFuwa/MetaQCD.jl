@@ -32,7 +32,6 @@ function saveU(::BMWFormat, U, filename; override=false)
     end
     fp = open(filename, "w")
     N = U.NC
-    T = real(eltype(U[1]))
     @assert N == 3 "Only SU(3) is supported in BMW format"
 
     ### Header
@@ -56,7 +55,7 @@ function saveU(::BMWFormat, U, filename; override=false)
         header_buf, "#BMW $(U.NX) $(U.NY) $(U.NZ) $(U.NT) $checksum_str\n"
     )
     bytes_written += write(
-        header_buf, "Generated with MetaQCD.jl 0.4.0 on Julia $(VERSION)\n"
+        header_buf, "Generated with MetaQCD.jl 1.0.0 on Julia $(VERSION)\n"
     )
     bytes_written += write(header_buf, "@ $(Dates.now())\n")
 

@@ -69,6 +69,7 @@ function Bias(p::ParameterSet, U; use_mpi=false, instance=1)
         is_opes = bias isa OPES
         ext = is_opes ? "opes" : "metad"
         biasfile = MYRANK==0 ? p.biasdir * "/stream_$(inum).$(ext)" : ""
+        # FIXME: For some reason this errors with MPI on the UNI's cluster
         fp = open(p.measuredir * "/bias_data_$inum.txt", "w")
         kinds_of_weights = is_opes ? ["opes"] : p.kinds_of_weights
         str = @sprintf("%-9s\t%-22s", "itrj", "cv")

@@ -1,11 +1,11 @@
-function SU3testgradflow(backend=nothing)
+function SU3testgradflow(backend=CPU)
     Random.seed!(123)
     println("SU3testgradflow")
     NX = 4
     NY = 4
     NZ = 4
     NT = 4
-    U = initial_gauges("hot", NX, NY, NZ, NT, 6.0; GA=WilsonGaugeAction)
+    U = Gaugefield{backend,Float64,WilsonGaugeAction}(NX, NY, NZ, NT, 6.0)
     filename = "./test/testconf.txt"
     loadU!(BridgeFormat(), U, filename)
     if backend !== nothing

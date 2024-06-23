@@ -1,10 +1,10 @@
-function SU3testmeas(backend=nothing)
+function SU3testmeas(backend=CPU)
     println("SU3testmeas")
     NX = 4
     NY = 4
     NZ = 4
     NT = 4
-    U = Gaugefield(NX, NY, NZ, NT, 5.7, GA=WilsonGaugeAction);
+    U = Gaugefield{backend,Float64,WilsonGaugeAction}(NX, NY, NZ, NT, 6.0)
     filename = "./test/testconf.txt"
     loadU!(BridgeFormat(), U, filename);
     if backend !== nothing

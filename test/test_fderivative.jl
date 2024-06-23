@@ -5,7 +5,7 @@ using LinearAlgebra
 using Random
 
 function SU3testfderivative(;
-    dirac="staggered", mass=0.1, eoprec=false, single_flavor=false, backend=nothing
+    dirac="staggered", mass=0.1, eoprec=false, single_flavor=false, backend=CPU
 )
     Random.seed!(123)
     println("Fermion derivative test [$dirac]")
@@ -14,7 +14,7 @@ function SU3testfderivative(;
     NY = 4
     NZ = 4
     NT = 8
-    U = Gaugefield(NX, NY, NZ, NT, 6.0; GA=WilsonGaugeAction)
+    U = Gaugefield{backend,Float64,WilsonGaugeAction}(NX, NY, NZ, NT, 6.0)
 
     if eoprec
         ψ = even_odd(Fermionfield(NX, NY, NZ, NT; staggered=dirac == "staggered"))

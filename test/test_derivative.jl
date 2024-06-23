@@ -3,14 +3,14 @@ using MetaQCD
 using MetaQCD.Utils
 using MetaQCD.Updates: calc_dQdU_bare!
 
-function SU3testderivative(backend=nothing)
+function SU3testderivative(backend=CPU)
     Random.seed!(123)
     println("SU3test_gauge_derivative")
     NX = 4
     NY = 4
     NZ = 4
     NT = 4
-    U = Gaugefield(NX, NY, NZ, NT, 6.0; GA=WilsonGaugeAction)
+    U = Gaugefield{backend,Float64,WilsonGaugeAction}(NX, NY, NZ, NT, 6.0)
     random_gauges!(U)
     # filename = "./test/testconf.txt"
     # loadU!(BridgeFormat(), U, filename);

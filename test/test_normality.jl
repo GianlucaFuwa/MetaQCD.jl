@@ -3,11 +3,12 @@ using Random
 
 Random.seed!(1206)
 
-L = (12, 12, 12, 12)
+NX = NY = NZ = NT = 4
 β = 6.0
 gaction = WilsonGaugeAction
 
-U = initial_gauges("hot", L..., β, GA=gaction);
+U = Gaugefield{CPU,Float64,gaction}(NX, NY, NZ, NT, β)
+random_gauges!(U)
 hb = Heatbath(U, true, 10, 1, "subgroups", 4)
 
 function test(hb, U, N)

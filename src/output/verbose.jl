@@ -1,10 +1,3 @@
-using InteractiveUtils: InteractiveUtils
-using MPI
-
-MPI.Initialized() || MPI.Init()
-const COMM = MPI.COMM_WORLD
-const MYRANK = MPI.Comm_rank(COMM)
-
 """
     MetaLogger(LEVEL::Int64, io::IO, to_console::Bool)
 

@@ -1,8 +1,10 @@
 module Output
 
 using Dates
+using InteractiveUtils: InteractiveUtils
 using JLD2
 using KernelAbstractions # TODO: save and load of GPUD
+using MPI
 using LinearAlgebra
 using Random
 using StaticArrays
@@ -10,7 +12,11 @@ using ..Utils: restore_last_row
 
 export __GlobalLogger, MetaLogger, current_time, @level1, @level2, @level3
 export BMWFormat, BridgeFormat, Checkpointer, JLD2Format, SaveConfigs, set_global_logger!
-export load_checkpoint, load_gaugefield!, loadU!, save_gaugefield, saveU
+export create_checkpoint, load_checkpoint, load_gaugefield!, loadU!, save_gaugefield, saveU
+
+MPI.Initialized() || MPI.Init()
+const COMM = MPI.COMM_WORLD
+const MYRANK = MPI.Comm_rank(COMM)
 
 include("verbose.jl")
 
@@ -19,24 +25,42 @@ struct BMWFormat <: AbstractFormat end
 struct BridgeFormat <: AbstractFormat end
 struct JLD2Format <: AbstractFormat end
 
+const FORMATS = Dict{String, Any}(
+    "bmw" => BMWFormat,
+    "bridge" => BridgeFormat,
+    "jld" => JLD2Format,
+    "jld2" => JLD2Format,
+    "" => Nothing,
+)
+
+const EXT = Dict{String, String}(
+    "bmw" => ".bmw",
+    "bridge" => ".txt",
+    "jld" => ".jld2",
+    "jld2" => ".jld2",
+    "" => "",
+)
+
 include("bmw_format.jl")
 include("bridge_format.jl")
 include("jld2_format.jl")
 
-const date_format = "yyyy-mm-dd HH:MM:SS"
-
-current_time() = "$(Dates.format(now(), date_format))"
+current_time() = Dates.now(UTC)
 
 struct Checkpointer{T}
     checkpoint_dir::String
     checkpoint_every::Int64
     ext::String
 
-    function Checkpointer(checkpointing_enabled, checkpoint_dir, checkpoint_every)
-        if checkpointing_enabled
+    function Checkpointer(checkpoint_dir, checkpoint_every)
+        if checkpoint_every > 0
             T = JLD2Format
             ext = ".jld2"
-            @level1("[ Checkpointing every $(checkpoint_every) trajectory!")
+            @level1("┌ Checkpoints will be created!")
+            @level1("|  FORMAT: JLD2")
+            @level1("|  DIRECTORY: $(checkpoint_dir)")
+            @level1("|  INTERVAL: $(checkpoint_every)")
+            @level1("└\n")
         else
             T = Nothing
             ext = ""
@@ -46,57 +70,59 @@ struct Checkpointer{T}
     end
 end
 
-function (cp::Checkpointer{T})(univ, updatemethod, itrj) where {T}
+function create_checkpoint(::Checkpointer{T}, univ, updatemethods, itrj) where {T}
     T ≡ Nothing && return nothing
 
     if itrj % cp.checkpoint_every == 0
-        filename = cp.checkpoint_dir * "/checkpoint$(cp.ext)"
-        create_checkpoint(T(), univ, updatemethod, filename)
+        filename = cp.checkpoint_dir * "/checkpoint_$(itrj)_$(MYRANK)$(cp.ext)"
+        create_checkpoint(T(), univ, updatemethods, filename)
         @level1("|  Checkpoint created in $(filename)")
     end
 
     return nothing
 end
 
-function load_checkpoint(filename)
+function load_checkpoint(parameters)
+    filename = parameters.load_checkpoint_path 
+    @level1("[ Checkpointed loaded from $(filename)")
     return load_checkpoint(JLD2Format(), filename)
 end
 
 struct SaveConfigs{T}
-    saveU_dir::String
-    saveU_every::Int64
+    save_config_dir::String
+    save_config_every::Int64
     ext::String
-    function SaveConfigs(saveU_format, saveU_dir, saveU_every)
-        if saveU_format == "bridge"
-            T = BridgeFormat
-            ext = ".txt"
-        elseif saveU_format == "jld" || saveU_format == "jld2"
-            T = JLD2Format
-            ext = ".jld2"
-        elseif saveU_format == "bmw"
-            T = BMWFormat
-            ext = ".bmw"
-        elseif saveU_format == ""
+    function SaveConfigs(save_config_format, save_config_dir, save_config_every)
+        T, ext = try
+            FORMATS[save_config_format], EXT[save_config_format]
+        catch _
+            error("save_config_format $save_config_format not supported")
+        end
+
+        if save_config_every <= 0
             T = Nothing
-            ext = ""
-        else
-            error("saveU format $saveU_format not supported")
         end
 
         if T ≢ Nothing
-            @level1("[ Save config every $(saveU_every) trajectory!")
+            @level1("┌ Configs will be saved!")
+            @level1("|  FORMAT: $(save_config_format)")
+            @level1("|  DIRECTORY: $(save_config_dir)")
+            @level1("|  INTERVAL: $(save_config_every)")
+            @level1("└\n")
+        else
+            @level1("[ Configs will not be saved!\n")
         end
 
-        return new{T}(saveU_dir, saveU_every, ext)
+        return new{T}(save_config_dir, save_config_every, ext)
     end
 end
 
 function save_gaugefield(saver::SaveConfigs{T}, U, itrj) where {T}
     T ≡ Nothing && return nothing
 
-    if itrj % saver.saveU_every == 0
+    if itrj % saver.save_config_every == 0
         itrjstring = lpad(itrj, 8, "0")
-        filename = saver.saveU_dir * "/config_$(itrjstring)$(saver.ext)"
+        filename = saver.save_config_dir * "/config_$(itrjstring)$(saver.ext)"
         saveU(T(), U, filename)
         @level1("|  Config saved in $T in file \"$(filename)\"")
     end
@@ -105,17 +131,13 @@ function save_gaugefield(saver::SaveConfigs{T}, U, itrj) where {T}
 end
 
 function load_gaugefield!(U, parameters)
-    parameters.loadU_fromfile || return false
-    filename = parameters.loadU_dir * "/" * parameters.loadU_filename
-    format = parameters.loadU_format
+    parameters.load_config_fromfile || return false
+    filename = parameters.loadU_dir * "/" * parameters.load_config_filename
+    format = parameters.load_config_format
 
-    if format == "bridge"
-        loadU!(BridgeFormat(), U, filename)
-    elseif format ∈ ("jld", "jld2")
-        loadU!(JLD2Format(), U, filename)
-    elseif format == "bmw"
-        loadU!(BMWFormat(), U, filename)
-    else
+    try
+        loadU!(FORMATS[parameters.load_config_format](), U, filename)
+    catch _
         error("loadU_format \"$(format)\" not supported.")
     end
 

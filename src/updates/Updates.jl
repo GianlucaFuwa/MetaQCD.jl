@@ -61,6 +61,7 @@ function Updatemethod(parameters::ParameterSet, U)
         parameters.hmc_steps,
         parameters.hmc_trajectory,
         parameters.hmc_friction,
+        parameters.hmc_rafriction,
         parameters.hmc_numsmear_gauge,
         parameters.hmc_numsmear_fermion,
         parameters.hmc_rhostout_gauge,
@@ -89,7 +90,8 @@ function Updatemethod(
     hmc_integrator="leapfrog",
     hmc_steps=10,
     hmc_trajectory=1,
-    hmc_friction=π / 2,
+    hmc_friction=0,
+    hmc_rafriction=0,
     hmc_numsmear_gauge=0,
     hmc_numsmear_fermion=0,
     hmc_rhostout_gauge=0,
@@ -105,7 +107,7 @@ function Updatemethod(
     if lower_case(update_method) == "hmc"
         updatemethod = HMC(
             U,
-            integrator_from_str(hmc_integrator),
+            integrator_from_str(hmc_integrator, hmc_rafriction),
             hmc_trajectory,
             hmc_steps,
             hmc_friction,

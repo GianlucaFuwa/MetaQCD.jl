@@ -188,7 +188,7 @@ include("arnoldi.jl")
 
 function fermaction_from_str(str, eo_precon::Bool)
     if str == "wilson"
-        return WilsonFermionAction
+        return eo_precon ? WilsonEOPreFermionAction : WilsonFermionAction
     elseif str == "staggered"
         return eo_precon ? StaggeredEOPreFermionAction : StaggeredFermionAction
     elseif str == "none" || str === nothing

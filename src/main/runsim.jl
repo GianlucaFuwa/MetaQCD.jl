@@ -31,33 +31,43 @@ function run_sim(filenamein::String; backend="cpu")
     @level1("[ Random seed is: $seed\n")
 
     # Univ is a struct that holds the gaugefield and bias
-    univ = Univ(parameters)
+    if parameters.load_checkpoint
+        univ, updatemethod, updatemethod_pt = load_checkpoint(parameters)
+    else
+        univ = Univ(parameters)
+        updatemethod = updatemethod_pt = nothing
+    end
 
-    run_sim!(univ, parameters)
+    run_sim!(univ, parameters, updatemethod, updatemethod_pt)
     return nothing
 end
 
-function run_sim!(univ, parameters)
+function run_sim!(univ, parameters, updatemethod=nothing, updatemethod_pt=nothing)
     U = univ.U
 
     # initialize update method, measurements, and bias
     if parameters.tempering_enabled
-        updatemethod = Updatemethod(parameters, U[1])
-        # all MetaD streams use HMC, so there is no need to initialize more than 1
-        updatemethod_pt = HMC(
-            U[1],
-            parameters.hmc_integrator,
-            parameters.hmc_trajectory,
-            parameters.hmc_steps,
-            parameters.hmc_friction;
-            fermion_action=parameters.fermion_action,
-            bias_enabled=true,
-        )
+        if updatemethod === updatemethod_pt === nothing
+            updatemethod = Updatemethod(parameters, U[1])
+            # all MetaD streams use HMC, so there is no need to initialize more than 1
+            updatemethod_pt = HMC(
+                U[1],
+                parameters.hmc_integrator,
+                parameters.hmc_trajectory,
+                parameters.hmc_steps,
+                parameters.hmc_friction;
+                fermion_action=parameters.fermion_action,
+                bias_enabled=true,
+            )
+        end
         parity = parameters.parity_update ? ParityUpdate(U[1]) : nothing
     else
-        updatemethod = Updatemethod(parameters, U)
+        if updatemethod === nothing
+            updatemethod = Updatemethod(parameters, U)
+        end
         parity = parameters.parity_update ? ParityUpdate(U) : nothing
     end
+
     parity ≢ nothing && @level1("[ Parity update enabled\n")
 
     if parameters.tempering_enabled
@@ -128,6 +138,10 @@ function run_sim!(univ, parameters)
         parameters.saveU_format, parameters.saveU_dir, parameters.saveU_every
     )
 
+    checkpointer = Checkpointer(
+        parameters.checkpoint_enabled, parameters.checkpoint_dir, parameters.checkpoint_every
+    )
+
     if parameters.tempering_enabled
         metaqcd_PT!(
             parameters,
@@ -139,6 +153,7 @@ function run_sim!(univ, parameters)
             measurements_with_flow,
             parity,
             save_configs,
+            checkpointer,
         )
     else
         metaqcd!(
@@ -150,6 +165,7 @@ function run_sim!(univ, parameters)
             measurements_with_flow,
             parity,
             save_configs,
+            checkpointer,
         )
     end
 
@@ -165,6 +181,7 @@ function metaqcd!(
     measurements_with_flow,
     parity,
     save_configs,
+    checkpointer,
 )
     U = univ.U
     fermion_action = univ.fermion_actions
@@ -185,6 +202,7 @@ function metaqcd!(
                     bias=NoBias(),
                     metro_test=itrj>10, # So we dont get stuck at the beginning
                     friction=0.0,
+                    therm=true,
                 )
             end
             @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())\n-")
@@ -217,6 +235,7 @@ function metaqcd!(
             @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())")
 
             save_gaugefield(save_configs, U, itrj)
+            create_checkpoint(checkpointer, univ, updatemethod, itrj)
 
             _, mtime = @timed calc_measurements(measurements, U, itrj)
             _, fmtime = @timed calc_measurements_flowed(
@@ -251,6 +270,7 @@ function metaqcd_PT!(
     measurements_with_flow,
     parity,
     save_configs,
+    checkpointer,
 )
     numinstances = parameters.numinstances
     U = univ.U
@@ -309,6 +329,7 @@ function metaqcd_PT!(
             temper!(U, bias, numaccepts_temper, swap_every, itrj; recalc=!uses_hmc)
 
             save_gaugefield(save_configs, U[1], itrj)
+            create_checkpoint(checkpointer, univ, (updatemethod, updatemethod_pt), itrj)
 
             _, mtime = @timed calc_measurements(measurements, U, itrj)
             _, fmtime = @timed calc_measurements_flowed(

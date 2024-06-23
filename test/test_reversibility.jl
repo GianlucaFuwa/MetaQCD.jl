@@ -4,7 +4,7 @@ using Printf
 using TimerOutputs
 
 function SU3testreversibility(;
-    integrator=Leapfrog, gaction=WilsonGaugeAction, faction=nothing, Nf=2, with_bias=false
+    integrator=Leapfrog(), gaction=WilsonGaugeAction, faction=nothing, Nf=2, with_bias=false
 )
     println("┌ Testing reversibility of $integrator")
     println("|  gauge action: $gaction")
@@ -14,7 +14,7 @@ function SU3testreversibility(;
     MetaQCD.Output.set_global_logger!(1, devnull; tc=true)
     Random.seed!(123)
     N = 4
-    U = Gaugefield(N, N, N, N, 6.0; GA=gaction)
+    U = Gaugefield{CPU,Float64,gaction}(N, N, N, N, 6.0)
     fermion = if faction === nothing
         nothing
     else
@@ -26,7 +26,7 @@ function SU3testreversibility(;
     @timeit to "loadU!" loadU!(BridgeFormat(), U, "./test/testconf.txt")
 
     hmc_trajectory = 1
-    hmc_steps = 10
+    hmc_steps = 100
 
     bias = if with_bias
         Bias(
@@ -43,7 +43,9 @@ function SU3testreversibility(;
         nothing
     end
 
-    hmc = HMC(U, integrator, hmc_trajectory, hmc_steps; fermion_action=faction)
+    hmc = HMC(
+        U, integrator, hmc_trajectory, hmc_steps; fermion_action=faction
+    )
     hmcB = if with_bias
         HMC(U, integrator, hmc_trajectory, hmc_steps; bias_enabled=true)
     else
@@ -71,13 +73,13 @@ function reversibility_test(hmc::HMC{TI}, U, fermion, bias, str, to) where {TI}
     V_old = isnothing(bias) ? 0.0 : bias(CV_old)
     H_old = Sg_old + trP²_old + Sf_old + V_old
 
-    @timeit to "evolve!" evolve!(TI(), U, hmc, fermion, bias)
+    @timeit to "evolve!" evolve!(hmc.integrator, U, hmc, fermion, bias)
     @timeit to "normalize!" MetaQCD.normalize!(U)
 
-    @show calc_gauge_action(U)
-    @timeit to "invert momenta" MetaQCD.Gaugefields.mul!(hmc.P, -1)
+    @show (calc_gauge_action(U) - calc_kinetic_energy(hmc.P)) - H_old
+    @timeit to "invert momenta" MetaQCD.Fields.mul!(hmc.P, -1)
 
-    @timeit to "evolve!" evolve!(TI(), U, hmc, fermion, bias)
+    @timeit to "evolve!" evolve!(hmc.integrator, U, hmc, fermion, bias)
     @timeit to "normalize!" MetaQCD.normalize!(U)
 
     @timeit to "gauge action" Sg_new = calc_gauge_action(U)

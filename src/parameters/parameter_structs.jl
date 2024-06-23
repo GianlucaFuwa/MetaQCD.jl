@@ -87,6 +87,7 @@ Base.@kwdef mutable struct HMCParameters
     hmc_steps::Int64 = 10
     hmc_friction::Float64 = 0.0
     hmc_integrator::String = "Leapfrog"
+    hmc_rafriction::Float64 = 1.0
     hmc_numsmear_gauge::Int64 = 0
     hmc_numsmear_fermion::Int64 = 0
     hmc_rhostout_gauge::Float64 = 0.0
@@ -108,12 +109,16 @@ Base.@kwdef mutable struct SystemParameters
     ensemble_dir::String = ""
     log_to_console::Bool = true
     verboselevel::Int64 = 1
-    loadU_format::String = ""
-    loadU_dir::String = ""
-    loadU_fromfile::Bool = false
-    loadU_filename::String = ""
-    saveU_format::String = ""
-    saveU_every::Int64 = 1
+    save_config_format::String = ""
+    save_config_every::Int64 = 0
+    save_checkpoint_format::String = ""
+    save_checkpoint_every::Int64 = 0
+    load_config_fromfile::Bool = false
+    load_config_format::String = ""
+    load_config_path::String = ""
+    load_checkpoint_fromfile::Bool = false
+    load_checkpoint_format::String = "jld2"
+    load_checkpoint_path::String = ""
     randomseed::Union{UInt64,Vector{UInt64}} = 0x0000000000000000
     overwrite::Bool = false
 end

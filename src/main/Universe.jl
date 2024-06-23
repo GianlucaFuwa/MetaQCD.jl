@@ -20,8 +20,8 @@ const PACKAGE_VERSION = "1.0.0"
 
 Create a Universe, containing the gauge configurations that are updated throughout a 
 simulation and the bias potentials, if any. \\
-`use_mpi` is soley an indicator, that sets `numinstances` to 1 even if stated otherwise
-in the parameters.
+`use_mpi` is soley an indicator that sets `numinstances` to 1 when using multiple walkers
+even if stated otherwise in the parameters.
 """
 struct Univ{TG,TF,TB}
     U::TG

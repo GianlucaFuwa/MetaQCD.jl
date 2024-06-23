@@ -45,11 +45,9 @@ force recursion when using a bias.
 - `WilsonFermionAction`
 - `StaggeredFermionAction`
 - `StaggeredEOPreFermionAction`
-
-# Returns
-An HMC object, which can be used as an argument in the `update!` function.
 """
 struct HMC{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TIO} <: AbstractUpdate
+    integrator::TI
     steps::Int64
     Δτ::Float64
     friction::Float64
@@ -68,7 +66,7 @@ struct HMC{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TIO} <: AbstractUpdate
     fp::TIO
     function HMC(
         U,
-        integrator::Type{<:AbstractIntegrator},
+        integrator::AbstractIntegrator,
         trajectory,
         steps,
         friction=0,
@@ -145,18 +143,32 @@ struct HMC{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TIO} <: AbstractUpdate
 
         if hmc_logging && logdir != ""
             hmc_log_file = logdir * "/hmc_acc_logs.txt"
+            hmc_force_file = logdir * "/hmc_force_logs.txt"
             @level1("|  Acceptance data tracked in $(hmc_log_file)")
+            @level1("|  Force data tracked in $(hmc_force_file)")
             fp = open(hmc_log_file, "w")
             str = @sprintf(
                 "%-22s\t%-22s\t%-22s\t%-22s\t%-22s", "ΔP²", "ΔSg", "ΔSf", "ΔV", "ΔH"
             )
             println(fp, str)
+            if !isnothing(ϕ)
+                force_fp = open(hmc_force_file, "w")
+                str = @sprintf("%-22s\t", "|F_Sg|")
+                for i in eachindex(ϕ)
+                    str *= @sprintf("%-22s\t", "|F_Sg$i|")
+                end
+                if bias_enabled
+                    str *= @sprintf("%-22s\t", "|F_V|")
+                end
+                println(force_fp, str)
+            end
         else
-            fp = nothing
+            fp = force_fp = nothing
         end
 
         @level1("└\n")
-        return new{integrator,TG,TT,TF,TSG,TSF,PO,F2,FS,typeof(fp)}(
+        return new{typeof(integrator),TG,TT,TF,TSG,TSF,PO,F2,FS,typeof(fp)}(
+            integrator,
             steps,
             Δτ,
             friction,
@@ -171,6 +183,7 @@ struct HMC{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TIO} <: AbstractUpdate
             smearing_gauge,
             smearing_fermion,
             fp,
+            force_fp,
         )
     end
 end
@@ -183,7 +196,7 @@ function update!(
     fermion_action::TF=nothing,
     bias::TB=NoBias(),
     metro_test::Bool=true,
-    friction::Float64=hmc.friction,
+    therm::Bool=false,
 ) where {TI,TF,TB}
     if TF !== Nothing
         @assert TF <: Tuple "fermion_action must be nothing or a tuple of fermion actions"
@@ -196,6 +209,7 @@ function update!(
     ϕ = hmc.ϕ
     smearing_gauge = hmc.smearing_gauge
     smearing_fermion = hmc.smearing_fermion
+    friction = therm ? 0.0 : hmc.friction
 
     copy!(U_old, U)
     gaussian_TA!(P, friction)
@@ -208,7 +222,8 @@ function update!(
     V_old = bias(CV_old)
     Sf_old = calc_fermion_action(fermion_action, U, ϕ, smearing_fermion, true)
 
-    evolve!(TI(), U, hmc, fermion_action, bias)
+    integrator = therm ? OMF4() : hmc.integrator
+    evolve!(integrator, U, hmc, fermion_action, bias)
 
     trP²_new = -calc_kinetic_energy(P)
     Sg_new = calc_gauge_action(U, smearing_gauge)
@@ -267,22 +282,25 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias)
     smearing_fermion = hmc.smearing_fermion
     fieldstrength = hmc.fieldstrength
 
-    if bias isa Bias
-        calc_dVdU_bare!(force, fieldstrength, U, temp_force, bias)
-        add!(P, force, ϵ)
-    end
+    calc_dSdU_bare!(force, staples, U, temp_force, smearing_gauge)
+    # TODO: fnorm = norm(force); print(hmc.force_fp, "\t$fnorm")
+    add!(P, force, ϵ)
 
     if fermion_action ≢ nothing
         for i in eachindex(fermion_action)
             calc_dSfdU_bare!(
                 force, fermion_action[i], U, ϕ[i], temp_force, smearing_fermion
             )
+            # TODO: fnorm = norm(force); print(hmc.force_fp, "\t$fnorm")
             add!(P, force, ϵ)
         end
     end
 
-    calc_dSdU_bare!(force, staples, U, temp_force, smearing_gauge)
-    add!(P, force, ϵ)
+    if bias isa Bias
+        calc_dVdU_bare!(force, fieldstrength, U, temp_force, bias)
+        # TODO: fnorm = norm(force); print(hmc.force_fp, "\t$fnorm")
+        add!(P, force, ϵ)
+    end
     return nothing
 end
 

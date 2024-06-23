@@ -8,7 +8,7 @@ function test_io()
     Random.seed!(1234)
     Ns = 4
     Nt = 4
-    U = Gaugefield(Ns, Ns, Ns, Nt, 5.7; GA=WilsonGaugeAction)
+    U = Gaugefield{CPU,Float64,WilsonGaugeAction}(Ns, Ns, Ns, Nt, 5.7)
     random_gauges!(U)
     tmpfile_bridge = tempname(pwd(); cleanup=true)
     tmpfile_jld = tempname(pwd(); cleanup=true)

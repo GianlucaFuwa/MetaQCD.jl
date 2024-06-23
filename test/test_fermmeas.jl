@@ -1,10 +1,10 @@
 using MetaQCD
 
-function SU3testfmeas(backend=nothing)
+function SU3testfmeas(backend=CPU)
     println("SU3testmeas")
     Ns = 4
     Nt = 4
-    U = Gaugefield(Ns, Ns, Ns, Nt, 5.7; GA=WilsonGaugeAction)
+    U = Gaugefield{backend,Float64,WilsonGaugeAction}(NX, NY, NZ, NT, 6.0)
     filename = "./test/testconf.txt"
     # random_gauges!(U)
     loadU!(BridgeFormat(), U, filename)

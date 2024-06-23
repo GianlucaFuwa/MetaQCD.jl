@@ -1,10 +1,17 @@
-function SU3testupdate(backend=nothing; update_method="heatbath", or_algorithm="subgroups",
-    hmc_integrator="OMF4", hmc_numsmear=0, gaction=WilsonGaugeAction)
+function SU3testupdate(
+    backend=CPU;
+    update_method="heatbath",
+    or_algorithm="subgroups",
+    hmc_integrator="OMF4",
+    hmc_numsmear=0,
+    gaction=WilsonGaugeAction,
+)
     Random.seed!(123)
 
     println("SU3testupdate")
-    NX = 12; NY = 12; NZ = 12; NT = 12
-    U = initial_gauges("hot", NX, NY, NZ, NT, 6.0, GA=gaction);
+    NX = NY = NZ = NT = 4
+    U = Gaugefield{backend,Float64,gaction}(NX, NY, NZ, NT, 6.0)
+    random_gauges!(U)
     if backend !== nothing
         U = MetaQCD.to_backend(backend, U)
     end
