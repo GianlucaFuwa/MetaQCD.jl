@@ -46,7 +46,7 @@ force recursion when using a bias.
 - `StaggeredFermionAction`
 - `StaggeredEOPreFermionAction`
 """
-struct HMC{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TIO} <: AbstractUpdate
+struct HMC{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TFP1,TFP2} <: AbstractUpdate
     integrator::TI
     steps::Int64
     Δτ::Float64
@@ -63,7 +63,8 @@ struct HMC{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TIO} <: AbstractUpdate
     smearing_gauge::TSG
     smearing_fermion::TSF
 
-    fp::TIO
+    fp::TFP1
+    force_fp::TFP2
     function HMC(
         U,
         integrator::AbstractIntegrator,
@@ -167,7 +168,7 @@ struct HMC{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TIO} <: AbstractUpdate
         end
 
         @level1("└\n")
-        return new{typeof(integrator),TG,TT,TF,TSG,TSF,PO,F2,FS,typeof(fp)}(
+        return new{typeof(integrator),TG,TT,TF,TSG,TSF,PO,F2,FS,typeof(fp),typeof(force_fp)}(
             integrator,
             steps,
             Δτ,

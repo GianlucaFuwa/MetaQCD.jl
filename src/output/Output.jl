@@ -70,22 +70,21 @@ struct Checkpointer{T}
     end
 end
 
-function create_checkpoint(::Checkpointer{T}, univ, updatemethods, itrj) where {T}
+function create_checkpoint(cp::Checkpointer{T}, univ, updatemethods, itrj) where {T}
     T ≡ Nothing && return nothing
 
     if itrj % cp.checkpoint_every == 0
-        filename = cp.checkpoint_dir * "/checkpoint_$(itrj)_$(MYRANK)$(cp.ext)"
-        create_checkpoint(T(), univ, updatemethods, filename)
+        filename = cp.checkpoint_dir * "/checkpoint_$(MYRANK)$(cp.ext)"
+        create_checkpoint(T(), univ, updatemethods, itrj, filename)
         @level1("|  Checkpoint created in $(filename)")
     end
 
     return nothing
 end
 
-function load_checkpoint(parameters)
-    filename = parameters.load_checkpoint_path 
-    @level1("[ Checkpointed loaded from $(filename)")
-    return load_checkpoint(JLD2Format(), filename)
+function load_checkpoint(checkpoint_path)
+    @level1("[ Checkpointed loaded from $(checkpoint_path)")
+    return load_checkpoint(JLD2Format(), checkpoint_path)
 end
 
 struct SaveConfigs{T}
@@ -109,8 +108,6 @@ struct SaveConfigs{T}
             @level1("|  DIRECTORY: $(save_config_dir)")
             @level1("|  INTERVAL: $(save_config_every)")
             @level1("└\n")
-        else
-            @level1("[ Configs will not be saved!\n")
         end
 
         return new{T}(save_config_dir, save_config_every, ext)
@@ -146,8 +143,7 @@ function load_gaugefield!(U, parameters)
 end
 
 function get_rng_state()
-    rng = copy(Random.default_rng())
-    state = [getfield(rng, i) for i in 1:4]
+    state = copy(Random.default_rng())
     return state
 end
 

@@ -135,11 +135,13 @@ function run_sim!(univ, parameters, updatemethod=nothing, updatemethod_pt=nothin
 
     # initialize functor responsible for saving gaugefield configurations
     save_configs = SaveConfigs(
-        parameters.saveU_format, parameters.saveU_dir, parameters.saveU_every
+        parameters.save_config_format,
+        parameters.save_config_dir,
+        parameters.save_config_every,
     )
 
     checkpointer = Checkpointer(
-        parameters.checkpoint_enabled, parameters.checkpoint_dir, parameters.checkpoint_every
+        parameters.ensembledir, parameters.checkpoint_every
     )
 
     if parameters.tempering_enabled
