@@ -43,7 +43,7 @@ hmc_steps = 5
 hmc_integrator = "OMF4"
 
 ["System Settings"]               
-ensemble_dir = "test_ptmetad"
+ensemble_dir = "/data/MetaQCD/test_ptmetad"
 randomseed = 0
 verboselevel = 2
 overwrite = true

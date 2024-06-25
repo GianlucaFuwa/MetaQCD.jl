@@ -31,7 +31,7 @@ hmc_steps = 5
 hmc_integrator = "OMF4"
 
 ["System Settings"]               
-ensemble_dir = "test_build"
+ensemble_dir = "/data/MetaQCD/test_build"
 randomseed = 0
 verboselevel = 2
 overwrite = true

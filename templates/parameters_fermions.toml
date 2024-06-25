@@ -2,14 +2,14 @@
 L = [4, 4, 4, 4]
 beta = 4.3
 gauge_action = "symanzik_tree"
-numtherm = 20
-numsteps = 100
+numtherm = 10
+numsteps = 10
 initial = "cold"
 update_method = "hmc"
 parity_update = false
 
 ["Dynamical Fermion Settings"]
-fermion_action = "none"
+fermion_action = "staggered"
 eo_precon = false
 Nf = [2]
 mass = [0.01]
@@ -30,39 +30,41 @@ hmc_numsmear_fermion = 4
 hmc_rhostout_fermion = 0.12
 
 ["System Settings"]
-backend = "cpu"
 float_type = "double"
-ensemble_dir = "test_fermions"
+ensemble_dir = "/data/MetaQCD/test_fermions"
 randomseed = 0
 verboselevel = 1
 overwrite = true
+save_checkpoint_every = 100
+# load_checkpoint_fromfile = true
+# load_checkpoint_path = "/data/MetaQCD/test_fermions/checkpoint_0"
 
 ["Measurement Settings".measurements]
-# ["Measurement Settings".measurements.Plaquette]
-# measure_every = 10
+["Measurement Settings".measurements.Plaquette]
+measure_every = 10
 #
 # ["Measurement Settings".measurements.Topological_charge]
 # measure_every = 10
 # kinds_of_topological_charge = ["clover"]
-["Measurement Settings".measurements.Eigenvalues]
-measure_every = 10
-dirac_type = "staggered"
-mass = 0.01
-nev = 1
-which = "LSM"
-ddaggerd = true
-maxdim = 20
+# ["Measurement Settings".measurements.Eigenvalues]
+# measure_every = 10
+# dirac_type = "staggered"
+# mass = 0.01
+# nev = 1
+# which = "LSM"
+# ddaggerd = true
+# maxdim = 20
     
 ["Gradient Flow Settings"]
 flow_integrator = "euler"
-flow_num = 30
+flow_num = 7
 flow_steps = 1
 flow_tf = 0.12 # total flow time is flow_num * flow_tf
-flow_measure_every = 5
+flow_measure_every = 7
 
     ["Gradient Flow Settings".measurements_with_flow]
-    # ["Gradient Flow Settings".measurements_with_flow.Plaquette]
-    # measure_every = 10
+    ["Gradient Flow Settings".measurements_with_flow.Plaquette]
+    measure_every = 10
     #
     # ["Gradient Flow Settings".measurements_with_flow.Pion_correlator]
     # measure_every = 10
@@ -75,12 +77,12 @@ flow_measure_every = 5
     # ["Gradient Flow Settings".measurements_with_flow.Topological_charge]
     # measure_every = 10
     # kinds_of_topological_charge = ["clover"]
-    ["Gradient Flow Settings".measurements_with_flow.Eigenvalues]
-    measure_every = 10
-    dirac_type = "staggered"
-    mass = 0.01
-    nev = 20
-    which = "SI"
-    ddaggerd = false
-    mindim = 20
-    maxdim = 40
+    # ["Gradient Flow Settings".measurements_with_flow.Eigenvalues]
+    # measure_every = 10
+    # dirac_type = "staggered"
+    # mass = 0.01
+    # nev = 20
+    # which = "SI"
+    # ddaggerd = false
+    # mindim = 20
+    # maxdim = 40

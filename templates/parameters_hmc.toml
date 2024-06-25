@@ -1,7 +1,7 @@
 ["Physical Settings"]
 L = [12, 12, 12, 12]
 beta = 6.0
-kind_of_gaction = "iwasaki"
+gauge_action = "iwasaki"
 numtherm = 10
 numsteps = 5
 initial = "cold"
@@ -16,7 +16,7 @@ hmc_integrator = "OMF4"
 ["System Settings"]
 backend = "cpu"
 float_type = "double"         
-ensemble_dir = "L12x12x12x12_wilson_beta6.0/test_hmc"
+ensemble_dir = "/data/MetaQCD/test_hmc"
 randomseed = 0
 verboselevel = 2
 overwrite = true
