@@ -2,7 +2,7 @@ name: Documentation
 
 on:
   push:
-    branches: [gpu] # update to match your development branch (master, main, dev, trunk, ...)
+    branches: [dirac] # update to match your development branch (master, main, dev, trunk, ...)
     tags: ["*"]
   pull_request:
 
