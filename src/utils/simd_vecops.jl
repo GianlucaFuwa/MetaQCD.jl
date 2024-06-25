@@ -1016,7 +1016,7 @@ end
 """
     cmvmul_pauli(A₊, A₋, x)
 
-Return the matrix-vector product of of the block diagonal matrix made up of and `A₊` and
+Return the matrix-vector product of the block diagonal matrix containing `A₊` and
 `A₋` and the vector `x`        
 """
 @inline function cmvmul_pauli(

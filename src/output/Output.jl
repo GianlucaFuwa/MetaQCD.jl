@@ -11,11 +11,12 @@ using StaticArrays
 using ..Utils: restore_last_row
 
 export __GlobalLogger, MetaLogger, current_time, @level1, @level2, @level3
-export BMWFormat, BridgeFormat, Checkpointer, JLD2Format, SaveConfigs, set_global_logger!
+export BMWFormat, BridgeFormat, Checkpointer, ConfigSaver, JLD2Format, set_global_logger!
 export create_checkpoint, load_checkpoint, load_gaugefield!, loadU!, save_gaugefield, saveU
 
 MPI.Initialized() || MPI.Init()
 const COMM = MPI.COMM_WORLD
+const COMM_SIZE = MPI.Comm_size(COMM)
 const MYRANK = MPI.Comm_rank(COMM)
 
 include("verbose.jl")
@@ -50,12 +51,10 @@ current_time() = Dates.now(UTC)
 struct Checkpointer{T}
     checkpoint_dir::String
     checkpoint_every::Int64
-    ext::String
 
     function Checkpointer(checkpoint_dir, checkpoint_every)
         if checkpoint_every > 0
             T = JLD2Format
-            ext = ".jld2"
             @level1("┌ Checkpoints will be created!")
             @level1("|  FORMAT: JLD2")
             @level1("|  DIRECTORY: $(checkpoint_dir)")
@@ -63,35 +62,43 @@ struct Checkpointer{T}
             @level1("└\n")
         else
             T = Nothing
-            ext = ""
         end
 
-        return new{T}(checkpoint_dir, checkpoint_every, ext)
+        return new{T}(checkpoint_dir, checkpoint_every)
     end
 end
 
-function create_checkpoint(cp::Checkpointer{T}, univ, updatemethods, itrj) where {T}
+function create_checkpoint(
+    cp::Checkpointer{T}, univ, updatemethod, updatemethod_pt, itrj
+) where {T}
     T ≡ Nothing && return nothing
 
     if itrj % cp.checkpoint_every == 0
-        filename = cp.checkpoint_dir * "/checkpoint_$(MYRANK)$(cp.ext)"
-        create_checkpoint(T(), univ, updatemethods, itrj, filename)
+        filename = cp.checkpoint_dir * "/checkpoint_$(MYRANK).jld2"
+        create_checkpoint(T(), univ, updatemethod, updatemethod_pt, itrj, filename)
+        @level1("|")
         @level1("|  Checkpoint created in $(filename)")
+        @level1("|")
     end
 
     return nothing
 end
 
 function load_checkpoint(checkpoint_path)
-    @level1("[ Checkpointed loaded from $(checkpoint_path)")
-    return load_checkpoint(JLD2Format(), checkpoint_path)
+    @level1("[ Checkpoint loaded from $(checkpoint_path)\n")
+    if COMM_SIZE > 1
+        checkpoint_file = checkpoint_path * "_$(MYRANK).jld2"
+    else
+        checkpoint_file = checkpoint_path * ".jld2"
+    end
+    return load_checkpoint(JLD2Format(), checkpoint_file)
 end
 
-struct SaveConfigs{T}
+struct ConfigSaver{T}
     save_config_dir::String
     save_config_every::Int64
     ext::String
-    function SaveConfigs(save_config_format, save_config_dir, save_config_every)
+    function ConfigSaver(save_config_format, save_config_dir, save_config_every)
         T, ext = try
             FORMATS[save_config_format], EXT[save_config_format]
         catch _
@@ -114,7 +121,7 @@ struct SaveConfigs{T}
     end
 end
 
-function save_gaugefield(saver::SaveConfigs{T}, U, itrj) where {T}
+function save_gaugefield(saver::ConfigSaver{T}, U, itrj) where {T}
     T ≡ Nothing && return nothing
 
     if itrj % saver.save_config_every == 0

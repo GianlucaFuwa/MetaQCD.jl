@@ -109,10 +109,11 @@ struct ParameterSet
     load_checkpoint_path::String
 
     randomseed::Union{UInt64,Vector{UInt64}}
-    ensembledir::String
-    logdir::String
+    ensemble_dir::String
+    log_dir::String
+    measure_dir::String
+    save_config_dir::String
+    bias_dir::String
     log_to_console::Bool
-    measuredir::String
-    biasdir::String
     overwrite::Bool
 end

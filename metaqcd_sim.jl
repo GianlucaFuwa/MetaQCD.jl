@@ -10,7 +10,7 @@ using MetaQCD.Parameters: lower_case
 if length(ARGS) == 0
     error("""
     A parameter file has to be given as the first input:
-    julia run.jl parameters.toml
+    julia metaqcd_sim.jl parameters.toml
     """)
 end
 

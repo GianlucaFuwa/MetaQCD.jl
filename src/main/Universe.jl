@@ -13,8 +13,6 @@ import ..Fields: SymanzikTreeGaugeAction
 import ..BiasModule: Bias, NoBias
 import ..Parameters: ParameterSet
 
-const PACKAGE_VERSION = "1.0.0"
-
 """
     Univ(parameters::ParameterSet; use_mpi=false)
 
@@ -28,24 +26,46 @@ struct Univ{TG,TF,TB}
     fermion_actions::TF
     bias::TB
     numinstances::Int64
+    function Univ(
+        U::Gaugefield{BACKEND,T,A,GA}, fermion_actions::TF, bias::TB, numinstances
+    ) where {BACKEND,T,A,GA,TF<:Tuple,TB}
+        @level1("┌ Setting Universe...")
+        @level1("|  NUM INSTANCES: $(numinstances)")
+        @level1("|  BACKEND: $(BACKEND)")
+        @level1("|  FP PREC: $(T)")
+        @level1("|  L: $(U.NX)x$(U.NY)x$(U.NZ)x$(U.NT)")
+        @level1("|  GAUGE ACTION: $(GA)")
+        @level1("|  BETA: $(U.β)")
+        if TF === Tuple{}
+            @level1("|  FERMION ACTIONS:\n└\n")
+        else
+            @level1("|  FERMION ACTIONS: $(fermion_actions...)└\n")
+        end
+        TG = typeof(U)
+        return new{TG,TF,TB}(U, fermion_actions, bias, numinstances)
+    end
+
+    function Univ(
+        U::Vector{Gaugefield{BACKEND,T,A,GA}}, fermion_actions::TF, bias::TB, numinstances
+    ) where {BACKEND,T,A,GA,TF<:Tuple,TB}
+        @level1("┌ Setting Universe...")
+        @level1("|  NUM INSTANCES: $(numinstances)")
+        @level1("|  BACKEND: $(BACKEND)")
+        @level1("|  FP PREC: $(T)")
+        @level1("|  L: $(U[1].NX)x$(U[1].NY)x$(U[1].NZ)x$(U[1].NT)")
+        @level1("|  GAUGE ACTION: $(GA)")
+        @level1("|  BETA: $(U[1].β)")
+        if TF === Tuple{}
+            @level1("|  FERMION ACTIONS:\n└\n")
+        else
+            @level1("|  FERMION ACTIONS: $(fermion_actions...)└\n")
+        end
+        TG = typeof(U)
+        return new{TG,TF,TB}(U, fermion_actions, bias, numinstances)
+    end
 end
 
 function Univ(parameters::ParameterSet; use_mpi=false)
-    @level1("[ Running MetaQCD.jl version $(PACKAGE_VERSION)\n")
-    @level1("┌ Setting Universe...")
-    @level1("|  MPI $(ifelse(use_mpi, "ENABLED", "DISABLED"))")
-    @level1("|  NUM INSTANCES: $(parameters.numinstances)")
-    NX, NY, NZ, NT = parameters.L
-    β = parameters.beta
-    backend = parameters.backend
-    fp_prec = parameters.float_type
-    gauge_action = parameters.gauge_action
-    @level1("|  BACKEND: $(backend)")
-    @level1("|  FP PREC: $(fp_prec)")
-    @level1("|  L: $(NX)x$(NY)x$(NZ)x$(NT)")
-    @level1("|  GAUGE ACTION: $(gauge_action)")
-    @level1("|  BETA: $β")
-
     if parameters.kind_of_bias != "none"
         if parameters.tempering_enabled && use_mpi == false
             numinstances = parameters.numinstances
@@ -79,10 +99,7 @@ function Univ(parameters::ParameterSet; use_mpi=false)
         bias = NoBias()
     end
 
-    @level1("└\n")
-    return Univ{typeof(U),typeof(fermion_actions),typeof(bias)}(
-        U, fermion_actions, bias, numinstances
-    )
+    return Univ(U, fermion_actions, bias, numinstances)
 end
 
 function init_fermion_actions(parameters::ParameterSet, U)
@@ -93,7 +110,7 @@ function init_fermion_actions(parameters::ParameterSet, U)
     @assert length(Nf) == length(mass) "Need same amount of masses as non-degenerate flavours"
 
     if fermion_action == "none"
-        fermion_actions = nothing
+        fermion_actions = Tuple{}
     elseif fermion_action == "wilson"
         if eo_precon
             error("even-odd preconditioned wilson fermions not supported yet")

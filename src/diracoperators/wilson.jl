@@ -82,16 +82,6 @@ struct WilsonFermionAction{Nf,C,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction
         cg_maxiters_action=1000,
         cg_maxiters_md=1000,
     )
-        @level1("|")
-        @level1("|  Fermion Action: Wilson")
-        @level1("|  MASS: $(mass)")
-        @level1("|  Nf: $(Nf)")
-        @level1("|  r: $(r)")
-        @level1("|  CSW: $(csw)")
-        @level1("|  CG TOLERANCE (Action): $(cg_tol_action)")
-        @level1("|  CG TOLERANCE (MD): $(cg_tol_md)")
-        @level1("|  CG MAX ITERS (Action): $(cg_maxiters_action)")
-        @level1("|  CG MAX ITERS (MD): $(cg_maxiters_md)")
         D = WilsonDiracOperator(f, mass; anti_periodic=anti_periodic, r=r, csw=csw)
         TD = typeof(D)
 
@@ -105,11 +95,6 @@ struct WilsonFermionAction{Nf,C,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction
             @assert Nf == 1 "Nf should be 1 or 2 (was $Nf). If you want Nf > 2, use multiple actions"
             rhmc_lambda_low = rhmc_spectral_bound[1]
             rhmc_lambda_high = rhmc_spectral_bound[2]
-            @level1("|  RHMC START SPECTRAL RANGE: [$(rhmc_lambda_low), $(rhmc_lambda_high)]")
-            @level1("|  RHMC ORDER (Action): $(rhmc_order_action)")
-            @level1("|  RHMC ORDER (MD): $(rhmc_order_md)")
-            @level1("|  RHMC PREC (Action): $(rhmc_prec_action)")
-            @level1("|  RHMC PREC (MD): $(rhmc_prec_md)")
             cg_temps = ntuple(_ -> Fermionfield(f), 2)
             power = Nf//4
             rhmc_info_action = RHMCParams(
@@ -122,8 +107,8 @@ struct WilsonFermionAction{Nf,C,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction
             power = Nf//2
             rhmc_info_md = RHMCParams(
                 power;
-                n=rhmc_order_action,
-                precision=rhmc_prec_action,
+                n=rhmc_order_md,
+                precision=rhmc_prec_md,
                 lambda_low=rhmc_lambda_low,
                 lambda_high=rhmc_lambda_high,
             )
@@ -133,11 +118,9 @@ struct WilsonFermionAction{Nf,C,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction
         end
 
         if csw != 0
-            @level1("|  CSW: $(csw) -> C = true")
             C = true
             Xμν = Tensorfield(f)
         else
-            @level1("|  CSW: $(csw) -> C = false")
             C = false
             Xμν = nothing
         end
@@ -147,7 +130,6 @@ struct WilsonFermionAction{Nf,C,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction
         RI2 = typeof(rhmc_info_md)
         RT = typeof(rhmc_temps1)
         TX = typeof(Xμν)
-        @level1("|")
         return new{Nf,C,TD,CT,RI1,RI2,RT,TX}(
             D,
             cg_temps,
@@ -167,9 +149,19 @@ end
 function Base.show(io::IO, ::MIME"text/plain", S::WilsonFermionAction{Nf}) where {Nf}
     print(
         io,
-        "WilsonFermionAction{Nf=$Nf}(; mass=$(S.D.mass), r=$(S.D.r), csw=$(S.D.csw), " *
-        "cg_tol_action=$(S.cg_tol_action), cg_tol_md=$(S.cg_tol_md), " *
-        "cg_maxiters_action=$(S.cg_maxiters_action), cg_maxiters_md=$(S.cg_maxiters_md))",
+        """
+        
+        |  WilsonFermionAction(
+        |    Nf = $Nf
+        |    MASS = $(S.D.mass)
+        |    CSW = $(S.D.csw)
+        |    CG TOLERANCE (ACTION) = $(S.cg_tol_action)
+        |    CG TOLERANCE (MD) = $(S.cg_tol_md)
+        |    CG MAX ITERS (ACTION) = $(S.cg_maxiters_action)
+        |    CG MAX ITERS (ACTION) = $(S.cg_maxiters_md)
+        |    RHMC INFO (Action): $(S.rhmc_info_action)
+        |    RHMC INFO (MD): $(S.rhmc_info_md))
+        """
     )
     return nothing
 end
@@ -177,9 +169,19 @@ end
 function Base.show(io::IO, S::WilsonFermionAction{Nf}) where {Nf}
     print(
         io,
-        "WilsonFermionAction{Nf=$Nf}(; mass=$(S.D.mass), r=$(S.D.r), csw=$(S.D.csw), " *
-        "cg_tol_action=$(S.cg_tol_action), cg_tol_md=$(S.cg_tol_md), " *
-        "cg_maxiters_action=$(S.cg_maxiters_action), cg_maxiters_md=$(S.cg_maxiters_md))",
+        """
+        
+        |  WilsonFermionAction(
+        |    Nf = $Nf
+        |    MASS = $(S.D.mass)
+        |    CSW = $(S.D.csw)
+        |    CG TOLERANCE (ACTION) = $(S.cg_tol_action)
+        |    CG TOLERANCE (MD) = $(S.cg_tol_md)
+        |    CG MAX ITERS (ACTION) = $(S.cg_maxiters_action)
+        |    CG MAX ITERS (ACTION) = $(S.cg_maxiters_md)
+        |    RHMC INFO (Action): $(S.rhmc_info_action)
+        |    RHMC INFO (MD): $(S.rhmc_info_md))
+        """
     )
     return nothing
 end

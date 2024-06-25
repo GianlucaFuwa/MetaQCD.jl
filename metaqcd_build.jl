@@ -11,7 +11,7 @@ const MYRANK = MPI.Comm_rank(COMM)
 if length(ARGS) == 0 && MYRANK == 0
     error("""
     A parameter file has to be given as the first input:
-    julia run.jl parameters.toml
+    julia metaqcd_build.jl parameters.toml
     """)
 end
 

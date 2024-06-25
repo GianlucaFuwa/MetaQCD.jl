@@ -49,7 +49,7 @@ function Updatemethod(parameters::ParameterSet, U)
     updatemethod = Updatemethod(
         U,
         parameters.update_method,
-        parameters.logdir,
+        parameters.log_dir,
         parameters.fermion_action,
         parameters.eo_precon,
         parameters.Nf,

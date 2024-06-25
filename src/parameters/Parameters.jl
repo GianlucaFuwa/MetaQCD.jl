@@ -85,7 +85,7 @@ function construct_params_from_toml(parameters, inputfile; am_rank0=true, backen
         true
     end
 
-    ensembledir = try
+    ensemble_dir = try
         parameters["System Settings"]["ensemble_dir"]
     catch
         "/data/MetaQCD/$(generated_dirname)"
@@ -93,43 +93,43 @@ function construct_params_from_toml(parameters, inputfile; am_rank0=true, backen
 
     if !overwrite
         i = 1
-        tmp = ensembledir
+        tmp = ensemble_dir
         while isdir(tmp) && !overwrite
-            tmp = ensembledir * "_$(i)"
+            tmp = ensemble_dir * "_$(i)"
             i += 1
             i > 100 && error("ensemble directory name gen timed out, try \"overwrite = true\"")
         end
-        ensembledir = tmp
-        am_rank0 && mkpath(ensembledir)
+        ensemble_dir = tmp
+        am_rank0 && mkpath(ensemble_dir)
     else
-        if !isdir(ensembledir) && am_rank0
-            mkpath(ensembledir)
+        if !isdir(ensemble_dir) && am_rank0
+            mkpath(ensemble_dir)
         end
     end
 
-    am_rank0 && cp(inputfile, ensembledir * "/used_parameterfile.toml"; force=true)
-    pose = findfirst(x -> String(x) == "ensembledir", pnames)
-    value_Params[pose] = ensembledir
+    am_rank0 && cp(inputfile, ensemble_dir * "/used_parameterfile.toml"; force=true)
+    pose = findfirst(x -> String(x) == "ensemble_dir", pnames)
+    value_Params[pose] = ensemble_dir
 
-    logdir = ensembledir * "/logs/"
-    measuredir = ensembledir * "/measurements/"
-    saveU_dir = ensembledir * "/configs/"
-    if !isdir(logdir) && am_rank0
-        mkpath(logdir)
+    log_dir = ensemble_dir * "/logs/"
+    measure_dir = ensemble_dir * "/measurements/"
+    save_config_dir = ensemble_dir * "/configs/"
+    if !isdir(log_dir) && am_rank0
+        mkpath(log_dir)
     end
-    if !isdir(measuredir) && am_rank0
-        mkpath(measuredir)
+    if !isdir(measure_dir) && am_rank0
+        mkpath(measure_dir)
     end
-    if !isdir(saveU_dir) && am_rank0
-        mkpath(saveU_dir)
+    if !isdir(save_config_dir) && am_rank0
+        mkpath(save_config_dir)
     end
     
-    posl = findfirst(x -> String(x) == "logdir", pnames)
-    posm = findfirst(x -> String(x) == "measuredir", pnames)
-    poss = findfirst(x -> String(x) == "saveU_dir", pnames)
-    value_Params[posl] = logdir
-    value_Params[posm] = measuredir
-    value_Params[poss] = saveU_dir
+    posl = findfirst(x -> String(x) == "log_dir", pnames)
+    posm = findfirst(x -> String(x) == "measure_dir", pnames)
+    poss = findfirst(x -> String(x) == "save_config_dir", pnames)
+    value_Params[posl] = log_dir
+    value_Params[posm] = measure_dir
+    value_Params[poss] = save_config_dir
 
     kind_of_bias = try
         parameters["Bias Settings"]["kind_of_bias"]
@@ -137,19 +137,18 @@ function construct_params_from_toml(parameters, inputfile; am_rank0=true, backen
         "none"
     end
 
-    pos = findfirst(x -> String(x) == "biasdir", pnames)
+    pos = findfirst(x -> String(x) == "bias_dir", pnames)
 
     if kind_of_bias != "none" || kind_of_bias != "parametric"
-        biasdir = ensembledir * "/metapotentials/"
+        bias_dir = ensemble_dir * "/metapotentials/"
 
-        if !isdir(biasdir)
-            am_rank0 && mkpath(biasdir)
+        if !isdir(bias_dir)
+            am_rank0 && mkpath(bias_dir)
         end
 
-        value_Params[pos] = biasdir
+        value_Params[pos] = bias_dir
     else
-        biasdir = ""
-        value_Params[pos] = biasdir
+        value_Params[pos] = ""
     end
 
     for (i, pname_i) in enumerate(pnames)
@@ -307,27 +306,21 @@ function parameter_check(p::ParameterSet, am_rank0)
              """))
     end
 
-    if lower_case(p.saveU_format) ∉ ["", "bmw", "bridge", "jld", "jld2"]
+    if lower_case(p.save_config_format) ∉ ["", "bmw", "bridge", "jld", "jld2"]
         throw(AssertionError("""
-            saveU_format in [\"System Settings\"] = $(p.saveU_format) is not supported.
+            save_config_format in [\"System Settings\"] = $(p.save_config_format) is not supported.
             Supported methods are:
                 Bridge
                 JLD or JLD2 (both use JLD2)
                 BMW
             """))
-    elseif p.saveU_format != ""
-        if p.saveU_dir == ""
-            !isdir(pwd() * "/configs_$(now())") && mkdir("/configs_$(now())")
-        else
-            !isdir(p.saveU_dir) && mkdir(p.saveU_dir)
-        end
     end
 
-    if p.loadU_fromfile
-        @assert isfile(p.loadU_dir * "/" * p.loadU_filename) "Your loadU_file doesn't exist"
-        if lower_case(p.loadU_format) ∉ ["bmw", "bridge", "jld", "jld2"]
+    if p.load_config_fromfile
+        @assert isfile(p.load_config_path) "Your load_config_path doesn't exist"
+        if lower_case(p.load_config_format) ∉ ["bmw", "bridge", "jld", "jld2"]
             throw(AssertionError("""
-            loadU_format in [\"System Settings\"] = $(p.loadU_format) is not supported.
+            loadU_format in [\"System Settings\"] = $(p.load_config_format) is not supported.
             Supported methods are:
                 Bridge
                 JLD or JLD2 (both use JLD2)

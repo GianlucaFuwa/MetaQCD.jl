@@ -140,16 +140,6 @@ struct WilsonEOPreFermionAction{Nf,C,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionActi
         cg_maxiters_action=1000,
         cg_maxiters_md=1000,
     ) where {B,T}
-        @level1("|")
-        @level1("|  Fermion Action: Wilson (Even-Odd Preconditioned)")
-        @level1("|  MASS: $(mass)")
-        @level1("|  Nf: $(Nf)")
-        @level1("|  r: $(r)")
-        @level1("|  CSW: $(csw)")
-        @level1("|  CG TOLERANCE (Action): $(cg_tol_action)")
-        @level1("|  CG TOLERANCE (MD): $(cg_tol_md)")
-        @level1("|  CG MAX ITERS (Action): $(cg_maxiters_action)")
-        @level1("|  CG MAX ITERS (MD): $(cg_maxiters_md)")
         D = WilsonEOPreDiracOperator(f, mass; anti_periodic=anti_periodic, r=r, csw=csw)
         TD = typeof(D)
 
@@ -162,13 +152,13 @@ struct WilsonEOPreFermionAction{Nf,C,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionActi
         else
             @assert Nf == 1 "Nf should be 1 or 2 (was $Nf). If you want Nf > 2, use multiple actions"
             cg_temps = ntuple(_ -> even_odd(Fermionfield(f)), 2)
-            power = Nf//2
-            rhmc_info_md = RHMCParams(
-                power; n=rhmc_order_for_md, precision=rhmc_prec_for_md
-            )
             power = Nf//4
             rhmc_info_action = RHMCParams(
                 power; n=rhmc_order_for_action, precision=rhmc_prec_for_action
+            )
+            power = Nf//2
+            rhmc_info_md = RHMCParams(
+                power; n=rhmc_order_for_md, precision=rhmc_prec_for_md
             )
             n_temps = max(rhmc_order_for_md, rhmc_order_for_action)
             rhmc_temps1 = ntuple(_ -> even_odd(Fermionfield(f)), n_temps + 1)
@@ -188,7 +178,6 @@ struct WilsonEOPreFermionAction{Nf,C,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionActi
         RI2 = typeof(rhmc_info_md)
         RT = typeof(rhmc_temps1)
         TX = typeof(Xμν)
-        @level1("|")
         return new{Nf,C,TD,CT,RI1,RI2,RT,TX}(
             D,
             cg_temps,
@@ -208,9 +197,19 @@ end
 function Base.show(io::IO, ::MIME"text/plain", S::WilsonEOPreFermionAction{Nf}) where {Nf}
     print(
         io,
-        "WilsonEOPreFermionAction{Nf=$Nf}(; mass=$(S.D.mass), r=$(S.D.r), csw=$(S.D.csw), " *
-        "cg_tol_action=$(S.cg_tol_action), cg_tol_md=$(S.cg_tol_md), " *
-        "cg_maxiters_action=$(S.cg_maxiters_action), cg_maxiters_md=$(S.cg_maxiters_md))",
+        """
+        
+        |  WilsonEOPreFermionAction(
+        |    Nf = $Nf
+        |    MASS = $(S.D.mass)
+        |    CSW = $(S.D.csw)
+        |    CG TOLERANCE (ACTION) = $(S.cg_tol_action)
+        |    CG TOLERANCE (MD) = $(S.cg_tol_md)
+        |    CG MAX ITERS (ACTION) = $(S.cg_maxiters_action)
+        |    CG MAX ITERS (ACTION) = $(S.cg_maxiters_md)
+        |    RHMC INFO (Action): $(S.rhmc_info_action)
+        |    RHMC INFO (MD): $(S.rhmc_info_md))
+        """
     )
     return nothing
 end
@@ -218,9 +217,19 @@ end
 function Base.show(io::IO, S::WilsonEOPreFermionAction{Nf}) where {Nf}
     print(
         io,
-        "WilsonEOPreFermionAction{Nf=$Nf}(; mass=$(S.D.mass), r=$(S.D.r), csw=$(S.D.csw), " *
-        "cg_tol_action=$(S.cg_tol_action), cg_tol_md=$(S.cg_tol_md), " *
-        "cg_maxiters_action=$(S.cg_maxiters_action), cg_maxiters_md=$(S.cg_maxiters_md))",
+        """
+        
+        |  WilsonEOPreFermionAction(
+        |    Nf = $Nf
+        |    MASS = $(S.D.mass)
+        |    CSW = $(S.D.csw)
+        |    CG TOLERANCE (ACTION) = $(S.cg_tol_action)
+        |    CG TOLERANCE (MD) = $(S.cg_tol_md)
+        |    CG MAX ITERS (ACTION) = $(S.cg_maxiters_action)
+        |    CG MAX ITERS (ACTION) = $(S.cg_maxiters_md)
+        |    RHMC INFO (Action): $(S.rhmc_info_action)
+        |    RHMC INFO (MD): $(S.rhmc_info_md))
+        """
     )
     return nothing
 end

@@ -37,9 +37,10 @@ struct Bias{TCV,TS,TB,TW,T}
     smearing::TS
     is_static::Bool
     bias::TB
-    biasfile::String
-    write_bias_every::Int64
     kinds_of_weights::TW
+    biasfile::String
+    datafile::String
+    write_bias_every::Int64
     fp::T
 end
 
@@ -67,11 +68,12 @@ function Bias(p::ParameterSet, U; use_mpi=false, instance=1)
 
     if !(bias isa Parametric)
         is_opes = bias isa OPES
-        ext = is_opes ? "opes" : "metad"
-        biasfile = MYRANK==0 ? p.biasdir * "/stream_$(inum).$(ext)" : ""
-        # FIXME: For some reason this errors with MPI on the UNI's cluster
-        fp = open(p.measuredir * "/bias_data_$inum.txt", "w")
         kinds_of_weights = is_opes ? ["opes"] : p.kinds_of_weights
+        ext = is_opes ? "opes" : "metad"
+        biasfile = MYRANK==0 ? p.bias_dir * "/stream_$(inum).$(ext)" : ""
+        datafile = p.measure_dir * "/bias_data_$inum.txt"
+        # FIXME: For some reason this errors with MPI on the UNI's cluster
+        fp = open(datafile, "w")
         str = @sprintf("%-9s\t%-22s", "itrj", "cv")
         print(fp, str)
 
@@ -82,16 +84,18 @@ function Bias(p::ParameterSet, U; use_mpi=false, instance=1)
 
         println(fp)
     elseif bias isa Parametric
-        fp = open(p.measuredir * "/bias_data_$inum.txt", "w")
         kinds_of_weights = ["branduardi"]
+        biasfile = ""
+        datafile = p.measure_dir * "/bias_data_$inum.txt"
+        fp = open(datafile, "w")
         str = @sprintf("%-9s\t%-22s\t%-22s\n", "itrj", "cv", "weight_branduardi")
         println(fp, str)
         @level1(
             "|  @info: Parametric bias defaults to static and weight-type \"branduardi\""
         )
-        biasfile = ""
     else
         biasfile = ""
+        datafile = ""
         kinds_of_weights = nothing
         fp = nothing
     end
@@ -108,7 +112,15 @@ function Bias(p::ParameterSet, U; use_mpi=false, instance=1)
     MYRANK == 0 && write_to_file(bias, biasfile)
     @level1("└\n")
     return Bias(
-        TCV(), smearing, is_static, bias, biasfile, write_bias_every, kinds_of_weights, fp
+        TCV(),
+        smearing,
+        is_static,
+        bias,
+        kinds_of_weights,
+        biasfile,
+        datafile,
+        write_bias_every,
+        fp,
     )
 end
 
@@ -197,5 +209,54 @@ function in_bounds(cv, lb, ub)
 end
 
 include("weights.jl")
+
+# In order to write and load the bias easily with JLD2 for checkpointing, we need to define
+# custom serialization, because saving and loading IOStreams doesn't work
+using JLD2
+
+struct BiasSerialization{TCV,TS,TB,TW}
+    kind_of_cv::TCV
+    smearing::TS
+    is_static::Bool
+    bias::TB
+    kinds_of_weights::TW
+    biasfile::String
+    datafile::String
+    write_bias_every::Int64
+end
+
+function JLD2.writeas(::Type{<:Bias{TCV,TS,TB,TW}}) where {TCV,TS,TB,TW}
+    return BiasSerialization{TCV,TS,TB,TW}
+end
+
+function Base.convert(::Type{<:BiasSerialization}, b::Bias)
+    out = BiasSerialization(
+        b.kind_of_cv,
+        b.smearing,
+        b.is_static,
+        b.bias,
+        b.kinds_of_weights,
+        b.biasfile,
+        b.datafile,
+        b.write_bias_every,
+    )
+    return out
+end
+
+function Base.convert(::Type{<:Bias}, b::BiasSerialization)
+    fp = open(b.datafile, "a")
+    out = Bias(
+        b.kind_of_cv,
+        b.smearing,
+        b.is_static,
+        b.bias,
+        b.kinds_of_weights,
+        b.biasfile,
+        b.datafile,
+        b.write_bias_every,
+        fp,
+    )
+    return out
+end
 
 end

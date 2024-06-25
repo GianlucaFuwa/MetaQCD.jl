@@ -18,27 +18,33 @@ function loadU!(::JLD2Format, U, filename::String)
     return nothing
 end
 
-function create_checkpoint(::JLD2Format, univ, updatemethods, itrj::Int, filename::String)
+function create_checkpoint(
+    ::JLD2Format, univ, updatemethod, updatemethod_pt, itrj::Int, filename::String
+)
     state = get_rng_state()
     if filename != ""
-        jldsave(filename; univ=univ, updatemethods=updatemethods, rngstate=state, itrj=itrj)
+        jldsave(
+            filename; 
+            U=univ.U,
+            fermion_actions=univ.fermion_actions,
+            bias=univ.bias,
+            numinstances=univ.numinstances,
+            updatemethod=updatemethod,
+            updatemethod_pt=updatemethod_pt,
+            rngstate=state,
+            itrj=itrj,
+        )
     end
     return nothing
 end
 
 function load_checkpoint(::JLD2Format, filename::String)
-    univ, updatemethods, rngstate, itrj = jldopen(filename, "r") do file
-        file["univ"], file["updatemethods"], file["rngstate"], file["itrj"]
-    end
-    copy!(Random.default_rng(), rngstate)
-    
-    if updatemethods isa Tuple
-        updatemethod = updatemethods[1]
-        updatemethod_pt = updatemethods[2]
-    else
-        updatemethod = updatemethods
-        updatemethod_pt = nothing
+    U, fermion_actions, bias, numinstances, updatemethod, updatemethod_pt, rngstate, itrj =
+        jldopen(filename, "r") do file
+        file["U"], file["fermion_actions"], file["bias"], file["numinstances"],
+        file["updatemethod"], file["updatemethod_pt"], file["rngstate"], file["itrj"]
     end
 
-    return univ, updatemethod, updatemethod_pt, itrj
+    copy!(Random.default_rng(), rngstate)
+    return U, fermion_actions, bias, numinstances, updatemethod, updatemethod_pt, itrj
 end

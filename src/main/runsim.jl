@@ -16,7 +16,7 @@ function run_sim(filenamein::String; backend="cpu")
 
     set_global_logger!(
         parameters.verboselevel,
-        parameters.logdir * "/logs.txt";
+        parameters.log_dir * "/logs.txt";
         tc=parameters.log_to_console,
     )
 
@@ -28,11 +28,14 @@ function run_sim(filenamein::String; backend="cpu")
     InteractiveUtils.versioninfo(buf)
     versioninfo = String(take!(buf))
     @level1(versioninfo)
+    @level1("[ Running MetaQCD.jl version $(PACKAGE_VERSION)\n")
     @level1("[ Random seed is: $seed\n")
 
-    # Univ is a struct that holds the gaugefield and bias
-    if parameters.load_checkpoint
-        univ, updatemethod, updatemethod_pt = load_checkpoint(parameters)
+    if parameters.load_checkpoint_fromfile
+        univ_args..., updatemethod, updatemethod_pt, _ = load_checkpoint(
+            parameters.load_checkpoint_path
+        )
+        univ = Univ(univ_args...)
     else
         univ = Univ(parameters)
         updatemethod = updatemethod_pt = nothing
@@ -83,12 +86,12 @@ function run_sim!(univ, parameters, updatemethod=nothing, updatemethod_pt=nothin
         measurements_with_flow = Vector{MeasurementMethods}(undef, parameters.numinstances)
 
         measurements[1] = MeasurementMethods(
-            U[1], parameters.measuredir, parameters.measurements; additional_string="_0"
+            U[1], parameters.measure_dir, parameters.measurements; additional_string="_0"
         )
 
         measurements_with_flow[1] = MeasurementMethods(
             U[1],
-            parameters.measuredir,
+            parameters.measure_dir,
             parameters.measurements_with_flow;
             flow=true,
             additional_string="_0",
@@ -97,23 +100,23 @@ function run_sim!(univ, parameters, updatemethod=nothing, updatemethod_pt=nothin
             if parameters.measure_on_all
                 measurements[i] = MeasurementMethods(
                     U[i],
-                    parameters.measuredir,
+                    parameters.measure_dir,
                     parameters.measurements;
                     additional_string="_$(i-1)",
                 )
                 measurements_with_flow[i] = MeasurementMethods(
                     U[i],
-                    parameters.measuredir,
+                    parameters.measure_dir,
                     parameters.measurements_with_flow;
                     flow=true,
                     additional_string="_$(i-1)",
                 )
             else
                 measurements[i] = MeasurementMethods(
-                    U[i], parameters.measuredir, Dict[]; additional_string="_$(i-1)"
+                    U[i], parameters.measure_dir, Dict[]; additional_string="_$(i-1)"
                 )
                 measurements_with_flow[i] = MeasurementMethods(
-                    U[i], parameters.measuredir, Dict[]; additional_string="_$(i-1)"
+                    U[i], parameters.measure_dir, Dict[]; additional_string="_$(i-1)"
                 )
             end
         end
@@ -127,21 +130,21 @@ function run_sim!(univ, parameters, updatemethod=nothing, updatemethod_pt=nothin
             measure_every=parameters.flow_measure_every,
         )
 
-        measurements = MeasurementMethods(U, parameters.measuredir, parameters.measurements)
+        measurements = MeasurementMethods(U, parameters.measure_dir, parameters.measurements)
         measurements_with_flow = MeasurementMethods(
-            U, parameters.measuredir, parameters.measurements_with_flow; flow=true
+            U, parameters.measure_dir, parameters.measurements_with_flow; flow=true
         )
     end
 
     # initialize functor responsible for saving gaugefield configurations
-    save_configs = SaveConfigs(
+    config_saver = ConfigSaver(
         parameters.save_config_format,
         parameters.save_config_dir,
         parameters.save_config_every,
     )
 
     checkpointer = Checkpointer(
-        parameters.ensembledir, parameters.checkpoint_every
+        parameters.ensemble_dir, parameters.save_checkpoint_every
     )
 
     if parameters.tempering_enabled
@@ -154,7 +157,7 @@ function run_sim!(univ, parameters, updatemethod=nothing, updatemethod_pt=nothin
             measurements,
             measurements_with_flow,
             parity,
-            save_configs,
+            config_saver,
             checkpointer,
         )
     else
@@ -166,7 +169,7 @@ function run_sim!(univ, parameters, updatemethod=nothing, updatemethod_pt=nothin
             measurements,
             measurements_with_flow,
             parity,
-            save_configs,
+            config_saver,
             checkpointer,
         )
     end
@@ -182,7 +185,7 @@ function metaqcd!(
     measurements,
     measurements_with_flow,
     parity,
-    save_configs,
+    config_saver,
     checkpointer,
 )
     U = univ.U
@@ -203,7 +206,6 @@ function metaqcd!(
                     fermion_action=fermion_action,
                     bias=NoBias(),
                     metro_test=itrj>10, # So we dont get stuck at the beginning
-                    friction=0.0,
                     therm=true,
                 )
             end
@@ -236,8 +238,8 @@ function metaqcd!(
             print_acceptance_rates(numaccepts, itrj)
             @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())")
 
-            save_gaugefield(save_configs, U, itrj)
-            create_checkpoint(checkpointer, univ, updatemethod, itrj)
+            save_gaugefield(config_saver, U, itrj)
+            create_checkpoint(checkpointer, univ, updatemethod, nothing, itrj)
 
             _, mtime = @timed calc_measurements(measurements, U, itrj)
             _, fmtime = @timed calc_measurements_flowed(
@@ -271,7 +273,7 @@ function metaqcd_PT!(
     measurements,
     measurements_with_flow,
     parity,
-    save_configs,
+    config_saver,
     checkpointer,
 )
     numinstances = parameters.numinstances
@@ -330,8 +332,8 @@ function metaqcd_PT!(
 
             temper!(U, bias, numaccepts_temper, swap_every, itrj; recalc=!uses_hmc)
 
-            save_gaugefield(save_configs, U[1], itrj)
-            create_checkpoint(checkpointer, univ, (updatemethod, updatemethod_pt), itrj)
+            save_gaugefield(config_saver, U[1], itrj)
+            create_checkpoint(checkpointer, univ, updatemethod, updatemethod_pt, itrj)
 
             _, mtime = @timed calc_measurements(measurements, U, itrj)
             _, fmtime = @timed calc_measurements_flowed(

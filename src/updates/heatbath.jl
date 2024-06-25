@@ -1,11 +1,3 @@
-struct Heatbath{MAXIT,ITR,TOR,NHB,NOR} <: AbstractUpdate end
-
-# @inline MAXIT(::Heatbath{MAXIT}) where {MAXIT} = _unwrap_val(MAXIT)
-# @inline ITR(::Heatbath{<:Any,ITR}) where {ITR} = _unwrap_val(ITR)
-# @inline TOR(::Heatbath{<:Any,<:Any,TOR}) where {TOR} = TOR
-# @inline NHB(::Heatbath{<:Any,<:Any,<:Any,NHB}) where {NHB} = _unwrap_val(NHB)
-# @inline NOR(::Heatbath{<:Any,<:Any,<:Any,<:Any,NOR}) where {NOR} = _unwrap_val(NOR)
-
 """
     Heatbath(U::Gaugefield{B,T,A,GA}, MAXIT, numHB, or_alg, numOR) where {B,T,A,GA}
 
@@ -24,6 +16,14 @@ determines the iterator used. For the plaquette or Wilson action it uses a
 Checkerboard iterator and for rectangular actions it partitions the lattice into four
 sublattices.
 """
+struct Heatbath{MAXIT,ITR,TOR,NHB,NOR} <: AbstractUpdate end
+
+# @inline MAXIT(::Heatbath{MAXIT}) where {MAXIT} = _unwrap_val(MAXIT)
+# @inline ITR(::Heatbath{<:Any,ITR}) where {ITR} = _unwrap_val(ITR)
+# @inline TOR(::Heatbath{<:Any,<:Any,TOR}) where {TOR} = TOR
+# @inline NHB(::Heatbath{<:Any,<:Any,<:Any,NHB}) where {NHB} = _unwrap_val(NHB)
+# @inline NOR(::Heatbath{<:Any,<:Any,<:Any,<:Any,NOR}) where {NOR} = _unwrap_val(NOR)
+
 function Heatbath(::Gaugefield{B,T,A,GA}, MAXIT, numHB, or_alg, numOR) where {B,T,A,GA}
     @level1("┌ Setting Heatbath...")
     ITR = GA == WilsonGaugeAction ? Checkerboard2 : Checkerboard4

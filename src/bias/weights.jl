@@ -5,15 +5,15 @@ https://pubs.acs.org/doi/pdf/10.1021/acs.jctc.9b00867
 calc_weights(::Nothing, args...) = nothing
 calc_weights(::NoBias, args...) = nothing
 
-function calc_weights(b::Vector{<:Bias}, cv, itrj)
+function calc_weights(fps, b::Vector{<:Bias}, cv, itrj)
     for i in eachindex(b)
-        calc_weights(b[i], cv[i], itrj)
+        calc_weights(fps[i], b[i], cv[i], itrj)
     end
 
     return nothing
 end
 
-function calc_weights(b::Bias{TCV,TS,TB,T}, cv, itrj) where {TCV,TS,TB,T}
+function calc_weights(fp, b::Bias{TCV,TS,TB}, cv, itrj) where {TCV,TS,TB}
     b.kinds_of_weights === nothing && return nothing
     str = @sprintf("%-9i\t%+-22.15E", itrj, cv)
     for method in b.kinds_of_weights
@@ -23,9 +23,9 @@ function calc_weights(b::Bias{TCV,TS,TB,T}, cv, itrj) where {TCV,TS,TB,T}
 
     @level1(str * " # cv weight")
 
-    if T ≢ Nothing
-        println(b.fp, str)
-        flush(b.fp)
+    if fp ≢ nothing
+        println(fp, str)
+        flush(fp)
     end
 
     return nothing

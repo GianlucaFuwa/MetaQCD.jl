@@ -26,7 +26,7 @@ function build_bias(filenamein::String; mpi_enabled=false, backend="cpu")
         Random.seed!(seed)
     end
 
-    logger_io = MYRANK == 0 ? parameters.logdir * "/logs.txt" : devnull
+    logger_io = MYRANK == 0 ? parameters.log_dir * "/logs.txt" : devnull
     set_global_logger!(parameters.verboselevel, logger_io; tc=parameters.log_to_console)
 
     # print time and system info, because it looks cool I guess
@@ -37,17 +37,27 @@ function build_bias(filenamein::String; mpi_enabled=false, backend="cpu")
     InteractiveUtils.versioninfo(buf)
     versioninfo = String(take!(buf))
     @level1(versioninfo)
-    @level1("Random seed is: $seed\n")
+    @level1("[ Running MetaQCD.jl version $(PACKAGE_VERSION)\n")
+    @level1("[ Random seed is: $seed\n")
 
-    univ = Univ(parameters; use_mpi=mpi_enabled)
+    if parameters.load_checkpoint
+        univ_args..., updatemethod, _, _ = load_checkpoint(parameters.load_checkpoint_path)
+        univ = Univ(univ_args...)
+    else
+        univ = Univ(parameters; use_mpi=mpi_enabled)
+        updatemethod = nothing
+    end
 
-    build_bias!(univ, parameters)
+    build_bias!(univ, parameters, updatemethod)
     return nothing
 end
 
-function build_bias!(univ, parameters)
+function build_bias!(univ, parameters, updatemethod=nothing)
     U = univ.U
-    updatemethod = Updatemethod(parameters, U)
+
+    if updatemethod === nothing
+        updatemethod = Updatemethod(parameters, U)
+    end
 
     gflow = GradientFlow(
         U,
@@ -62,27 +72,49 @@ function build_bias!(univ, parameters)
 
     measurements = MeasurementMethods(
         U,
-        parameters.measuredir,
+        parameters.measure_dir,
         parameters.measurements;
         additional_string=additional_string,
     )
 
     measurements_with_flow = MeasurementMethods(
         U,
-        parameters.measuredir,
+        parameters.measure_dir,
         parameters.measurements_with_flow;
         additional_string=additional_string,
         flow=true,
     )
 
-    metabuild!(parameters, univ, updatemethod, gflow, measurements, measurements_with_flow)
+    checkpointer = Checkpointer(
+        parameters.ensemble_dir, parameters.save_checkpoint_every
+    )
+
+    metabuild!(
+        parameters,
+        univ,
+        updatemethod,
+        gflow,
+        measurements,
+        measurements_with_flow,
+        checkpointer,
+    )
     return nothing
 end
 
-function metabuild!(parameters, univ, updatemethod, gflow, measurements, measurements_with_flow)
+function metabuild!(
+    parameters,
+    univ,
+    updatemethod,
+    gflow,
+    measurements,
+    measurements_with_flow,
+    checkpointer,
+)
     U = univ.U
     fermion_action = univ.fermion_actions
     bias = univ.bias
+    # This used to be in Bias itself, but I took all the IOBuffers away from structs
+    # that are needed for checkpointing
     MPI.Barrier(COMM)
 
     @level1("┌ Thermalization:")
@@ -96,7 +128,7 @@ function metabuild!(parameters, univ, updatemethod, gflow, measurements, measure
                     fermion_action=fermion_action,
                     bias=NoBias(),
                     metro_test=itrj>10, # So we dont get stuck at the beginning
-                    friction=0.0,
+                    therm=true,
                 )
             end
             @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())\n-")
@@ -133,6 +165,8 @@ function metabuild!(parameters, univ, updatemethod, gflow, measurements, measure
             update_bias!(bias, accepted_CVs, itrj)
             acceptances = MPI.Allgather(numaccepts::Float64, COMM) # XXX: should use MPI.gather?
             print_acceptance_rates(acceptances, itrj)
+
+            create_checkpoint(checkpointer, univ, updatemethod, itrj)
 
             calc_measurements(measurements, U, itrj)
             calc_measurements_flowed(measurements_with_flow, gflow, U, itrj)

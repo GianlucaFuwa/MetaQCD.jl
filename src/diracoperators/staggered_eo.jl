@@ -75,22 +75,9 @@ struct StaggeredEOPreFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
         cg_maxiters_action=1000,
         cg_maxiters_md=1000,
     )
-        @level1("|")
-        @level1("|  Fermion Action: Staggered (Even-Odd Preconditioned)")
-        @level1("|  MASS: $(mass)")
-        @level1("|  Nf: $(Nf)")
-        @level1("|  CG TOLERANCE (Action): $(cg_tol_action)")
-        @level1("|  CG TOLERANCE (MD): $(cg_tol_md)")
-        @level1("|  CG MAX ITERS (Action): $(cg_maxiters_action)")
-        @level1("|  CG MAX ITERS (MD): $(cg_maxiters_md)")
         if Nf > 4
             rhmc_lambda_low = rhmc_spectral_bound[1]
             rhmc_lambda_high = rhmc_spectral_bound[2]
-            @level1("|  RHMC START SPECTRAL RANGE: [$(rhmc_lambda_low), $(rhmc_lambda_high)]")
-            @level1("|  RHMC ORDER (Action): $(rhmc_order_action)")
-            @level1("|  RHMC ORDER (MD): $(rhmc_order_md)")
-            @level1("|  RHMC PREC (Action): $(rhmc_prec_action)")
-            @level1("|  RHMC PREC (MD): $(rhmc_prec_md)")
         end
         D = StaggeredEOPreDiracOperator(f, mass; anti_periodic=anti_periodic)
         TD = typeof(D)
@@ -129,8 +116,8 @@ struct StaggeredEOPreFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
             power = Nf//4
             rhmc_info_md = RHMCParams(
                 power;
-                n=rhmc_order_action,
-                precision=rhmc_prec_action,
+                n=rhmc_order_md,
+                precision=rhmc_prec_md,
                 lambda_low=rhmc_lambda_low,
                 lambda_high=rhmc_lambda_high,
             )
@@ -147,7 +134,6 @@ struct StaggeredEOPreFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
         RI1 = typeof(rhmc_info_action)
         RI2 = typeof(rhmc_info_md)
         RT = typeof(rhmc_temps1)
-        @level1("|")
         return new{Nf,TD,CT,RI1,RI2,RT}(
             D,
             cg_temps,
@@ -163,14 +149,21 @@ struct StaggeredEOPreFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
     end
 end
 
-function Base.show(
-    io::IO, ::MIME"text/plain", S::StaggeredEOPreFermionAction{Nf}
-) where {Nf}
+function Base.show(io::IO, ::MIME"text/plain", S::StaggeredEOPreFermionAction{Nf}) where {Nf}
     print(
         io,
-        "StaggeredEOPreFermionAction{Nf=$Nf}(; mass=$(S.D.mass), " *
-        "cg_tol_action=$(S.cg_tol_action), cg_tol_md=$(S.cg_tol_md), " *
-        "cg_maxiters_action=$(S.cg_maxiters_action), cg_maxiters_md=$(S.cg_maxiters_md))",
+        """
+        
+        |  StaggeredEOPreFermionAction(
+        |    Nf = $Nf
+        |    MASS = $(S.D.mass)
+        |    CG TOLERANCE (ACTION) = $(S.cg_tol_action)
+        |    CG TOLERANCE (MD) = $(S.cg_tol_md)
+        |    CG MAX ITERS (ACTION) = $(S.cg_maxiters_action)
+        |    CG MAX ITERS (ACTION) = $(S.cg_maxiters_md)
+        |    RHMC INFO (Action): $(S.rhmc_info_action)
+        |    RHMC INFO (MD): $(S.rhmc_info_md))
+        """
     )
     return nothing
 end
@@ -178,9 +171,18 @@ end
 function Base.show(io::IO, S::StaggeredEOPreFermionAction{Nf}) where {Nf}
     print(
         io,
-        "StaggeredEOPreFermionAction{Nf=$Nf}(; mass=$(S.D.mass), " *
-        "cg_tol_action=$(S.cg_tol_action), cg_tol_md=$(S.cg_tol_md), " *
-        "cg_maxiters_action=$(S.cg_maxiters_action), cg_maxiters_md=$(S.cg_maxiters_md))",
+        """
+        
+        |  StaggeredEOPreFermionAction(
+        |    Nf = $Nf
+        |    MASS = $(S.D.mass)
+        |    CG TOLERANCE (ACTION) = $(S.cg_tol_action)
+        |    CG TOLERANCE (MD) = $(S.cg_tol_md)
+        |    CG MAX ITERS (ACTION) = $(S.cg_maxiters_action)
+        |    CG MAX ITERS (ACTION) = $(S.cg_maxiters_md)
+        |    RHMC INFO (Action): $(S.rhmc_info_action)
+        |    RHMC INFO (MD): $(S.rhmc_info_md))
+        """
     )
     return nothing
 end

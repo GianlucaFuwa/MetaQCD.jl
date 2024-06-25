@@ -10,30 +10,17 @@ export get_n, get_α, get_α0, get_β, get_α_inverse, get_α0_inverse, get_β_i
     RHMCParams(power::Rational; n=10, lambda_low=0.0004, lambda_high=64, precision=42)
 
 Return an `RHMCParams` which is a container for the Remez coefficients calculated with
-the specified `power` on the interval `[lambda_low, lamda_high]` and the specified
+the specified `power` on the interval `[lambda_low, lambda_high]` and the specified
 `precision`.
 """
 struct RHMCParams{N}
-    y::Int64
-    z::Int64
     coeffs::AlgRemezCoeffs{N}
     coeffs_inverse::AlgRemezCoeffs{N}
-
-    function RHMCParams(
-        power::Rational; n=10, lambda_low=0.0004, lambda_high=64, precision=42
-    )
-        num = numerator(power)
-        den = denominator(power)
-        return RHMCParams(
-            num,
-            den;
-            n=n,
-            lambda_low=lambda_low,
-            lambda_high=lambda_high,
-            precision=precision,
-        )
-    end
-
+    lambda_low::Float64
+    lambda_high::Float64
+    precision::Int64
+    y::Int64
+    z::Int64
     function RHMCParams(
         y::Int, z::Int; n::Int=10, lambda_low=4e-4, lambda_high=64, precision=42
     )
@@ -54,8 +41,39 @@ struct RHMCParams{N}
             coeffs_inverse = coeff_plus
             coeffs = coeff_minus
         end
-        return new{n}(num, den, coeffs, coeffs_inverse)
+        return new{n}(coeffs, coeffs_inverse, lambda_low, lambda_high, precision, num, den)
     end
+
+    function RHMCParams(
+        power::Rational; n=10, lambda_low=0.0004, lambda_high=64, precision=42
+    )
+        num = numerator(power)
+        den = denominator(power)
+        return RHMCParams(
+            num,
+            den;
+            n=n,
+            lambda_low=lambda_low,
+            lambda_high=lambda_high,
+            precision=precision,
+        )
+    end
+end
+
+function Base.show(io::IO, ::MIME"text/plain", rhmc::RHMCParams{N}) where {N}
+    print(
+        io,
+        "ORDER: $N, SPECTRAL RANGE: [$(rhmc.lambda_low), $(rhmc.lambda_high)], PREC: $(rhmc.precision))"
+    )
+    return nothing
+end
+
+function Base.show(io::IO, rhmc::RHMCParams{N}) where {N}
+    print(
+        io,
+        "ORDER: $N, SPECTRAL RANGE: [$(rhmc.lambda_low), $(rhmc.lambda_high)], PREC: $(rhmc.precision))"
+    )
+    return nothing
 end
 
 get_n(::RHMCParams{N}) where {N} = N
