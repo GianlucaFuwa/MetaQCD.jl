@@ -295,7 +295,7 @@ end
 @userplot HadronCorrelator
 
 """
-    hadroncorrelator(m::MetaMeasurements, correlator::Symbol)
+    hadroncorrelator(m::MetaMeasurements, corr::Symbol; logscale=false, style=:line, tf=0)
 
 Plot the effective mass plot of the hadron correlator `correlator` from the measurements in `m`.
 """

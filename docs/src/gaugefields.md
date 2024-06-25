@@ -1,17 +1,26 @@
 # Creating Fields on the lattice
 
-To create 4-dimensional SU(3) gauge field, use the constructor `U = Gaugefield(...)`
-(see below) and set the initial conditions with `identity_gauges!(U)` or
-`random_gauges!(U)`. \\
+You can create a 4-dimensional SU(3) gauge field by specifying the backend, floating point
+precision, gauge action, dimensions and coupling parameter beta:
+```julia
+backend = CPU
+prec = Float64
+action = WilsonGaugeAction
+Ns = Nt = 12
+beta = 6.0
+U = Gaugefield{backend,prec,action}(Ns, Ns, Ns, Nt, beta) # all links are set to 0
+```
+and set the initial conditions with `identity_gauges!(U)` (cold) or
+`random_gauges!(U)` (hot). \\
 Gaugefields and the other two fields conatining group/algebra valued elements are structs
 that contain a main Array `U`, which is a 5-dimensional array of statically sized 3x3
 complex matrices, i.e., `SMatrix` objects from `StaticArrays.jl` (where arrays are stored as
-Tuples under the hood. The different backends are handles by `Kernelabstractions.jl` which
+Tuples under the hood. The different backends are handled by `Kernelabstractions.jl` which
 exports a `zeros` method such that the array can be created on all supported backends with
 no extra work. \\
 The fact that the elements are statically sized immutable arrays means that, for one, there
-are no allocations when performing linear algebra operations with them and second and
-secondly, we always just override the matrices in the arrays instead of mutating them. This
+are no allocations when performing linear algebra operations with them and secondly that we
+always just override the matrices in the arrays instead of mutating them. This
 yields enormous benefits in terms of less headaches during development and lets us define
 custom linear algebra routines for SMatrices and SVectors. \\
 
@@ -27,16 +36,22 @@ struct called `EvenOdd` such that we can overload all functions on that type. Ou
 is to define the fields on the even sites. While we haven't tested whether the following is
 actually more performant, we map all even sites to the first half of the array to have
 contiguous memory accesses. The function `eo_site` does exactly this mapping. \\
-For `Fermionfield`s we have the `ones!` and `gaussian_pseudofermions!` methods to init them.
+`Fermionfield`s are created in the same way as `Gaugefield`s bar the gauge action type
+parameter. For `Fermionfield`s we have the `ones!` and `gaussian_pseudofermions!` methods
+to init them.
 
 ```@docs
 Gaugefield
 ```
 
 ```@docs
-Temporaryfield
+Fermionfield
 ```
 
 ```@docs
-CoeffField
+Colorfield
+```
+
+```@docs
+Expfield
 ```

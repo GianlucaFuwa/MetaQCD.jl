@@ -8,6 +8,12 @@ The first positional is the actual update algorithm
 U = Gaugefield(...)
 random_gauges!(U)
 
+MAXIT = 100
+numHB = 1
+or_alg = MeatQCD.Updates.Subgroups
+numOR = 4
+update_alg = MeatQCD.Updates.Heatbath(U, MAXIT, numHB, or_alg, numOR)
+
 update!(update_alg, U; ...) 
 ```
 
