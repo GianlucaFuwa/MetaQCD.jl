@@ -65,7 +65,7 @@ struct StaggeredEOPreFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
         mass;
         anti_periodic=true,
         Nf=4,
-        rhmc_spectral_bound=(mass^2, 16.0),
+        rhmc_spectral_bound=(mass^2, 6.0),
         rhmc_order_action=15,
         rhmc_prec_action=42,
         rhmc_order_md=10,
@@ -272,45 +272,14 @@ end
 function solve_dirac!(
     ψ_eo, D::T, ϕ_eo, temp1, temp2, temp3, temp4, temp5; tol=1e-14, maxiters=1000
 ) where {T<:StaggeredEOPreDiracOperator}
-    bicg_stab!(ψ_eo, D, ϕ_eo, temp1, temp2, temp3, temp4, temp5; tol=tol, maxiters=maxiters)
+    error("Not implemented yet")
+    # TODO: CGNE
     return nothing
 end
 
 # We overload LinearAlgebra.mul! instead of Gaugefields.mul! so we dont have to import
 # The Gaugefields module into CG.jl, which also allows us to use the solvers for 
 # for arbitrary arrays, not just fermion fields and dirac operators (good for testing)
-function LinearAlgebra.mul!(
-    ψ_eo::TF, D::StaggeredEOPreDiracOperator{CPU,T,TF,TG}, ϕ_eo::TF
-) where {T,TF,TG}
-    @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
-    U = D.U
-    mass = T(D.mass)
-    anti = D.anti_periodic
-
-    # ψₑ = Dₒₑϕₑ
-    mul_oe!(ψ_eo, U, ϕ_eo, anti, true, false)
-    # ψₑ = DₑₒDₒₑϕₑ
-    mul_eo!(ψ_eo, U, ψ_eo, anti, false, false)
-    axpby!(mass, ϕ_eo, -1 / mass, ψ_eo) # ψₑ = Dₑₑϕₑ - DₑₒDₒₒ⁻¹Dₒₑϕₑ
-    return nothing
-end
-
-function LinearAlgebra.mul!(
-    ψ_eo::TF, D::Daggered{StaggeredEOPreDiracOperator{CPU,T,TF,TG}}, ϕ_eo::TF
-) where {T,TF,TG}
-    @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
-    U = D.parent.U
-    mass = T(D.parent.mass)
-    anti = D.parent.anti_periodic
-
-    # ψₒ = Dₒₑϕₑ
-    mul_oe!(ψ_eo, U, ϕ_eo, anti, true, true)
-    # ψₑ = DₑₒDₒₑϕₑ
-    mul_eo!(ψ_eo, U, ψ_eo, anti, false, true)
-    axpby!(mass, ϕ_eo, -1 / mass, ψ_eo) # ψₑ = Dₑₑϕₑ - Dₑₒ†Dₒₒ⁻¹Dₒₑ†ϕₑ
-    return nothing
-end
-
 function LinearAlgebra.mul!(
     ψ_eo::TF, D::DdaggerD{StaggeredEOPreDiracOperator{CPU,T,TF,TG}}, ϕ_eo::TF
 ) where {T,TF,TG}

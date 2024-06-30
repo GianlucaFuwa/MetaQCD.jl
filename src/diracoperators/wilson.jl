@@ -152,13 +152,14 @@ function Base.show(io::IO, ::MIME"text/plain", S::WilsonFermionAction{Nf}) where
         """
         
         |  WilsonFermionAction(
-        |    Nf = $Nf
-        |    MASS = $(S.D.mass)
-        |    CSW = $(S.D.csw)
-        |    CG TOLERANCE (ACTION) = $(S.cg_tol_action)
-        |    CG TOLERANCE (MD) = $(S.cg_tol_md)
-        |    CG MAX ITERS (ACTION) = $(S.cg_maxiters_action)
-        |    CG MAX ITERS (ACTION) = $(S.cg_maxiters_md)
+        |    Nf: $Nf
+        |    MASS: $(S.D.mass)
+        |    KAPPA: $(S.D.κ)
+        |    CSW: $(S.D.csw)
+        |    CG TOLERANCE (ACTION): $(S.cg_tol_action)
+        |    CG TOLERANCE (MD): $(S.cg_tol_md)
+        |    CG MAX ITERS (ACTION): $(S.cg_maxiters_action)
+        |    CG MAX ITERS (ACTION): $(S.cg_maxiters_md)
         |    RHMC INFO (Action): $(S.rhmc_info_action)
         |    RHMC INFO (MD): $(S.rhmc_info_md))
         """
@@ -172,13 +173,14 @@ function Base.show(io::IO, S::WilsonFermionAction{Nf}) where {Nf}
         """
         
         |  WilsonFermionAction(
-        |    Nf = $Nf
-        |    MASS = $(S.D.mass)
-        |    CSW = $(S.D.csw)
-        |    CG TOLERANCE (ACTION) = $(S.cg_tol_action)
-        |    CG TOLERANCE (MD) = $(S.cg_tol_md)
-        |    CG MAX ITERS (ACTION) = $(S.cg_maxiters_action)
-        |    CG MAX ITERS (ACTION) = $(S.cg_maxiters_md)
+        |    Nf: $Nf
+        |    MASS: $(S.D.mass)
+        |    KAPPA: $(S.D.κ)
+        |    CSW: $(S.D.csw)
+        |    CG TOLERANCE (ACTION): $(S.cg_tol_action)
+        |    CG TOLERANCE (MD): $(S.cg_tol_md)
+        |    CG MAX ITERS (ACTION): $(S.cg_maxiters_action)
+        |    CG MAX ITERS (ACTION): $(S.cg_maxiters_md)
         |    RHMC INFO (Action): $(S.rhmc_info_action)
         |    RHMC INFO (MD): $(S.rhmc_info_md))
         """

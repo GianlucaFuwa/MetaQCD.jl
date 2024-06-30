@@ -18,7 +18,7 @@ For hadron correlators there is a special function `hadroncorrelator` that plots
 mean values of all time slices (without statistical uncertainties). Just specify the hadron
 whose correlator you want to see:
 ```julia
-hadroncorrelator(measurements; logscale=true, calc_meff=false, tf=0.0)
+hadroncorrelator(measurements, :pion; logscale=true, calc_meff=false, tf=0.0)
 ```
 
 You can also create a holder of a bias potential and plot it. MetaQCD.jl creates the bias

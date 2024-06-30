@@ -31,7 +31,7 @@ Logs, measurements and the lot are all written to files in the `ensembles` direc
 the specified directory name. If no directory name is provided, one is generated based on
 time the simulation was started at.
 
-## Build a Bias:
+## Build a Bias
 1. Set parameters using the "parameters_build.toml" example in template folder
 2. From shell, do:
 ```
@@ -53,7 +53,7 @@ using MetaQCD
 build_bias("parameters.toml")
 ```
 
-## Visualization:
+## Visualization
 We include the ability to visualize your data. For that, you just have to pass the directory where your ensemble lives:
 ```julia
 pkg> measurements = MetaMeasurements("my_ensemble")

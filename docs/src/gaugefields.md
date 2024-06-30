@@ -15,7 +15,7 @@ and set the initial conditions with `identity_gauges!(U)` (cold) or
 
 `Gaugefield`s, `Colorfield`s and `Expfield`s are structs that contain a main Array `U`,
 which is a 5-dimensional array of statically sized 3x3 complex matrices, i.e., `SMatrix`
-objects from `StaticArrays.jl` (where arrays are stored as Tuples under the hood.
+objects from `StaticArrays.jl` (where arrays are stored as Tuples under the hood).
 
 The fact that the elements are statically sized immutable arrays means that, for one, there
 are no allocations when performing linear algebra operations with them and secondly that we
@@ -39,9 +39,9 @@ is to define the fields on the even sites. While we haven't tested whether the f
 actually more performant, we map all even sites to the first half of the array to have
 contiguous memory accesses. The function `eo_site` does exactly this mapping.
 
-`Fermionfield`s are created in the same way as `Gaugefield`s bar the gauge action type
-parameter. For `Fermionfield`s we have the `ones!` and `gaussian_pseudofermions!` methods
-to init them.
+`Fermionfield`s are created in the same way as `Gaugefield`s with the gauge action type
+parameter being replaced by the number of Dirac indeces. For `Fermionfield`s we have the
+`ones!` and `gaussian_pseudofermions!` methods to init them.
 
 ```@docs
 Gaugefield

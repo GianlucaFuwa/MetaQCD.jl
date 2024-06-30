@@ -60,7 +60,7 @@ struct StaggeredFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
         mass;
         anti_periodic=true,
         Nf=8,
-        rhmc_spectral_bound=(mass^2, 16.0),
+        rhmc_spectral_bound=(mass^2, 6.0),
         rhmc_order_md=10,
         rhmc_prec_md=42,
         rhmc_order_action=15,

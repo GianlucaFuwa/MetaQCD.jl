@@ -43,7 +43,7 @@ import .DiracOperators: AbstractDiracOperator, Daggered, DdaggerD, calc_fermion_
 import .DiracOperators: StaggeredDiracOperator, StaggeredEOPreDiracOperator, even_odd
 import .DiracOperators: WilsonDiracOperator, sample_pseudofermions!
 import .DiracOperators: StaggeredFermionAction, StaggeredEOPreFermionAction
-import .DiracOperators: WilsonFermionAction
+import .DiracOperators: WilsonFermionAction, WilsonEOPreFermionAction
 import .Fields: CPU, DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
 import .Fields: SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
 import .Fields: Expfield, Colorfield, Gaugefield
@@ -75,7 +75,8 @@ export staple, staple_eachsite!, wilsonloop
 export Tensorfield, calc_kinetic_energy, gaussian_TA!
 export Fermionfield, StaggeredDiracOperator, Daggered, DdaggerD, WilsonDiracOperator
 export StaggeredEOPreDiracOperator, even_odd, sample_pseudofermions!
-export StaggeredFermionAction, StaggeredEOPreFermionAction, WilsonFermionAction
+export StaggeredFermionAction, StaggeredEOPreFermionAction
+export WilsonFermionAction, WilsonEOPreFermionAction
 export calc_fermion_action, gaussian_pseudofermions!
 export measure, get_value, top_charge
 export EnergyDensityMeasurement, GaugeActionMeasurement, PlaquetteMeasurement

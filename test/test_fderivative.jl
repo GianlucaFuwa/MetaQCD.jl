@@ -5,7 +5,7 @@ using LinearAlgebra
 using Random
 
 function SU3testfderivative(;
-    dirac="staggered", mass=0.1, eoprec=false, single_flavor=false, backend=CPU
+    dirac="staggered", mass=0.01, eoprec=false, single_flavor=false, backend=CPU
 )
     Random.seed!(123)
     println("Fermion derivative test [$dirac]")
@@ -15,11 +15,12 @@ function SU3testfderivative(;
     NZ = 4
     NT = 8
     U = Gaugefield{backend,Float64,WilsonGaugeAction}(NX, NY, NZ, NT, 6.0)
+    ND = dirac=="staggered" ? 1 : 4
 
     if eoprec
-        ψ = even_odd(Fermionfield(NX, NY, NZ, NT; staggered=dirac == "staggered"))
+        ψ = even_odd(Fermionfield{CPU,Float64,ND}(NX, NY, NZ, NT))
     else
-        ψ = Fermionfield(NX, NY, NZ, NT; staggered=dirac == "staggered")
+        ψ = Fermionfield{CPU,Float64,ND}(NX, NY, NZ, NT)
     end
 
     action = if dirac == "staggered"
@@ -33,6 +34,7 @@ function SU3testfderivative(;
                 cg_maxiters_md=5000,
                 cg_tol_action=1e-16,
                 cg_tol_md=1e-16,
+                rhmc_prec_action=64
             )
         else
             Nf = single_flavor ? 1 : 8
@@ -48,11 +50,13 @@ function SU3testfderivative(;
         end
     elseif dirac == "wilson"
         if eoprec
+            Nf = single_flavor ? 1 : 2
+            @assert Nf == 2
             WilsonEOPreFermionAction(
                 U,
                 mass;
                 Nf=Nf,
-                csw=1.0,
+                csw=0,
                 cg_maxiters_action=5000,
                 cg_maxiters_md=5000,
                 cg_tol_action=1e-16,
@@ -81,15 +85,15 @@ function SU3testfderivative(;
     # if backend !== nothing
     #     U = MetaQCD.to_backend(backend, U)
     # end
-    random_gauges!(U)
+    identity_gauges!(U)
     sample_pseudofermions!(ψ, action, U)
 
     # Test for smearing with 5 steps and stout parameter 0.12
     smearing = StoutSmearing(U, 5, 0.12)
 
-    dSfdU = Temporaryfield(U)
-    dSfdU_smeared = Temporaryfield(U)
-    temp_force = Temporaryfield(U)
+    dSfdU = Colorfield(U)
+    dSfdU_smeared = Colorfield(U)
+    temp_force = Colorfield(U)
 
     site = SiteCoords(2, 3, 1, 2)
     μ = 3
@@ -131,8 +135,10 @@ function SU3testfderivative(;
         symm_diff = (action_new_fwd - action_new_bwd) / 2ΔH
         symm_diff_smeared = (action_new_fwd_smeared - action_new_bwd_smeared) / 2ΔH
 
-        # @show daction_proj
-        # @show symm_diff
+        if group_direction == 1
+            @show daction_proj
+            @show symm_diff
+        end
         relerrors[group_direction, 1] = (symm_diff - daction_proj) / symm_diff
         relerrors[group_direction, 2] =
             (symm_diff_smeared - daction_proj_smeared) / symm_diff_smeared
@@ -145,4 +151,4 @@ function SU3testfderivative(;
     return relerrors
 end
 
-SU3testfderivative(; dirac="wilson", eoprec=false, single_flavor=false)
+SU3testfderivative(; dirac="wilson", eoprec=true, single_flavor=false)

@@ -287,6 +287,19 @@ function LinearAlgebra.dot(ϕ_eo::T, ψ_eo::T) where {T<:EvenOdd{CPU}}
     return res
 end
 
+function dot_all(ϕ_eo::T, ψ_eo::T) where {T<:EvenOdd{CPU}}
+    check_dims(ϕ_eo, ψ_eo)
+    ϕ = ϕ_eo.parent
+    ψ = ψ_eo.parent
+    res = 0.0 + 0.0im # res is always double precision, even if T is single precision
+
+    @batch reduction = (+, res) for site in eachindex(ϕ)
+        res += cdot(ϕ[site], ψ[site])
+    end
+
+    return res
+end
+
 function copy_eo!(ϕ_eo::T, ψ_eo::T) where {T<:EvenOdd{CPU}}
     check_dims(ϕ_eo, ψ_eo)
     ϕ = ϕ_eo.parent

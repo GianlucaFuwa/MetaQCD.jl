@@ -61,10 +61,10 @@ function Gaugefield(u::Gaugefield{BACKEND,T,A,GA}) where {BACKEND,T,A,GA}
 end
 
 """
-    Colorfield(NX, NY, NZ, NT; backend=CPU(), T=Val(Float64))
+    Colorfield{BACKEND,T}(NX, NY, NZ, NT)
     Colorfield(u::Abstractfield)
 
-Creates a Colorfield on `backend`, i.e. an array of 3-by-3 `T`-precision matrices of
+Creates a Colorfield on `BACKEND`, i.e. an array of 3-by-3 `T`-precision matrices of
 size `4 × NX × NY × NZ × NT` or a zero-initialized Colorfield of the same size as `u`
 # Supported backends
 `CPU` \\
@@ -92,10 +92,10 @@ function Colorfield(u::Abstractfield{BACKEND,T,A}) where {BACKEND,T,A}
 end
 
 """
-    Expfield(NX, NY, NZ, NT; backend=CPU(), T=Val(Float64))
+    Expfield{BACKEND,T}(NX, NY, NZ, NT)
     Expfield(u::Abstractfield)
 
-Creates a Expfield on `backend`, i.e. an array of `T`-precison `exp_iQ_su3` objects of
+Creates a Expfield on `BACKEND`, i.e. an array of `T`-precison `exp_iQ_su3` objects of
 size `4 × NX × NY × NZ × NT` or of the same size as `u`. The objects hold the `Q`-matrices
 and all the exponential parameters needed for stout-force recursion
 # Supported backends

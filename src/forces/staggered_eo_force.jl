@@ -13,6 +13,7 @@ function calc_dSfdU!(
 
     clear!(X_eo) # initial guess is zero
     solve_dirac!(X_eo, DdagD, ϕ_eo, Y_eo, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp
+    clear!(Y_eo)
     mul_oe!(Y_eo, U, X_eo, anti, true, false)
     add_staggered_eo_derivative!(dU, U, X_eo, Y_eo, anti)
     return nothing

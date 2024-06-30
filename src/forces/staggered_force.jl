@@ -3,18 +3,18 @@ const StaggeredFermionfield{B,T,A} = Fermionfield{B,T,A,1}
 function calc_dSfdU!(
     dU, fermion_action::StaggeredFermionAction{8}, U, ϕ::StaggeredFermionfield
 )
-    check_dims(dU, U, ϕ)
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
     cg_maxiters = fermion_action.cg_maxiters_md
     X, Y, temp1, temp2 = fermion_action.cg_temps
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
+    anti = D.anti_periodic
 
     clear!(X) # initial guess is zero
     solve_dirac!(X, DdagD, ϕ, Y, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp
     LinearAlgebra.mul!(Y, D, X)
-    add_staggered_derivative!(dU, U, X, Y, D.anti_periodic)
+    add_staggered_derivative!(dU, U, X, Y, anti)
     return nothing
 end
 

@@ -24,13 +24,13 @@ function SU3testderivative(backend=CPU)
     # Test for smearing with 5 steps and stout parameter 0.12
     smearing = StoutSmearing(U, 5, 0.12)
 
-    staples = Temporaryfield(U)
+    staples = Colorfield(U)
     fieldstrength = Tensorfield(U)
-    temp_force = Temporaryfield(U)
-    dSdU = Temporaryfield(U)
-    dSdU_smeared = Temporaryfield(U)
-    dQdU = Temporaryfield(U)
-    dQdU_smeared = Temporaryfield(U)
+    temp_force = Colorfield(U)
+    dSdU = Colorfield(U)
+    dSdU_smeared = Colorfield(U)
+    dQdU = Colorfield(U)
+    dQdU_smeared = Colorfield(U)
 
     site = SiteCoords(2, 3, 1, 2)
     μ = 3

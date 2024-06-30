@@ -1014,18 +1014,20 @@ end
 end
 
 """
-    cmvmul_pauli(A₊, A₋, x)
+    cmvmul_block(A₊, A₋, x)
 
 Return the matrix-vector product of the block diagonal matrix containing `A₊` and
 `A₋` and the vector `x`        
 """
-@inline function cmvmul_pauli(
+@inline function cmvmul_block(
     A₊::SMatrix{N,N,Complex{T},NN},
     A₋::SMatrix{N,N,Complex{T},NN},
     x::SVector{N2,Complex{T}}
 ) where {T,N,NN,N2}
-    x₊ = cmvmul(A₊, SVector{N,Complex{T}}(view(x, 1:N)))
-    x₋ = cmvmul(A₊, SVector{N,Complex{T}}(view(x, N+1:2N)))
+    idx1 = SVector(1:N...)
+    idx2 = SVector((N+1):2N...)
+    x₊ = cmvmul(A₊, x[idx1])
+    x₋ = cmvmul(A₊, x[idx2])
     return vcat(x₊, x₋)  
 end
 
