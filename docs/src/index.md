@@ -2,7 +2,7 @@
 
 Inspired by the [LatticeQCD.jl](https://github.com/akio-tomiya/LatticeQCD.jl/tree/master) package by Akio Tomiya et al.
 
-## Features:
+## Features
 - Simulations of 4D-SU(3) Yang-Mills (Pure Gauge) theory
 - Simulations of full lattice QCD with arbitrary number of flavours (Staggered, Wilson-Clover)
 - [Metadynamics](https://www.researchgate.net/publication/224908601_Metadynamics_A_method_to_simulate_rare_events_and_reconstruct_the_free_energy_in_biophysics_chemistry_and_material_science)
@@ -18,7 +18,7 @@ Inspired by the [LatticeQCD.jl](https://github.com/akio-tomiya/LatticeQCD.jl/tre
 - RHMC to simulate odd number of flavours
 - Support for CUDA and ROCm(not tested) backends
 
-## Installation:
+## Installation
 First make sure you have a Julia version 1.9.x or 1.10.x installed. You can use [juliaup](https://github.com/JuliaLang/juliaup) for that or just install the release from the [Julia website](https://julialang.org/downloads/).
 
 The package is not in the general registry. So you will have to either

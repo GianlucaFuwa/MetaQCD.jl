@@ -40,7 +40,7 @@ actually more performant, we map all even sites to the first half of the array t
 contiguous memory accesses. The function `eo_site` does exactly this mapping.
 
 `Fermionfield`s are created in the same way as `Gaugefield`s with the gauge action type
-parameter being replaced by the number of Dirac indeces. For `Fermionfield`s we have the
+parameter being replaced by the number of Dirac indices. For `Fermionfield`s we have the
 `ones!` and `gaussian_pseudofermions!` methods to init them.
 
 ```@docs
