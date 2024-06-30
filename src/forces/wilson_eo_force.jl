@@ -156,53 +156,15 @@ function add_clover_eo_derivative_kernel!(dU, U, Xμν, site, fac, ::Type{T}) wh
 end
 
 function calc_Xμν_eachsite!(
-    Xμν::Tensorfield{CPU,T}, X::TF, Y::TF
+    Xμν::Tensorfield{CPU,T}, X_eo::TF, Y_eo::TF
 ) where {T,TF<:WilsonEOPreFermionfield}
-    check_dims(Xμν, X, Y)
+    check_dims(Xμν, X_eo, Y_eo)
+    even = true
 
-    #= @batch  =#for site in eachindex(Xμν)
-        calc_Xμν_kernel!(Xμν, X, Y, site)
+    #= @batch  =#for site in eachindex(even, Xμν)
+        calc_Xμν_kernel!(Xμν, X_eo, Y_eo, site)
     end
 
-    return nothing
-end
-
-function calc_Xμν_kernel!(Xμν, X, Y, site)
-    X₁₂ =
-        spintrace(σμν_spin_mul(X[site], Val(1), Val(2)), Y[site]) +
-        spintrace(σμν_spin_mul(Y[site], Val(1), Val(2)), X[site])
-    Xμν[1i32, 2i32, site] = X₁₂
-    Xμν[2i32, 1i32, site] = -X₁₂
-
-    X₁₃ =
-        spintrace(σμν_spin_mul(X[site], Val(1), Val(3)), Y[site]) +
-        spintrace(σμν_spin_mul(Y[site], Val(1), Val(3)), X[site])
-    Xμν[1i32, 3i32, site] = X₁₃
-    Xμν[3i32, 1i32, site] = -X₁₃
-
-    X₁₄ =
-        spintrace(σμν_spin_mul(X[site], Val(1), Val(4)), Y[site]) +
-        spintrace(σμν_spin_mul(Y[site], Val(1), Val(4)), X[site])
-    Xμν[1i32, 4i32, site] = X₁₄
-    Xμν[4i32, 1i32, site] = -X₁₄
-
-    X₂₃ =
-        spintrace(σμν_spin_mul(X[site], Val(2), Val(3)), Y[site]) +
-        spintrace(σμν_spin_mul(Y[site], Val(2), Val(3)), X[site])
-    Xμν[2i32, 3i32, site] = X₂₃
-    Xμν[3i32, 2i32, site] = -X₂₃
-
-    X₂₄ =
-        spintrace(σμν_spin_mul(X[site], Val(2), Val(4)), Y[site]) +
-        spintrace(σμν_spin_mul(Y[site], Val(2), Val(4)), X[site])
-    Xμν[2i32, 4i32, site] = X₂₄
-    Xμν[4i32, 2i32, site] = -X₂₄
-
-    X₃₄ =
-        spintrace(σμν_spin_mul(X[site], Val(3), Val(4)), Y[site]) +
-        spintrace(σμν_spin_mul(Y[site], Val(3), Val(4)), X[site])
-    Xμν[3i32, 4i32, site] = X₃₄
-    Xμν[4i32, 3i32, site] = -X₃₄
     return nothing
 end
 
