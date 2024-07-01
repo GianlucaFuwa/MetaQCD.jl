@@ -78,6 +78,8 @@ struct MetaMeasurements
     end
 end
 
+Base.length(m::MetaMeasurements, observable) = Int(getproperty(m, observable)["itrj"][end])
+
 """
     MetaBias(ensemblename::String; which = nothing, stream::Int = 1, fullpath::Bool = false)
 
@@ -91,6 +93,7 @@ specify `which` as either `:metad` or `:opes`.
 """
 struct MetaBias{F}
     bias::F
+    ensemblename::String
     function MetaBias(ensemblename::String; which=nothing, stream=1, fullpath=false)
         dir = if fullpath
             ensemblename
@@ -131,7 +134,7 @@ struct MetaBias{F}
                                  Must be either .metad or .opes"))
         end
 
-        return new{typeof(bias)}(bias)
+        return new{typeof(bias)}(bias, ensemblename)
     end
 end
 
@@ -277,18 +280,26 @@ Plot the bias potential `bias` in the range given by either the cvlims of the bi
 or `cvlims` if specified. If the cvlims of the bias contain infinities and `cvlims` is not
 specified then the limits default to [-5, 5].
 """
-RecipesBase.@recipe function biaspotential(bp::BiasPotential; cvlims=nothing)
+RecipesBase.@recipe function biaspotential(
+    bp::BiasPotential; cvlims=nothing, normalize=false, ylims=nothing
+)
     b = bp.args[1]
     bias = b.bias
     xlims = cvlims ≡ nothing ? bias.cvlims : cvlims
+    yylims = ylims ≡ nothing ? :auto : ylims
     isinf(sum(xlims)) && (xlims = (-6, 6))
 
     legend := false
-    xticks --> xlims[1]:xlims[2]
+    xticks --> floor(xlims[1]):ceil(xlims[2])
+    xlims := (xlims[1], xlims[2])
+    ylims := yylims
     xlabel --> "Collective Variable"
     ylabel --> "Bias Potential ($(typeof(bias)))"
+    title --> b.ensemblename
+    titlefontsize --> 10
     x = (bias isa OPES) ? (xlims[1]:0.001:xlims[2]-0.001) : bias.bin_vals
-    y = b.(x)
+    yraw = b.(x)
+    y = normalize ? yraw .- maximum(yraw) : yraw
     return x, y
 end
 
