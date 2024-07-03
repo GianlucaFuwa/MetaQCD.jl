@@ -37,7 +37,7 @@ struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO} <: AbstractDiracOperator
         κ = 1 / (2mass + 8)
         U = nothing
         C = csw == 0 ? false : true
-        Xμν = C ? Tensorfield(U) : nothing
+        Xμν = C ? Tensorfield(f) : nothing
         temp = even_odd(Fermionfield{B,T,4}(dims(f)...))
         D_diag = WilsonEODiagonal(temp, mass, csw)
         D_oo_inv = WilsonEODiagonal(temp, mass, csw; inverse=true)
@@ -320,9 +320,9 @@ function LinearAlgebra.mul!(
     D_oo_inv = D.parent.D_oo_inv
     D_diag = D.parent.D_diag
 
-    mul_oe!(ψ_eo, U, ϕ_eo, anti, true, Val(-1)) # ψₒ = Dₒₑϕₑ
+    mul_oe!(ψ_eo, U, ϕ_eo, anti, true, Val(-1)) # ψₒ = Dₑₒ†ϕₑ
     mul_oo_inv!(ψ_eo, D_oo_inv) # ψₒ = Dₒₒ⁻¹Dₒₑϕₑ
-    mul_eo!(ψ_eo, U, ψ_eo, anti, false, Val(-1)) # ψₑ = DₑₒDₒₒ⁻¹Dₒₑϕₑ
+    mul_eo!(ψ_eo, U, ψ_eo, anti, false, Val(-1)) # ψₑ = Dₒₑ†Dₒₒ⁻¹Dₑₒ†ϕₑ
     axmy!(D_diag, ϕ_eo, ψ_eo) # ψₑ = Dₑₑϕₑ - DₑₒDₒₒ⁻¹Dₒₑϕₑ
     return nothing
 end
