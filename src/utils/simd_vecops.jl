@@ -677,7 +677,7 @@ end
             y[2, $(3N)+m] = -xₙ₂i
         end
     else
-        return :(throw(DimensionMismatch("ρ must be in [-4,4]")))
+        return :(throw(AssertionError("ρ must be in [-4,4]")))
     end
 
     loop_q = quote
@@ -863,7 +863,7 @@ end
             y[2, $(3N)+m] = -yₘ₂i
         end
     else
-        return :(throw(DimensionMismatch("ρ must be in [-4,4]")))
+        return :(throw(AssertionError("ρ must be in [-4,4]")))
     end
 
     get_Aₘₙ = if is_adjoint === true
@@ -999,7 +999,7 @@ end
             y[2, $(3N)+m] = x[2, $(3N)+m]
         end
     else
-        return :(throw(DimensionMismatch("Invalid combination of μ and ν")))
+        return :(throw(AssertionError("Invalid combination of μ and ν")))
     end
 
     loop_q = quote
@@ -1010,6 +1010,59 @@ end
     end
 
     push!(q.args, loop_q)
+    return q
+end
+
+"""
+    spintrace_σμν(A, B, ::Val{μ}, ::Val{ν})
+"""
+@generated function spintrace_σμν(
+    A::SMatrix{M,M,Complex{T},MM},
+    B::SMatrix{M,M,Complex{T},MM},
+    ::Val{μ},
+    ::Val{ν}
+) where {T,M,MM,μ,ν}
+    if M % 2 != 0
+        return :(throw(DimensionMismatch("M must be a multiple of 2")))
+    end
+
+    N = M ÷ 2
+    i = SVector(1:N...)
+    j = SVector(N+1:M...)
+
+    q = quote
+        $(Expr(:meta, :inline))
+    end
+
+    if μ === 1 && ν === 2
+        inner_q = quote
+            Cc = -A[$i, $i] + A[$j, $j] - B[$i, $i] + B[$j, $j]
+        end
+    elseif μ === 1 && ν === 3
+        inner_q = quote
+            Cc = im * (A[$j, $i] - A[$i, $j] + B[$j, $i] - B[$i, $j])
+        end
+    elseif μ === 1 && ν === 4
+        inner_q = quote
+            Cc = A[$j, $i] + A[$i, $j] - B[$j, $i] - B[$i, $j]
+        end
+    elseif μ === 2 && ν === 3
+        inner_q = quote
+            Cc = -A[$j, $i] - A[$i, $j] - B[$j, $i] - B[$i, $j]
+        end
+    elseif μ === 2 && ν === 4
+        inner_q = quote
+            Cc = im * (A[$j, $i] - A[$i, $j] - B[$j, $i] + B[$i, $j])
+        end
+    elseif μ === 3 && ν === 4
+        inner_q = quote
+            Cc = A[$i, $i] - A[$j, $j] - B[$i, $i] + B[$j, $j]
+        end
+    else
+        return :(throw(AssertionError("Invalid combination of μ and ν")))
+    end
+
+    push!(q.args, inner_q)
     return q
 end
 

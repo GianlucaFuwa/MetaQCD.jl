@@ -13,7 +13,7 @@ function SU3testfderivative(;
     NX = 4
     NY = 4
     NZ = 4
-    NT = 8
+    NT = 4
     U = Gaugefield{backend,Float64,WilsonGaugeAction}(NX, NY, NZ, NT, 6.0)
     ND = dirac=="staggered" ? 1 : 4
 
@@ -56,7 +56,7 @@ function SU3testfderivative(;
                 U,
                 mass;
                 Nf=Nf,
-                csw=0,
+                csw=1.78,
                 cg_maxiters_action=5000,
                 cg_maxiters_md=5000,
                 cg_tol_action=1e-16,
@@ -68,7 +68,7 @@ function SU3testfderivative(;
                 U,
                 mass;
                 Nf=Nf,
-                csw=1.0,
+                csw=1.78,
                 cg_maxiters_action=5000,
                 cg_maxiters_md=5000,
                 cg_tol_action=1e-16,
@@ -85,7 +85,7 @@ function SU3testfderivative(;
     # if backend !== nothing
     #     U = MetaQCD.to_backend(backend, U)
     # end
-    identity_gauges!(U)
+    random_gauges!(U)
     sample_pseudofermions!(ψ, action, U)
 
     # Test for smearing with 5 steps and stout parameter 0.12
@@ -150,5 +150,3 @@ function SU3testfderivative(;
     println()
     return relerrors
 end
-
-SU3testfderivative(; dirac="wilson", eoprec=true, single_flavor=false)

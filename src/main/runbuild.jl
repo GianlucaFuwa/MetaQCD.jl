@@ -1,4 +1,4 @@
-function build_bias(filenamein::String; mpi_enabled=false, backend="cpu")
+function build_bias(filenamein::String; backend="cpu", mpi_enabled=false)
     # When using MPI we make sure that only rank 0 prints to the console
     if MYRANK == 0
         ext = splitext(filenamein)[end]
@@ -7,7 +7,8 @@ function build_bias(filenamein::String; mpi_enabled=false, backend="cpu")
         """
     end
 
-    parameters = construct_params_from_toml(filenamein; backend=backend)
+    # load parameters from toml file
+    parameters = construct_params_from_toml(filename; backend=backend)
     MPI.Barrier(COMM)
 
     if MYRANK == 0
@@ -18,6 +19,7 @@ function build_bias(filenamein::String; mpi_enabled=false, backend="cpu")
         @assert parameters.is_static == false "Bias cannot be static in build"
     end
 
+    # set random seed if provided, otherwise generate one
     if parameters.randomseed != 0
         seed = parameters.randomseed
         Random.seed!(seed * (MYRANK + 1))

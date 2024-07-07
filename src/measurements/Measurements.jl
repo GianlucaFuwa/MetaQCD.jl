@@ -32,7 +32,14 @@ import ..Smearing: StoutSmearing, calc_smearedU!, flow!
 
 abstract type AbstractMeasurement end
 
-Base.close(m::AbstractMeasurement) = typeof(m.fp) == IOStream ? close(m.fp) : nothing
+const MYRANK = MPI.Comm_rank(MPI.COMM_WORLD)
+
+function Base.close(m::AbstractMeasurement)
+    if hasfield(typeof(m), :fp)
+        typeof(m.fp) == IOStream && close(m.fp)
+    end
+    return nothing
+end
 
 include("./measurement_parameters.jl")
 include("./measurement_methods.jl")
@@ -40,7 +47,6 @@ include("./measurement_methods.jl")
 struct MeasurementOutput{T}
     value::T
     outputstring::String
-
     MeasurementOutput(value, str) = new{typeof(value)}(value, str)
 end
 
@@ -49,6 +55,12 @@ get_string(m::MeasurementOutput) = m.outputstring
 
 function measure(::M, args...) where {M<:AbstractMeasurement}
     return error("measurement with a type $M is not supported")
+end
+
+@inline get_myinstance(m::M) where {M<:AbstractMeasurement} = m.myinstance[]
+
+@inline function set_myinstance!(m::M, new_instance) where {M<:AbstractMeasurement}
+    m.myinstance[] = new_instance
 end
 
 include("measure_gauge_action.jl")

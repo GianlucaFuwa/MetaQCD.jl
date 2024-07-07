@@ -1,6 +1,7 @@
 module Universe
 
 using Dates
+using MPI
 using Unicode
 using TOML: parsefile
 using ..Utils
@@ -12,6 +13,10 @@ import ..Fields: Gaugefield, WilsonGaugeAction, IwasakiGaugeAction, DBW2GaugeAct
 import ..Fields: SymanzikTreeGaugeAction
 import ..BiasModule: Bias, NoBias
 import ..Parameters: ParameterSet
+
+const COMM = MPI.COMM_WORLD
+const MYRANK = MPI.Comm_rank(COMM)
+const COMM_SIZE = MPI.Comm_size(COMM)
 
 """
     Univ(parameters::ParameterSet; use_mpi=false)
@@ -25,6 +30,7 @@ struct Univ{TG,TF,TB}
     U::TG
     fermion_actions::TF
     bias::TB
+    myinstance::Base.RefValue{Int64}
     numinstances::Int64
     function Univ(
         U::Gaugefield{BACKEND,T,A,GA}, fermion_actions::TF, bias::TB, numinstances
@@ -42,7 +48,7 @@ struct Univ{TG,TF,TB}
             @level1("|  FERMION ACTIONS: $(fermion_actions...)└\n")
         end
         TG = typeof(U)
-        return new{TG,TF,TB}(U, fermion_actions, bias, numinstances)
+        return new{TG,TF,TB}(U, fermion_actions, bias, Base.RefValue{MYRANK}, numinstances)
     end
 
     function Univ(
@@ -61,7 +67,7 @@ struct Univ{TG,TF,TB}
             @level1("|  FERMION ACTIONS: $(fermion_actions...)└\n")
         end
         TG = typeof(U)
-        return new{TG,TF,TB}(U, fermion_actions, bias, numinstances)
+        return new{TG,TF,TB}(U, fermion_actions, bias, Base.RefValue{MYRANK}, numinstances)
     end
 end
 
@@ -99,7 +105,7 @@ function Univ(parameters::ParameterSet; use_mpi=false)
         bias = NoBias()
     end
 
-    return Univ(U, fermion_actions, bias, numinstances)
+    return Univ(U, fermion_actions, bias, Base.RefValue{MYRANK}, numinstances)
 end
 
 function init_fermion_actions(parameters::ParameterSet, U)

@@ -17,7 +17,6 @@ import ..Updates: HMC, ParityUpdate, Updatemethod, update!, temper!
 
 export build_bias, run_sim
 
-MPI.Initialized() || MPI.Init()
 const COMM = MPI.COMM_WORLD
 const MYRANK = MPI.Comm_rank(COMM)
 const COMM_SIZE = MPI.Comm_size(COMM)

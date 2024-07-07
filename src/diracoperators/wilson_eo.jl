@@ -21,7 +21,7 @@ A Wilson Dirac operator with gauge background is created by applying it to a `Ga
 """
 struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO} <: AbstractDiracOperator
     U::TG
-    Xμν::TX
+    Fμν::TX
     temp::TF # temp for storage of intermediate result for DdaggerD operator
     D_diag::TO
     D_oo_inv::TO
@@ -37,17 +37,17 @@ struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO} <: AbstractDiracOperator
         κ = 1 / (2mass + 8)
         U = nothing
         C = csw == 0 ? false : true
-        Xμν = C ? Tensorfield(f) : nothing
+        Fμν = C ? Tensorfield(f) : nothing
         temp = even_odd(Fermionfield{B,T,4}(dims(f)...))
         D_diag = WilsonEODiagonal(temp, mass, csw)
         D_oo_inv = WilsonEODiagonal(temp, mass, csw; inverse=true)
 
         TG = Nothing
-        TX = typeof(Xμν)
+        TX = typeof(Fμν)
         TF = typeof(temp)
         TO = typeof(D_diag)
         return new{B,T,C,TF,TG,TX,TO}(
-            U, Xμν, temp, D_diag, D_oo_inv, mass, κ, r, csw, anti_periodic
+            U, Fμν, temp, D_diag, D_oo_inv, mass, κ, r, csw, anti_periodic
         )
     end
 
@@ -61,15 +61,15 @@ struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO} <: AbstractDiracOperator
         D_diag = WilsonEODiagonal(temp, mass, csw)
         D_oo_inv = WilsonEODiagonal(temp, D.mass, csw; inverse=true)
 
-        Xμν = C ? Tensorfield(U) : nothing
-        calc_diag!(D_diag, D_oo_inv, Xμν, U, mass)
+        Fμν = C ? Tensorfield(U) : nothing
+        calc_diag!(D_diag, D_oo_inv, Fμν, U, mass)
 
         TF_new = typeof(temp)
-        TX = typeof(Xμν)
+        TX = typeof(Fμν)
         TG = typeof(U)
         TO = typeof(D_diag)
         return new{B,T,C,TF_new,TG,TX,TO}(
-            U, Xμν, temp, D_diag, D_oo_inv, mass, D.κ, D.r, csw, D.anti_periodic
+            U, Fμν, temp, D_diag, D_oo_inv, mass, D.κ, D.r, csw, D.anti_periodic
         )
     end
 
@@ -79,14 +79,14 @@ struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO} <: AbstractDiracOperator
         check_dims(U, D.temp.parent)
         mass = D.mass
         csw = D.csw
-        Xμν = D.Xμν
+        Fμν = D.Fμν
         temp = D.temp
         D_diag = D.D_diag
         D_oo_inv = D.D_oo_inv
 
-        calc_diag!(D_diag, D_oo_inv, Xμν, U, mass)
+        calc_diag!(D_diag, D_oo_inv, Fμν, U, mass)
         return new{B,T,C,TF,typeof(U),TX,TO}(
-            U, Xμν, temp, D_diag, D_oo_inv, mass, D.κ, D.r, csw, D.anti_periodic
+            U, Fμν, temp, D_diag, D_oo_inv, mass, D.κ, D.r, csw, D.anti_periodic
         )
     end
 end
@@ -127,9 +127,10 @@ num_colors(D_diag::WilsonEODiagonal) = D_diag.NC
 
 const WilsonEOPreFermionfield{B,T,A} = EvenOdd{B,T,A,4}
 
-struct WilsonEOPreFermionAction{Nf,C,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
+struct WilsonEOPreFermionAction{Nf,C,TD,CT,TX,RI1,RI2,RT} <: AbstractFermionAction
     D::TD
     cg_temps::CT
+    Xμν::TX
     rhmc_info_action::RI1
     rhmc_info_md::RI2
     rhmc_temps1::RT # this holds the results of multishift cg
@@ -180,13 +181,16 @@ struct WilsonEOPreFermionAction{Nf,C,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
         end
 
         C = csw != 0 ? true : false
+        Xμν = C ? Tensorfield(f) : nothing
         CT = typeof(cg_temps)
+        TX = typeof(Xμν)
         RI1 = typeof(rhmc_info_action)
         RI2 = typeof(rhmc_info_md)
         RT = typeof(rhmc_temps1)
-        return new{Nf,C,TD,CT,RI1,RI2,RT}(
+        return new{Nf,C,TD,CT,TX,RI1,RI2,RT}(
             D,
             cg_temps,
+            Xμν,
             rhmc_info_action,
             rhmc_info_md,
             rhmc_temps1,
@@ -254,7 +258,7 @@ function calc_fermion_action(
 
     clear!(ψ_eo) # initial guess is zero
     solve_dirac!(ψ_eo, DdagD, ϕ_eo, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
-    Sf = dot(ϕ_eo, ψ_eo)#=  - 2trlog(D.D_diag) =#
+    Sf = dot(ϕ_eo, ψ_eo) #= - 2trlog(D.D_diag) =#
     return real(Sf)
 end
 
@@ -439,7 +443,7 @@ function calc_diag!(
 end
 
 function calc_diag!(
-    D_diag::TW, D_oo_inv::TW, Xμν, U::Gaugefield{CPU,T}, mass
+    D_diag::TW, D_oo_inv::TW, Fμν, U::Gaugefield{CPU,T}, mass
 ) where {T,TW<:WilsonEODiagonal{CPU,T,true}}
     check_dims(D_diag, D_oo_inv, U)
     mass_term = Complex{T}(4 + mass)
@@ -449,35 +453,37 @@ function calc_diag!(
     sz2 = sz^2
     fac = T(-D_diag.csw / 2)
 
-    fieldstrength_eachsite!(Clover(), Xμν, U)
+    fieldstrength_A_eachsite!(Clover(), Fμν, U)
 
     #= @batch  =#for site in eachindex(U)
         _site = eo_site(site, fdims..., NV)
         M = SMatrix{sz,sz,Complex{T},sz2}(mass_term * I)
+        i = SVector((1, 2))
+        j = SVector((3, 4))
 
-        F₁₂ = Xμν[1, 2, site]
-        A₊ = ckron(SMatrix{2,2,Complex{T},4}(view(σ₁₂(T), 1:2, 1:2)), F₁₂)
-        A₋ = ckron(SMatrix{2,2,Complex{T},4}(view(σ₁₂(T), 3:4, 3:4)), F₁₂)
+        F₁₂ = Fμν[1, 2, site]
+        A₊ = ckron(σ₁₂(T)[i, i], F₁₂)
+        A₋ = ckron(σ₁₂(T)[j, j], F₁₂)
 
-        F₁₃ = Xμν[1, 3, site]
-        A₊ += ckron(SMatrix{2,2,Complex{T},4}(view(σ₁₃(T), 1:2, 1:2)), F₁₃)
-        A₋ += ckron(SMatrix{2,2,Complex{T},4}(view(σ₁₃(T), 3:4, 3:4)), F₁₃)
+        F₁₃ = Fμν[1, 3, site]
+        A₊ += ckron(σ₁₃(T)[i, i], F₁₃)
+        A₋ += ckron(σ₁₃(T)[j, j], F₁₃)
 
-        F₁₄ = Xμν[1, 4, site]
-        A₊ += ckron(SMatrix{2,2,Complex{T},4}(view(σ₁₄(T), 1:2, 1:2)), F₁₄)
-        A₋ += ckron(SMatrix{2,2,Complex{T},4}(view(σ₁₄(T), 3:4, 3:4)), F₁₄)
+        F₁₄ = Fμν[1, 4, site]
+        A₊ += ckron(σ₁₄(T)[i, i], F₁₄)
+        A₋ += ckron(σ₁₄(T)[j, j], F₁₄)
 
-        F₂₃ = Xμν[2, 3, site]
-        A₊ += ckron(SMatrix{2,2,Complex{T},4}(view(σ₂₃(T), 1:2, 1:2)), F₂₃)
-        A₋ += ckron(SMatrix{2,2,Complex{T},4}(view(σ₂₃(T), 3:4, 3:4)), F₂₃)
+        F₂₃ = Fμν[2, 3, site]
+        A₊ += ckron(σ₂₃(T)[i, i], F₂₃)
+        A₋ += ckron(σ₂₃(T)[j, j], F₂₃)
 
-        F₂₄ = Xμν[2, 4, site]
-        A₊ += ckron(SMatrix{2,2,Complex{T},4}(view(σ₂₄(T), 1:2, 1:2)), F₂₄)
-        A₋ += ckron(SMatrix{2,2,Complex{T},4}(view(σ₂₄(T), 3:4, 3:4)), F₂₄)
+        F₂₄ = Fμν[2, 4, site]
+        A₊ += ckron(σ₂₄(T)[i, i], F₂₄)
+        A₋ += ckron(σ₂₄(T)[j, j], F₂₄)
 
-        F₃₄ = Xμν[3, 4, site]
-        A₊ += ckron(SMatrix{2,2,Complex{T},4}(view(σ₃₄(T), 1:2, 1:2)), F₃₄)
-        A₋ += ckron(SMatrix{2,2,Complex{T},4}(view(σ₃₄(T), 3:4, 3:4)), F₃₄)
+        F₃₄ = Fμν[3, 4, site]
+        A₊ += ckron(σ₃₄(T)[i, i], F₃₄)
+        A₋ += ckron(σ₃₄(T)[j, j], F₃₄)
 
         A₊ = fac * A₊ + M
         A₋ = fac * A₋ + M
@@ -526,9 +532,9 @@ end
 function trlog(D_diag::WilsonEODiagonal{CPU,T,true}) where {T}
     d = 0.0
 
-    #= @batch reduction=(*, d)  =#for o_site in eachindex(false, D_diag)
-    d += log(real(det(D_diag[1, o_site])))
-    d += log(real(det(D_diag[2, o_site])))
+    @batch reduction=(+, d) for _site in eachindex(true, D_diag)
+        d += log(real(det(D_diag[1, _site])))
+        d += log(real(det(D_diag[2, _site])))
     end
 
     return d

@@ -1,24 +1,37 @@
-function run_sim(filenamein::String; backend="cpu")
-    filename_head = splitext(filenamein)[1]
-    filename = filename_head * ".toml"
+function run_sim(filenamein::String; backend="cpu", mpi_enabled=false)
+    # When using MPI we make sure that only rank 0 prints to the console
+    if MYRANK == 0
+        ext = splitext(filenamein)[end]
+        @assert (ext == ".toml") """
+            input file format \"$ext\" not supported. Use TOML format
+        """
+    end
 
     # load parameters from toml file
     parameters = construct_params_from_toml(filename; backend=backend)
+    MPI.Barrier(COMM)
+
+    if MYRANK == 0
+        oneinst = parameters.numinstances == 1
+        if mpi_enabled
+            @assert parameters.tempering_enabled "MPI can only be used with parallel tempering in sim"
+        end
+        @assert mpi_enabled ⊻ oneinst "MPI must be enabled if and only if numinstances > 1, numinstances was $(parameters.numinstances)"
+        @assert COMM_SIZE == parameters.numinstances "numinstances has to be equal to the number of MPI ranks"
+        @assert parameters.kind_of_bias != "none" "bias cannot be \"none\" in parallel tempering, was $(parameters.kind_of_bias)"
+    end
 
     # set random seed if provided, otherwise generate one
     if parameters.randomseed != 0
         seed = parameters.randomseed
-        Random.seed!(seed)
+        Random.seed!(seed * (MYRANK + 1))
     else
         seed = rand(UInt64)
         Random.seed!(seed)
     end
 
-    set_global_logger!(
-        parameters.verboselevel,
-        parameters.log_dir * "/logs.txt";
-        tc=parameters.log_to_console,
-    )
+    logger_io = MYRANK == 0 ? parameters.log_dir * "/logs.txt" : devnull
+    set_global_logger!(parameters.verboselevel, logger_io; tc=parameters.log_to_console)
 
     # print time and system info, because it looks cool I guess
     # btw, all these "@level1" calls are just for logging, level1 is always printed
@@ -37,7 +50,7 @@ function run_sim(filenamein::String; backend="cpu")
         )
         univ = Univ(univ_args...)
     else
-        univ = Univ(parameters)
+        univ = Univ(parameters; use_mpi=mpi_enabled)
         updatemethod = updatemethod_pt = nothing
     end
 
@@ -45,25 +58,32 @@ function run_sim(filenamein::String; backend="cpu")
     return nothing
 end
 
-function run_sim!(univ, parameters, updatemethod=nothing, updatemethod_pt=nothing)
+function run_sim!(univ, parameters, updatemethod, updatemethod_pt; mpi_enabled=false)
     U = univ.U
 
     # initialize update method, measurements, and bias
     if parameters.tempering_enabled
-        if updatemethod === updatemethod_pt === nothing
-            updatemethod = Updatemethod(parameters, U[1])
-            # all MetaD streams use HMC, so there is no need to initialize more than 1
-            updatemethod_pt = HMC(
-                U[1],
-                parameters.hmc_integrator,
-                parameters.hmc_trajectory,
-                parameters.hmc_steps,
-                parameters.hmc_friction;
-                fermion_action=parameters.fermion_action,
-                bias_enabled=true,
-            )
+        if mpi_enabled
+            if updatemethod === nothing
+                updatemethod = Updatemethod(parameters, U)
+            end
+            parity = parameters.parity_update ? ParityUpdate(U) : nothing
+        else
+            if updatemethod === updatemethod_pt === nothing
+                updatemethod = Updatemethod(parameters, U[1])
+                # all MetaD streams use HMC, so there is no need to initialize more than 1
+                updatemethod_pt = HMC(
+                    U[1],
+                    parameters.hmc_integrator,
+                    parameters.hmc_trajectory,
+                    parameters.hmc_steps,
+                    parameters.hmc_friction;
+                    fermion_action=parameters.fermion_action,
+                    bias_enabled=true,
+                )
+            end
+            parity = parameters.parity_update ? ParityUpdate(U[1]) : nothing
         end
-        parity = parameters.parity_update ? ParityUpdate(U[1]) : nothing
     else
         if updatemethod === nothing
             updatemethod = Updatemethod(parameters, U)
@@ -71,9 +91,9 @@ function run_sim!(univ, parameters, updatemethod=nothing, updatemethod_pt=nothin
         parity = parameters.parity_update ? ParityUpdate(U) : nothing
     end
 
-    parity ≢ nothing && @level1("[ Parity update enabled\n")
+    parity !== nothing && @level1("[ Parity update enabled\n")
 
-    if parameters.tempering_enabled
+    if parameters.tempering_enabled && !mpi_enabled
         gflow = GradientFlow(
             U[1],
             parameters.flow_integrator,

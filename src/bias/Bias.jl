@@ -13,7 +13,6 @@ import ..Fields: Gaugefield, Plaquette, Clover
 import ..Measurements: top_charge
 import ..Smearing: AbstractSmearing, NoSmearing, StoutSmearing, calc_smearedU!
 
-MPI.Initialized() || MPI.Init()
 const COMM = MPI.COMM_WORLD
 const MYRANK = MPI.Comm_rank(COMM)
 const COMM_SIZE = MPI.Comm_size(COMM)

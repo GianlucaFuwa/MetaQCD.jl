@@ -111,7 +111,9 @@ function construct_measurement_parameters_from_dict(value_i::Dict)
     return value_out
 end
 
-function prepare_measurement(U, meas_parameters::T, filename="", flow=false) where {T}
+function prepare_measurement(
+    U, meas_parameters::T, filename="", flow=false
+) where {T<:MeasurementParameters}
     if T == GaugeActionParameters
         filename_input = ifelse(filename == "", "gauge_action.txt", filename)
         measurement = GaugeActionMeasurement(U, meas_parameters, filename_input, flow)
@@ -137,7 +139,7 @@ function prepare_measurement(U, meas_parameters::T, filename="", flow=false) whe
         filename_input = ifelse(filename == "", "eigenvalues.txt", filename)
         measurement = EigenvaluesMeasurement(U, meas_parameters, filename_input, flow)
     else
-        error(T, " is not supported in measurements")
+        error("$T is not supported in measurements")
     end
 
     return measurement

@@ -2,6 +2,7 @@ import ..DiracOperators: StaggeredDiracOperator, StaggeredFermionAction
 import ..DiracOperators: StaggeredEOPreDiracOperator, StaggeredEOPreFermionAction
 import ..DiracOperators: WilsonDiracOperator, WilsonFermionAction
 import ..DiracOperators: WilsonEOPreDiracOperator, WilsonEOPreFermionAction
+import ..DiracOperators: WilsonEODiagonal
 import ..DiracOperators: Daggered, DdaggerD, EvenOdd
 import ..DiracOperators: boundary_factor, staggered_η, solve_dirac!, solve_dirac_multishift!
 import ..DiracOperators: mul_oe!, mul_eo!, mul_oo_inv!

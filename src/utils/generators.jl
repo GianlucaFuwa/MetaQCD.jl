@@ -59,6 +59,7 @@ const σ₃ = @SArray [
     0 -1
 ]
 
+# σ_μν = i/2 * [γ_μ, γ_ν]
 @inline function σ₁₂(::Type{T}) where {T}
     return @SArray [
         Complex{T}(-1, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0)

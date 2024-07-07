@@ -92,3 +92,27 @@ function fieldstrength_eachsite!(
 
     return nothing
 end
+
+function fieldstrength_A_eachsite!(
+    ::Clover, F::Tensorfield{CPU,T}, U::Gaugefield{CPU,T}
+) where {T}
+    check_dims(F, U)
+    fac = Complex{T}(im / 4)
+
+    @batch for site in eachindex(U)
+        C12 = clover_square(U, 1, 2, site, 1)
+        F[1, 2, site] = fac * antihermitian(C12)
+        C13 = clover_square(U, 1, 3, site, 1)
+        F[1, 3, site] = fac * antihermitian(C13)
+        C14 = clover_square(U, 1, 4, site, 1)
+        F[1, 4, site] = fac * antihermitian(C14)
+        C23 = clover_square(U, 2, 3, site, 1)
+        F[2, 3, site] = fac * antihermitian(C23)
+        C24 = clover_square(U, 2, 4, site, 1)
+        F[2, 4, site] = fac * antihermitian(C24)
+        C34 = clover_square(U, 3, 4, site, 1)
+        F[3, 4, site] = fac * antihermitian(C34)
+    end
+
+    return nothing
+end

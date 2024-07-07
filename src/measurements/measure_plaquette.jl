@@ -1,9 +1,12 @@
 struct PlaquetteMeasurement{T} <: AbstractMeasurement
     factor::Float64 # 1 / (6*U.NV*U.NC)
-    fp::T # file pointer
-    function PlaquetteMeasurement(U::Gaugefield; filename="", printvalues=false, flow=false)
-        if printvalues
-            fp = open(filename, "w")
+    filename::T
+    myinstance::Base.RefValue{Int64}
+    function PlaquetteMeasurement(
+        U::Gaugefield; filename::Union{String,Nothing}=nothing, flow=false, printvalues=false
+    )
+        if filename !== nothing
+            @assert filename != ""
             header = ""
 
             if flow
@@ -14,14 +17,15 @@ struct PlaquetteMeasurement{T} <: AbstractMeasurement
                 header *= @sprintf("%-9s\t%-22s", "itrj", "Re(plaq)")
             end
 
-            println(fp, header)
-        else
-            fp = nothing
+            open(filename * "_$MYRANK", "w") do io
+                println(io, header)
+            end
         end
 
         factor = 1 / (6 * U.NV * U.NC)
 
-        return new{typeof(fp)}(factor, fp)
+        T = typeof(filename)
+        return new{T}(factor, filename, Base.RefValue{Int64}(MYRANK))
     end
 end
 
@@ -33,7 +37,7 @@ function measure(m::PlaquetteMeasurement{T}, U; additional_string="") where {T}
     plaq = plaquette_trace_sum(U) * m.factor
     measurestring = ""
 
-    if T ≡ IOStream
+    if T !== Nothing
         measurestring *= @sprintf("%-9s\t%-22.15E", additional_string, plaq)
         println(m.fp, measurestring)
         flush(m.fp)

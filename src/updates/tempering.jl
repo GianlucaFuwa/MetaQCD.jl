@@ -1,4 +1,74 @@
 function temper!(
+    U::Gaugefield,
+    bias::Bias,
+    numaccepts_temper,
+    instance_state,
+    myinstance,
+    swap_every,
+    itrj;
+    recalc=false,
+)
+    itrj % swap_every != 0 && return nothing
+    recalc && recalc_CV!(U, bias)
+    
+    # Query `instance_state` to find out which rank has to temper with which
+    # Convention: instance N <-> instance N-1, instance N-1 <-> instance N-2, etc.
+    for i in (COMM_SIZE-1):-1:2
+        # Determine the ranks that have instances i and i-1
+        rank_i = get_rank_for_instance(i, instance_state)
+        rank_i_minus_1 = get_rank_for_instance(i-1, instance_state)
+
+        if MYRANK == rank_i || MYRANK == rank_i_minus_1
+            if MYRANK == rank_i
+                MPI.Send(U.CV::Float64, COMM; dest=rank_i_minus_1::Int64, tag=0) 
+                CV_j = MPI.Recv(Float64, COMM; source=rank_i_minus_1::Int64, tag=0)
+            else MYRANK == rank_i_minus_1
+                CV_j = MPI.Recv(Float64, COMM; source=rank_i::Int64, tag=0)
+                MPI.Send(U.CV::Float64, COMM; dest=rank_i::Int64, tag=0) 
+            end
+
+            if MYRANK == rank_i
+                ΔV1 = bias(CV_j) - bias(U.CV)
+                ΔV2 = MPI.Recv(Float64, COMM; source=rank_i_minus_1::Int64, tag=1)
+                acc_prob = exp(-ΔV1 - ΔV2)
+                is_accepted = rand() ≤ acc_prob
+                MPI.Send(is_accepted::Bool, COMM; dest=rank_i_minus_1::Int64, tag=2) 
+            else 
+                ΔV2 = bias(CV_j) - bias(U.CV)
+                MPI.Send(ΔV2::Float64, COMM; dest=rank_i::Int64, tag=1) 
+                is_accepted = MPI.Recv(Bool, COMM; source=rank_i::Int64, tag=2)
+            end
+
+            if is_accepted
+                if MYRANK == rank_i
+                    instance_state[MYRANK+1] = i-1
+                    instance_state[rank_i_minus_1+1] = i
+
+                    # Update the local instance variable
+                    myinstance[] = i-1
+                elseif MYRANK == rank_i_minus_1
+                    instance_state[MYRANK+1] = i
+                    instance_state[rank_i+1] = i-1
+
+                    # Update the local instance variable
+                    myinstance[] = i
+                    numaccepts_temper[i-1] += 1
+                end
+            end
+        end
+
+        # Synchronize vectors across all processes
+        MPI.Bcast!(instance_state, COMM; root=rank_i)
+        MPI.Bcast!(numaccepts_temper, COMM; root=rank_i)
+        MPI.Barrier(COMM)
+        @level1(
+            "|  Acceptance [$i ⇔  $(i-1)]:\t$(100numaccepts_temper[i-1] / (itrj/swap_every)) %"
+        )
+    end
+    return nothing
+end
+
+function temper!(
     U::Vector{TG}, bias::Vector{TB}, numaccepts_temper, swap_every, itrj; recalc=false
 ) where {TG<:Gaugefield,TB<:Bias}
     itrj % swap_every != 0 && return nothing
@@ -55,3 +125,5 @@ function swap_U!(a, b)
 
     return nothing
 end
+
+@inline get_rank_for_instance(myinstance, state) = findfirst(x -> x == myinstance, state)

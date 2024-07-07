@@ -10,6 +10,7 @@ include("./parameter_set.jl")
 
 const COMM = MPI.COMM_WORLD
 const MYRANK = MPI.Comm_rank(COMM)
+const AM_RANK0 = MYRANK == 0
 
 export ParameterSet
 
@@ -50,12 +51,10 @@ function construct_params_from_toml(filename::String; backend="cpu")
     parameters = TOML.parsefile(filename)
     inputfile = pwd() * "/" * filename
     MYRANK == 0 && println("inputfile: ", inputfile * "\n")
-    return construct_params_from_toml(
-        parameters, inputfile; am_rank0=(MYRANK == 0), backend=backend
-    )
+    return construct_params_from_toml(parameters, inputfile; backend=backend)
 end
 
-function construct_params_from_toml(parameters, inputfile; am_rank0=true, backend="cpu")
+function construct_params_from_toml(parameters, inputfile; backend="cpu")
     pnames = fieldnames(ParameterSet)
     numparams = length(pnames)
     value_Params = Vector{Any}(undef, numparams)
@@ -100,56 +99,61 @@ function construct_params_from_toml(parameters, inputfile; am_rank0=true, backen
             i > 100 && error("ensemble directory name gen timed out, try \"overwrite = true\"")
         end
         ensemble_dir = tmp
-        am_rank0 && mkpath(ensemble_dir)
+        AM_RANK0 && mkpath(ensemble_dir)
     else
-        if !isdir(ensemble_dir) && am_rank0
+        if !isdir(ensemble_dir) && AM_RANK0
             mkpath(ensemble_dir)
         end
     end
 
-    am_rank0 && cp(inputfile, ensemble_dir * "/used_parameterfile.toml"; force=true)
+    AM_RANK0 && cp(inputfile, ensemble_dir * "/used_parameterfile.toml"; force=true)
     pose = findfirst(x -> String(x) == "ensemble_dir", pnames)
     value_Params[pose] = ensemble_dir
 
     log_dir = ensemble_dir * "/logs/"
     measure_dir = ensemble_dir * "/measurements/"
     save_config_dir = ensemble_dir * "/configs/"
-    if !isdir(log_dir) && am_rank0
+    bias_dir = ensemble_dir * "/biaspotentials/"
+    if !isdir(log_dir) && AM_RANK0
         mkpath(log_dir)
     end
-    if !isdir(measure_dir) && am_rank0
+    if !isdir(measure_dir) && AM_RANK0
         mkpath(measure_dir)
     end
-    if !isdir(save_config_dir) && am_rank0
+    if !isdir(save_config_dir) && AM_RANK0
         mkpath(save_config_dir)
+    end
+    if !isdir(bias_dir) && AM_RANK0
+        mkpath(bias_dir)
     end
     
     posl = findfirst(x -> String(x) == "log_dir", pnames)
     posm = findfirst(x -> String(x) == "measure_dir", pnames)
     poss = findfirst(x -> String(x) == "save_config_dir", pnames)
+    posb = findfirst(x -> String(x) == "bias_dir", pnames)
     value_Params[posl] = log_dir
     value_Params[posm] = measure_dir
     value_Params[poss] = save_config_dir
+    value_Params[posb] = bias_dir
 
-    kind_of_bias = try
-        parameters["Bias Settings"]["kind_of_bias"]
-    catch
-        "none"
+    # Make sure every process can see the new directories
+    ensemble_dir_exists = isdir(ensemble_dir)
+    log_dir_exists = isdir(log_dir)
+    measure_dir_exists = isdir(measure_dir)
+    config_dir_exists = isdir(save_config_dir)
+    bias_dir_exists = isdir(bias_dir)
+    itimer = 0
+    while !(ensemble_dir_exists && log_dir_exists && measure_dir_exists && config_dir_exists && bias_dir_exists)
+        itimer = 50 && error("Rank $MYRANK could not find all directories")
+        sleep(0.1)
+        ensemble_dir_exists = isdir(ensemble_dir)
+        log_dir_exists = isdir(log_dir)
+        measure_dir_exists = isdir(measure_dir)
+        config_dir_exists = isdir(save_config_dir)
+        bias_dir_exists = isdir(bias_dir)
+        itimer += 1
     end
-
-    pos = findfirst(x -> String(x) == "bias_dir", pnames)
-
-    if kind_of_bias != "none" || kind_of_bias != "parametric"
-        bias_dir = ensemble_dir * "/metapotentials/"
-
-        if !isdir(bias_dir)
-            am_rank0 && mkpath(bias_dir)
-        end
-
-        value_Params[pos] = bias_dir
-    else
-        value_Params[pos] = ""
-    end
+    MPI.Barrier(COMM)
 
     for (i, pname_i) in enumerate(pnames)
         for (_, value) in parameters
@@ -197,13 +201,13 @@ function construct_params_from_toml(parameters, inputfile; am_rank0=true, backen
 
     parameters = ParameterSet(value_Params...)
 
-    parameter_check(parameters, am_rank0)
-    MPI.Barrier(MPI.COMM_WORLD)
+    parameter_check(parameters)
+    MPI.Barrier(COMM)
     return parameters
 end
 
-function parameter_check(p::ParameterSet, am_rank0)
-    am_rank0 || return nothing
+function parameter_check(p::ParameterSet)
+    AM_RANK0 || return nothing
 
     if lower_case(p.gauge_action) ∉ ["wilson", "iwasaki", "symanzik_tree", "dbw2"]
         ga = p.gauge_action
@@ -348,8 +352,8 @@ function construct_measurement_dicts(x)
     return meas_dicts
 end
 
-@noinline function overwrite_detected(s::String, am_rank0)
-    am_rank0 && throw(AssertionError("""
+@noinline function overwrite_detected(s::String)
+    AM_RANK0 && throw(AssertionError("""
                     The provided $s directory or file already exists
                     and \"overwrite\" in [\"System Settings\"] is set to false.
                     """))

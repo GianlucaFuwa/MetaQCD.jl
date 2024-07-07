@@ -113,27 +113,27 @@ end
 
 function add_clover_derivative_kernel!(dU, U, Xμν, site, fac, ::Type{T}) where {T}
     tmp =
-        Xμν∇Fμν(Xμν, U, 1, 2, site) +
-        Xμν∇Fμν(Xμν, U, 1, 3, site) +
-        Xμν∇Fμν(Xμν, U, 1, 4, site)
+        Xμν∇Fμν(Xμν, U, 1, 2, site, T) +
+        Xμν∇Fμν(Xμν, U, 1, 3, site, T) +
+        Xμν∇Fμν(Xμν, U, 1, 4, site, T)
     dU[1i32, site] += fac * traceless_antihermitian(cmatmul_oo(U[1i32, site], tmp))
 
     tmp =
-        Xμν∇Fμν(Xμν, U, 2, 1, site) +
-        Xμν∇Fμν(Xμν, U, 2, 3, site) +
-        Xμν∇Fμν(Xμν, U, 2, 4, site)
+        Xμν∇Fμν(Xμν, U, 2, 1, site, T) +
+        Xμν∇Fμν(Xμν, U, 2, 3, site, T) +
+        Xμν∇Fμν(Xμν, U, 2, 4, site, T)
     dU[2i32, site] += fac * traceless_antihermitian(cmatmul_oo(U[2i32, site], tmp))
 
     tmp =
-        Xμν∇Fμν(Xμν, U, 3, 1, site) +
-        Xμν∇Fμν(Xμν, U, 3, 2, site) +
-        Xμν∇Fμν(Xμν, U, 3, 4, site)
+        Xμν∇Fμν(Xμν, U, 3, 1, site, T) +
+        Xμν∇Fμν(Xμν, U, 3, 2, site, T) +
+        Xμν∇Fμν(Xμν, U, 3, 4, site, T)
     dU[3i32, site] += fac * traceless_antihermitian(cmatmul_oo(U[3i32, site], tmp))
 
     tmp =
-        Xμν∇Fμν(Xμν, U, 4, 1, site) +
-        Xμν∇Fμν(Xμν, U, 4, 2, site) +
-        Xμν∇Fμν(Xμν, U, 4, 3, site)
+        Xμν∇Fμν(Xμν, U, 4, 1, site, T) +
+        Xμν∇Fμν(Xμν, U, 4, 2, site, T) +
+        Xμν∇Fμν(Xμν, U, 4, 3, site, T)
     dU[4i32, site] += fac * traceless_antihermitian(cmatmul_oo(U[4i32, site], tmp))
     return nothing
 end
@@ -189,7 +189,7 @@ function calc_Xμν_kernel!(Xμν, X, Y, site)
     return nothing
 end
 
-function Xμν∇Fμν(Xμν, U, μ, ν, site)
+function Xμν∇Fμν(Xμν, U, μ, ν, site, ::Type{T}) where {T}
     Nμ = dims(U)[μ]
     Nν = dims(U)[ν]
     siteμ⁺ = move(site, μ, 1i32, Nμ)
@@ -216,5 +216,5 @@ function Xμν∇Fμν(Xμν, U, μ, ν, site)
         cmatmul_dodo(U[ν, siteμ⁺ν⁻], Xμν[μ, ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻]) -
         cmatmul_oddo(Xμν[μ, ν, siteμ⁺], U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻])
 
-    return im * 1//8 * component
+    return im * T(1/8) * component
 end

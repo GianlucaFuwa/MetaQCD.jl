@@ -41,4 +41,11 @@ if length(ARGS) == 2
     end
 end
 
-run_sim(ARGS[1]; backend=backend)
+with_mpi = MPI.Comm_size(COMM) > 1
+if with_mpi && MYRANK == 0
+    println("$(MPI.Comm_size(COMM)) streams will be used")
+end
+
+MPI.Barrier(COMM)
+
+run_sim(ARGS[1]; backend=backend, mpi_enabled=with_mpi)

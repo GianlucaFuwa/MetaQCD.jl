@@ -11,21 +11,23 @@ function calc_dSfdU!(
     DdagD = DdaggerD(D)
     anti = D.anti_periodic
 
-    clear!(X_eo)
-    solve_dirac!(X_eo, DdagD, ϕ_eo, Y_eo, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp LinearAlgebra.mul!(Y, D, X) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
+    # clear!(X_eo)
+    # solve_dirac!(X_eo, DdagD, ϕ_eo, Y_eo, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp LinearAlgebra.mul!(Y, D, X) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
 
-    LinearAlgebra.mul!(Y_eo, D, X_eo)
-    mul_oe!(X_eo, U, X_eo, anti, true, Val(1)) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
-    mul_oe!(Y_eo, U, Y_eo, anti, true, Val(-1)) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
-    mul_oo_inv!(X_eo, D.D_oo_inv)
-    mul_oo_inv!(Y_eo, D.D_oo_inv)
-    add_wilson_eo_derivative!(dU, U, X_eo, Y_eo, anti)
-
+    # LinearAlgebra.mul!(Y_eo, D, X_eo)
+    # mul_oe!(X_eo, U, X_eo, anti, true, Val(1)) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
+    # mul_oe!(Y_eo, U, Y_eo, anti, true, Val(-1)) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
+    # mul_oo_inv!(X_eo, D.D_oo_inv)
+    # mul_oo_inv!(Y_eo, D.D_oo_inv)
+    # add_wilson_eo_derivative!(dU, U, X_eo, Y_eo, anti)
     # TODO: Clover derivatives
     if C
-        Xμν = D.Xμν
-        calc_Xμν_eachsite!(Xμν, X_eo, Y_eo)
-        add_clover_eo_derivative!(dU, U, Xμν, D.csw)
+        Xμν = fermion_action.Xμν
+        D_oo_inv = D.D_oo_inv
+        # calc_Xμν_eo_eachsite!(Xμν, X_eo, Y_eo)
+        # add_clover_derivative!(dU, U, Xμν, D.csw)
+        calc_Xμν_small_eachsite!(Xμν, D_oo_inv)
+        add_clover_derivative!(dU, U, Xμν, 2D.csw) 
     end
     return nothing
 end
@@ -60,12 +62,19 @@ function calc_dSfdU!(
         mul_oo_inv!(Xs[i+1], D.D_oo_inv)
         mul_oo_inv!(Ys[i+1], D.D_oo_inv)
         add_wilson_derivative!(dU, U, Xs[i+1], Ys[i+1], anti; coeff=coeffs[i])
-        # TODO: Clover derivatives
+
         if C
             Xμν = D.Xμν
             calc_Xμν_eachsite!(Xμν, Xs[i+1], Ys[i+1])
             add_clover_derivative!(dU, U, Xμν, D.csw; coeff=coeffs[i])
         end
+    end
+
+    # TODO:
+    if C
+        Xμν = D.Xμν
+        calc_Xμν_small_eachsite!(Xμν, D_oo_inv)
+        add_clover_derivative!(dU, U, Xμν, 2D.csw) 
     end
     return nothing
 end
@@ -117,95 +126,118 @@ function add_wilson_eo_derivative_kernel!(dU, U, X_eo, Y_eo, site, bc⁺, fac)
     return nothing
 end
 
-function add_clover_eo_derivative!(
-    dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, Xμν::Tensorfield{CPU,T}, csw; coeff=1
-) where {T}
-    check_dims(dU, U, Xμν)
-    fac = T(csw * coeff / 2)
-
-    #= @batch  =#for site in eachindex(dU)
-        add_clover_derivative_kernel!(dU, U, Xμν, site, fac, T)
-    end
-
-    return nothing
-end
-
-function calc_Xμν_eachsite!(
+function calc_Xμν_eo_eachsite!(
     Xμν::Tensorfield{CPU,T}, X_eo::TF, Y_eo::TF
 ) where {T,TF<:WilsonEOPreFermionfield}
-    check_dims(Xμν, X_eo, Y_eo)
+    X = X_eo.parent
+    Y = Y_eo.parent
 
-    #= @batch  =#for site in eachindex(Xμν)
-        if isodd(site)
-            calc_Xμν_eo_kernel!(Xμν, X_eo, Y_eo, site)
-        else
-            clear_Xμν_eo_kernel!(Xμν, site, T)
-        end
+    @batch for site in eachindex(Xμν)
+        calc_Xμν_eo_kernel!(Xμν, X, Y, site)
     end
 
     return nothing
 end
 
-function calc_Xμν_eo_kernel!(Xμν, X_eo, Y_eo, site)
-    NX, NY, NZ, NT = dims(X_eo)
+function calc_Xμν_eo_kernel!(Xμν, X, Y, site)
+    NX, NY, NZ, NT = dims(Xμν)
     NV = NX * NY * NZ * NT
     _site = eo_site(site, NX, NY, NZ, NT, NV)
 
     X₁₂ =
-        spintrace(σμν_spin_mul(X_eo[_site], Val(1), Val(2)), Y_eo[_site]) +
-        spintrace(σμν_spin_mul(Y_eo[_site], Val(1), Val(2)), X_eo[_site])
+        spintrace(σμν_spin_mul(X[_site], Val(1), Val(2)), Y[_site]) +
+        spintrace(σμν_spin_mul(Y[_site], Val(1), Val(2)), X[_site])
     Xμν[1i32, 2i32, site] = X₁₂
     Xμν[2i32, 1i32, site] = -X₁₂
 
     X₁₃ =
-        spintrace(σμν_spin_mul(X_eo[_site], Val(1), Val(3)), Y_eo[_site]) +
-        spintrace(σμν_spin_mul(Y_eo[_site], Val(1), Val(3)), X_eo[_site])
+        spintrace(σμν_spin_mul(X[_site], Val(1), Val(3)), Y[_site]) +
+        spintrace(σμν_spin_mul(Y[_site], Val(1), Val(3)), X[_site])
     Xμν[1i32, 3i32, site] = X₁₃
     Xμν[3i32, 1i32, site] = -X₁₃
 
     X₁₄ =
-        spintrace(σμν_spin_mul(X_eo[_site], Val(1), Val(4)), Y_eo[_site]) +
-        spintrace(σμν_spin_mul(Y_eo[_site], Val(1), Val(4)), X_eo[_site])
+        spintrace(σμν_spin_mul(X[_site], Val(1), Val(4)), Y[_site]) +
+        spintrace(σμν_spin_mul(Y[_site], Val(1), Val(4)), X[_site])
     Xμν[1i32, 4i32, site] = X₁₄
     Xμν[4i32, 1i32, site] = -X₁₄
 
     X₂₃ =
-        spintrace(σμν_spin_mul(X_eo[_site], Val(2), Val(3)), Y_eo[_site]) +
-        spintrace(σμν_spin_mul(Y_eo[_site], Val(2), Val(3)), X_eo[_site])
+        spintrace(σμν_spin_mul(X[_site], Val(2), Val(3)), Y[_site]) +
+        spintrace(σμν_spin_mul(Y[_site], Val(2), Val(3)), X[_site])
     Xμν[2i32, 3i32, site] = X₂₃
     Xμν[3i32, 2i32, site] = -X₂₃
 
     X₂₄ =
-        spintrace(σμν_spin_mul(X_eo[_site], Val(2), Val(4)), Y_eo[_site]) +
-        spintrace(σμν_spin_mul(Y_eo[_site], Val(2), Val(4)), X_eo[_site])
+        spintrace(σμν_spin_mul(X[_site], Val(2), Val(4)), Y[_site]) +
+        spintrace(σμν_spin_mul(Y[_site], Val(2), Val(4)), X[_site])
     Xμν[2i32, 4i32, site] = X₂₄
     Xμν[4i32, 2i32, site] = -X₂₄
 
     X₃₄ =
-        spintrace(σμν_spin_mul(X_eo[_site], Val(3), Val(4)), Y_eo[_site]) +
-        spintrace(σμν_spin_mul(Y_eo[_site], Val(3), Val(4)), X_eo[_site])
+        spintrace(σμν_spin_mul(X[_site], Val(3), Val(4)), Y[_site]) +
+        spintrace(σμν_spin_mul(Y[_site], Val(3), Val(4)), X[_site])
     Xμν[3i32, 4i32, site] = X₃₄
     Xμν[4i32, 3i32, site] = -X₃₄
     return nothing
 end
 
-function clear_Xμν_eo_kernel!(Xμν, site, ::Type{T}) where {T}
-    Xμν[1i32, 2i32, site] = zero3(T)
-    Xμν[2i32, 1i32, site] = zero3(T)
+function calc_Xμν_small_eachsite!(
+    Xμν::Tensorfield{CPU,T}, D_oo_inv::WilsonEODiagonal{CPU,T,true}
+) where {T}
+    check_dims(Xμν, D_oo_inv)
 
-    Xμν[1i32, 3i32, site] = zero3(T)
-    Xμν[3i32, 1i32, site] = zero3(T)
+    for site in eachindex(Xμν)
+        calc_Xμν_small_kernel!(Xμν, D_oo_inv, site, T)
+    end
 
-    Xμν[1i32, 4i32, site] = zero3(T)
-    Xμν[4i32, 1i32, site] = zero3(T)
-
-    Xμν[2i32, 3i32, site] = zero3(T)
-    Xμν[3i32, 2i32, site] = zero3(T)
-
-    Xμν[2i32, 4i32, site] = zero3(T)
-    Xμν[4i32, 2i32, site] = zero3(T)
-
-    Xμν[3i32, 4i32, site] = zero3(T)
-    Xμν[4i32, 3i32, site] = zero3(T)
     return nothing
+end
+
+function calc_Xμν_small_kernel!(Xμν, D_oo_inv, site, ::Type{T}) where {T}
+    if isodd(site)
+        NX, NY, NZ, NT = dims(Xμν)
+        NV = NX * NY * NZ * NT
+        _site = eo_site_switch(site, NX, NY, NZ, NT, NV)
+        A₊ = D_oo_inv[1, _site]
+        A₋ = D_oo_inv[2, _site]
+
+        X₁₂ = spintrace_σμν(A₊, A₋, Val(1), Val(2))
+        Xμν[1i32, 2i32, site] = X₁₂
+        Xμν[2i32, 1i32, site] = -X₁₂
+
+        X₁₃ = spintrace_σμν(A₊, A₋, Val(1), Val(3))
+        Xμν[1i32, 3i32, site] = X₁₃
+        Xμν[3i32, 1i32, site] = -X₁₃
+
+        X₁₄ = spintrace_σμν(A₊, A₋, Val(1), Val(4))
+        Xμν[1i32, 4i32, site] = X₁₄
+        Xμν[4i32, 1i32, site] = -X₁₄
+
+        X₂₃ = spintrace_σμν(A₊, A₋, Val(2), Val(3))
+        Xμν[2i32, 3i32, site] = X₂₃
+        Xμν[3i32, 2i32, site] = -X₂₃
+
+        X₂₄ = spintrace_σμν(A₊, A₋, Val(2), Val(4))
+        Xμν[2i32, 4i32, site] = X₂₄
+        Xμν[4i32, 2i32, site] = -X₂₄
+
+        X₃₄ = spintrace_σμν(A₊, A₋, Val(3), Val(4))
+        Xμν[3i32, 4i32, site] = X₃₄
+        Xμν[4i32, 3i32, site] = -X₃₄
+    else
+        X = zero3(T)
+        Xμν[1i32, 2i32, site] = X
+        Xμν[2i32, 1i32, site] = X
+        Xμν[1i32, 3i32, site] = X
+        Xμν[3i32, 1i32, site] = X
+        Xμν[1i32, 4i32, site] = X
+        Xμν[4i32, 1i32, site] = X
+        Xμν[2i32, 3i32, site] = X
+        Xμν[3i32, 2i32, site] = X
+        Xμν[2i32, 4i32, site] = X
+        Xμν[4i32, 2i32, site] = X
+        Xμν[3i32, 4i32, site] = X
+        Xμν[4i32, 3i32, site] = X
+    end
 end

@@ -9,11 +9,12 @@ struct EigenvaluesMeasurement{T,TA,TD} <: AbstractMeasurement
     restarts::Int64
     which::Symbol
     ddaggerd::Bool
-    fp::T # file pointer
+    filename::T
+    myinstance::Base.RefValue{Int64}
     function EigenvaluesMeasurement(
         U::Gaugefield;
-        filename="",
         printvalues=false,
+        filename::Union{String,Nothing}=nothing,
         dirac_type="wilson",
         eo_precon=false,
         flow=false,
@@ -53,8 +54,7 @@ struct EigenvaluesMeasurement{T,TA,TD} <: AbstractMeasurement
             throw(ArgumentError("Dirac operator \"$dirac_type\" is not supported"))
         end
 
-        if printvalues
-            fp = open(filename, "w")
+        if filename !== nothing && filename != ""
             header = ""
 
             if flow
@@ -77,14 +77,14 @@ struct EigenvaluesMeasurement{T,TA,TD} <: AbstractMeasurement
                 header *= @sprintf("\t%-22s\t%-22s", "eig_re_$(i)", "eig_im_$(i)")
             end
 
-            println(fp, header)
-        else
-            fp = nothing
+            open(filename * "_$MYRANK", "w") do io
+                println(io, header)
+            end
         end
 
         arnoldi = ArnoldiWorkspaceMeta(dirac_operator, maxdim)
 
-        T = typeof(fp)
+        T = typeof(filename)
         TA = typeof(arnoldi)
         TD = typeof(dirac_operator)
         return new{T,TA,TD}(
@@ -98,7 +98,8 @@ struct EigenvaluesMeasurement{T,TA,TD} <: AbstractMeasurement
             restarts,
             Symbol(which),
             ddaggerd,
-            fp,
+            filename,
+            Base.RefValue{Int64}(MYRANK),
         )
     end
 end
@@ -181,15 +182,16 @@ function measure(m::EigenvaluesMeasurement{T}, U; additional_string="") where {T
         end
     end
 
-    if T ≡ IOStream
+    if T !== Nothing
         for value in vals
             svalue = @sprintf("%+-22.15E\t%+-22.15E", real(value), imag(value))
             printstring *= "\t$svalue"
         end
 
         measurestring = printstring
-        println(m.fp, measurestring)
-        flush(m.fp)
+        open(m.filename * "_$(m.myinstance)", "a") do io
+            println(io, measurestring)
+        end
     end
 
     output = MeasurementOutput(vals, "")

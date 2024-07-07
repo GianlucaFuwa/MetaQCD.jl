@@ -48,7 +48,7 @@ export cdot, cmvmul, cmvmul_d, cvmmul, cvmmul_d, cmvmul_block
 export cmvmul_color, cmvmul_d_color, cvmmul_color, cvmmul_d_color
 export ckron, spintrace, cmvmul_spin_proj, spin_proj, σμν_spin_mul
 export _unwrap_val, SU, restore_last_col, restore_last_row, FLOAT_TYPE
-export cinv, i32
+export cinv, i32, spintrace_σμν
 
 abstract type AbstractIterator end
 struct Sequential <: AbstractIterator end
@@ -200,6 +200,7 @@ end
     return q
 end
 
+include("auxiliary.jl")
 include("simd_matmul.jl")
 include("simd_vecops.jl")
 include("generators.jl")

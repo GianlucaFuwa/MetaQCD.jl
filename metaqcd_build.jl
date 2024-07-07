@@ -49,4 +49,4 @@ end
 
 MPI.Barrier(COMM)
 
-build_bias(ARGS[1], mpi_enabled=with_mpi)
+build_bias(ARGS[1]; backend=backend, mpi_enabled=with_mpi)
