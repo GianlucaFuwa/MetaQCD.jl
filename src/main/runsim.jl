@@ -8,7 +8,7 @@ function run_sim(filenamein::String; backend="cpu", mpi_enabled=false)
     end
 
     # load parameters from toml file
-    parameters = construct_params_from_toml(filename; backend=backend)
+    parameters = construct_params_from_toml(filenamein; backend=backend)
     MPI.Barrier(COMM)
 
     if MYRANK == 0
@@ -209,7 +209,7 @@ function metaqcd!(
     checkpointer,
 )
     U = univ.U
-    fermion_action = univ.fermion_actions
+    fermion_action = univ.fermion_action
     bias = univ.bias
 
     # load in config and recalculate gauge action if given
@@ -299,6 +299,7 @@ function metaqcd_PT!(
     numinstances = parameters.numinstances
     U = univ.U
     bias = univ.bias
+    fermion_action = univ.fermion_action
     swap_every = parameters.swap_every
     rank0_updates = parameters.non_metadynamics_updates
     measure_on_all = parameters.measure_on_all
@@ -315,7 +316,14 @@ function metaqcd_PT!(
                     # thermalize all streams with the updatemethod of stream 1
                     # shouldnt be a problem for HMC, since we force 0-friction
                     # for thermalization updates and reverse the order, so stream 1 is last
-                    update!(updatemethod, U[i]; bias=NoBias(), metro_test=false, friction=0)
+                    update!(
+                        updatemethod,
+                        U[i];
+                        fermion_action=fermion_action[i],
+                        bias=NoBias(),
+                        metro_test=false,
+                        friction=0,
+                    )
                 end
             end
             @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())")
@@ -335,13 +343,25 @@ function metaqcd_PT!(
             _, updatetime = @timed begin
                 tmp = 0.0
                 for _ in 1:rank0_updates
-                    tmp += update!(updatemethod, U[1]; bias=NoBias())
+                    tmp += update!(
+                        updatemethod,
+                        U[1];
+                        fermion_action=fermion_action,
+                        bias=NoBias(),
+                        metro_test=true,
+                    )
                 end
                 numaccepts[1] += tmp / rank0_updates
                 rand() < 0.5 && update!(parity, U[1])
 
                 for i in 2:numinstances
-                    accepted = update!(updatemethod_pt, U[i]; bias=bias[i])
+                    accepted = update!(
+                        updatemethod_pt,
+                        U[i];
+                        fermion_action=fermion_action,
+                        bias=bias[i],
+                        metro_test=true,
+                    )
                     accepted == true && update_bias!(bias[i], U[i].CV, itrj)
                     numaccepts[i] += accepted
                 end

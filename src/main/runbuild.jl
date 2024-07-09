@@ -8,7 +8,7 @@ function build_bias(filenamein::String; backend="cpu", mpi_enabled=false)
     end
 
     # load parameters from toml file
-    parameters = construct_params_from_toml(filename; backend=backend)
+    parameters = construct_params_from_toml(filenamein; backend=backend)
     MPI.Barrier(COMM)
 
     if MYRANK == 0
@@ -113,7 +113,7 @@ function metabuild!(
     checkpointer,
 )
     U = univ.U
-    fermion_action = univ.fermion_actions
+    fermion_action = univ.fermion_action
     bias = univ.bias
     # This used to be in Bias itself, but I took all the IOBuffers away from structs
     # that are needed for checkpointing

@@ -28,12 +28,12 @@ even if stated otherwise in the parameters.
 """
 struct Univ{TG,TF,TB}
     U::TG
-    fermion_actions::TF
+    fermion_action::TF
     bias::TB
     myinstance::Base.RefValue{Int64}
     numinstances::Int64
     function Univ(
-        U::Gaugefield{BACKEND,T,A,GA}, fermion_actions::TF, bias::TB, numinstances
+        U::Gaugefield{BACKEND,T,A,GA}, fermion_action::TF, bias::TB, numinstances
     ) where {BACKEND,T,A,GA,TF<:Tuple,TB}
         @level1("┌ Setting Universe...")
         @level1("|  NUM INSTANCES: $(numinstances)")
@@ -43,16 +43,16 @@ struct Univ{TG,TF,TB}
         @level1("|  GAUGE ACTION: $(GA)")
         @level1("|  BETA: $(U.β)")
         if TF === Tuple{}
-            @level1("|  FERMION ACTIONS:\n└\n")
+            @level1("|  FERMION ACTION:\n└\n")
         else
-            @level1("|  FERMION ACTIONS: $(fermion_actions...)└\n")
+            @level1("|  FERMION ACTION: $(fermion_action...)└\n")
         end
         TG = typeof(U)
-        return new{TG,TF,TB}(U, fermion_actions, bias, Base.RefValue{MYRANK}, numinstances)
+        return new{TG,TF,TB}(U, fermion_action, bias, Base.RefValue{MYRANK}, numinstances)
     end
 
     function Univ(
-        U::Vector{Gaugefield{BACKEND,T,A,GA}}, fermion_actions::TF, bias::TB, numinstances
+        U::Vector{Gaugefield{BACKEND,T,A,GA}}, fermion_action::TF, bias::TB, numinstances
     ) where {BACKEND,T,A,GA,TF<:Tuple,TB}
         @level1("┌ Setting Universe...")
         @level1("|  NUM INSTANCES: $(numinstances)")
@@ -62,12 +62,12 @@ struct Univ{TG,TF,TB}
         @level1("|  GAUGE ACTION: $(GA)")
         @level1("|  BETA: $(U[1].β)")
         if TF === Tuple{}
-            @level1("|  FERMION ACTIONS:\n└\n")
+            @level1("|  FERMION ACTION:\n└\n")
         else
-            @level1("|  FERMION ACTIONS: $(fermion_actions...)└\n")
+            @level1("|  FERMION ACTION: $(fermion_action...)└\n")
         end
         TG = typeof(U)
-        return new{TG,TF,TB}(U, fermion_actions, bias, Base.RefValue{MYRANK}, numinstances)
+        return new{TG,TF,TB}(U, fermion_action, bias, Base.RefValue{MYRANK}, numinstances)
     end
 end
 
@@ -76,36 +76,33 @@ function Univ(parameters::ParameterSet; use_mpi=false)
         if parameters.tempering_enabled && use_mpi == false
             numinstances = parameters.numinstances
             U₁ = Gaugefield(parameters)
-            fermion_actions₁ = init_fermion_actions(parameters, U₁)
+            fermion_action = init_fermion_actions(parameters, U₁)
             bias₁ = Bias(parameters, U₁; instance=0) # instance=0 -> dummy bias for non-MetaD stream
 
             U = Vector{typeof(U₁)}(undef, numinstances)
-            fermion_actions = Vector{typeof(fermion_actions₁)}(undef, numinstances)
             bias = Vector{typeof(bias₁)}(undef, numinstances)
 
             U[1] = U₁
-            fermion_actions[1] = fermion_actions₁
             bias[1] = bias₁
             for i in 2:numinstances
                 U[i] = Gaugefield(parameters)
-                fermion_actions[i] = deepcopy(fermion_actions₁)
                 bias[i] = Bias(parameters, U[i]; instance=i - 1)
             end
         else
             numinstances = 1
             U = Gaugefield(parameters)
-            fermion_actions = init_fermion_actions(parameters, U)
+            fermion_action = init_fermion_actions(parameters, U)
             bias = Bias(parameters, U; use_mpi=use_mpi)
         end
     else
         @assert parameters.tempering_enabled == false "tempering can only be enabled with bias"
         numinstances = 1
         U = Gaugefield(parameters)
-        fermion_actions = init_fermion_actions(parameters, U)
+        fermion_action = init_fermion_actions(parameters, U)
         bias = NoBias()
     end
 
-    return Univ(U, fermion_actions, bias, Base.RefValue{MYRANK}, numinstances)
+    return Univ(U, fermion_action, bias, Base.RefValue{MYRANK}, numinstances)
 end
 
 function init_fermion_actions(parameters::ParameterSet, U)
