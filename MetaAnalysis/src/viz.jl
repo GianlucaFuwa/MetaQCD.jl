@@ -1,5 +1,3 @@
-using MetaQCD.BiasModule: OPES, Metadynamics
-
 include("endpointranges.jl")
 
 export MetaMeasurements, MetaBias, biaspotential, eigenvalues, hadroncorrelator, timeseries
@@ -208,7 +206,10 @@ RecipesBase.@recipe function timeseries(
         @series begin
             xlabel --> ""
             ylabel --> "cv"
-            yticks --> floor(minimum(cv)):ceil(maximum(cv))
+            yticks --> min(-5, floor(minimum(cv))):max(5, ceil(maximum(cv)))
+            ylims -->  (min(-1, floor(minimum(cv))), max(1, ceil(maximum(cv))))
+            minorgrid := true
+            # yminorticks := 10
             subplot := 1
             y = view(cv, irange)
             x, y

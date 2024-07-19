@@ -3,11 +3,10 @@ module MetaAnalysis
 using ADerrors
 using DelimitedFiles
 using Dierckx
+using LoopVectorization
 using LsqFit
-using MetaQCD
-using MetaQCD.Fields.Polyester
-using MetaQCD.Utils.LoopVectorization
 using Plots
+using Polyester
 using Printf
 using ProgressMeter
 using RecipesBase
@@ -19,6 +18,7 @@ export Bootstrap, Jackknife, UWerr, analyze, modify_bias
 
 abstract type AbstractErrorEstimator end
 
+include("bias.jl")
 include("viz.jl")
 include("autocorr.jl")
 include("bootstrap.jl")
