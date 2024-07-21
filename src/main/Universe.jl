@@ -37,23 +37,26 @@ struct Univ{TG,TF,TB}
     ) where {BACKEND,T,A,GA,TF<:Tuple,TB}
         @level1("┌ Setting Universe...")
         @level1("|  NUM INSTANCES: $(numinstances)")
-        @level1("|  BACKEND: $(BACKEND)")
-        @level1("|  FP PREC: $(T)")
+        @level1("|  BACKEND: $(string(BACKEND))")
+        @level1("|  FP PREC: $(string(T))")
         @level1("|  L: $(U.NX)x$(U.NY)x$(U.NZ)x$(U.NT)")
-        @level1("|  GAUGE ACTION: $(GA)")
+        @level1("|  GAUGE ACTION: $(string(GA))")
         @level1("|  BETA: $(U.β)")
+
         if TF === Tuple{}
             @level1("|  FERMION ACTION:\n└\n")
         else
-            @level1("|  FERMION ACTION: $(fermion_action...)└\n")
+            @level1("|  FERMION ACTION: $(string(fermion_action...))└\n")
         end
+
         TG = typeof(U)
-        return new{TG,TF,TB}(U, fermion_action, bias, Base.RefValue{MYRANK}, numinstances)
+        myinstance = Base.RefValue{Int64}(MYRANK)
+        return new{TG,TF,TB}(U, fermion_action, bias, myinstance, numinstances)
     end
 
     function Univ(
         U::Vector{Gaugefield{BACKEND,T,A,GA}}, fermion_action::TF, bias::TB, numinstances
-    ) where {BACKEND,T,A,GA,TF<:Tuple,TB}
+    ) where {BACKEND,T,A,GA,TF<:Tuple,TB<:Vector{Bias}}
         @level1("┌ Setting Universe...")
         @level1("|  NUM INSTANCES: $(numinstances)")
         @level1("|  BACKEND: $(BACKEND)")
@@ -61,13 +64,16 @@ struct Univ{TG,TF,TB}
         @level1("|  L: $(U[1].NX)x$(U[1].NY)x$(U[1].NZ)x$(U[1].NT)")
         @level1("|  GAUGE ACTION: $(GA)")
         @level1("|  BETA: $(U[1].β)")
+
         if TF === Tuple{}
             @level1("|  FERMION ACTION:\n└\n")
         else
             @level1("|  FERMION ACTION: $(fermion_action...)└\n")
         end
+
         TG = typeof(U)
-        return new{TG,TF,TB}(U, fermion_action, bias, Base.RefValue{MYRANK}, numinstances)
+        myinstance = Base.RefValue{Int64}(MYRANK)
+        return new{TG,TF,TB}(U, fermion_action, bias, myinstance, numinstances)
     end
 end
 
@@ -102,7 +108,7 @@ function Univ(parameters::ParameterSet; use_mpi=false)
         bias = NoBias()
     end
 
-    return Univ(U, fermion_action, bias, Base.RefValue{MYRANK}, numinstances)
+    return Univ(U, fermion_action, bias, numinstances)
 end
 
 function init_fermion_actions(parameters::ParameterSet, U)

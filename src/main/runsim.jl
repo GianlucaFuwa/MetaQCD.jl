@@ -18,7 +18,9 @@ function run_sim(filenamein::String; backend="cpu", mpi_enabled=false)
         end
         @assert mpi_enabled ⊻ oneinst "MPI must be enabled if and only if numinstances > 1, numinstances was $(parameters.numinstances)"
         @assert COMM_SIZE == parameters.numinstances "numinstances has to be equal to the number of MPI ranks"
-        @assert parameters.kind_of_bias != "none" "bias cannot be \"none\" in parallel tempering, was $(parameters.kind_of_bias)"
+        if parameters.tempering_enabled
+            @assert parameters.kind_of_bias != "none" "bias cannot be \"none\" in parallel tempering"
+        end
     end
 
     # set random seed if provided, otherwise generate one
@@ -30,17 +32,20 @@ function run_sim(filenamein::String; backend="cpu", mpi_enabled=false)
         Random.seed!(seed)
     end
 
-    logger_io = MYRANK == 0 ? parameters.log_dir * "/logs.txt" : devnull
-    set_global_logger!(parameters.verboselevel, logger_io; tc=parameters.log_to_console)
+    logpath = MYRANK == 0 ? joinpath(parameters.log_dir, "logs.txt") : nothing
+    set_global_logger!(
+        parameters.verboselevel, logpath; tc=parameters.log_to_console
+    )
 
     # print time and system info, because it looks cool I guess
     # btw, all these "@level1" calls are just for logging, level1 is always printed
     # and anything higher has to specified in the parameter file (default is level2)
-    @level1("# $(pwd()) @ $(current_time())")
-    buf = IOBuffer()
-    InteractiveUtils.versioninfo(buf)
-    versioninfo = String(take!(buf))
-    @level1(versioninfo)
+    # @level1("# $(pwd()) @ $(current_time())")
+    @level1("# $(pwd())")
+    # buf = IOBuffer()
+    # InteractiveUtils.versioninfo(buf)
+    # versioninfo = String(take!(buf))
+    # @level1(versioninfo)
     @level1("[ Running MetaQCD.jl version $(PACKAGE_VERSION)\n")
     @level1("[ Random seed is: $seed\n")
 
@@ -58,40 +63,48 @@ function run_sim(filenamein::String; backend="cpu", mpi_enabled=false)
     return nothing
 end
 
-function run_sim!(univ, parameters, updatemethod, updatemethod_pt; mpi_enabled=false)
+function run_sim!(
+    univ::Univ, parameters::ParameterSet, updatemethod, updatemethod_pt; mpi_enabled=false
+)
     U = univ.U
 
     # initialize update method, measurements, and bias
     if parameters.tempering_enabled
         if mpi_enabled
-            if updatemethod === nothing
+            if isnothing(updatemethod)
                 updatemethod = Updatemethod(parameters, U)
             end
             parity = parameters.parity_update ? ParityUpdate(U) : nothing
         else
-            if updatemethod === updatemethod_pt === nothing
+            if isnothing(updatemethod) && isnothing(updatemethod_pt)
                 updatemethod = Updatemethod(parameters, U[1])
                 # all MetaD streams use HMC, so there is no need to initialize more than 1
                 updatemethod_pt = HMC(
                     U[1],
-                    parameters.hmc_integrator,
+                    integrator_from_str(parameters.hmc_integrator),
                     parameters.hmc_trajectory,
                     parameters.hmc_steps,
-                    parameters.hmc_friction;
-                    fermion_action=parameters.fermion_action,
+                    parameters.hmc_friction,
+                    parameters.hmc_numsmear_gauge,
+                    parameters.hmc_numsmear_fermion,
+                    parameters.hmc_rhostout_gauge,
+                    parameters.hmc_rhostout_fermion;
+                    hmc_logging=false,
+                    fermion_action=typeof(univ.fermion_action[1]),
+                    heavy_flavours=length(parameters.Nf) - 1,
                     bias_enabled=true,
                 )
             end
             parity = parameters.parity_update ? ParityUpdate(U[1]) : nothing
         end
     else
-        if updatemethod === nothing
+        if isnothing(updatemethod)
             updatemethod = Updatemethod(parameters, U)
         end
         parity = parameters.parity_update ? ParityUpdate(U) : nothing
     end
 
-    parity !== nothing && @level1("[ Parity update enabled\n")
+    isnothing(parity) && @level1("[ Parity update enabled\n")
 
     if parameters.tempering_enabled && !mpi_enabled
         gflow = GradientFlow(
@@ -167,7 +180,7 @@ function run_sim!(univ, parameters, updatemethod, updatemethod_pt; mpi_enabled=f
         parameters.ensemble_dir, parameters.save_checkpoint_every
     )
 
-    if parameters.tempering_enabled
+    if parameters.tempering_enabled && !mpi_enabled
         metaqcd_PT!(
             parameters,
             univ,
@@ -211,6 +224,11 @@ function metaqcd!(
     U = univ.U
     fermion_action = univ.fermion_action
     bias = univ.bias
+    myinstance = univ.myinstance
+    tempering_enabled = parameters.tempering_enabled
+    numaccepts_temper = zeros(Int64, univ.numinstances-1)
+    instance_state = collect(0:univ.numinstances-1)
+    swap_every = parameters.swap_every
 
     # load in config and recalculate gauge action if given
     load_gaugefield!(U, parameters) && (U.Sg = calc_gauge_action(U))
@@ -229,7 +247,8 @@ function metaqcd!(
                     therm=true,
                 )
             end
-            @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())\n-")
+            # @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())\n-")
+            @level1("|  Elapsed time:\t$(updatetime) [s]\n-")
         end
     end
 
@@ -240,8 +259,7 @@ function metaqcd!(
     _, runtime_all = @timed begin
         numaccepts = 0.0
         for itrj in 1:(parameters.numsteps)
-            @level1("|  itrj = $itrj")
-
+            # @level1("|  itrj = $itrj")
             _, updatetime = @timed begin
                 accepted = update!(
                     updatemethod,
@@ -256,31 +274,39 @@ function metaqcd!(
             end
 
             print_acceptance_rates(numaccepts, itrj)
-            @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())")
+            # @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())")
+            @level1("|  Elapsed time:\t$(updatetime) [s]")
+
+            if tempering_enabled
+                temper!(
+                    U,
+                    bias,
+                    numaccepts_temper,
+                    instance_state,
+                    myinstance,
+                    swap_every,
+                    itrj;
+                    recalc=(myinstance[]==0)
+                )
+            end
 
             save_gaugefield(config_saver, U, itrj)
             create_checkpoint(checkpointer, univ, updatemethod, nothing, itrj)
 
-            _, mtime = @timed calc_measurements(measurements, U, itrj)
+            _, mtime = @timed calc_measurements(measurements, U, itrj, myinstance[])
             _, fmtime = @timed calc_measurements_flowed(
-                measurements_with_flow, gflow, U, itrj
+                measurements_with_flow, gflow, U, itrj, myinstance[]
             )
             calc_weights(bias, U.CV, itrj)
-            @level1(
-                "|  Meas. elapsed time:     $(mtime)  [s]\n" *
-                    "|  FlowMeas. elapsed time: $(fmtime) [s]\n-"
-            )
+            @level1("|  Meas. elapsed time:     $(mtime)  [s]")
+            @level1("|  FlowMeas. elapsed time: $(fmtime) [s]\n-")
         end
     end
 
-    @level1("└\nTotal elapsed time:\t$(convert_seconds(runtime_all))\n@ $(current_time())")
+    print_total_time(runtime_all)
     flush(stdout)
-    # close all the I/O streams
-    close(updatemethod)
-    close(measurements)
-    close(measurements_with_flow)
-    bias ≢ nothing && close(bias)
     close(Output.__GlobalLogger[])
+    set_global_logger!(1)
     return nothing
 end
 
@@ -380,19 +406,14 @@ function metaqcd_PT!(
                 measurements_with_flow, gflow, U, itrj, measure_on_all
             )
             calc_weights(bias, [U[i].CV for i in 1:numinstances], itrj)
-            @level1(
-                "|  Meas. elapsed time:     $(mtime)  [s]\n" *
-                    "|  FlowMeas. elapsed time: $(fmtime) [s]"
-            )
+            @level1("|  Meas. elapsed time:     $(mtime)  [s]")
+            @level1("|  FlowMeas. elapsed time: $(fmtime) [s]\n-")
         end
     end
 
-    @level1("└\nTotal elapsed time:\t$(convert_seconds(runtime_all))\n@ $(current_time())")
+    print_total_time(runtime_all)
     flush(stdout)
-    close(updatemethod)
-    [close(m) for m in measurements]
-    [close(mf) for mf in measurements_with_flow]
-    [close(b) for b in bias]
     close(Output.__GlobalLogger[])
+    set_global_logger!(1)
     return nothing
 end

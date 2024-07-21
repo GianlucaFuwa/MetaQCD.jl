@@ -4,12 +4,12 @@ using MetaQCD.Utils
 using LinearAlgebra
 using Random
 
-function SU3testfderivative(;
-    dirac="staggered", mass=0.01, eoprec=false, single_flavor=false, backend=CPU
+function test_fderivative(
+    backend=CPU; dirac="staggered", mass=0.01, eoprec=false, single_flavor=false
 )
     Random.seed!(123)
     println("Fermion derivative test [$dirac]")
-    MetaQCD.Output.set_global_logger!(1, devnull; tc=true)
+    MetaQCD.Output.set_global_logger!(1, nothing; tc=true)
     NX = 4
     NY = 4
     NZ = 4

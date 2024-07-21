@@ -1,42 +1,41 @@
 struct WilsonLoopMeasurement{T} <: AbstractMeasurement
-    WL_dict::Dict{NTuple{2,Int64},Float64} # (R, T) => value
+    WL::Matrix{Float64} # (R, T) => value
     Tmax::Int64 # maximum width of the Wilson loop
     Rmax::Int64 # maximum length of the Wilson loop
-    fp::T # file pointer
+    filename::T
     function WilsonLoopMeasurement(
-        ::Gaugefield; filename="", printvalues=false, Rmax=4, Tmax=4, flow=false
+        ::Gaugefield; filename="", Rmax=4, Tmax=4, flow=false
     )
-        WL_dict = Dict{NTuple{2,Int64},Float64}()
-        for iT in 1:Tmax
-            for iR in 1:Rmax
-                WL_dict[iR, iT] = 0.0
-            end
-        end
+        @level1("|    Maximum Extends: $Tmax x $Rmax (only even extends are measured for now)")
+        @level1("|    @info: Wilson loop measurements are not printed to console")
+        WL = zeros(Rmax, Tmax)
 
-        if printvalues
-            fp = open(filename, "w")
+        if !isnothing(filename) && filename != ""
+            path = filename * MYEXT
+            rpath = StaticString(path)
+            header = ""
 
             if flow
-                str = @sprintf("%-9s\t%-7s\t%-9s", "itrj", "iflow", "tflow")
-                println(fp, str)
+                header *= @sprintf("%-11s%-7s%-9s", "itrj", "iflow", "tflow")
             else
-                str = @sprintf("%-9s", "itrj")
-                println(fp, str)
+                header *= @sprintf("%-11s", "itrj")
             end
 
             for iT in 1:Tmax
                 for iR in 1:Rmax
-                    str = @sprintf("\t%-22s", "wilson_loop_$(iR)x$(iT)")
-                    println(fp, str)
+                    header *= @sprintf("%-25s", "wilson_loop_$(iR)x$(iT)")
                 end
             end
 
-            println(fp)
+            open(path, "w") do fp
+                println(fp, header)
+            end
         else
-            fp = nothing
+            rpath = nothing
         end
 
-        return new{typeof(fp)}(WL_dict, Tmax, Rmax, fp)
+        T = typeof(rpath)
+        return new{T}(WL, Tmax, Rmax, rpath)
     end
 end
 
@@ -44,32 +43,43 @@ function WilsonLoopMeasurement(U, params::WilsonLoopParameters, filename, flow=f
     return WilsonLoopMeasurement(
         U;
         filename=filename,
-        printvalues=true,
         Rmax=params.Rmax,
         Tmax=params.Tmax,
         flow=flow,
     )
 end
 
-function measure(m::WilsonLoopMeasurement{T}, U; additional_string="") where {T}
-    if T ≡ IOStream
-        str = @sprintf("%-9s", additional_string)
-        println(m.fp, str)
-    end
+function measure(
+    m::WilsonLoopMeasurement{T}, U, myinstance, itrj, flow=nothing
+) where {T}
+    iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
     for iT in 1:(m.Tmax)
         for iR in 1:(m.Rmax)
             WL = wilsonloop(U, iR, iT) / (18.0U.NV)
-            m.WL_dict[iR, iT] = WL
-
-            if T ≡ IOStream
-                str = @sprintf("\t%+-22.15E", WL)
-                print(m.fp, str)
-            end
+            m.WL[iR, iT] = WL
         end
     end
 
-    T ≡ IOStream && println(m.fp)
-    output = MeasurementOutput(m.WL_dict, "")
-    return output
+    if T !== Nothing
+        filename = set_ext!(m.filename, myinstance)
+        fp = fopen(filename, "a")
+        printf(fp, "%-11i", itrj)
+
+        if !isnothing(flow)
+            printf(fp, "%-7i\t", iflow)
+            printf(fp, "%-9.5f\t", τ)
+        end
+
+        for iT in 1:(m.Tmax)
+            for iR in 1:(m.Rmax)
+                printf(fp, "%+-25.15E", m.WL[iR, iT]::Float64)
+            end
+        end
+
+        printf(fp, "\n")
+        fclose(fp)
+    end
+
+    return m.WL
 end

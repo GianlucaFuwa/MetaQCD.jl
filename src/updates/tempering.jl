@@ -8,15 +8,16 @@ function temper!(
     itrj;
     recalc=false,
 )
-    itrj % swap_every != 0 && return nothing
+    itrj%swap_every != 0 && return nothing
     recalc && recalc_CV!(U, bias)
+    MPI.Barrier(COMM)
     
     # Query `instance_state` to find out which rank has to temper with which
     # Convention: instance N <-> instance N-1, instance N-1 <-> instance N-2, etc.
-    for i in (COMM_SIZE-1):-1:2
+    for i in (COMM_SIZE-1):-1:1
         # Determine the ranks that have instances i and i-1
-        rank_i = get_rank_for_instance(i, instance_state)
-        rank_i_minus_1 = get_rank_for_instance(i-1, instance_state)
+        rank_i = get_rank_from_instance(i, instance_state)
+        rank_i_minus_1 = get_rank_from_instance(i-1, instance_state)
 
         if MYRANK == rank_i || MYRANK == rank_i_minus_1
             if MYRANK == rank_i
@@ -126,4 +127,7 @@ function swap_U!(a, b)
     return nothing
 end
 
-@inline get_rank_for_instance(myinstance, state) = findfirst(x -> x == myinstance, state)
+@inline function get_rank_from_instance(myinstance, state)
+    rank = findfirst(x -> x == myinstance, state) - 1
+    return rank
+end

@@ -1,3 +1,7 @@
+# XXX: Maybe make this its own module?
+
+# module Forces
+
 import ..DiracOperators: StaggeredDiracOperator, StaggeredFermionAction
 import ..DiracOperators: StaggeredEOPreDiracOperator, StaggeredEOPreFermionAction
 import ..DiracOperators: WilsonDiracOperator, WilsonFermionAction
@@ -45,3 +49,5 @@ include("gpu_kernels/gauge_force.jl")
 include("gpu_kernels/bias_force.jl")
 include("gpu_kernels/wilson_force.jl")
 include("gpu_kernels/staggered_force.jl")
+
+# end

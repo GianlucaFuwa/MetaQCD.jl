@@ -1,4 +1,4 @@
-function SU3testgradflow(backend=CPU)
+function test_gradflow(backend=CPU)
     Random.seed!(123)
     println("SU3testgradflow")
     NX = 4

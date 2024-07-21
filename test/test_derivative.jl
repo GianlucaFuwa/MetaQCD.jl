@@ -3,7 +3,7 @@ using MetaQCD
 using MetaQCD.Utils
 using MetaQCD.Updates: calc_dQdU_bare!
 
-function SU3testderivative(backend=CPU)
+function test_derivative(backend=CPU)
     Random.seed!(123)
     println("SU3test_gauge_derivative")
     NX = 4
@@ -36,7 +36,7 @@ function SU3testderivative(backend=CPU)
     μ = 3
     ΔH = 0.00001
 
-    relerrors = Matrix{Float64}(undef, 4, 8)
+    relerrors = Matrix{Float64}(undef, 8, 4)
 
     for group_direction in 1:8
         # Unsmeared
@@ -85,11 +85,11 @@ function SU3testderivative(backend=CPU)
         # @show tc_symm_diff_smeared
         # @show dtopcharge_proj_smeared
         # println("---")
-        relerrors[1, group_direction] = (ga_symm_diff - dgaction_proj) / ga_symm_diff
-        relerrors[2, group_direction] =
+        relerrors[group_direction, 1] = (ga_symm_diff - dgaction_proj) / ga_symm_diff
+        relerrors[group_direction, 2] =
             (ga_symm_diff_smeared - dgaction_proj_smeared) / ga_symm_diff_smeared
-        relerrors[3, group_direction] = (tc_symm_diff - dtopcharge_proj) / tc_symm_diff
-        relerrors[4, group_direction] =
+        relerrors[group_direction, 3] = (tc_symm_diff - dtopcharge_proj) / tc_symm_diff
+        relerrors[group_direction, 4] =
             (tc_symm_diff_smeared - dtopcharge_proj_smeared) / tc_symm_diff_smeared
 
     #     println("================= Group direction $(group_direction) =================")

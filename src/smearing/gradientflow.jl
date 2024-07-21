@@ -40,12 +40,12 @@ function GradientFlow(
 
     ϵ = tf / steps
 
-    @level1("|  GFLOW INTEGRATOR: $(TI)")
+    @level1("|  GFLOW INTEGRATOR: $(string(TI))")
     @level1("|  NUMBER OF GFLOWS: $(numflow)")
     @level1("|  FLOW TIME PER GFLOW: $(tf)")
     @level1("|  INTEGRATION STEPS PER GFLOW: $(steps)")
     @level1("|  INTEGRATION STEP SIZE: $(ϵ)")
-    @level1("|  MEASURING ON GFLOW NUMBERS: $(measure_at)")
+    @level1("|  MEASURING ON GFLOW NUMBERS: $(measure_at...)")
     @level1("└\n")
     return GradientFlow{TI,TG,typeof(Z)}(numflow, steps, ϵ, tf, measure_at, Uflow, Z)
 end

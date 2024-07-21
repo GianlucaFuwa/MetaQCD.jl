@@ -63,23 +63,21 @@ struct HMC{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TFP1,TFP2} <: AbstractUpdate
     smearing_gauge::TSG
     smearing_fermion::TSF
 
-    logfile::String
-    forcefile::String
-    fp::TFP1
-    force_fp::TFP2
+    logfile::TFP1
+    forcefile::TFP2
     function HMC(
         integrator, steps, Δτ, friction, P, P_old, U_old, ϕ, staples, force, force2,
-        fieldstrength, smearing_gauge, smearing_fermion, logfile, forcefile, fp, force_fp,
+        fieldstrength, smearing_gauge, smearing_fermion, logfile, forcefile,
     )
         @level1("┌ Setting HMC...")
-        @level1("|  INTEGRATOR: $(integrator)")
+        @level1("|  INTEGRATOR: $(string(integrator))")
         @level1("|  TRAJECTORY LENGTH: $(steps * Δτ)")
         @level1("|  STEPS: $(steps)")
         @level1("|  STEP LENGTH: $(Δτ)")
         @level1("|  FRICTION: $(friction) $(ifelse(friction==0, "(default)", ""))")
         isnothing(fieldstrength) ? @level1("|  BIAS DISABLED") : @level1("|  BIAS ENABLED")
-        @level1("|  GAUGE SMEARING: $(smearing_gauge)")
-        @level1("|  FERMION SMEARING: $(smearing_fermion)")
+        @level1("|  GAUGE SMEARING: $(string(smearing_gauge))")
+        @level1("|  FERMION SMEARING: $(string(smearing_fermion))")
         @level1("|  HMC LOGFILE: $(logfile)")
         @level1("|  HMC FORCEFILE: $(forcefile)")
         @level1("└\n")
@@ -92,11 +90,11 @@ struct HMC{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TFP1,TFP2} <: AbstractUpdate
         PO = typeof(P_old)
         F2 = typeof(force2)
         FS = typeof(fieldstrength)
-        TFP1 = typeof(fp)
-        TFP2 = typeof(force_fp)
+        TFP1 = typeof(logfile)
+        TFP2 = typeof(forcefile)
         return new{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TFP1,TFP2}(
             integrator, steps, Δτ, friction, P, P_old, U_old, ϕ, staples, force, force2,
-            fieldstrength, smearing_gauge, smearing_fermion, logfile, forcefile, fp, force_fp,
+            fieldstrength, smearing_gauge, smearing_fermion, logfile, forcefile,
         )
     end
 end
@@ -117,7 +115,7 @@ function HMC(
     bias_enabled=false,
     logdir="",
 )
-    Δτ = trajectory / steps
+    Δτ = trajectory/steps
     P = Colorfield(U)
     gaussian_TA!(P, 0)
     P_old = friction == 0 ? nothing : Colorfield(U)
@@ -150,36 +148,39 @@ function HMC(
     fieldstrength = bias_enabled ? Tensorfield(U) : nothing
 
     if hmc_logging && logdir != ""
-        logfile = logdir * "/hmc_acc_logs.txt"
-        fp = open(logfile, "w")
-        str = @sprintf(
-            "%-22s\t%-22s\t%-22s\t%-22s\t%-22s", "ΔP²", "ΔSg", "ΔSf", "ΔV", "ΔH"
-        )
-        println(fp, str)
+        # XXX: Probably want swap this too in MPI PT-MetaD
+        logfile = joinpath(logdir, "hmc_acc_logs.txt")
+        open(logfile, "w") do fp
+            @printf(
+                fp,
+                "%-22s\t%-22s\t%-22s\t%-22s\t%-22s\n",
+                "ΔP²", "ΔSg", "ΔSf", "ΔV", "ΔH",
+            )
+        end
+
         if !isnothing(ϕ)
-            forcefile = logdir * "/hmc_force_logs.txt"
-            force_fp = open(forcefile, "w")
-            str = @sprintf("%-22s\t", "|F_Sg|")
+            forcefile = joinpath(logdir, "hmc_force_logs.txt")
+            force_fp = fopen(forcefile, "w")
+            printf(force_fp, "%-22s\t", "|F_Sg|")
             for i in eachindex(ϕ)
-                str *= @sprintf("%-22s\t", "|F_Sg$i|")
+                printf(force_fp, "%-22s\t", "|F_Sf$i|")
             end
             if bias_enabled
-                str *= @sprintf("%-22s\t", "|F_V|")
+                printf(force_fp, "%-22s\t", "|F_V|")
             end
-            println(force_fp, str)
+            printf(force_fp, "\n")
+            fclose(force_fp)
         else
-            forcefile = ""
-            force_fp = nothing
+            forcefile = nothing
         end
     else
-        logfile = ""
-        forcefile = ""
-        fp = force_fp = nothing
+        logfile = nothing
+        forcefile = nothing
     end
 
     return HMC(
         integrator, steps, Δτ, friction, P, P_old, U_old, ϕ, staples, force, force2,
-        fieldstrength, smearing_gauge, smearing_fermion, logfile, forcefile, fp, force_fp,
+        fieldstrength, smearing_gauge, smearing_fermion, logfile, forcefile,
     )
 end
 
@@ -195,7 +196,7 @@ function update!(
 ) where {TI,TF,TB}
     if TF !== Nothing
         @assert TF <: Tuple "fermion_action must be nothing or a tuple of fermion actions"
-        @assert hmc.ϕ !== nothing "fermion_action passed but not activated in HMC"
+        @assert !isnothing(hmc.ϕ) "fermion_action passed but not activated in HMC"
     end
 
     U_old = hmc.U_old
@@ -232,7 +233,7 @@ function update!(
 
     ΔH = ΔP² + ΔSg + ΔV + ΔSf
     accept = metro_test ? rand() ≤ exp(-ΔH) : true
-    print_hmc_data(hmc.fp, ΔP², ΔSg, ΔSf, ΔV, ΔH)
+    print_hmc_data(hmc.logfile, ΔP², ΔSg, ΔSf, ΔV, ΔH)
 
     if accept
         U.Sg = Sg_new
@@ -277,22 +278,22 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias)
     fieldstrength = hmc.fieldstrength
 
     calc_dSdU_bare!(force, staples, U, temp_force, smearing_gauge)
-    # TODO: fnorm = norm(force); print(hmc.force_fp, "\t$fnorm")
+    # TODO: fnorm = norm(force); print(hmc.forcefile, "\t$fnorm")
     add!(P, force, ϵ)
 
-    if fermion_action ≢ nothing
+    if !isnothing(fermion_action)
         for i in eachindex(fermion_action)
             calc_dSfdU_bare!(
                 force, fermion_action[i], U, ϕ[i], temp_force, smearing_fermion
             )
-            # TODO: fnorm = norm(force); print(hmc.force_fp, "\t$fnorm")
+            # TODO: fnorm = norm(force); print(hmc.forcefile, "\t$fnorm")
             add!(P, force, ϵ)
         end
     end
 
     if bias isa Bias
         calc_dVdU_bare!(force, fieldstrength, U, temp_force, bias)
-        # TODO: fnorm = norm(force); print(hmc.force_fp, "\t$fnorm")
+        # TODO: fnorm = norm(force); print(hmc.forcefile, "\t$fnorm")
         add!(P, force, ϵ)
     end
     return nothing
@@ -347,20 +348,16 @@ function calc_fermion_action(fermion_action, U, ϕ, smearing::StoutSmearing, is_
     return Sf
 end
 
-print_hmc_data(::Nothing, args...) = nothing
+@inline print_hmc_data(::Nothing, args...) = nothing
 
-function print_hmc_data(fp::T, ΔP², ΔSg, ΔSf, ΔV, ΔH) where {T}
-    T ≡ Nothing && return nothing
-    str = @sprintf(
-        "%+22.15E\t%+22.15E\t%+22.15E\t%+22.15E\t%+22.15E", ΔP², ΔSg, ΔSf, ΔV, ΔH
-    )
-    println(fp, str)
-    flush(fp)
-    return nothing
-end
-
-function Base.close(hmc::HMC)
-    hmc.fp isa IOStream && close(hmc.fp)
+@inline function print_hmc_data(logfile, ΔP², ΔSg, ΔSf, ΔV, ΔH)
+    fp = fopen(logfile, "a")
+    printf(fp, "%+22.15E\t", ΔP²)
+    printf(fp, "%+22.15E\t", ΔSg)
+    printf(fp, "%+22.15E\t", ΔSf)
+    printf(fp, "%+22.15E\t", ΔV)
+    printf(fp, "%+22.15E\n", ΔH)
+    fclose(fp)
     return nothing
 end
 
@@ -368,7 +365,7 @@ end
 # custom serialization, because saving and loading IOStreams doesn't work
 using JLD2
 
-struct HMCSerialization{TI,TG,TT,TF,TSG,TSF,PO,F2,FS}
+struct HMCSerialization{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TFP1,TFP2}
     integrator::TI
     steps::Int64
     Δτ::Float64
@@ -385,14 +382,14 @@ struct HMCSerialization{TI,TG,TT,TF,TSG,TSF,PO,F2,FS}
     smearing_gauge::TSG
     smearing_fermion::TSF
 
-    logfile::String
-    forcefile::String
+    logfile::TFP1
+    forcefile::TFP2
 end
 
 function JLD2.writeas(
-    ::Type{<:HMC{TI,TG,TT,TF,TSG,TSF,PO,F2,FS}}
-) where {TI,TG,TT,TF,TSG,TSF,PO,F2,FS}
-    return HMCSerialization{TI,TG,TT,TF,TSG,TSF,PO,F2,FS}
+    ::Type{<:HMC{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TFP1,TFP2}}
+) where {TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TFP1,TFP2}
+    return HMCSerialization{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TFP1,TFP2}
 end
 
 function Base.convert(::Type{<:HMCSerialization}, hmc::HMC)
@@ -418,8 +415,6 @@ function Base.convert(::Type{<:HMCSerialization}, hmc::HMC)
 end
 
 function Base.convert(::Type{<:HMC}, hmc::HMCSerialization)
-    fp = hmc.logfile == "" ? nothing : open(hmc.logfile, "a")
-    force_fp = hmc.forcefile == "" ? nothing : open(hmc.forcefile, "a")
     out = HMC(
         hmc.integrator,
         hmc.steps,
@@ -437,8 +432,6 @@ function Base.convert(::Type{<:HMC}, hmc::HMCSerialization)
         hmc.smearing_fermion,
         hmc.logfile,
         hmc.forcefile,
-        fp,
-        force_fp
     )
     return out
 end

@@ -1,33 +1,47 @@
 struct TopologicalChargeMeasurement{T} <: AbstractMeasurement
     TC_dict::Dict{String,Float64} # topological charge definition => value
-    fp::T # file pointer
+    filename::T
     function TopologicalChargeMeasurement(
-        ::Gaugefield; filename="", printvalues=false, TC_methods=["clover"], flow=false
+        ::Gaugefield; filename="", TC_methods=["clover"], flow=false
     )
         TC_dict = Dict{String,Float64}()
         for method in TC_methods
-            TC_dict[method] = 0.0
-        end
-
-        if printvalues
-            fp = open(filename, "w")
-            header = ""
-            if flow
-                header *= @sprintf("%-9s\t%-7s\t%-9s", "itrj", "iflow", "tflow")
+            @level1("|    Method: $(method)")
+            if method == "plaquette"
+                TC_dict["plaquette"] = 0.0
+            elseif method == "clover"
+                TC_dict["clover"] = 0.0
+            elseif method == "improved"
+                TC_dict["improved"] = 0.0
             else
-                header *= @sprintf("%-9s", "itrj")
+                error("Topological charge method $method not supported")
             end
-
-            for methodname in TC_methods
-                header *= "\tQ$(rpad(methodname, 22, " "))"
-            end
-
-            println(fp, header)
-        else
-            fp = nothing
         end
 
-        return new{typeof(fp)}(TC_dict, fp)
+        if filename !== nothing && filename != ""
+            path = filename * MYEXT
+            rpath = StaticString(path)
+            header = ""
+
+            if flow
+                header *= @sprintf("%-11s%-7s%-9s", "itrj", "iflow", "tflow")
+            else
+                header *= @sprintf("%-11s", "itrj")
+            end
+
+            for method in keys(TC_dict)
+                header *= @sprintf("%-25s", "Q_$(method)")
+            end
+
+            open(path, "w") do fp
+                println(fp, header)
+            end
+        else
+            rpath = nothing
+        end
+
+        T = typeof(rpath)
+        return new{T}(TC_dict, rpath)
     end
 end
 
@@ -37,35 +51,59 @@ function TopologicalChargeMeasurement(
     return TopologicalChargeMeasurement(
         U;
         filename=filename,
-        printvalues=true,
         TC_methods=params.kinds_of_topological_charge,
         flow=flow,
     )
 end
 
-function measure(m::TopologicalChargeMeasurement{T}, U; additional_string="") where {T}
-    measurestring = ""
-    printstring = @sprintf("%-9s", additional_string)
+@inline function measure(
+    m::TopologicalChargeMeasurement{Nothing}, U, ::Integer, itrj, flow=nothing,
+)
+    TC_dict = m.TC_dict
+    iflow, _ = isnothing(flow) ? (0, 0.0) : flow
 
-    for methodname in keys(m.TC_dict)
-        Q = top_charge(U, methodname)
-        m.TC_dict[methodname] = Q
+    for method in keys(TC_dict)
+        Q = top_charge(method, U)
+        TC_dict[method] = Q
+
+        if !isnothing(flow)
+            @level1("$itrj\t$Q # topcharge_$(method)_flow_$(iflow)")
+        else
+            @level1("$itrj\t$Q # topcharge_$(method)")
+        end
+    end
+end
+
+function measure(
+    m::TopologicalChargeMeasurement{T}, U, myinstance, itrj, flow=nothing,
+) where {T<:AbstractString}
+    TC_dict = m.TC_dict
+    iflow, τ = isnothing(flow) ? (0, 0.0) : flow
+
+    for method in keys(TC_dict)
+        TC_dict[method] = top_charge(U, method)
     end
 
-    if T ≡ IOStream
-        for value in values(m.TC_dict)
-            svalue = @sprintf("%+-22.15E", value)
-            printstring *= "\t$svalue"
+    if T !== Nothing
+        filename = set_ext!(m.filename, myinstance)
+        fp = fopen(filename, "a")
+        printf(fp, "%-11i", itrj)
+
+        if !isnothing(flow)
+            printf(fp, "%-7i", iflow)
+            printf(fp, "%-9.5f", τ)
         end
 
-        measurestring = printstring
-        println(m.fp, measurestring)
-        flush(m.fp)
-        measurestring *= " # top_charge"
+        for method in keys(TC_dict)
+            v = TC_dict[method]
+            printf(fp, "%+-25.15E", v)
+        end
+
+        printf(fp, "\n")
+        fclose(fp)
     end
 
-    output = MeasurementOutput(m.TC_dict, measurestring)
-    return output
+    return TC_dict
 end
 
 # Topological charge definitions from: https://arxiv.org/pdf/1708.00696.pdf
@@ -90,7 +128,7 @@ function top_charge(::Plaquette, U::Gaugefield{CPU})
         Q += top_charge_density_plaq(U, site)
     end
 
-    return Q / 4π^2
+    return Q/4π^2
 end
 
 function top_charge(::Clover, U::Gaugefield{CPU,T}) where {T}
@@ -100,19 +138,19 @@ function top_charge(::Clover, U::Gaugefield{CPU,T}) where {T}
         Q += top_charge_density_clover(U, site, T)
     end
 
-    return Q / 4π^2
+    return Q/4π^2
 end
 
 function top_charge(::Improved, U::Gaugefield{CPU,T}) where {T}
     Q = 0.0
-    c₀ = T(5 / 3)
-    c₁ = T(-2 / 12)
+    c₀ = T(5/3)
+    c₁ = T(-2/12)
 
     @batch reduction = (+, Q) for site in eachindex(U)
         Q += top_charge_density_imp(U, site, c₀, c₁, T)
     end
 
-    return Q / 4π^2
+    return Q/4π^2
 end
 
 function top_charge_density_plaq(U, site)

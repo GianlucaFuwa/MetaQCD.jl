@@ -523,7 +523,7 @@ const kernel_header = "#$(rpad("height", 20))\t$(rpad("center", 20))\t$(rpad("si
 write_to_file(::OPES, ::Nothing) = nothing
 
 function write_to_file(o::OPES, filename::String)
-    filename == "" && return nothing
+    isnothing(filename) && return nothing
     (tmppath, tmpio) = mktemp()
     print(tmpio, "#")
     [print(tmpio, "$(var)\t") for var in state_vars]

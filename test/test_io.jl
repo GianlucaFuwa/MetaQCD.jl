@@ -13,18 +13,18 @@ function test_io()
     tmpfile_bridge = tempname(pwd(); cleanup=true)
     tmpfile_jld = tempname(pwd(); cleanup=true)
     tmpfile_bmw = tempname(pwd(); cleanup=true)
-    saveU(BridgeFormat(), U, tmpfile_bridge)
-    saveU(JLD2Format(), U, tmpfile_jld)
-    saveU(BMWFormat(), U, tmpfile_bmw)
+    save_config(BridgeFormat(), U, tmpfile_bridge)
+    save_config(JLD2Format(), U, tmpfile_jld)
+    save_config(BMWFormat(), U, tmpfile_bmw)
 
     U_bridge = Gaugefield(Ns, Ns, Ns, Nt, 5.7)
-    loadU!(BridgeFormat(), U_bridge, tmpfile_bridge)
+    load_config!(BridgeFormat(), U_bridge, tmpfile_bridge)
 
     U_jld = Gaugefield(Ns, Ns, Ns, Nt, 5.7)
-    loadU!(JLD2Format(), U_jld, tmpfile_jld)
+    load_config!(JLD2Format(), U_jld, tmpfile_jld)
 
     U_bmw = Gaugefield(Ns, Ns, Ns, Nt, 5.7)
-    loadU!(BMWFormat(), U_bmw, tmpfile_bmw)
+    load_config!(BMWFormat(), U_bmw, tmpfile_bmw)
 
     site = CartesianIndex{4}(rand(1:Ns), rand(1:Ns), rand(1:Ns), rand(1:Nt))
     μ = rand(1:4)
@@ -33,5 +33,3 @@ function test_io()
     @test U[μ, site] ≈ U_bmw[μ, site]
     return nothing
 end
-
-test_io()

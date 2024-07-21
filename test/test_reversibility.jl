@@ -3,7 +3,7 @@ using Random
 using Printf
 using TimerOutputs
 
-function SU3testreversibility(;
+function test_reversibility(;
     integrator=Leapfrog(), gaction=WilsonGaugeAction, faction=nothing, Nf=2, with_bias=false
 )
     println("┌ Testing reversibility of $integrator")

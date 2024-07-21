@@ -1,33 +1,39 @@
 struct EnergyDensityMeasurement{T} <: AbstractMeasurement
     ED_dict::Dict{String,Float64} # energy density definition => value
-    fp::T # file pointer
+    filename::T
     function EnergyDensityMeasurement(
-        ::Gaugefield; filename="", printvalues=false, ED_methods=["clover"], flow=false
+        ::Gaugefield; filename="", ED_methods=["clover"], flow=false
     )
         ED_dict = Dict{String,Float64}()
         for method in ED_methods
+            @level1("|    Method: $(method)")
             ED_dict[method] = 0.0
         end
 
-        if printvalues
-            fp = open(filename, "w")
+        if filename !== nothing && filename != ""
+            path = filename * MYEXT
+            rpath = StaticString(path)
             header = ""
+
             if flow
-                header *= @sprintf("%-9s\t%-7s\t%-9s", "itrj", "iflow", "tflow")
+                header *= @sprintf("%-11s%-7s%-9s", "itrj", "iflow", "tflow")
             else
-                header *= @sprintf("%-9s", "itrj")
+                header *= @sprintf("%-11s", "itrj")
             end
 
             for methodname in ED_methods
-                header *= @sprintf("\t%-22s", "E_$(methodname)")
+                header *= @sprintf("%-25s", "E_$(methodname)")
             end
 
-            println(fp, header)
+            open(path, "w") do fp
+                println(fp, header)
+            end
         else
-            fp = nothing
+            rpath = nothing
         end
 
-        return new{typeof(fp)}(ED_dict, fp)
+        T = typeof(rpath)
+        return new{T}(ED_dict, rpath)
     end
 end
 
@@ -35,35 +41,50 @@ function EnergyDensityMeasurement(U, params::EnergyDensityParameters, filename, 
     return EnergyDensityMeasurement(
         U;
         filename=filename,
-        printvalues=true,
         ED_methods=params.kinds_of_energy_density,
         flow=flow,
     )
 end
 
-function measure(m::EnergyDensityMeasurement{T}, U; additional_string="") where {T}
-    measurestring = ""
-    printstring = @sprintf("%-9s", additional_string)
+function measure(
+    m::EnergyDensityMeasurement{T}, U, myinstance, itrj, flow=nothing
+) where {T}
+    ED_dict = m.ED_dict
+    iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
-    for methodname in keys(m.ED_dict)
-        E = energy_density(U, methodname)
-        m.ED_dict[methodname] = E
+    for methodname in keys(ED_dict)
+        ED_dict[methodname] = energy_density(U, methodname)
     end
 
-    if T == IOStream
-        for value in values(m.ED_dict)
-            svalue = @sprintf("%+-22.15E", value)
-            printstring *= "\t$(svalue)"
+    if T !== Nothing
+        filename = set_ext!(m.filename, myinstance)
+        fp = fopen(filename, "a")
+        printf(fp, "%-11i", itrj::Int64)
+
+        if !isnothing(flow)
+            printf(fp, "%-7i", iflow::Int64)
+            printf(fp, "%-9.5f", τ::Float64)
         end
 
-        measurestring = printstring
-        println(m.fp, measurestring)
-        flush(m.fp)
-        measurestring *= " # energy_density"
+        for value in values(ED_dict)
+            printf(fp, "%+-25.15E", value::Float64)
+        end
+
+        printf(fp, "\n")
+        fclose(fp)
+    else
+        for method in keys(ED_dict)
+            E = ED_dict[method]
+
+            if !isnothing(flow)
+                @level1("$itrj\t$E # energydensity_$(method)_flow_$(iflow)")
+            else
+                @level1("$itrj\t$E # energydensity_$(method)")
+            end
+        end
     end
 
-    output = MeasurementOutput(m.ED_dict, measurestring)
-    return output
+    return ED_dict
 end
 
 function energy_density(U, methodname::String)

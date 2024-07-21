@@ -10,10 +10,8 @@ struct EigenvaluesMeasurement{T,TA,TD} <: AbstractMeasurement
     which::Symbol
     ddaggerd::Bool
     filename::T
-    myinstance::Base.RefValue{Int64}
     function EigenvaluesMeasurement(
         U::Gaugefield;
-        printvalues=false,
         filename::Union{String,Nothing}=nothing,
         dirac_type="wilson",
         eo_precon=false,
@@ -30,6 +28,16 @@ struct EigenvaluesMeasurement{T,TA,TD} <: AbstractMeasurement
         restarts = 200,
         ddaggerd = false,
     )
+        @level1("|    Dirac Operator: $(dirac_type)")
+        @level1("|    Mass: $(mass)")
+        dirac_type == "wilson" && @level1("|    CSW: $(csw)")
+        @level1("|    Even-odd preconditioned: $(eo_precon)")
+        @level1("|    Number of Eigenvalues: $(nev)")
+        @level1("|    Which Eigenvalues: $(which)")
+        @level1("|    Min. Krylov dimension: $(mindim)")
+        @level1("|    Max. Krylov dimension: $(maxdim)")
+        @level1("|    Number of restarts: $(restarts)")
+        @level1("|    Use D†D: $(ddaggerd)")
         if dirac_type == "staggered"
             if eo_precon
                 dirac_operator = StaggeredEOPreDiracOperator(
@@ -55,12 +63,14 @@ struct EigenvaluesMeasurement{T,TA,TD} <: AbstractMeasurement
         end
 
         if filename !== nothing && filename != ""
+            path = filename * MYEXT
+            rpath = StaticString(path)
             header = ""
 
             if flow
-                header *= @sprintf("%-9s\t%-7s\t%-9s", "itrj", "iflow", "tflow")
+                header *= @sprintf("%-11s%-7s%-9s", "itrj", "iflow", "tflow")
             else
-                header *= @sprintf("%-9s", "itrj")
+                header *= @sprintf("%-11s", "itrj")
             end
 
             if which == "LM" || which == "LR" || which == "LI"
@@ -74,17 +84,19 @@ struct EigenvaluesMeasurement{T,TA,TD} <: AbstractMeasurement
             end
             
             for i in eachindex(vals)
-                header *= @sprintf("\t%-22s\t%-22s", "eig_re_$(i)", "eig_im_$(i)")
+                header *= @sprintf("%-25s%-25s", "eig_re_$(i)", "eig_im_$(i)")
             end
 
-            open(filename * "_$MYRANK", "w") do io
-                println(io, header)
+            open(path, "w") do fp
+                println(fp, header)
             end
+        else
+            rpath = nothing
         end
 
         arnoldi = ArnoldiWorkspaceMeta(dirac_operator, maxdim)
 
-        T = typeof(filename)
+        T = typeof(rpath)
         TA = typeof(arnoldi)
         TD = typeof(dirac_operator)
         return new{T,TA,TD}(
@@ -98,8 +110,7 @@ struct EigenvaluesMeasurement{T,TA,TD} <: AbstractMeasurement
             restarts,
             Symbol(which),
             ddaggerd,
-            filename,
-            Base.RefValue{Int64}(MYRANK),
+            rpath,
         )
     end
 end
@@ -108,7 +119,6 @@ function EigenvaluesMeasurement(U, params::EigenvaluesParameters, filename, flow
     return EigenvaluesMeasurement(
         U;
         filename=filename,
-        printvalues=true,
         flow=flow,
         dirac_type=params.dirac_type,
         mass=params.mass,
@@ -125,9 +135,9 @@ function EigenvaluesMeasurement(U, params::EigenvaluesParameters, filename, flow
     )
 end
 
-function measure(m::EigenvaluesMeasurement{T}, U; additional_string="") where {T}
-    measurestring = ""
-    printstring = @sprintf("%-9s", additional_string)
+function measure(
+    m::EigenvaluesMeasurement{T}, U, myinstance, itrj, flow=nothing
+) where {T}
     vals = m.vals
 
     if m.which == :LSM
@@ -183,17 +193,23 @@ function measure(m::EigenvaluesMeasurement{T}, U; additional_string="") where {T
     end
 
     if T !== Nothing
-        for value in vals
-            svalue = @sprintf("%+-22.15E\t%+-22.15E", real(value), imag(value))
-            printstring *= "\t$svalue"
+        filename = m.filename
+        set_ext!(filename, myinstance)
+        fp = fopen(filename, "a")
+        printf(fp, "%-11i", itrj)
+        if !isnothing(flow)
+            printf(fp, "%-7i", flow[1])
+            printf(fp, "%-9.5f", flow[2])
         end
 
-        measurestring = printstring
-        open(m.filename * "_$(m.myinstance)", "a") do io
-            println(io, measurestring)
+        for value in vals
+            printf(fp, "%+-25.15E", real(value))
+            printf(fp, "%+-25.15E", imag(value))
         end
+
+        printf(fp, "\n")
+        fclose(fp)
     end
 
-    output = MeasurementOutput(vals, "")
-    return output
+    return vals
 end

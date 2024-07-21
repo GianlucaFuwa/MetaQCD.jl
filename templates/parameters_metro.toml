@@ -14,7 +14,7 @@ or_algorithm = "subgroups"
 numorelax = 4
 
 ["System Settings"]               
-ensemble_dir = "test_metropolis"
+# ensemble_dir = ""
 randomseed = 0
 verboselevel = 2
 overwrite = true

@@ -15,7 +15,7 @@ numorelax = 4
 ["System Settings"]
 backend = "cpu"
 float_type = "double"               
-ensemble_dir = "/data/MetaQCD/test_heatbath"
+# ensemble_dir = ""
 randomseed = 0
 verboselevel = 2
 overwrite = true

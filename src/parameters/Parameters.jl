@@ -87,7 +87,9 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
     ensemble_dir = try
         parameters["System Settings"]["ensemble_dir"]
     catch
-        "/data/MetaQCD/$(generated_dirname)"
+        tmp = "$(homedir())/data/MetaQCD/$(generated_dirname)"
+        @info "\"ensemble_dir\" not specified! Data will be stored in $tmp"
+        tmp
     end
 
     if !overwrite
@@ -106,14 +108,14 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
         end
     end
 
-    AM_RANK0 && cp(inputfile, ensemble_dir * "/used_parameterfile.toml"; force=true)
+    AM_RANK0 && cp(inputfile, joinpath(ensemble_dir, "used_parameterfile.toml"); force=true)
     pose = findfirst(x -> String(x) == "ensemble_dir", pnames)
     value_Params[pose] = ensemble_dir
 
-    log_dir = ensemble_dir * "/logs/"
-    measure_dir = ensemble_dir * "/measurements/"
-    save_config_dir = ensemble_dir * "/configs/"
-    bias_dir = ensemble_dir * "/biaspotentials/"
+    log_dir = joinpath(ensemble_dir, "logs/")
+    measure_dir = joinpath(ensemble_dir, "measurements/")
+    save_config_dir = joinpath(ensemble_dir, "configs/")
+    bias_dir = joinpath(ensemble_dir, "biaspotentials/")
     if !isdir(log_dir) && AM_RANK0
         mkpath(log_dir)
     end

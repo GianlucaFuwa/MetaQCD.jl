@@ -1,17 +1,20 @@
 module Output
 
 using Dates
+using Format
 using InteractiveUtils: InteractiveUtils
 using JLD2
 using KernelAbstractions # TODO: save and load of GPUD
 using MPI
 using LinearAlgebra
+using Printf
 using Random
 using StaticArrays
 using ..Utils: restore_last_row
 
 export __GlobalLogger, MetaLogger, current_time, @level1, @level2, @level3
 export BMWFormat, BridgeFormat, Checkpointer, ConfigSaver, JLD2Format, set_global_logger!
+export fclose, fopen, printf, prints_to_console
 export create_checkpoint, load_checkpoint, load_gaugefield!, loadU!, save_gaugefield, saveU
 
 MPI.Initialized() || MPI.Init()
@@ -19,6 +22,7 @@ const COMM = MPI.COMM_WORLD
 const COMM_SIZE = MPI.Comm_size(COMM)
 const MYRANK = MPI.Comm_rank(COMM)
 
+include("cio.jl")
 include("verbose.jl")
 
 abstract type AbstractFormat end
@@ -46,7 +50,7 @@ include("bmw_format.jl")
 include("bridge_format.jl")
 include("jld2_format.jl")
 
-current_time() = Dates.now(UTC)
+@inline current_time() = Dates.now(UTC)
 
 struct Checkpointer{T}
     checkpoint_dir::String

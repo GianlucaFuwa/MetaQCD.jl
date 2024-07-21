@@ -31,9 +31,10 @@ function cg!(x, A, b, Ap, r, p; tol=1e-12, maxiters=1000)
 end
 
 function mscg!(
-    x::NTuple{N,V}, shifts, A, b, Ap, r, p::NTuple{N,V}; tol=1e-12, maxiters=1000
-) where {N,V} # multishift solver
-    @assert length(shifts) == N - 1
+    x::NTuple{M,V}, shifts, A, b::V, Ap::V, r::V, p::NTuple{L,V}; tol=1e-12, maxiters=1000
+) where {M,L,V} # multishift solver
+    N = length(shifts) + 1
+    @assert L ≥ M ≥ N
     α = one(ComplexF64)
     β = zero(ComplexF64)
     α′ = @SVector ones(ComplexF64, N - 1)

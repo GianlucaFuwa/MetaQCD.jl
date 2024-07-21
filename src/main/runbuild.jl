@@ -34,11 +34,11 @@ function build_bias(filenamein::String; backend="cpu", mpi_enabled=false)
     # print time and system info, because it looks cool I guess
     # btw, all these "@level1" calls are just for logging, level1 is always printed
     # and anything higher has to specified in the parameter file (default is level2)
-    @level1("Start time: @ $(current_time())")
+    # @level1("Start time: @ $(current_time())")
     buf = IOBuffer()
     InteractiveUtils.versioninfo(buf)
     versioninfo = String(take!(buf))
-    @level1(versioninfo)
+    # @level1(versioninfo)
     @level1("[ Running MetaQCD.jl version $(PACKAGE_VERSION)\n")
     @level1("[ Random seed is: $seed\n")
 
@@ -133,7 +133,7 @@ function metabuild!(
                     therm=true,
                 )
             end
-            @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())\n-")
+            # @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())\n-")
         end
     end
 
@@ -159,7 +159,7 @@ function metabuild!(
                 numaccepts += accepted
             end
 
-            @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())\n")
+            # @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())\n")
             # all procs send their CVs to all other procs and update their copy of the bias
             CVs = MPI.Allgather(U.CV::Float64, COMM)
             accepteds = MPI.Allgather(accepted::Bool, COMM)
@@ -176,7 +176,7 @@ function metabuild!(
         end
     end
 
-    @level1("└\nTotal elapsed time:\t$(convert_seconds(runtime_all))\n@ $(current_time())")
+    # @level1("└\nTotal elapsed time:\t$(convert_seconds(runtime_all))\n@ $(current_time())")
     flush(stdout)
     # close all the I/O streams
     close(updatemethod)
@@ -184,5 +184,6 @@ function metabuild!(
     close(measurements_with_flow)
     close(bias)
     close(Output.__GlobalLogger[])
+    set_global_logger!(1)
     return nothing
 end

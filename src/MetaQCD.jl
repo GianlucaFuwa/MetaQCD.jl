@@ -52,7 +52,7 @@ import .Fields: normalize!, plaquette, plaquette_trace_sum, random_gauges!
 import .Fields: staple, staple_eachsite!, wilsonloop, to_backend
 import .Fields: Tensorfield, calc_kinetic_energy, gaussian_TA!
 import .Fields: Fermionfield, gaussian_pseudofermions!
-import .Measurements: measure, get_value, top_charge
+import .Measurements: measure, top_charge
 import .Measurements: EnergyDensityMeasurement, GaugeActionMeasurement, PlaquetteMeasurement
 import .Measurements: PolyakovMeasurement, TopologicalChargeMeasurement
 import .Measurements: WilsonLoopMeasurement
@@ -78,7 +78,7 @@ export StaggeredEOPreDiracOperator, even_odd, sample_pseudofermions!
 export StaggeredFermionAction, StaggeredEOPreFermionAction
 export WilsonFermionAction, WilsonEOPreFermionAction
 export calc_fermion_action, gaussian_pseudofermions!
-export measure, get_value, top_charge
+export measure, top_charge
 export EnergyDensityMeasurement, GaugeActionMeasurement, PlaquetteMeasurement
 export PolyakovMeasurement, TopologicalChargeMeasurement, WilsonLoopMeasurement
 export ParameterSet, construct_params_from_toml

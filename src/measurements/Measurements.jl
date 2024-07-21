@@ -14,6 +14,7 @@ using LinearAlgebra
 using MPI
 using Polyester
 using Printf
+using StaticTools: StaticString
 using Unicode
 using ..Output
 using ..Utils
@@ -23,7 +24,7 @@ import ..DiracOperators: Daggered, DdaggerD, StaggeredDiracOperator, WilsonDirac
 import ..DiracOperators: StaggeredEOPreDiracOperator, even_odd, solve_dirac!
 import ..DiracOperators: ArnoldiWorkspaceMeta, get_eigenvalues
 import ..Fields: WilsonGaugeAction, SymanzikTreeGaugeAction, SymanzikTadGaugeAction
-import ..Fields: IwasakiGaugeAction, DBW2GaugeAction
+import ..Fields: IwasakiGaugeAction, DBW2GaugeAction, AbstractFieldstrength
 import ..Fields: Gaugefield, Fermionfield, calc_gauge_action, clover_rect, clear!
 import ..Fields: clover_square, dims, float_type, plaquette, wilsonloop, set_source!
 import ..Fields: @groupreduce, @latsum, Plaquette, Clover, Improved, CPU, ones!
@@ -33,35 +34,27 @@ import ..Smearing: StoutSmearing, calc_smearedU!, flow!
 abstract type AbstractMeasurement end
 
 const MYRANK = MPI.Comm_rank(MPI.COMM_WORLD)
+const MYEXT_str = "_$(lpad("$MYRANK", 4, "0")).txt"
+const MYEXT = StaticString(MYEXT_str)
 
-function Base.close(m::AbstractMeasurement)
-    if hasfield(typeof(m), :fp)
-        typeof(m.fp) == IOStream && close(m.fp)
-    end
-    return nothing
+@inline set_ext!(filename::String, ::Integer) = filename
+
+@inline function set_ext!(filename::StaticString, myinstance::Integer)
+    filename[end-5] = digit_to_char(myinstance)
+    return filename
 end
 
-include("./measurement_parameters.jl")
-include("./measurement_methods.jl")
-
-struct MeasurementOutput{T}
-    value::T
-    outputstring::String
-    MeasurementOutput(value, str) = new{typeof(value)}(value, str)
+@inline function digit_to_char(x::Integer)
+    @assert x ≥ 0
+    return Char('0' + x)
 end
-
-get_value(m::MeasurementOutput) = m.value
-get_string(m::MeasurementOutput) = m.outputstring
 
 function measure(::M, args...) where {M<:AbstractMeasurement}
     return error("measurement with a type $M is not supported")
 end
 
-@inline get_myinstance(m::M) where {M<:AbstractMeasurement} = m.myinstance[]
-
-@inline function set_myinstance!(m::M, new_instance) where {M<:AbstractMeasurement}
-    m.myinstance[] = new_instance
-end
+include("./measurement_parameters.jl")
+include("./measurement_methods.jl")
 
 include("measure_gauge_action.jl")
 include("measure_plaquette.jl")

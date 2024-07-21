@@ -6,11 +6,10 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT} <: AbstractMeasurement
     cg_tol::Float64
     cg_maxiters::Int64
     # mass_precon::Bool
-    fp::T # file pointer
+    filename::T
     function PionCorrelatorMeasurement(
         U::Gaugefield;
         filename="",
-        printvalues=false,
         dirac_type="wilson",
         eo_precon=false,
         flow=false,
@@ -21,6 +20,12 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT} <: AbstractMeasurement
         cg_maxiters=1000,
         anti_periodic=true,
     )
+        @level1("|    Dirac Operator: $(dirac_type)")
+        @level1("|    Mass: $(mass)")
+        dirac_type == "wilson" && @level1("|    CSW: $(csw)")
+        @level1("|    Even-odd preconditioned: $(eo_precon)")
+        @level1("|    CG Tolerance: $(cg_tol)")
+        @level1("|    CG Max Iterations: $(cg_maxiters)")
         NT = dims(U)[end]
         pion_corr = zeros(Float64, NT)
 
@@ -48,31 +53,34 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT} <: AbstractMeasurement
             throw(ArgumentError("Dirac operator \"$dirac_type\" is not supported"))
         end
 
-        if printvalues
-            fp = open(filename, "w")
+        if filename !== nothing && filename != ""
+            path = filename * MYEXT
+            rpath = StaticString(path)
             header = ""
 
             if flow
-                header *= @sprintf("%-9s\t%-7s\t%-9s", "itrj", "iflow", "tflow")
+                header *= @sprintf("%-11s%-7s%-9s", "itrj", "iflow", "tflow")
             else
-                header *= @sprintf("%-9s", "itrj")
+                header *= @sprintf("%-11s", "itrj")
             end
 
             for it in 1:NT
-                header *= @sprintf("\t%-22s", "pion_corr_$(it)")
+                header *= @sprintf("%-25s", "pion_corr_$(it)")
             end
 
-            println(fp, header)
+            open(path, "w") do fp
+                println(fp, header)
+            end
         else
-            fp = nothing
+            rpath = nothing
         end
 
-        T = typeof(fp)
+        T = typeof(rpath)
         TD = typeof(dirac_operator)
         TF = typeof(temp)
         CT = typeof(cg_temps)
         return new{T,TD,TF,CT}(
-            dirac_operator, temp, cg_temps, pion_corr, cg_tol, cg_maxiters, fp
+            dirac_operator, temp, cg_temps, pion_corr, cg_tol, cg_maxiters, rpath
         )
     end
 end
@@ -83,7 +91,6 @@ function PionCorrelatorMeasurement(
     return PionCorrelatorMeasurement(
         U;
         filename=filename,
-        printvalues=true,
         flow=flow,
         dirac_type=params.dirac_type,
         mass=params.mass,
@@ -95,28 +102,33 @@ function PionCorrelatorMeasurement(
     )
 end
 
-function measure(m::PionCorrelatorMeasurement{T}, U; additional_string="") where {T}
-    measurestring = ""
-    printstring = @sprintf("%-9s", additional_string)
-
+function measure(
+    m::PionCorrelatorMeasurement{T}, U, myinstance, itrj, flow=nothing
+) where {T}
     pion_correlators_avg!(
         m.pion_corr, m.dirac_operator(U), m.temp, m.cg_temps, m.cg_tol, m.cg_maxiters
     )
+    iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
-    if T ≡ IOStream
-        for value in m.pion_corr
-            svalue = @sprintf("%+-22.15E", value)
-            printstring *= "\t$svalue"
+    if T !== Nothing
+        filename = set_ext!(m.filename, myinstance)
+        fp = fopen(filename, "a")
+        printf(fp, "%-11i", itrj)
+
+        if !isnothing(flow)
+            printf(fp, "%-7i", iflow)
+            printf(fp, "%-9.5f", τ)
         end
 
-        measurestring = printstring
-        println(m.fp, measurestring)
-        flush(m.fp)
-        measurestring *= " # pion_correlator"
+        for value in m.pion_corr
+            printf(fp, "%+-25.15E", value)
+        end
+
+        printf(fp, "\n")
+        fclose(fp)
     end
 
-    output = MeasurementOutput(m.pion_corr, measurestring)
-    return output
+    return m.pion_corr
 end
 
 """

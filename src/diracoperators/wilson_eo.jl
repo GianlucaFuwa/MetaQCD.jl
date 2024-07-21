@@ -258,7 +258,7 @@ function calc_fermion_action(
 
     clear!(ψ_eo) # initial guess is zero
     solve_dirac!(ψ_eo, DdagD, ϕ_eo, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
-    Sf = dot(ϕ_eo, ψ_eo) #= - 2trlog(D.D_diag) =#
+    Sf = #= dot(ϕ_eo, ψ_eo) =# - 2trlog(D.D_diag)
     return real(Sf)
 end
 

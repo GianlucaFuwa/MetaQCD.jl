@@ -42,12 +42,12 @@ function (p::Parametric)(cv)
     Q′ = Z * cv
 
     if in_bounds(cv, lb, ub)
-        return Q * cv^2 + A * cos(2π * Q′)
+        return Q * cv^2 + A * cospi(Q′)^2
     elseif cv < lb
-        penalty = Q * cv^2 + A * cos(2π * Q′) + pen * (cv - lb)^2
+        penalty = Q * cv^2 + A * cospi(Q′)^2 + pen * (cv - lb)^2
         return penalty
     else
-        penalty = Q * cv^2 + A * cos(2π * Q′) + pen * (cv - ub)^2
+        penalty = Q * cv^2 + A * cospi(Q′)^2 + pen * (cv - ub)^2
         return penalty
     end
 end
@@ -59,19 +59,19 @@ function ∂V∂Q(p::Parametric, cv)
     Q′ = Z * cv
 
     if in_bounds(cv, lb, ub)
-        return 2Q * cv - 2π * Z * A * sin(2π * Q′)
+        return 2Q * cv - 2π * Z * A * sinpi(Q′)
     elseif cv < lb
-        penalty = 2Q * cv - 2π * Z * A * sin(2π * Q′) + 2pen * (cv - lb)
+        penalty = 2Q * cv - 2π * Z * A * sinpi(Q′) + 2pen * (cv - lb)
         return penalty
     else
-        penalty = 2Q * cv - 2π * Z * A * sin(2π * Q′) + 2pen * (cv - ub)
+        penalty = 2Q * cv - 2π * Z * A * sinpi(Q′) + 2pen * (cv - ub)
         return penalty
     end
 end
 
 function integral(p::Parametric, lb, ub) # XXX: Why does this function exist?
     Q, A, Z = p.Q, p.A, p.Z
-    num = 3A * sin(2π*Z*ub) + 2π*Q*Z*ub^3 - 3A * sin(2π*Z*lb) - 2π*Q*Z*lb^3
+    num = 3A * sinpi(Z*ub) + 2π*Q*Z*ub^3 - 3A * sinpi(Z*lb) - 2π*Q*Z*lb^3
     denom = 6π * Z
     return num / denom
 end

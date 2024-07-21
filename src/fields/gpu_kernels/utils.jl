@@ -59,8 +59,6 @@ end
     return val
 end
 
-using MacroTools: @capture, prewalk, postwalk, splitdef, combinedef
-
 # @inline function tile(NX::Integer, NY::Integer, NZ::Integer, NT::Integer)
 #     maxn = 1024
 #     num1 = min(maxn, NX)

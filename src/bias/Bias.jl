@@ -37,10 +37,9 @@ struct Bias{TCV,TS,TB,TW,T}
     is_static::Bool
     bias::TB
     kinds_of_weights::TW
-    biasfile::String
-    datafile::String
+    biasfile::T
+    datafile::T
     write_bias_every::Int64
-    fp::T
 end
 
 function Bias(p::ParameterSet, U; use_mpi=false, instance=1)
@@ -69,34 +68,28 @@ function Bias(p::ParameterSet, U; use_mpi=false, instance=1)
         is_opes = bias isa OPES
         kinds_of_weights = is_opes ? ["opes"] : p.kinds_of_weights
         ext = is_opes ? "opes" : "metad"
-        biasfile = MYRANK==0 ? p.bias_dir * "/stream_$(inum).$(ext)" : ""
-        datafile = p.measure_dir * "/bias_data_$inum.txt"
+        biasfile = MYRANK==0 ? joinpath(p.bias_dir, "stream_$(inum).$(ext)") : ""
+        datafile = joinpath(p.measure_dir, "bias_data_$inum.txt")
         # FIXME: For some reason this errors with MPI on the UNI's cluster
-        fp = open(datafile, "w")
-        str = @sprintf("%-9s\t%-22s", "itrj", "cv")
-        print(fp, str)
+        open(datafile, "w") do fp
+            @printf(fp, "%-11s%-25s", "itrj", "cv")
 
-        for name in kinds_of_weights
-            str = @sprintf("\t%-22s", "weight_$(name)")
-            print(fp, str)
+            for name in kinds_of_weights
+                @printf(fp, "%-25s", "weight_$(name)")
+            end
+            cnewline(fp)
         end
-
-        println(fp)
     elseif bias isa Parametric
         kinds_of_weights = ["branduardi"]
         biasfile = ""
-        datafile = p.measure_dir * "/bias_data_$inum.txt"
-        fp = open(datafile, "w")
-        str = @sprintf("%-9s\t%-22s\t%-22s\n", "itrj", "cv", "weight_branduardi")
-        println(fp, str)
+        datafile = joinpath(p.measure_dir, "bias_data_$inum.txt")
+        open(datafile, "w") do fp
+            @printf(fp, "%-11s%-25s%-25s", "itrj", "cv", "weight_branduardi")
+            cnewline(fp)
+        end
         @level1(
             "|  @info: Parametric bias defaults to static and weight-type \"branduardi\""
         )
-    else
-        biasfile = ""
-        datafile = ""
-        kinds_of_weights = nothing
-        fp = nothing
     end
 
     @level1("|  BIASFILE: $(biasfile)")
@@ -109,7 +102,8 @@ function Bias(p::ParameterSet, U; use_mpi=false, instance=1)
 
     # write to file after construction to make sure nothing went wrong
     MYRANK == 0 && write_to_file(bias, biasfile)
-    @level1("└\n")
+    @level1("└")
+    @level1("")
     return Bias(
         TCV(),
         smearing,
@@ -119,7 +113,6 @@ function Bias(p::ParameterSet, U; use_mpi=false, instance=1)
         biasfile,
         datafile,
         write_bias_every,
-        fp,
     )
 end
 
@@ -140,8 +133,6 @@ end
 
 kind_of_cv(::NoBias) = nothing
 kind_of_cv(b::Bias) = b.kind_of_cv
-Base.close(::NoBias) = nothing
-Base.close(b::Bias{TCV,TS,TB,T}) where {TCV,TS,TB,T} = T ≢ Nothing ? close(b.fp) : nothing
 update_bias!(::NoBias, args...) = nothing
 update_bias!(::Nothing, args...) = nothing
 write_to_file(::AbstractBias, args...) = nothing

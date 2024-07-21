@@ -1,6 +1,6 @@
 using MetaQCD
 
-function SU3testfmeas(backend=CPU)
+function test_fermion_measurements(backend=CPU)
     println("SU3testmeas")
     Ns = 4
     Nt = 4
@@ -18,5 +18,3 @@ function SU3testfmeas(backend=CPU)
     println("PION CORR: $pion")
     return nothing
 end
-
-SU3testfmeas()

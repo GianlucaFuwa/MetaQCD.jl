@@ -1,13 +1,14 @@
 struct PolyakovMeasurement{T} <: AbstractMeasurement
-    fp::T # file pointer
-    function PolyakovMeasurement(::Gaugefield; filename="", printvalues=false, flow=false)
-        if printvalues
-            fp = open(filename, "w")
+    filename::T
+    function PolyakovMeasurement(::Gaugefield; filename="", flow=false)
+        if filename !== nothing && filename != ""
+            path = filename * MYEXT
+            rpath = StaticString(path)
             header = ""
 
             if flow
                 header *= @sprintf(
-                    "%-9s\t%-7s\t%-9s\t%-22s\t%-22s",
+                    "%-11s%-7s%-9s%-25s%-25s",
                     "itrj",
                     "iflow",
                     "tflow",
@@ -15,37 +16,53 @@ struct PolyakovMeasurement{T} <: AbstractMeasurement
                     "Im(poly)"
                 )
             else
-                header *= @sprintf("%-9s\t%-22s\t%-22s", "itrj", "Re(poly)", "Im(poly)")
+                header *= @sprintf("%-11s%-25s%-25s", "itrj", "Re(poly)", "Im(poly)")
             end
 
-            println(fp, header)
+            open(path, "w") do fp
+                println(fp, header)
+            end
         else
-            fp = nothing
+            rpath = nothing
         end
 
-        return new{typeof(fp)}(fp)
+        T = typeof(rpath)
+        return new{T}(rpath)
     end
 end
 
 function PolyakovMeasurement(U, ::PolyakovParameters, filename, flow=false)
-    return PolyakovMeasurement(U; filename=filename, printvalues=true, flow=flow)
+    return PolyakovMeasurement(U; filename=filename, flow=flow)
 end
 
-function measure(m::PolyakovMeasurement{T}, U; additional_string="") where {T}
-    measurestring = ""
+function measure(
+    m::PolyakovMeasurement{T}, U, myinstance, itrj, flow=nothing
+) where {T}
     poly = polyakov_traced(U)
+    iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
-    if T ≡ IOStream
-        measurestring *= @sprintf(
-            "%-9s\t%+22.15E\t%+22.15E", additional_string, real(poly), imag(poly)
-        )
-        println(m.fp, measurestring)
-        flush(m.fp)
-        measurestring *= " # poly"
+    if T !== Nothing
+        filename = set_ext!(m.filename, myinstance)
+        fp = fopen(filename, "a")
+        printf(fp, "%-11i", itrj)
+
+        if !isnothing(flow)
+            printf(fp, "%-7i", iflow)
+            printf(fp, "%-9.5f", τ)
+        end
+
+        printf(fp, "%-25.15E", poly)
+        printf(fp, "\n")
+        fclose(fp)
+    else
+        if !isnothing(flow)
+            @level1("$itrj\t$poly # poly")
+        else
+            @level1("$itrj\t$poly # poly_flow_$(iflow)")
+        end
     end
 
-    output = MeasurementOutput(poly, measurestring)
-    return output
+    return poly
 end
 
 function polyakov_traced(U::Gaugefield{CPU})

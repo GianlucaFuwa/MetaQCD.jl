@@ -31,21 +31,22 @@ hmc_rhostout_fermion = 0.12
 
 ["System Settings"]
 float_type = "double"
-ensemble_dir = "/data/MetaQCD/test_fermions"
+ensemble_dir = "/home/gialuf/data/MetaQCD/test_fermions"
 randomseed = 0
-verboselevel = 1
 overwrite = true
 save_checkpoint_every = 100
+verboselevel = 1
+log_to_console = true
 # load_checkpoint_fromfile = true
-# load_checkpoint_path = "/data/MetaQCD/test_fermions/checkpoint_0"
+# load_checkpoint_path = ""
 
 ["Measurement Settings".measurements]
 ["Measurement Settings".measurements.Plaquette]
-measure_every = 10
-#
-# ["Measurement Settings".measurements.Topological_charge]
-# measure_every = 10
-# kinds_of_topological_charge = ["clover"]
+measure_every = 1
+
+["Measurement Settings".measurements.Topological_charge]
+measure_every = 1
+kinds_of_topological_charge = ["plaquette", "clover"]
 # ["Measurement Settings".measurements.Eigenvalues]
 # measure_every = 10
 # dirac_type = "staggered"
@@ -64,7 +65,7 @@ flow_measure_every = 7
 
     ["Gradient Flow Settings".measurements_with_flow]
     ["Gradient Flow Settings".measurements_with_flow.Plaquette]
-    measure_every = 10
+    measure_every = 1
     #
     # ["Gradient Flow Settings".measurements_with_flow.Pion_correlator]
     # measure_every = 10
@@ -74,9 +75,9 @@ flow_measure_every = 7
     # cg_tol = 1e-16
     # cg_maxiters = 5000
     #
-    # ["Gradient Flow Settings".measurements_with_flow.Topological_charge]
-    # measure_every = 10
-    # kinds_of_topological_charge = ["clover"]
+    ["Gradient Flow Settings".measurements_with_flow.Topological_charge]
+    measure_every = 1
+    kinds_of_topological_charge = ["plaquette", "clover"]
     # ["Gradient Flow Settings".measurements_with_flow.Eigenvalues]
     # measure_every = 10
     # dirac_type = "staggered"

@@ -40,7 +40,7 @@ hmc_integrator = "OMF4"
 
 ["System Settings"]
 float_type = "double"            
-ensemble_dir = "/data/MetaQCD/test_metad"
+# ensemble_dir = ""
 randomseed = 0
 verboselevel = 2
 overwrite = true

@@ -6,48 +6,74 @@ Logger object that can be used to log messages to the IOStream `io` and, if
 """
 struct MetaLogger
     LEVEL::Int64
-    io::IO
+    fp::Union{Nothing,Ptr{FILE}}
     to_console::Bool
-    MetaLogger(LEVEL=2, tc::Bool=true) = new(LEVEL, devnull, tc)
-    MetaLogger(LEVEL, ::Nothing, tc::Bool=true) = new(LEVEL, devnull, tc)
-    MetaLogger(LEVEL, filename::String, tc::Bool=true) = new(LEVEL, open(filename, "w"), tc)
-    MetaLogger(LEVEL, io::IO, tc::Bool=true) = new(LEVEL, io, tc)
+    MetaLogger(LEVEL=2, tc::Bool=true) = new(LEVEL, nothing, tc)
+    MetaLogger(LEVEL, ::Nothing, tc::Bool=true) = new(LEVEL, nothing, tc)
+    MetaLogger(LEVEL, file::String, tc::Bool=true) = new(LEVEL, fopen(file, "w"), tc)
+    MetaLogger(LEVEL, fp::Ptr{FILE}, tc::Bool=true) = new(LEVEL, fp, tc)
 end
+
+Base.close(logger::MetaLogger) = !isnothing(logger.fp) && fclose(logger.fp)
 
 const __GlobalLogger = Ref(MetaLogger(2))
 
-Base.flush(logger::MetaLogger) = flush(logger.io)
-Base.close(logger::MetaLogger) = close(logger.io)
+@inline prints_to_console() = __GlobalLogger[].to_console
 
-function set_global_logger!(level, io=devnull; tc=true)
-    __GlobalLogger[] = MetaLogger(level, io, tc)
+function set_global_logger!(level, fp_or_file=nothing; tc=true)
+    __GlobalLogger[] = MetaLogger(level, fp_or_file, tc)
     return nothing
 end
 
-# functions would be enough, but macros look cooler
-# Could also define them using @eval as below, but then the LSP doesn't register them and
-# we get "Missing reference" everywhere
-macro level1(val...)
-    return level1(val...)
-end
+printf(::Nothing, ::Any) = zero(Int32)
 
-macro level2(val...)
-    return level2(val...)
-end
-
-macro level3(val...)
-    return level3(val...)
-end
-
-for input_level in 1:3
-    # Create the functions that the macros @level1, @level2, and @level3 call
-    @eval function $(Symbol("level$(input_level)"))(val...)
-        return quote
-            if Output.__GlobalLogger[].LEVEL >= $($input_level) && MYRANK == 0
-                Output.__GlobalLogger[].to_console && println(stdout, $(esc(val...)))
-                println(Output.__GlobalLogger[].io, $(esc(val...)))
-                flush(Output.__GlobalLogger[].io)
-            end
+macro level1(msg)
+    pmsg = prepare_message(msg)
+    return quote
+        if __GlobalLogger[].LEVEL ≥ 1 && MYRANK == 0
+            __GlobalLogger[].to_console && printf($pmsg)
+            !isnothing(__GlobalLogger[].fp) && printf(__GlobalLogger[].fp, $pmsg)
         end
+        nothing
     end
+end
+
+macro level2(msg)
+    pmsg = prepare_message(msg)
+    return quote
+        if __GlobalLogger[].LEVEL ≥ 2 && MYRANK == 0
+            __GlobalLogger[].to_console && printf($pmsg)
+            !isnothing(__GlobalLogger[].fp) && printf(__GlobalLogger[].fp, $pmsg)
+        end
+        nothing
+    end
+end
+
+macro level3(msg)
+    pmsg = prepare_message(msg)
+    return quote
+        if __GlobalLogger[].LEVEL ≥ 3 && MYRANK == 0
+            __GlobalLogger[].to_console && printf($pmsg)
+            !isnothing(__GlobalLogger[].fp) && printf(__GlobalLogger[].fp, $pmsg)
+        end
+        nothing
+    end
+end
+
+@inline prepare_message(msg::String) = :(($msg, "\n"))
+
+@inline function prepare_message(msg::Expr)
+    @assert msg.head == :string
+    tup = Expr(:tuple)
+
+    for arg in msg.args
+        # if arg isa String
+        #     push!(tup.args, :($arg))
+        # else
+            push!(tup.args, :($(esc(arg))))
+        # end
+    end
+
+    push!(tup.args, :("\n"))
+    return tup
 end

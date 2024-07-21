@@ -1,4 +1,4 @@
-function SU3testupdate(
+function test_update(
     backend=CPU;
     update_method="heatbath",
     or_algorithm="subgroups",

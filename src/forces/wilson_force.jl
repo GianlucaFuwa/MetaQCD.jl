@@ -33,8 +33,8 @@ function calc_dSfdU!(
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     anti = D.anti_periodic
-    Xs = fermion_action.rhmc_temps1[1:n+1]
-    Ys = fermion_action.rhmc_temps2[1:n+1]
+    Xs = fermion_action.rhmc_temps1
+    Ys = fermion_action.rhmc_temps2
     temp1, temp2 = fermion_action.cg_temps
 
     for X in Xs

@@ -212,8 +212,8 @@ function calc_fermion_action(
     n = get_n(rhmc)
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
-    ψs = fermion_action.rhmc_temps1[1:n+1]
-    ps = fermion_action.rhmc_temps2[1:n+1]
+    ψs = fermion_action.rhmc_temps1
+    ps = fermion_action.rhmc_temps2
     temp1, temp2 = fermion_action.cg_temps
 
     for v in ψs
@@ -251,8 +251,8 @@ function sample_pseudofermions!(ϕ, fermion_action::WilsonFermionAction{Nf}, U) 
     n = get_n(rhmc)
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
-    ψs = fermion_action.rhmc_temps1[1:n+1]
-    ps = fermion_action.rhmc_temps2[1:n+1]
+    ψs = fermion_action.rhmc_temps1
+    ps = fermion_action.rhmc_temps2
     temp1, temp2 = fermion_action.cg_temps
 
     for v in ψs

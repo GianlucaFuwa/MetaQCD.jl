@@ -5,7 +5,8 @@ using MetaQCD.MPI
 using MetaQCD: run_sim
 using MetaQCD.Parameters: lower_case
 
-@assert MPI.Comm_size(MPI.COMM_WORLD) == 1 "metaqcd_sim can not be used with mpi, only metaqcd_build"
+const COMM = MPI.COMM_WORLD
+@assert MPI.Comm_size(COMM) == 1 "metaqcd_sim can not be used with mpi, only metaqcd_build"
 
 if length(ARGS) == 0
     error("""

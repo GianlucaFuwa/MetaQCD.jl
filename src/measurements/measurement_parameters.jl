@@ -93,7 +93,7 @@ function initialize_measurement_parameters(methodname)
     return method
 end
 
-function construct_measurement_parameters_from_dict(value_i::Dict)
+function meas_parameters_from_dict(value_i::Dict)
     methodname = value_i["observable"]
     method = initialize_measurement_parameters(methodname)
     method_dict = struct2dict(method)

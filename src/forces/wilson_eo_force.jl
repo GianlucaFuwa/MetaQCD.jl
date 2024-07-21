@@ -13,14 +13,14 @@ function calc_dSfdU!(
 
     # clear!(X_eo)
     # solve_dirac!(X_eo, DdagD, ϕ_eo, Y_eo, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp LinearAlgebra.mul!(Y, D, X) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
-
+    #
     # LinearAlgebra.mul!(Y_eo, D, X_eo)
     # mul_oe!(X_eo, U, X_eo, anti, true, Val(1)) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
     # mul_oe!(Y_eo, U, Y_eo, anti, true, Val(-1)) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
     # mul_oo_inv!(X_eo, D.D_oo_inv)
     # mul_oo_inv!(Y_eo, D.D_oo_inv)
     # add_wilson_eo_derivative!(dU, U, X_eo, Y_eo, anti)
-    # TODO: Clover derivatives
+
     if C
         Xμν = fermion_action.Xμν
         D_oo_inv = D.D_oo_inv
@@ -43,8 +43,8 @@ function calc_dSfdU!(
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     anti = D.anti_periodic
-    Xs = fermion_action.rhmc_temps1[1:n+1]
-    Ys = fermion_action.rhmc_temps2[1:n+1]
+    Xs = fermion_action.rhmc_temps1
+    Ys = fermion_action.rhmc_temps2
     temp1, temp2 = fermion_action.cg_temps
 
     for X in Xs
@@ -202,27 +202,27 @@ function calc_Xμν_small_kernel!(Xμν, D_oo_inv, site, ::Type{T}) where {T}
         A₊ = D_oo_inv[1, _site]
         A₋ = D_oo_inv[2, _site]
 
-        X₁₂ = spintrace_σμν(A₊, A₋, Val(1), Val(2))
+        X₁₂ = im * spintrace_σμν(A₊, A₋, Val(1), Val(2))
         Xμν[1i32, 2i32, site] = X₁₂
         Xμν[2i32, 1i32, site] = -X₁₂
 
-        X₁₃ = spintrace_σμν(A₊, A₋, Val(1), Val(3))
+        X₁₃ = im * spintrace_σμν(A₊, A₋, Val(1), Val(3))
         Xμν[1i32, 3i32, site] = X₁₃
         Xμν[3i32, 1i32, site] = -X₁₃
 
-        X₁₄ = spintrace_σμν(A₊, A₋, Val(1), Val(4))
+        X₁₄ = im * spintrace_σμν(A₊, A₋, Val(1), Val(4))
         Xμν[1i32, 4i32, site] = X₁₄
         Xμν[4i32, 1i32, site] = -X₁₄
 
-        X₂₃ = spintrace_σμν(A₊, A₋, Val(2), Val(3))
+        X₂₃ = im * spintrace_σμν(A₊, A₋, Val(2), Val(3))
         Xμν[2i32, 3i32, site] = X₂₃
         Xμν[3i32, 2i32, site] = -X₂₃
 
-        X₂₄ = spintrace_σμν(A₊, A₋, Val(2), Val(4))
+        X₂₄ = im * spintrace_σμν(A₊, A₋, Val(2), Val(4))
         Xμν[2i32, 4i32, site] = X₂₄
         Xμν[4i32, 2i32, site] = -X₂₄
 
-        X₃₄ = spintrace_σμν(A₊, A₋, Val(3), Val(4))
+        X₃₄ = im * spintrace_σμν(A₊, A₋, Val(3), Val(4))
         Xμν[3i32, 4i32, site] = X₃₄
         Xμν[4i32, 3i32, site] = -X₃₄
     else

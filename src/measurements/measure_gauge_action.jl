@@ -1,36 +1,39 @@
 struct GaugeActionMeasurement{T} <: AbstractMeasurement
     GA_dict::Dict{String,Float64} # gauge action definition => value
     factor::Float64 # 1 / (6*U.NV*U.β)
-    fp::T # file pointer
-    function GaugeActionMeasurement(
-        U; filename="", printvalues=false, GA_methods=["wilson"], flow=false
-    )
+    filename::T
+    function GaugeActionMeasurement(U; filename="", GA_methods=["wilson"], flow=false)
         GA_dict = Dict{String,Float64}()
         for method in GA_methods
+            @level1("|    Method: $(method)")
             GA_dict[method] = 0.0
         end
 
-        if printvalues
-            fp = open(filename, "w")
+        if filename !== nothing && filename != ""
+            path = filename * MYEXT
+            rpath = StaticString(path)
             header = ""
+
             if flow
-                header *= @sprintf("%-9s\t%-7s\t%-9s", "itrj", "iflow", "tflow")
+                header *= @sprintf("%-11s%-7s%-9s", "itrj", "iflow", "tflow")
             else
-                header *= @sprintf("%-9s", "itrj")
+                header *= @sprintf("%-11s", "itrj")
             end
 
             for methodname in GA_methods
-                header *= @sprintf("\t%-22s", "S_$(methodname)")
+                header *= @sprintf("%-25s", "S_$(methodname)")
             end
 
-            println(fp, header)
+            open(path, "w") do fp
+                println(fp, header)
+            end
         else
-            fp = nothing
+            rpath = nothing
         end
 
         factor = 1 / (6 * U.NV * U.β)
-
-        return new{typeof(fp)}(GA_dict, factor, fp)
+        T = typeof(rpath)
+        return new{T}(GA_dict, factor, rpath)
     end
 end
 
@@ -38,33 +41,49 @@ function GaugeActionMeasurement(U, params::GaugeActionParameters, filename, flow
     return GaugeActionMeasurement(
         U;
         filename=filename,
-        printvalues=true,
         GA_methods=params.kinds_of_gauge_action,
         flow=flow,
     )
 end
 
-function measure(m::GaugeActionMeasurement{T}, U; additional_string="") where {T}
-    measurestring = ""
-    printstring = @sprintf("%-9s", additional_string)
+function measure(
+    m::GaugeActionMeasurement{T}, U, myinstance, itrj, flow=nothing
+) where {T}
+    GA_dict = m.GA_dict
+    iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
-    for methodname in keys(m.GA_dict)
+    for methodname in keys(GA_dict)
         Sg = calc_gauge_action(U, methodname) * m.factor
-        m.GA_dict[methodname] = Sg
+        GA_dict[methodname] = Sg
     end
 
-    if T == IOStream
-        for value in values(m.GA_dict)
-            svalue = @sprintf("%-22.15E", value)
-            printstring *= "\t$svalue"
+    if T !== Nothing
+        filename = set_ext!(m.filename, myinstance)
+        fp = fopen(filename, "a")
+        printf(fp, "%-11i", itrj::Int64)
+
+        if !isnothing(flow)
+            printf(fp, "%-7i", iflow::Int64)
+            printf(fp, "%-9.5f", τ::Float64)
         end
 
-        measurestring = printstring
-        println(m.fp, measurestring)
-        flush(m.fp)
-        measurestring *= " # gaction"
+        for value in values(GA_dict)
+            printf(fp, "%+-25.15E", value::Float64)
+        end
+
+        printf(fp, "\n")
+        fclose(fp)
+    else
+        for method in keys(GA_dict)
+            S = GA_dict[method]
+
+            if !isnothing(flow)
+                @level1("$itrj\t$S # gaction_$(method)_flow_$(iflow)")
+            else
+                @level1("$itrj\t$S # gaction_$(method)")
+            end
+        end
     end
 
-    output = MeasurementOutput(m.GA_dict, measurestring)
-    return output
+    return GA_dict
 end
