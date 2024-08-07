@@ -1,9 +1,9 @@
-function saveU(::JLD2Format, U, filename::String)
+function save_config(::JLD2Format, U, filename::String)
     filename != "" && jldsave(filename; U=U.U)
     return nothing
 end
 
-function loadU!(::JLD2Format, U, filename::String)
+function load_config!(::JLD2Format, U, filename::String)
     Unew = jldopen(filename, "r") do file
         file["U"]
     end
@@ -26,7 +26,7 @@ function create_checkpoint(
         jldsave(
             filename; 
             U=univ.U,
-            fermion_actions=univ.fermion_actions,
+            fermion_action=univ.fermion_action,
             bias=univ.bias,
             numinstances=univ.numinstances,
             updatemethod=updatemethod,
@@ -39,12 +39,12 @@ function create_checkpoint(
 end
 
 function load_checkpoint(::JLD2Format, filename::String)
-    U, fermion_actions, bias, numinstances, updatemethod, updatemethod_pt, rngstate, itrj =
+    U, fermion_action, bias, numinstances, updatemethod, updatemethod_pt, rngstate, itrj =
         jldopen(filename, "r") do file
-        file["U"], file["fermion_actions"], file["bias"], file["numinstances"],
+        file["U"], file["fermion_action"], file["bias"], file["numinstances"],
         file["updatemethod"], file["updatemethod_pt"], file["rngstate"], file["itrj"]
     end
 
     copy!(Random.default_rng(), rngstate)
-    return U, fermion_actions, bias, numinstances, updatemethod, updatemethod_pt, itrj
+    return U, fermion_action, bias, numinstances, updatemethod, updatemethod_pt, itrj
 end

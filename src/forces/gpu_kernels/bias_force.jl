@@ -3,6 +3,7 @@ function calc_dQdU!(
 ) where {B<:GPU,T}
     check_dims(dU, U, F)
     fac = convert(T, fac / 4π^2)
+    fieldstrength_eachsite!(kind_of_charge, F, U)
     @latmap(Sequential(), Val(1), calc_dQdU_kernel!, dU, F, U, kind_of_charge, fac)
     return nothing
 end

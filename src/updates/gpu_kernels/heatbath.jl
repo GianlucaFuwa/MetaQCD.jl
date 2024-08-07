@@ -10,7 +10,7 @@ function update!(
     or_kernel! = ITR ≡ Checkerboard2 ? overrelaxation_C2_kernel! : overrelaxation_C4_kernel!
 
     @latmap(ITR(), NHB(), hb_kernel!, U, GA(), fac_hb, _unwrap_val(MAXIT()))
-    numaccepts_or = @latsum(ITR(), NOR(), or_kernel!, U, ALG(), GA(), fac_or)
+    numaccepts_or = @latsum(ITR(), NOR(), Float64, or_kernel!, U, ALG(), GA(), fac_or)
 
     U.Sg = calc_gauge_action(U)
     numaccepts = (NOR≡Val{0}) ? 1.0 : numaccepts_or / (4U.NV*_unwrap_val(NOR()))

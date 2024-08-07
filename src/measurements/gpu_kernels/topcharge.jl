@@ -1,13 +1,13 @@
 function top_charge(::Plaquette, U::Gaugefield{B,T}) where {B<:GPU,T}
-    return @latsum(Sequential(), Val(1), top_charge_plaq_kernel!, U) / 4π^2
+    return @latsum(Sequential(), Val(1), Float64, top_charge_plaq_kernel!, U) / 4π^2
 end
 
 function top_charge(::Clover, U::Gaugefield{B,T}) where {B<:GPU,T}
-    return @latsum(Sequential(), Val(1), top_charge_clov_kernel!, U, T) / 4π^2
+    return @latsum(Sequential(), Val(1), Float64, top_charge_clov_kernel!, U, T) / 4π^2
 end
 
 function top_charge(::Improved, U::Gaugefield{B,T}) where {B<:GPU,T}
-    return @latsum(Sequential(), Val(1), top_charge_imp_kernel!, U, T) / 4π^2
+    return @latsum(Sequential(), Val(1), Float64, top_charge_imp_kernel!, U, T) / 4π^2
 end
 
 @kernel function top_charge_plaq_kernel!(out, @Const(U))

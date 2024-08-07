@@ -75,18 +75,14 @@ struct StaggeredEOPreFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
         cg_maxiters_action=1000,
         cg_maxiters_md=1000,
     )
-        if Nf > 4
-            rhmc_lambda_low = rhmc_spectral_bound[1]
-            rhmc_lambda_high = rhmc_spectral_bound[2]
-        end
         D = StaggeredEOPreDiracOperator(f, mass; anti_periodic=anti_periodic)
         TD = typeof(D)
+        rhmc_lambda_low = rhmc_spectral_bound[1]
+        rhmc_lambda_high = rhmc_spectral_bound[2]
 
         if Nf == 4
             cg_temps = ntuple(_ -> even_odd(Fermionfield(f; staggered=true)), 4)
             power = Nf//8
-            rhmc_lambda_low = rhmc_spectral_bound[1]
-            rhmc_lambda_high = rhmc_spectral_bound[2]
             rhmc_info_action = RHMCParams(
                 power;
                 n=rhmc_order_action,
@@ -281,8 +277,8 @@ end
 # The Gaugefields module into CG.jl, which also allows us to use the solvers for 
 # for arbitrary arrays, not just fermion fields and dirac operators (good for testing)
 function LinearAlgebra.mul!(
-    ψ_eo::TF, D::DdaggerD{StaggeredEOPreDiracOperator{CPU,T,TF,TG}}, ϕ_eo::TF
-) where {T,TF,TG}
+    ψ_eo::TF, D::DdaggerD{StaggeredEOPreDiracOperator{B,T,TF,TG}}, ϕ_eo::TF
+) where {B,T,TF,TG}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.parent.U
     mass = T(D.parent.mass)

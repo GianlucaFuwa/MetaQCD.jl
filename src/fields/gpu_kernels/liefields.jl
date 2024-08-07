@@ -11,7 +11,7 @@ end
 end
 
 function calc_kinetic_energy(p::Colorfield{B}) where {B}
-    return @latsum(Sequential(), Val(1), calc_kinetic_energy_kernel!, p)
+    return @latsum(Sequential(), Val(1), Float64, calc_kinetic_energy_kernel!, p)
 end
 
 @kernel function calc_kinetic_energy_kernel!(out, @Const(P))

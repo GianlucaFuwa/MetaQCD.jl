@@ -107,13 +107,13 @@ macro latsum(itr, C, f!, U, args...)
 end
 
 function __latsum(
-    ::Sequential, ::Val{COUNT}, f!::F, U::Abstractfield{B}, args...
-) where {COUNT,F,B<:GPU}
+    ::Sequential, ::Val{COUNT}, ::Type{OutType}, f!::F, U::Abstractfield{B}, args...
+) where {COUNT,OutType,F,B<:GPU}
     COUNT == 0 && return 0.0
     ndrange = dims(U)
     workgroupsize = (4, 4, 4, 4)
     numblocks = cld(U.NV, prod(workgroupsize))
-    out = KA.zeros(B(), Float64, numblocks)
+    out = KA.zeros(B(), OutType, numblocks)
     kernel! = f!(B(), workgroupsize)
     raw_args = get_raws(args...)
 
@@ -126,15 +126,15 @@ function __latsum(
 end
 
 function __latsum(
-    ::Sequential, ::Val{COUNT}, f!::F, ϕ_eo::EvenOdd{B}, args...
-) where {COUNT,F,B<:GPU}
+    ::Sequential, ::Val{COUNT}, ::Type{OutType}, f!::F, ϕ_eo::EvenOdd{B}, args...
+) where {COUNT,OutType,F,B<:GPU}
     COUNT == 0 && return 0.0
     NX, NY, NZ, NT = dims(ϕ_eo)
     @assert iseven(NT) "NT must be even for even-odd preconditioned fermions"
     ndrange = (NX, NY, NZ, div(NT, 2))
     workgroupsize = (4, 4, 4, 2)
     numblocks = cld(div(ϕ_eo.parent.NV, 2), prod(workgroupsize))
-    out = KA.zeros(B(), Float64, numblocks)
+    out = KA.zeros(B(), OutType, numblocks)
     kernel! = f!(B(), workgroupsize)
     raw_args = get_raws(args...)
 

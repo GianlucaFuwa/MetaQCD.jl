@@ -2,11 +2,11 @@ function fieldstrength_eachsite!(
     ::Plaquette, F::Tensorfield{B,T}, U::Gaugefield{B,T}
 ) where {B<:GPU,T}
     check_dims(F, U)
-    @latmap(Sequential(), Val(1), fieldstrength_eachsite_Pkernel!, F, U)
+    @latmap(Sequential(), Val(1), fieldstrength_eachsite_plaq_kernel!, F, U)
     return nothing
 end
 
-@kernel function fieldstrength_eachsite_Pkernel!(F, @Const(U))
+@kernel function fieldstrength_eachsite_plaq_kernel!(F, @Const(U))
     site = @index(Global, Cartesian)
 
     @inbounds begin
@@ -29,11 +29,11 @@ function fieldstrength_eachsite!(
     ::Clover, F::Tensorfield{B,T}, U::Gaugefield{B,T}
 ) where {B<:GPU,T}
     check_dims(F, U)
-    @latmap(Sequential(), Val(1), fieldstrength_eachsite_Ckernel!, F, U, T)
+    @latmap(Sequential(), Val(1), fieldstrength_eachsite_clover_kernel!, F, U, T)
     return nothing
 end
 
-@kernel function fieldstrength_eachsite_Ckernel!(F, @Const(U), ::Type{T}) where {T}
+@kernel function fieldstrength_eachsite_clover_kernel!(F, @Const(U), ::Type{T}) where {T}
     site = @index(Global, Cartesian)
     fac = Complex{T}(im / 4)
 

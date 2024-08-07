@@ -18,13 +18,7 @@ export Bootstrap, Jackknife, UWerr, analyze, modify_bias
 
 abstract type AbstractErrorEstimator end
 
-<<<<<<< Updated upstream
 include("bias.jl")
-=======
-# TODO: get rid of MetaQCD dependency
-# include("../../src/bias/metadynamics.jl")
-# include("../../src/bias/opes.jl")
->>>>>>> Stashed changes
 include("viz.jl")
 include("autocorr.jl")
 include("bootstrap.jl")

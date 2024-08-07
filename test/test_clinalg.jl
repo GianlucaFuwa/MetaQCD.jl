@@ -31,7 +31,7 @@ function test_ckron()
     @test isapprox(kron(v1s, v2s'), ckron(v1s, v2s))
     @test isapprox(
         kron(v31s, v41s') + kron(v32s, v42s') + kron(v33s, v43s') + kron(v34s, v44s'),
-        ckron_sum(v3s, v4s),
+        spintrace(v3s, v4s),
     )
 end
 
@@ -106,14 +106,14 @@ function test_spin_color()
     Aoneminγ₃v_d = vcat(As' * t1, As' * t2, As' * -im * t1, As' * im * t2)
     t1 = (v1s - v3s)
     t2 = (v2s - v4s)
-    onepluγ₄v = vcat(t1, t2, -t1, -t2)
-    Aonepluγ₄v = vcat(As * t1, As * t2, As * -t1, As * -t2)
-    Aonepluγ₄v_d = vcat(As' * t1, As' * t2, As' * -t1, As' * -t2)
+    onepluγ₄v = vcat(t1, t2, t1, t2)
+    Aonepluγ₄v = vcat(As * t1, As * t2, As * t1, As * t2)
+    Aonepluγ₄v_d = vcat(As' * t1, As' * t2, As' * t1, As' * t2)
     t1 = (v1s + v3s)
     t2 = (v2s + v4s)
-    oneminγ₄v = vcat(t1, t2, t1, t2)
-    Aoneminγ₄v = vcat(As * t1, As * t2, As * t1, As * t2)
-    Aoneminγ₄v_d = vcat(As' * t1, As' * t2, As' * t1, As' * t2)
+    oneminγ₄v = vcat(t1, t2, -t1, -t2)
+    Aoneminγ₄v = vcat(As * t1, As * t2, As * -t1, As * -t2)
+    Aoneminγ₄v_d = vcat(As' * t1, As' * t2, As' * -t1, As' * -t2)
 
     @test isapprox(onepluγ₁v, spin_proj(vs, Val(1)))
     @test isapprox(oneminγ₁v, spin_proj(vs, Val(-1)))

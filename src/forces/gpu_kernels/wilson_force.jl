@@ -3,10 +3,10 @@ function add_wilson_derivative!(
 ) where {B<:GPU,T,TF<:WilsonFermionfield{B,T}}
     check_dims(dU, U, X, Y)
     fac = T(0.5coeff)
-    @latmap(Sequential(), Val(1), add_wilson_derivative_kernel!, dU, U, X, Y, anti, fac)
+    @latmap(Sequential(), Val(1), add_wilson_derivative_gpu_kernel!, dU, U, X, Y, anti, fac)
 end
 
-@kernel function add_wilson_derivative_kernel!(
+@kernel function add_wilson_derivative_gpu_kernel!(
     dU, @Const(U), @Const(X), @Const(Y), anti, fac
 )
     NT = dims(U)[4]

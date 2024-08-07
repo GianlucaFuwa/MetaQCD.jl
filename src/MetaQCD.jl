@@ -32,7 +32,7 @@ using .Solvers
 using .Viz
 using Unicode
 
-export BridgeFormat, JLD2Format, loadU!, saveU
+export BridgeFormat, JLD2Format, load_config!, save_config
 export MetaLogger, current_time, @level1, @level2, @level3, set_global_logger!
 export run_sim, build_bias
 export MetaMeasurements, MetaBias, biaspotential, eigenvalues, hadroncorrelator, timeseries

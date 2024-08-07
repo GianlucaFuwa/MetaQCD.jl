@@ -1,9 +1,9 @@
 function plaquette_trace_sum(U::Gaugefield{B}) where {B}
-    return @latsum(Sequential(), Val(1), plaquette_trace_sum_kernel!, U)
+    return @latsum(Sequential(), Val(1), Float64, plaquette_trace_sum_kernel!, U)
 end
 
 function rect_trace_sum(U::Gaugefield{B}) where {B}
-    return @latsum(Sequential(), Val(1), rect_trace_sum_kernel!, U)
+    return @latsum(Sequential(), Val(1), Float64, rect_trace_sum_kernel!, U)
 end
 
 @kernel function plaquette_trace_sum_kernel!(out, @Const(U))

@@ -10,11 +10,11 @@ function test_derivative(backend=CPU)
     NY = 4
     NZ = 4
     NT = 4
-    U = Gaugefield{backend,Float64,WilsonGaugeAction}(NX, NY, NZ, NT, 6.0)
+    U = Gaugefield{CPU,Float64,WilsonGaugeAction}(NX, NY, NZ, NT, 6.0)
     random_gauges!(U)
     # filename = "./test/testconf.txt"
-    # loadU!(BridgeFormat(), U, filename);
-    if backend !== nothing
+    # load_config!(BridgeFormat(), U, filename);
+    if backend !== CPU
         U = MetaQCD.to_backend(backend, U)
     end
 
@@ -92,23 +92,23 @@ function test_derivative(backend=CPU)
         relerrors[group_direction, 4] =
             (tc_symm_diff_smeared - dtopcharge_proj_smeared) / tc_symm_diff_smeared
 
-    #     println("================= Group direction $(group_direction) =================")
-    #     println(
-    #         "/ GA rel. error (unsmeared): \t", (ga_symm_diff - dgaction_proj) / ga_symm_diff
-    #     )
-    #     println(
-    #         "/ GA rel. error (smeared):   \t",
-    #         (ga_symm_diff_smeared - dgaction_proj_smeared) / ga_symm_diff_smeared,
-    #     )
-    #     println("")
-    #     println(
-    #         "/ TC rel. error (unsmeared): \t",
-    #         (tc_symm_diff - dtopcharge_proj) / tc_symm_diff,
-    #     )
-    #     println(
-    #         "/ TC rel. error (smeared):   \t",
-    #         (tc_symm_diff_smeared - dtopcharge_proj_smeared) / tc_symm_diff_smeared,
-    #     )
+        println("================= Group direction $(group_direction) =================")
+        println(
+            "/ GA rel. error (unsmeared): \t", (ga_symm_diff - dgaction_proj) / ga_symm_diff
+        )
+        println(
+            "/ GA rel. error (smeared):   \t",
+            (ga_symm_diff_smeared - dgaction_proj_smeared) / ga_symm_diff_smeared,
+        )
+        println("")
+        println(
+            "/ TC rel. error (unsmeared): \t",
+            (tc_symm_diff - dtopcharge_proj) / tc_symm_diff,
+        )
+        println(
+            "/ TC rel. error (smeared):   \t",
+            (tc_symm_diff_smeared - dtopcharge_proj_smeared) / tc_symm_diff_smeared,
+        )
     end
     # println()
     return relerrors

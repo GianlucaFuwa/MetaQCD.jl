@@ -1,3 +1,4 @@
+# FIXME:
 function mul_oe!(ψ::TF, U::Gaugefield{B,T}, ϕ::TF, anti, into_odd, dagg) where {B<:GPU,T,TF}
     check_dims(ψ, ϕ, U)
     fdims = dims(ψ)
@@ -5,7 +6,7 @@ function mul_oe!(ψ::TF, U::Gaugefield{B,T}, ϕ::TF, anti, into_odd, dagg) where
     @latmap(
         Checkerboard2(),
         Val(1),
-        staggered_kernel,
+        staggered_eo_kernel!,
         ψ,
         U,
         ϕ,
@@ -26,7 +27,7 @@ function mul_eo!(ψ::TF, U::Gaugefield{B,T}, ϕ::TF, anti, into_odd, dagg) where
     @latmap(
         Checkerboard2(),
         Val(1),
-        staggered_kernel,
+        staggered_eo_kernel!,
         ψ,
         U,
         ϕ,
@@ -40,7 +41,7 @@ function mul_eo!(ψ::TF, U::Gaugefield{B,T}, ϕ::TF, anti, into_odd, dagg) where
     )
 end
 
-@kernel function staggered_eo_kernel(
+@kernel function staggered_eo_kernel!(
     ψ, @Const(U), @Const(ϕ), anti, into_odd, from_odd, dagg, ::Type{T}, fdims, NV
 ) where {T}
     iy, iz, it = @index(Global, NTuple)

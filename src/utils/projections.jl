@@ -4,8 +4,8 @@
 # See https://ranocha.de/blog/Optimizing_EC_Trixi for further details.
 @muladd begin
     """
-        gen_SU3_matrix(ϵ, ::Type{T}) where {T}
-    
+    gen_SU3_matrix(ϵ, ::Type{T}) where {T}
+
     Generate a Matrix X ∈ SU(3) with precision `T` near the identity with spread `ϵ`. \\
     From Gattringer C. & Lang C.B. (Springer, Berlin Heidelberg 2010)
     """
@@ -27,8 +27,8 @@
     end
 
     """
-        gen_SU2_matrix(ϵ, ::Type{T}) where {T}
-    
+    gen_SU2_matrix(ϵ, ::Type{T}) where {T}
+
     Generate a Matrix X ∈ SU(2) with precision `T` near the identity with spread `ϵ`. \\
     From Gattringer C. & Lang C.B. (Springer, Berlin Heidelberg 2010)
     """
@@ -43,8 +43,8 @@
     end
 
     """
-        rand_SU3(::Type{T}) where {T}
-    
+    rand_SU3(::Type{T}) where {T}
+
     Generate a random Matrix X ∈ SU(3) with precision `T`. \\
     """
     @inline function rand_SU3(::Type{T}) where {T}
@@ -53,13 +53,22 @@
         return out
     end
 
+    @inline function materialize_TA(h₁::T, h₂::T, h₃::T, h₄::T, h₅::T, h₆::T, h₇::T, h₈::T) where {T}
+        sq3i = 1 / sqrt(T(3))
+        out = @SMatrix [
+            im*(h₃+h₈*sq3i)     h₂+im*h₁   h₅+im*h₄
+            -h₂+im*h₁   im*(-h₃+h₈*sq3i)   h₇+im*h₆
+            -h₅+im*h₄   -h₇+im*h₆   im*(-2*h₈*sq3i)
+        ]
+        return out
+    end
+
     """
-        gaussian_TA_mat(::Type{T}) where {T}
-    
+    gaussian_TA_mat(::Type{T}) where {T}
+
     Generate a normally distributed traceless anti-Hermitian 3x3 matrix with precision `T`.
     """
     @inline function gaussian_TA_mat(::Type{T}) where {T}
-        sq3i = 1 / sqrt(T(3))
         onehalf = T(0.5)
         h₁ = onehalf * randn(T)
         h₂ = onehalf * randn(T)
@@ -69,11 +78,7 @@
         h₆ = onehalf * randn(T)
         h₇ = onehalf * randn(T)
         h₈ = onehalf * randn(T)
-        out = @SMatrix [
-            im*(h₃+h₈*sq3i)     h₂+im*h₁   h₅+im*h₄
-            -h₂+im*h₁   im*(-h₃+h₈*sq3i)     h₇+im*h₆
-            -h₅+im*h₄   -h₇+im*h₆   im*(-2*h₈*sq3i)
-        ]
+        out = materialize_TA(h₁, h₂, h₃, h₄, h₅, h₆, h₇, h₈)
         return out
     end
 
@@ -182,8 +187,8 @@
     end
 
     """
-        kenney_laub(M::SMatrix{3,3,Complex{T},9}) where {T}
-    
+    kenney_laub(M::SMatrix{3,3,Complex{T},9}) where {T}
+
     Compute the SU(3) matrix closest to `M` using the Kenney-Laub algorithm.
     """
     function kenney_laub(M::SMatrix{3,3,Complex{T},9}) where {T}

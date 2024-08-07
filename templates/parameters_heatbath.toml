@@ -8,7 +8,6 @@ initial = "cold"
 update_method = "heatbath"
 hb_maxit = 10
 numheatbath = 1
-eo = true
 or_algorithm = "kenney-laub"
 numorelax = 4
 

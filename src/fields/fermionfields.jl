@@ -20,20 +20,24 @@ struct Fermionfield{BACKEND,T,A,ND} <: Abstractfield{BACKEND,T,A}
     NV::Int64 # Total number of lattice sites
     NC::Int64 # Number of colors
     ND::Int64 # Number of dirac indices
+    function Fermionfield{BACKEND,T,A,ND}(U::A, NX, NY, NZ, NT, NV, NC) where {BACKEND,T,A,ND}
+        return new{BACKEND,T,A,ND}(U, NX, NY, NZ, NT, NV, NC, ND)
+    end
+
     function Fermionfield{BACKEND,T,ND}(NX, NY, NZ, NT) where {BACKEND,T,ND}
         U = KA.zeros(BACKEND(), SVector{3ND,Complex{T}}, NX, NY, NZ, NT)
         NV = NX * NY * NZ * NT
         return new{BACKEND,T,typeof(U),ND}(U, NX, NY, NZ, NT, NV, 3, ND)
     end
-end
 
-function Fermionfield(f::Fermionfield{BACKEND,T,A,ND}) where {BACKEND,T,A,ND}
-    return Fermionfield{BACKEND,T,ND}(dims(f)...)
-end
+    function Fermionfield(f::Fermionfield{BACKEND,T,A,ND}) where {BACKEND,T,A,ND}
+        return Fermionfield{BACKEND,T,ND}(dims(f)...)
+    end
 
-function Fermionfield(f::Abstractfield{BACKEND,T}; staggered=false) where {BACKEND,T}
-    ND = staggered ? 1 : 4
-    return Fermionfield{BACKEND,T,ND}(dims(f)...)
+    function Fermionfield(f::Abstractfield{BACKEND,T}; staggered=false) where {BACKEND,T}
+        ND = staggered ? 1 : 4
+        return Fermionfield{BACKEND,T,ND}(dims(f)...)
+    end
 end
 
 # Need to overload dims and size again, because we are using 4D arrays for fermions

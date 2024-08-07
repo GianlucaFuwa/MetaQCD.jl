@@ -49,21 +49,29 @@ end
     end
 end
 
-function gaussian_pseudofermions!(ϕ::AnyFermionfield{B,T}) where {B<:GPU,T}
-    sz = num_dirac(ϕ) * num_colors(ϕ)
-    @latmap(Sequential(), Val(1), gaussian_pseudofermions_kernel!, ϕ, sz)
+function gaussian_pseudofermions!(ϕ::AnyFermionfield{B,T,A,ND}) where {B<:GPU,T,A,ND}
+    @latmap(Sequential(), Val(1), gaussian_pseudofermions_kernel!, ϕ, Val(3ND), T)
     return nothing
 end
 
-@kernel function gaussian_pseudofermions_kernel!(ϕ, sz)
+@kernel function gaussian_pseudofermions_kernel!(ϕ, ::Val{L}, ::Type{T}) where {L,T}
     site = @index(Global, Cartesian)
-    @inbounds ϕ[site] = @SVector randn(Complex{T}, sz) # σ = 0.5
+    @inbounds ϕ[site] = @SVector randn(Complex{T}, L) # σ = 0.5
 end
 
-function LinearAlgebra.axpy!(α, ψ::TF, ϕ::TF) where {TF<:AnyFermionfield{<:GPU}}
+function LinearAlgebra.mul!(ϕ::AnyFermionfield{B,T,A,ND}, α) where {B<:GPU,T,A,ND}
+    @latmap(Sequential(), Val(1), scalar_mul_kernel!, ϕ, T(α))
+    return nothing
+end
+
+@kernel function scalar_mul_kernel!(ϕ, α)
+    site = @index(Global, Cartesian)
+    @inbounds ϕ[site] *= α
+end
+
+function LinearAlgebra.axpy!(α, ψ::TF, ϕ::TF) where {T,TF<:AnyFermionfield{<:GPU,T}}
     check_dims(ψ, ϕ)
-    FloatT = float_type(ϕ)
-    α = Complex{FloatT}(α)
+    α = Complex{T}(α)
     @latmap(Sequential(), Val(1), axpy_kernel!, ϕ, ψ, α)
     return nothing
 end
@@ -73,23 +81,22 @@ end
     @inbounds ϕ[site] += α * ψ[site]
 end
 
-function LinearAlgebra.axpby!(α, ψ::TF, β, ϕ::TF) where {TF<:AnyFermionfield{<:GPU}}
+function LinearAlgebra.axpby!(α, ψ::TF, β, ϕ::TF) where {T,TF<:AnyFermionfield{<:GPU,T}}
     check_dims(ψ, ϕ)
-    FloatT = float_type(ϕ)
-    α = Complex{FloatT}(α)
-    β = Complex{FloatT}(β)
+    α = Complex{T}(α)
+    β = Complex{T}(β)
     @latmap(Sequential(), Val(1), axpby_kernel!, ϕ, ψ, α, β)
     return nothing
 end
 
-@kernel function axpy_kernel!(ϕ, @Const(ψ), α, β)
+@kernel function axpby_kernel!(ϕ, @Const(ψ), α, β)
     site = @index(Global, Cartesian)
     @inbounds ϕ[site] = α * ψ[site] + β * ϕ[site]
 end
 
 function LinearAlgebra.dot(ϕ::TF, ψ::TF) where {TF<:AnyFermionfield{<:GPU}}
     check_dims(ψ, ϕ)
-    return @latsum(Sequential(), Val(1), dot_kernel, ϕ, ψ)
+    return @latsum(Sequential(), Val(1), ComplexF64, dot_kernel, ϕ, ψ)
 end
 
 @kernel function dot_kernel(out, @Const(ϕ), @Const(ψ))

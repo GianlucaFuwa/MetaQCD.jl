@@ -1,13 +1,13 @@
 function energy_density(::Plaquette, U::Gaugefield{B}) where {B<:GPU}
-    return @latsum(Sequential(), Val(1), energy_density_plaq_kernel!, U) / U.NV
+    return @latsum(Sequential(), Val(1), Float64, energy_density_plaq_kernel!, U) / U.NV
 end
 
-function energy_density(::Clover, U::Gaugefield{B}) where {B<:GPU}
-    return @latsum(Sequential(), Val(1), energy_density_clov_kernel!, U) / U.NV
+function energy_density(::Clover, U::Gaugefield{B,T}) where {B<:GPU,T}
+    return @latsum(Sequential(), Val(1), Float64, energy_density_clov_kernel!, U, T) / U.NV
 end
 
-function energy_density(::Improved, U::Gaugefield{B}) where {B<:GPU}
-    return @latsum(Sequential(), Val(1), energy_density_imp_kernel!, U) / U.NV
+function energy_density(::Improved, U::Gaugefield{B,T}) where {B<:GPU,T}
+    return @latsum(Sequential(), Val(1), Float64, energy_density_imp_kernel!, U, T) / U.NV
 end
 
 @kernel function energy_density_plaq_kernel!(out, @Const(U))

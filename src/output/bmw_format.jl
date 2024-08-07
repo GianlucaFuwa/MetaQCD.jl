@@ -25,7 +25,7 @@
 #| format from the pervious one, the header line is required to start with #18BMW. |
 #+---------------------------------------------------------------------------------+
 
-function saveU(::BMWFormat, U, filename; override=false)
+function save_config(::BMWFormat, U, filename; override=false)
     @assert U.U isa Array
     if override == false
         @assert !isfile(filename) "File $filename to store config in already exists and override is \"false\""
@@ -81,7 +81,7 @@ function saveU(::BMWFormat, U, filename; override=false)
     return nothing
 end
 
-function loadU!(::BMWFormat, U, filename)
+function load_config!(::BMWFormat, U, filename)
     @assert U.U isa Array
     fp = open(filename, "r")
     header_bin = Vector{UInt8}(undef, 4096)
@@ -93,7 +93,7 @@ function loadU!(::BMWFormat, U, filename)
     @assert (NX, NY, NZ, NT) == (U.NX, U.NY, U.NZ, U.NT) "Dimensions do not match"
     N = U.NC
     @assert N == 3 "Only SU(3) is supported in BMW format"
-    T = real(eltype(U[1]))
+    T = real(eltype(U[1, 1, 1, 1, 1]))
     checksum_read = parse(UInt64, split_header[6])
     checksum_calc = Adler64Checksum()
 

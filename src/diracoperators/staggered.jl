@@ -290,8 +290,8 @@ function LinearAlgebra.mul!(
 end
 
 function LinearAlgebra.mul!(
-    ψ::TF, D::DdaggerD{StaggeredDiracOperator{CPU,T,TF,TG}}, ϕ::TF
-) where {T,TF,TG}
+    ψ::TF, D::DdaggerD{StaggeredDiracOperator{B,T,TF,TG}}, ϕ::TF
+) where {B,T,TF,TG}
     temp = D.parent.temp
     mul!(temp, D.parent, ϕ) # temp = Dϕ
     mul!(ψ, adjoint(D.parent), temp) # ψ = D†Dϕ

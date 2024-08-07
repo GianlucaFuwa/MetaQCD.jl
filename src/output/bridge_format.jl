@@ -1,4 +1,4 @@
-function saveU(::BridgeFormat, U, filename)
+function save_config(::BridgeFormat, U, filename)
     @assert U.U isa Array
     NX, NY, NZ, NT = size(U)[2:end]
     fp = open(filename, "w")
@@ -28,7 +28,7 @@ function saveU(::BridgeFormat, U, filename)
     return nothing
 end
 
-function loadU!(::BridgeFormat, U, filename, T::Type{<:Real}=Float64)
+function load_config!(::BridgeFormat, U, filename, T::Type{<:Real}=Float64)
     @assert U.U isa Array
     NX, NY, NZ, NT = size(U)[2:end]
     fp = open(filename, "r")

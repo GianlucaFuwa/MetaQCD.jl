@@ -331,8 +331,8 @@ function LinearAlgebra.mul!(
 end
 
 function LinearAlgebra.mul!(
-    ψ::TF, D::DdaggerD{WilsonDiracOperator{CPU,T,C,TF,TG}}, ϕ::TF
-) where {T,C,TF,TG}
+    ψ::TF, D::DdaggerD{WilsonDiracOperator{B,T,C,TF,TG}}, ϕ::TF
+) where {B,T,C,TF,TG}
     temp = D.parent.temp
     mul!(temp, D.parent, ϕ) # temp = Dϕ
     mul!(ψ, adjoint(D.parent), temp) # ψ = D†Dϕ

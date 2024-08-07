@@ -15,7 +15,7 @@ using ..Utils: restore_last_row
 export __GlobalLogger, MetaLogger, current_time, @level1, @level2, @level3
 export BMWFormat, BridgeFormat, Checkpointer, ConfigSaver, JLD2Format, set_global_logger!
 export fclose, fopen, printf, prints_to_console
-export create_checkpoint, load_checkpoint, load_gaugefield!, loadU!, save_gaugefield, saveU
+export create_checkpoint, load_checkpoint, load_config!, save_config
 
 MPI.Initialized() || MPI.Init()
 const COMM = MPI.COMM_WORLD
@@ -125,26 +125,26 @@ struct ConfigSaver{T}
     end
 end
 
-function save_gaugefield(saver::ConfigSaver{T}, U, itrj) where {T}
+function save_config(saver::ConfigSaver{T}, U, itrj) where {T}
     T ≡ Nothing && return nothing
 
     if itrj % saver.save_config_every == 0
         itrjstring = lpad(itrj, 8, "0")
         filename = saver.save_config_dir * "/config_$(itrjstring)$(saver.ext)"
-        saveU(T(), U, filename)
+        save_config(T(), U, filename)
         @level1("|  Config saved in $T in file \"$(filename)\"")
     end
 
     return nothing
 end
 
-function load_gaugefield!(U, parameters)
+function load_config!(U, parameters)
     parameters.load_config_fromfile || return false
     filename = parameters.loadU_dir * "/" * parameters.load_config_filename
     format = parameters.load_config_format
 
     try
-        loadU!(FORMATS[parameters.load_config_format](), U, filename)
+        load_config!(FORMATS[parameters.load_config_format](), U, filename)
     catch _
         error("loadU_format \"$(format)\" not supported.")
     end

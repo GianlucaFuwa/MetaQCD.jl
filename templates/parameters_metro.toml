@@ -9,7 +9,6 @@ update_method = "metropolis"
 metro_numhits = 10
 metro_target_acc = 0.5
 metro_epsilon = 0.1
-eo = true
 or_algorithm = "subgroups"
 numorelax = 4
 

@@ -1,5 +1,5 @@
 """
-    Metropolis(U::Gaugefield{B,T,A,GA}, eo, ϵ, numhits, target_acc, or_alg, numOR) where {B,T,A,GA}
+    Metropolis(U::Gaugefield{B,T,A,GA}, eo, ϵ, numhits, target_acc, or_alg, numorelax) where {B,T,A,GA}
 
 Create a `Metropolis` object.
 
@@ -10,7 +10,7 @@ Create a `Metropolis` object.
 - `numhits`: Number of Metropolis hits.
 - `target_acc`: Target acceptance rate.
 - `or_alg`: Overrelaxation algorithm.
-- `numOR`: Number of overrelaxation sweeps.
+- `numorelax`: Number of overrelaxation sweeps.
 
 # Returns
 A Metropolis object with the specified parameters. The gauge action `GA` of the field `U`
@@ -22,33 +22,32 @@ struct Metropolis{ITR,NH,TOR,NOR} <: AbstractUpdate
     ϵ::Base.RefValue{Float64}
     numhits::Int64
     target_acc::Float64
-    OR::TOR
-    numOR::Int64
-
+    overrelaxation::TOR
+    numorelax::Int64
     function Metropolis(
-        ::Gaugefield{B,T,A,GA}, eo, ϵ, numhits, target_acc, or_alg, numOR
+        ::Gaugefield{B,T,A,GA}, ϵ, numhits, target_acc, or_alg, numorelax
     ) where {B,T,A,GA}
         @level1("┌ Setting Metropolis...")
         m_ϵ = Base.RefValue{Float64}(ϵ)
-        ITR = GA == WilsonGaugeAction ? Checkerboard2 : Checkerboard4
-        @level1("|  ITERATOR: $(ITR)")
+        ITR = (GA == WilsonGaugeAction) ? Checkerboard2 : Checkerboard4
 
-        OR = Overrelaxation(or_alg)
-        TOR = typeof(OR)
+        orelax = Overrelaxation(or_alg)
+        TOR = typeof(orelax)
+        @level1("|  ITERATOR: $(string(ITR))")
         @level1("|  NUMBER OF METROPOLIS HITS: $(numhits)")
         @level1("|  TARGET ACCEPTANCE RATE: $(target_acc)")
-        @level1("|  OVERRELAXATION ALGORITHM: $(TOR)")
-        @level1("|  NUM. OF OVERRELAXATION SWEEPS: $(numOR)")
+        @level1("|  OVERRELAXATION ALGORITHM: $(string(TOR))")
+        @level1("|  NUM. OF OVERRELAXATION SWEEPS: $(numorelax)")
         @level1("└\n")
-        return new{ITR,Val{numhits},TOR,Val{numOR}}(m_ϵ, numhits, target_acc, OR, numOR)
+        return new{ITR,Val{numhits},TOR,Val{numorelax}}(m_ϵ, numhits, target_acc, orelax, numorelax)
     end
 end
 
 function update!(metro::Metropolis{ITR,NH,TOR,NOR}, U; kwargs...) where {ITR,NH,TOR,NOR}
     fac = -U.β / U.NC
-    GA = gauge_action(U)()
-    numaccepts_metro = @latsum(ITR(), Val(1), metro, U, GA, fac)
-    numaccepts_or = @latsum(ITR(), NOR(), TOR(), U, GA, fac)
+    GA = gauge_action(U)
+    numaccepts_metro = @latsum(ITR(), Val(1), metro, U, GA(), fac)
+    numaccepts_or = @latsum(ITR(), NOR(), TOR(), U, GA(), fac)
 
     numaccepts_metro /= 4 * U.NV * _unwrap_val(NH())
     @level3("|  Metro acceptance: $(numaccepts_metro)")
@@ -77,6 +76,7 @@ function (metro::Metropolis{ITR,NH})(U, μ, site, GA, action_factor) where {ITR,
             numaccepts += 1
         end
     end
+
     return numaccepts
 end
 

@@ -1,5 +1,7 @@
-struct Subgroups end
-struct KenneyLaub end
+abstract type OverrelaxationAlgorithm end
+
+struct Subgroups <: OverrelaxationAlgorithm end
+struct KenneyLaub <: OverrelaxationAlgorithm end
 
 """
     Overrelaxation(algorithm)
@@ -11,15 +13,15 @@ step.
 - `"subgroups"`: Cabibbo-Marinari SU(2) subgroup embedding scheme
 - `"kenney_laub"`: Kenney-Laub projection onto SU(3)
 """
-struct Overrelaxation{ALG}
-    function Overrelaxation(algorithm)
-        if algorithm == "subgroups"
-            ALG = Subgroups
-        elseif algorithm == "kenney-laub"
-            ALG = KenneyLaub
-        end
-        return new{ALG}()
+struct Overrelaxation{ALG<:OverrelaxationAlgorithm} end
+
+function Overrelaxation(algorithm)
+    if algorithm == "subgroups"
+        ALG = Subgroups
+    elseif algorithm == "kenney-laub"
+        ALG = KenneyLaub
     end
+    return Overrelaxation{ALG}()
 end
 
 Base.eltype(::Overrelaxation{ALG}) where {ALG} = ALG

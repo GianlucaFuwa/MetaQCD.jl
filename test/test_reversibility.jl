@@ -23,7 +23,7 @@ function test_reversibility(;
 
     to = TimerOutput()
 
-    @timeit to "loadU!" loadU!(BridgeFormat(), U, "./test/testconf.txt")
+    @timeit to "load_config!" load_config!(BridgeFormat(), U, "./test/testconf.txt")
 
     hmc_trajectory = 1
     hmc_steps = 100

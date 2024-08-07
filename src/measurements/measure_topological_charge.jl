@@ -63,7 +63,7 @@ end
     iflow, _ = isnothing(flow) ? (0, 0.0) : flow
 
     for method in keys(TC_dict)
-        Q = top_charge(method, U)
+        Q = top_charge(U, method)
         TC_dict[method] = Q
 
         if !isnothing(flow)
@@ -72,6 +72,8 @@ end
             @level1("$itrj\t$Q # topcharge_$(method)")
         end
     end
+
+    return TC_dict
 end
 
 function measure(
@@ -189,9 +191,9 @@ function top_charge_density_clover(U, site, ::Type{T}) where {T}
     return out
 end
 
-function top_charge_density_imp(U, site, c₀, c₁)
-    q_clov = top_charge_density_clover(U, site)
-    q_rect = top_charge_density_rect(U, site)
+function top_charge_density_imp(U, site, c₀, c₁, ::Type{T}) where {T}
+    q_clov = top_charge_density_clover(U, site, T)
+    q_rect = top_charge_density_rect(U, site, T)
     q_imp = c₀ * q_clov + c₁ * q_rect
     return q_imp
 end

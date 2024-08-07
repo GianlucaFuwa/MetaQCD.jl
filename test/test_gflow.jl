@@ -5,10 +5,10 @@ function test_gradflow(backend=CPU)
     NY = 4
     NZ = 4
     NT = 4
-    U = Gaugefield{backend,Float64,WilsonGaugeAction}(NX, NY, NZ, NT, 6.0)
+    U = Gaugefield{CPU,Float64,WilsonGaugeAction}(NX, NY, NZ, NT, 6.0)
     filename = "./test/testconf.txt"
-    loadU!(BridgeFormat(), U, filename)
-    if backend !== nothing
+    load_config!(BridgeFormat(), U, filename)
+    if backend !== CPU
         U = MetaQCD.to_backend(backend, U)
     end
 

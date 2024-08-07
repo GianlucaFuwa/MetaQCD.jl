@@ -1,14 +1,14 @@
 """
-    Heatbath(U::Gaugefield{B,T,A,GA}, MAXIT, numHB, or_alg, numOR) where {B,T,A,GA}
+    Heatbath(U::Gaugefield{B,T,A,GA}, MAXIT, numheatbath, or_alg, numorelax) where {B,T,A,GA}
 
 Create a `Heatbath`` object.
 
 # Arguments
 - `U`: The gauge field on which the update is performed.
 - `MAXIT`: The maximum iteration count in the Heatbath update.
-- `numHB`: The number of Heatbath sweeps.
+- `numheatbath`: The number of Heatbath sweeps.
 - `or_alg`: The overrelaxation algorithm used.
-- `numOR`: The number of overrelaxation sweeps.
+- `numorelax`: The number of overrelaxation sweeps.
 
 # Returns
 A Heatbath object with the specified parameters. The gauge action `GA` of the field `U`
@@ -24,19 +24,19 @@ struct Heatbath{MAXIT,ITR,TOR,NHB,NOR} <: AbstractUpdate end
 # @inline NHB(::Heatbath{<:Any,<:Any,<:Any,NHB}) where {NHB} = _unwrap_val(NHB)
 # @inline NOR(::Heatbath{<:Any,<:Any,<:Any,<:Any,NOR}) where {NOR} = _unwrap_val(NOR)
 
-function Heatbath(::Gaugefield{B,T,A,GA}, MAXIT, numHB, or_alg, numOR) where {B,T,A,GA}
+function Heatbath(::Gaugefield{B,T,A,GA}, MAXIT, numheatbath, or_alg, numorelax) where {B,T,A,GA}
     @level1("┌ Setting Heatbath...")
     ITR = GA == WilsonGaugeAction ? Checkerboard2 : Checkerboard4
-    @level1("|  ITERATOR: $(ITR)")
+    @level1("|  ITERATOR: $(string(ITR))")
 
-    OR = Overrelaxation(or_alg)
-    TOR = typeof(OR)
+    orelax = Overrelaxation(or_alg)
+    TOR = typeof(orelax)
     @level1("|  MAX. ITERATION COUNT IN HEATBATH: $(MAXIT)")
-    @level1("|  NUM. OF HEATBATH SWEEPS: $(numHB)")
-    @level1("|  OVERRELAXATION ALGORITHM: $(TOR)")
-    @level1("|  NUM. OF OVERRELAXATION SWEEPS: $(numOR)")
+    @level1("|  NUM. OF HEATBATH SWEEPS: $(numheatbath)")
+    @level1("|  OVERRELAXATION ALGORITHM: $(string(TOR))")
+    @level1("|  NUM. OF OVERRELAXATION SWEEPS: $(numorelax)")
     @level1("└\n")
-    return Heatbath{Val{MAXIT},ITR,TOR,Val{numHB},Val{numOR}}()
+    return Heatbath{Val{MAXIT},ITR,TOR,Val{numheatbath},Val{numorelax}}()
 end
 
 function update!(hb::Heatbath{<:Any,ITR,TOR,NHB,NOR}, U; kwargs...) where {ITR,TOR,NHB,NOR}
@@ -76,7 +76,7 @@ function heatbath_SU2(A::SMatrix{2,2,Complex{T},4}, MAXIT, action_factor) where 
     λ² = one(T)
     a_norm = 1 / sqrt(real(det(A)))
     V = a_norm * A
-    λ_factor = -1//4 * T(action_factor) * a_norm
+    λ_factor = -T(1/4) * T(action_factor) * a_norm
     i = 1
 
     while r₀^2 + λ² >= 1

@@ -32,8 +32,12 @@ end
 @inline printfmt(::Type{<:AbstractString}) = "\"%s\""
 
 @inline printf(n::T) where {T<:Number} = printf(printfmt(T), n)
-@inline ccprintf(fmt::AbstractString, n::AbstractFloat) = ccall(:printf, Cint, (Ptr{UInt8},Cdouble), fmt, Float64(n))
+@inline printf(fmt::AbstractString, n::AbstractFloat) = ccall(:printf, Cint, (Ptr{UInt8},Cdouble), fmt, Float64(n))
 @inline printf(fp::Ptr{FILE}, n::T) where {T<:Number} = printf(fp, printfmt(T), n)
+
+@inline printf(::Nothing) = Int32(0)
+@inline printf(::AbstractString, ::Nothing) = Int32(0)
+@inline printf(::Ptr{FILE}, ::Nothing) = Int32(0)
 
 # StaticString
 @inline function printf(s::Ptr{UInt8})

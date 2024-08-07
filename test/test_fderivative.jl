@@ -14,14 +14,16 @@ function test_fderivative(
     NY = 4
     NZ = 4
     NT = 4
-    U = Gaugefield{backend,Float64,WilsonGaugeAction}(NX, NY, NZ, NT, 6.0)
-    ND = dirac=="staggered" ? 1 : 4
+    U = Gaugefield{CPU,Float64,WilsonGaugeAction}(NX, NY, NZ, NT, 6.0)
+    random_gauges!(U)
 
-    if eoprec
-        ψ = even_odd(Fermionfield{CPU,Float64,ND}(NX, NY, NZ, NT))
-    else
-        ψ = Fermionfield{CPU,Float64,ND}(NX, NY, NZ, NT)
+    # filename = "./test/testconf.txt"
+    # load_config!(BridgeFormat(), U, filename)
+    if backend !== CPU
+        U = MetaQCD.to_backend(backend, U)
     end
+
+    ψ = eoprec ? even_odd(Fermionfield(U; staggered=dirac=="staggered")) : Fermionfield(U; staggered=dirac=="staggered")
 
     action = if dirac == "staggered"
         if eoprec
@@ -46,6 +48,7 @@ function test_fderivative(
                 cg_maxiters_md=5000,
                 cg_tol_action=1e-16,
                 cg_tol_md=1e-16,
+                rhmc_prec_action=64
             )
         end
     elseif dirac == "wilson"
@@ -61,6 +64,7 @@ function test_fderivative(
                 cg_maxiters_md=5000,
                 cg_tol_action=1e-16,
                 cg_tol_md=1e-16,
+                rhmc_prec_action=64
             )
         else
             Nf = single_flavor ? 1 : 2
@@ -73,6 +77,7 @@ function test_fderivative(
                 cg_maxiters_md=5000,
                 cg_tol_action=1e-16,
                 cg_tol_md=1e-16,
+                rhmc_prec_action=64
             )
         end
     else
@@ -80,12 +85,6 @@ function test_fderivative(
     end
     @show action
 
-    # filename = "./test/testconf.txt"
-    # loadU!(BridgeFormat(), U, filename)
-    # if backend !== nothing
-    #     U = MetaQCD.to_backend(backend, U)
-    # end
-    random_gauges!(U)
     sample_pseudofermions!(ψ, action, U)
 
     # Test for smearing with 5 steps and stout parameter 0.12
@@ -135,17 +134,17 @@ function test_fderivative(
         symm_diff = (action_new_fwd - action_new_bwd) / 2ΔH
         symm_diff_smeared = (action_new_fwd_smeared - action_new_bwd_smeared) / 2ΔH
 
-        if group_direction == 1
-            @show daction_proj
-            @show symm_diff
-        end
+        # if group_direction == 1
+        #     @show daction_proj
+        #     @show symm_diff
+        # end
         relerrors[group_direction, 1] = (symm_diff - daction_proj) / symm_diff
         relerrors[group_direction, 2] =
             (symm_diff_smeared - daction_proj_smeared) / symm_diff_smeared
 
-        # println("================= Group direction $(group_direction) =================")
-        # println("/ Rel. error (unsmeared): \t", relerrors[1, group_direction])
-        # println("/ Rel. error (smeared):   \t", relerrors[2, group_direction])
+        println("================= Group direction $(group_direction) =================")
+        println("/ Rel. error (unsmeared): \t", relerrors[group_direction, 1])
+        println("/ Rel. error (smeared):   \t", relerrors[group_direction, 2])
     end
     println()
     return relerrors

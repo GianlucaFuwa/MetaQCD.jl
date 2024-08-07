@@ -6,7 +6,7 @@ function LinearAlgebra.mul!(
     mass = T(D.mass)
     anti = D.anti_periodic
     check_dims(ψ, ϕ, U)
-    @latmap(Sequential(), Val(1), staggered_kernel, ψ, U, ϕ, mass, anti, T, false)
+    @latmap(Sequential(), Val(1), staggered_kernel!, ψ, U, ϕ, mass, anti, T, false)
 end
 
 function LinearAlgebra.mul!(
@@ -17,10 +17,10 @@ function LinearAlgebra.mul!(
     mass = T(D.parent.mass)
     anti = D.parent.anti_periodic
     check_dims(ψ, ϕ, U)
-    @latmap(Sequential(), Val(1), staggered_kernel, ψ, U, ϕ, mass, anti, T, true)
+    @latmap(Sequential(), Val(1), staggered_kernel!, ψ, U, ϕ, mass, anti, T, true)
 end
 
-@kernel function staggered_kernel(
+@kernel function staggered_kernel!(
     ψ, @Const(U), @Const(ϕ), mass, anti, ::Type{T}, dagg
 ) where {T}
     site = @index(Global, Cartesian)

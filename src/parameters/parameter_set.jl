@@ -44,6 +44,7 @@ struct ParameterSet
     meta_weight::Float64
     penalty_weight::Float64
     # opes specific parameters
+    explore::Bool
     barrier::Float64
     sigma0::Float64
     sigma_min::Float64
@@ -81,7 +82,7 @@ struct ParameterSet
     hmc_logging::Bool
     hb_maxit::Int64
     numheatbath::Int64
-    eo::Bool
+    eo::Bool # XXX: Remove?
     or_algorithm::String
     numorelax::Int64
     parity_update::Bool

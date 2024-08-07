@@ -14,7 +14,7 @@ export gen_SU3_matrix, is_special_unitary, is_traceless_antihermitian
 export kenney_laub, proj_onto_SU3, multr, cnorm2
 export make_submatrix_12, make_submatrix_13, make_submatrix_23
 export embed_into_SU3_12, embed_into_SU3_13, embed_into_SU3_23
-export antihermitian, hermitian, traceless_antihermitian, traceless_hermitian
+export antihermitian, hermitian, traceless_antihermitian, traceless_hermitian, materialize_TA
 export zero2, zero3, zerov3, eye2, eye3, onev3, gaussian_TA_mat, rand_SU3
 export SiteCoords, eo_site, eo_site_switch, move, switch_sides
 export Sequential, Checkerboard2, Checkerboard4

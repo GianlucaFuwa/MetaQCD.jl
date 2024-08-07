@@ -15,7 +15,7 @@ function __latmap(::Sequential, ::Val{C}, f!::F, U::Abstractfield{CPU}, GA, fac)
     for _ in 1:C
         @batch for site in eachindex(U)
             for μ in 1:4
-                f!(U, μ, site, GA, gac)
+                f!(U, μ, site, GA, fac)
             end
         end
     end

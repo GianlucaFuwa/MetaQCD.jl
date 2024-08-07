@@ -2,13 +2,12 @@ using MetaQCD
 
 function test_fermion_measurements(backend=CPU)
     println("SU3testmeas")
-    Ns = 4
-    Nt = 4
-    U = Gaugefield{backend,Float64,WilsonGaugeAction}(NX, NY, NZ, NT, 6.0)
+    NX = NY = NZ = NT = 4
+    U = Gaugefield{CPU,Float64,WilsonGaugeAction}(NX, NY, NZ, NT, 6.0)
     filename = "./test/testconf.txt"
     # random_gauges!(U)
-    loadU!(BridgeFormat(), U, filename)
-    if backend !== nothing
+    load_config!(BridgeFormat(), U, filename)
+    if backend !== CPU
         U = MetaQCD.to_backend(backend, U)
     end
     m_pion = MetaQCD.Measurements.PionCorrelatorMeasurement(

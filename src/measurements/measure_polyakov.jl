@@ -51,14 +51,15 @@ function measure(
             printf(fp, "%-9.5f", τ)
         end
 
-        printf(fp, "%-25.15E", poly)
+        printf(fp, "%-25.15E", real(poly))
+        printf(fp, "%-25.15E", imag(poly))
         printf(fp, "\n")
         fclose(fp)
     else
         if !isnothing(flow)
-            @level1("$itrj\t$poly # poly")
+            @level1("$itrj\t$(real(poly)) + $(imag(poly))im # poly_flow_$(iflow)")
         else
-            @level1("$itrj\t$poly # poly_flow_$(iflow)")
+            @level1("$itrj\t$(real(poly)) + $(imag(poly))im # poly")
         end
     end
 

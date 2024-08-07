@@ -6,23 +6,26 @@
 Inspired by the [LatticeQCD.jl](https://github.com/akio-tomiya/LatticeQCD.jl/tree/master) package by Akio Tomiya et al.
 
 ## Features:
-- Simulations of 4D-SU(3) Yang-Mills (Pure Gauge) theory
-- Simulations of full lattice QCD with arbitrary number of flavours (Staggered, Wilson-Clover)
-- [Metadynamics](https://www.researchgate.net/publication/224908601_Metadynamics_A_method_to_simulate_rare_events_and_reconstruct_the_free_energy_in_biophysics_chemistry_and_material_science)
-- [PT-MetaD](https://arxiv.org/abs/2307.04742)
-- Several update algorithms (HMC, Metropolis, Heatbath, Overrelaxation)
-- Several symplectic integrators for HMC (Leapfrog, OMF2, OMF4)
-- Gradient flow with variable integrators (Euler, RK2, RK3, RK3W7)
-- Improved Gauge actions (Symanzik tree, Iwasaki, DBW2)
-- Improved Topological charge definitions (clover, rectangle clover-improved)
-- Wilson fermions with and without clover improvement
-- Staggered fermions
-- Even-odd preconditioner
-- RHMC to simulate odd number of flavours
-- Support for CUDA and ROCm(not tested) backends
+- [x] Simulations of 4D-SU(3) Yang-Mills (Pure Gauge) theory
+- [x] Simulations of full lattice QCD with arbitrary number of flavours (Staggered, Wilson-Clover)
+- [x] [Metadynamics](https://www.researchgate.net/publication/224908601_Metadynamics_A_method_to_simulate_rare_events_and_reconstruct_the_free_energy_in_biophysics_chemistry_and_material_science)
+- [x] [PT-MetaD](https://arxiv.org/abs/2307.04742)
+- [x] Several update algorithms (HMC, Metropolis, Heatbath, Overrelaxation)
+- [x] Several symplectic integrators for HMC (Leapfrog, OMF2, OMF4)
+- [x] Gradient flow with variable integrators (Euler, RK2, RK3, RK3W7)
+- [x] Improved Gauge actions (Symanzik tree, Iwasaki, DBW2)
+- [x] Improved Topological charge definitions (clover, rectangle clover-improved)
+- [x] Wilson(-Clover) fermions
+- [x] Staggered fermions
+- [ ] Even-odd preconditioner for Wilson(-Clover)
+- [x] Even-odd preconditioner for Staggered
+- [ ] Mass-splitting preconditioner / Hasenbusch trick
+- [x] RHMC to simulate odd number of flavours
+- [ ] Support for CUDA and ROCm backends
+- [ ] Multi-device simulations using MPI
 
 ## Installation:
-First make sure you have a Julia version 1.9.x or 1.10.x installed. You can use [juliaup](https://github.com/JuliaLang/juliaup) for that or just install the release from the [Julia website](https://julialang.org/downloads/).
+First make sure you have Julia version 1.9.x (or 1.10.x once [#2424](https://github.com/JuliaGPU/CUDA.jl/issues/2424) is fixed) installed. You can use [juliaup](https://github.com/JuliaLang/juliaup) for that or just install the release from the [Julia website](https://julialang.org/downloads/).
 
 The package is not in the general registry. So you will have to either
 - Add the package to your Julia environment (**not recommended**) via:
@@ -30,7 +33,7 @@ The package is not in the general registry. So you will have to either
 julia> ] add https://github.com/GianlucaFuwa/MetaQCD.jl
 ```
 
-or (**recommended**)
+or (**recommended**, if you want to make changes yourself)
 
 1. Clone this repository onto your machine.
 2. Open Julia in the directory which you cloned the repo into, with the project specific environment. This can either be done by starting Julia with the command line argument "--project" or by activating the environment within an opened Julia instance via the package manager:

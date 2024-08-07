@@ -74,7 +74,6 @@ function Updatemethod(parameters::ParameterSet, U)
         parameters.hmc_logging,
         parameters.hb_maxit,
         parameters.numheatbath,
-        parameters.eo,
         parameters.or_algorithm,
         parameters.numorelax,
     )
@@ -102,11 +101,10 @@ function Updatemethod(
     hmc_rhostout_gauge=0,
     hmc_rhostout_fermion=0,
     hmc_logging=true,
-    hb_MAXIT=1,
-    hb_numHB=1,
-    eo=true,
+    hb_maxit=1,
+    numheatbath=1,
     or_algorithm="subgroups",
-    or_numOR=4,
+    numorelax=4,
 )
     lower_case(str) = Unicode.normalize(str; casefold=true)
     if lower_case(update_method) == "hmc"
@@ -128,10 +126,10 @@ function Updatemethod(
         )
     elseif lower_case(update_method) == "metropolis"
         updatemethod = Metropolis(
-            U, eo, metro_ϵ, metro_numhits, metro_target_acc, or_algorithm, or_numOR
+            U, metro_ϵ, metro_numhits, metro_target_acc, or_algorithm, numorelax
         )
     elseif lower_case(update_method) == "heatbath"
-        updatemethod = Heatbath(U, eo, hb_MAXIT, hb_numHB, or_algorithm, or_numOR)
+        updatemethod = Heatbath(U, hb_maxit, numheatbath, or_algorithm, numorelax)
     else
         error("update method $(update_method) is not supported")
     end

@@ -3,7 +3,7 @@ function polyakov_traced(U::Gaugefield{B,T}) where {B<:GPU,T}
     ndrange = (NX, NY, NZ)
     workgroupsize = (4, 4, 4)
     numblocks = cld(prod(ndrange), prod(workgroupsize))
-    out = KA.zeros(B(), Complex{T}, numblocks)
+    out = KA.zeros(B(), ComplexF64, numblocks)
 
     kernel! = polyakov_traced_kernel!(B(), workgroupsize)
     kernel!(out, U.U, NT; ndrange=ndrange)
@@ -20,7 +20,7 @@ end
     @unroll for it in 2:NT
         @inbounds polymat = cmatmul_oo(polymat, U[4, ix, iy, iz, it])
     end
-    p = tr(polymat)
+    p = ComplexF64(tr(polymat))
 
     out_group = @groupreduce(+, p, 0.0 + 0.0im)
 

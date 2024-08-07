@@ -146,10 +146,10 @@ struct WilsonEOPreFermionAction{Nf,C,TD,CT,TX,RI1,RI2,RT} <: AbstractFermionActi
         r=1,
         csw=0,
         Nf=2,
-        rhmc_order_for_md=10,
-        rhmc_prec_for_md=42,
-        rhmc_order_for_action=15,
-        rhmc_prec_for_action=42,
+        rhmc_order_md=10,
+        rhmc_prec_md=42,
+        rhmc_order_action=15,
+        rhmc_prec_action=42,
         cg_tol_action=1e-14,
         cg_tol_md=1e-12,
         cg_maxiters_action=1000,
@@ -169,13 +169,13 @@ struct WilsonEOPreFermionAction{Nf,C,TD,CT,TX,RI1,RI2,RT} <: AbstractFermionActi
             cg_temps = ntuple(_ -> even_odd(Fermionfield(f)), 2)
             power = Nf//4
             rhmc_info_action = RHMCParams(
-                power; n=rhmc_order_for_action, precision=rhmc_prec_for_action
+                power; n=rhmc_order_action, precision=rhmc_prec_action
             )
             power = Nf//2
             rhmc_info_md = RHMCParams(
-                power; n=rhmc_order_for_md, precision=rhmc_prec_for_md
+                power; n=rhmc_order_md, precision=rhmc_prec_md
             )
-            n_temps = max(rhmc_order_for_md, rhmc_order_for_action)
+            n_temps = max(rhmc_order_md, rhmc_order_action)
             rhmc_temps1 = ntuple(_ -> even_odd(Fermionfield(f)), n_temps + 1)
             rhmc_temps2 = ntuple(_ -> even_odd(Fermionfield(f)), n_temps + 1)
         end

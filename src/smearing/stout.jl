@@ -18,6 +18,7 @@ struct StoutSmearing{TG,TT,TC} <: AbstractSmearing
             return NoSmearing()
         else
             Usmeared_multi = Vector{TG}(undef, numlayers + 1)
+            # FIXME: Specify type-parameters
             C_multi = Vector{Colorfield}(undef, numlayers)
             Q_multi = Vector{Expfield}(undef, numlayers)
             Λ = Colorfield(U)

@@ -18,7 +18,7 @@ Base.@kwdef mutable struct PhysicalParameters
     metro_epsilon::Float64 = 0.1
     metro_numhits::Int64 = 1
     metro_target_acc::Float64 = 0.5
-    eo::Bool = true
+    eo::Bool = true # XXX: Remove?
     or_algorithm::String = "subgroups"
     numorelax::Int64 = 0
     parity_update::Bool = false
@@ -62,6 +62,7 @@ Base.@kwdef mutable struct BiasParameters
     meta_weight::Float64 = 1e-3
     penalty_weight::Float64 = 1000.0
     # opes specific
+    explore::Bool = false
     barrier::Float64 = 0.0
     sigma0::Float64 = 0.1
     sigma_min::Float64 = 1e-6

@@ -9,8 +9,8 @@ function update!(
     metro_kernel! = ITR ≡ Checkerboard2 ? metropolis_C2_kernel! : metropolis_C4_kernel!
     or_kernel! = ITR ≡ Checkerboard2 ? overrelaxation_C2_kernel! : overrelaxation_C4_kernel!
 
-    numaccepts_metro = @latsum(ITR(), Val(1), metro_kernel!, U, GA(), ϵ, fac, hits)
-    numaccepts_or = @latsum(ITR(), NOR(), or_kernel!, U, ALG(), GA(), fac)
+    numaccepts_metro = @latsum(ITR(), Val(1), Float64, metro_kernel!, U, GA(), ϵ, fac, hits)
+    numaccepts_or = @latsum(ITR(), NOR(), Float64, or_kernel!, U, ALG(), GA(), fac)
 
     numaccepts_metro /= 4U.NV*hits
     @level2("|  Metro acceptance: $(numaccepts_metro)")

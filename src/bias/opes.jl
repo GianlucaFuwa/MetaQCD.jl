@@ -29,6 +29,7 @@ mutable struct OPES <: AbstractBias
     is_first_step::Bool
 
     symmetric::Bool
+    explore::Bool
     counter::Int64
     stride::Int64
     cvlims::NTuple{2,Float64}
@@ -65,6 +66,7 @@ end
 
 function OPES(;
     symmetric=true,
+    explore=false,
     stride=1,
     cvlims=(-6, 6),
     barrier=30,
@@ -81,17 +83,27 @@ function OPES(;
 
     counter = 1
 
-    biasfactor = biasfactor === 0.0 ? barrier : biasfactor
-    bias_prefactor = 1 - 1 / biasfactor
+    if explore
+        @assert !isinf(biasfactor) "biasfactor has to be finite in explore!"
+        biasfactor = biasfactor == 0.0 ? barrier : biasfactor
+        bias_prefactor = biasfactor - 1
+    else
+        biasfactor = biasfactor == 0.0 ? barrier : biasfactor
+        bias_prefactor = 1 - 1 / biasfactor
+    end
 
-    ϵ = opes_epsilon === 0.0 ? exp(-barrier / bias_prefactor) : opes_epsilon
-    sum_weights = ϵ^bias_prefactor
+    ϵ = opes_epsilon == 0.0 ? exp(-barrier / bias_prefactor) : opes_epsilon
+    sum_weights = ϵ^(1 - biasfactor)
     sum_weights² = sum_weights^2
     current_bias = 0.0
     Z = 1.0
-    KDEnorm = sum_weights
+    KDEnorm = explore ? counter : sum_weights
 
-    cutoff = cutoff === 0.0 ? sqrt(2barrier / bias_prefactor) : cutoff
+    cutoff = if explore
+        cutoff == 0.0 ? sqrt(2barrier) : cutoff
+    else
+        cutoff == 0.0 ? sqrt(2barrier / bias_prefactor) : cutoff
+    end
     cutoff² = cutoff^2
     penalty = exp(-0.5cutoff²)
 
@@ -100,6 +112,7 @@ function OPES(;
     nδker = 0
     δkernels = Vector{Kernel}(undef, 0)
     @level1("|  SYMMETRIC: $(symmetric)")
+    @level1("|  EXPLORE: $(explore)")
     @level1("|  NKER: $(nker)")
     @level1("|  COUNTER: $(counter)")
     @assert counter > 0 "COUNTER must be ≥0"
@@ -125,33 +138,13 @@ function OPES(;
     @assert cutoff > 0 "CUTOFF must be > 0"
     return OPES(
         is_first_step,
-        symmetric,
-        counter,
-        stride,
-        cvlims,
-        biasfactor,
-        bias_prefactor,
-        σ₀,
-        σ_min,
-        fixed_σ,
-        ϵ,
-        sum_weights,
-        sum_weights²,
-        current_bias,
-        0.0,
-        no_Z,
-        Z,
-        KDEnorm,
-        threshold,
-        cutoff²,
-        penalty,
-        sum_weights,
-        Z,
-        KDEnorm,
-        nker,
-        kernels,
-        nδker,
-        δkernels,
+        symmetric, explore, counter, stride, cvlims,
+        biasfactor, bias_prefactor,
+        σ₀, σ_min, fixed_σ,
+        ϵ, sum_weights, sum_weights², current_bias, 0.0, no_Z, Z, KDEnorm,
+        threshold, cutoff², penalty,
+        sum_weights, Z, KDEnorm,
+        nker, kernels, nδker, δkernels,
     )
 end
 
@@ -159,28 +152,39 @@ function OPES(p::ParameterSet; instance=1)
     is_first_step = true
 
     symmetric = p.symmetric
+    explore = p.symmetric
     counter = 1
     stride = p.stride
     cvlims = p.cvlims
 
     barrier = p.barrier
-    biasfactor = p.biasfactor === 0.0 ? barrier : p.biasfactor
-    bias_prefactor = 1 - 1 / biasfactor
+    if explore
+        @assert !isinf(p.biasfactor) "biasfactor has to be finite in explore!"
+        biasfactor = p.biasfactor == 0.0 ? barrier : p.biasfactor
+        bias_prefactor = biasfactor - 1
+    else
+        biasfactor = p.biasfactor == 0.0 ? barrier : p.biasfactor
+        bias_prefactor = 1 - 1 / biasfactor
+    end
 
     σ₀ = p.sigma0
     σ_min = p.sigma_min
     fixed_σ = p.fixed_sigma
 
-    ϵ = p.opes_epsilon === 0.0 ? exp(-barrier / bias_prefactor) : p.opes_epsilon
+    ϵ = p.opes_epsilon == 0.0 ? exp(-barrier / bias_prefactor) : p.opes_epsilon
     sum_weights = ϵ^bias_prefactor
     sum_weights² = sum_weights^2
     current_bias = 0.0
     no_Z = p.no_Z
     Z = 1.0
-    KDEnorm = sum_weights
+    KDEnorm = explore ? counter : sum_weights
 
     threshold = p.threshold
-    cutoff = p.cutoff === 0.0 ? sqrt(2barrier / bias_prefactor) : p.cutoff
+    cutoff = if explore
+        p.cutoff == 0.0 ? sqrt(2barrier) : p.cutoff
+    else
+        p.cutoff == 0.0 ? sqrt(2barrier / bias_prefactor) : p.cutoff
+    end
     cutoff² = cutoff^2
     penalty = exp(-0.5cutoff²)
 
@@ -190,6 +194,8 @@ function OPES(p::ParameterSet; instance=1)
     δkernels = Vector{Kernel}(undef, 0)
 
     state = Dict{String,Any}(
+        "symmetric" => symmetric,
+        "explore" => explore,
         "counter" => counter,
         "biasfactor" => biasfactor,
         "sigma0" => σ₀,
@@ -205,6 +211,8 @@ function OPES(p::ParameterSet; instance=1)
     if 0 < instance <= length(p.usebiases)
         kernels, nker = opes_from_file!(state, p.usebiases[instance])
         is_first_step = false
+        symmetric = state["symmetric"]
+        explore = state["explore"]
         counter = Int64(state["counter"])
         biasfactor = state["biasfactor"]
         bias_prefactor = 1 - 1 / biasfactor
@@ -219,6 +227,7 @@ function OPES(p::ParameterSet; instance=1)
     end
 
     @level1("|  SYMMETRIC: $(symmetric)")
+    @level1("|  EXPLORE: $(explore)")
     @level1("|  NKER: $(nker)")
     @level1("|  COUNTER: $(counter)")
     @assert counter > 0 "COUNTER must be ≥0"
@@ -244,38 +253,20 @@ function OPES(p::ParameterSet; instance=1)
     @assert cutoff > 0 "CUTOFF must be > 0"
     return OPES(
         is_first_step,
-        symmetric,
-        counter,
-        stride,
-        cvlims,
-        biasfactor,
-        bias_prefactor,
-        σ₀,
-        σ_min,
-        fixed_σ,
-        ϵ,
-        sum_weights,
-        sum_weights²,
-        current_bias,
-        0.0,
-        no_Z,
-        Z,
-        KDEnorm,
-        threshold,
-        cutoff²,
-        penalty,
-        sum_weights,
-        Z,
-        KDEnorm,
-        nker,
-        kernels,
-        nδker,
-        δkernels,
+        symmetric, explore, counter, stride, cvlims,
+        biasfactor, bias_prefactor,
+        σ₀, σ_min, fixed_σ,
+        ϵ, sum_weights, sum_weights², current_bias, 0.0, no_Z, Z, KDEnorm,
+        threshold, cutoff², penalty,
+        sum_weights, Z, KDEnorm,
+        nker, kernels, nδker, δkernels,
     )
 end
 
-function OPES(filename::String)
+function OPES(filename::String; cvlims=(-5, 5))
     state = Dict{String,Any}(
+        "symmetric" => true,
+        "explore" => false,
         "counter" => 0,
         "biasfactor" => Inf,
         "sigma0" => 0.0,
@@ -290,6 +281,8 @@ function OPES(filename::String)
     @assert isfile(filename) "file \"$(filename)\" doesn't exist"
     kernels, nker = opes_from_file!(state, filename)
     is_first_step = false
+    symmetric = state["symmetric"]
+    explore = state["explore"]
     counter = Int64(state["counter"])
     biasfactor = state["biasfactor"]
     bias_prefactor = 1 - 1 / biasfactor
@@ -303,33 +296,13 @@ function OPES(filename::String)
 
     return OPES(
         is_first_step,
-        true,
-        counter,
-        1,
-        (-5, 5),
-        biasfactor,
-        bias_prefactor,
-        σ₀,
-        1e-6,
-        false,
-        ϵ,
-        sum_weights,
-        sum_weights^2,
-        0.0,
-        0.0,
-        false,
-        Z,
-        sum_weights,
-        threshold,
-        cutoff²,
-        penalty,
-        sum_weights,
-        Z,
-        sum_weights,
-        nker,
-        kernels,
-        0,
-        Vector{Kernel}(undef, 2),
+        symmetric, explore, counter, 1, cvlims,
+        biasfactor, bias_prefactor,
+        σ₀, 1e-6, false,
+        ϵ, sum_weights, sum_weights^2, 0.0, 0.0, false, Z, sum_weights,
+        threshold, cutoff², penalty,
+        sum_weights, Z, ifelse(explore, counter, sum_weights),
+        nker, kernels, 0, Vector{Kernel}(undef, 0),
     )
 end
 
