@@ -152,7 +152,7 @@ function OPES(p::ParameterSet; instance=1)
     is_first_step = true
 
     symmetric = p.symmetric
-    explore = p.symmetric
+    explore = p.explore
     counter = 1
     stride = p.stride
     cvlims = p.cvlims
