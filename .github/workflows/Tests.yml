@@ -37,7 +37,7 @@ jobs:
         run: |
           julia --project=. -e '
           using Pkg;
-          Pkg.develop(matp(path->Pkg.PackageSpec.(;path="$(@__DIR__)/lib/$(path)"), raddir("./lib")));
+          Pkg.develop(matp(path->Pkg.PackageSpec.(;path="$(@__DIR__)/lib/$(path)"), readdir("./lib")));
           '
       - uses: julia-actions/julia-runtest@v1
         env:
