@@ -280,11 +280,13 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias)
     smearing_fermion = shared_smearing ? bias.smearing : hmc.smearing_fermion
     fieldstrength = hmc.fieldstrength
 
-    fp = fopen(hmc.forcefile, "a")
+    fp = !isnothing(hmc.forcefile) ? fopen(hmc.forcefile, "a") : nothing
 
     calc_dSdU_bare!(force, staples, U, temp_force, smearing_gauge)
-    fnorm = norm(force)
-    printf(fp, "%+-25.15E", fnorm)
+    if !isnothing(fp)
+        fnorm = norm(force)
+        printf(fp, "%+-25.15E", fnorm)
+    end
     add!(P, force, ϵ)
 
     if !isnothing(fermion_action)
@@ -292,21 +294,27 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias)
             calc_dSfdU_bare!(
                 force, fermion_action[i], U, ϕ[i], temp_force, smearing_fermion, i>1
             )
-            fnorm = norm(force)
-            printf(fp, "%+-25.15E", fnorm)
+            if !isnothing(fp)
+                fnorm = norm(force)
+                printf(fp, "%+-25.15E", fnorm)
+            end
             add!(P, force, ϵ)
         end
     end
 
     if bias isa Bias
         calc_dVdU_bare!(force, fieldstrength, U, temp_force, bias, shared_smearing)
-        fnorm = norm(force)
-        printf(fp, "%+-25.15E", fnorm)
+        if !isnothing(fp)
+            fnorm = norm(force)
+            printf(fp, "%+-25.15E", fnorm)
+        end
         add!(P, force, ϵ)
     end
 
-    printf(fp, "\n")
-    fclose(fp)
+    if !isnothing(fp)
+        printf(fp, "\n")
+        fclose(fp)
+    end
     return nothing
 end
 
