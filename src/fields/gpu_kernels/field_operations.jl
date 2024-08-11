@@ -64,6 +64,28 @@ end
     end
 end
 
+function norm(U::Gaugefield{B}) where {B}
+    return @latsum(Sequential(), Val(1), Float64, norm_kenel!, U)
+end
+
+@kernel function norm_kernel!(out, @Const(U))
+    # workgroup index, that we use to pass the reduced value to global "out"
+    bi = @index(Group, Linear)
+    site = @index(Global, Cartesian)
+
+    n = 0.0
+    @unroll for μ in (1i32):(3i32)
+        n += cnorm2(U[μ, site])
+    end
+
+    out_group = @groupreduce(+, n, 0.0)
+
+    ti = @index(Local)
+    if ti == 1
+        @inbounds out[bi] = out_group
+    end
+end
+
 function add!(a::Abstractfield{B,T}, b::Abstractfield{B,T}, fac) where {B<:GPU,T}
     check_dims(a, b)
     @latmap(Sequential(), Val(1), add_kernel!, a, b, T(fac))

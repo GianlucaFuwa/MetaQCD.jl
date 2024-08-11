@@ -166,15 +166,15 @@ function recalc_CV!(U::Vector{TG}, b::Vector{TB}) where {TG<:Gaugefield,TB<:Bias
     return nothing
 end
 
-calc_CV(U, ::Nothing) = U.CV
-calc_CV(U, ::NoBias) = U.CV
+calc_CV(U, ::Nothing, ::Bool=false) = U.CV
+calc_CV(U, ::NoBias, ::Bool=false) = U.CV
 
-function calc_CV(U, ::Bias{TCV,TS}) where {TCV,TS<:NoSmearing}
+function calc_CV(U, ::Bias{TCV,TS}, ::Bool=false) where {TCV,TS<:NoSmearing}
     return top_charge(TCV(), U)
 end
 
-function calc_CV(U, b::Bias{TCV}) where {TCV}
-    calc_smearedU!(b.smearing, U)
+function calc_CV(U, b::Bias{TCV}, is_smeared=false) where {TCV}
+    is_smeared || calc_smearedU!(b.smearing, U)
     fully_smeared_U = b.smearing.Usmeared_multi[end]
     CV_new = top_charge(TCV(), fully_smeared_U)
     return CV_new

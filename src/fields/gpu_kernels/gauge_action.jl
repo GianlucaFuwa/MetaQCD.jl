@@ -2,10 +2,6 @@ function plaquette_trace_sum(U::Gaugefield{B}) where {B}
     return @latsum(Sequential(), Val(1), Float64, plaquette_trace_sum_kernel!, U)
 end
 
-function rect_trace_sum(U::Gaugefield{B}) where {B}
-    return @latsum(Sequential(), Val(1), Float64, rect_trace_sum_kernel!, U)
-end
-
 @kernel function plaquette_trace_sum_kernel!(out, @Const(U))
     # workgroup index, that we use to pass the reduced value to global "out"
     bi = @index(Group, Linear)
@@ -24,6 +20,10 @@ end
     if ti == 1
         @inbounds out[bi] = out_group
     end
+end
+
+function rect_trace_sum(U::Gaugefield{B}) where {B}
+    return @latsum(Sequential(), Val(1), Float64, rect_trace_sum_kernel!, U)
 end
 
 @kernel function rect_trace_sum_kernel!(out, @Const(U))

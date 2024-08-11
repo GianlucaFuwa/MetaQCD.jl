@@ -25,13 +25,12 @@ custom linear algebra routines for SMatrices and SVectors.
 
 The different backends are handled by `Kernelabstractions.jl`.
 
-There are no plans to use more memory efficient storage schemes for SU(3) or su(3) elements
-yet.
+We might use more memory efficient storage schemes for SU(3) or su(3) elements in the future.
 
 Fermion fields or spinors or whatever you want to call them are stored in 4-dimensional 
 arrays of `n_color * n_dirac` complex valued `SVector`s. The reason for chosing 4 instead of
 5 dimensions is that this enabled us to write routines that take care of all dirac
-components at the same time, which is more efficient (I think).
+components at the same time, which should be more efficient.
 
 When using even-odd preconditioned dirac operators, the fermion fields get wrapped in a
 struct called `EvenOdd` such that we can overload all functions on that type. Our convention

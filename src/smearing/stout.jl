@@ -17,42 +17,50 @@ struct StoutSmearing{TG,TT,TC} <: AbstractSmearing
         if numlayers == 0 || ρ == 0
             return NoSmearing()
         else
+            C₁ = Colorfield(U)
+            Q₁ = Expfield(U)
             Usmeared_multi = Vector{TG}(undef, numlayers + 1)
-            # FIXME: Specify type-parameters
-            C_multi = Vector{Colorfield}(undef, numlayers)
-            Q_multi = Vector{Expfield}(undef, numlayers)
+            C_multi = Vector{typeof(C₁)}(undef, numlayers)
+            Q_multi = Vector{typeof(Q₁)}(undef, numlayers)
             Λ = Colorfield(U)
 
             Usmeared_multi[1] = similar(U)
+            Usmeared_multi[end] = similar(U)
+            C_multi[1] = C₁
+            Q_multi[1] = Q₁
 
-            for i in 1:numlayers
-                Usmeared_multi[i+1] = similar(U)
+            for i in 2:numlayers
+                Usmeared_multi[i] = similar(U)
                 C_multi[i] = Colorfield(U)
                 Q_multi[i] = Expfield(U)
             end
 
-            return new{typeof(U),typeof(C_multi[1]),typeof(Q_multi[1])}(
+            return new{TG,typeof(C₁),typeof(Q₁)}(
                 numlayers, ρ, Usmeared_multi, C_multi, Q_multi, Λ
             )
         end
     end
 end
 
-function Base.show(io::IO, ::MIME"text/plain", stout::T) where {T<:StoutSmearing}
+function Base.show(io::IO, ::MIME"text/plain", stout::StoutSmearing)
     print(io, "StoutSmearing(; numlayers = $(stout.numlayers), ρ = $(stout.ρ))")
     return nothing
 end
 
-function Base.show(io::IO, stout::T) where {T<:StoutSmearing}
+function Base.show(io::IO, stout::StoutSmearing)
     print(io, "StoutSmearing(; numlayers = $(stout.numlayers), ρ = $(stout.ρ))")
     return nothing
 end
 
-function Base.length(s::T) where {T<:StoutSmearing}
+@inline function Base.:(==)(s1::T, s2::T) where {T<:StoutSmearing}
+    return (s1.numlayers == s2.numlayers) && (s1.ρ == s2.ρ)
+end
+
+@inline function Base.length(s::StoutSmearing)
     return s.numlayers
 end
 
-function get_layer(s::T, i) where {T<:StoutSmearing}
+@inline function get_layer(s::StoutSmearing, i)
     return s.Usmeared_multi[i]
 end
 

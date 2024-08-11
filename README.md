@@ -1,7 +1,7 @@
 [![Global Docs](https://img.shields.io/badge/docs-MetaQCD-blue.svg)](https://gianlucafuwa.github.io/MetaQCD.jl/dev/)
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
-# MetaQCD.jl (WIP full QCD branch---any commit might break something, message me, if you want a "stable" version)
+# MetaQCD.jl
 
 Inspired by the [LatticeQCD.jl](https://github.com/akio-tomiya/LatticeQCD.jl/tree/master) package by Akio Tomiya et al.
 
@@ -25,17 +25,11 @@ Inspired by the [LatticeQCD.jl](https://github.com/akio-tomiya/LatticeQCD.jl/tre
 - [ ] Multi-device simulations using MPI
 
 ## Installation:
-First make sure you have Julia version 1.9.x (or 1.10.x once [#2424](https://github.com/JuliaGPU/CUDA.jl/issues/2424) is fixed) installed. You can use [juliaup](https://github.com/JuliaLang/juliaup) for that or just install the release from the [Julia website](https://julialang.org/downloads/).
+First make sure you have Julia version 1.9.x or 1.10.x installed. You can use [juliaup](https://github.com/JuliaLang/juliaup) for that or just install the release from the [Julia website](https://julialang.org/downloads/).
 
-The package is not in the general registry. So you will have to either
-- Add the package to your Julia environment (**not recommended**) via:
-```
-julia> ] add https://github.com/GianlucaFuwa/MetaQCD.jl
-```
+Then:
 
-or (**recommended**, if you want to make changes yourself)
-
-1. Clone this repository onto your machine.
+1. Clone the latest release onto your machine.
 2. Open Julia in the directory which you cloned the repo into, with the project specific environment. This can either be done by starting Julia with the command line argument "--project" or by activating the environment within an opened Julia instance via the package manager:
 ``` julia
 using Pkg
@@ -54,7 +48,7 @@ or
 pkg> instantiate
 ```
 
-If you want to use a GPU, make sure you not only have CUDA.jl (v4.4.2) or AMDGPU.jl installed, but also a fairly recent version of the CUDA Toolkit or ROCm.
+If you want to use a GPU (not yet fully ready), make sure you not only have CUDA.jl or AMDGPU.jl installed, but also a fairly recent version of the CUDA Toolkit or ROCm.
 
 ## Quick Start:
 1. Set parameters using one of the templates in template folder

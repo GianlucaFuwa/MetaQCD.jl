@@ -104,7 +104,7 @@ function run_sim!(
         parity = parameters.parity_update ? ParityUpdate(U) : nothing
     end
 
-    isnothing(parity) && @level1("[ Parity update enabled\n")
+    isnothing(parity) || @level1("[ Parity update enabled\n")
 
     if parameters.tempering_enabled && !mpi_enabled
         gflow = GradientFlow(
@@ -231,7 +231,7 @@ function metaqcd!(
     swap_every = parameters.swap_every
 
     # load in config and recalculate gauge action if given
-    load_gaugefield!(U, parameters) && (U.Sg = calc_gauge_action(U))
+    load_config!(U, parameters) && (U.Sg = calc_gauge_action(U))
 
     @level1("┌ Thermalization:")
     _, runtime_therm = @timed begin
@@ -290,7 +290,7 @@ function metaqcd!(
                 )
             end
 
-            save_gaugefield(config_saver, U, itrj)
+            save_config(config_saver, U, itrj)
             create_checkpoint(checkpointer, univ, updatemethod, nothing, itrj)
 
             _, mtime = @timed calc_measurements(measurements, U, itrj, myinstance[])
@@ -398,7 +398,7 @@ function metaqcd_PT!(
 
             temper!(U, bias, numaccepts_temper, swap_every, itrj; recalc=!uses_hmc)
 
-            save_gaugefield(config_saver, U[1], itrj)
+            save_config(config_saver, U[1], itrj)
             create_checkpoint(checkpointer, univ, updatemethod, updatemethod_pt, itrj)
 
             _, mtime = @timed calc_measurements(measurements, U, itrj)

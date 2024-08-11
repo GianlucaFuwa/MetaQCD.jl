@@ -17,18 +17,18 @@ include("./test_gflow.jl")
 include("./test_clinalg.jl")
 # include("test_reversibility.jl")
 
-# @testset "Linear Algebra Tests" begin
-#     test_cdot()
-#     test_ckron()
-#     test_cmvmul()
-#     # test_spin_color()
-#     test_cmatmul()
-# end
-#
-# @testset "IO Tests" begin
-#     test_io()
-#     test_checkpoint()
-# end
+@testset "Linear Algebra Tests" begin
+    test_cdot()
+    test_ckron()
+    test_cmvmul()
+    # test_spin_color()
+    test_cmatmul()
+end
+
+@testset "IO Tests" begin
+    test_io()
+    test_checkpoint()
+end
 
 @testset "CPU Tests" begin
     # CUDA.allowscalar(false)

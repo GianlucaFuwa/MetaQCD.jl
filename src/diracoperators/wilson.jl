@@ -26,7 +26,7 @@ struct WilsonDiracOperator{B,T,C,TF,TG} <: AbstractDiracOperator
     csw::Float64
     anti_periodic::Bool # Only in time direction
     function WilsonDiracOperator(
-        f::Abstractfield{B,T}, mass; anti_periodic=true, r=1, csw=0
+        f::Abstractfield{B,T}, mass; anti_periodic=true, r=1, csw=0, kwargs...
     ) where {B,T}
         @assert r == 1 "Only r=1 in Wilson Dirac supported for now"
         κ = 1 / (2mass + 8)

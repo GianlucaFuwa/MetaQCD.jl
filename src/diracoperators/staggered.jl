@@ -21,7 +21,7 @@ struct StaggeredDiracOperator{B,T,TF,TG} <: AbstractDiracOperator
     mass::Float64
     anti_periodic::Bool # Only in time direction
     function StaggeredDiracOperator(
-        f::Abstractfield{B,T}, mass; anti_periodic=true
+        f::Abstractfield{B,T}, mass; anti_periodic=true, kwargs...
     ) where {B,T}
         U = nothing
         temp = Fermionfield{B,T,1}(dims(f)...)

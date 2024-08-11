@@ -25,7 +25,7 @@ struct StaggeredEOPreDiracOperator{B,T,TF,TG} <: AbstractDiracOperator
     mass::Float64
     anti_periodic::Bool # Only in time direction
     function StaggeredEOPreDiracOperator(
-        f::Abstractfield{B,T}, mass; anti_periodic=true
+        f::Abstractfield{B,T}, mass; anti_periodic=true, kwargs...
     ) where {B,T}
         U = nothing
         temp = even_odd(Fermionfield{B,T,1}(dims(f)...))

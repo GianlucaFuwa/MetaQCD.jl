@@ -16,9 +16,9 @@ step.
 struct Overrelaxation{ALG<:OverrelaxationAlgorithm} end
 
 function Overrelaxation(algorithm)
-    if algorithm == "subgroups"
+    if algorithm == "subgroups" || algorithm == Subgroups
         ALG = Subgroups
-    elseif algorithm == "kenney-laub"
+    elseif algorithm == "kenney-laub" || algorithm == KenneyLaub
         ALG = KenneyLaub
     end
     return Overrelaxation{ALG}()

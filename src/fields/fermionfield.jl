@@ -174,6 +174,8 @@ struct EvenOdd{B,T,A,ND} <: Abstractfield{B,T,A}
     end
 end
 
+Fermionfield(f::EvenOdd{B,T,A,ND}) where {B,T,A,ND} = EvenOdd(f.parent)
+
 @inline dims(f::EvenOdd) = dims(f.parent)
 Base.size(f::EvenOdd) = size(f.parent)
 Base.similar(f::EvenOdd) = even_odd(Fermionfield(f.parent))

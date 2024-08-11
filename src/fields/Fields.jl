@@ -3,6 +3,7 @@ module Fields
 using KernelAbstractions # With this we can write generic GPU kernels for ROC and CUDA
 using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
+using MPI
 using Polyester # Used for the @batch macro, which enables multi threading
 using Random
 using StaticArrays # Used for the SU3 matrices
@@ -10,6 +11,10 @@ using ..Utils # Contains utility functions, such as projections and the exponent
 
 import KernelAbstractions as KA # With this we can write generic GPU kernels for ROC and CUDA
 import StrideArraysCore: object_and_preserve # This is used to convert the Abstractfield to a PtrArray in the @batch loop
+
+const COMM = MPI.COMM_WORLD
+const MYRANK = MPI.Comm_rank(COMM)
+const COMM_SIZE = MPI.Comm_size(COMM)
 
 # When CUDA.jl or AMDGPU.jl are loaded, their backends are appended to this Dict
 const BACKEND = Dict{String,Type{<:Backend}}("cpu" => CPU)
@@ -22,26 +27,26 @@ array_type(::Type{CPU}) = Array
 # the array type (Array, CuArray, ROCArray)
 abstract type Abstractfield{B,T,A} end
 
-include("gaugefields.jl")
-include("liefields.jl")
-include("fieldstrength.jl")
-include("fermionfields.jl")
+include("gaugefield.jl")
+include("liefield.jl")
+include("tensorfield.jl")
+include("fermionfield.jl")
 include("iterators.jl")
 include("gpu_iterators.jl")
 include("gpu_kernels/utils.jl")
 
 include("field_operations.jl")
-include("wilsonloops.jl")
-include("actions.jl")
-include("staples.jl")
-include("clovers.jl")
+include("wilsonloop.jl")
+include("gauge_action.jl")
+include("staple.jl")
+include("clover.jl")
 
 include("gpu_kernels/field_operations.jl")
-include("gpu_kernels/wilsonloops.jl")
-include("gpu_kernels/actions.jl")
-include("gpu_kernels/liefields.jl")
-include("gpu_kernels/fieldstrength.jl")
-include("gpu_kernels/fermionfields.jl")
+include("gpu_kernels/wilsonloop.jl")
+include("gpu_kernels/gauge_action.jl")
+include("gpu_kernels/liefield.jl")
+include("gpu_kernels/tensorfield.jl")
+include("gpu_kernels/fermionfield.jl")
 
 Base.similar(u::Gaugefield) = Gaugefield(u)
 Base.similar(u::Colorfield) = Colorfield(u)

@@ -57,7 +57,7 @@ function LinearAlgebra.norm(u::Abstractfield{CPU})
 
     @batch reduction=(+, norm2) for site in eachindex(u)
         for μ in 1:4
-            norm2 += cnorm2(u[μ, site], Float64)
+            norm2 += cnorm2(u[μ, site])
         end
     end
 

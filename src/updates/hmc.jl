@@ -161,12 +161,12 @@ function HMC(
         if !isnothing(ϕ)
             forcefile = joinpath(logdir, "hmc_force_logs.txt")
             force_fp = fopen(forcefile, "w")
-            printf(force_fp, "%-22s\t", "|F_Sg|")
+            printf(force_fp, "%-25s", "|F_Sg|")
             for i in eachindex(ϕ)
-                printf(force_fp, "%-22s\t", "|F_Sf$i|")
+                printf(force_fp, "%-25s", "|F_Sf$i|")
             end
             if bias_enabled
-                printf(force_fp, "%-22s\t", "|F_V|")
+                printf(force_fp, "%-25s", "|F_V|")
             end
             printf(force_fp, "\n")
             fclose(force_fp)
@@ -204,18 +204,20 @@ function update!(
     P = hmc.P
     ϕ = hmc.ϕ
     smearing_gauge = hmc.smearing_gauge
-    smearing_fermion = hmc.smearing_fermion
+    # Check if bias and fermion smearing have same parameters
+    shared_smearing = (bias == NoBias()) ? false : (bias.smearing == hmc.smearing_fermion)
+    smearing_fermion = shared_smearing ? bias.smearing : hmc.smearing_fermion
     friction = therm ? 0.0 : hmc.friction
 
     copy!(U_old, U)
     gaussian_TA!(P, friction)
     !isnothing(P_old) && copy!(P_old, P)
-    sample_pseudofermions!(ϕ, fermion_action, U, smearing_fermion, false)
 
     trP²_old = -calc_kinetic_energy(P)
     Sg_old = calc_gauge_action(U, smearing_gauge)
     CV_old = calc_CV(U, bias)
     V_old = bias(CV_old)
+    sample_pseudofermions!(ϕ, fermion_action, U, smearing_fermion, shared_smearing)
     Sf_old = calc_fermion_action(fermion_action, U, ϕ, smearing_fermion, true)
 
     evolve!(hmc.integrator, U, hmc, fermion_action, bias)
@@ -224,7 +226,7 @@ function update!(
     Sg_new = calc_gauge_action(U, smearing_gauge)
     CV_new = calc_CV(U, bias)
     V_new = bias(CV_new)
-    Sf_new = calc_fermion_action(fermion_action, U, ϕ, smearing_fermion, false)
+    Sf_new = calc_fermion_action(fermion_action, U, ϕ, smearing_fermion, shared_smearing)
 
     ΔP² = trP²_new - trP²_old
     ΔSg = Sg_new - Sg_old
@@ -274,28 +276,37 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias)
     ϕ = hmc.ϕ
     temp_force = hmc.force2
     smearing_gauge = hmc.smearing_gauge
-    smearing_fermion = hmc.smearing_fermion
+    shared_smearing = (bias == NoBias()) ? false : (bias.smearing == hmc.smearing_fermion)
+    smearing_fermion = shared_smearing ? bias.smearing : hmc.smearing_fermion
     fieldstrength = hmc.fieldstrength
 
+    fp = fopen(hmc.forcefile, "a")
+
     calc_dSdU_bare!(force, staples, U, temp_force, smearing_gauge)
-    # TODO: fnorm = norm(force); print(hmc.forcefile, "\t$fnorm")
+    fnorm = norm(force)
+    printf(fp, "%+-25.15E", fnorm)
     add!(P, force, ϵ)
 
     if !isnothing(fermion_action)
         for i in eachindex(fermion_action)
             calc_dSfdU_bare!(
-                force, fermion_action[i], U, ϕ[i], temp_force, smearing_fermion
+                force, fermion_action[i], U, ϕ[i], temp_force, smearing_fermion, i>1
             )
-            # TODO: fnorm = norm(force); print(hmc.forcefile, "\t$fnorm")
+            fnorm = norm(force)
+            printf(fp, "%+-25.15E", fnorm)
             add!(P, force, ϵ)
         end
     end
 
     if bias isa Bias
-        calc_dVdU_bare!(force, fieldstrength, U, temp_force, bias)
-        # TODO: fnorm = norm(force); print(hmc.forcefile, "\t$fnorm")
+        calc_dVdU_bare!(force, fieldstrength, U, temp_force, bias, shared_smearing)
+        fnorm = norm(force)
+        printf(fp, "%+-25.15E", fnorm)
         add!(P, force, ϵ)
     end
+
+    printf(fp, "\n")
+    fclose(fp)
     return nothing
 end
 
