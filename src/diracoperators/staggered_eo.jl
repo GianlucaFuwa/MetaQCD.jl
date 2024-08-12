@@ -227,6 +227,7 @@ function calc_fermion_action(
     clear!(ψ_eo) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
 
     axpy!(α₀, ϕ_eo, ψ_eo)
+
     for i in 1:n
         axpy!(coeffs[i], ψs[i+1], ψ_eo)
     end
@@ -259,9 +260,11 @@ function sample_pseudofermions!(
     solve_dirac_multishift!(ψs, shifts, DdagD, ϕ_eo, temp1, temp2, ps, cg_tol, cg_maxiters)
 
     mul!(ϕ_eo, α₀)
+
     for i in 1:n
         axpy!(coeffs[i], ψs[i+1], ϕ_eo)
     end
+
     return nothing
 end
 

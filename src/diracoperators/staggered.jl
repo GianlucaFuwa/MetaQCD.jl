@@ -202,6 +202,7 @@ function calc_fermion_action(
     clear!(ψ) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
 
     axpy!(α₀, ϕ, ψ)
+
     for i in 1:n
         axpy!(coeffs[i], ψs[i+1], ψ)
     end
@@ -240,9 +241,11 @@ function sample_pseudofermions!(ϕ, fermion_action::StaggeredFermionAction{Nf}, 
     solve_dirac_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
 
     mul!(ϕ, α₀)
+
     for i in 1:n
         axpy!(coeffs[i], ψs[i+1], ϕ)
     end
+
     return nothing
 end
 

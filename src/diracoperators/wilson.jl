@@ -266,9 +266,11 @@ function sample_pseudofermions!(ϕ, fermion_action::WilsonFermionAction{Nf}, U) 
     solve_dirac_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
 
     mul!(ϕ, α₀)
+
     for i in 1:n
         axpy!(coeffs[i], ψs[i+1], ϕ)
     end
+
     return nothing
 end
 

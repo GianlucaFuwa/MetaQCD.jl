@@ -28,7 +28,7 @@ jobs:
                       "OMP_NUM_THREADS" => "1",
                   ),
               ),
-              baseline="origin/dirac";
+              "origin/dirac";
           );
           '
       - name: Push results
