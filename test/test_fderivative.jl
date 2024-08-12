@@ -17,7 +17,7 @@ function test_fderivative(
     U = Gaugefield{CPU,Float64,WilsonGaugeAction}(NX, NY, NZ, NT, 6.0)
     random_gauges!(U)
 
-    # filename = "./test/testconf.txt"
+    # filename = pkgdir(MetaQCD, "test", "testconf.txt")
     # load_config!(BridgeFormat(), U, filename)
     if backend !== CPU
         U = MetaQCD.to_backend(backend, U)
