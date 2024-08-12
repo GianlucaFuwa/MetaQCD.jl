@@ -26,8 +26,6 @@ for dirac in ops
         D = dirac(U, 0.01; csw=1.0)
         ϕ = Fermionfield(D.temp)
         ψ = Fermionfield(D.temp)
-        @show D.temp
-        @show ϕ
 
         random_gauges!(U)
         gaussian_pseudofermions!(ϕ)

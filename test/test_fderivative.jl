@@ -5,7 +5,7 @@ using LinearAlgebra
 using Random
 
 function test_fderivative(
-    backend=CPU; dirac="staggered", mass=0.01, eoprec=false, single_flavor=false
+    backend=CPU; dirac="staggered", mass=0.01, eoprec=false, single_flavor=false, csw=1.78
 )
     Random.seed!(123)
     println("Fermion derivative test [$dirac]")
@@ -59,7 +59,7 @@ function test_fderivative(
                 U,
                 mass;
                 Nf=Nf,
-                csw=1.78,
+                csw=csw,
                 cg_maxiters_action=5000,
                 cg_maxiters_md=5000,
                 cg_tol_action=1e-16,
@@ -72,7 +72,7 @@ function test_fderivative(
                 U,
                 mass;
                 Nf=Nf,
-                csw=1.78,
+                csw=csw,
                 cg_maxiters_action=5000,
                 cg_maxiters_md=5000,
                 cg_tol_action=1e-16,

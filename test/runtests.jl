@@ -41,20 +41,35 @@ end
     @test isapprox(-0.03210085960569041, tc_improved)
     @test isapprox(0.587818337847024, wl_1x1)
 
+    # gauge derivative
     relerrors = test_derivative(backend)
     @test length(findall(x -> abs(x) > 1e-4, relerrors[:, 2])) == 0
+    # staggered derivative
     relerrors = test_fderivative(
         backend; dirac="staggered", mass=0.01, single_flavor=true
     )
     @test length(findall(x -> abs(x) > 1e-4, relerrors[:, 2])) == 0
+    # staggered eo-pre derivative
     relerrors = test_fderivative(
         backend; dirac="staggered", mass=0.01, single_flavor=true, eoprec=true
     )
     @test length(findall(x -> abs(x) > 1e-4, relerrors[:, 2])) == 0
+    # wilson derivative
     relerrors = test_fderivative(
-        backend; dirac="wilson", mass=0.01, single_flavor=true
+        backend; dirac="wilson", mass=0.01, single_flavor=true, csw=0
     )
     @test length(findall(x -> abs(x) > 1e-4, relerrors[:, 2])) == 0
+    # wilson-clover derivative
+    relerrors = test_fderivative(
+        backend; dirac="wilson", mass=0.01, single_flavor=true, csw=1.78
+    )
+    @test length(findall(x -> abs(x) > 1e-4, relerrors[:, 2])) == 0
+    # wilson eo-pre derivative
+    relerrors = test_fderivative(
+        backend; dirac="wilson", mass=0.01, single_flavor=false, eoprec=true, csw=0 # TODO:Nf=1 test with eo wils
+    )
+    # @test length(findall(x -> abs(x) > 1e-4, relerrors[:, 2])) == 0
+    # wilson-clover eo-pre derivative
     relerrors = test_fderivative(
         backend; dirac="wilson", mass=0.01, single_flavor=false, eoprec=true # TODO:Nf=1 test with eo wils
     )
