@@ -34,21 +34,21 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT} <: AbstractMeasurement
                 dirac_operator = StaggeredEOPreDiracOperator(
                     U, mass; anti_periodic=anti_periodic
                 )
-                temp = Fermionfield(U; staggered=true)
+                temp = Spinorfield(U; staggered=true)
                 cg_temps = ntuple(_ -> even_odd(similar(temp)), 6)
             else
                 dirac_operator = StaggeredDiracOperator(
                     U, mass; anti_periodic=anti_periodic
                 )
-                temp = Fermionfield(U; staggered=true)
+                temp = Spinorfield(U; staggered=true)
                 cg_temps = ntuple(_ -> similar(temp), 6)
             end
         elseif dirac_type == "wilson"
             dirac_operator = WilsonDiracOperator(
                 U, mass; anti_periodic=anti_periodic, r=r, csw=csw
             )
-            temp = Fermionfield(U)
-            cg_temps = ntuple(_ -> Fermionfield(temp), 6)
+            temp = Spinorfield(U)
+            cg_temps = ntuple(_ -> Spinorfield(temp), 6)
         else
             throw(ArgumentError("Dirac operator \"$dirac_type\" is not supported"))
         end

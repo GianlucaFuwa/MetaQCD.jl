@@ -9,7 +9,7 @@ macro latmap(itr, C, f!, U, GA, fac)
     end
 end
 
-function __latmap(::Sequential, ::Val{C}, f!::F, U::Abstractfield{CPU}, GA, fac) where {F,C}
+function __latmap(::Sequential, ::Val{C}, f!::F, U::AbstractField{CPU}, GA, fac) where {F,C}
     C == 0 && return nothing
 
     for _ in 1:C
@@ -24,7 +24,7 @@ function __latmap(::Sequential, ::Val{C}, f!::F, U::Abstractfield{CPU}, GA, fac)
 end
 
 function __latmap(
-    ::Checkerboard2, ::Val{C}, f!::F, U::Abstractfield{CPU}, GA, fac
+    ::Checkerboard2, ::Val{C}, f!::F, U::AbstractField{CPU}, GA, fac
 ) where {F,C}
     C == 0 && return nothing
     NX, NY, NZ, NT = dims(U)
@@ -46,7 +46,7 @@ function __latmap(
 end
 
 function __latmap(
-    ::Checkerboard4, ::Val{C}, f!::F, U::Abstractfield{CPU}, GA, fac
+    ::Checkerboard4, ::Val{C}, f!::F, U::AbstractField{CPU}, GA, fac
 ) where {F,C}
     C == 0 && return nothing
 
@@ -76,7 +76,7 @@ macro latsum(itr, C, f!, U, GA, fac)
     end
 end
 
-function __latsum(::Sequential, ::Val{C}, f!::F, U::Abstractfield{CPU}, GA, fac) where {C,F}
+function __latsum(::Sequential, ::Val{C}, f!::F, U::AbstractField{CPU}, GA, fac) where {C,F}
     C == 0 && return 0.0
     out = 0.0
 
@@ -88,11 +88,11 @@ function __latsum(::Sequential, ::Val{C}, f!::F, U::Abstractfield{CPU}, GA, fac)
         end
     end
 
-    return out
+    return MPI.Allreduce(out, +, U.comm_cart)
 end
 
 function __latsum(
-    ::Checkerboard2, ::Val{C}, f!::F, U::Abstractfield{CPU}, GA, fac
+    ::Checkerboard2, ::Val{C}, f!::F, U::AbstractField{CPU}, GA, fac
 ) where {C,F}
     C == 0 && return 0.0
     NX, NY, NZ, NT = dims(U)
@@ -111,11 +111,11 @@ function __latsum(
         end
     end
 
-    return out
+    return MPI.Allreduce(out, +, U.comm_cart)
 end
 
 function __latsum(
-    ::Checkerboard4, ::Val{C}, f!::F, U::Abstractfield{CPU}, GA, fac
+    ::Checkerboard4, ::Val{C}, f!::F, U::AbstractField{CPU}, GA, fac
 ) where {C,F}
     C == 0 && return 0.0
     out = 0.0
@@ -132,5 +132,5 @@ function __latsum(
         end
     end
 
-    return out
+    return MPI.Allreduce(out, +, U.comm_cart)
 end

@@ -25,7 +25,7 @@ import ..DiracOperators: StaggeredEOPreDiracOperator, even_odd, solve_dirac!
 import ..DiracOperators: ArnoldiWorkspaceMeta, get_eigenvalues
 import ..Fields: WilsonGaugeAction, SymanzikTreeGaugeAction, SymanzikTadGaugeAction
 import ..Fields: IwasakiGaugeAction, DBW2GaugeAction, AbstractFieldstrength
-import ..Fields: Gaugefield, Fermionfield, calc_gauge_action, clover_rect, clear!
+import ..Fields: Gaugefield, Spinorfield, calc_gauge_action, clover_rect, clear!
 import ..Fields: clover_square, dims, float_type, plaquette, wilsonloop, set_source!
 import ..Fields: @groupreduce, @latsum, Plaquette, Clover, Improved, CPU, ones!
 import ..Fields: check_dims, plaquette_trace_sum, wilsonloop

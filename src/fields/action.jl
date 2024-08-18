@@ -13,6 +13,12 @@ const GAUGE_ACTION = Dict{String,Type{<:AbstractGaugeAction}}(
     "dbw2" => DBW2GaugeAction,
 )
 
+stencil_size(::Type{WilsonGaugeAction}) = 1
+stencil_size(::Type{SymanzikTreeGaugeAction}) = 2
+stencil_size(::Type{SymanzikTadGaugeAction}) = 2
+stencil_size(::Type{IwasakiGaugeAction}) = 2
+stencil_size(::Type{DBW2GaugeAction}) = 2
+
 function calc_gauge_action(U::Gaugefield, methodname::String)
     if methodname == "wilson"
         Sg = calc_gauge_action(WilsonGaugeAction(), U)
@@ -87,7 +93,7 @@ function plaquette_trace_sum(U::Gaugefield{CPU})
         end
     end
 
-    return P
+    return MPI.Allreduce(P, +, U.comm_cart)
 end
 
 function rect_trace_sum(U::Gaugefield{CPU})
@@ -101,7 +107,7 @@ function rect_trace_sum(U::Gaugefield{CPU})
         end
     end
 
-    return R
+    return MPI.Allreduce(R, +, U.comm_cart)
 end
 
 function plaquette(U, μ, ν, site)

@@ -60,6 +60,7 @@ function test_fderivative(
                 mass;
                 Nf=Nf,
                 csw=csw,
+                # csw=0,
                 cg_maxiters_action=5000,
                 cg_maxiters_md=5000,
                 cg_tol_action=1e-16,

@@ -1,4 +1,4 @@
-staple(U::Gaugefield{B,T,A,GA}, μ, site) where {B,T,A,GA} = staple(GA(), U, μ, site)
+staple(U::Gaugefield{B,T,M,A,GA}, μ, site) where {B,T,M,A,GA} = staple(GA(), U, μ, site)
 
 function staple(::WilsonGaugeAction, U, μ, site)
     return staple_plaq(U, μ, site)
@@ -138,7 +138,7 @@ function staple_rect(U, μ, site)
     return staple
 end
 
-function staple_eachsite!(staples::Colorfield{CPU}, U::Gaugefield{CPU})
+function staple_eachsite!(staples::ColorField{CPU}, U::Gaugefield{CPU})
     @batch for site in eachindex(U)
         for μ in 1:4
             staples[μ, site] = staple(U, μ, site)

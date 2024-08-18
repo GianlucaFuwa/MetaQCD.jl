@@ -1,7 +1,7 @@
-const WilsonFermionfield{B,T,A} = Fermionfield{B,T,A,4}
+const WilsonSpinorfield{B,T,A} = Spinorfield{B,T,A,4}
 
 function calc_dSfdU!(
-    dU, fermion_action::WilsonFermionAction{2,C}, U, ϕ::WilsonFermionfield
+    dU, fermion_action::WilsonFermionAction{2,C}, U, ϕ::WilsonSpinorfield
 ) where {C}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
@@ -14,16 +14,18 @@ function calc_dSfdU!(
     solve_dirac!(X, DdagD, ϕ, Y, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp LinearAlgebra.mul!(Y, D, X) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
     LinearAlgebra.mul!(Y, D, X) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
     add_wilson_derivative!(dU, U, X, Y, D.anti_periodic)
+
     if C
         Xμν = fermion_action.Xμν
         calc_Xμν_eachsite!(Xμν, X, Y)
         add_clover_derivative!(dU, U, Xμν, D.csw)
     end
+
     return nothing
 end
 
 function calc_dSfdU!(
-    dU, fermion_action::WilsonFermionAction{Nf,C}, U, ϕ::WilsonFermionfield
+    dU, fermion_action::WilsonFermionAction{Nf,C}, U, ϕ::WilsonSpinorfield
 ) where {Nf,C}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
@@ -54,12 +56,13 @@ function calc_dSfdU!(
             add_clover_derivative!(dU, U, Xμν, D.csw; coeff=coeffs[i])
         end
     end
+
     return nothing
 end
 
 function add_wilson_derivative!(
     dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, X::TF, Y::TF, anti; coeff=1
-) where {T,TF<:WilsonFermionfield{CPU,T}}
+) where {T,TF<:WilsonSpinorfield{CPU,T}}
     check_dims(dU, U, X, Y)
     NT = dims(U)[4]
     fac = T(0.5coeff)
@@ -72,6 +75,8 @@ function add_wilson_derivative!(
         bc⁺ = boundary_factor(anti, site[4], 1, NT)
         add_wilson_derivative_kernel!(dU, U, X, Y, site, bc⁺, fac)
     end
+
+    return nothing
 end
 
 function add_wilson_derivative_kernel!(dU, U, X, Y, site, bc⁺, fac)
@@ -140,7 +145,7 @@ end
 
 function calc_Xμν_eachsite!(
     Xμν::Tensorfield{CPU,T}, X::TF, Y::TF
-) where {T,TF<:WilsonFermionfield}
+) where {T,TF<:WilsonSpinorfield}
     check_dims(Xμν, X, Y)
 
     @batch for site in eachindex(Xμν)

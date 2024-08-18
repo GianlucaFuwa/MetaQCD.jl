@@ -134,11 +134,11 @@ function HMC(
     force2 = (!has_smearing && !bias_enabled) ? nothing : Colorfield(U)
 
     if fermion_action === StaggeredFermionAction
-        ϕ = ntuple(_ -> Fermionfield(U; staggered=true), 1 + heavy_flavours)
+        ϕ = ntuple(_ -> Spinorfield(U; staggered=true), 1 + heavy_flavours)
     elseif fermion_action === StaggeredEOPreFermionAction
-        ϕ = ntuple(_ -> even_odd(Fermionfield(U; staggered=true)), 1 + heavy_flavours)
+        ϕ = ntuple(_ -> even_odd(Spinorfield(U; staggered=true)), 1 + heavy_flavours)
     elseif fermion_action === WilsonFermionAction
-        ϕ = ntuple(_ -> Fermionfield(U), 1 + heavy_flavours)
+        ϕ = ntuple(_ -> Spinorfield(U), 1 + heavy_flavours)
     elseif fermion_action == "none" || fermion_action === nothing
         ϕ = nothing
     else

@@ -1,4 +1,9 @@
 """
+    Parametric <: AbstractBias
+
+Bias-enhanced sampler that uses the parametrization from https://arxiv.org/pdf/2212.11665
+up to first order.
+
     Parametric(cvlims, penalty_weight, Q, A, Z)
     Parametric(p::ParameterSet; instance=1)
 

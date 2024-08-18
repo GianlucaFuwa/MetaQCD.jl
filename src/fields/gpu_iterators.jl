@@ -5,7 +5,7 @@ macro latmap(itr, C, f!, U, args...)
 end
 
 function __latmap(
-    ::Sequential, ::Val{COUNT}, f!::F, U::Abstractfield{B}, args...
+    ::Sequential, ::Val{COUNT}, f!::F, U::AbstractField{B}, args...
 ) where {COUNT,F,B<:GPU}
     COUNT == 0 && return nothing
     # KernelAbstractions requires an ndrange (indices we iterate over) and a 
@@ -14,7 +14,7 @@ function __latmap(
     workgroupsize = (4, 4, 4, 4) # 4^4 = 256 threads per workgroup should be fine
     kernel! = f!(B(), workgroupsize)
     # I couldn't be bothered working out how to make CUDA work with array wrappers such as
-    # Abstractfield, so we extract the actual array from all Abstractfields in the args
+    # AbstractField, so we extract the actual array from all AbstractFields in the args
     raw_args = get_raws(args...)
 
     for _ in 1:COUNT
@@ -37,7 +37,7 @@ function __latmap(
     workgroupsize = (4, 4, 4, 2)
     kernel! = f!(B(), workgroupsize)
     # I couldn't be bothered working out how to make CUDA work with array wrappers such as
-    # Abstractfield, so we extract the actual array from all Abstractfields in the args
+    # AbstractField, so we extract the actual array from all AbstractFields in the args
     raw_args = get_raws(args...)
 
     for _ in 1:COUNT
@@ -49,7 +49,7 @@ function __latmap(
 end
 
 function __latmap(
-    ::Checkerboard2, ::Val{COUNT}, f!::F, U::Abstractfield{B}, args...
+    ::Checkerboard2, ::Val{COUNT}, f!::F, U::AbstractField{B}, args...
 ) where {COUNT,F,B<:GPU}
     COUNT == 0 && return nothing
     NX, NY, NZ, NT = dims(U)
@@ -75,7 +75,7 @@ function __latmap(
 end
 
 function __latmap(
-    ::Checkerboard4, ::Val{COUNT}, f!::F, U::Abstractfield{B}, args...
+    ::Checkerboard4, ::Val{COUNT}, f!::F, U::AbstractField{B}, args...
 ) where {COUNT,F,B<:GPU}
     COUNT == 0 && return nothing
     NX, NY, NZ, NT = dims(U)
@@ -107,7 +107,7 @@ macro latsum(itr, C, f!, U, args...)
 end
 
 function __latsum(
-    ::Sequential, ::Val{COUNT}, ::Type{OutType}, f!::F, U::Abstractfield{B}, args...
+    ::Sequential, ::Val{COUNT}, ::Type{OutType}, f!::F, U::AbstractField{B}, args...
 ) where {COUNT,OutType,F,B<:GPU}
     COUNT == 0 && return 0.0
     ndrange = dims(U)
@@ -147,7 +147,7 @@ function __latsum(
 end
 
 function __latsum(
-    ::Checkerboard2, ::Val{COUNT}, f!::F, U::Abstractfield{B}, args...
+    ::Checkerboard2, ::Val{COUNT}, f!::F, U::AbstractField{B}, args...
 ) where {COUNT,F,B<:GPU}
     COUNT == 0 && return 0.0
     NX, NY, NZ, NT = dims(U)
@@ -176,7 +176,7 @@ function __latsum(
 end
 
 function __latsum(
-    ::Checkerboard4, ::Val{COUNT}, f!::F, U::Abstractfield{B}, args...
+    ::Checkerboard4, ::Val{COUNT}, f!::F, U::AbstractField{B}, args...
 ) where {COUNT,F,B<:GPU}
     COUNT == 0 && return 0.0
     NX, NY, NZ, NT = dims(U)
@@ -204,8 +204,8 @@ function __latsum(
 end
 
 @inline function get_raws(args...)
-    fields = filter(x -> x isa Abstractfield, args)
-    rest = filter(x -> !(x isa Abstractfield), args)
+    fields = filter(x -> x isa AbstractField, args)
+    rest = filter(x -> !(x isa AbstractField), args)
     raw_fields = ntuple(
         i -> fields[i] isa EvenOdd ? fields[i].parent.U : fields[i].U, length(fields)
     )

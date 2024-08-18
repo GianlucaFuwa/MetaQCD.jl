@@ -256,8 +256,8 @@ function calc_fermion_action(
     cg_tol = fermion_action.cg_tol_action
     cg_maxiters = fermion_action.cg_maxiters_action
 
-    clear!(ψ_eo) # initial guess is zero
-    solve_dirac!(ψ_eo, DdagD, ϕ_eo, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
+    # clear!(ψ_eo) # initial guess is zero
+    # solve_dirac!(ψ_eo, DdagD, ϕ_eo, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
     Sf = #= dot(ϕ_eo, ψ_eo) =# - 2trlog(D.D_diag)
     return real(Sf)
 end
@@ -423,19 +423,17 @@ function calc_diag!(
     mass_term = Complex{T}(4 + mass)
     fdims = dims(U)
     NV = U.NV
-    sz = 2U.NC
-    sz2 = sz^2
 
     #= @batch  =#for site in eachindex(U)
         _site = eo_site(site, fdims..., NV)
-        A = SMatrix{sz,sz,Complex{T},sz2}(mass_term * I)
+        A = SMatrix{6,6,Complex{T},36}(mass_term * I)
 
         D_diag[1, site] = A
         D_diag[2, site] = A 
 
         if isodd(site)
             o_site = switch_sides(_site, fdims..., NV)
-            A_inv = SMatrix{sz,sz,Complex{T},sz2}(1/mass_term * I)
+            A_inv = SMatrix{6,6,Complex{T},36}(1/mass_term * I)
             D_oo_inv[1, o_site] = A_inv
             D_oo_inv[2, o_site] = A_inv
         end
@@ -449,41 +447,45 @@ function calc_diag!(
     mass_term = Complex{T}(4 + mass)
     fdims = dims(U)
     NV = U.NV
-    sz = 2U.NC
-    sz2 = sz^2
     fac = T(-D_diag.csw / 2)
 
     fieldstrength_A_eachsite!(Clover(), Fμν, U)
 
     #= @batch  =#for site in eachindex(U)
         _site = eo_site(site, fdims..., NV)
-        M = SMatrix{sz,sz,Complex{T},sz2}(mass_term * I)
+        M = SMatrix{6,6,Complex{T},36}(mass_term * I)
         i = SVector((1, 2))
         j = SVector((3, 4))
 
         F₁₂ = Fμν[1, 2, site]
-        A₊ = ckron(σ₁₂(T)[i, i], F₁₂)
-        A₋ = ckron(σ₁₂(T)[j, j], F₁₂)
+        σ = σ₁₂(T)
+        A₊ = ckron(σ[i, i], F₁₂)
+        A₋ = ckron(σ[j, j], F₁₂)
 
         F₁₃ = Fμν[1, 3, site]
-        A₊ += ckron(σ₁₃(T)[i, i], F₁₃)
-        A₋ += ckron(σ₁₃(T)[j, j], F₁₃)
+        σ = σ₁₃(T)
+        A₊ += ckron(σ[i, i], F₁₃)
+        A₋ += ckron(σ[j, j], F₁₃)
 
         F₁₄ = Fμν[1, 4, site]
-        A₊ += ckron(σ₁₄(T)[i, i], F₁₄)
-        A₋ += ckron(σ₁₄(T)[j, j], F₁₄)
+        σ = σ₁₄(T)
+        A₊ += ckron(σ[i, i], F₁₄)
+        A₋ += ckron(σ[j, j], F₁₄)
 
         F₂₃ = Fμν[2, 3, site]
-        A₊ += ckron(σ₂₃(T)[i, i], F₂₃)
-        A₋ += ckron(σ₂₃(T)[j, j], F₂₃)
+        σ = σ₂₃(T)
+        A₊ += ckron(σ[i, i], F₂₃)
+        A₋ += ckron(σ[j, j], F₂₃)
 
         F₂₄ = Fμν[2, 4, site]
-        A₊ += ckron(σ₂₄(T)[i, i], F₂₄)
-        A₋ += ckron(σ₂₄(T)[j, j], F₂₄)
+        σ = σ₂₄(T)
+        A₊ += ckron(σ[i, i], F₂₄)
+        A₋ += ckron(σ[j, j], F₂₄)
 
         F₃₄ = Fμν[3, 4, site]
-        A₊ += ckron(σ₃₄(T)[i, i], F₃₄)
-        A₋ += ckron(σ₃₄(T)[j, j], F₃₄)
+        σ = σ₃₄(T)
+        A₊ += ckron(σ[i, i], F₃₄)
+        A₋ += ckron(σ[j, j], F₃₄)
 
         A₊ = fac * A₊ + M
         A₋ = fac * A₋ + M

@@ -11,7 +11,7 @@ using ..Utils
 
 import ..Fields: AbstractGaugeAction, Expfield, Colorfield, Gaugefield, WilsonGaugeAction
 import ..Fields: check_dims, leftmul_dagg!, staple, staple_eachsite!, @groupreduce
-import ..Fields: Abstractfield, dims, float_type, @latmap
+import ..Fields: AbstractField, dims, float_type, @latmap
 
 abstract type AbstractSmearing end
 

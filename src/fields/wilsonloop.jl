@@ -125,7 +125,7 @@ function wilsonloop_bottom_right(U, μ, ν, site, Lμ, Lν)
     return wil
 end
 
-function wilsonloop(U::Gaugefield{CPU}, Lμ, Lν)
+function wilsonloop(U::GaugeField{CPU}, Lμ, Lν)
     W = 0.0
 
     @batch reduction = (+, W) for site in eachindex(U)

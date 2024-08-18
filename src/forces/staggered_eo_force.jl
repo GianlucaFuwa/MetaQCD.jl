@@ -1,7 +1,7 @@
-const StaggeredEOPreFermionfield{B,T,A} = EvenOdd{B,T,A,1}
+const StaggeredEOPreSpinorfield{B,T,A} = EvenOdd{B,T,A,1}
 
 function calc_dSfdU!(
-    dU, fermion_action::StaggeredEOPreFermionAction{4}, U, ϕ_eo::StaggeredEOPreFermionfield
+    dU, fermion_action::StaggeredEOPreFermionAction{4}, U, ϕ_eo::StaggeredEOPreSpinorfield
 )
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
@@ -20,7 +20,7 @@ function calc_dSfdU!(
 end
 
 function calc_dSfdU!(
-    dU, fermion_action::StaggeredEOPreFermionAction{Nf}, U, ϕ_eo::StaggeredEOPreFermionfield
+    dU, fermion_action::StaggeredEOPreFermionAction{Nf}, U, ϕ_eo::StaggeredEOPreSpinorfield
 ) where {Nf}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
@@ -46,12 +46,13 @@ function calc_dSfdU!(
         mul_oe!(Ys[i+1], U, Xs[i+1], anti, true, false)
         add_staggered_eo_derivative!(dU, U, Xs[i+1], Ys[i+1], anti; coeff=coeffs[i])
     end
+
     return nothing
 end
 
 function add_staggered_eo_derivative!(
     dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, X_eo::TF, Y_eo::TF, anti; coeff=1
-) where {T,TF<:StaggeredEOPreFermionfield{CPU,T}}
+) where {T,TF<:StaggeredEOPreSpinorfield{CPU,T}}
     check_dims(dU, U, X_eo, Y_eo)
     X = X_eo.parent
     Y = Y_eo.parent
@@ -62,6 +63,8 @@ function add_staggered_eo_derivative!(
         bc⁺ = boundary_factor(anti, site[4], 1, NT)
         add_staggered_eo_derivative_kernel!(dU, U, X, Y, site, bc⁺, fac)
     end
+
+    return nothing
 end
 
 function add_staggered_eo_derivative_kernel!(dU, U, X, Y, site, bc⁺, fac)

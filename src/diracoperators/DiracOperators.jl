@@ -15,7 +15,7 @@ import KernelAbstractions as KA
 import ..Fields: Abstractfield, EvenOdd, Fermionfield, Gaugefield, Tensorfield, clear!
 import ..Fields: check_dims, clover_square, dims, even_odd, gaussian_pseudofermions!
 import ..Fields: Clover, Checkerboard2, Sequential, @latmap, @latsum, set_source!
-import ..Fields: fieldstrength_A_eachsite!, num_colors, num_dirac, volume
+import ..Fields: fieldstrength_eachsite!, fieldstrength_A_eachsite!, num_colors, num_dirac, volume
 
 abstract type AbstractDiracOperator end
 abstract type AbstractFermionAction end

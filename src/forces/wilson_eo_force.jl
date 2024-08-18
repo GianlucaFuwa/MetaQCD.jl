@@ -1,7 +1,7 @@
-const WilsonEOPreFermionfield{B,T,A} = EvenOdd{B,T,A,4}
+const WilsonEOPreSpinorfield{B,T,A} = EvenOdd{B,T,A,4}
 
 function calc_dSfdU!(
-    dU, fermion_action::WilsonEOPreFermionAction{2,C}, U, ϕ_eo::WilsonEOPreFermionfield
+    dU, fermion_action::WilsonEOPreFermionAction{2,C}, U, ϕ_eo::WilsonEOPreSpinorfield
 ) where {C}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
@@ -29,11 +29,12 @@ function calc_dSfdU!(
         calc_Xμν_small_eachsite!(Xμν, D_oo_inv)
         add_clover_derivative!(dU, U, Xμν, 2D.csw) 
     end
+
     return nothing
 end
 
 function calc_dSfdU!(
-    dU, fermion_action::WilsonEOPreFermionAction{Nf,C}, U, ϕ::WilsonEOPreFermionfield
+    dU, fermion_action::WilsonEOPreFermionAction{Nf,C}, U, ϕ::WilsonEOPreSpinorfield
 ) where {Nf,C}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
@@ -76,12 +77,13 @@ function calc_dSfdU!(
         calc_Xμν_small_eachsite!(Xμν, D_oo_inv)
         add_clover_derivative!(dU, U, Xμν, 2D.csw) 
     end
+
     return nothing
 end
 
 function add_wilson_eo_derivative!(
     dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, X_eo::TF, Y_eo::TF, anti; coeff=1
-) where {T,TF<:WilsonEOPreFermionfield{CPU,T}}
+) where {T,TF<:WilsonEOPreSpinorfield{CPU,T}}
     check_dims(dU, U, X_eo, Y_eo)
     NT = dims(U)[4]
     fac = T(0.5coeff)
@@ -95,6 +97,8 @@ function add_wilson_eo_derivative!(
         bc⁺ = boundary_factor(anti, site[4], 1, NT)
         add_wilson_eo_derivative_kernel!(dU, U, X_eo, Y_eo, site, bc⁺, fac)
     end
+
+    return nothing
 end
 
 function add_wilson_eo_derivative_kernel!(dU, U, X_eo, Y_eo, site, bc⁺, fac)
@@ -128,7 +132,7 @@ end
 
 function calc_Xμν_eo_eachsite!(
     Xμν::Tensorfield{CPU,T}, X_eo::TF, Y_eo::TF
-) where {T,TF<:WilsonEOPreFermionfield}
+) where {T,TF<:WilsonEOPreSpinorfield}
     X = X_eo.parent
     Y = Y_eo.parent
 

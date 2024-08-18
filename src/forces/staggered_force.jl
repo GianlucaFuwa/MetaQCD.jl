@@ -1,7 +1,7 @@
-const StaggeredFermionfield{B,T,A} = Fermionfield{B,T,A,1}
+const StaggeredSpinorfield{B,T,A} = Spinorfield{B,T,A,1}
 
 function calc_dSfdU!(
-    dU, fermion_action::StaggeredFermionAction{8}, U, ϕ::StaggeredFermionfield
+    dU, fermion_action::StaggeredFermionAction{8}, U, ϕ::StaggeredSpinorfield
 )
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
@@ -19,7 +19,7 @@ function calc_dSfdU!(
 end
 
 function calc_dSfdU!(
-    dU, fermion_action::StaggeredFermionAction{Nf}, U, ϕ::StaggeredFermionfield
+    dU, fermion_action::StaggeredFermionAction{Nf}, U, ϕ::StaggeredSpinorfield
 ) where {Nf}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
@@ -45,12 +45,13 @@ function calc_dSfdU!(
         LinearAlgebra.mul!(Ys[i+1], D, Xs[i+1])
         add_staggered_derivative!(dU, U, Xs[i+1], Ys[i+1], anti; coeff=coeffs[i])
     end
+
     return nothing
 end
 
 function add_staggered_derivative!(
     dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, X::TF, Y::TF, anti; coeff=1
-) where {T,TF<:StaggeredFermionfield{CPU,T}}
+) where {T,TF<:StaggeredSpinorfield{CPU,T}}
     check_dims(dU, U, X, Y)
     NT = dims(U)[4]
     fac = T(-0.5coeff)
@@ -59,6 +60,8 @@ function add_staggered_derivative!(
         bc⁺ = boundary_factor(anti, site[4], 1, NT)
         add_staggered_derivative_kernel!(dU, U, X, Y, site, bc⁺, fac)
     end
+
+    return nothing
 end
 
 function add_staggered_derivative_kernel!(dU, U, X, Y, site, bc⁺, fac)

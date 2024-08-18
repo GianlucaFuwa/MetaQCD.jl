@@ -1,5 +1,5 @@
 function fieldstrength_eachsite!(
-    ::Plaquette, F::Tensorfield{B,T}, U::Gaugefield{B,T}
+    ::Plaquette, F::TensorField{B,T}, U::GaugeField{B,T}
 ) where {B<:GPU,T}
     check_dims(F, U)
     @latmap(Sequential(), Val(1), fieldstrength_eachsite_plaq_kernel!, F, U)
@@ -26,7 +26,7 @@ end
 end
 
 function fieldstrength_eachsite!(
-    ::Clover, F::Tensorfield{B,T}, U::Gaugefield{B,T}
+    ::Clover, F::TensorField{B,T}, U::GaugeField{B,T}
 ) where {B<:GPU,T}
     check_dims(F, U)
     @latmap(Sequential(), Val(1), fieldstrength_eachsite_clover_kernel!, F, U, T)

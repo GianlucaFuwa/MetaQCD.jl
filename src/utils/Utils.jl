@@ -17,6 +17,7 @@ export embed_into_SU3_12, embed_into_SU3_13, embed_into_SU3_23
 export antihermitian, hermitian, traceless_antihermitian, traceless_hermitian, materialize_TA
 export zero2, zero3, zerov3, eye2, eye3, onev3, gaussian_TA_mat, rand_SU3
 export SiteCoords, eo_site, eo_site_switch, move, switch_sides
+export cartesian_to_linear
 export Sequential, Checkerboard2, Checkerboard4
 export λ, expλ, γ₁, γ₂, γ₃, γ₄, γ₅, σ₁₂, σ₁₃, σ₁₄, σ₂₃, σ₂₄, σ₃₄
 export cmatmul_oo, cmatmul_dd, cmatmul_do, cmatmul_od

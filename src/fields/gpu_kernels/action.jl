@@ -1,4 +1,4 @@
-function plaquette_trace_sum(U::Gaugefield{B}) where {B}
+function plaquette_trace_sum(U::GaugeField{B}) where {B}
     return @latsum(Sequential(), Val(1), Float64, plaquette_trace_sum_kernel!, U)
 end
 
@@ -22,7 +22,7 @@ end
     end
 end
 
-function rect_trace_sum(U::Gaugefield{B}) where {B}
+function rect_trace_sum(U::GaugeField{B}) where {B}
     return @latsum(Sequential(), Val(1), Float64, rect_trace_sum_kernel!, U)
 end
 
