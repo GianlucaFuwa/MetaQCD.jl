@@ -265,6 +265,7 @@ function updateU!(U::Gaugefield{CPU,T}, hmc, fac) where {T}
         end
     end
 
+    update_halo!(U)
     return nothing
 end
 

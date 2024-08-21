@@ -1,4 +1,4 @@
-const WilsonSpinorfield{B,T,A} = Spinorfield{B,T,A,4}
+const WilsonSpinorfield{B,T,M,A} = Spinorfield{B,T,M,A,4}
 
 function calc_dSfdU!(
     dU, fermion_action::WilsonFermionAction{2,C}, U, ϕ::WilsonSpinorfield
@@ -76,6 +76,7 @@ function add_wilson_derivative!(
         add_wilson_derivative_kernel!(dU, U, X, Y, site, bc⁺, fac)
     end
 
+    update_halo!(dU)
     return nothing
 end
 
@@ -113,6 +114,7 @@ function add_clover_derivative!(
         add_clover_derivative_kernel!(dU, U, Xμν, site, fac, T)
     end
 
+    update_halo!(dU)
     return nothing
 end
 

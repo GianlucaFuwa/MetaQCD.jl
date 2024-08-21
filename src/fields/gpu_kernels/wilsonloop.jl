@@ -1,4 +1,4 @@
-function wilsonloop(U::GaugeField{B,T}, Lμ, Lν) where {B<:GPU,T}
+function wilsonloop(U::Gaugefield{B,T}, Lμ, Lν) where {B<:GPU,T}
     return @latsum(Sequential(), Val(1), Float64, wilsonloop_kernel!, U, Lμ, Lν, T)
 end
 

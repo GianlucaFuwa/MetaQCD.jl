@@ -26,7 +26,7 @@ function __latmap(
 end
 
 function __latmap(
-    ::Sequential, ::Val{COUNT}, f!::F, ϕ_eo::EvenOdd{B}, args...
+    ::Sequential, ::Val{COUNT}, f!::F, ϕ_eo::SpinorfieldEO{B}, args...
 ) where {COUNT,F,B<:GPU}
     COUNT == 0 && return nothing
     # KernelAbstractions requires an ndrange (indices we iterate over) and a 
@@ -126,7 +126,7 @@ function __latsum(
 end
 
 function __latsum(
-    ::Sequential, ::Val{COUNT}, ::Type{OutType}, f!::F, ϕ_eo::EvenOdd{B}, args...
+    ::Sequential, ::Val{COUNT}, ::Type{OutType}, f!::F, ϕ_eo::SpinorfieldEO{B}, args...
 ) where {COUNT,OutType,F,B<:GPU}
     COUNT == 0 && return 0.0
     NX, NY, NZ, NT = dims(ϕ_eo)
@@ -161,7 +161,7 @@ function __latsum(
     out = KA.zeros(B(), Float64, numblocks)
     kernel! = f!(B(), workgroupsize)
     raw_args = get_raws(args...)
-    numpasses = U isa EvenOdd ? 2 : 1
+    numpasses = U isa SpinorfieldEO ? 2 : 1
 
     for _ in 1:COUNT
         for μ in 1:4
@@ -207,7 +207,7 @@ end
     fields = filter(x -> x isa AbstractField, args)
     rest = filter(x -> !(x isa AbstractField), args)
     raw_fields = ntuple(
-        i -> fields[i] isa EvenOdd ? fields[i].parent.U : fields[i].U, length(fields)
+        i -> fields[i] isa SpinorfieldEO ? fields[i].parent.U : fields[i].U, length(fields)
     )
     return (raw_fields..., rest...)
 end

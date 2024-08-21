@@ -1,6 +1,6 @@
 function add_staggered_derivative!(
     dU::Colorfield{B,T}, U::Gaugefield{B,T}, X::TF, Y::TF, anti; coeff=1
-) where {B<:GPU,T,TF<:StaggeredFermionfield{B,T}}
+) where {B<:GPU,T,TF<:StaggeredSpinorfield{B,T}}
     check_dims(dU, U, X, Y)
     fac = T(-0.5coeff)
     @latmap(Sequential(), Val(1), add_staggered_derivative_gpu_kernel!, dU, U, X, Y, anti, fac)

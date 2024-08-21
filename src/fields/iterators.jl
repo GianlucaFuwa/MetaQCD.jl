@@ -27,7 +27,7 @@ function __latmap(
     ::Checkerboard2, ::Val{C}, f!::F, U::AbstractField{CPU}, GA, fac
 ) where {F,C}
     C == 0 && return nothing
-    NX, NY, NZ, NT = dims(U)
+    NX, NY, NZ, NT = local_dims(U)
 
     for _ in 1:C
         for μ in 1:4
@@ -88,14 +88,14 @@ function __latsum(::Sequential, ::Val{C}, f!::F, U::AbstractField{CPU}, GA, fac)
         end
     end
 
-    return MPI.Allreduce(out, +, U.comm_cart)
+    return distributed_reduce(out, +, U)
 end
 
 function __latsum(
     ::Checkerboard2, ::Val{C}, f!::F, U::AbstractField{CPU}, GA, fac
 ) where {C,F}
     C == 0 && return 0.0
-    NX, NY, NZ, NT = dims(U)
+    NX, NY, NZ, NT = local_dims(U)
     out = 0.0
 
     for _ in 1:C
@@ -111,7 +111,7 @@ function __latsum(
         end
     end
 
-    return MPI.Allreduce(out, +, U.comm_cart)
+    return distributed_reduce(out, +, U)
 end
 
 function __latsum(
@@ -132,5 +132,5 @@ function __latsum(
         end
     end
 
-    return MPI.Allreduce(out, +, U.comm_cart)
+    return distributed_reduce(out, +, U)
 end

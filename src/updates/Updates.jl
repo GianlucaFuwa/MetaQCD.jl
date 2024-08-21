@@ -22,7 +22,7 @@ import ..Fields: AbstractGaugeAction, Gaugefield, Colorfield
 import ..Fields: WilsonGaugeAction, add!, calc_gauge_action, calc_kinetic_energy
 import ..Fields: clear!, dims, normalize!, fieldstrength_eachsite!, float_type
 import ..Fields: check_dims, even_odd, gaussian_TA!, mul!, staple, staple_eachsite!
-import ..Fields: @groupreduce, @latmap, @latsum, gauge_action
+import ..Fields: @groupreduce, @latmap, @latsum, gauge_action, update_halo!
 import ..Fields: AbstractField, Plaquette, Clover, Spinorfield, Tensorfield
 import ..Parameters: ParameterSet
 import ..Smearing: AbstractSmearing, NoSmearing, StoutSmearing

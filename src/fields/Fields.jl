@@ -28,8 +28,9 @@ array_type(::Type{CPU}) = Array
 abstract type AbstractField{Backend,FloatType,MPIParallel,ArrayType} end
 const AbstractMPIField{B,T,A} = AbstractField{B,T,true,A}
 
-include("algebrafield.jl")
+include("distributed.jl")
 include("gaugefield.jl")
+include("algebrafield.jl")
 include("spinorfield.jl")
 include("tensorfield.jl")
 include("iterators.jl")
@@ -72,7 +73,7 @@ function to_backend(::Type{Bout}, u::AbstractField{M,Bin,T}) where {M,Bout,Bin,T
     end
 
     A = array_type(Bout)
-    sizeU = dims(u)
+    sizeU = global_dims(u)
     Uout = A(u.U)
 
     if u isa Gaugefield
@@ -109,7 +110,9 @@ KA.get_backend(u::AbstractField) = get_backend(u.U)
 # define dims() function twice --- once for generic arrays, such that GPUs and @batch
 # can use it, and once for Abstractfields for any other case
 @inline dims(u) = NTuple{4,Int64}((size(u, 2), size(u, 3), size(u, 4), size(u, 5)))
-@inline dims(u::AbstractField) = NTuple{4,Int64}((u.NX, u.NY, u.NZ, u.NT))
+@inline dims(u::AbstractField) = NTuple{4,Int64}((size(u.U, 2), size(u.U, 3), size(u.U, 4), size(u.U, 5)))
+@inline global_dims(u::AbstractField) = NTuple{4,Int64}((u.NX, u.NY, u.NZ, u.NT))
+@inline local_dims(u) = NTuple{4,Int64}((size(u, 2), size(u, 3), size(u, 4), size(u, 5)))
 @inline local_dims(u::AbstractField) = NTuple{4,Int64}((u.my_NX, u.my_NY, u.my_NZ, u.my_NT))
 Base.ndims(u::AbstractField) = 4
 Base.size(u::AbstractField) = NTuple{5,Int64}((4, u.NX, u.NY, u.NZ, u.NT))
@@ -120,10 +123,10 @@ Base.size(u::AbstractField) = NTuple{5,Int64}((4, u.NX, u.NY, u.NZ, u.NT))
 Check if all fields have the same dimensions. Throw an `AssertionError` otherwise.
 """
 @generated function check_dims(x1, rest::Vararg{Any,N}) where {N}
-    q_inner = Expr(:comparison, :(dims(x1)))
+    q_inner = Expr(:comparison, :(global_dims(x1)))
     for i in 1:N
         push!(q_inner.args, :(==))
-        push!(q_inner.args, :(dims(rest[$i])))
+        push!(q_inner.args, :(global_dims(rest[$i])))
     end
     q = Expr(:macrocall, Symbol("@assert"), :(), q_inner)
     return q
@@ -143,7 +146,7 @@ Base.eachindex(::IndexLinear, u::AbstractMPIField) =
     error("MPI parallelized field can not be iterated over linearly")
 
 function Base.eachindex(even::Bool, u::AbstractField)
-    NX, NY, NZ, NT = dims(u)
+    NX, NY, NZ, NT = global_dims(u)
     @assert iseven(NT)
     last_range = even ? (1:div(NT, 2)) : (div(NT, 2)+1:NT)
     return CartesianIndices((NX, NY, NZ, last_range))
@@ -163,14 +166,14 @@ Base.@propagate_inbounds Base.setindex!(u::AbstractField, v, μ, site::SiteCoord
 
 # So we don't print the entire array in the REPL...
 function Base.show(io::IO, ::MIME"text/plain", u::T) where {T<:AbstractField}
-    print(io, "$(typeof(u))", "(;")
+    print(io, "$(typeof(u))", "(;\n")
     for fieldname in fieldnames(T)
         fieldname ∈ (:U, :NV) && continue
 
         if fieldname ∈ (:Sf, :Sg, :CV)
-            println(io, fieldname, " = ", getfield(u, fieldname)[], ",")
+            println(io, "\t", fieldname, " = ", getfield(u, fieldname)[], ",")
         else
-            println(io, fieldname, " = ", getfield(u, fieldname), ",")
+            println(io, "\t", fieldname, " = ", getfield(u, fieldname), ",")
         end
     end
     print(io, ")")
@@ -178,149 +181,18 @@ function Base.show(io::IO, ::MIME"text/plain", u::T) where {T<:AbstractField}
 end
 
 function Base.show(io::IO, u::T) where {T<:AbstractField}
-    print(io, "$(typeof(u))", "(;")
+    print(io, "$(typeof(u))", "(;\n")
     for fieldname in fieldnames(T)
         fieldname ∈ (:U, :NV) && continue
 
         if fieldname ∈ (:Sf, :Sg, :CV)
-            println(io, fieldname, " = ", getfield(u, fieldname)[], ",")
+            println(io, "\t", fieldname, " = ", getfield(u, fieldname)[], ",")
         else
-            println(io, fieldname, " = ", getfield(u, fieldname), ",")
+            println(io, "\t", fieldname, " = ", getfield(u, fieldname), ",")
         end
     end
     print(io, ")")
     return nothing
-end
-
-update_halo!(::AbstractField{B,T,false}) where {B,T} = nothing
-
-function update_halo!(u::AbstractField{B,T,true}) where {B,T}
-    comm_cart = u.comm_cart
-
-    send_buf = u.halo_sendbuf
-    recv_buf = u.halo_recvbuf
-    requests = []
-
-    for dir in 1:4
-        prev_neighbor, next_neighbor = MPI.Cart_shift(comm_cart, dir-1, 1)
-        # Source sites (bulk boundary):
-        prev_sites_from, next_sites_from = bulk_boundary_sites(u, dir)
-        # Sink sites (halo):
-        prev_sites_to, next_sites_to = halo_sites(u, dir)
-
-        dims = halo_dims(u, dir)
-
-        # send - negative direction
-        for site in prev_sites_from
-            for μ in 1:4
-                i = cartesian_to_linear(site, dims...)
-                send_buf[μ, i] = u[μ, site]
-            end
-        end
-
-        push!(requests, MPI.Isend(send_buf, comm_cart; dest=prev_neighbor))
-
-        # send - positive direction
-        for site in next_sites_from
-            for μ in 1:4
-                i = cartesian_to_linear(site, dims...)
-                send_buf[μ, i] = u[μ, site]
-            end
-        end
-
-        push!(requests, MPI.Isend(send_buf, comm_cart; dest=next_neighbor))
-
-        # recv - negative direction
-        push!(requests, MPI.Irecv!(recv_buf, comm_cart; source=next_neighbor))
-
-        for site in prev_sites_to
-            for μ in 1:4
-                i = cartesian_to_linear(site, dims...)
-                u[μ, site] = recv_buf[μ, i]
-            end
-        end
-
-        # recv - positive direction
-        push!(requests, MPI.Irecv!(recv_buf, comm_cart; source=prev_neighbor))
-
-        for site in next_sites_to
-            for μ in 1:4
-                i = cartesian_to_linear(site, dims...)
-                u[μ, site] = recv_buf[μ, i]
-            end
-        end
-    end
-
-    MPI.Waitall!(requests)
-end
-
-@inline function halo_dims(u::AbstractField, dir)
-    my_NX, my_NY, my_NZ, my_NT = local_dims(u)
-    pad = u.pad
-
-    if dir == 1
-        return (pad, my_NY, my_NZ, my_NT)
-    elseif dir == 2
-        return (my_NX, pad, my_NZ, my_NT)
-    elseif dir == 3
-        return (my_NX, my_NY, pad, my_NT)
-    elseif dir == 4
-        return (my_NX, my_NY, my_NZ, pad)
-    else
-        throw(AssertionError("dir has to be between 1 and 4"))
-    end
-
-    return dims
-end
-
-@inline function halo_sites(u::AbstractField, dim)
-    my_NX, my_NY, my_NZ, my_NT = local_dims(u)
-    pad = u.pad
-
-    if dim == 1
-        prev = CartesianIndices((1:pad, my_NY, my_NZ, my_NT))
-        next = CartesianIndices((my_NX+1:my_NX+pad, my_NY, my_NZ, my_NT))
-        return prev, next
-    elseif dim == 2
-        prev = CartesianIndices((my_NX, 1:pad, my_NZ, my_NT))
-        next = CartesianIndices((my_NX, my_NY+1:my_NY+pad, my_NZ, my_NT))
-        return prev, next
-    elseif dim == 3
-        prev = CartesianIndices((my_NX, my_NY, 1:pad, my_NT))
-        next = CartesianIndices((my_NX, my_NY, my_NZ+1:my_NZ+pad, my_NT))
-        return prev, next
-    elseif dim == 4
-        prev = CartesianIndices((my_NX, my_NY, my_NZ, 1:pad))
-        next = CartesianIndices((my_NX, my_NY, my_NZ, my_NT+1:my_NT+pad))
-        return prev, next
-    else
-        throw(AssertionError("dim has to be between 1 and 4"))
-    end
-end
-
-@inline function bulk_boundary_sites(u::AbstractField, dim)
-    my_NX, my_NY, my_NZ, my_NT = local_dims(u)
-    pad = u.pad
-
-    if dim == 1
-        prev = CartesianIndices((1+pad:2pad, my_NY, my_NZ, my_NT))
-        next = CartesianIndices((my_NX-pad:my_NX, my_NY, my_NZ, my_NT))
-        return prev, next
-    elseif dim == 2
-        prev = CartesianIndices((my_NX, 1+pad:2pad, my_NZ, my_NT))
-        next = CartesianIndices((my_NX, my_NY-pad:my_NY, my_NZ, my_NT))
-        return prev, next
-    elseif dim == 3
-        prev = CartesianIndices((my_NX, my_NY, 1+pad:2pad, my_NT))
-        next = CartesianIndices((my_NX, my_NY, my_NZ-pad:my_NZ, my_NT))
-        return prev, next
-    elseif dim == 4
-        prev = CartesianIndices((my_NX, my_NY, my_NZ, 1+pad:2pad))
-        next = CartesianIndices((my_NX, my_NY, my_NZ, my_NT-pad:my_NT))
-        return prev, next
-    else
-        throw(AssertionError("dim has to be between 1 and 4"))
-    end
 end
 
 end

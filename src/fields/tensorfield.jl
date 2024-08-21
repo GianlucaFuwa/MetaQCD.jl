@@ -5,7 +5,7 @@ struct Clover <: AbstractFieldstrength end
 struct Improved <: AbstractFieldstrength end
 
 # TODO: Docs
-struct Tensorfield{B,T,A} <: Abstractfield{B,T,A}
+struct Tensorfield{B,T,M,A} <: AbstractField{B,T,M,A}
     U::A
     NX::Int64
     NY::Int64
@@ -13,28 +13,28 @@ struct Tensorfield{B,T,A} <: Abstractfield{B,T,A}
     NT::Int64
     NV::Int64
     NC::Int64
-    function Tensorfield{BACKEND,T}(NX, NY, NZ, NT) where {BACKEND,T}
+    function Tensorfield{B,T}(NX, NY, NZ, NT) where {B,T}
         # TODO: Reduce size of Tensorfield by using symmetry of the fieldstrength tensor
         U = KA.zeros(B(), SMatrix{3,3,Complex{T},9}, 4, 4, NX, NY, NZ, NT)
         NV = NX * NY * NZ * NT
         NC = 3
-        return new{BACKEND,T,typeof(U)}(U, NX, NY, NZ, NT, NV, NC)
+        return new{B,T,false,typeof(U)}(U, NX, NY, NZ, NT, NV, NC)
     end
 end
 
-function Tensorfield(u::Abstractfield{BACKEND,T,A}) where {BACKEND,T,A}
-    NX, NY, NZ, NT = dims(u)
-    return Tensorfield{BACKEND,T}(NX, NY, NZ, NT)
+function Tensorfield(u::AbstractField{B,T,false,A}) where {B,T,A}
+    NX, NY, NZ, NT = global_dims(u)
+    return Tensorfield{B,T}(NX, NY, NZ, NT)
 end
 
 # overload get and set for the Tensorfields, so we dont have to do u.U[μ,ν,x,y,z,t]
-Base.@propagate_inbounds Base.getindex(u::Abstractfield, μ, ν, x, y, z, t) =
+Base.@propagate_inbounds Base.getindex(u::AbstractField, μ, ν, x, y, z, t) =
     u.U[μ, ν, x, y, z, t]
-Base.@propagate_inbounds Base.getindex(u::Abstractfield, μ, ν, site::SiteCoords) =
+Base.@propagate_inbounds Base.getindex(u::AbstractField, μ, ν, site::SiteCoords) =
     u.U[μ, ν, site]
-Base.@propagate_inbounds Base.setindex!(u::Abstractfield, v, μ, ν, x, y, z, t) =
+Base.@propagate_inbounds Base.setindex!(u::AbstractField, v, μ, ν, x, y, z, t) =
     setindex!(u.U, v, μ, ν, x, y, z, t)
-Base.@propagate_inbounds Base.setindex!(u::Abstractfield, v, μ, ν, site::SiteCoords) =
+Base.@propagate_inbounds Base.setindex!(u::AbstractField, v, μ, ν, site::SiteCoords) =
     setindex!(u.U, v, μ, ν, site)
 
 function fieldstrength_eachsite!(F::Tensorfield, U, kind_of_fs::String)
@@ -67,6 +67,7 @@ function fieldstrength_eachsite!(::Plaquette, F::Tensorfield{CPU}, U::Gaugefield
         F[3, 4, site] = im * traceless_antihermitian(C34)
     end
 
+    update_halo!(F)
     return nothing
 end
 
@@ -91,6 +92,7 @@ function fieldstrength_eachsite!(
         F[3, 4, site] = fac * traceless_antihermitian(C34)
     end
 
+    update_halo!(F)
     return nothing
 end
 
@@ -115,5 +117,6 @@ function fieldstrength_A_eachsite!(
         F[3, 4, site] = fac * antihermitian(C34)
     end
 
+    update_halo!(F)
     return nothing
 end

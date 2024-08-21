@@ -80,6 +80,7 @@ function calc_dQdU!(kind_of_charge, dU, F, U, fac=1.0)
         dU[4, site] = c * traceless_antihermitian(tmp4)
     end
 
+    update_halo!(dU)
     return nothing
 end
 

@@ -12,7 +12,7 @@ using ..Solvers
 using ..Utils
 
 import KernelAbstractions as KA
-import ..Fields: Abstractfield, EvenOdd, Fermionfield, Gaugefield, Tensorfield, clear!
+import ..Fields: AbstractField, SpinorfieldEO, Gaugefield, Spinorfield, Tensorfield, clear!
 import ..Fields: check_dims, clover_square, dims, even_odd, gaussian_pseudofermions!
 import ..Fields: Clover, Checkerboard2, Sequential, @latmap, @latsum, set_source!
 import ..Fields: fieldstrength_eachsite!, fieldstrength_A_eachsite!, num_colors, num_dirac, volume
@@ -142,7 +142,7 @@ function construct_diracmatrix(D, U)
     fdims = dims(U)
     NV = U.NV
     @assert n < 5000
-    is_evenodd = temp1 isa EvenOdd
+    is_evenodd = temp1 isa SpinorfieldEO
    
     ii = 1
     for isite in eachindex(U)

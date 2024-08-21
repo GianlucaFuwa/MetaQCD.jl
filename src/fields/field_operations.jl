@@ -66,7 +66,7 @@ function LinearAlgebra.norm(u::AbstractField{CPU})
         end
     end
 
-    return MPI.Allreduce(norm2, +, u.comm_cart)
+    return distributed_reduce(norm2, +, u)
 end
 
 function add!(a::AbstractField{CPU,T}, b::AbstractField{CPU}, fac) where {T}

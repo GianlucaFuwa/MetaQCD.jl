@@ -1,4 +1,3 @@
-# TODO
 #+---------------------------------------------------------------------------------+
 #| This file provides functions to load and save configurations stored in the BMW  |
 #| format, which is structured as follows:                                         |

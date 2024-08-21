@@ -38,7 +38,7 @@ function staple(::DBW2GaugeAction, U, μ, site)
 end
 
 function staple_plaq(U, μ, site)
-    Nμ = dims(U)[μ]
+    Nμ = local_dims(U)[μ]
     siteμ⁺ = move(site, μ, 1i32, Nμ)
     staple = zero(U[μ, site])
 
@@ -47,7 +47,7 @@ function staple_plaq(U, μ, site)
             continue
         end
 
-        Nν = dims(U)[ν]
+        Nν = local_dims(U)[ν]
         siteν⁺ = move(site, ν, 1i32, Nν)
         siteν⁻ = move(site, ν, -1i32, Nν)
         siteμ⁺ν⁻ = move(siteμ⁺, ν, -1i32, Nν)
@@ -59,7 +59,7 @@ function staple_plaq(U, μ, site)
 end
 
 function staple_rect(U, μ, site)
-    Nμ = dims(U)[μ]
+    Nμ = local_dims(U)[μ]
     siteμ⁺ = move(site, μ, 1i32, Nμ)
     siteμ⁻ = move(site, μ, -1i32, Nμ)
     siteμ²⁺ = move(site, μ, 2i32, Nμ)
@@ -71,7 +71,7 @@ function staple_rect(U, μ, site)
             continue
         end
 
-        Nν = dims(U)[ν]
+        Nν = local_dims(U)[ν]
         siteν⁺ = move(site, ν, 1i32, Nν)
         siteν⁻ = move(site, ν, -1i32, Nν)
         siteμ⁺ν⁺ = move(siteμ⁺, ν, 1i32, Nν)
@@ -138,7 +138,7 @@ function staple_rect(U, μ, site)
     return staple
 end
 
-function staple_eachsite!(staples::ColorField{CPU}, U::Gaugefield{CPU})
+function staple_eachsite!(staples::Colorfield{CPU}, U::Gaugefield{CPU})
     @batch for site in eachindex(U)
         for μ in 1:4
             staples[μ, site] = staple(U, μ, site)

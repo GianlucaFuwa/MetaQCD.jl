@@ -1,5 +1,5 @@
 """
-    StaggeredDiracOperator(::Abstractfield, mass; anti_periodic=true)
+    StaggeredDiracOperator(::AbstractField, mass; anti_periodic=true)
     StaggeredDiracOperator(D::StaggeredDiracOperator, U::Gaugefield)
 
 Create a free Staggered Dirac Operator with mass `mass`.
@@ -11,7 +11,7 @@ A Staggered Dirac operator with gauge background is created by applying it to a 
 # Type Parameters:
 - `B`: Backend (CPU / CUDA / ROCm)
 - `T`: Floating point precision
-- `TF`: Type of the `Fermionfield` used to store intermediate results when using the 
+- `TF`: Type of the `Spinorfield` used to store intermediate results when using the 
         Hermitian version of the operator
 - `TG`: Type of the underlying `Gaugefield`
 """
@@ -21,10 +21,10 @@ struct StaggeredDiracOperator{B,T,TF,TG} <: AbstractDiracOperator
     mass::Float64
     anti_periodic::Bool # Only in time direction
     function StaggeredDiracOperator(
-        f::Abstractfield{B,T}, mass; anti_periodic=true, kwargs...
+        f::AbstractField{B,T}, mass; anti_periodic=true, kwargs...
     ) where {B,T}
         U = nothing
-        temp = Fermionfield{B,T,1}(dims(f)...)
+        temp = Spinorfield{B,T,1}(dims(f)...)
         TG = Nothing
         TF = typeof(temp)
         return new{B,T,TF,TG}(U, temp, mass, anti_periodic)
@@ -42,7 +42,7 @@ function (D::StaggeredDiracOperator{B,T})(U::Gaugefield{B,T}) where {B,T}
     return StaggeredDiracOperator(D, U)
 end
 
-const StaggeredFermionfield{B,T,A} = Fermionfield{B,T,A,1}
+const StaggeredFermionfield{B,T,A} = Spinorfield{B,T,A,1}
 
 struct StaggeredFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
     D::TD
@@ -78,12 +78,12 @@ struct StaggeredFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
             rhmc_info_md = nothing
             rhmc_temps1 = nothing
             rhmc_temps2 = nothing
-            cg_temps = ntuple(_ -> Fermionfield(f; staggered=true), 4)
+            cg_temps = ntuple(_ -> Spinorfield(f; staggered=true), 4)
         else
             @assert 8 > Nf > 0 "Nf should be between 1 and 8 (was $Nf)"
             rhmc_lambda_low = rhmc_spectral_bound[1]
             rhmc_lambda_high = rhmc_spectral_bound[2]
-            cg_temps = ntuple(_ -> Fermionfield(f; staggered=true), 2)
+            cg_temps = ntuple(_ -> Spinorfield(f; staggered=true), 2)
             power = Nf//16
             rhmc_info_action = RHMCParams(
                 power;
@@ -101,8 +101,8 @@ struct StaggeredFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
                 lambda_high=rhmc_lambda_high,
             )
             n_temps = max(rhmc_order_md, rhmc_order_action)
-            rhmc_temps1 = ntuple(_ -> Fermionfield(f; staggered=true), n_temps + 1)
-            rhmc_temps2 = ntuple(_ -> Fermionfield(f; staggered=true), n_temps + 1)
+            rhmc_temps1 = ntuple(_ -> Spinorfield(f; staggered=true), n_temps + 1)
+            rhmc_temps2 = ntuple(_ -> Spinorfield(f; staggered=true), n_temps + 1)
         end
 
         CT = typeof(cg_temps)

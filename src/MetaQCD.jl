@@ -51,7 +51,7 @@ import .Fields: calc_gauge_action, fieldstrength_eachsite!, identity_gauges!
 import .Fields: normalize!, plaquette, plaquette_trace_sum, random_gauges!
 import .Fields: staple, staple_eachsite!, wilsonloop, to_backend
 import .Fields: Tensorfield, calc_kinetic_energy, gaussian_TA!
-import .Fields: Fermionfield, gaussian_pseudofermions!
+import .Fields: Spinorfield, gaussian_pseudofermions!
 import .Measurements: measure, top_charge
 import .Measurements: EnergyDensityMeasurement, GaugeActionMeasurement, PlaquetteMeasurement
 import .Measurements: PolyakovMeasurement, TopologicalChargeMeasurement
@@ -73,7 +73,7 @@ export calc_gauge_action, fieldstrength_eachsite!, identity_gauges!
 export normalize!, plaquette, plaquette_trace_sum, random_gauges!
 export staple, staple_eachsite!, wilsonloop
 export Tensorfield, calc_kinetic_energy, gaussian_TA!
-export Fermionfield, Daggered, DdaggerD
+export Spinorfield, Daggered, DdaggerD
 export StaggeredDiracOperator, StaggeredEOPreDiracOperator 
 export WilsonDiracOperator, WilsonEOPreDiracOperator
 export even_odd, sample_pseudofermions!

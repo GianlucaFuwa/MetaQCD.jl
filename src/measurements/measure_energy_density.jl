@@ -47,16 +47,38 @@ function EnergyDensityMeasurement(U, params::EnergyDensityParameters, filename, 
 end
 
 function measure(
+    m::EnergyDensityMeasurement{Nothing}, U, ::Integer, itrj, flow=nothing,
+)
+    ED_dict = m.ED_dict
+    iflow, _ = isnothing(flow) ? (0, 0.0) : flow
+
+    for method in keys(ED_dict)
+        E = energy_density(U, method)
+        ED_dict[method] = E
+
+        if MYRANK == 0
+            if !isnothing(flow)
+                @level1("$itrj\t$E # energydensity_$(method)_flow_$(iflow)")
+            else
+                @level1("$itrj\t$E # energydensity_$(method)")
+            end
+        end
+    end
+
+    return ED_dict
+end
+
+function measure(
     m::EnergyDensityMeasurement{T}, U, myinstance, itrj, flow=nothing
-) where {T}
+) where {T<:AbstractString}
     ED_dict = m.ED_dict
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
-    for methodname in keys(ED_dict)
-        ED_dict[methodname] = energy_density(U, methodname)
+    for method in keys(ED_dict)
+        ED_dict[method] = energy_density(U, method)
     end
 
-    if T !== Nothing
+    if MYRANK == 0
         filename = set_ext!(m.filename, myinstance)
         fp = fopen(filename, "a")
         printf(fp, "%-11i", itrj::Int64)
@@ -72,16 +94,6 @@ function measure(
 
         printf(fp, "\n")
         fclose(fp)
-    else
-        for method in keys(ED_dict)
-            E = ED_dict[method]
-
-            if !isnothing(flow)
-                @level1("$itrj\t$E # energydensity_$(method)_flow_$(iflow)")
-            else
-                @level1("$itrj\t$E # energydensity_$(method)")
-            end
-        end
     end
 
     return ED_dict
@@ -114,7 +126,7 @@ function energy_density(::Plaquette, U::Gaugefield{CPU})
         end
     end
 
-    return E / U.NV
+    return distributed_reduce(E / U.NV, +, U)
 end
 
 function energy_density(::Clover, U::Gaugefield{CPU,T}) where {T}
@@ -131,7 +143,7 @@ function energy_density(::Clover, U::Gaugefield{CPU,T}) where {T}
         end
     end
 
-    return E / U.NV
+    return distributed_reduce(E / U.NV, +, U)
 end
 
 function energy_density(::Improved, U::Gaugefield{CPU})
@@ -154,5 +166,5 @@ function energy_density_rect(U::Gaugefield{CPU,T}) where {T}
         end
     end
 
-    return E / U.NV
+    return distributed_reduce(E / U.NV, +, U)
 end

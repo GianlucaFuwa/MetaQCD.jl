@@ -1,4 +1,4 @@
-const WilsonEOPreSpinorfield{B,T,A} = EvenOdd{B,T,A,4}
+const WilsonEOPreSpinorfield{B,T,M,A} = SpinorfieldEO{B,T,M,A,4}
 
 function calc_dSfdU!(
     dU, fermion_action::WilsonEOPreFermionAction{2,C}, U, ϕ_eo::WilsonEOPreSpinorfield

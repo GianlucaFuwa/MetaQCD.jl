@@ -23,7 +23,7 @@ function test_fderivative(
         U = MetaQCD.to_backend(backend, U)
     end
 
-    ψ = eoprec ? even_odd(Fermionfield(U; staggered=dirac=="staggered")) : Fermionfield(U; staggered=dirac=="staggered")
+    ψ = eoprec ? even_odd(Spinorfield(U; staggered=dirac=="staggered")) : Spinorfield(U; staggered=dirac=="staggered")
 
     action = if dirac == "staggered"
         if eoprec

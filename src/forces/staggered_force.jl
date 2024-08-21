@@ -1,4 +1,4 @@
-const StaggeredSpinorfield{B,T,A} = Spinorfield{B,T,A,1}
+const StaggeredSpinorfield{B,T,M,A} = Spinorfield{B,T,M,A,1}
 
 function calc_dSfdU!(
     dU, fermion_action::StaggeredFermionAction{8}, U, ϕ::StaggeredSpinorfield
@@ -61,6 +61,7 @@ function add_staggered_derivative!(
         add_staggered_derivative_kernel!(dU, U, X, Y, site, bc⁺, fac)
     end
 
+    update_halo!(dU)
     return nothing
 end
 

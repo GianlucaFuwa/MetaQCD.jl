@@ -1,5 +1,5 @@
 """
-    WilsonEOPreDiracOperator(::Abstractfield, mass; anti_periodic=true)
+    WilsonEOPreDiracOperator(::AbstractField, mass; anti_periodic=true)
     WilsonEOPreDiracOperator(
         D::Union{WilsonDiracOperator,WilsonEOPreDiracOperator},
         U::Gaugefield
@@ -14,7 +14,7 @@ A Wilson Dirac operator with gauge background is created by applying it to a `Ga
 # Type Parameters:
 - `B`: Backend (CPU / CUDA / ROCm)
 - `T`: Floating point precision
-- `TF`: Type of the `Fermionfield` used to store intermediate results when using the 
+- `TF`: Type of the `Spinorfield` used to store intermediate results when using the 
         Hermitian version of the operator
 - `TG`: Type of the underlying `Gaugefield`
 - `C`: Boolean declaring whether the operator is clover improved or not
@@ -31,14 +31,14 @@ struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO} <: AbstractDiracOperator
     csw::Float64
     anti_periodic::Bool # Only in time direction
     function WilsonEOPreDiracOperator(
-        f::Abstractfield{B,T}, mass; anti_periodic=true, r=1, csw=0, kwargs...
+        f::AbstractField{B,T}, mass; anti_periodic=true, r=1, csw=0, kwargs...
     ) where {B,T}
         @assert r === 1 "Only r=1 in Wilson Dirac supported for now"
         κ = 1 / (2mass + 8)
         U = nothing
         C = csw == 0 ? false : true
         Fμν = C ? Tensorfield(f) : nothing
-        temp = even_odd(Fermionfield{B,T,4}(dims(f)...))
+        temp = even_odd(Spinorfield{B,T,4}(dims(f)...))
         D_diag = WilsonEODiagonal(temp, mass, csw)
         D_oo_inv = WilsonEODiagonal(temp, mass, csw; inverse=true)
 
@@ -95,7 +95,7 @@ function (D::WilsonEOPreDiracOperator{B,T})(U::Gaugefield{B,T}) where {B,T}
     return WilsonEOPreDiracOperator(D, U)
 end
 
-struct WilsonEODiagonal{B,T,C,A} <: Abstractfield{B,T,A} # So we can overload LinearAlgebra.det on the even-odd diagonal
+struct WilsonEODiagonal{B,T,M,C,A} <: AbstractField{B,T,M,A} # So we can overload LinearAlgebra.det on the even-odd diagonal
     U::A
     mass::Float64
     csw::Float64
@@ -108,7 +108,7 @@ struct WilsonEODiagonal{B,T,C,A} <: Abstractfield{B,T,A} # So we can overload Li
     ND::Int64 # Number of dirac indices
     function WilsonEODiagonal(
         f::TF, mass, csw; inverse=false
-    ) where {B,T,TF<:Union{Fermionfield{B,T},EvenOdd{B,T}}}
+    ) where {B,T,TF<:Union{Spinorfield{B,T},SpinorfieldEO{B,T}}}
         NX, NY, NZ, NT = dims(f)
         _NT = inverse ? NT ÷ 2 : NT
         NC = num_colors(f)
@@ -118,14 +118,14 @@ struct WilsonEODiagonal{B,T,C,A} <: Abstractfield{B,T,A} # So we can overload Li
         U = KA.zeros(B(), SMatrix{6,6,Complex{T},36}, 2, NX, NY, NZ, _NT)
 
         A = typeof(U)
-        return new{B,T,C,A}(U, mass, csw, NX, NY, NZ, NT, NV, NC, ND)
+        return new{B,T,false,C,A}(U, mass, csw, NX, NY, NZ, NT, NV, NC, ND)
     end
 end
 
 dims(D_diag::WilsonEODiagonal) = D_diag.NX, D_diag.NY, D_diag.NZ, D_diag.NT
 num_colors(D_diag::WilsonEODiagonal) = D_diag.NC
 
-const WilsonEOPreFermionfield{B,T,A} = EvenOdd{B,T,A,4}
+const WilsonEOPreFermionfield{B,T,A} = SpinorfieldEO{B,T,false,A,4}
 
 struct WilsonEOPreFermionAction{Nf,C,TD,CT,TX,RI1,RI2,RT} <: AbstractFermionAction
     D::TD
@@ -140,7 +140,7 @@ struct WilsonEOPreFermionAction{Nf,C,TD,CT,TX,RI1,RI2,RT} <: AbstractFermionActi
     cg_maxiters_action::Int64
     cg_maxiters_md::Int64
     function WilsonEOPreFermionAction(
-        f::Abstractfield{B,T},
+        f::AbstractField{B,T},
         mass;
         anti_periodic=true,
         r=1,
@@ -163,10 +163,10 @@ struct WilsonEOPreFermionAction{Nf,C,TD,CT,TX,RI1,RI2,RT} <: AbstractFermionActi
             rhmc_info_action = nothing
             rhmc_temps1 = nothing
             rhmc_temps2 = nothing
-            cg_temps = ntuple(_ -> even_odd(Fermionfield(f)), 4)
+            cg_temps = ntuple(_ -> even_odd(Spinorfield(f)), 4)
         else
             @assert Nf == 1 "Nf should be 1 or 2 (was $Nf). If you want Nf > 2, use multiple actions"
-            cg_temps = ntuple(_ -> even_odd(Fermionfield(f)), 2)
+            cg_temps = ntuple(_ -> even_odd(Spinorfield(f)), 2)
             power = Nf//4
             rhmc_info_action = RHMCParams(
                 power; n=rhmc_order_action, precision=rhmc_prec_action
@@ -176,8 +176,8 @@ struct WilsonEOPreFermionAction{Nf,C,TD,CT,TX,RI1,RI2,RT} <: AbstractFermionActi
                 power; n=rhmc_order_md, precision=rhmc_prec_md
             )
             n_temps = max(rhmc_order_md, rhmc_order_action)
-            rhmc_temps1 = ntuple(_ -> even_odd(Fermionfield(f)), n_temps + 1)
-            rhmc_temps2 = ntuple(_ -> even_odd(Fermionfield(f)), n_temps + 1)
+            rhmc_temps1 = ntuple(_ -> even_odd(Spinorfield(f)), n_temps + 1)
+            rhmc_temps2 = ntuple(_ -> even_odd(Spinorfield(f)), n_temps + 1)
         end
 
         C = csw != 0 ? true : false
@@ -518,7 +518,7 @@ end
 
 function axmy!(
     D_diag::WilsonEODiagonal{CPU,T}, ψ_eo::TF, ϕ_eo::TF
-) where {T,TF<:EvenOdd{CPU,T}} # even on even is the default
+) where {T,TF<:SpinorfieldEO{CPU,T}} # even on even is the default
     check_dims(ϕ_eo, ψ_eo)
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent

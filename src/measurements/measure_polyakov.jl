@@ -36,12 +36,30 @@ function PolyakovMeasurement(U, ::PolyakovParameters, filename, flow=false)
 end
 
 function measure(
+    ::PolyakovMeasurement{Nothing}, U, ::Integer, itrj, flow=nothing
+)
+    poly = polyakov_traced(U)
+
+    if MYRANK == 0
+        iflow, _ = isnothing(flow) ? (0, 0.0) : flow
+
+        if !isnothing(flow)
+            @level1("$itrj\t$(real(poly)) + $(imag(poly))im # poly_flow_$(iflow)")
+        else
+            @level1("$itrj\t$(real(poly)) + $(imag(poly))im # poly")
+        end
+    end
+
+    return poly
+end
+
+function measure(
     m::PolyakovMeasurement{T}, U, myinstance, itrj, flow=nothing
-) where {T}
+) where {T<:AbstractString}
     poly = polyakov_traced(U)
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
-    if T !== Nothing
+    if MYRANK == 0
         filename = set_ext!(m.filename, myinstance)
         fp = fopen(filename, "a")
         printf(fp, "%-11i", itrj)
@@ -55,20 +73,14 @@ function measure(
         printf(fp, "%-25.15E", imag(poly))
         printf(fp, "\n")
         fclose(fp)
-    else
-        if !isnothing(flow)
-            @level1("$itrj\t$(real(poly)) + $(imag(poly))im # poly_flow_$(iflow)")
-        else
-            @level1("$itrj\t$(real(poly)) + $(imag(poly))im # poly")
-        end
     end
 
     return poly
 end
 
-function polyakov_traced(U::Gaugefield{CPU})
+function polyakov_traced(U::Gaugefield{CPU,T,false}) where {T}
+    NX, NY, NZ, NT = global_dims(U)
     P = 0.0 + 0.0im
-    NX, NY, NZ, NT = dims(U)
 
     @batch reduction = (+, P) for iz in 1:NZ
         for iy in 1:NY
@@ -85,4 +97,8 @@ function polyakov_traced(U::Gaugefield{CPU})
     end
 
     return P / (NX * NY * NZ)
+end
+
+function polyakov_traced(U::Gaugefield{CPU,T,true}) where {T}
+    # TODO:
 end

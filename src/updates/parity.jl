@@ -30,6 +30,7 @@ function update!(parity::ParityUpdate, U)
         end
     end
 
+    update_halo!(U)
     U.CV *= -1
     return nothing
 end

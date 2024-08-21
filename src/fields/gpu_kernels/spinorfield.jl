@@ -1,4 +1,4 @@
-const AnySpinorfield{B,T,M,A,ND} = Union{Spinorfield{B,T,M,A,ND},EvenOdd{B,T,M,A,ND}}
+const AnySpinorfield{B,T,M,A,ND} = Union{Spinorfield{B,T,M,A,ND},SpinorfieldEO{B,T,M,A,ND}}
 
 function clear!(ϕ::AnySpinorfield{B}) where {B<:GPU}
     @latmap(Sequential(), Val(1), clear_fermion_kernel!, ϕ)

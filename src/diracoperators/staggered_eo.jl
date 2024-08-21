@@ -1,6 +1,6 @@
 # TODO
 """
-    StaggeredEOPreDiracOperator(::Abstractfield, mass; anti_periodic=true)
+    StaggeredEOPreDiracOperator(::AbstractField, mass; anti_periodic=true)
     StaggeredEOPreDiracOperator(
         D::Union{StaggeredDiracOperator,StaggeredEOPreDiracOperator},
         U::Gaugefield
@@ -15,7 +15,7 @@ A Staggered Dirac operator with gauge background is created by applying it to a 
 # Type Parameters:
 - `B`: Backend (CPU / CUDA / ROCm)
 - `T`: Floating point precision
-- `TF`: Type of the `Fermionfield` used to store intermediate results when using the 
+- `TF`: Type of the `Spinorfield` used to store intermediate results when using the 
         Hermitian version of the operator
 - `TG`: Type of the underlying `Gaugefield`
 """
@@ -25,10 +25,10 @@ struct StaggeredEOPreDiracOperator{B,T,TF,TG} <: AbstractDiracOperator
     mass::Float64
     anti_periodic::Bool # Only in time direction
     function StaggeredEOPreDiracOperator(
-        f::Abstractfield{B,T}, mass; anti_periodic=true, kwargs...
+        f::AbstractField{B,T}, mass; anti_periodic=true, kwargs...
     ) where {B,T}
         U = nothing
-        temp = even_odd(Fermionfield{B,T,1}(dims(f)...))
+        temp = even_odd(Spinorfield{B,T,1}(dims(f)...))
         TG = Nothing
         TF = typeof(temp)
         return new{B,T,TF,TG}(U, temp, mass, anti_periodic)
@@ -47,7 +47,7 @@ function (D::StaggeredEOPreDiracOperator{B,T})(U::Gaugefield{B,T}) where {B,T}
     return StaggeredEOPreDiracOperator(D, U)
 end
 
-const StaggeredEOPreFermionfield{B,T,A} = EvenOdd{B,T,A,1}
+const StaggeredEOPreFermionfield{B,T,A} = SpinorfieldEO{B,T,A,1}
 
 struct StaggeredEOPreFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
     D::TD
@@ -81,7 +81,7 @@ struct StaggeredEOPreFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
         rhmc_lambda_high = rhmc_spectral_bound[2]
 
         if Nf == 4
-            cg_temps = ntuple(_ -> even_odd(Fermionfield(f; staggered=true)), 4)
+            cg_temps = ntuple(_ -> even_odd(Spinorfield(f; staggered=true)), 4)
             power = Nf//8
             rhmc_info_action = RHMCParams(
                 power;
@@ -92,15 +92,15 @@ struct StaggeredEOPreFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
             )
             n_temps = rhmc_order_action
             rhmc_temps1 = ntuple(
-                _ -> even_odd(Fermionfield(f; staggered=true)), n_temps + 1
+                _ -> even_odd(Spinorfield(f; staggered=true)), n_temps + 1
             )
             rhmc_temps2 = ntuple(
-                _ -> even_odd(Fermionfield(f; staggered=true)), n_temps + 1
+                _ -> even_odd(Spinorfield(f; staggered=true)), n_temps + 1
             )
             rhmc_info_md = nothing
         else
             @assert 4 > Nf > 0 "Nf should be between 1 and 4 (was $Nf)"
-            cg_temps = ntuple(_ -> even_odd(Fermionfield(f; staggered=true)), 2)
+            cg_temps = ntuple(_ -> even_odd(Spinorfield(f; staggered=true)), 2)
             power = Nf//8
             rhmc_info_action = RHMCParams(
                 power;
@@ -119,10 +119,10 @@ struct StaggeredEOPreFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
             )
             n_temps = max(rhmc_order_md, rhmc_order_action)
             rhmc_temps1 = ntuple(
-                _ -> even_odd(Fermionfield(f; staggered=true)), n_temps + 1
+                _ -> even_odd(Spinorfield(f; staggered=true)), n_temps + 1
             )
             rhmc_temps2 = ntuple(
-                _ -> even_odd(Fermionfield(f; staggered=true)), n_temps + 1
+                _ -> even_odd(Spinorfield(f; staggered=true)), n_temps + 1
             )
         end
 
@@ -297,7 +297,7 @@ end
 
 function mul_oe!(
     ψ_eo::TF, U::Gaugefield{CPU,T}, ϕ_eo::TF, anti, into_odd, dagg::Bool; fac=1
-) where {T,TF<:EvenOdd{CPU,T}}
+) where {T,TF<:SpinorfieldEO{CPU,T}}
     check_dims(ψ_eo, ϕ_eo, U)
     ψ = ψ_eo.parent
     ϕ = ϕ_eo.parent
@@ -317,7 +317,7 @@ end
 
 function mul_eo!(
     ψ_eo::TF, U::Gaugefield{CPU,T}, ϕ_eo::TF, anti, into_odd, dagg::Bool; fac=1
-) where {T,TF<:EvenOdd{CPU,T}}
+) where {T,TF<:SpinorfieldEO{CPU,T}}
     check_dims(ψ_eo, ϕ_eo, U)
     ψ = ψ_eo.parent
     ϕ = ϕ_eo.parent

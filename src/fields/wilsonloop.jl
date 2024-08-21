@@ -14,8 +14,8 @@ function wilsonloop(U, μ, ν, site, Lμ, Lν)
 end
 
 function wilsonloop_top_right(U, μ, ν, site, Lμ, Lν)
-    Nμ = dims(U)[μ]
-    Nν = dims(U)[ν]
+    Nμ = local_dims(U)[μ]
+    Nν = local_dims(U)[ν]
     wil = eye3(float_type(U))
 
     for _ in (1i32):Lμ
@@ -42,8 +42,8 @@ function wilsonloop_top_right(U, μ, ν, site, Lμ, Lν)
 end
 
 function wilsonloop_bottom_left(U, μ, ν, site, Lμ, Lν)
-    Nμ = dims(U)[μ]
-    Nν = dims(U)[ν]
+    Nμ = local_dims(U)[μ]
+    Nν = local_dims(U)[ν]
     wil = eye3(float_type(U))
 
     for _ in (1i32):Lμ
@@ -70,8 +70,8 @@ function wilsonloop_bottom_left(U, μ, ν, site, Lμ, Lν)
 end
 
 function wilsonloop_top_left(U, μ, ν, site, Lμ, Lν)
-    Nμ = dims(U)[μ]
-    Nν = dims(U)[ν]
+    Nμ = local_dims(U)[μ]
+    Nν = local_dims(U)[ν]
     wil = eye3(float_type(U))
 
     for _ in (1i32):Lν
@@ -98,8 +98,8 @@ function wilsonloop_top_left(U, μ, ν, site, Lμ, Lν)
 end
 
 function wilsonloop_bottom_right(U, μ, ν, site, Lμ, Lν)
-    Nμ = dims(U)[μ]
-    Nν = dims(U)[ν]
+    Nμ = local_dims(U)[μ]
+    Nν = local_dims(U)[ν]
     wil = eye3(float_type(U))
 
     for _ in (1i32):Lν
@@ -125,7 +125,7 @@ function wilsonloop_bottom_right(U, μ, ν, site, Lμ, Lν)
     return wil
 end
 
-function wilsonloop(U::GaugeField{CPU}, Lμ, Lν)
+function wilsonloop(U::Gaugefield{CPU}, Lμ, Lν)
     W = 0.0
 
     @batch reduction = (+, W) for site in eachindex(U)
@@ -136,5 +136,5 @@ function wilsonloop(U::GaugeField{CPU}, Lμ, Lν)
         end
     end
 
-    return W
+    return distributed_reduce(W, +, U)
 end

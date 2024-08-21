@@ -1,4 +1,4 @@
-const StaggeredEOPreSpinorfield{B,T,A} = EvenOdd{B,T,A,1}
+const StaggeredEOPreSpinorfield{B,T,M,A} = SpinorfieldEO{B,T,M,A,1}
 
 function calc_dSfdU!(
     dU, fermion_action::StaggeredEOPreFermionAction{4}, U, ϕ_eo::StaggeredEOPreSpinorfield
@@ -64,6 +64,7 @@ function add_staggered_eo_derivative!(
         add_staggered_eo_derivative_kernel!(dU, U, X, Y, site, bc⁺, fac)
     end
 
+    update_halo!(dU)
     return nothing
 end
 

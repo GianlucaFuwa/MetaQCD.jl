@@ -1,5 +1,5 @@
 """
-    WilsonDiracOperator(::Abstractfield, mass; anti_periodic=true, r=1, csw=0)
+    WilsonDiracOperator(::AbstractField, mass; anti_periodic=true, r=1, csw=0)
     WilsonDiracOperator(D::WilsonDiracOperator, U::Gaugefield)
 
 Create a free Wilson Dirac Operator with mass `mass` and Wilson parameter `r`.
@@ -12,7 +12,7 @@ A Wilson Dirac operator with gauge background is created by applying it to a `Ga
 # Type Parameters:
 - `B`: Backend (CPU / CUDA / ROCm)
 - `T`: Floating point precision
-- `TF`: Type of the `Fermionfield` used to store intermediate results when using the 
+- `TF`: Type of the `Spinorfield` used to store intermediate results when using the 
         Hermitian version of the operator
 - `TG`: Type of the underlying `Gaugefield`
 - `C`: Boolean declaring whether the operator is clover improved or not
@@ -26,13 +26,14 @@ struct WilsonDiracOperator{B,T,C,TF,TG} <: AbstractDiracOperator
     csw::Float64
     anti_periodic::Bool # Only in time direction
     function WilsonDiracOperator(
-        f::Abstractfield{B,T}, mass; anti_periodic=true, r=1, csw=0, kwargs...
+        f::AbstractField{B,T}, mass; anti_periodic=true, r=1, csw=0, kwargs...
     ) where {B,T}
+        # TODO: Constructor with MPI enabled
         @assert r == 1 "Only r=1 in Wilson Dirac supported for now"
         κ = 1 / (2mass + 8)
         U = nothing
         C = csw == 0 ? false : true
-        temp = Fermionfield{B,T,4}(dims(f)...)
+        temp = Spinorfield{B,T,4}(dims(f)...)
         TG = Nothing
         TF = typeof(temp)
         return new{B,T,C,TF,TG}(U, temp, mass, κ, r, csw, anti_periodic)
@@ -51,7 +52,7 @@ function (D::WilsonDiracOperator{B,T})(U::Gaugefield{B,T}) where {B,T}
     return WilsonDiracOperator(D, U)
 end
 
-const WilsonFermionfield{B,T,A} = Fermionfield{B,T,A,4}
+const WilsonFermionfield{B,T,A} = Spinorfield{B,T,A,4}
 
 struct WilsonFermionAction{Nf,C,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction
     D::TD
@@ -90,12 +91,12 @@ struct WilsonFermionAction{Nf,C,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction
             rhmc_info_md = nothing
             rhmc_temps1 = nothing
             rhmc_temps2 = nothing
-            cg_temps = ntuple(_ -> Fermionfield(f), 4)
+            cg_temps = ntuple(_ -> Spinorfield(f), 4)
         else
             @assert Nf == 1 "Nf should be 1 or 2 (was $Nf). If you want Nf > 2, use multiple actions"
             rhmc_lambda_low = rhmc_spectral_bound[1]
             rhmc_lambda_high = rhmc_spectral_bound[2]
-            cg_temps = ntuple(_ -> Fermionfield(f), 2)
+            cg_temps = ntuple(_ -> Spinorfield(f), 2)
             power = Nf//4
             rhmc_info_action = RHMCParams(
                 power;
@@ -113,8 +114,8 @@ struct WilsonFermionAction{Nf,C,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction
                 lambda_high=rhmc_lambda_high,
             )
             n_temps = max(rhmc_order_md, rhmc_order_action)
-            rhmc_temps1 = ntuple(_ -> Fermionfield(f), n_temps + 1)
-            rhmc_temps2 = ntuple(_ -> Fermionfield(f), n_temps + 1)
+            rhmc_temps1 = ntuple(_ -> Spinorfield(f), n_temps + 1)
+            rhmc_temps2 = ntuple(_ -> Spinorfield(f), n_temps + 1)
         end
 
         if csw != 0

@@ -30,8 +30,8 @@ struct Gaugefield{B,T,M,A,H,GA} <: AbstractField{B,T,M,A}
     NV::Int64 # Total number of lattice sites
     NC::Int64 # Number of colors
 
-    halo_send::H
-    halo_recv::H
+    halo_sendbuf::H
+    halo_recvbuf::H
     pad::Int64 # halo width
     
     # Meta-data regarding portion of the field local to current process
@@ -43,7 +43,7 @@ struct Gaugefield{B,T,M,A,H,GA} <: AbstractField{B,T,M,A}
     nprocs::Int64
     nprocs_cart::NTuple{4,Int64}
     myrank::Int64
-    myrank_coords::NTuple{4,Int64}
+    myrank_cart::NTuple{4,Int64}
     comm_cart::MPI.Comm
 
     β::Float64 # Seems weird to have it here, but I couldnt be bothered passing it as an argument everywhere
@@ -56,37 +56,37 @@ struct Gaugefield{B,T,M,A,H,GA} <: AbstractField{B,T,M,A}
         pad = 0
         nprocs = 1
         nprocs_cart = (1, 1, 1, 1)
-        myrank_coords = (0, 0, 0, 0)
-        comm_cart = MPI.Cart_create(COMM, nprocs_cart; periodic=map(_->true, dims))
+        myrank_cart = (0, 0, 0, 0)
+        comm_cart = MPI.Cart_create(COMM, nprocs_cart; periodic=map(_->true, nprocs_cart))
         Sg = Base.RefValue{Float64}(0.0)
         CV = Base.RefValue{Float64}(0.0)
-        return new{B,T,false,typeof(U),GA}(
+        return new{B,T,false,typeof(U),typeof(halo_sendbuf),GA}(
             U, NX, NY, NZ, NT, NV, 3, halo_sendbuf, halo_recvbuf, pad, NX, NY, NZ, NT, NV,
-            nprocs, nprocs_cart, MYRANK, myrank_coords, comm_cart, β, Sg, CV,
+            nprocs, nprocs_cart, MYRANK, myrank_cart, comm_cart, β, Sg, CV,
         )
     end
 
     function Gaugefield{B,T,GA}(NX, NY, NZ, NT, β, nprocs_cart, pad) where {B,T,GA}
-        prod(nprocs_cart) == 1 && return Gaugefield{B,T,GA}(NX, NY, NZ, NT, β)
+        sum(nprocs_cart) == 1 && return Gaugefield{B,T,GA}(NX, NY, NZ, NT, β)
         NV = NX * NY * NZ * NT
         nX, nY, nZ, nT = nprocs_cart
         nprocs = nX * nY * nZ * nT
-        @assert nprocs == COMM_SIZE
+        # @assert nprocs == COMM_SIZE "nprocs must equal comm size, was $nprocs = $COMM_SIZE"
         @assert (NX%nX, NY%nY, NZ%nZ, NT%nT) == (0, 0, 0, 0) "Lattice dimensions must be divisible by comm dimensions"
         my_NX, my_NY, my_NZ, my_NT = (NX÷nX, NY÷nY, NZ÷nZ, NT÷nT)
         my_NV = my_NX * my_NY * my_NZ * my_NT
-        comm_cart = MPI.Cart_create(COMM, (1, 1, 1, 1); periodic=map(_->true, dims))
-        comm_cart = MPI.Cart_create(COMM, (nX, nY, nZ, nT); periodic=map(_->true, dims))
+        comm_cart = MPI.Cart_create(COMM, nprocs_cart; periodic=map(_->true, nprocs_cart))
+        myrank_cart = (MPI.Cart_coords(comm_cart, MYRANK)...,)
         @assert pad >= stencil_size(GA) "halo_width must be >= 2 when using improved gauge actions"
-        max_halo_size = maximum([halo_size(i, NX, NY, NZ, NT, pad) for i in 1:4])
-        halo_sendbuf = KA.zeros(B(), SU{3,9,T}, max_halo_size)
-        halo_recvbuf = KA.zeros(B(), SU{3,9,T}, max_halo_size)
+        max_halo_dims = maximum([prod(halo_dims((NX, NY, NZ, NT), pad, i)) for i in 1:4])
+        halo_sendbuf = KA.zeros(B(), SU{3,9,T}, 4, max_halo_dims)
+        halo_recvbuf = KA.zeros(B(), SU{3,9,T}, 4, max_halo_dims)
         U = KA.zeros(B(), SU{3,9,T}, 4, my_NX+2pad, my_NY+2pad, my_NZ+2pad, my_NT+2pad)
         Sg = Base.RefValue{Float64}(0.0)
         CV = Base.RefValue{Float64}(0.0)
-        return new{B,T,true,typeof(U),GA}(
+        return new{B,T,true,typeof(U),typeof(halo_sendbuf),GA}(
             U, NX, NY, NZ, NT, NV, 3, halo_sendbuf, halo_recvbuf, pad, my_NX, my_NY, my_NZ,
-            my_NT, my_NV, nprocs, nprocs_cart, MYRANK, myrank_coords, comm_cart, β, Sg, CV,
+            my_NT, my_NV, nprocs, nprocs_cart, MYRANK, myrank_cart, comm_cart, β, Sg, CV,
         )
     end
 end
@@ -108,7 +108,7 @@ function Gaugefield(parameters)
     T = Utils.FLOAT_TYPE[parameters.float_type]
     B = BACKENDS[parameters.backend]
     nprocs_cart = parameters.nprocs_cart
-    nprocs = prod(nprocs_cart)
+    nprocs = sum(nprocs_cart)
     pad = parameters.halo_width
 
     U = if nprocs > 1
@@ -154,8 +154,8 @@ struct Colorfield{B,T,M,A,H} <: AbstractField{B,T,M,A}
     NV::Int64 # Total number of lattice sites
     NC::Int64 # Number of colors
 
-    halo_send::H
-    halo_recv::H
+    halo_sendbuf::H
+    halo_recvbuf::H
     pad::Int64 # halo width
     
     # Meta-data regarding portion of the field local to current process
@@ -167,7 +167,7 @@ struct Colorfield{B,T,M,A,H} <: AbstractField{B,T,M,A}
     nprocs::Int64
     nprocs_cart::NTuple{4,Int64}
     myrank::Int64
-    myrank_coords::NTuple{4,Int64}
+    myrank_cart::NTuple{4,Int64}
     comm_cart::MPI.Comm
     function Colorfield{B,T}(NX, NY, NZ, NT) where {B,T}
         U = KA.zeros(B(), SU{3,9,T}, 4, NX, NY, NZ, NT)
@@ -176,16 +176,16 @@ struct Colorfield{B,T,M,A,H} <: AbstractField{B,T,M,A}
         pad = 0
         nprocs = 1
         nprocs_cart = (1, 1, 1, 1)
-        myrank_coords = (0, 0, 0, 0)
-        comm_cart = MPI.Cart_create(COMM, nprocs_cart; periodic=map(_->true, dims))
-        return new{B,T,false,typeof(U)}(
+        myrank_cart = (0, 0, 0, 0)
+        comm_cart = MPI.Cart_create(COMM, nprocs_cart; periodic=map(_->true, nprocs_cart))
+        return new{B,T,false,typeof(U),typeof(halo_sendbuf)}(
             U, NX, NY, NZ, NT, NV, 3, halo_sendbuf, halo_recvbuf, pad, NX, NY, NZ, NT, NV,
-            nprocs, nprocs_cart, MYRANK, myrank_coords, comm_cart,
+            nprocs, nprocs_cart, MYRANK, myrank_cart, comm_cart,
         )
     end
 
     function Colorfield{B,T}(NX, NY, NZ, NT, nprocs_cart, pad) where {B,T}
-        prod(nprocs_cart) == 1 && return Colorfield{B,T}(NX, NY, NZ, NT)
+        sum(nprocs_cart) == 1 && return Colorfield{B,T}(NX, NY, NZ, NT)
         NV = NX * NY * NZ * NT
         nX, nY, nZ, nT = nprocs_cart
         nprocs = nX * nY * nZ * nT
@@ -193,15 +193,15 @@ struct Colorfield{B,T,M,A,H} <: AbstractField{B,T,M,A}
         @assert (NX%nX, NY%nY, NZ%nZ, NT%nT) == (0, 0, 0, 0) "Lattice dimensions must be divisible by comm dimensions"
         my_NX, my_NY, my_NZ, my_NT = (NX÷nX, NY÷nY, NZ÷nZ, NT÷nT)
         my_NV = my_NX * my_NY * my_NZ * my_NT
-        comm_cart = MPI.Cart_create(COMM, (1, 1, 1, 1); periodic=map(_->true, dims))
-        comm_cart = MPI.Cart_create(COMM, (nX, nY, nZ, nT); periodic=map(_->true, dims))
-        max_halo_size = maximum([halo_size(i, NX, NY, NZ, NT, pad) for i in 1:4])
-        halo_sendbuf = KA.zeros(B(), SU{3,9,T}, max_halo_size)
-        halo_recvbuf = KA.zeros(B(), SU{3,9,T}, max_halo_size)
+        comm_cart = MPI.Cart_create(COMM, nprocs_cart; periodic=map(_->true, nprocs_cart))
+        myrank_cart = (MPI.Cart_coords(comm_cart, MYRANK)...,)
+        max_halo_dims = maximum([prod(halo_dims((NX, NY, NZ, NT), pad, i)) for i in 1:4])
+        halo_sendbuf = KA.zeros(B(), SU{3,9,T}, 4, max_halo_dims)
+        halo_recvbuf = KA.zeros(B(), SU{3,9,T}, 4, max_halo_dims)
         U = KA.zeros(B(), SU{3,9,T}, 4, my_NX+2pad, my_NY+2pad, my_NZ+2pad, my_NT+2pad)
-        return new{B,T,true,typeof(U)}(
+        return new{B,T,true,typeof(U),typeof(halo_sendbuf)}(
             U, NX, NY, NZ, NT, NV, 3, halo_sendbuf, halo_recvbuf, pad, my_NX, my_NY, my_NZ,
-            my_NT, my_NV, nprocs, nprocs_cart, MYRANK, myrank_coords, comm_cart,
+            my_NT, my_NV, nprocs, nprocs_cart, MYRANK, myrank_cart, comm_cart,
         )
     end
 end
@@ -243,8 +243,8 @@ struct Expfield{B,T,M,A,H} <: AbstractField{B,T,M,A}
     NV::Int64 # Total number of lattice sites
     NC::Int64 # Number of colors
 
-    halo_send::H
-    halo_recv::H
+    halo_sendbuf::H
+    halo_recvbuf::H
     pad::Int64 # halo width
     
     # Meta-data regarding portion of the field local to current process
@@ -256,7 +256,7 @@ struct Expfield{B,T,M,A,H} <: AbstractField{B,T,M,A}
     nprocs::Int64
     nprocs_cart::NTuple{4,Int64}
     myrank::Int64
-    myrank_coords::NTuple{4,Int64}
+    myrank_cart::NTuple{4,Int64}
     comm_cart::MPI.Comm
     function Expfield{B,T}(NX, NY, NZ, NT) where {B,T}
         U = KA.zeros(B(), exp_iQ_su3{T}, 4, NX, NY, NZ, NT)
@@ -265,16 +265,16 @@ struct Expfield{B,T,M,A,H} <: AbstractField{B,T,M,A}
         pad = 0
         nprocs = 1
         nprocs_cart = (1, 1, 1, 1)
-        myrank_coords = (0, 0, 0, 0)
-        comm_cart = MPI.Cart_create(COMM, nprocs_cart; periodic=map(_->true, dims))
-        return new{B,T,false,typeof(U)}(
+        myrank_cart = (0, 0, 0, 0)
+        comm_cart = MPI.Cart_create(COMM, nprocs_cart; periodic=map(_->true, nprocs_cart))
+        return new{B,T,false,typeof(U),typeof(halo_sendbuf)}(
             U, NX, NY, NZ, NT, NV, 3, halo_sendbuf, halo_recvbuf, pad, NX, NY, NZ, NT, NV,
-            nprocs, nprocs_cart, MYRANK, myrank_coords, comm_cart,
+            nprocs, nprocs_cart, MYRANK, myrank_cart, comm_cart,
         )
     end
 
     function Expfield{B,T}(NX, NY, NZ, NT, nprocs_cart, pad) where {B,T}
-        prod(nprocs_cart) == 1 && return Expfield{B,T}(NX, NY, NZ, NT)
+        sum(nprocs_cart) == 1 && return Expfield{B,T}(NX, NY, NZ, NT)
         NV = NX * NY * NZ * NT
         nX, nY, nZ, nT = nprocs_cart
         nprocs = nX * nY * nZ * nT
@@ -282,15 +282,15 @@ struct Expfield{B,T,M,A,H} <: AbstractField{B,T,M,A}
         @assert (NX%nX, NY%nY, NZ%nZ, NT%nT) == (0, 0, 0, 0) "Lattice dimensions must be divisible by comm dimensions"
         my_NX, my_NY, my_NZ, my_NT = (NX÷nX, NY÷nY, NZ÷nZ, NT÷nT)
         my_NV = my_NX * my_NY * my_NZ * my_NT
-        comm_cart = MPI.Cart_create(COMM, (1, 1, 1, 1); periodic=map(_->true, dims))
-        comm_cart = MPI.Cart_create(COMM, (nX, nY, nZ, nT); periodic=map(_->true, dims))
-        max_halo_size = maximum([halo_size(i, NX, NY, NZ, NT, pad) for i in 1:4])
-        halo_sendbuf = KA.zeros(B(), SU{3,9,T}, max_halo_size)
-        halo_recvbuf = KA.zeros(B(), SU{3,9,T}, max_halo_size)
+        comm_cart = MPI.Cart_create(COMM, nprocs_cart; periodic=map(_->true, nprocs_cart))
+        myrank_cart = (MPI.Cart_coords(comm_cart, MYRANK)...,)
+        max_halo_dims = maximum([prod(halo_dims((NX, NY, NZ, NT), pad, i)) for i in 1:4])
+        halo_sendbuf = KA.zeros(B(), SU{3,9,T}, 4, max_halo_dims)
+        halo_recvbuf = KA.zeros(B(), SU{3,9,T}, 4, max_halo_dims)
         U = KA.zeros(B(), exp_iQ_su3{T}, 4, my_NX+2pad, my_NY+2pad, my_NZ+2pad, my_NT+2pad)
-        return new{B,T,true,typeof(U)}(
+        return new{B,T,true,typeof(U),typeof(halo_sendbuf)}(
             U, NX, NY, NZ, NT, NV, 3, halo_sendbuf, halo_recvbuf, pad, my_NX, my_NY, my_NZ,
-            my_NT, my_NV, nprocs, nprocs_cart, MYRANK, myrank_coords, comm_cart,
+            my_NT, my_NV, nprocs, nprocs_cart, MYRANK, myrank_cart, comm_cart,
         )
     end
 end

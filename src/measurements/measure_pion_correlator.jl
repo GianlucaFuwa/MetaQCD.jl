@@ -26,7 +26,7 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT} <: AbstractMeasurement
         @level1("|    Even-odd preconditioned: $(eo_precon)")
         @level1("|    CG Tolerance: $(cg_tol)")
         @level1("|    CG Max Iterations: $(cg_maxiters)")
-        NT = dims(U)[end]
+        NT = local_dims(U)[end]
         pion_corr = zeros(Float64, NT)
 
         if dirac_type == "staggered"
@@ -141,7 +141,9 @@ We follow the procedure outlined in DOI: 10.1007/978-3-642-01850-3 (Gattringer) 
 """
 function pion_correlators_avg!(pion_corr, D, ψ, cg_temps, cg_tol, cg_maxiters)
     check_dims(D.U, ψ, cg_temps...)
-    NX, NY, NZ, NT = dims(ψ)
+    NX, NY, NZ, NT = global_dims(ψ)
+    my_NX, my_NY, my_NZ, my_NT = local_dims(ψ)
+    pad = D.U.pad
     @assert length(pion_corr) == NT
     source = SiteCoords(1, 1, 1, 1)
     propagator, temps... = cg_temps
@@ -152,23 +154,27 @@ function pion_correlators_avg!(pion_corr, D, ψ, cg_temps, cg_tol, cg_maxiters)
             ones!(propagator)
             set_source!(ψ, source, a, μ)
             solve_dirac!(propagator, D, ψ, temps...; tol=cg_tol, maxiters=cg_maxiters)
-            for it in 1:NT
+
+            for it in 1+pad:my_NT+pad
                 cit = 0.0
-                @batch reduction = (+, cit) for iz in 1:NZ
-                    for iy in 1:NY
-                        for ix in 1:NX
+
+                @batch reduction = (+, cit) for iz in 1+pad:my_NZ+pad
+                    for iy in 1+pad:my_NY+pad
+                        for ix in 1+pad:my_NX+pad
                             cit += real(
                                 cdot(propagator[ix, iy, iz, it], propagator[ix, iy, iz, it])
                             )
                         end
                     end
                 end
-                pion_corr[it] += cit
+
+                pion_corr[it] += distributed_reduce(cit, +, D.U)
             end
         end
     end
 
     Λₛ = NX * NY * NZ
+
     for it in 1:NT
         pion_corr[it] /= Λₛ
     end

@@ -9,7 +9,7 @@ using Unicode
 using ..Parameters: ParameterSet
 using ..Output
 
-import ..Fields: GaugeField, Plaquette, Clover
+import ..Fields: Gaugefield, Plaquette, Clover
 import ..Measurements: top_charge
 import ..Smearing: AbstractSmearing, NoSmearing, StoutSmearing, calc_smearedU!
 
@@ -27,7 +27,7 @@ struct NoBias end
     
 Container for bias potential and metadata.
 
-    Bias(p::ParameterSet, U::GaugeField; instance=1)
+    Bias(p::ParameterSet, U::Gaugefield; instance=1)
 
 Create a Bias that holds general parameters of bias enhanced sampling, like the kind of CV,
 its smearing and filenames relevant to the bias. Also holds the specific kind
@@ -155,16 +155,16 @@ function update_bias!(b::Bias, values, itrj)
     return nothing
 end
 
-recalc_CV!(::GaugeField, ::Nothing) = nothing
-recalc_CV!(::GaugeField, ::NoBias) = nothing
+recalc_CV!(::Gaugefield, ::Nothing) = nothing
+recalc_CV!(::Gaugefield, ::NoBias) = nothing
 
-function recalc_CV!(U::GaugeField, b::Bias)
+function recalc_CV!(U::Gaugefield, b::Bias)
     CV_new = calc_CV(U, b)
     U.CV = CV_new
     return nothing
 end
 
-function recalc_CV!(U::Vector{TG}, b::Vector{TB}) where {TG<:GaugeField,TB<:Bias}
+function recalc_CV!(U::Vector{TG}, b::Vector{TB}) where {TG<:Gaugefield,TB<:Bias}
     for i in eachindex(U)
         recalc_CV!(U[i], b[i])
     end

@@ -11,7 +11,7 @@ If `staggered=true`, the number of Dirac degrees of freedom (ND) is reduced to 1
 `CUDABackend` \\
 `ROCBackend`
 """
-struct Spinorfield{B,T,M,A,ND} <: AbstractField{B,T,M,A}
+struct Spinorfield{B,T,M,A,H,ND} <: AbstractField{B,T,M,A}
     U::A # Actual field storing the gauge variables
     NX::Int64 # Number of lattice sites in the x-direction
     NY::Int64 # Number of lattice sites in the y-direction
@@ -19,29 +19,27 @@ struct Spinorfield{B,T,M,A,ND} <: AbstractField{B,T,M,A}
     NT::Int64 # Number of lattice sites in the t-direction
     NV::Int64 # Total number of lattice sites
     NC::Int64 # Number of colors
-    ND::Int64 # Number of dirac indices
-    function Spinorfield{B,T,A,ND}(U::A, NX, NY, NZ, NT, NV, NC) where {B,T,A,ND}
-        return new{B,T,A,ND}(U, NX, NY, NZ, NT, NV, NC, ND)
-    end
 
-    function Spinorfield{Backend,T,ND}(NX, NY, NZ, NT) where {Backend,T,ND}
-        U = KA.zeros(Backend(), SVector{3ND,Complex{T}}, NX, NY, NZ, NT)
-        NV = NX * NY * NZ * NT
-        return new{Backend,T,typeof(U),ND}(U, NX, NY, NZ, NT, NV, 3, ND)
-    end
-
-    function Spinorfield(f::Spinorfield{Backend,T,A,ND}) where {Backend,T,A,ND}
-        return Spinorfield{Backend,T,ND}(dims(f)...)
-    end
-
-    function Spinorfield(f::AbstractField{Backend,T}; staggered=false) where {Backend,T}
-        ND = staggered ? 1 : 4
-        return Spinorfield{Backend,T,ND}(dims(f)...)
-    end
+    halo_sendbuf::H
+    halo_recvbuf::H
+    pad::Int64 # halo width
+    
+    # Meta-data regarding portion of the field local to current process
+    my_NX::Int64
+    my_NY::Int64
+    my_NZ::Int64
+    my_NT::Int64
+    my_NV::Int64
+    nprocs::Int64
+    nprocs_cart::NTuple{4,Int64}
+    myrank::Int64
+    myrank_cart::NTuple{4,Int64}
+    comm_cart::MPI.Comm
+    # TODO: Constructors
 end
 
 # Need to overload dims and size again, because we are using 4D arrays for fermions
-@inline dims(f::AbstractArray{SVector{N,Complex{T}},4}) where {N,T} =
+local_dims(f::AbstractArray{SVector{N,Complex{T}},4}) where {N,T} =
     NTuple{4,Int64}((size(f, 1), size(f, 2), size(f, 3), size(f, 4)))
 Base.size(f::AbstractArray{SVector{N,Complex{T}},4}) where {N,T} = dims(f)
 Base.size(f::Spinorfield) = NTuple{4,Int64}((f.NX, f.NY, f.NZ, f.NT))
@@ -163,43 +161,42 @@ of even-odd preconditioning. What this amounts to is that we realign the entries
 `ϕ -> (ϕₑ, ϕₒ)`, which is achieved by recalculating the index whenever we index into `ϕ`
 or iterating only over one half of its indices.
 """
-even_odd(f::Spinorfield) = EvenOdd(f)
+even_odd(f::Spinorfield) = SpinorfieldEO(f)
 
-struct EvenOdd{B,T,A,ND} <: AbstractField{B,T,A}
-    parent::Spinorfield{B,T,A,ND}
-    function EvenOdd(f::Spinorfield{B,T,A,ND}) where {B,T,A,ND}
-        _, _, _, NT = dims(f)
-        @assert iseven(NT) "Need even time extent for even-odd preconditioning"
-        return new{B,T,A,ND}(f)
+struct SpinorfieldEO{B,T,M,A,H,ND} <: AbstractField{B,T,M,A}
+    parent::Spinorfield{B,T,M,A,H,ND}
+    function SpinorfieldEO(f::Spinorfield{B,T,M,A,H,ND}) where {B,T,M,A,H,ND}
+        @assert iseven(f.NT) "Need even time extent for even-odd preconditioning"
+        return new{B,T,M,A,H,ND}(f)
     end
 end
 
-Spinorfield(f::EvenOdd{B,T,A,ND}) where {B,T,A,ND} = EvenOdd(f.parent)
+Spinorfield(f::SpinorfieldEO{B,T,M,A,ND}) where {B,T,M,A,ND} = SpinorfieldEO(f.parent)
 
-@inline dims(f::EvenOdd) = dims(f.parent)
-Base.size(f::EvenOdd) = size(f.parent)
-Base.similar(f::EvenOdd) = even_odd(Spinorfield(f.parent))
-Base.eltype(::EvenOdd{B,T}) where {B,T} = Complex{T}
-LinearAlgebra.checksquare(f::EvenOdd) = LinearAlgebra.checksquare(f.parent) ÷ 2
-num_colors(::EvenOdd{B,T,A,ND}) where {B,T,A,ND} = 3
-num_dirac(::EvenOdd{B,T,A,ND}) where {B,T,A,ND} = ND
-volume(f::EvenOdd) = volume(f.parent)
+local_dims(f::SpinorfieldEO) = local_dims(f.parent)
+Base.size(f::SpinorfieldEO) = size(f.parent)
+Base.similar(f::SpinorfieldEO) = even_odd(Spinorfield(f.parent))
+Base.eltype(::SpinorfieldEO{B,T}) where {B,T} = Complex{T}
+LinearAlgebra.checksquare(f::SpinorfieldEO) = LinearAlgebra.checksquare(f.parent) ÷ 2
+num_colors(::SpinorfieldEO{B,T,M,A,ND}) where {B,T,M,A,ND} = 3
+num_dirac(::SpinorfieldEO{B,T,M,A,ND}) where {B,T,M,A,ND} = ND
+volume(f::SpinorfieldEO) = volume(f.parent)
 
-Base.@propagate_inbounds Base.getindex(f::EvenOdd, i::Integer) = f.parent.U[i]
-Base.@propagate_inbounds Base.getindex(f::EvenOdd, x, y, z, t) = f.parent.U[x, y, z, t]
-Base.@propagate_inbounds Base.getindex(f::EvenOdd, site::SiteCoords) = f.parent.U[site]
-Base.@propagate_inbounds Base.setindex!(f::EvenOdd, v, i::Integer) =
+Base.@propagate_inbounds Base.getindex(f::SpinorfieldEO, i::Integer) = f.parent.U[i]
+Base.@propagate_inbounds Base.getindex(f::SpinorfieldEO, x, y, z, t) = f.parent.U[x, y, z, t]
+Base.@propagate_inbounds Base.getindex(f::SpinorfieldEO, site::SiteCoords) = f.parent.U[site]
+Base.@propagate_inbounds Base.setindex!(f::SpinorfieldEO, v, i::Integer) =
     setindex!(f.parent.U, v, i)
-Base.@propagate_inbounds Base.setindex!(f::EvenOdd, v, x, y, z, t) =
+Base.@propagate_inbounds Base.setindex!(f::SpinorfieldEO, v, x, y, z, t) =
     setindex!(f.parent.U, v, x, y, z, t)
-Base.@propagate_inbounds Base.setindex!(f::EvenOdd, v, site::SiteCoords) =
+Base.@propagate_inbounds Base.setindex!(f::SpinorfieldEO, v, site::SiteCoords) =
     setindex!(f.parent.U, v, site)
 
 
-clear!(ϕ_eo::EvenOdd) = clear!(ϕ_eo.parent)
-ones!(ϕ_eo::EvenOdd) = ones!(ϕ_eo.parent)
+clear!(ϕ_eo::SpinorfieldEO) = clear!(ϕ_eo.parent)
+ones!(ϕ_eo::SpinorfieldEO) = ones!(ϕ_eo.parent)
 
-function set_source!(ϕ_eo::EvenOdd{CPU,T}, site::SiteCoords, a, μ) where {T}
+function set_source!(ϕ_eo::SpinorfieldEO{CPU,T}, site::SiteCoords, a, μ) where {T}
     ϕ = ϕ_eo.parent
     NC = num_colors(ϕ)
     ND = num_dirac(ϕ)
@@ -207,12 +204,12 @@ function set_source!(ϕ_eo::EvenOdd{CPU,T}, site::SiteCoords, a, μ) where {T}
     clear!(ϕ)
     vec_index = (μ - 1) * NC + a
     tup = ntuple(i -> i == vec_index ? one(Complex{T}) : zero(Complex{T}), Val(3ND))
-    _site = eo_site(site, dims(ϕ)..., ϕ.NV)
+    _site = eo_site(site, global_dims(ϕ)..., ϕ.NV)
     ϕ[_site] = SVector{3ND,Complex{T}}(tup)
     return nothing
 end
 
-function Base.copy!(ϕ_eo::TF, ψ_eo::TF) where {TF<:EvenOdd{CPU}}
+function Base.copy!(ϕ_eo::TF, ψ_eo::TF) where {TF<:SpinorfieldEO{CPU}}
     check_dims(ϕ_eo, ψ_eo)
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent
@@ -225,7 +222,7 @@ function Base.copy!(ϕ_eo::TF, ψ_eo::TF) where {TF<:EvenOdd{CPU}}
     return nothing
 end
 
-function gaussian_pseudofermions!(ϕ_eo::EvenOdd{CPU,T}) where {T}
+function gaussian_pseudofermions!(ϕ_eo::SpinorfieldEO{CPU,T}) where {T}
     ϕ = ϕ_eo.parent
     sz = num_dirac(ϕ) * num_colors(ϕ)
     even = true
@@ -235,7 +232,7 @@ function gaussian_pseudofermions!(ϕ_eo::EvenOdd{CPU,T}) where {T}
     end
 end
 
-function LinearAlgebra.mul!(ϕ_eo::EvenOdd{CPU,T}, α) where {T}
+function LinearAlgebra.mul!(ϕ_eo::SpinorfieldEO{CPU,T}, α) where {T}
     ϕ = ϕ_eo.parent
     α = Complex{T}(α)
     even = true
@@ -247,7 +244,7 @@ function LinearAlgebra.mul!(ϕ_eo::EvenOdd{CPU,T}, α) where {T}
     return nothing
 end
 
-function LinearAlgebra.axpy!(α, ψ_eo::T, ϕ_eo::T) where {T<:EvenOdd{CPU}} # even on even is the default
+function LinearAlgebra.axpy!(α, ψ_eo::T, ϕ_eo::T) where {T<:SpinorfieldEO{CPU}} # even on even is the default
     check_dims(ϕ_eo, ψ_eo)
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent
@@ -262,7 +259,7 @@ function LinearAlgebra.axpy!(α, ψ_eo::T, ϕ_eo::T) where {T<:EvenOdd{CPU}} # e
     return nothing
 end
 
-function LinearAlgebra.axpby!(α, ψ_eo::T, β, ϕ_eo::T, even=true) where {T<:EvenOdd{CPU}}
+function LinearAlgebra.axpby!(α, ψ_eo::T, β, ϕ_eo::T, even=true) where {T<:SpinorfieldEO{CPU}}
     check_dims(ϕ_eo, ψ_eo)
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent
@@ -277,9 +274,9 @@ function LinearAlgebra.axpby!(α, ψ_eo::T, β, ϕ_eo::T, even=true) where {T<:E
     return nothing
 end
 
-LinearAlgebra.norm(ϕ_eo::EvenOdd) = sqrt(real(dot(ϕ_eo, ϕ_eo)))
+LinearAlgebra.norm(ϕ_eo::SpinorfieldEO) = sqrt(real(dot(ϕ_eo, ϕ_eo)))
 
-function LinearAlgebra.dot(ϕ_eo::T, ψ_eo::T) where {T<:EvenOdd{CPU}}
+function LinearAlgebra.dot(ϕ_eo::T, ψ_eo::T) where {T<:SpinorfieldEO{CPU}}
     check_dims(ϕ_eo, ψ_eo)
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent
@@ -293,7 +290,7 @@ function LinearAlgebra.dot(ϕ_eo::T, ψ_eo::T) where {T<:EvenOdd{CPU}}
     return res
 end
 
-function dot_all(ϕ_eo::T, ψ_eo::T) where {T<:EvenOdd{CPU}}
+function dot_all(ϕ_eo::T, ψ_eo::T) where {T<:SpinorfieldEO{CPU}}
     check_dims(ϕ_eo, ψ_eo)
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent
@@ -306,7 +303,7 @@ function dot_all(ϕ_eo::T, ψ_eo::T) where {T<:EvenOdd{CPU}}
     return res
 end
 
-function copy_eo!(ϕ_eo::T, ψ_eo::T) where {T<:EvenOdd{CPU}}
+function copy_eo!(ϕ_eo::T, ψ_eo::T) where {T<:SpinorfieldEO{CPU}}
     check_dims(ϕ_eo, ψ_eo)
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent
@@ -322,7 +319,7 @@ function copy_eo!(ϕ_eo::T, ψ_eo::T) where {T<:EvenOdd{CPU}}
     return nothing
 end
 
-function copy_oe!(ϕ_eo::T, ψ_eo::T) where {T<:EvenOdd{CPU}}
+function copy_oe!(ϕ_eo::T, ψ_eo::T) where {T<:SpinorfieldEO{CPU}}
     check_dims(ϕ_eo, ψ_eo)
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent
@@ -338,7 +335,7 @@ function copy_oe!(ϕ_eo::T, ψ_eo::T) where {T<:EvenOdd{CPU}}
     return nothing
 end
 
-function axpy_oe!(α, ψ_eo::T, ϕ_eo::T) where {T<:EvenOdd{CPU}}
+function axpy_oe!(α, ψ_eo::T, ϕ_eo::T) where {T<:SpinorfieldEO{CPU}}
     check_dims(ϕ_eo, ψ_eo)
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent
@@ -356,7 +353,7 @@ function axpy_oe!(α, ψ_eo::T, ϕ_eo::T) where {T<:EvenOdd{CPU}}
     return nothing
 end
 
-function axpy_eo!(α, ψ_eo::T, ϕ_eo::T) where {T<:EvenOdd{CPU}}
+function axpy_eo!(α, ψ_eo::T, ϕ_eo::T) where {T<:SpinorfieldEO{CPU}}
     check_dims(ϕ_eo, ψ_eo)
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent

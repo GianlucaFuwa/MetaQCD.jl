@@ -7,10 +7,11 @@ using JLD2
 using KernelAbstractions # TODO: save and load of GPUD
 using MPI
 using LinearAlgebra
+using Polyester
 using Printf
 using Random
 using StaticArrays
-using ..Utils: restore_last_row
+using ..Utils: SiteCoords, cartesian_to_linear, restore_last_row
 
 export __GlobalLogger, MetaLogger, current_time, @level1, @level2, @level3
 export BMWFormat, BridgeFormat, Checkpointer, ConfigSaver, JLD2Format, set_global_logger!
@@ -45,6 +46,8 @@ const EXT = Dict{String, String}(
     "jld2" => ".jld2",
     "" => "",
 )
+
+function proc_offset(args...) end # INFO: Need this for writing fields to file --- is implemented in fields/parallel.jl
 
 include("bmw_format.jl")
 include("bridge_format.jl")

@@ -32,36 +32,43 @@ function PlaquetteMeasurement(U, ::PlaquetteParameters, filename, flow=false)
     return PlaquetteMeasurement(U; filename=filename, flow=flow)
 end
 
-@inline function measure(
+function measure(
     m::PlaquetteMeasurement{Nothing}, U, ::Integer, itrj, flow=nothing
 )
     plaq = plaquette_trace_sum(U) * m.factor
-    iflow, _ = isnothing(flow) ? (0, 0.0) : flow
 
-    if !isnothing(flow)
-        @level1("$itrj\t$plaq # plaq_flow_$(iflow)")
-    else
-        @level1("$itrj\t$plaq # plaq")
+    if MYRANK == 0
+        iflow, _ = isnothing(flow) ? (0, 0.0) : flow
+
+        if !isnothing(flow)
+            @level1("$itrj\t$plaq # plaq_flow_$(iflow)")
+        else
+            @level1("$itrj\t$plaq # plaq")
+        end
     end
+
     return plaq
 end
 
-@inline function measure(
+function measure(
     m::PlaquetteMeasurement{T}, U, myinstance, itrj, flow=nothing
 ) where {T<:AbstractString}
     plaq = plaquette_trace_sum(U) * m.factor
-    iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
-    filename = set_ext!(m.filename, myinstance)
-    fp = fopen(filename, "a")
-    printf(fp, "%-11i", itrj)
+    if MYRANK == 0
+        iflow, τ = isnothing(flow) ? (0, 0.0) : flow
+        filename = set_ext!(m.filename, myinstance)
+        fp = fopen(filename, "a")
+        printf(fp, "%-11i", itrj)
 
-    if !isnothing(flow)
-        printf(fp, "%-7i", iflow)
-        printf(fp, "%-9.5f", τ)
+        if !isnothing(flow)
+            printf(fp, "%-7i", iflow)
+            printf(fp, "%-9.5f", τ)
+        end
+
+        printf(fp, "%+-25.15E\n", plaq)
+        fclose(fp)
     end
 
-    printf(fp, "%+-25.15E\n", plaq)
-    fclose(fp)
     return plaq
 end

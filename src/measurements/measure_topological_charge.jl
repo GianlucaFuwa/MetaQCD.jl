@@ -56,7 +56,7 @@ function TopologicalChargeMeasurement(
     )
 end
 
-@inline function measure(
+function measure(
     m::TopologicalChargeMeasurement{Nothing}, U, ::Integer, itrj, flow=nothing,
 )
     TC_dict = m.TC_dict
@@ -66,10 +66,12 @@ end
         Q = top_charge(U, method)
         TC_dict[method] = Q
 
-        if !isnothing(flow)
-            @level1("$itrj\t$Q # topcharge_$(method)_flow_$(iflow)")
-        else
-            @level1("$itrj\t$Q # topcharge_$(method)")
+        if MYRANK == 0
+            if !isnothing(flow)
+                @level1("$itrj\t$Q # topcharge_$(method)_flow_$(iflow)")
+            else
+                @level1("$itrj\t$Q # topcharge_$(method)")
+            end
         end
     end
 
@@ -86,7 +88,7 @@ function measure(
         TC_dict[method] = top_charge(U, method)
     end
 
-    if T !== Nothing
+    if MYRANK == 0
         filename = set_ext!(m.filename, myinstance)
         fp = fopen(filename, "a")
         printf(fp, "%-11i", itrj)
@@ -130,7 +132,7 @@ function top_charge(::Plaquette, U::Gaugefield{CPU})
         Q += top_charge_density_plaq(U, site)
     end
 
-    return Q/4π^2
+    return distributed_reduce(Q/4π^2, +, U)
 end
 
 function top_charge(::Clover, U::Gaugefield{CPU,T}) where {T}
@@ -140,7 +142,7 @@ function top_charge(::Clover, U::Gaugefield{CPU,T}) where {T}
         Q += top_charge_density_clover(U, site, T)
     end
 
-    return Q/4π^2
+    return distributed_reduce(Q/4π^2, +, U)
 end
 
 function top_charge(::Improved, U::Gaugefield{CPU,T}) where {T}
@@ -152,7 +154,7 @@ function top_charge(::Improved, U::Gaugefield{CPU,T}) where {T}
         Q += top_charge_density_imp(U, site, c₀, c₁, T)
     end
 
-    return Q/4π^2
+    return distributed_reduce(Q/4π^2, +, U)
 end
 
 function top_charge_density_plaq(U, site)
