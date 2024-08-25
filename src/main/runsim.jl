@@ -1,6 +1,6 @@
 function run_sim(filenamein::String; backend="cpu", mpi_enabled=false)
     # When using MPI we make sure that only rank 0 prints to the console
-    if MYRANK == 0
+    if mpi_amroot()
         ext = splitext(filenamein)[end]
         @assert (ext == ".toml") """
             input file format \"$ext\" not supported. Use TOML format
@@ -9,15 +9,15 @@ function run_sim(filenamein::String; backend="cpu", mpi_enabled=false)
 
     # load parameters from toml file
     parameters = construct_params_from_toml(filenamein; backend=backend)
-    MPI.Barrier(COMM)
+    mpi_barrier()
 
-    if MYRANK == 0
+    if mpi_amroot()
         oneinst = parameters.numinstances == 1
         if mpi_enabled
             @assert parameters.tempering_enabled "MPI can only be used with parallel tempering in sim"
         end
         @assert mpi_enabled ⊻ oneinst "MPI must be enabled if and only if numinstances > 1, numinstances was $(parameters.numinstances)"
-        @assert COMM_SIZE == parameters.numinstances "numinstances has to be equal to the number of MPI ranks"
+        @assert mpi_size() == parameters.numinstances "numinstances has to be equal to the number of MPI ranks"
         if parameters.tempering_enabled
             @assert parameters.kind_of_bias != "none" "bias cannot be \"none\" in parallel tempering"
         end
@@ -26,13 +26,13 @@ function run_sim(filenamein::String; backend="cpu", mpi_enabled=false)
     # set random seed if provided, otherwise generate one
     if parameters.randomseed != 0
         seed = parameters.randomseed
-        Random.seed!(seed * (MYRANK + 1))
+        Random.seed!(seed * (mpi_myrank() + 1))
     else
         seed = rand(UInt64)
         Random.seed!(seed)
     end
 
-    logpath = MYRANK == 0 ? joinpath(parameters.log_dir, "logs.txt") : nothing
+    logpath = mpi_amroot() ? joinpath(parameters.log_dir, "logs.txt") : nothing
     set_global_logger!(
         parameters.verboselevel, logpath; tc=parameters.log_to_console
     )

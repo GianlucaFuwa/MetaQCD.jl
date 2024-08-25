@@ -66,7 +66,7 @@ function measure(
         Q = top_charge(U, method)
         TC_dict[method] = Q
 
-        if MYRANK == 0
+        if mpi_amroot()
             if !isnothing(flow)
                 @level1("$itrj\t$Q # topcharge_$(method)_flow_$(iflow)")
             else
@@ -88,7 +88,7 @@ function measure(
         TC_dict[method] = top_charge(U, method)
     end
 
-    if MYRANK == 0
+    if mpi_amroot()
         filename = set_ext!(m.filename, myinstance)
         fp = fopen(filename, "a")
         printf(fp, "%-11i", itrj)

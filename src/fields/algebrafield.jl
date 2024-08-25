@@ -23,7 +23,7 @@ struct Algebrafield{B,T,M,A,H} <: AbstractField{B,T,M,A}
     nprocs_cart::NTuple{4,Int64}
     myrank::Int64
     myrank_cart::NTuple{4,Int64}
-    comm_cart::MPI.Comm
+    comm_cart::Utils.Comm
     function Algebrafield{B,T}(NX, NY, NZ, NT) where {B,T}
         U = KA.zeros(B(), SU{3,9,T}, 4, NX, NY, NZ, NT)
         NV = NX * NY * NZ * NT
@@ -32,10 +32,10 @@ struct Algebrafield{B,T,M,A,H} <: AbstractField{B,T,M,A}
         nprocs = 1
         nprocs_cart = (1, 1, 1, 1)
         myrank_cart = (0, 0, 0, 0)
-        comm_cart = MPI.Cart_create(COMM, nprocs_cart; periodic=map(_->true, dims))
+        comm_cart = mpi_comm()
         return new{B,T,false,typeof(U),typeof(halo_sendbuf)}(
             U, NX, NY, NZ, NT, NV, 3, halo_sendbuf, halo_recvbuf, pad, NX, NY, NZ, NT, NV,
-            nprocs, nprocs_cart, MYRANK, myrank_cart, comm_cart,
+            nprocs, nprocs_cart, mpi_myrank(), myrank_cart, comm_cart,
         )
     end
 
@@ -44,19 +44,18 @@ struct Algebrafield{B,T,M,A,H} <: AbstractField{B,T,M,A}
         NV = NX * NY * NZ * NT
         nX, nY, nZ, nT = nprocs_cart
         nprocs = nX * nY * nZ * nT
-        @assert nprocs == COMM_SIZE
         @assert (NX%nX, NY%nY, NZ%nZ, NT%nT) == (0, 0, 0, 0) "Lattice dimensions must be divisible by comm dimensions"
         my_NX, my_NY, my_NZ, my_NT = (NX÷nX, NY÷nY, NZ÷nZ, NT÷nT)
         my_NV = my_NX * my_NY * my_NZ * my_NT
-        comm_cart = MPI.Cart_create(COMM, nprocs_cart; periodic=map(_->true, nprocs_cart))
-        myrank_cart = (MPI.Cart_coords(comm_cart, MYRANK)...,)
+        comm_cart = mpi_cart_create(nprocs_cart; periodic=map(_->true, nprocs_cart))
+        myrank_cart = (mpi_cart_coords(comm_cart, mpi_myrank())...,)
         max_halo_dims = maximum([prod(halo_dims((NX, NY, NZ, NT), pad, i)) for i in 1:4])
         halo_sendbuf = KA.zeros(B(), SU{3,9,T}, 4, max_halo_dims)
         halo_recvbuf = KA.zeros(B(), SU{3,9,T}, 4, max_halo_dims)
         U = KA.zeros(B(), SU{3,9,T}, 4, my_NX+2pad, my_NY+2pad, my_NZ+2pad, my_NT+2pad)
         return new{B,T,true,typeof(U),typeof(halo_sendbuf)}(
             U, NX, NY, NZ, NT, NV, 3, halo_sendbuf, halo_recvbuf, pad, my_NX, my_NY, my_NZ,
-            my_NT, my_NV, nprocs, nprocs_cart, MYRANK, myrank_cart, comm_cart,
+            my_NT, my_NV, nprocs, nprocs_cart, mpi_myrank(), myrank_cart, comm_cart,
         )
     end
 end

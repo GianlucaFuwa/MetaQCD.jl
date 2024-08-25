@@ -11,12 +11,11 @@ module Measurements
 using KernelAbstractions
 using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
-using MPI
 using Polyester
 using Printf
 using StaticTools: StaticString
 using Unicode
-using ..Output
+using ..MetaIO
 using ..Utils
 
 import KernelAbstractions as KA
@@ -33,8 +32,7 @@ import ..Smearing: StoutSmearing, calc_smearedU!, flow!
 
 abstract type AbstractMeasurement end
 
-const MYRANK = MPI.Comm_rank(MPI.COMM_WORLD)
-const MYEXT_str = "_$(lpad("$MYRANK", 4, "0")).txt"
+const MYEXT_str = "_$(lpad("$(mpi_myrank())", 4, "0")).txt"
 const MYEXT = StaticString(MYEXT_str)
 
 @inline set_ext!(filename::String, ::Integer) = filename

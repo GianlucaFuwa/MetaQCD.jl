@@ -56,7 +56,7 @@ function measure(
         E = energy_density(U, method)
         ED_dict[method] = E
 
-        if MYRANK == 0
+        if mpi_amroot()
             if !isnothing(flow)
                 @level1("$itrj\t$E # energydensity_$(method)_flow_$(iflow)")
             else
@@ -78,7 +78,7 @@ function measure(
         ED_dict[method] = energy_density(U, method)
     end
 
-    if MYRANK == 0
+    if mpi_amroot()
         filename = set_ext!(m.filename, myinstance)
         fp = fopen(filename, "a")
         printf(fp, "%-11i", itrj::Int64)

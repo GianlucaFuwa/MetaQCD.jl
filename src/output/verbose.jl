@@ -30,7 +30,7 @@ printf(::Nothing, ::Any) = zero(Int32)
 macro level1(msg)
     pmsg = prepare_message(msg)
     return quote
-        if __GlobalLogger[].LEVEL ≥ 1 && MYRANK == 0
+        if __GlobalLogger[].LEVEL ≥ 1 && mpi_amroot()
             __GlobalLogger[].to_console && printf($pmsg)
             !isnothing(__GlobalLogger[].fp) && printf(__GlobalLogger[].fp, $pmsg)
         end
@@ -41,7 +41,7 @@ end
 macro level2(msg)
     pmsg = prepare_message(msg)
     return quote
-        if __GlobalLogger[].LEVEL ≥ 2 && MYRANK == 0
+        if __GlobalLogger[].LEVEL ≥ 2 && mpi_amroot()
             __GlobalLogger[].to_console && printf($pmsg)
             !isnothing(__GlobalLogger[].fp) && printf(__GlobalLogger[].fp, $pmsg)
         end
@@ -52,7 +52,7 @@ end
 macro level3(msg)
     pmsg = prepare_message(msg)
     return quote
-        if __GlobalLogger[].LEVEL ≥ 3 && MYRANK == 0
+        if __GlobalLogger[].LEVEL ≥ 3 && mpi_amroot()
             __GlobalLogger[].to_console && printf($pmsg)
             !isnothing(__GlobalLogger[].fp) && printf(__GlobalLogger[].fp, $pmsg)
         end

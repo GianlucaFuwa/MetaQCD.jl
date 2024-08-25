@@ -2,20 +2,15 @@ module BiasModule
 
 using Base.Threads
 using DelimitedFiles
-using MPI
 using Printf
 using Statistics
 using Unicode
+using ..MetaIO
 using ..Parameters: ParameterSet
-using ..Output
 
 import ..Fields: Gaugefield, Plaquette, Clover
 import ..Measurements: top_charge
 import ..Smearing: AbstractSmearing, NoSmearing, StoutSmearing, calc_smearedU!
-
-const COMM = MPI.COMM_WORLD
-const MYRANK = MPI.Comm_rank(COMM)
-const COMM_SIZE = MPI.Comm_size(COMM)
 
 abstract type AbstractBias end
 
@@ -54,7 +49,7 @@ function Bias(p::ParameterSet, U; use_mpi=false, instance=1)
     smearing = StoutSmearing(U, p.numsmears_for_cv, p.rhostout_for_cv)
     is_static = instance == 0 ? true : p.is_static[instance]
     sstr = (is_static || kind_of_bias == "parametric") ? "static" : "dynamic"
-    inum = use_mpi ? MYRANK+1 : instance
+    inum = use_mpi ? mpi_myrank()+1 : instance
     @level1("|  Type: $(sstr) $(kind_of_bias)")
 
     if kind_of_bias ∈ ["metad", "metadynamics"]
@@ -73,7 +68,7 @@ function Bias(p::ParameterSet, U; use_mpi=false, instance=1)
         is_opes = bias isa OPES
         kinds_of_weights = is_opes ? ["opes"] : p.kinds_of_weights
         ext = is_opes ? "opes" : "metad"
-        biasfile = MYRANK==0 ? joinpath(p.bias_dir, "stream_$(inum).$(ext)") : ""
+        biasfile = mpi_amroot() ? joinpath(p.bias_dir, "stream_$(inum).$(ext)") : ""
         datafile = joinpath(p.measure_dir, "bias_data_$inum.txt")
         # FIXME: For some reason this errors with MPI on the UNI's cluster
         open(datafile, "w") do fp
@@ -106,7 +101,7 @@ function Bias(p::ParameterSet, U; use_mpi=false, instance=1)
     @assert write_bias_every == 0
 
     # write to file after construction to make sure nothing went wrong
-    MYRANK == 0 && write_to_file(bias, biasfile)
+    mpi_amroot() && write_to_file(bias, biasfile)
     @level1("└")
     @level1("")
     return Bias(
@@ -150,7 +145,7 @@ function update_bias!(b::Bias, values, itrj)
     (b.is_static || length(values) == 0) && return nothing
     update!(b.bias, values, itrj)
     if itrj % b.write_bias_every == 0
-        (MYRANK == 0) && write_to_file(b.bias, b.biasfile)
+        mpi_amroot() && write_to_file(b.bias, b.biasfile)
     end
     return nothing
 end

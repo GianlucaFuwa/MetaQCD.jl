@@ -1,11 +1,10 @@
 module Universe
 
 using Dates
-using MPI
 using Unicode
 using TOML: parsefile
+using ..MetaIO
 using ..Utils
-using ..Output
 
 import ..DiracOperators: WilsonFermionAction
 import ..DiracOperators: StaggeredFermionAction, StaggeredEOPreFermionAction
@@ -13,10 +12,6 @@ import ..Fields: Gaugefield, WilsonGaugeAction, IwasakiGaugeAction, DBW2GaugeAct
 import ..Fields: SymanzikTreeGaugeAction
 import ..BiasModule: Bias, NoBias
 import ..Parameters: ParameterSet
-
-const COMM = MPI.COMM_WORLD
-const MYRANK = MPI.Comm_rank(COMM)
-const COMM_SIZE = MPI.Comm_size(COMM)
 
 """
     Univ(parameters::ParameterSet; use_mpi=false)
@@ -50,7 +45,7 @@ struct Univ{TG,TF,TB}
         end
 
         TG = typeof(U)
-        myinstance = Base.RefValue{Int64}(MYRANK)
+        myinstance = Base.RefValue{Int64}(mpi_myrank())
         return new{TG,TF,TB}(U, fermion_action, bias, myinstance, numinstances)
     end
 
@@ -72,7 +67,7 @@ struct Univ{TG,TF,TB}
         end
 
         TG = typeof(U)
-        myinstance = Base.RefValue{Int64}(MYRANK)
+        myinstance = Base.RefValue{Int64}(mpi_myrank())
         return new{TG,TF,TB}(U, fermion_action, bias, myinstance, numinstances)
     end
 end

@@ -37,7 +37,7 @@ function measure(
 )
     plaq = plaquette_trace_sum(U) * m.factor
 
-    if MYRANK == 0
+    if mpi_amroot()
         iflow, _ = isnothing(flow) ? (0, 0.0) : flow
 
         if !isnothing(flow)
@@ -55,7 +55,7 @@ function measure(
 ) where {T<:AbstractString}
     plaq = plaquette_trace_sum(U) * m.factor
 
-    if MYRANK == 0
+    if mpi_amroot()
         iflow, τ = isnothing(flow) ? (0, 0.0) : flow
         filename = set_ext!(m.filename, myinstance)
         fp = fopen(filename, "a")

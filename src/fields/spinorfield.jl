@@ -34,7 +34,7 @@ struct Spinorfield{B,T,M,A,H,ND} <: AbstractField{B,T,M,A}
     nprocs_cart::NTuple{4,Int64}
     myrank::Int64
     myrank_cart::NTuple{4,Int64}
-    comm_cart::MPI.Comm
+    comm_cart::Utils.Comm
     # TODO: Constructors
 end
 

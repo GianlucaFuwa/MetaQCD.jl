@@ -10,45 +10,47 @@ function temper!(
 )
     itrj%swap_every != 0 && return nothing
     recalc && recalc_CV!(U, bias)
-    MPI.Barrier(COMM)
+    comm = mpi_comm()
+    myrank = mpi_myrank()
+    mpi_barrier()
     
     # Query `instance_state` to find out which rank has to temper with which
     # Convention: instance N <-> instance N-1, instance N-1 <-> instance N-2, etc.
-    for i in (COMM_SIZE-1):-1:1
+    for i in (mpi_size()-1):-1:1
         # Determine the ranks that have instances i and i-1
         rank_i = get_rank_from_instance(i, instance_state)
         rank_i_minus_1 = get_rank_from_instance(i-1, instance_state)
 
-        if MYRANK == rank_i || MYRANK == rank_i_minus_1
-            if MYRANK == rank_i
-                MPI.Send(U.CV::Float64, COMM; dest=rank_i_minus_1::Int64, tag=0) 
-                CV_j = MPI.Recv(Float64, COMM; source=rank_i_minus_1::Int64, tag=0)
-            else MYRANK == rank_i_minus_1
-                CV_j = MPI.Recv(Float64, COMM; source=rank_i::Int64, tag=0)
-                MPI.Send(U.CV::Float64, COMM; dest=rank_i::Int64, tag=0) 
+        if myrank == rank_i || myrank == rank_i_minus_1
+            if myrank == rank_i
+                mpi_send(U.CV::Float64, comm; dest=rank_i_minus_1::Int64, tag=0) 
+                CV_j = mpi_recv(Float64, comm; source=rank_i_minus_1::Int64, tag=0)
+            else myrank == rank_i_minus_1
+                CV_j = mpi_recv(Float64, comm; source=rank_i::Int64, tag=0)
+                mpi_send(U.CV::Float64, comm; dest=rank_i::Int64, tag=0) 
             end
 
-            if MYRANK == rank_i
+            if myrank == rank_i
                 ΔV1 = bias(CV_j) - bias(U.CV)
-                ΔV2 = MPI.Recv(Float64, COMM; source=rank_i_minus_1::Int64, tag=1)
+                ΔV2 = mpi_recv(Float64, comm; source=rank_i_minus_1::Int64, tag=1)
                 acc_prob = exp(-ΔV1 - ΔV2)
                 is_accepted = rand() ≤ acc_prob
-                MPI.Send(is_accepted::Bool, COMM; dest=rank_i_minus_1::Int64, tag=2) 
+                mpi_send(is_accepted::Bool, comm; dest=rank_i_minus_1::Int64, tag=2) 
             else 
                 ΔV2 = bias(CV_j) - bias(U.CV)
-                MPI.Send(ΔV2::Float64, COMM; dest=rank_i::Int64, tag=1) 
-                is_accepted = MPI.Recv(Bool, COMM; source=rank_i::Int64, tag=2)
+                mpi_send(ΔV2::Float64, comm; dest=rank_i::Int64, tag=1) 
+                is_accepted = mpi_recv(Bool, comm; source=rank_i::Int64, tag=2)
             end
 
             if is_accepted
-                if MYRANK == rank_i
-                    instance_state[MYRANK+1] = i-1
+                if myrank == rank_i
+                    instance_state[myrank+1] = i-1
                     instance_state[rank_i_minus_1+1] = i
 
                     # Update the local instance variable
                     myinstance[] = i-1
-                elseif MYRANK == rank_i_minus_1
-                    instance_state[MYRANK+1] = i
+                elseif myrank == rank_i_minus_1
+                    instance_state[myrank+1] = i
                     instance_state[rank_i+1] = i-1
 
                     # Update the local instance variable
@@ -59,9 +61,9 @@ function temper!(
         end
 
         # Synchronize vectors across all processes
-        MPI.Bcast!(instance_state, COMM; root=rank_i)
-        MPI.Bcast!(numaccepts_temper, COMM; root=rank_i)
-        MPI.Barrier(COMM)
+        mpi_bcast!(instance_state, comm; root=rank_i)
+        mpi_bcast!(numaccepts_temper, comm; root=rank_i)
+        mpi_barrier()
         @level1(
             "|  Acceptance [$i ⇔  $(i-1)]:\t$(100numaccepts_temper[i-1] / (itrj/swap_every)) %"
         )

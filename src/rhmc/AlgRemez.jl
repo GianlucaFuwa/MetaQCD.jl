@@ -7,11 +7,7 @@
 module AlgRemez
 
 using AlgRemez_jll
-using MPI
-
-MPI.Initialized() || MPI.Init()
-const COMM = MPI.COMM_WORLD
-const MYRANK = MPI.Comm_rank(COMM)
+using ..Utils
 
 struct AlgRemezCoeffs{N}
     α0::Float64
@@ -51,14 +47,14 @@ The parameters `y` and `z` must be positive, the approximation to f(x) = x^(-y/z
 the inverse of the approximation to f(x) = x^(y/z).
 """
 function calc_coefficients(y::Int, z::Int, n::Int, lambda_low, lambda_high; precision=42)
-    MYRANK==0 && (@assert y > 0 && z > 0 "Inputs y and z need to be positive")
+    mpi_amroot() && (@assert y > 0 && z > 0 "Inputs y and z need to be positive")
     # Save and reuse already calcuatated approximations
     dirname = pkgdir(AlgRemez, "src/rhmc/")
     filename = "approx_$(y)_$(z)_$(n)_$(lambda_low)_$(lambda_high)_$precision.dat"
     filename_err = "error_$(y)_$(z)_$(n)_$(lambda_low)_$(lambda_high)_$precision.dat"
     pathname = dirname * filename
     # If we are using MPI, we only want rank 0 to calculate the coefficients
-    if !(filename in readdir(dirname)) && MYRANK==0
+    if !(filename in readdir(dirname)) && mpi_amroot()
         try
             run(`$(algremez()) $y $z $n $n $lambda_low $lambda_high $precision`)
         catch _
@@ -70,7 +66,8 @@ function calc_coefficients(y::Int, z::Int, n::Int, lambda_low, lambda_high; prec
         mv("approx.dat", pathname)
         mv("error.dat", dirname * filename_err)
     end
-    MPI.Barrier(COMM)
+
+    mpi_barrier()
 
     datas = readlines(pathname)
     icount = 3

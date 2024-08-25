@@ -1,27 +1,22 @@
-module Output
+module MetaIO
 
 using Dates
 using Format
 using InteractiveUtils: InteractiveUtils
 using JLD2
 using KernelAbstractions # TODO: save and load of GPUD
-using MPI
 using LinearAlgebra
 using Polyester
 using Printf
 using Random
 using StaticArrays
-using ..Utils: SiteCoords, cartesian_to_linear, restore_last_row
+using ..Utils
 
 export __GlobalLogger, MetaLogger, current_time, @level1, @level2, @level3
 export BMWFormat, BridgeFormat, Checkpointer, ConfigSaver, JLD2Format, set_global_logger!
 export fclose, fopen, printf, prints_to_console
 export create_checkpoint, load_checkpoint, load_config!, save_config
 
-MPI.Initialized() || MPI.Init()
-const COMM = MPI.COMM_WORLD
-const COMM_SIZE = MPI.Comm_size(COMM)
-const MYRANK = MPI.Comm_rank(COMM)
 
 include("cio.jl")
 include("verbose.jl")
@@ -52,6 +47,7 @@ function proc_offset(args...) end # INFO: Need this for writing fields to file -
 include("bmw_format.jl")
 include("bridge_format.jl")
 include("jld2_format.jl")
+include("mpi_format.jl")
 
 @inline current_time() = Dates.now(UTC)
 
@@ -81,7 +77,7 @@ function create_checkpoint(
     T ≡ Nothing && return nothing
 
     if itrj % cp.checkpoint_every == 0
-        filename = cp.checkpoint_dir * "/checkpoint_$(MYRANK).jld2"
+        filename = cp.checkpoint_dir * "/checkpoint_$(mpi_myrank()).jld2"
         create_checkpoint(T(), univ, updatemethod, updatemethod_pt, itrj, filename)
         @level1("|")
         @level1("|  Checkpoint created in $(filename)")
@@ -93,8 +89,8 @@ end
 
 function load_checkpoint(checkpoint_path)
     @level1("[ Checkpoint loaded from $(checkpoint_path)\n")
-    if COMM_SIZE > 1
-        checkpoint_file = checkpoint_path * "_$(MYRANK).jld2"
+    if mpi_size() > 1
+        checkpoint_file = checkpoint_path * "_$(mpi_myrank()).jld2"
     else
         checkpoint_file = checkpoint_path * ".jld2"
     end

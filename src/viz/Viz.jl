@@ -24,7 +24,7 @@ if you want any directory on your machine to be used, specify `fullpath = true`.
 Make sure the directory only contains .txt measurement files produced by MetaQCD.jl or in
 the same format.
 """
-struct MetaMeasurements
+struct MetaMeasurements # TODO: overload Base.show and do some @level1 printing
     measurement_dict::Dict{String,Dict{String,Vector{Float64}}}
     observables::Vector{Symbol}
     ensemble::String
@@ -34,26 +34,31 @@ struct MetaMeasurements
         else
             pkgdir(Viz) * "/ensembles/$(ensemblename)/measurements"
         end
+
         hmc_logfile = pkgdir(Viz) * "/ensembles/$(ensemblename)/logs/hmc_acc_logs.txt"
         @assert isdir(dir) "Directory \"$(dir)\" doesn't exist."
         measurement_dict = Dict{String,Dict{String,Vector{Float64}}}()
 
         filenames = readdir(dir)
         isfile(hmc_logfile) && push!(filenames, hmc_logfile)
+
         for name in filenames
             name_no_ext = splitext(name)[1]
             measurement = Dict{String,Vector{Float64}}()
             if name == hmc_logfile
                 data, header = readdlm(hmc_logfile; header=true)
+                
                 for i in eachindex(header)
                     measurement[header[i]] = data[:, i]
                 end
+
                 measurement_dict["hmc_data"] = measurement
             elseif occursin("flowed", name_no_ext)
                 data, header = readdlm(dir * "/$(name)"; header=true)
                 unique_tflow = unique(data[:, 3])
                 unique_indices = Vector{Int64}[]
                 measurement["itrj"] = data[1:length(unique_tflow):end, 1]
+                
                 for tflow in unique_tflow
                     push!(unique_indices, findall(x -> isapprox(tflow, x), data[:, 3]))
                 end
@@ -65,15 +70,19 @@ struct MetaMeasurements
                         ]
                     end
                 end
+
                 measurement_dict[name_no_ext] = measurement
             else
                 data, header = readdlm(dir * "/$(name)"; header=true)
+
                 for i in eachindex(header)
                     measurement[header[i]] = data[:, i]
                 end
+
                 measurement_dict[name_no_ext] = measurement
             end
         end
+
         return new(measurement_dict, Symbol.(keys(measurement_dict)), ensemblename)
     end
 end
@@ -100,6 +109,7 @@ struct MetaBias{F}
         else
             pkgdir(Viz) * "/ensembles/$(ensemblename)/metapotentials/"
         end
+
         @assert isdir(dir) "Directory \"$(dir)\" doesn't exist."
         filenames = readdir(dir)
         streams = [occursin("stream_$(stream)", name) for name in filenames]
@@ -185,6 +195,7 @@ RecipesBase.@recipe function timeseries(
     obs_keys = collect(keys(getproperty(m, observable)))
     filter!(x -> x ≠ "itrj", obs_keys)
     palette --> default_colors
+
     x = try
         view(getproperty(m, observable)["itrj"], irange)
     catch _
@@ -329,20 +340,24 @@ RecipesBase.@recipe function hadroncorrelator(
     Cr = zeros(len)
     meff = zeros(len)
     tmp = last.(split.(obs_keys, "_"))
+
     if tf > 0
         tmp = split.(tmp, " ")
         tmp = [tmp[i][1] for i in eachindex(tmp)]
     end
+
     nums = parse.(Int, tmp)
     corr = first(split(string(correlator), "_"))
-
     str(it) = tf > 0 ? "$(corr)_corr_$(it) (tf=$tf)" : "$(corr)_corr_$(it)"
+
     for it in nums
         tmp = getproperty(m, correlator)[str(it)]
         C[it] = sum(tmp) / length(tmp)
     end
+
     key_str = tf > 0 ? "C_flowed" : "C"
     haskey(getproperty(m, correlator), key_str) || (getproperty(m, correlator)[key_str] = C)
+
     for it in nums
         Cr[it] = log(C[it] / C[mod1(it + 1, len)])
         meff[it] = try
@@ -366,6 +381,7 @@ RecipesBase.@recipe function hadroncorrelator(
         y = C
         x, y
     end
+
     @series begin
         subplot := 2
         xticks := 1:len
@@ -392,14 +408,17 @@ RecipesBase.@recipe function eigenvalues(ev::Eigenvalues; tf=0, xlims=(-1, 16), 
     filter!(x -> x ≠ "itrj", obs_keys)
     tf > 0 && filter(x -> x ∉ ("iflow", "tflow"), obs_keys)
     tmp = last.(split.(obs_keys, "_"))
+
     if tf > 0
         tmp = split.(tmp, " ")
         tmp = [tmp[i][1] for i in eachindex(tmp)]
     end
+
     nums = unique(parse.(Int, tmp))
     yre = zeros(length(nums))
     yim = zeros(length(nums))
     str(i, t) = tf > 0 ? "eig_$(t)_$(i) (tf=$(tf))" : "eig_$(t)_$(i)"
+    
     for i in unique(nums)
         tmpre = getproperty(m, obs_sym)[str(i, "re")]
         tmpim = getproperty(m, obs_sym)[str(i, "im")]

@@ -6,7 +6,7 @@ using LinearAlgebra
 using Polyester: @batch
 using StaticArrays
 using Unicode
-using ..Output
+using ..MetaIO
 using ..Utils
 
 import ..Fields: AbstractGaugeAction, Expfield, Colorfield, Gaugefield, WilsonGaugeAction

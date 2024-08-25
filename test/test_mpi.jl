@@ -1,14 +1,11 @@
 using MetaQCD
-using MetaQCD.MPI
+using MetaQCD.Utils
 using Test
 
-const COMM = MPI.COMM_WORLD
-const MYRANK = MPI.Comm_rank(COMM)
-
 function test_mpi()
-    if MYRANK == 0
+    if mpi_amroot()
         println("test_mpi")
-        @assert MPI.Comm_size(COMM) == 4
+        @assert mpi_size() == 4
     end
 
     Ns = 4
@@ -21,7 +18,7 @@ function test_mpi()
     factor = 1 / (6 * U.NV * U.NC)
     plaq = plaquette_trace_sum(U) * factor
 
-    if MYRANK == 0
+    if mpi_amroot()
         isapprox(0.587818337847024, plaq)
         @show plaq
     end

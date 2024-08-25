@@ -3,12 +3,19 @@ module Utils
 using Accessors: @set
 using LinearAlgebra
 using LoopVectorization
+using MPI
 using MuladdMacro: @muladd
 using Polyester
 using Random
 using StaticArrays
 using PrecompileTools: PrecompileTools
 
+const Comm = MPI.Comm
+
+export mpi_init, mpi_comm, mpi_size, mpi_parallel, mpi_myrank, mpi_amroot, mpi_barrier
+export mpi_cart_create, mpi_cart_coords, mpi_cart_shift, mpi_multirequest, mpi_send
+export mpi_isend, mpi_recv, mpi_irecv!, mpi_waitall, mpi_allreduce, mpi_allgather
+export mpi_write_at
 export exp_iQ, exp_iQ_coeffs, exp_iQ_su3, get_B₁, get_B₂, get_Q, get_Q²
 export gen_SU3_matrix, is_special_unitary, is_traceless_antihermitian
 export kenney_laub, proj_onto_SU3, multr, cnorm2
@@ -201,6 +208,7 @@ end
     return q
 end
 
+include("mpi.jl")
 include("auxiliary.jl")
 include("simd_matmul.jl")
 include("simd_vecops.jl")

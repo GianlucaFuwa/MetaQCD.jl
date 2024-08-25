@@ -1,16 +1,12 @@
 module Parameters
 
 using Dates
-using MPI
 using Unicode
 using TOML
+using ..Utils
 
 include("./parameter_structs.jl")
 include("./parameter_set.jl")
-
-const COMM = MPI.COMM_WORLD
-const MYRANK = MPI.Comm_rank(COMM)
-const AM_RANK0 = MYRANK == 0
 
 export ParameterSet
 
@@ -50,7 +46,7 @@ end
 function construct_params_from_toml(filename::String; backend="cpu")
     parameters = TOML.parsefile(filename)
     inputfile = pwd() * "/" * filename
-    MYRANK == 0 && println("inputfile: ", inputfile * "\n")
+    mpi_amroot() && println("inputfile: ", inputfile * "\n")
     return construct_params_from_toml(parameters, inputfile; backend=backend)
 end
 
@@ -101,14 +97,14 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
             i > 100 && error("ensemble directory name gen timed out, try \"overwrite = true\"")
         end
         ensemble_dir = tmp
-        AM_RANK0 && mkpath(ensemble_dir)
+        mpi_amroot() && mkpath(ensemble_dir)
     else
-        if !isdir(ensemble_dir) && AM_RANK0
+        if !isdir(ensemble_dir) && mpi_amroot()
             mkpath(ensemble_dir)
         end
     end
 
-    AM_RANK0 && cp(inputfile, joinpath(ensemble_dir, "used_parameterfile.toml"); force=true)
+    mpi_amroot() && cp(inputfile, joinpath(ensemble_dir, "used_parameterfile.toml"); force=true)
     pose = findfirst(x -> String(x) == "ensemble_dir", pnames)
     value_Params[pose] = ensemble_dir
 
@@ -116,16 +112,16 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
     measure_dir = joinpath(ensemble_dir, "measurements/")
     save_config_dir = joinpath(ensemble_dir, "configs/")
     bias_dir = joinpath(ensemble_dir, "biaspotentials/")
-    if !isdir(log_dir) && AM_RANK0
+    if !isdir(log_dir) && mpi_amroot()
         mkpath(log_dir)
     end
-    if !isdir(measure_dir) && AM_RANK0
+    if !isdir(measure_dir) && mpi_amroot()
         mkpath(measure_dir)
     end
-    if !isdir(save_config_dir) && AM_RANK0
+    if !isdir(save_config_dir) && mpi_amroot()
         mkpath(save_config_dir)
     end
-    if !isdir(bias_dir) && AM_RANK0
+    if !isdir(bias_dir) && mpi_amroot()
         mkpath(bias_dir)
     end
     
@@ -146,7 +142,7 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
     bias_dir_exists = isdir(bias_dir)
     itimer = 0
     while !(ensemble_dir_exists && log_dir_exists && measure_dir_exists && config_dir_exists && bias_dir_exists)
-        itimer = 50 && error("Rank $MYRANK could not find all directories")
+        itimer = 50 && error("Rank $(mpi_myrank()) could not find all directories")
         sleep(0.1)
         ensemble_dir_exists = isdir(ensemble_dir)
         log_dir_exists = isdir(log_dir)
@@ -155,7 +151,8 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
         bias_dir_exists = isdir(bias_dir)
         itimer += 1
     end
-    MPI.Barrier(COMM)
+
+    mpi_barrier()
 
     for (i, pname_i) in enumerate(pnames)
         for (_, value) in parameters
@@ -204,12 +201,12 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
     parameters = ParameterSet(value_Params...)
 
     parameter_check(parameters)
-    MPI.Barrier(COMM)
+    mpi_barrier()
     return parameters
 end
 
 function parameter_check(p::ParameterSet)
-    AM_RANK0 || return nothing
+    mpi_amroot() || return nothing
 
     if lower_case(p.gauge_action) ∉ ["wilson", "iwasaki", "symanzik_tree", "dbw2"]
         ga = p.gauge_action
@@ -355,7 +352,7 @@ function construct_measurement_dicts(x)
 end
 
 @noinline function overwrite_detected(s::String)
-    AM_RANK0 && throw(AssertionError("""
+    mpi_amroot() && throw(AssertionError("""
                     The provided $s directory or file already exists
                     and \"overwrite\" in [\"System Settings\"] is set to false.
                     """))

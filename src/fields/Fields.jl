@@ -3,7 +3,6 @@ module Fields
 using KernelAbstractions # With this we can write generic GPU kernels for ROC and CUDA
 using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
-using MPI
 using Polyester # Used for the @batch macro, which enables multi threading
 using Random
 using StaticArrays # Used for the SU3 matrices
@@ -11,10 +10,6 @@ using ..Utils # Contains utility functions, such as projections and the exponent
 
 import KernelAbstractions as KA # With this we can write generic GPU kernels for ROC and CUDA
 import StrideArraysCore: object_and_preserve # This is used to convert the AbstractField to a PtrArray in the @batch loop
-
-const COMM = MPI.COMM_WORLD
-const MYRANK = MPI.Comm_rank(COMM)
-const COMM_SIZE = MPI.Comm_size(COMM)
 
 # When CUDA.jl or AMDGPU.jl are loaded, their backends are appended to this Dict
 const BACKENDS = Dict{String,Type{<:KA.Backend}}("cpu" => CPU)

@@ -3,7 +3,7 @@ module MetaQCD
 using Requires
 
 include("./utils/Utils.jl")
-include("./output/Output.jl")
+include("./output/MetaIO.jl")
 include("./solvers/Solvers.jl")
 include("./rhmc/AlgRemez.jl")
 include("./rhmc/RHMCParameters.jl")
@@ -16,16 +16,9 @@ include("./bias/Bias.jl")
 include("./main/Universe.jl")
 include("./updates/Updates.jl")
 include("./viz/Viz.jl")
-
-function __init__()
-    @require MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195" begin
-        MPI.Init()
-    end
-end
-
 include("./main/Main.jl")
 
-using .Output
+using .MetaIO
 using .Utils
 using .Main
 using .Solvers

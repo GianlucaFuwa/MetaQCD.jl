@@ -1,12 +1,12 @@
 using Pkg
 Pkg.activate(@__DIR__(); io=devnull)
 
-using MetaQCD.MPI
+using MetaQCD.Utils
 using MetaQCD: run_sim
 using MetaQCD.Parameters: lower_case
 
-const COMM = MPI.COMM_WORLD
-@assert MPI.Comm_size(COMM) == 1 "metaqcd_sim can not be used with mpi, only metaqcd_build"
+COMM = mpi_init()
+@assert mpi_size() == 1 "metaqcd_sim can not be used with mpi, only metaqcd_build"
 
 if length(ARGS) == 0
     error("""
@@ -42,11 +42,10 @@ if length(ARGS) == 2
     end
 end
 
-with_mpi = MPI.Comm_size(COMM) > 1
-if with_mpi && MYRANK == 0
-    println("$(MPI.Comm_size(COMM)) streams will be used")
+if mpi_parallel() && mpi_myrank() == 0
+    println("$(mpi_size()) streams will be used")
 end
 
-MPI.Barrier(COMM)
+mpi_barrier()
 
 run_sim(ARGS[1]; backend=backend, mpi_enabled=with_mpi)

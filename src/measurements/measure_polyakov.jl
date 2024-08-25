@@ -40,7 +40,7 @@ function measure(
 )
     poly = polyakov_traced(U)
 
-    if MYRANK == 0
+    if mpi_amroot()
         iflow, _ = isnothing(flow) ? (0, 0.0) : flow
 
         if !isnothing(flow)
@@ -59,7 +59,7 @@ function measure(
     poly = polyakov_traced(U)
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
-    if MYRANK == 0
+    if mpi_amroot()
         filename = set_ext!(m.filename, myinstance)
         fp = fopen(filename, "a")
         printf(fp, "%-11i", itrj)

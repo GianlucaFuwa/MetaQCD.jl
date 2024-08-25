@@ -1,6 +1,6 @@
 function build_bias(filenamein::String; backend="cpu", mpi_enabled=false)
     # When using MPI we make sure that only rank 0 prints to the console
-    if MYRANK == 0
+    if mpi_amroot()
         ext = splitext(filenamein)[end]
         @assert (ext == ".toml") """
             input file format \"$ext\" not supported. Use TOML format
@@ -9,12 +9,12 @@ function build_bias(filenamein::String; backend="cpu", mpi_enabled=false)
 
     # load parameters from toml file
     parameters = construct_params_from_toml(filenamein; backend=backend)
-    MPI.Barrier(COMM)
+    mpi_barrier()
 
-    if MYRANK == 0
+    if mpi_amroot()
         oneinst = parameters.numinstances == 1
         @assert mpi_enabled ⊻ oneinst "MPI must be enabled if and only if numinstances > 1, numinstances was $(parameters.numinstances)"
-        @assert COMM_SIZE == parameters.numinstances "numinstances has to be equal to the number of MPI ranks"
+        @assert mpi_size() == parameters.numinstances "numinstances has to be equal to the number of MPI ranks"
         @assert parameters.kind_of_bias ∉ ("none", "parametric") "bias has to be \"metad\" or \"opes\" in build, was $(parameters.kind_of_bias)"
         @assert parameters.is_static == false "Bias cannot be static in build"
     end
@@ -22,13 +22,13 @@ function build_bias(filenamein::String; backend="cpu", mpi_enabled=false)
     # set random seed if provided, otherwise generate one
     if parameters.randomseed != 0
         seed = parameters.randomseed
-        Random.seed!(seed * (MYRANK + 1))
+        Random.seed!(seed * (mpi_myrank() + 1))
     else
         seed = rand(UInt64)
         Random.seed!(seed)
     end
 
-    logger_io = MYRANK == 0 ? parameters.log_dir * "/logs.txt" : devnull
+    logger_io = mpi_amroot() ? parameters.log_dir * "/logs.txt" : devnull
     set_global_logger!(parameters.verboselevel, logger_io; tc=parameters.log_to_console)
 
     # print time and system info, because it looks cool I guess
@@ -70,7 +70,7 @@ function build_bias!(univ, parameters, updatemethod=nothing)
         measure_every=parameters.flow_measure_every,
     )
 
-    additional_string = "_$(MYRANK+1)"
+    additional_string = "_$(mpi_myrank()+1)"
 
     measurements = MeasurementMethods(
         U,
@@ -115,9 +115,10 @@ function metabuild!(
     U = univ.U
     fermion_action = univ.fermion_action
     bias = univ.bias
+    comm = mpi_comm()
     # This used to be in Bias itself, but I took all the IOBuffers away from structs
     # that are needed for checkpointing
-    MPI.Barrier(COMM)
+    mpi_barrier()
 
     @level1("┌ Thermalization:")
     _, runtime_therm = @timed begin
@@ -140,7 +141,7 @@ function metabuild!(
     @level1("└ Total elapsed time:\t$(runtime_therm) [s]\n")
     recalc_CV!(U, bias) # need to recalc cv since it was not updated during therm
 
-    MPI.Barrier(COMM)
+    mpi_barrier()
 
     @level1("┌ Production:")
     _, runtime_all = @timed begin
@@ -161,11 +162,11 @@ function metabuild!(
 
             # @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())\n")
             # all procs send their CVs to all other procs and update their copy of the bias
-            CVs = MPI.Allgather(U.CV::Float64, COMM)
-            accepteds = MPI.Allgather(accepted::Bool, COMM)
+            CVs = mpi_allgather(U.CV::Float64, comm)
+            accepteds = mpi_allgather(accepted::Bool, comm)
             accepted_CVs = CVs[findall(accepteds)] # update only on those CVs that were accepted
             update_bias!(bias, accepted_CVs, itrj)
-            acceptances = MPI.Allgather(numaccepts::Float64, COMM) # XXX: should use MPI.gather?
+            acceptances = mpi_allgather(numaccepts::Float64, comm) # XXX: should use MPI.gather?
             print_acceptance_rates(acceptances, itrj)
 
             create_checkpoint(checkpointer, univ, updatemethod, itrj)

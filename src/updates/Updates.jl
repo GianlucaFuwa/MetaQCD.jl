@@ -3,13 +3,12 @@ module Updates
 using KernelAbstractions
 using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
-using MPI
 using StaticArrays
 using Polyester: @batch
 using Printf
 using Random: rand, default_rng
 using Unicode
-using ..Output
+using ..MetaIO
 using ..RHMCParameters
 using ..Utils
 
@@ -30,10 +29,6 @@ import ..Smearing: calc_smearedU!, get_layer, stout_backprop!
 import ..Universe: Univ
 
 abstract type AbstractUpdate end
-
-const COMM = MPI.COMM_WORLD
-const MYRANK = MPI.Comm_rank(COMM)
-const COMM_SIZE = MPI.Comm_size(COMM)
 
 include("../forces/forces.jl")
 include("./heatbath.jl")
