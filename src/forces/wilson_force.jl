@@ -13,7 +13,7 @@ function calc_dSfdU!(
     clear!(X)
     solve_dirac!(X, DdagD, ϕ, Y, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp LinearAlgebra.mul!(Y, D, X) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
     LinearAlgebra.mul!(Y, D, X) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
-    add_wilson_derivative!(dU, U, X, Y, D.anti_periodic)
+    add_wilson_derivative!(dU, U, X, Y, D.boundary_condition)
 
     if C
         Xμν = fermion_action.Xμν
@@ -34,7 +34,7 @@ function calc_dSfdU!(
     n = get_n(rhmc)
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
-    anti = D.anti_periodic
+    bc = D.boundary_condition
     Xs = fermion_action.rhmc_temps1
     Ys = fermion_action.rhmc_temps2
     temp1, temp2 = fermion_action.cg_temps
@@ -49,7 +49,7 @@ function calc_dSfdU!(
 
     for i in 1:n
         LinearAlgebra.mul!(Ys[i+1], D, Xs[i+1]) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
-        add_wilson_derivative!(dU, U, Xs[i+1], Ys[i+1], anti; coeff=coeffs[i])
+        add_wilson_derivative!(dU, U, Xs[i+1], Ys[i+1], bc; coeff=coeffs[i])
         if C
             Xμν = fermion_action.Xμν
             calc_Xμν_eachsite!(Xμν, Xs[i+1], Ys[i+1])
@@ -61,7 +61,7 @@ function calc_dSfdU!(
 end
 
 function add_wilson_derivative!(
-    dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, X::TF, Y::TF, anti; coeff=1
+    dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, X::TF, Y::TF, bc; coeff=1
 ) where {T,TF<:WilsonSpinorfield{CPU,T}}
     check_dims(dU, U, X, Y)
     NT = dims(U)[4]
@@ -72,15 +72,14 @@ function add_wilson_derivative!(
     # "object_and_preserve" (cant reproduce in MWE yet)
     # is fine, because writing it like this makes the GPU port easier
     @batch for site in eachindex(dU)
-        bc⁺ = boundary_factor(anti, site[4], 1, NT)
-        add_wilson_derivative_kernel!(dU, U, X, Y, site, bc⁺, fac)
+        add_wilson_derivative_kernel!(dU, U, X, Y, site, bc, fac)
     end
 
     update_halo!(dU)
     return nothing
 end
 
-function add_wilson_derivative_kernel!(dU, U, X, Y, site, bc⁺, fac)
+function add_wilson_derivative_kernel!(dU, U, X, Y, site, bc, fac)
     NX, NY, NZ, NT = dims(U)
     siteμ⁺ = move(site, 1, 1, NX)
     B = spintrace(spin_proj(X[siteμ⁺], Val(-1)), Y[site])
@@ -98,9 +97,9 @@ function add_wilson_derivative_kernel!(dU, U, X, Y, site, bc⁺, fac)
     dU[3i32, site] += fac * traceless_antihermitian(cmatmul_oo(U[3, site], B + C))
 
     siteμ⁺ = move(site, 4, 1, NT)
-    B = spintrace(spin_proj(X[siteμ⁺], Val(-4)), Y[site])
-    C = spintrace(spin_proj(Y[siteμ⁺], Val(4)), X[site])
-    dU[4i32, site] += bc⁺ * fac * traceless_antihermitian(cmatmul_oo(U[4, site], B + C))
+    B = spintrace(spin_proj(apply_bc(X[siteμ⁺], bc, site, Val(1), NT), Val(-4)), Y[site])
+    C = spintrace(spin_proj(apply_bc(Y[siteμ⁺], bc, site, Val(1), NT), Val(4)), X[site])
+    dU[4i32, site] += fac * traceless_antihermitian(cmatmul_oo(U[4, site], B + C))
     return nothing
 end
 

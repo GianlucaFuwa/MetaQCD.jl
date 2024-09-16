@@ -37,7 +37,7 @@ function calc_gauge_action(U::Gaugefield, methodname::String)
     return Sg
 end
 
-calc_gauge_action(U::Gaugefield{B,T,A,GA}) where {B,T,A,GA} = calc_gauge_action(GA(), U)
+calc_gauge_action(U::Gaugefield{B,T,M,A,GA}) where {B,T,M,A,GA} = calc_gauge_action(GA(), U)
 
 function calc_gauge_action(::WilsonGaugeAction, U)
     P = plaquette_trace_sum(U)
@@ -111,8 +111,8 @@ function rect_trace_sum(U::Gaugefield{CPU})
 end
 
 function plaquette(U, μ, ν, site)
-    Nμ = local_dims(U)[μ]
-    Nν = local_dims(U)[ν]
+    Nμ = dims(U)[μ]
+    Nν = dims(U)[ν]
     siteμ⁺ = move(site, μ, 1i32, Nμ)
     siteν⁺ = move(site, ν, 1i32, Nν)
     plaq = cmatmul_oodd(U[μ, site], U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site])
@@ -120,8 +120,8 @@ function plaquette(U, μ, ν, site)
 end
 
 function rect_2x1(U, μ, ν, site)
-    Nμ = local_dims(U)[μ]
-    Nν = local_dims(U)[ν]
+    Nμ = dims(U)[μ]
+    Nν = dims(U)[ν]
     siteμ⁺ = move(site, μ, 1i32, Nμ)
     siteμ²⁺ = move(siteμ⁺, μ, 1i32, Nμ)
     siteμ⁺ν⁺ = move(siteμ⁺, ν, 1i32, Nν)
@@ -134,8 +134,8 @@ function rect_2x1(U, μ, ν, site)
 end
 
 function rect_1x2(U, μ, ν, site)
-    Nμ = local_dims(U)[μ]
-    Nν = local_dims(U)[ν]
+    Nμ = dims(U)[μ]
+    Nν = dims(U)[ν]
     siteμ⁺ = move(site, μ, 1i32, Nμ)
     siteμ⁺ν⁺ = move(siteμ⁺, ν, 1i32, Nν)
     siteν⁺ = move(site, ν, 1i32, Nν)
@@ -148,8 +148,8 @@ function rect_1x2(U, μ, ν, site)
 end
 
 function plaquette_2x2(U, μ, ν, site)
-    Nμ = local_dims(U)[μ]
-    Nν = local_dims(U)[ν]
+    Nμ = dims(U)[μ]
+    Nν = dims(U)[ν]
     siteμ⁺ = move(site, μ, 1i32, Nμ)
     siteμ²⁺ = move(siteμ⁺, μ, 1i32, Nμ)
     siteμ²⁺ν⁺ = move(siteμ²⁺, ν, 1i32, Nν)

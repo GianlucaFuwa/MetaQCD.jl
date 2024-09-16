@@ -15,8 +15,10 @@ struct PlaquetteMeasurement{T} <: AbstractMeasurement
                 header *= @sprintf("%-11s%-25s", "itrj", "Re(plaq)")
             end
 
-            open(path, "w") do fp
-                println(fp, header)
+            if mpi_amroot()
+                open(path, "w") do fp
+                    println(fp, header)
+                end
             end
         else
             rpath = nothing
@@ -33,41 +35,32 @@ function PlaquetteMeasurement(U, ::PlaquetteParameters, filename, flow=false)
 end
 
 function measure(
-    m::PlaquetteMeasurement{Nothing}, U, ::Integer, itrj, flow=nothing
-)
+    m::PlaquetteMeasurement{T}, U, myinstance=mpi_myrank(), itrj=0, flow=nothing
+) where {T}
     plaq = plaquette_trace_sum(U) * m.factor
+    iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
-    if mpi_amroot()
-        iflow, _ = isnothing(flow) ? (0, 0.0) : flow
-
+    if (is_distributed(U) && mpi_amroot()) || !is_distributed(U)
         if !isnothing(flow)
-            @level1("$itrj\t$plaq # plaq_flow_$(iflow)")
+            @level1("$itrj\t$plaq # plaq_flow_$(τ)")
         else
             @level1("$itrj\t$plaq # plaq")
         end
-    end
 
-    return plaq
-end
+        if T !== Nothing
+            filename = set_ext!(m.filename, myinstance)
+            fp = fopen(filename, "a")
+            printf(fp, "%-11i", itrj)
 
-function measure(
-    m::PlaquetteMeasurement{T}, U, myinstance, itrj, flow=nothing
-) where {T<:AbstractString}
-    plaq = plaquette_trace_sum(U) * m.factor
+            if !isnothing(flow)
+                printf(fp, "%-7i", iflow)
+                printf(fp, "%-9.5f", τ)
+            end
 
-    if mpi_amroot()
-        iflow, τ = isnothing(flow) ? (0, 0.0) : flow
-        filename = set_ext!(m.filename, myinstance)
-        fp = fopen(filename, "a")
-        printf(fp, "%-11i", itrj)
-
-        if !isnothing(flow)
-            printf(fp, "%-7i", iflow)
-            printf(fp, "%-9.5f", τ)
+            printf(fp, "%+-25.15E", plaq)
+            newline(fp)
+            fclose(fp)
         end
-
-        printf(fp, "%+-25.15E\n", plaq)
-        fclose(fp)
     end
 
     return plaq

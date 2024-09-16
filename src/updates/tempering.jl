@@ -126,6 +126,8 @@ function swap_U!(a, b)
         end
     end
 
+    update_halo!(a)
+    update_halo!(b)
     return nothing
 end
 

@@ -2,23 +2,29 @@ struct TopologicalChargeMeasurement{T} <: AbstractMeasurement
     TC_dict::Dict{String,Float64} # topological charge definition => value
     filename::T
     function TopologicalChargeMeasurement(
-        ::Gaugefield; filename="", TC_methods=["clover"], flow=false
+        U::Gaugefield; filename="", TC_methods=["clover"], flow=false
     )
         TC_dict = Dict{String,Float64}()
+
         for method in TC_methods
             @level1("|    Method: $(method)")
+
             if method == "plaquette"
                 TC_dict["plaquette"] = 0.0
             elseif method == "clover"
                 TC_dict["clover"] = 0.0
             elseif method == "improved"
+                if is_distributed(U)
+                    @assert U.topology.halo_width >= 2 "improved topological charge requires a halo width of at least 2"
+                end
+
                 TC_dict["improved"] = 0.0
             else
                 error("Topological charge method $method not supported")
             end
         end
 
-        if filename !== nothing && filename != ""
+        if !isnothing(filename) && filename != ""
             path = filename * MYEXT
             rpath = StaticString(path)
             header = ""
@@ -33,8 +39,10 @@ struct TopologicalChargeMeasurement{T} <: AbstractMeasurement
                 header *= @sprintf("%-25s", "Q_$(method)")
             end
 
-            open(path, "w") do fp
-                println(fp, header)
+            if mpi_amroot()
+                open(path, "w") do fp
+                    println(fp, header)
+                end
             end
         else
             rpath = nothing
@@ -57,30 +65,8 @@ function TopologicalChargeMeasurement(
 end
 
 function measure(
-    m::TopologicalChargeMeasurement{Nothing}, U, ::Integer, itrj, flow=nothing,
-)
-    TC_dict = m.TC_dict
-    iflow, _ = isnothing(flow) ? (0, 0.0) : flow
-
-    for method in keys(TC_dict)
-        Q = top_charge(U, method)
-        TC_dict[method] = Q
-
-        if mpi_amroot()
-            if !isnothing(flow)
-                @level1("$itrj\t$Q # topcharge_$(method)_flow_$(iflow)")
-            else
-                @level1("$itrj\t$Q # topcharge_$(method)")
-            end
-        end
-    end
-
-    return TC_dict
-end
-
-function measure(
     m::TopologicalChargeMeasurement{T}, U, myinstance, itrj, flow=nothing,
-) where {T<:AbstractString}
+) where {T}
     TC_dict = m.TC_dict
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
@@ -89,22 +75,33 @@ function measure(
     end
 
     if mpi_amroot()
-        filename = set_ext!(m.filename, myinstance)
-        fp = fopen(filename, "a")
-        printf(fp, "%-11i", itrj)
-
-        if !isnothing(flow)
-            printf(fp, "%-7i", iflow)
-            printf(fp, "%-9.5f", τ)
-        end
-
         for method in keys(TC_dict)
-            v = TC_dict[method]
-            printf(fp, "%+-25.15E", v)
+            Q = TC_dict[method]
+
+            if !isnothing(flow)
+                @level1("$itrj\t$Q # topcharge_$(method)_flow_$(τ)")
+            else
+                @level1("$itrj\t$Q # topcharge_$(method)")
+            end
         end
 
-        printf(fp, "\n")
-        fclose(fp)
+        if T !== Nothing
+            filename = set_ext!(m.filename, myinstance)
+            fp = fopen(filename, "a")
+            printf(fp, "%-11i", itrj)
+
+            if !isnothing(flow)
+                printf(fp, "%-7i", iflow)
+                printf(fp, "%-9.5f", τ)
+            end
+
+            for value in values(TC_dict)
+                printf(fp, "%+-25.15E", value)
+            end
+
+            newline(fp)
+            fclose(fp)
+        end
     end
 
     return TC_dict
@@ -146,9 +143,9 @@ function top_charge(::Clover, U::Gaugefield{CPU,T}) where {T}
 end
 
 function top_charge(::Improved, U::Gaugefield{CPU,T}) where {T}
-    Q = 0.0
     c₀ = T(5/3)
     c₁ = T(-2/12)
+    Q = 0.0
 
     @batch reduction = (+, Q) for site in eachindex(U)
         Q += top_charge_density_imp(U, site, c₀, c₁, T)

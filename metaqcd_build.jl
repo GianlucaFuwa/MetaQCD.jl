@@ -6,7 +6,7 @@ using MetaQCD: build_bias
 using MetaQCD.Parameters: lower_case
 
 COMM = mpi_init()
-@assert mpi_size() == 1 "metaqcd_sim can not be used with mpi, only metaqcd_build"
+# @assert mpi_size() == 1 "metaqcd_sim can not be used with mpi, only metaqcd_build"
 
 if length(ARGS) == 0 && mpi_myrank() == 0
     error("""
@@ -43,9 +43,9 @@ if length(ARGS) == 2
 end
 
 if mpi_parallel() && mpi_myrank() == 0
-    println("$(mpi_size()) walkers will be used")
+    println("$(mpi_size()) mpi processes will be used")
 end
 
 mpi_barrier()
 
-build_bias(ARGS[1]; backend=backend, mpi_enabled=with_mpi)
+build_bias(ARGS[1]; backend=backend, mpi_multi_sim=with_mpi)

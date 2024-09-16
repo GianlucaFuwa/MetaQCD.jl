@@ -9,12 +9,12 @@ function calc_dSfdU!(
     X, Y, temp1, temp2 = fermion_action.cg_temps
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
-    anti = D.anti_periodic
+    bc = D.boundary_condition
 
     clear!(X) # initial guess is zero
     solve_dirac!(X, DdagD, ϕ, Y, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp
     LinearAlgebra.mul!(Y, D, X)
-    add_staggered_derivative!(dU, U, X, Y, anti)
+    add_staggered_derivative!(dU, U, X, Y, bc)
     return nothing
 end
 
@@ -28,7 +28,7 @@ function calc_dSfdU!(
     n = get_n(rhmc)
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
-    anti = D.anti_periodic
+    bc = D.boundary_condition
     Xs = fermion_action.rhmc_temps1
     Ys = fermion_action.rhmc_temps2
     temp1, temp2 = fermion_action.cg_temps
@@ -43,29 +43,27 @@ function calc_dSfdU!(
 
     for i in 1:n
         LinearAlgebra.mul!(Ys[i+1], D, Xs[i+1])
-        add_staggered_derivative!(dU, U, Xs[i+1], Ys[i+1], anti; coeff=coeffs[i])
+        add_staggered_derivative!(dU, U, Xs[i+1], Ys[i+1], bc; coeff=coeffs[i])
     end
 
     return nothing
 end
 
 function add_staggered_derivative!(
-    dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, X::TF, Y::TF, anti; coeff=1
-) where {T,TF<:StaggeredSpinorfield{CPU,T}}
+    dU::Colorfield{CPU,T,M}, U::Gaugefield{CPU,T,M}, X::TF, Y::TF, bc; coeff=1
+) where {T,M,TF<:StaggeredSpinorfield{CPU,T,M}}
     check_dims(dU, U, X, Y)
-    NT = dims(U)[4]
     fac = T(-0.5coeff)
 
     @batch for site in eachindex(dU)
-        bc⁺ = boundary_factor(anti, site[4], 1, NT)
-        add_staggered_derivative_kernel!(dU, U, X, Y, site, bc⁺, fac)
+        add_staggered_derivative_kernel!(dU, U, X, Y, site, bc, fac)
     end
 
     update_halo!(dU)
     return nothing
 end
 
-function add_staggered_derivative_kernel!(dU, U, X, Y, site, bc⁺, fac)
+function add_staggered_derivative_kernel!(dU, U, X, Y, site, bc, fac)
     NX, NY, NZ, NT = dims(U)
     siteμ⁺ = move(site, 1, 1, NX)
     η = staggered_η(Val(1), site)
@@ -86,9 +84,9 @@ function add_staggered_derivative_kernel!(dU, U, X, Y, site, bc⁺, fac)
     dU[3, site] += (fac * η) * traceless_antihermitian(cmatmul_oo(U[3, site], B - C))
 
     siteμ⁺ = move(site, 4, 1, NT)
-    η = bc⁺ * staggered_η(Val(4), site)
-    B = ckron(X[siteμ⁺], Y[site])
-    C = ckron(Y[siteμ⁺], X[site])
+    η = staggered_η(Val(4), site)
+    B = ckron(apply_bc(X[siteμ⁺], bc, site, Val(1), NT), Y[site])
+    C = ckron(apply_bc(Y[siteμ⁺], bc, site, Val(1), NT), X[site])
     dU[4, site] += (fac * η) * traceless_antihermitian(cmatmul_oo(U[4, site], B - C))
     return nothing
 end

@@ -1,51 +1,96 @@
 """
-    Spinorfield{Backend,T,ND}(NX, NY, NZ, NT)
+    Spinorfield{Backend,FloatType,NumDirac}(NX, NY, NZ, NT)
     Spinorfield(ψ::Spinorfield)
     Spinorfield(f::AbstractField, staggered)
 
-Creates a Spinorfield on `Backend`, i.e. an array of link-variables (NC×ND complex vectors
-with `T` precision) of size `NX × NY × NZ × NT` or a zero-initialized copy of `ψ`.
-If `staggered=true`, the number of Dirac degrees of freedom (ND) is reduced to 1 instead of 4.
+Creates a Spinorfield on `Backend`, i.e. an array of link-variables (numcolors×NumDirac complex vectors
+with `FloatType` precision) of size `NX × NY × NZ × NT` or a zero-initialized copy of `ψ`.
+If `staggered=true`, the number of Dirac degrees of freedom (NumDirac) is reduced to 1 instead of 4.
 # Supported backends
 `CPU` \\
 `CUDABackend` \\
 `ROCBackend`
 """
-struct Spinorfield{B,T,M,A,H,ND} <: AbstractField{B,T,M,A}
-    U::A # Actual field storing the gauge variables
+struct Spinorfield{Backend,FloatType,IsDistributed,ArrayType,NumDirac} <:
+    AbstractField{Backend,FloatType,IsDistributed,ArrayType}
+    U::ArrayType # Actual field storing the gauge variables
     NX::Int64 # Number of lattice sites in the x-direction
     NY::Int64 # Number of lattice sites in the y-direction
     NZ::Int64 # Number of lattice sites in the z-direction
     NT::Int64 # Number of lattice sites in the t-direction
     NV::Int64 # Total number of lattice sites
     NC::Int64 # Number of colors
-
-    halo_sendbuf::H
-    halo_recvbuf::H
-    pad::Int64 # halo width
     
-    # Meta-data regarding portion of the field local to current process
-    my_NX::Int64
-    my_NY::Int64
-    my_NZ::Int64
-    my_NT::Int64
-    my_NV::Int64
-    nprocs::Int64
-    nprocs_cart::NTuple{4,Int64}
-    myrank::Int64
-    myrank_cart::NTuple{4,Int64}
-    comm_cart::Utils.Comm
-    # TODO: Constructors
+    topology::FieldTopology # Info regarding MPI topology
+    function Spinorfield{Backend,FloatType,NumDirac}(
+        NX, NY, NZ, NT
+    ) where {Backend,FloatType,NumDirac}
+        U = KA.zeros(Backend(), SVector{3NumDirac,Complex{FloatType}}, NX, NY, NZ, NT)
+        NV = NX * NY * NZ * NT
+        numprocs_cart = (1, 1, 1, 1)
+        halo_width = 0
+        topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
+        return new{Backend,FloatType,false,typeof(U),NumDirac}(
+            U, NX, NY, NZ, NT, NV, 3, topology
+        )
+    end
+
+    function Spinorfield{Backend,FloatType,NumDirac}(
+        NX, NY, NZ, NT, numprocs_cart, halo_width
+    ) where {Backend,FloatType,NumDirac}
+        if prod(numprocs_cart) == 1
+            return Spinorfield{Backend,FloatType,NumDirac}(NX, NY, NZ, NT)
+        end
+
+        NV = NX * NY * NZ * NT
+        topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
+        ldims = topology.local_dims
+        dims_in = ntuple(i -> ldims[i]+2halo_width, Val(4)) 
+        U = KA.zeros(Backend(), SVector{3NumDirac,Complex{FloatType}}, dims_in...)
+        return new{Backend,FloatType,true,typeof(U),NumDirac}(
+            U, NX, NY, NZ, NT, NV, 3, topology
+        )
+    end
+end
+
+function Spinorfield(
+    f::Spinorfield{Backend,FloatType,IsDistributed,ArrayType,NumDirac}
+) where {Backend,FloatType,IsDistributed,ArrayType,NumDirac}
+    u_out = if IsDistributed
+        numprocs_cart = f.topology.numprocs_cart
+        halo_width = f.topology.halo_width
+        Spinorfield{Backend,FloatType,NumDirac}(f.NX, f.NY, f.NZ, f.NT, numprocs_cart, halo_width)
+    else
+        Spinorfield{Backend,FloatType,NumDirac}(f.NX, f.NY, f.NZ, f.NT)
+    end
+
+    return u_out
+end
+
+function Spinorfield(
+    u::AbstractField{Backend,FloatType,IsDistributed}; staggered=false
+) where {Backend,FloatType,IsDistributed}
+    NumDirac = staggered ? 1 : 4
+
+    u_out = if IsDistributed
+        numprocs_cart = u.topology.numprocs_cart
+        halo_width = u.topology.halo_width
+        Spinorfield{Backend,FloatType,NumDirac}(u.NX, u.NY, u.NZ, u.NT, numprocs_cart, halo_width)
+    else
+        Spinorfield{Backend,FloatType,NumDirac}(u.NX, u.NY, u.NZ, u.NT)
+    end
+
+    return u_out
 end
 
 # Need to overload dims and size again, because we are using 4D arrays for fermions
-local_dims(f::AbstractArray{SVector{N,Complex{T}},4}) where {N,T} =
+@inline dims(f::AbstractArray{SVector{N,Complex{T}},4}) where {N,T} =
     NTuple{4,Int64}((size(f, 1), size(f, 2), size(f, 3), size(f, 4)))
-Base.size(f::AbstractArray{SVector{N,Complex{T}},4}) where {N,T} = dims(f)
-Base.size(f::Spinorfield) = NTuple{4,Int64}((f.NX, f.NY, f.NZ, f.NT))
-float_type(::AbstractArray{SVector{N,Complex{T}},4}) where {N,T} = T
-num_colors(::Spinorfield{B,T,A,ND}) where {B,T,A,ND} = 3
-num_dirac(::Spinorfield{B,T,A,ND}) where {B,T,A,ND} = ND
+@inline Base.size(f::AbstractArray{SVector{N,Complex{T}},4}) where {N,T} = dims(f)
+@inline Base.size(f::Spinorfield) = NTuple{4,Int64}((f.NX, f.NY, f.NZ, f.NT))
+@inline float_type(::AbstractArray{SVector{N,Complex{T}},4}) where {N,T} = T
+num_colors(::Spinorfield{B,T,M,A,ND}) where {B,T,M,A,ND} = 3
+num_dirac(::Spinorfield{B,T,M,A,ND}) where {B,T,M,A,ND} = ND
 Base.similar(f::Spinorfield) = Spinorfield(f)
 Base.eltype(::Spinorfield{B,T}) where {B,T} = Complex{T}
 LinearAlgebra.checksquare(f::Spinorfield) = f.NV * num_dirac(f) * num_colors(f)
@@ -60,11 +105,14 @@ Base.@propagate_inbounds Base.setindex!(f::Spinorfield, v, x, y, z, t) =
 Base.@propagate_inbounds Base.setindex!(f::Spinorfield, v, site::SiteCoords) =
     setindex!(f.U, v, site)
 
+Base.view(f::Spinorfield, I::CartesianIndices{4}) = view(f.U, I.indices...)
+
 function clear!(ϕ::Spinorfield{CPU,T}) where {T}
     @batch for site in eachindex(ϕ)
         ϕ[site] = zero(ϕ[site])
     end
 
+    update_halo!(ϕ)
     return nothing
 end
 
@@ -75,6 +123,7 @@ function Base.copy!(ϕ::T, ψ::T) where {T<:Spinorfield{CPU}}
         ϕ[site] = ψ[site]
     end
 
+    update_halo!(ϕ)
     return nothing
 end
 
@@ -83,6 +132,7 @@ function ones!(ϕ::Spinorfield{CPU,T}) where {T}
         ϕ[site] = fill(1, ϕ[site])
     end
 
+    update_halo!(ϕ)
     return nothing
 end
 
@@ -94,6 +144,7 @@ function set_source!(ϕ::Spinorfield{CPU,T}, site::SiteCoords, a, μ) where {T}
     vec_index = (μ - 1) * NC + a
     tup = ntuple(i -> i == vec_index ? one(Complex{T}) : zero(Complex{T}), Val(3ND))
     ϕ[site] = SVector{3ND,Complex{T}}(tup)
+    update_halo!(ϕ)
     return nothing
 end
 
@@ -103,6 +154,9 @@ function gaussian_pseudofermions!(ϕ::Spinorfield{CPU,T}) where {T}
     for site in eachindex(ϕ)
         ϕ[site] = @SVector randn(Complex{T}, sz) # σ = 0.5
     end
+
+    update_halo!(ϕ)
+    return nothing
 end
 
 function LinearAlgebra.mul!(ϕ::Spinorfield{CPU,T}, α) where {T}
@@ -112,6 +166,7 @@ function LinearAlgebra.mul!(ϕ::Spinorfield{CPU,T}, α) where {T}
         ϕ[site] *= α
     end
 
+    update_halo!(ϕ)
     return nothing
 end
 
@@ -124,6 +179,7 @@ function LinearAlgebra.axpy!(α, ψ::T, ϕ::T) where {T<:Spinorfield{CPU}}
         ϕ[site] += α * ψ[site]
     end
 
+    update_halo!(ϕ)
     return nothing
 end
 
@@ -137,6 +193,7 @@ function LinearAlgebra.axpby!(α, ψ::T, β, ϕ::T) where {T<:Spinorfield{CPU}}
         ϕ[site] = α * ψ[site] + β * ϕ[site]
     end
 
+    update_halo!(ϕ)
     return nothing
 end
 
@@ -150,7 +207,7 @@ function LinearAlgebra.dot(ϕ::T, ψ::T) where {T<:Spinorfield{CPU}}
         res += cdot(ϕ[site], ψ[site])
     end
 
-    return res
+    return distributed_reduce(res, +, ϕ)
 end
 
 """
@@ -163,15 +220,22 @@ or iterating only over one half of its indices.
 """
 even_odd(f::Spinorfield) = SpinorfieldEO(f)
 
-struct SpinorfieldEO{B,T,M,A,H,ND} <: AbstractField{B,T,M,A}
-    parent::Spinorfield{B,T,M,A,H,ND}
-    function SpinorfieldEO(f::Spinorfield{B,T,M,A,H,ND}) where {B,T,M,A,H,ND}
+struct SpinorfieldEO{Backend,FloatType,IsDistributed,ArrayType,NumDirac} <:
+    AbstractField{Backend,FloatType,IsDistributed,ArrayType}
+    parent::Spinorfield{Backend,FloatType,IsDistributed,ArrayType,NumDirac}
+    function SpinorfieldEO(
+        f::Spinorfield{Backend,FloatType,IsDistributed,ArrayType,NumDirac}
+    ) where {Backend,FloatType,IsDistributed,ArrayType,NumDirac}
         @assert iseven(f.NT) "Need even time extent for even-odd preconditioning"
-        return new{B,T,M,A,H,ND}(f)
+        return new{Backend,FloatType,IsDistributed,ArrayType,NumDirac}(f)
     end
 end
 
-Spinorfield(f::SpinorfieldEO{B,T,M,A,ND}) where {B,T,M,A,ND} = SpinorfieldEO(f.parent)
+function Spinorfield(
+    f::SpinorfieldEO{Backend,FloatType,IsDistributed,ArrayType,NumDirac}
+) where {Backend,FloatType,IsDistributed,ArrayType,NumDirac}
+    return SpinorfieldEO(f.parent)
+end
 
 local_dims(f::SpinorfieldEO) = local_dims(f.parent)
 Base.size(f::SpinorfieldEO) = size(f.parent)
@@ -192,6 +256,7 @@ Base.@propagate_inbounds Base.setindex!(f::SpinorfieldEO, v, x, y, z, t) =
 Base.@propagate_inbounds Base.setindex!(f::SpinorfieldEO, v, site::SiteCoords) =
     setindex!(f.parent.U, v, site)
 
+Base.view(f::SpinorfieldEO, I::CartesianIndices{4}) = view(f.parent.U, I.indices...)
 
 clear!(ϕ_eo::SpinorfieldEO) = clear!(ϕ_eo.parent)
 ones!(ϕ_eo::SpinorfieldEO) = ones!(ϕ_eo.parent)
@@ -206,6 +271,7 @@ function set_source!(ϕ_eo::SpinorfieldEO{CPU,T}, site::SiteCoords, a, μ) where
     tup = ntuple(i -> i == vec_index ? one(Complex{T}) : zero(Complex{T}), Val(3ND))
     _site = eo_site(site, global_dims(ϕ)..., ϕ.NV)
     ϕ[_site] = SVector{3ND,Complex{T}}(tup)
+    update_halo!(ϕ) # TODO: Even-odd halo exchange
     return nothing
 end
 
@@ -219,6 +285,7 @@ function Base.copy!(ϕ_eo::TF, ψ_eo::TF) where {TF<:SpinorfieldEO{CPU}}
         ϕ[e_site] = ψ[e_site]
     end
 
+    update_halo!(ϕ) # TODO: Even-odd halo exchange
     return nothing
 end
 
@@ -230,6 +297,9 @@ function gaussian_pseudofermions!(ϕ_eo::SpinorfieldEO{CPU,T}) where {T}
     for e_site in eachindex(even, ϕ)
         ϕ[e_site] = @SVector randn(Complex{T}, sz) # σ = 0.5
     end
+
+    update_halo!(ϕ) # TODO: Even-odd halo exchange
+    return nothing
 end
 
 function LinearAlgebra.mul!(ϕ_eo::SpinorfieldEO{CPU,T}, α) where {T}
@@ -241,6 +311,7 @@ function LinearAlgebra.mul!(ϕ_eo::SpinorfieldEO{CPU,T}, α) where {T}
         ϕ[_site] *= α
     end
 
+    update_halo!(ϕ) # TODO: Even-odd halo exchange
     return nothing
 end
 
@@ -256,6 +327,7 @@ function LinearAlgebra.axpy!(α, ψ_eo::T, ϕ_eo::T) where {T<:SpinorfieldEO{CPU
         ϕ[_site] += α * ψ[_site]
     end
 
+    update_halo!(ϕ) # TODO: Even-odd halo exchange
     return nothing
 end
 
@@ -271,6 +343,7 @@ function LinearAlgebra.axpby!(α, ψ_eo::T, β, ϕ_eo::T, even=true) where {T<:S
         ϕ[_site] = α * ψ[_site] + β * ϕ[_site]
     end
 
+    update_halo!(ϕ) # TODO: Even-odd halo exchange
     return nothing
 end
 
@@ -287,7 +360,7 @@ function LinearAlgebra.dot(ϕ_eo::T, ψ_eo::T) where {T<:SpinorfieldEO{CPU}}
         res += cdot(ϕ[_site], ψ[_site])
     end
 
-    return res
+    return distributed_reduce(res, +, ϕ)
 end
 
 function dot_all(ϕ_eo::T, ψ_eo::T) where {T<:SpinorfieldEO{CPU}}
@@ -300,7 +373,7 @@ function dot_all(ϕ_eo::T, ψ_eo::T) where {T<:SpinorfieldEO{CPU}}
         res += cdot(ϕ[site], ψ[site])
     end
 
-    return res
+    return distributed_reduce(res, +, ϕ)
 end
 
 function copy_eo!(ϕ_eo::T, ψ_eo::T) where {T<:SpinorfieldEO{CPU}}
@@ -316,6 +389,7 @@ function copy_eo!(ϕ_eo::T, ψ_eo::T) where {T<:SpinorfieldEO{CPU}}
         ϕ[e_site] = ψ[o_site]
     end
 
+    update_halo!(ϕ) # TODO: Even-odd halo exchange
     return nothing
 end
 
@@ -332,6 +406,7 @@ function copy_oe!(ϕ_eo::T, ψ_eo::T) where {T<:SpinorfieldEO{CPU}}
         ϕ[o_site] = ψ[e_site]
     end
 
+    update_halo!(ϕ) # TODO: Even-odd halo exchange
     return nothing
 end
 
@@ -350,6 +425,7 @@ function axpy_oe!(α, ψ_eo::T, ϕ_eo::T) where {T<:SpinorfieldEO{CPU}}
         ϕ[e_site] += α * ψ[o_site]
     end
 
+    update_halo!(ϕ) # TODO: Even-odd halo exchange
     return nothing
 end
 
@@ -368,5 +444,6 @@ function axpy_eo!(α, ψ_eo::T, ϕ_eo::T) where {T<:SpinorfieldEO{CPU}}
         ϕ[o_site] += α * ψ[e_site]
     end
 
+    update_halo!(ϕ) # TODO: Even-odd halo exchange
     return nothing
 end

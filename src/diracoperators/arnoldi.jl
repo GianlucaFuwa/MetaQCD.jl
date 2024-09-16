@@ -156,6 +156,7 @@ function _partialschur(D, arnoldi, mindim, maxdim, nev, tol, restarts, which)
         effective_nev = ArnoldiMethod.include_conjugate_pair(T, ritz, nev)
 
         nlock = 0
+
         @inbounds for i in 1:effective_nev
             if isconverged(ritz.ord[i])
                 groups[ritz.ord[i]] = 1
@@ -172,12 +173,14 @@ function _partialschur(D, arnoldi, mindim, maxdim, nev, tol, restarts, which)
         @inbounds while i ≤ maxdim
             is_pair = ArnoldiMethod.include_conjugate_pair(T, ritz, i) == i + 1
             num = is_pair ? 2 : 1
+
             if k < ideal_size && !isconverged(ritz.ord[i])
                 group = 2
                 k += num
             else
                 group = 3
             end
+
             if is_pair
                 groups[ritz.ord[i]] = group
                 groups[ritz.ord[i+1]] = group
@@ -189,6 +192,7 @@ function _partialschur(D, arnoldi, mindim, maxdim, nev, tol, restarts, which)
         end
 
         purge = 1
+
         @inbounds while purge < active && groups[purge] == 1
             purge += 1
         end
@@ -198,13 +202,16 @@ function _partialschur(D, arnoldi, mindim, maxdim, nev, tol, restarts, which)
 
         for i in purge:k
             clear!(V_tmp[i])
+
             for j in purge:maxdim
                 axpy!(Q[j, i], V[j], V_tmp[i])
             end
         end
+
         for i in purge:k
             copy!(V[i], V_tmp[i])
         end
+
         copy!(V[k+1], V[maxdim+1])
         
         active = nlock + 1
@@ -221,10 +228,12 @@ function _partialschur(D, arnoldi, mindim, maxdim, nev, tol, restarts, which)
     # Change of basis
     for i in 1:nconverged
         clear!(V_tmp[i])
+
         for j in 1:nconverged
             axpy!(Q[j, i], Vconverged[j], V_tmp[i]) 
         end
     end
+
     for i in 1:nconverged
         copy!(Vconverged[i], V_tmp[i])
     end
@@ -232,7 +241,6 @@ function _partialschur(D, arnoldi, mindim, maxdim, nev, tol, restarts, which)
     ArnoldiMethod.copy_eigenvalues!(ritz.λs, H, Base.OneTo(nconverged))
     history = ArnoldiMethod.History(prods, nconverged, nconverged ≥ nev, nev)
     schur = ArnoldiMethod.PartialSchur(Vconverged, Hconverged, ritz.λs[1:nconverged])
-
     return schur, history
 end
 
@@ -253,6 +261,7 @@ function reinitialize_meta!(arnoldi, j)
     for i in 1:j
         h[i] = dot(V[i], v)
     end
+
     for i in 1:j
         axpy!(-h[i], V[i], v)
     end
@@ -261,12 +270,15 @@ function reinitialize_meta!(arnoldi, j)
 
     if wnorm < η * rnorm
         rnorm = wnorm
+
         for i in 1:j
             h[i] = dot(V[i], v)
         end
+
         for i in 1:j
             axpy!(-h[i], V[i], v)
         end
+
         wnorm = norm(v)
     end
 

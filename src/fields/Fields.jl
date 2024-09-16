@@ -16,29 +16,39 @@ const BACKENDS = Dict{String,Type{<:KA.Backend}}("cpu" => CPU)
 
 # We are going to need these if we want to transfer a field from one backend to another
 # For other backends, we overload this method in their respective extensions
-array_type(::Type{CPU}) = Array
+@inline array_type(::Type{CPU}) = Array
 
 # Define an abstract field super type that is parametrized by the backend, the precision and
 # the array type (Array, CuArray, ROCArray)
-abstract type AbstractField{Backend,FloatType,MPIParallel,ArrayType} end
-const AbstractMPIField{B,T,A} = AbstractField{B,T,true,A}
+abstract type AbstractField{Backend,FloatType,IsDistributed,ArrayType} end
 
-include("distributed.jl")
-include("gaugefield.jl")
-include("algebrafield.jl")
-include("spinorfield.jl")
-include("tensorfield.jl")
-include("iterators.jl")
-include("gpu_iterators.jl")
+const AbstractMPIField{Backend,FloatType,ArrayType} =
+    AbstractField{Backend,FloatType,true,ArrayType}
+
+@inline function is_distributed(
+    ::AbstractField{Backend,FloatType,IsDistributed,ArrayType}
+) where {Backend,FloatType,IsDistributed,ArrayType}
+    return IsDistributed
+end
+
+include("distributed.jl") # utility functions for MPI-distributed fields
+
+include("boundaries.jl") # boundary conditions in time direction for spinors
+include("gaugefield.jl") # Gaugefield, Colorfield and Expfield structs defined here
+include("algebrafield.jl") # For now just a placeholder in case I want to implement more efficient storage of su(3) algebra elements
+include("spinorfield.jl") # Spinorfield and SpinorfieldEO (Even-Odd) structs defined here 
+include("tensorfield.jl") # Tensorfield struct and fieldstrength methods defined here
+include("iterators.jl") # Sequential and Checkerboard iterators defined here 
+include("gpu_iterators.jl") # GPU version of the above
 include("gpu_kernels/utils.jl")
 
-include("action.jl")
-include("field_operations.jl")
-include("clover.jl")
-include("staple.jl")
-include("wilsonloop.jl")
+include("action.jl") # Gauge action methods
+include("field_operations.jl") # General operations on fields, like adding, copying etc.
+include("clover.jl") # Definition of clover operator
+include("staple.jl") # Definition of staple operator
+include("wilsonloop.jl") # Definition of arbitrary side length Wilson loops
 
-include("gpu_kernels/action.jl")
+include("gpu_kernels/action.jl") # GPU versions of the above:
 include("gpu_kernels/algebrafield.jl")
 include("gpu_kernels/field_operations.jl")
 include("gpu_kernels/spinorfield.jl")
@@ -48,6 +58,8 @@ include("gpu_kernels/wilsonloop.jl")
 Base.similar(u::Gaugefield) = Gaugefield(u)
 Base.similar(u::Colorfield) = Colorfield(u)
 Base.similar(u::Expfield) = Expfield(u)
+
+Base.view(u::AbstractField, I::CartesianIndices{4}) = view(u.U, 1:4, I.indices...)
 
 """
 	to_backend(Backend_out, u::AbstractField{Backend_in,FloatType})
@@ -82,8 +94,8 @@ function to_backend(::Type{Bout}, u::AbstractField{M,Bin,T}) where {M,Bout,Bin,T
         return Colorfield{M,Bout,T,typeof(Uout)}(Uout, sizeU..., u.NV, 3)
     elseif u isa Tensorfield
         return Tensorfield{M,Bout,T,typeof(Uout)}(Uout, sizeU..., u.NV, 3)
-    elseif u isa Fermionfield
-        return Fermionfield{M,Bout,T,typeof(Uout),u.ND}(Uout, sizeU..., u.NV, 3)
+    elseif u isa Spinorfield
+        return Spinorfield{M,Bout,T,typeof(Uout),u.ND}(Uout, sizeU..., u.NV, 3)
     else
         throw(ArgumentError("Unsupported field type"))
     end
@@ -99,16 +111,16 @@ Base.strides(u::AbstractField) = strides(u.U)
 # access any of the fields of u within the @batch loop
 @inline object_and_preserve(u::AbstractField) = object_and_preserve(u.U)
 float_type(::AbstractArray{SMatrix{3,3,Complex{T},9},5}) where {T} = T
-float_type(::AbstractField{M,B,T}) where {M,B,T} = T
+float_type(::AbstractField{B,T}) where {B,T} = T
 KA.get_backend(u::AbstractField) = get_backend(u.U)
 
 # define dims() function twice --- once for generic arrays, such that GPUs and @batch
 # can use it, and once for Abstractfields for any other case
 @inline dims(u) = NTuple{4,Int64}((size(u, 2), size(u, 3), size(u, 4), size(u, 5)))
-@inline dims(u::AbstractField) = NTuple{4,Int64}((size(u.U, 2), size(u.U, 3), size(u.U, 4), size(u.U, 5)))
-@inline global_dims(u::AbstractField) = NTuple{4,Int64}((u.NX, u.NY, u.NZ, u.NT))
-@inline local_dims(u) = NTuple{4,Int64}((size(u, 2), size(u, 3), size(u, 4), size(u, 5)))
-@inline local_dims(u::AbstractField) = NTuple{4,Int64}((u.my_NX, u.my_NY, u.my_NZ, u.my_NT))
+@inline dims(u::AbstractField) = dims(u.U)
+@inline global_dims(u::AbstractField) = u.topology.global_dims
+@inline local_dims(u::AbstractField) = u.topology.local_dims
+@inline local_ranges(u::AbstractField) = u.topology.local_ranges
 Base.ndims(u::AbstractField) = 4
 Base.size(u::AbstractField) = NTuple{5,Int64}((4, u.NX, u.NY, u.NZ, u.NT))
 
@@ -127,16 +139,10 @@ Check if all fields have the same dimensions. Throw an `AssertionError` otherwis
     return q
 end
 
-Base.eachindex(u::AbstractField) = CartesianIndices((u.NX, u.NY, u.NZ, u.NT))
-Base.eachindex(::IndexLinear, u::AbstractField) = Base.OneTo(u.NV)
+@inline Base.eachindex(u::AbstractField) = CartesianIndices((u.NX, u.NY, u.NZ, u.NT))
+@inline Base.eachindex(::IndexLinear, u::AbstractField) = Base.OneTo(u.NV)
 # For MPI parallelized fields:
-@inline function Base.eachindex(u::AbstractMPIField)
-    pad = u.pad
-    st = 1 + pad
-    out = CartesianIndices((st:u.my_NX+pad, st:u.my_NY+pad, st:u.my_NZ+pad, st:u.my_NT+pad))
-    return out
-end
-
+@inline Base.eachindex(u::AbstractMPIField) = u.topology.bulk_sites
 Base.eachindex(::IndexLinear, u::AbstractMPIField) =
     error("MPI parallelized field can not be iterated over linearly")
 
@@ -148,8 +154,6 @@ function Base.eachindex(even::Bool, u::AbstractField)
 end
 
 Base.length(u::AbstractField) = u.NV
-
-const ONE_SITE = CartesianIndex(1, 1, 1, 1)
 
 # overload get and set for the Abstractfields structs, so we dont have to do u.U[μ,x,y,z,t]:
 Base.@propagate_inbounds Base.getindex(u::AbstractField, μ, x, y, z, t) = u.U[μ, x, y, z, t]
@@ -167,6 +171,8 @@ function Base.show(io::IO, ::MIME"text/plain", u::T) where {T<:AbstractField}
 
         if fieldname ∈ (:Sf, :Sg, :CV)
             println(io, "\t", fieldname, " = ", getfield(u, fieldname)[], ",")
+        elseif fieldname == :topology
+            println(io, "\t", fieldname, " = FieldTopology(...)")
         else
             println(io, "\t", fieldname, " = ", getfield(u, fieldname), ",")
         end
@@ -182,6 +188,8 @@ function Base.show(io::IO, u::T) where {T<:AbstractField}
 
         if fieldname ∈ (:Sf, :Sg, :CV)
             println(io, "\t", fieldname, " = ", getfield(u, fieldname)[], ",")
+        elseif fieldname == :topology
+            println(io, "\t", fieldname, " = FieldTopology(...)")
         else
             println(io, "\t", fieldname, " = ", getfield(u, fieldname), ",")
         end

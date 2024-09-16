@@ -18,8 +18,8 @@ function identity_gauges!(u::Gaugefield{CPU,T}) where {T}
         end
     end
 
+    u.Sg = 0.0
     update_halo!(u)
-    u.Sg = 0
     return nothing
 end
 
@@ -30,8 +30,8 @@ function random_gauges!(u::Gaugefield{CPU,T}) where {T}
         end
     end
 
-    update_halo!(u)
     u.Sg = calc_gauge_action(u)
+    update_halo!(u)
     return nothing
 end
 

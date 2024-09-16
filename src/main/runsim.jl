@@ -1,4 +1,4 @@
-function run_sim(filenamein::String; backend="cpu", mpi_enabled=false)
+function run_sim(filenamein::String; backend="cpu")
     # When using MPI we make sure that only rank 0 prints to the console
     if mpi_amroot()
         ext = splitext(filenamein)[end]
@@ -12,12 +12,6 @@ function run_sim(filenamein::String; backend="cpu", mpi_enabled=false)
     mpi_barrier()
 
     if mpi_amroot()
-        oneinst = parameters.numinstances == 1
-        if mpi_enabled
-            @assert parameters.tempering_enabled "MPI can only be used with parallel tempering in sim"
-        end
-        @assert mpi_enabled ⊻ oneinst "MPI must be enabled if and only if numinstances > 1, numinstances was $(parameters.numinstances)"
-        @assert mpi_size() == parameters.numinstances "numinstances has to be equal to the number of MPI ranks"
         if parameters.tempering_enabled
             @assert parameters.kind_of_bias != "none" "bias cannot be \"none\" in parallel tempering"
         end
@@ -26,7 +20,7 @@ function run_sim(filenamein::String; backend="cpu", mpi_enabled=false)
     # set random seed if provided, otherwise generate one
     if parameters.randomseed != 0
         seed = parameters.randomseed
-        Random.seed!(seed * (mpi_myrank() + 1))
+        Random.seed!((seed * (mpi_myrank() + 1)) % UInt64)
     else
         seed = rand(UInt64)
         Random.seed!(seed)
@@ -40,8 +34,7 @@ function run_sim(filenamein::String; backend="cpu", mpi_enabled=false)
     # print time and system info, because it looks cool I guess
     # btw, all these "@level1" calls are just for logging, level1 is always printed
     # and anything higher has to specified in the parameter file (default is level2)
-    # @level1("# $(pwd()) @ $(current_time())")
-    @level1("# $(pwd())")
+    @level1("# Working directory: $(pwd()) @ $(string(current_time()))")
     # buf = IOBuffer()
     # InteractiveUtils.versioninfo(buf)
     # versioninfo = String(take!(buf))
@@ -55,7 +48,7 @@ function run_sim(filenamein::String; backend="cpu", mpi_enabled=false)
         )
         univ = Univ(univ_args...)
     else
-        univ = Univ(parameters; use_mpi=mpi_enabled)
+        univ = Univ(parameters)
         updatemethod = updatemethod_pt = nothing
     end
 
@@ -64,20 +57,26 @@ function run_sim(filenamein::String; backend="cpu", mpi_enabled=false)
 end
 
 function run_sim!(
-    univ::Univ, parameters::ParameterSet, updatemethod, updatemethod_pt; mpi_enabled=false
+    univ::Univ, parameters::ParameterSet, updatemethod, updatemethod_pt; mpi_multi_sim=false
 )
     U = univ.U
 
     # initialize update method, measurements, and bias
     if parameters.tempering_enabled
-        if mpi_enabled
+        if mpi_multi_sim
             if isnothing(updatemethod)
                 updatemethod = Updatemethod(parameters, U)
             end
+
             parity = parameters.parity_update ? ParityUpdate(U) : nothing
         else
             if isnothing(updatemethod) && isnothing(updatemethod_pt)
                 updatemethod = Updatemethod(parameters, U[1])
+                faction_type = if univ.fermion_action == QuenchedFermionAction() 
+                    QuenchedFermionAction
+                else
+                    typeof(univ.fermion_action[1])
+                end
                 # all MetaD streams use HMC, so there is no need to initialize more than 1
                 updatemethod_pt = HMC(
                     U[1],
@@ -90,7 +89,7 @@ function run_sim!(
                     parameters.hmc_rhostout_gauge,
                     parameters.hmc_rhostout_fermion;
                     hmc_logging=false,
-                    fermion_action=typeof(univ.fermion_action[1]),
+                    fermion_action=faction_type,
                     heavy_flavours=length(parameters.Nf) - 1,
                     bias_enabled=true,
                 )
@@ -106,7 +105,7 @@ function run_sim!(
 
     isnothing(parity) || @level1("[ Parity update enabled\n")
 
-    if parameters.tempering_enabled && !mpi_enabled
+    if parameters.tempering_enabled && !mpi_multi_sim
         gflow = GradientFlow(
             U[1],
             parameters.flow_integrator,
@@ -180,7 +179,7 @@ function run_sim!(
         parameters.ensemble_dir, parameters.save_checkpoint_every
     )
 
-    if parameters.tempering_enabled && !mpi_enabled
+    if parameters.tempering_enabled && !mpi_multi_sim
         metaqcd_PT!(
             parameters,
             univ,
@@ -247,8 +246,7 @@ function metaqcd!(
                     therm=true,
                 )
             end
-            # @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())\n-")
-            @level1("|  Elapsed time:\t$(updatetime) [s]\n-")
+            @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))\n-")
         end
     end
 
@@ -259,7 +257,7 @@ function metaqcd!(
     _, runtime_all = @timed begin
         numaccepts = 0.0
         for itrj in 1:(parameters.numsteps)
-            # @level1("|  itrj = $itrj")
+            @level1("|  itrj = $itrj")
             _, updatetime = @timed begin
                 accepted = update!(
                     updatemethod,
@@ -274,8 +272,7 @@ function metaqcd!(
             end
 
             print_acceptance_rates(numaccepts, itrj)
-            # @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())")
-            @level1("|  Elapsed time:\t$(updatetime) [s]")
+            @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")
 
             if tempering_enabled
                 temper!(
@@ -305,8 +302,8 @@ function metaqcd!(
 
     print_total_time(runtime_all)
     flush(stdout)
-    close(Output.__GlobalLogger[])
-    set_global_logger!(1)
+    close(MetaIO.__GlobalLogger[])
+    isinteractive() && set_global_logger!(1) # Reset logger if run from REPL
     return nothing
 end
 
@@ -352,7 +349,7 @@ function metaqcd_PT!(
                     )
                 end
             end
-            @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())")
+            @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")
         end
     end
 
@@ -394,7 +391,7 @@ function metaqcd_PT!(
             end
 
             print_acceptance_rates(numaccepts, itrj)
-            @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())")
+            @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")
 
             temper!(U, bias, numaccepts_temper, swap_every, itrj; recalc=!uses_hmc)
 
@@ -413,7 +410,7 @@ function metaqcd_PT!(
 
     print_total_time(runtime_all)
     flush(stdout)
-    close(Output.__GlobalLogger[])
-    set_global_logger!(1)
+    close(MetaIO.__GlobalLogger[])
+    isinteractive() && set_global_logger!(1) # Reset logger if run from REPL
     return nothing
 end

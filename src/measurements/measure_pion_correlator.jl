@@ -18,34 +18,35 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT} <: AbstractMeasurement
         r=1,
         cg_tol=1e-16,
         cg_maxiters=1000,
-        anti_periodic=true,
+        bc_str="antiperiodic",
     )
         @level1("|    Dirac Operator: $(dirac_type)")
         @level1("|    Mass: $(mass)")
         dirac_type == "wilson" && @level1("|    CSW: $(csw)")
-        @level1("|    Even-odd preconditioned: $(eo_precon)")
+        @level1("|    Even-odd preconditioned: $(string(eo_precon))")
         @level1("|    CG Tolerance: $(cg_tol)")
         @level1("|    CG Max Iterations: $(cg_maxiters)")
+        @level1("|    Boundary Condition: $(bc_str)")
         NT = local_dims(U)[end]
         pion_corr = zeros(Float64, NT)
 
         if dirac_type == "staggered"
             if eo_precon
                 dirac_operator = StaggeredEOPreDiracOperator(
-                    U, mass; anti_periodic=anti_periodic
+                    U, mass; bc_str=bc_str
                 )
                 temp = Spinorfield(U; staggered=true)
                 cg_temps = ntuple(_ -> even_odd(similar(temp)), 6)
             else
                 dirac_operator = StaggeredDiracOperator(
-                    U, mass; anti_periodic=anti_periodic
+                    U, mass; bc_str=bc_str
                 )
                 temp = Spinorfield(U; staggered=true)
                 cg_temps = ntuple(_ -> similar(temp), 6)
             end
         elseif dirac_type == "wilson"
             dirac_operator = WilsonDiracOperator(
-                U, mass; anti_periodic=anti_periodic, r=r, csw=csw
+                U, mass; bc_str=bc_str, r=r, csw=csw
             )
             temp = Spinorfield(U)
             cg_temps = ntuple(_ -> Spinorfield(temp), 6)
@@ -53,7 +54,7 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT} <: AbstractMeasurement
             throw(ArgumentError("Dirac operator \"$dirac_type\" is not supported"))
         end
 
-        if filename !== nothing && filename != ""
+        if !isnothing(filename) && filename != ""
             path = filename * MYEXT
             rpath = StaticString(path)
             header = ""
@@ -68,8 +69,10 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT} <: AbstractMeasurement
                 header *= @sprintf("%-25s", "pion_corr_$(it)")
             end
 
-            open(path, "w") do fp
-                println(fp, header)
+            if mpi_amroot()
+                open(path, "w") do fp
+                    println(fp, header)
+                end
             end
         else
             rpath = nothing
@@ -98,34 +101,36 @@ function PionCorrelatorMeasurement(
         eo_precon=params.eo_precon,
         cg_tol=params.cg_tol,
         cg_maxiters=params.cg_maxiters,
-        anti_periodic=params.anti_periodic,
+        bc_str=params.boundary_condition,
     )
 end
 
 function measure(
-    m::PionCorrelatorMeasurement{T}, U, myinstance, itrj, flow=nothing
+    m::PionCorrelatorMeasurement{T}, U, myinstance=mpi_myrank(), itrj=0, flow=nothing
 ) where {T}
     pion_correlators_avg!(
         m.pion_corr, m.dirac_operator(U), m.temp, m.cg_temps, m.cg_tol, m.cg_maxiters
     )
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
-    if T !== Nothing
-        filename = set_ext!(m.filename, myinstance)
-        fp = fopen(filename, "a")
-        printf(fp, "%-11i", itrj)
+    if mpi_amroot()
+        if T !== Nothing
+            filename = set_ext!(m.filename, myinstance)
+            fp = fopen(filename, "a")
+            printf(fp, "%-11i", itrj)
 
-        if !isnothing(flow)
-            printf(fp, "%-7i", iflow)
-            printf(fp, "%-9.5f", τ)
+            if !isnothing(flow)
+                printf(fp, "%-7i", iflow)
+                printf(fp, "%-9.5f", τ)
+            end
+
+            for value in m.pion_corr
+                printf(fp, "%+-25.15E", value)
+            end
+
+            printf(fp, "\n")
+            fclose(fp)
         end
-
-        for value in m.pion_corr
-            printf(fp, "%+-25.15E", value)
-        end
-
-        printf(fp, "\n")
-        fclose(fp)
     end
 
     return m.pion_corr
@@ -143,24 +148,24 @@ function pion_correlators_avg!(pion_corr, D, ψ, cg_temps, cg_tol, cg_maxiters)
     check_dims(D.U, ψ, cg_temps...)
     NX, NY, NZ, NT = global_dims(ψ)
     my_NX, my_NY, my_NZ, my_NT = local_dims(ψ)
-    pad = D.U.pad
+    halo_width = D.U.topology.halo_width
     @assert length(pion_corr) == NT
     source = SiteCoords(1, 1, 1, 1)
     propagator, temps... = cg_temps
     pion_corr .= 0.0
 
     for a in 1:ψ.NC
-        for μ in 1:ψ.ND
+        for μ in 1:num_dirac(ψ)
             ones!(propagator)
             set_source!(ψ, source, a, μ)
             solve_dirac!(propagator, D, ψ, temps...; tol=cg_tol, maxiters=cg_maxiters)
 
-            for it in 1+pad:my_NT+pad
+            for it in 1+halo_width:my_NT+halo_width
                 cit = 0.0
 
-                @batch reduction = (+, cit) for iz in 1+pad:my_NZ+pad
-                    for iy in 1+pad:my_NY+pad
-                        for ix in 1+pad:my_NX+pad
+                @batch reduction = (+, cit) for iz in 1+halo_width:my_NZ+halo_width
+                    for iy in 1+halo_width:my_NY+halo_width
+                        for ix in 1+halo_width:my_NX+halo_width
                             cit += real(
                                 cdot(propagator[ix, iy, iz, it], propagator[ix, iy, iz, it])
                             )

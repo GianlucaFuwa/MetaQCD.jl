@@ -1,15 +1,20 @@
 """
-    WilsonEOPreDiracOperator(::AbstractField, mass; anti_periodic=true)
+    WilsonEOPreDiracOperator(::AbstractField, mass; bc_str="antiperiodic")
     WilsonEOPreDiracOperator(
         D::Union{WilsonDiracOperator,WilsonEOPreDiracOperator},
         U::Gaugefield
     )
 
 Create a free even-odd preconditioned Wilson Dirac Operator with mass `mass`.
-If `anti_periodic` is `true` the fermion fields are anti periodic in the time direction.
+
+`bc_str` can either be `"periodic"` or `"antiperiodic"` and specifies the boundary
+condition in the time direction.
+
+If `csw ≠ 0`, a clover term is included. 
+
 This object cannot be applied to a fermion vector, since it lacks a gauge background.
 A Wilson Dirac operator with gauge background is created by applying it to a `Gaugefield`
-`U` like `D_gauge = D_free(U)`
+`U` like `D_gauge = D(U)`
 
 # Type Parameters:
 - `B`: Backend (CPU / CUDA / ROCm)
@@ -18,8 +23,9 @@ A Wilson Dirac operator with gauge background is created by applying it to a `Ga
         Hermitian version of the operator
 - `TG`: Type of the underlying `Gaugefield`
 - `C`: Boolean declaring whether the operator is clover improved or not
+- `BC`: Boundary Condition in time direction
 """
-struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO} <: AbstractDiracOperator
+struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO,BC} <: AbstractDiracOperator
     U::TG
     Fμν::TX
     temp::TF # temp for storage of intermediate result for DdaggerD operator
@@ -29,25 +35,27 @@ struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO} <: AbstractDiracOperator
     κ::Float64
     r::Float64
     csw::Float64
-    anti_periodic::Bool # Only in time direction
+    boundary_condition::BC # Only in time direction
     function WilsonEOPreDiracOperator(
-        f::AbstractField{B,T}, mass; anti_periodic=true, r=1, csw=0, kwargs...
+        f::AbstractField{B,T}, mass; bc_str="antiperiodic", r=1, csw=0, kwargs...
     ) where {B,T}
         @assert r === 1 "Only r=1 in Wilson Dirac supported for now"
         κ = 1 / (2mass + 8)
         U = nothing
         C = csw == 0 ? false : true
         Fμν = C ? Tensorfield(f) : nothing
-        temp = even_odd(Spinorfield{B,T,4}(dims(f)...))
+        temp = even_odd(Spinorfield(f))
         D_diag = WilsonEODiagonal(temp, mass, csw)
         D_oo_inv = WilsonEODiagonal(temp, mass, csw; inverse=true)
+        boundary_condition = create_bc(bc_str, f.topology)
 
         TG = Nothing
         TX = typeof(Fμν)
         TF = typeof(temp)
         TO = typeof(D_diag)
-        return new{B,T,C,TF,TG,TX,TO}(
-            U, Fμν, temp, D_diag, D_oo_inv, mass, κ, r, csw, anti_periodic
+        BC = typeof(boundary_condition)
+        return new{B,T,C,TF,TG,TX,TO,BC}(
+            U, Fμν, temp, D_diag, D_oo_inv, mass, κ, r, csw, boundary_condition
         )
     end
 
@@ -68,8 +76,9 @@ struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO} <: AbstractDiracOperator
         TX = typeof(Fμν)
         TG = typeof(U)
         TO = typeof(D_diag)
-        return new{B,T,C,TF_new,TG,TX,TO}(
-            U, Fμν, temp, D_diag, D_oo_inv, mass, D.κ, D.r, csw, D.anti_periodic
+        BC = typeof(D.boundary_condition)
+        return new{B,T,C,TF_new,TG,TX,TO,BC}(
+            U, Fμν, temp, D_diag, D_oo_inv, mass, D.κ, D.r, csw, D.boundary_condition
         )
     end
 
@@ -85,8 +94,9 @@ struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO} <: AbstractDiracOperator
         D_oo_inv = D.D_oo_inv
 
         calc_diag!(D_diag, D_oo_inv, Fμν, U, mass)
-        return new{B,T,C,TF,typeof(U),TX,TO}(
-            U, Fμν, temp, D_diag, D_oo_inv, mass, D.κ, D.r, csw, D.anti_periodic
+        BC = typeof(D.boundary_condition)
+        return new{B,T,C,TF,typeof(U),TX,TO,BC}(
+            U, Fμν, temp, D_diag, D_oo_inv, mass, D.κ, D.r, csw, D.boundary_condition
         )
     end
 end
@@ -125,9 +135,7 @@ end
 dims(D_diag::WilsonEODiagonal) = D_diag.NX, D_diag.NY, D_diag.NZ, D_diag.NT
 num_colors(D_diag::WilsonEODiagonal) = D_diag.NC
 
-const WilsonEOPreFermionfield{B,T,A} = SpinorfieldEO{B,T,false,A,4}
-
-struct WilsonEOPreFermionAction{Nf,C,TD,CT,TX,RI1,RI2,RT} <: AbstractFermionAction
+struct WilsonEOPreFermionAction{Nf,C,TD,CT,TX,RI1,RI2,RT} <: AbstractFermionAction{Nf}
     D::TD
     cg_temps::CT
     Xμν::TX
@@ -142,7 +150,7 @@ struct WilsonEOPreFermionAction{Nf,C,TD,CT,TX,RI1,RI2,RT} <: AbstractFermionActi
     function WilsonEOPreFermionAction(
         f::AbstractField{B,T},
         mass;
-        anti_periodic=true,
+        bc_str="antiperiodic",
         r=1,
         csw=0,
         Nf=2,
@@ -155,7 +163,7 @@ struct WilsonEOPreFermionAction{Nf,C,TD,CT,TX,RI1,RI2,RT} <: AbstractFermionActi
         cg_maxiters_action=1000,
         cg_maxiters_md=1000,
     ) where {B,T}
-        D = WilsonEOPreDiracOperator(f, mass; anti_periodic=anti_periodic, r=r, csw=csw)
+        D = WilsonEOPreDiracOperator(f, mass; bc_str=bc_str, r=r, csw=csw)
         TD = typeof(D)
 
         if Nf == 2
@@ -203,52 +211,10 @@ struct WilsonEOPreFermionAction{Nf,C,TD,CT,TX,RI1,RI2,RT} <: AbstractFermionActi
     end
 end
 
-function Base.show(io::IO, ::MIME"text/plain", S::WilsonEOPreFermionAction{Nf}) where {Nf}
-    print(
-        io,
-        """
-        
-        |  WilsonEOPreFermionAction(
-        |    Nf: $Nf
-        |    MASS: $(S.D.mass)
-        |    KAPPA: $(S.D.κ)
-        |    CSW: $(S.D.csw)
-        |    CG TOLERANCE (ACTION): $(S.cg_tol_action)
-        |    CG TOLERANCE (MD): $(S.cg_tol_md)
-        |    CG MAX ITERS (ACTION): $(S.cg_maxiters_action)
-        |    CG MAX ITERS (ACTION): $(S.cg_maxiters_md)
-        |    RHMC INFO (Action): $(S.rhmc_info_action)
-        |    RHMC INFO (MD): $(S.rhmc_info_md))
-        """
-    )
-    return nothing
-end
-
-function Base.show(io::IO, S::WilsonEOPreFermionAction{Nf}) where {Nf}
-    print(
-        io,
-        """
-        
-        |  WilsonEOPreFermionAction(
-        |    Nf: $Nf
-        |    MASS: $(S.D.mass)
-        |    KAPPA: $(S.D.κ)
-        |    CSW: $(S.D.csw)
-        |    CG TOLERANCE (ACTION): $(S.cg_tol_action)
-        |    CG TOLERANCE (MD): $(S.cg_tol_md)
-        |    CG MAX ITERS (ACTION): $(S.cg_maxiters_action)
-        |    CG MAX ITERS (ACTION): $(S.cg_maxiters_md)
-        |    RHMC INFO (Action): $(S.rhmc_info_action)
-        |    RHMC INFO (MD): $(S.rhmc_info_md))
-        """
-    )
-    return nothing
-end
-
 function calc_fermion_action(
     fermion_action::WilsonEOPreFermionAction{2},
     U::Gaugefield,
-    ϕ_eo::WilsonEOPreFermionfield,
+    ϕ_eo::WilsonEOPreSpinorfield,
 )
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
@@ -259,17 +225,17 @@ function calc_fermion_action(
     # clear!(ψ_eo) # initial guess is zero
     # solve_dirac!(ψ_eo, DdagD, ϕ_eo, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
     Sf = #= dot(ϕ_eo, ψ_eo) =# - 2trlog(D.D_diag)
-    return real(Sf)
+    return distributed_reduce(real(Sf), +, U)
 end
 
 function calc_fermion_action(
     fermion_action::WilsonEOPreFermionAction{1},
     U::Gaugefield,
-    ϕ_eo::WilsonEOPreFermionfield,
+    ϕ_eo::WilsonEOPreSpinorfield,
 )
     error("Not implemented yet")
-    # TODO
-    return nothing
+    # TODO:
+    # return distributed_reduce(real(Sf), +, U)
 end
 
 function sample_pseudofermions!(ϕ, fermion_action::WilsonEOPreFermionAction{2}, U)
@@ -342,7 +308,7 @@ end
 
 function mul_oe!(
     ψ_eo::TF, U::Gaugefield{CPU,T}, ϕ_eo::TF, anti, into_odd, ::Val{dagg}; fac=1
-) where {T,TF<:WilsonEOPreFermionfield{CPU,T},dagg}
+) where {T,TF<:WilsonEOPreSpinorfield{CPU,T},dagg}
     check_dims(ψ_eo, ϕ_eo, U)
     ψ = ψ_eo.parent
     ϕ = ϕ_eo.parent
@@ -358,11 +324,14 @@ function mul_oe!(
         end
         ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, anti, T, Val(dagg))
     end
+
+    update_halo!(ψ_eo)
+    return nothing
 end
 
 function mul_eo!(
     ψ_eo::TF, U::Gaugefield{CPU,T}, ϕ_eo::TF, anti, into_odd, ::Val{dagg}; fac=1
-) where {T,TF<:WilsonEOPreFermionfield{CPU,T},dagg}
+) where {T,TF<:WilsonEOPreSpinorfield{CPU,T},dagg}
     check_dims(ψ_eo, ϕ_eo, U)
     ψ = ψ_eo.parent
     ϕ = ϕ_eo.parent
@@ -378,6 +347,9 @@ function mul_eo!(
         end
         ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, anti, T, Val(dagg))
     end
+
+    update_halo!(ψ_eo)
+    return nothing
 end
 
 function wilson_eo_kernel(U, ϕ, site, anti, ::Type{T}, ::Val{dagg}) where {T,dagg}
@@ -501,7 +473,7 @@ function calc_diag!(
 end
 
 function mul_oo_inv!(
-    ϕ_eo::WilsonEOPreFermionfield{CPU,T}, D_diag::WilsonEODiagonal{CPU,T}
+    ϕ_eo::WilsonEOPreSpinorfield{CPU,T}, D_diag::WilsonEODiagonal{CPU,T}
 ) where {T}
     check_dims(ϕ_eo, D_diag)
     ϕ = ϕ_eo.parent

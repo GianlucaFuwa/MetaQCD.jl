@@ -1,7 +1,11 @@
 struct PolyakovMeasurement{T} <: AbstractMeasurement
     filename::T
-    function PolyakovMeasurement(::Gaugefield; filename="", flow=false)
-        if filename !== nothing && filename != ""
+    function PolyakovMeasurement(U::Gaugefield; filename="", flow=false)
+        if is_distributed(U)
+            @assert U.topology.numprocs_cart[4] == 1 "Field cannot be decomposed in time direction for polykov loop calculation"
+        end
+
+        if !isnothing(filename) && filename != ""
             path = filename * MYEXT
             rpath = StaticString(path)
             header = ""
@@ -19,8 +23,10 @@ struct PolyakovMeasurement{T} <: AbstractMeasurement
                 header *= @sprintf("%-11s%-25s%-25s", "itrj", "Re(poly)", "Im(poly)")
             end
 
-            open(path, "w") do fp
-                println(fp, header)
+            if mpi_amroot()
+                open(path, "w") do fp
+                    println(fp, header)
+                end
             end
         else
             rpath = nothing
@@ -36,58 +42,52 @@ function PolyakovMeasurement(U, ::PolyakovParameters, filename, flow=false)
 end
 
 function measure(
-    ::PolyakovMeasurement{Nothing}, U, ::Integer, itrj, flow=nothing
-)
-    poly = polyakov_traced(U)
-
-    if mpi_amroot()
-        iflow, _ = isnothing(flow) ? (0, 0.0) : flow
-
-        if !isnothing(flow)
-            @level1("$itrj\t$(real(poly)) + $(imag(poly))im # poly_flow_$(iflow)")
-        else
-            @level1("$itrj\t$(real(poly)) + $(imag(poly))im # poly")
-        end
-    end
-
-    return poly
-end
-
-function measure(
     m::PolyakovMeasurement{T}, U, myinstance, itrj, flow=nothing
-) where {T<:AbstractString}
+) where {T}
     poly = polyakov_traced(U)
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
     if mpi_amroot()
-        filename = set_ext!(m.filename, myinstance)
-        fp = fopen(filename, "a")
-        printf(fp, "%-11i", itrj)
-
         if !isnothing(flow)
-            printf(fp, "%-7i", iflow)
-            printf(fp, "%-9.5f", τ)
+            @level1("$itrj\t$(real(poly)) + $(imag(poly))im # poly_flow_$(τ)")
+        else
+            @level1("$itrj\t$(real(poly)) + $(imag(poly))im # poly")
         end
 
-        printf(fp, "%-25.15E", real(poly))
-        printf(fp, "%-25.15E", imag(poly))
-        printf(fp, "\n")
-        fclose(fp)
+        if T !== Nothing
+            filename = set_ext!(m.filename, myinstance)
+            fp = fopen(filename, "a")
+            printf(fp, "%-11i", itrj)
+
+            if !isnothing(flow)
+                printf(fp, "%-7i", iflow)
+                printf(fp, "%-9.5f", τ)
+            end
+
+            printf(fp, "%-25.15E", real(poly))
+            printf(fp, "%-25.15E", imag(poly))
+            printf(fp, "\n")
+            fclose(fp)
+        end
     end
 
     return poly
 end
 
-function polyakov_traced(U::Gaugefield{CPU,T,false}) where {T}
+function polyakov_traced(U::Gaugefield{CPU})
+    # TODO:
+    @assert U.topology.numprocs_cart[4] == 1 "Field cannot be decomposed in time direction for polykov loop calculation"
     NX, NY, NZ, NT = global_dims(U)
+    xrange, yrange, zrange, _ = U.topology.bulk_sites.indices
+    halo_width = U.topology.halo_width
     P = 0.0 + 0.0im
 
-    @batch reduction = (+, P) for iz in 1:NZ
-        for iy in 1:NY
-            for ix in 1:NX
-                polymat = U[4, ix, iy, iz, 1]
+    @batch reduction = (+, P) for iz in zrange
+        for iy in yrange
+            for ix in xrange
+                polymat = U[4, ix, iy, iz, 1+halo_width]
 
-                for it in 1:(NT-1)
+                for it in 1+halo_width:(NT+halo_width-1)
                     polymat = cmatmul_oo(polymat, U[4, ix, iy, iz, 1+it])
                 end
 
@@ -96,9 +96,9 @@ function polyakov_traced(U::Gaugefield{CPU,T,false}) where {T}
         end
     end
 
-    return P / (NX * NY * NZ)
+    return distributed_reduce(P / (NX * NY * NZ), +, U)
 end
 
-function polyakov_traced(U::Gaugefield{CPU,T,true}) where {T}
-    # TODO:
-end
+# TODO:
+# function polyakov_traced(U::Gaugefield{CPU,T,true}) where {T}
+# end

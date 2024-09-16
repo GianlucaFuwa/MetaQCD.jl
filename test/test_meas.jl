@@ -1,3 +1,11 @@
+const PLAQ_EXP = 0.587818337847024
+const POLY_EXP = 0.5255246068616176 - 0.15140850971249734im
+const TOPO_EXP = Dict(
+    "plaquette" => -0.2730960126400261,
+    "clover" => -0.027164585971545994,
+    "improved" => -0.03210085960569041,
+)
+
 function test_measurements(backend=CPU)
     println("SU3testmeas")
     NX = 4
@@ -7,6 +15,7 @@ function test_measurements(backend=CPU)
     U = Gaugefield{CPU,Float64,WilsonGaugeAction}(NX, NY, NZ, NT, 6.0)
     filename = pkgdir(MetaQCD, "test", "testconf.txt")
     load_config!(BridgeFormat(), U, filename);
+
     if backend !== CPU
         U = MetaQCD.to_backend(backend, U)
     end
@@ -41,5 +50,12 @@ function test_measurements(backend=CPU)
     GA_methods = ["wilson", "symanzik_tree", "iwasaki", "dbw2"]
     m_gaction = GaugeActionMeasurement(U, GA_methods=GA_methods)
     @time gaction = measure(m_gaction, U, 1, 1)
-    return plaq, poly, topo["plaquette"], topo["clover"], topo["improved"], wilsonloop[1, 1]
+
+    @test isapprox(PLAQ_EXP, plaq)
+    @test isapprox(POLY_EXP, poly)
+    @test isapprox(TOPO_EXP["plaquette"], topo["plaquette"])
+    @test isapprox(TOPO_EXP["clover"], topo["clover"])
+    @test isapprox(TOPO_EXP["improved"], topo["improved"])
+    @test isapprox(PLAQ_EXP, wilsonloop[1, 1])
+    return nothing
 end

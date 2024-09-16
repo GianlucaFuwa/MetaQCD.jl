@@ -1,5 +1,9 @@
-struct Topology{N}
-end
+"""
+    update_halo!(U)
+
+Update the halos or buffers of an MPI-parallelized field.
+"""
+function update_halo! end # INFO: Is declared here, so both Fields and MetaIO can access it
 
 """
     mpi_init()
@@ -89,6 +93,10 @@ end
 
 @inline function mpi_bcast!(buff, comm; root=0)
     return MPI.Bcast!(buff, comm, root=root)
+end
+
+@inline function mpi_bcast_isbits(obj, comm=mpi_comm(); root=0)
+    return MPI.bcast(obj, comm, root=root)
 end
 
 @inline function mpi_write_at(fp, offset, data)

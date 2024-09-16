@@ -1,3 +1,13 @@
+"""
+    module DiracOperators
+
+This module's files are structured as follows:
+
+Each different Dirac operator gets its own file, where it and its corresponding action
+get their own structs. The files also contain `mul!` functions for the regular operator, its
+adjoint and Hermitian (D†D convention) counterpart, which are used to make them act on
+`Spinorfield`s. For the `mul!` we also define the kernels in the respective files.
+"""
 module DiracOperators
 
 using LinearAlgebra: checksquare
@@ -12,17 +22,27 @@ using ..Solvers
 using ..Utils
 
 import KernelAbstractions as KA
-import ..Fields: AbstractField, SpinorfieldEO, Gaugefield, Spinorfield, Tensorfield, clear!
-import ..Fields: check_dims, clover_square, dims, even_odd, gaussian_pseudofermions!
-import ..Fields: Clover, Checkerboard2, Sequential, @latmap, @latsum, set_source!
-import ..Fields: fieldstrength_eachsite!, fieldstrength_A_eachsite!, num_colors, num_dirac, volume
+import ..Fields: AbstractField, Gaugefield, Spinorfield, SpinorfieldEO, Tensorfield
+import ..Fields: check_dims, clear!, clover_square, dims, even_odd, gaussian_pseudofermions!
+import ..Fields: Clover, Checkerboard2, Sequential, @latmap, @latsum, set_source!, volume
+import ..Fields: fieldstrength_eachsite!, fieldstrength_A_eachsite!, num_colors, num_dirac
+import ..Fields: PeriodicBC, AntiPeriodicBC, apply_bc, create_bc, distributed_reduce
 
 abstract type AbstractDiracOperator end
-abstract type AbstractFermionAction end
+abstract type AbstractFermionAction{Nf} end
+
+struct QuenchedFermionAction <: AbstractFermionAction{0} end
+
+# some aliases
+const StaggeredSpinorfield{B,T,M,A} = Spinorfield{B,T,M,A,1}
+const StaggeredEOPreSpinorfield{B,T,M,A} = SpinorfieldEO{B,T,M,A,1}
+const WilsonSpinorfield{B,T,M,A} = Spinorfield{B,T,M,A,4}
+const WilsonEOPreSpinorfield{B,T,M,A} = SpinorfieldEO{B,T,M,A,4}
 
 Base.eltype(D::AbstractDiracOperator) = eltype(D.temp)
 LinearAlgebra.checksquare(D::AbstractDiracOperator) = LinearAlgebra.checksquare(D.temp)
 get_temp(D::AbstractDiracOperator) = D.temp
+@inline num_flavors(::AbstractFermionAction{Nf}) where {Nf} = Nf
 
 """
     Daggered(D::AbstractDiracOperator)
@@ -56,11 +76,8 @@ get_temp(D::DdaggerD) = D.parent.temp
 """
     solve_dirac!(ψ, D, ϕ, temp1, temp2, temp3, tol=1e-16, maxiters=1000)
 
-Solve the Dirac equation `Dψ = ϕ` for `ψ`, where `D` is a Dirac operator and store the
-result in `ψ`.
-
-The methods unique to each dirac operator definition are contained within their respective
-files.
+Solve the Dirac equation `Dψ = ϕ` for `ψ`, where `D` is a Hermitian Dirac operator and
+store the result in `ψ`.
 """
 function solve_dirac!(
     ψ, D::T, ϕ, temp1, temp2, temp3, tol=1e-16, maxiters=1000
@@ -73,10 +90,7 @@ end
     solve_dirac_multishift!(ψs, shifts, D, ϕ, temps...)
 
 Solve the equations `(D + s)ψ = ϕ` for `ψ` for each `s` in `shifts`, where `D` is a
-Dirac operator and store each result in `ψs`.
-
-The methods unique to each dirac operator definition are contained within their respective
-files.
+Hermitian Dirac operator and store each result in `ψs`.
 """
 function solve_dirac_multishift!(
     ψs, shifts, D::T, ϕ, temp1, temp2, ps, tol=1e-16, maxiters=1000
@@ -89,38 +103,27 @@ end
     calc_fermion_action(fermion_action, ϕ)
 
 Calculate the fermion action for the fermion field `ϕ` using the fermion action
-`fermion_action`
+`fermion_action`.
 """
 function calc_fermion_action(fermion_action::TA, U, ϕ::TF) where {TA,TF}
     @nospecialize fermion_action U ϕ
     return error("calc_fermion_action is not supported for type $TA with field of type $TF")
 end
 
+calc_fermion_action(::QuenchedFermionAction, ::Gaugefield) = 0.0
+
 """
     sample_pseudofermions!(ϕ, fermion_action)
 
 Sample pseudo fermions for an HMC update according to the probability density specified by
-`fermion_action`
+`fermion_action`.
 """
-sample_pseudofermions!(::Nothing, ::Nothing) = nothing
-
-@inline function boundary_factor(anti, it, dir, NT)
-    if !anti
-        return 1
-    else
-        if dir == 1
-            return it == NT ? -1 : 1
-        elseif dir == -1
-            return it == 1 ? -1 : 1
-        else
-            return 1
-        end
-    end
-end
+sample_pseudofermions!(::AbstractField, ::QuenchedFermionAction) = nothing
 
 # So we don't print the entire array in the REPL...
 function Base.show(io::IO, ::MIME"text/plain", D::T) where {T<:AbstractDiracOperator}
     print(io, "$(typeof(D))", "(;")
+
     for fieldname in fieldnames(T)
         if fieldname ∈ (:U, :temp)
             continue
@@ -128,6 +131,22 @@ function Base.show(io::IO, ::MIME"text/plain", D::T) where {T<:AbstractDiracOper
             print(io, " ", fieldname, " = ", getfield(D, fieldname), ",")
         end
     end
+
+    print(io, ")")
+    return nothing
+end
+
+function Base.show(io::IO, D::T) where {T<:AbstractDiracOperator}
+    print(io, "$(typeof(D))", "(;")
+
+    for fieldname in fieldnames(T)
+        if fieldname ∈ (:U, :temp)
+            continue
+        else
+            print(io, " ", fieldname, " = ", getfield(D, fieldname), ",")
+        end
+    end
+
     print(io, ")")
     return nothing
 end
@@ -145,15 +164,18 @@ function construct_diracmatrix(D, U)
     is_evenodd = temp1 isa SpinorfieldEO
    
     ii = 1
+
     for isite in eachindex(U)
         if is_evenodd
             iseven(isite) || continue
         end
+
         for α in 1:ND
             for a in 1:3
                 set_source!(temp1, isite, a, α)
                 mul!(temp2, Du, temp1)
                 jj = 1
+
                 for jsite in eachindex(U)
                     if is_evenodd
                         iseven(jsite) || continue
@@ -161,6 +183,7 @@ function construct_diracmatrix(D, U)
                     else
                         _jsite = jsite
                     end
+
                     for β in 1:ND
                         for b in 1:3
                             ind = (β - 1) * 3 + b
@@ -169,6 +192,7 @@ function construct_diracmatrix(D, U)
                         end
                     end
                 end
+
                 ii += 1
             end
         end
@@ -191,8 +215,8 @@ function fermaction_from_str(str, eo_precon::Bool)
         return eo_precon ? WilsonEOPreFermionAction : WilsonFermionAction
     elseif str == "staggered"
         return eo_precon ? StaggeredEOPreFermionAction : StaggeredFermionAction
-    elseif str == "none" || str === nothing
-        return nothing
+    elseif str ∈ ("none", "quenched") || str === nothing
+        return QuenchedFermionAction
     else
         error("fermion action \"$(str)\" not supported")
     end
@@ -205,5 +229,79 @@ const FERMION_ACTION = Dict{Tuple{String,Bool},Type{<:AbstractFermionAction}}(
     ("staggered", false) => StaggeredFermionAction,
     ("staggered", true) => StaggeredEOPreFermionAction,
 )
+
+function Base.show(io::IO, ::MIME"text/plain", S::AbstractFermionAction{Nf}) where {Nf}
+    name = nameof(typeof(S))
+    print(
+        io,
+        """
+        
+        |  $(name)(
+        |    Nf = $Nf
+        |    MASS = $(S.D.mass)
+        """
+    )
+
+    if S isa WilsonFermionAction #|| S isa WilsonEOPreFermionAction
+        print(
+            io,
+            """
+            |    KAPPA: $(S.D.κ)
+            |    CSW: $(S.D.csw)
+            """
+        )
+    end
+
+    print(
+        io,
+        """
+        |    BOUNDARY CONDITION (TIME): $(S.D.boundary_condition))
+        |    CG TOLERANCE (ACTION) = $(S.cg_tol_action)
+        |    CG TOLERANCE (MD) = $(S.cg_tol_md)
+        |    CG MAX ITERS (ACTION) = $(S.cg_maxiters_action)
+        |    CG MAX ITERS (ACTION) = $(S.cg_maxiters_md)
+        |    RHMC INFO (Action): $(S.rhmc_info_action)
+        |    RHMC INFO (MD): $(S.rhmc_info_md))
+        """
+    )
+    return nothing
+end
+
+function Base.show(io::IO, S::AbstractFermionAction{Nf}) where {Nf}
+    name = nameof(typeof(S))
+    print(
+        io,
+        """
+        
+        |  $(name)(
+        |    Nf = $Nf
+        |    MASS = $(S.D.mass)
+        """
+    )
+
+    if S isa WilsonFermionAction #|| S isa WilsonEOPreFermionAction
+        print(
+            io,
+            """
+            |    KAPPA: $(S.D.κ)
+            |    CSW: $(S.D.csw)
+            """
+        )
+    end
+
+    print(
+        io,
+        """
+        |    BOUNDARY CONDITION (TIME): $(S.D.boundary_condition))
+        |    CG TOLERANCE (ACTION) = $(S.cg_tol_action)
+        |    CG TOLERANCE (MD) = $(S.cg_tol_md)
+        |    CG MAX ITERS (ACTION) = $(S.cg_maxiters_action)
+        |    CG MAX ITERS (ACTION) = $(S.cg_maxiters_md)
+        |    RHMC INFO (Action): $(S.rhmc_info_action)
+        |    RHMC INFO (MD): $(S.rhmc_info_md))
+        """
+    )
+    return nothing
+end
 
 end

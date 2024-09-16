@@ -1,13 +1,16 @@
 """
-    WilsonDiracOperator(::AbstractField, mass; anti_periodic=true, r=1, csw=0)
+    WilsonDiracOperator(::AbstractField, mass; bc_str="antiperiodic", r=1, csw=0)
     WilsonDiracOperator(D::WilsonDiracOperator, U::Gaugefield)
 
 Create a free Wilson Dirac Operator with mass `mass` and Wilson parameter `r`.
-If `anti_periodic` is `true` the fermion fields are anti periodic in the time direction.
+`bc_str` can either be `"periodic"` or `"antiperiodic"` and specifies the boundary
+condition in the time direction.
+
 If `csw ≠ 0`, a clover term is included. 
+
 This object cannot be applied to a fermion vector, since it lacks a gauge background.
 A Wilson Dirac operator with gauge background is created by applying it to a `Gaugefield`
-`U` like `D_gauge = D_free(U)`
+`U` like `D_gauge = D(U)`
 
 # Type Parameters:
 - `B`: Backend (CPU / CUDA / ROCm)
@@ -16,27 +19,29 @@ A Wilson Dirac operator with gauge background is created by applying it to a `Ga
         Hermitian version of the operator
 - `TG`: Type of the underlying `Gaugefield`
 - `C`: Boolean declaring whether the operator is clover improved or not
+- `BC`: Boundary Condition in time direction
 """
-struct WilsonDiracOperator{B,T,C,TF,TG} <: AbstractDiracOperator
+struct WilsonDiracOperator{B,T,C,TF,TG,BC} <: AbstractDiracOperator
     U::TG
     temp::TF # temp for storage of intermediate result for DdaggerD operator
     mass::Float64
     κ::Float64
     r::Float64
     csw::Float64
-    anti_periodic::Bool # Only in time direction
+    boundary_condition::BC # Only in time direction
     function WilsonDiracOperator(
-        f::AbstractField{B,T}, mass; anti_periodic=true, r=1, csw=0, kwargs...
+        f::AbstractField{B,T}, mass; bc_str="antiperiodic", r=1, csw=0, kwargs...
     ) where {B,T}
-        # TODO: Constructor with MPI enabled
         @assert r == 1 "Only r=1 in Wilson Dirac supported for now"
         κ = 1 / (2mass + 8)
         U = nothing
         C = csw == 0 ? false : true
-        temp = Spinorfield{B,T,4}(dims(f)...)
+        temp = Spinorfield(f)
         TG = Nothing
         TF = typeof(temp)
-        return new{B,T,C,TF,TG}(U, temp, mass, κ, r, csw, anti_periodic)
+        boundary_condition = create_bc(bc_str, f.topology)
+        BC = typeof(boundary_condition)
+        return new{B,T,C,TF,TG,BC}(U, temp, mass, κ, r, csw, boundary_condition)
     end
 
     function WilsonDiracOperator(
@@ -44,7 +49,8 @@ struct WilsonDiracOperator{B,T,C,TF,TG} <: AbstractDiracOperator
     ) where {B,T,C,TF}
         check_dims(U, D.temp)
         TG = typeof(U)
-        return new{B,T,C,TF,TG}(U, D.temp, D.mass, D.κ, D.r, D.csw, D.anti_periodic)
+        BC = typeof(D.boundary_condition)
+        return new{B,T,C,TF,TG,BC}(U, D.temp, D.mass, D.κ, D.r, D.csw, D.boundary_condition)
     end
 end
 
@@ -52,9 +58,7 @@ function (D::WilsonDiracOperator{B,T})(U::Gaugefield{B,T}) where {B,T}
     return WilsonDiracOperator(D, U)
 end
 
-const WilsonFermionfield{B,T,A} = Spinorfield{B,T,A,4}
-
-struct WilsonFermionAction{Nf,C,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction
+struct WilsonFermionAction{Nf,C,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction{Nf}
     D::TD
     cg_temps::CT
     rhmc_info_action::RI1
@@ -69,7 +73,7 @@ struct WilsonFermionAction{Nf,C,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction
     function WilsonFermionAction(
         f,
         mass;
-        anti_periodic=true,
+        bc_str="antiperiodic",
         r=1,
         csw=0,
         Nf=2,
@@ -83,7 +87,7 @@ struct WilsonFermionAction{Nf,C,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction
         cg_maxiters_action=1000,
         cg_maxiters_md=1000,
     )
-        D = WilsonDiracOperator(f, mass; anti_periodic=anti_periodic, r=r, csw=csw)
+        D = WilsonDiracOperator(f, mass; bc_str=bc_str, r=r, csw=csw)
         TD = typeof(D)
 
         if Nf == 2
@@ -147,50 +151,8 @@ struct WilsonFermionAction{Nf,C,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction
     end
 end
 
-function Base.show(io::IO, ::MIME"text/plain", S::WilsonFermionAction{Nf}) where {Nf}
-    print(
-        io,
-        """
-        
-        |  WilsonFermionAction(
-        |    Nf: $Nf
-        |    MASS: $(S.D.mass)
-        |    KAPPA: $(S.D.κ)
-        |    CSW: $(S.D.csw)
-        |    CG TOLERANCE (ACTION): $(S.cg_tol_action)
-        |    CG TOLERANCE (MD): $(S.cg_tol_md)
-        |    CG MAX ITERS (ACTION): $(S.cg_maxiters_action)
-        |    CG MAX ITERS (ACTION): $(S.cg_maxiters_md)
-        |    RHMC INFO (Action): $(S.rhmc_info_action)
-        |    RHMC INFO (MD): $(S.rhmc_info_md))
-        """
-    )
-    return nothing
-end
-
-function Base.show(io::IO, S::WilsonFermionAction{Nf}) where {Nf}
-    print(
-        io,
-        """
-        
-        |  WilsonFermionAction(
-        |    Nf: $Nf
-        |    MASS: $(S.D.mass)
-        |    KAPPA: $(S.D.κ)
-        |    CSW: $(S.D.csw)
-        |    CG TOLERANCE (ACTION): $(S.cg_tol_action)
-        |    CG TOLERANCE (MD): $(S.cg_tol_md)
-        |    CG MAX ITERS (ACTION): $(S.cg_maxiters_action)
-        |    CG MAX ITERS (ACTION): $(S.cg_maxiters_md)
-        |    RHMC INFO (Action): $(S.rhmc_info_action)
-        |    RHMC INFO (MD): $(S.rhmc_info_md))
-        """
-    )
-    return nothing
-end
-
 function calc_fermion_action(
-    fermion_action::WilsonFermionAction{2}, U::Gaugefield, ϕ::WilsonFermionfield
+    fermion_action::WilsonFermionAction{2}, U::Gaugefield, ϕ::WilsonSpinorfield
 )
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
@@ -201,11 +163,11 @@ function calc_fermion_action(
     clear!(ψ) # initial guess is zero
     solve_dirac!(ψ, DdagD, ϕ, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
     Sf = dot(ϕ, ψ)
-    return real(Sf)
+    return distributed_reduce(real(Sf), +, U)
 end
 
 function calc_fermion_action(
-    fermion_action::WilsonFermionAction{1}, U::Gaugefield, ϕ::WilsonFermionfield
+    fermion_action::WilsonFermionAction{1}, U::Gaugefield, ϕ::WilsonSpinorfield
 )
     cg_tol = fermion_action.cg_tol_action
     cg_maxiters = fermion_action.cg_maxiters_action
@@ -234,7 +196,7 @@ function calc_fermion_action(
     end
 
     Sf = dot(ψ, ψ)
-    return real(Sf)
+    return distributed_reduce(real(Sf), +, U)
 end
 
 function sample_pseudofermions!(ϕ, fermion_action::WilsonFermionAction{2}, U)
@@ -292,12 +254,14 @@ function LinearAlgebra.mul!(
     U = D.U
     mass_term = T(8 + 2 * D.mass)
     csw = D.csw
-    anti = D.anti_periodic
+    bc = D.boundary_condition
     check_dims(ψ, ϕ, U)
 
     @batch for site in eachindex(ψ)
-        ψ[site] = wilson_kernel(U, ϕ, site, mass_term, anti, T, Val(1))
+        ψ[site] = wilson_kernel(U, ϕ, site, mass_term, bc, T, Val(1))
     end
+
+    update_halo!(ψ)
 
     if C
         fac = T(-csw / 2)
@@ -306,22 +270,25 @@ function LinearAlgebra.mul!(
         end
     end
 
+    update_halo!(ψ)
     return nothing
 end
 
 function LinearAlgebra.mul!(
-    ψ::TF, D::Daggered{WilsonDiracOperator{CPU,T,C,TF,TG}}, ϕ::TF
-) where {T,C,TF,TG}
+    ψ::TF, D::Daggered{WilsonDiracOperator{CPU,T,C,TF,TG,BC}}, ϕ::TF
+) where {T,C,TF,TG,BC}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.parent.U
     mass_term = T(8 + 2 * D.parent.mass)
     csw = D.parent.csw
-    anti = D.parent.anti_periodic
+    bc = D.parent.boundary_condition
     check_dims(ψ, ϕ, U)
 
     @batch for site in eachindex(ψ)
-        ψ[site] = wilson_kernel(U, ϕ, site, mass_term, anti, T, Val(-1))
+        ψ[site] = wilson_kernel(U, ϕ, site, mass_term, bc, T, Val(-1))
     end
+
+    update_halo!(ψ)
 
     if C
         fac = T(-csw / 2)
@@ -330,19 +297,20 @@ function LinearAlgebra.mul!(
         end
     end
 
+    update_halo!(ψ)
     return nothing
 end
 
 function LinearAlgebra.mul!(
-    ψ::TF, D::DdaggerD{WilsonDiracOperator{B,T,C,TF,TG}}, ϕ::TF
-) where {B,T,C,TF,TG}
+    ψ::TF, D::DdaggerD{WilsonDiracOperator{B,T,C,TF,TG,BC}}, ϕ::TF
+) where {B,T,C,TF,TG,BC}
     temp = D.parent.temp
     mul!(temp, D.parent, ϕ) # temp = Dϕ
     mul!(ψ, adjoint(D.parent), temp) # ψ = D†Dϕ
     return nothing
 end
 
-function wilson_kernel(U, ϕ, site, mass_term, anti, ::Type{T}, ::Val{dagg}) where {T,dagg}
+function wilson_kernel(U, ϕ, site, mass_term, bc, ::Type{T}, ::Val{dagg}) where {T,dagg}
     # dagg can be 1 or -1; if it's -1 then we swap (1 - γᵨ) with (1 + γᵨ) and vice versa
     # We have to wrap in a Val for the same reason as in the next comment
     NX, NY, NZ, NT = dims(U)
@@ -366,10 +334,10 @@ function wilson_kernel(U, ϕ, site, mass_term, anti, ::Type{T}, ::Val{dagg}) whe
 
     siteμ⁺ = move(site, 4, 1, NT)
     siteμ⁻ = move(site, 4, -1, NT)
-    bc⁺ = boundary_factor(anti, site[4], 1, NT)
-    bc⁻ = boundary_factor(anti, site[4], -1, NT)
-    ψₙ -= cmvmul_spin_proj(U[4, site], bc⁺ * ϕ[siteμ⁺], Val(-4dagg), Val(false))
-    ψₙ -= cmvmul_spin_proj(U[4, siteμ⁻], bc⁻ * ϕ[siteμ⁻], Val(4dagg), Val(true))
+    ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT)
+    ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT)
+    ψₙ -= cmvmul_spin_proj(U[4, site], ϕ⁺, Val(-4dagg), Val(false))
+    ψₙ -= cmvmul_spin_proj(U[4, siteμ⁻], ϕ⁻, Val(4dagg), Val(true))
     return T(0.5) * ψₙ
 end
 

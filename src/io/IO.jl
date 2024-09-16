@@ -1,48 +1,74 @@
 module MetaIO
 
 using Dates
-using Format
 using InteractiveUtils: InteractiveUtils
 using JLD2
-using KernelAbstractions # TODO: save and load of GPUD
+using KernelAbstractions # TODO: save and load of Fields on GPUs
 using LinearAlgebra
 using Polyester
 using Printf
 using Random
 using StaticArrays
+using ..Parameters
 using ..Utils
 
 export __GlobalLogger, MetaLogger, current_time, @level1, @level2, @level3
 export BMWFormat, BridgeFormat, Checkpointer, ConfigSaver, JLD2Format, set_global_logger!
-export fclose, fopen, printf, prints_to_console
+export fclose, fopen, printf, prints_to_console, newline
 export create_checkpoint, load_checkpoint, load_config!, save_config
 
-
-include("cio.jl")
+include("printf.jl")
 include("verbose.jl")
 
 abstract type AbstractFormat end
 struct BMWFormat <: AbstractFormat end
 struct BridgeFormat <: AbstractFormat end
+# TODO: struct ILDGFormat <: AbstractFormat end
 struct JLD2Format <: AbstractFormat end
+struct MPIFormat <: AbstractFormat end
 
 const FORMATS = Dict{String, Any}(
     "bmw" => BMWFormat,
     "bridge" => BridgeFormat,
+    # "ildg" => ILDGFormat,
     "jld" => JLD2Format,
     "jld2" => JLD2Format,
+    "mpi" => MPIFormat,
     "" => Nothing,
 )
 
 const EXT = Dict{String, String}(
     "bmw" => ".bmw",
     "bridge" => ".txt",
+    # "ildg" => ".ildg",
     "jld" => ".jld2",
     "jld2" => ".jld2",
+    "mpi" => ".bin",
     "" => "",
 )
 
 function proc_offset(args...) end # INFO: Need this for writing fields to file --- is implemented in fields/parallel.jl
+
+function set_view!(fp, U, ::Type{T}; offset=0, infokws...) where {T}
+    etype = Utils.MPI.Datatype(T)
+    filetype = create_filetype(U, T)
+    datarep = "native"
+    Utils.MPI.File.set_view!(fp, offset, etype, filetype, datarep; infokws...)
+    return nothing
+end
+
+function create_filetype(U, ::Type{T}) where {T}
+    topology = U.topology
+    # 18 entries in matrix * 4 directions per site
+    global_dims = (4, topology.global_dims...)
+    local_dims = (4, topology.local_dims...)
+    local_ranges = (1:4, topology.local_ranges...) 
+    offsets = map(r -> (first(r) - 1), local_ranges)
+    oldtype = Utils.MPI.Datatype(T)
+    ftype = Utils.MPI.Types.create_subarray(global_dims, local_dims, offsets, oldtype)
+    Utils.MPI.Types.commit!(ftype)
+    return ftype
+end
 
 include("bmw_format.jl")
 include("bridge_format.jl")

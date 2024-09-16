@@ -1,12 +1,17 @@
 """
-    StaggeredDiracOperator(::AbstractField, mass; anti_periodic=true)
+    StaggeredDiracOperator(::AbstractField, mass; bc_str="antiperiodic")
     StaggeredDiracOperator(D::StaggeredDiracOperator, U::Gaugefield)
 
 Create a free Staggered Dirac Operator with mass `mass`.
-If `anti_periodic` is `true` the fermion fields are anti periodic in the time direction.
+
+`bc_str` can either be `"periodic"` or `"antiperiodic"` and specifies the boundary
+condition in the time direction.
+
+If `csw ≠ 0`, a clover term is included. 
+
 This object cannot be applied to a fermion vector, since it lacks a gauge background.
-A Staggered Dirac operator with gauge background is created by applying it to a `Gaugefield`
-`U` like `D_gauge = D_free(U)`
+A Wilson Dirac operator with gauge background is created by applying it to a `Gaugefield`
+`U` like `D_gauge = D(U)`
 
 # Type Parameters:
 - `B`: Backend (CPU / CUDA / ROCm)
@@ -14,27 +19,31 @@ A Staggered Dirac operator with gauge background is created by applying it to a 
 - `TF`: Type of the `Spinorfield` used to store intermediate results when using the 
         Hermitian version of the operator
 - `TG`: Type of the underlying `Gaugefield`
+- `BC`: Boundary Condition in time direction
 """
-struct StaggeredDiracOperator{B,T,TF,TG} <: AbstractDiracOperator
+struct StaggeredDiracOperator{B,T,TF,TG,BC} <: AbstractDiracOperator
     U::TG
     temp::TF # temp for storage of intermediate result for DdaggerD operator
     mass::Float64
-    anti_periodic::Bool # Only in time direction
+    boundary_condition::BC # Only in time direction
     function StaggeredDiracOperator(
-        f::AbstractField{B,T}, mass; anti_periodic=true, kwargs...
+        f::AbstractField{B,T}, mass; bc_str="antiperiodic", kwargs...
     ) where {B,T}
         U = nothing
-        temp = Spinorfield{B,T,1}(dims(f)...)
+        temp = Spinorfield(f; staggered=true)
         TG = Nothing
         TF = typeof(temp)
-        return new{B,T,TF,TG}(U, temp, mass, anti_periodic)
+        boundary_condition = create_bc(bc_str, f.topology)
+        BC = typeof(boundary_condition)
+        return new{B,T,TF,TG,BC}(U, temp, mass, boundary_condition)
     end
 
     function StaggeredDiracOperator(
         D::StaggeredDiracOperator{B,T,TF}, U::Gaugefield{B,T}
     ) where {B,T,TF}
         TG = typeof(U)
-        return new{B,T,TF,TG}(U, D.temp, D.mass, D.anti_periodic)
+        BC = typeof(D.boundary_condition)
+        return new{B,T,TF,TG,BC}(U, D.temp, D.mass, D.boundary_condition)
     end
 end
 
@@ -42,9 +51,7 @@ function (D::StaggeredDiracOperator{B,T})(U::Gaugefield{B,T}) where {B,T}
     return StaggeredDiracOperator(D, U)
 end
 
-const StaggeredFermionfield{B,T,A} = Spinorfield{B,T,A,1}
-
-struct StaggeredFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
+struct StaggeredFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction{Nf}
     D::TD
     cg_temps::CT
     rhmc_info_action::RI1
@@ -58,7 +65,7 @@ struct StaggeredFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
     function StaggeredFermionAction(
         f,
         mass;
-        anti_periodic=true,
+        bc_str="antiperiodic",
         Nf=8,
         rhmc_spectral_bound=(mass^2, 6.0),
         rhmc_order_md=10,
@@ -70,7 +77,7 @@ struct StaggeredFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
         cg_maxiters_action=1000,
         cg_maxiters_md=1000,
     )
-        D = StaggeredDiracOperator(f, mass; anti_periodic=anti_periodic)
+        D = StaggeredDiracOperator(f, mass; bc_str=bc_str)
         TD = typeof(D)
 
         if Nf == 8
@@ -124,46 +131,8 @@ struct StaggeredFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
     end
 end
 
-function Base.show(io::IO, ::MIME"text/plain", S::StaggeredFermionAction{Nf}) where {Nf}
-    print(
-        io,
-        """
-        
-        |  StaggeredFermionAction(
-        |    Nf: $Nf
-        |    MASS: $(S.D.mass)
-        |    CG TOLERANCE (ACTION): $(S.cg_tol_action)
-        |    CG TOLERANCE (MD): $(S.cg_tol_md)
-        |    CG MAX ITERS (ACTION): $(S.cg_maxiters_action)
-        |    CG MAX ITERS (ACTION): $(S.cg_maxiters_md)
-        |    RHMC INFO (Action): $(S.rhmc_info_action)
-        |    RHMC INFO (MD): $(S.rhmc_info_md))
-        """
-    )
-    return nothing
-end
-
-function Base.show(io::IO, S::StaggeredFermionAction{Nf}) where {Nf}
-    print(
-        io,
-        """
-        
-        |  StaggeredFermionAction(
-        |    Nf: $Nf
-        |    MASS: $(S.D.mass)
-        |    CG TOLERANCE (ACTION): $(S.cg_tol_action)
-        |    CG TOLERANCE (MD): $(S.cg_tol_md)
-        |    CG MAX ITERS (ACTION): $(S.cg_maxiters_action)
-        |    CG MAX ITERS (ACTION): $(S.cg_maxiters_md)
-        |    RHMC INFO (Action): $(S.rhmc_info_action)
-        |    RHMC INFO (MD): $(S.rhmc_info_md))
-        """
-    )
-    return nothing
-end
-
 function calc_fermion_action(
-    fermion_action::StaggeredFermionAction{8}, U::Gaugefield, ϕ::StaggeredFermionfield
+    fermion_action::StaggeredFermionAction{8}, U::Gaugefield, ϕ::StaggeredSpinorfield
 )
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
@@ -178,7 +147,7 @@ function calc_fermion_action(
 end
 
 function calc_fermion_action(
-    fermion_action::StaggeredFermionAction{Nf}, U::Gaugefield, ϕ::StaggeredFermionfield
+    fermion_action::StaggeredFermionAction{Nf}, U::Gaugefield, ϕ::StaggeredSpinorfield
 ) where {Nf}
     cg_tol = fermion_action.cg_tol_action
     cg_maxiters = fermion_action.cg_maxiters_action
@@ -266,42 +235,44 @@ function LinearAlgebra.mul!(
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.U
     mass = T(D.mass)
-    anti = D.anti_periodic
+    bc = D.boundary_condition
     check_dims(ψ, ϕ, U)
 
     @batch for site in eachindex(ψ)
-        ψ[site] = staggered_kernel(U, ϕ, site, mass, anti, T, false)
+        ψ[site] = staggered_kernel(U, ϕ, site, mass, bc, T, false)
     end
 
+    update_halo!(ψ)
     return nothing
 end
 
 function LinearAlgebra.mul!(
-    ψ::TF, D::Daggered{StaggeredDiracOperator{CPU,T,TF,TG}}, ϕ::TF
-) where {T,TF,TG}
+    ψ::TF, D::Daggered{StaggeredDiracOperator{CPU,T,TF,TG,BC}}, ϕ::TF
+) where {T,TF,TG,BC}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.parent.U
     mass = T(D.parent.mass)
-    anti = D.parent.anti_periodic
+    bc = D.parent.boundary_condition
     check_dims(ψ, ϕ, U)
 
     @batch for site in eachindex(ψ)
-        ψ[site] = staggered_kernel(U, ϕ, site, mass, anti, T, true)
+        ψ[site] = staggered_kernel(U, ϕ, site, mass, bc, T, true)
     end
 
+    update_halo!(ψ)
     return nothing
 end
 
 function LinearAlgebra.mul!(
-    ψ::TF, D::DdaggerD{StaggeredDiracOperator{B,T,TF,TG}}, ϕ::TF
-) where {B,T,TF,TG}
+    ψ::TF, D::DdaggerD{StaggeredDiracOperator{B,T,TF,TG,BC}}, ϕ::TF
+) where {B,T,TF,TG,BC}
     temp = D.parent.temp
     mul!(temp, D.parent, ϕ) # temp = Dϕ
     mul!(ψ, adjoint(D.parent), temp) # ψ = D†Dϕ
     return nothing
 end
 
-function staggered_kernel(U, ϕ, site, mass, anti, ::Type{T}, dagg::Bool) where {T}
+function staggered_kernel(U, ϕ, site, mass, bc, ::Type{T}, dagg::Bool) where {T}
     sgn = dagg ? -1 : 1
     NX, NY, NZ, NT = dims(U)
     ψₙ = 2mass * ϕ[site]
@@ -327,11 +298,9 @@ function staggered_kernel(U, ϕ, site, mass, anti, ::Type{T}, dagg::Bool) where 
 
     siteμ⁺ = move(site, 4, 1, NT)
     siteμ⁻ = move(site, 4, -1, NT)
-    bc⁺ = boundary_factor(anti, site[4], 1, NT)
-    bc⁻ = boundary_factor(anti, site[4], -1, NT)
     η = sgn * staggered_η(Val(4), site)
-    ψₙ += η * cmvmul(U[4, site], bc⁺ * ϕ[siteμ⁺])
-    ψₙ -= η * cmvmul_d(U[4, siteμ⁻], bc⁻ * ϕ[siteμ⁻])
+    ψₙ += η * cmvmul(U[4, site], apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT))
+    ψₙ -= η * cmvmul_d(U[4, siteμ⁻], apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT))
     return T(0.5) * ψₙ
 end
 

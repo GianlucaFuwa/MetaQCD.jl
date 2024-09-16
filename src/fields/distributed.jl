@@ -1,158 +1,244 @@
-distributed_reduce(var, ::Any, ::AbstractField{B,T,false}) where {B,T} = var
+"""
+    FieldTopology(numprocs_cart, halo_width, global_dims)
 
-@inline function distributed_reduce(var, op, u::AbstractField{B,T,true}) where {B,T}
-    return mpi_allreduce(var, op, u.comm_cart)
+Given the number of processes in each dimension as a tuple `numprocs_cart`, the `halo_width`
+and he global dimensions of the field `global_dims`, create a container for all information
+related to the (MPI-)Topology of an `AbstractField`, such as its global and local
+dimensions, `CartesianIndices` for iterating over halo or bulk sites and the site rannge of
+the global field that the local partition contains.
+"""
+struct FieldTopology
+    comm_cart::Utils.MPI.Comm
+
+    numprocs::Int64 # Number of processes in comm
+    numprocs_cart::NTuple{4,Int64} # Number of processes in comm per dimension
+    myrank_cart::NTuple{4,Int64} # Rank of current process in cartesian coords
+
+    halo_width::Int64
+    global_dims::NTuple{4,Int64} # Dimensions of global field
+    local_dims::NTuple{4,Int64} # Dimensions of local partition
+    halo_dims::Vector{NTuple{4,Int64}} # Dimensions of halo regions
+
+    bulk_sites::CartesianIndices{4} # Sites in partition that belong to the bulk
+    halo_sites::Vector{NTuple{2,CartesianIndices{4}}} # Sites in partition that belong to halo regions (2 per dim)
+    border_sites::Vector{NTuple{2,CartesianIndices{4}}} # Sites in bulk that belong to border regions (2 per dim)
+
+    local_ranges::NTuple{4,UnitRange{Int64}} # Site-range of global field that the local partition covers
+
+    global_volume::Int64 # Number of sites in global field
+    local_volume::Int64 # Number of sites in local partition
+    function FieldTopology(numprocs_cart, halo_width, global_dims)
+        @assert global_dims .% numprocs_cart == (0, 0, 0, 0) "Lattice size must be divisible by number of processes per dimension"
+        @assert minimum(global_dims ./ numprocs_cart) >= halo_width "Halo must not be wider than the bulk"
+        comm_cart = mpi_cart_create(numprocs_cart; periodic=map(_->true, numprocs_cart))
+
+        numprocs = prod(numprocs_cart)
+        myrank_cart = (mpi_cart_coords(comm_cart, mpi_myrank())...,)
+
+        local_dims = global_dims .÷ numprocs_cart
+        halo_dims = calc_halo_dims(local_dims, halo_width)
+        
+        bulk_sites = calc_bulk_sites(local_dims, halo_width)
+        halo_sites = calc_halo_sites(bulk_sites, local_dims, halo_width)
+        border_sites = calc_border_sites(bulk_sites, local_dims, halo_width)
+
+        local_ranges = ntuple(Val(4)) do i
+            (myrank_cart[i] * local_dims[i] + 1):((myrank_cart[i]+1) * local_dims[i])
+        end
+
+        global_volume = prod(global_dims)
+        local_volume = prod(local_dims)
+        return new(
+            comm_cart, numprocs, numprocs_cart, myrank_cart,
+            halo_width, global_dims, local_dims, halo_dims,
+            bulk_sites, halo_sites, border_sites,
+            local_ranges, global_volume, local_volume,
+        )
+    end
 end
 
-proc_offset(u::AbstractField{B,T,false}) where {B,T} = 0
+@inline function calc_halo_dims(local_dims, halo_width)
+    nx, ny, nz, nt = local_dims
+    halo_dims = Vector{NTuple{4,Int64}}(undef, 4)
 
-@inline function proc_offset(u::AbstractField{B,T,true}) where {B,T}
-    NX, NY, NZ, _ = global_dims(u)
-    my_NX, my_NY, my_NZ, my_NT = local_dims(u)
-    myrank_x, myrank_y, myrank_z, myrank_t = u.myrank_cart
-    
-    offset_x = myrank_x * my_NX
-    offset_y = myrank_y * NX * my_NY
-    offset_z = myrank_z * NX * NY * my_NZ
-    offset_t = myrank_t * NX * NY * NZ * my_NT
+    halo_dims[1] = (halo_width, ny, nz, nt)
+    halo_dims[2] = (nx, halo_width, nz, nt)
+    halo_dims[3] = (nx, ny, halo_width, nt)
+    halo_dims[4] = (nx, ny, nz, halo_width)
+    return halo_dims
+end
 
-    offset = offset_x + offset_y + offset_z + offset_t 
+@inline function calc_bulk_sites(local_dims, halo_width)
+    iend = local_dims .+ halo_width
+
+    ranges = ntuple(Val(4)) do i
+        range(1 + halo_width, iend[i])
+    end
+
+    return CartesianIndices(ranges)
+end
+
+function calc_halo_sites(bulk_sites, local_dims, halo_width)
+    halo_sites = Vector{NTuple{2,CartesianIndices{4}}}(undef, 4)
+
+    for dim in 1:4
+        prev_tup = ntuple(Val(4)) do i 
+            if i == dim
+                range(1, halo_width)
+            elseif i < dim
+                # INFO: This is for correct exchange of corners:
+                range(1, local_dims[i] + 2halo_width)
+            else
+                bulk_sites.indices[i]
+            end
+        end
+
+        next_tup = ntuple(Val(4)) do i
+            ni = local_dims[i]
+            hw = halo_width
+            if i == dim
+                range(1+ni+hw, ni+2hw)
+            elseif i < dim
+                # INFO: This is for correct exchange of corners:
+                range(1, local_dims[i] + 2hw)
+            else
+                bulk_sites.indices[i]
+            end
+        end
+
+        prev = CartesianIndices(prev_tup)
+        next = CartesianIndices(next_tup)
+        halo_sites[dim] = (prev, next)
+    end
+
+    return halo_sites
+end
+
+function calc_border_sites(bulk_sites, local_dims, halo_width)
+    border_sites = Vector{NTuple{2,CartesianIndices{4}}}(undef, 4)
+
+    for dim in 1:4
+        prev_tup = ntuple(Val(4)) do i 
+            hw = halo_width
+            if i == dim
+                range(1+hw, 2hw)
+            elseif i < dim
+                # INFO: This is for correct exchange of corners:
+                range(1, local_dims[i] + 2hw)
+            else
+                bulk_sites.indices[i]
+            end
+        end
+
+        next_tup = ntuple(Val(4)) do i
+            ni = local_dims[i]
+            if i == dim
+                range(1+ni, ni+halo_width)
+            elseif i < dim
+                # INFO: This is for correct exchange of corners:
+                range(1, local_dims[i] + 2halo_width)
+            else
+                bulk_sites.indices[i]
+            end
+        end
+
+        prev = CartesianIndices(prev_tup)
+        next = CartesianIndices(next_tup)
+        border_sites[dim] = (prev, next)
+    end
+
+    return border_sites
+end
+
+@inline distributed_reduce(var, ::Any, ::AbstractField) = var
+
+@inline function distributed_reduce(var, op, u::AbstractMPIField)
+    return mpi_allreduce(var, op, u.topology.comm_cart)
+end
+
+proc_offset(u::AbstractField) = 0
+
+@inline function proc_offset(u::AbstractMPIField)
+    offset = map(r -> first(r) - 1, local_ranges(u))
     return offset
 end
 
-@inline halo_dims(u::AbstractField, dir) = halo_dims(local_dims(u), u.pad, dir)
+Utils.update_halo!(::AbstractField) = nothing
 
-@inline function halo_dims(loc_dims, pad, dir)
-    my_NX, my_NY, my_NZ, my_NT = loc_dims
+function Utils.update_halo!(u::AbstractMPIField)
+    topology = u.topology
+    comm_cart = topology.comm_cart
+    border_sites = topology.border_sites
+    halo_sites = topology.halo_sites
 
-    if dir == 1
-        return (pad, my_NY, my_NZ, my_NT)
-    elseif dir == 2
-        return (my_NX, pad, my_NZ, my_NT)
-    elseif dir == 3
-        return (my_NX, my_NY, pad, my_NT)
-    elseif dir == 4
-        return (my_NX, my_NY, my_NZ, pad)
-    else
-        throw(AssertionError("dir has to be between 1 and 4"))
+    for dim in 1:4
+        prev_neighbor, next_neighbor = mpi_cart_shift(comm_cart, dim-1, 1)
+        prev_sites_from, next_sites_from = border_sites[dim]
+        prev_sites_to, next_sites_to = halo_sites[dim]
+
+        if prev_neighbor == next_neighbor == mpi_myrank()
+            view(u, next_sites_to) .= view(u, prev_sites_from)
+            view(u, prev_sites_to) .= view(u, next_sites_from)
+        else
+            requests = mpi_multirequest(4)
+
+            # Use references of the links themselves as buffers
+            # INFO: Here, `view` is defined such that it automatically references all four
+            # directions `μ`, and we don't have to include it as an argument
+            send_buf_prev = view(u, prev_sites_from)
+            send_buf_next = view(u, next_sites_from)
+            recv_buf_prev = view(u, prev_sites_to)
+            recv_buf_next = view(u, next_sites_to)
+
+            mpi_irecv!(recv_buf_prev, comm_cart, requests[1]; source=prev_neighbor, tag=1)
+            mpi_irecv!(recv_buf_next, comm_cart, requests[2]; source=next_neighbor, tag=2)
+            mpi_isend(send_buf_prev, comm_cart, requests[3]; dest=prev_neighbor, tag=2)
+            mpi_isend(send_buf_next, comm_cart, requests[4]; dest=next_neighbor, tag=1)
+
+            mpi_waitall(requests)
+        end
     end
+
+    mpi_barrier(comm_cart)
+    return nothing
 end
 
-@inline function halo_sites(u::AbstractField, dim)
-    my_NX, my_NY, my_NZ, my_NT = local_dims(u)
-    pad = u.pad
+update_halo_eo!(::AbstractField) = nothing
 
-    if dim == 1
-        prev = CartesianIndices((1:pad, my_NY, my_NZ, my_NT))
-        next = CartesianIndices((my_NX+pad:my_NX+2pad, my_NY, my_NZ, my_NT))
-        return prev, next
-    elseif dim == 2
-        prev = CartesianIndices((my_NX, 1:pad, my_NZ, my_NT))
-        next = CartesianIndices((my_NX, my_NY+pad:my_NY+2pad, my_NZ, my_NT))
-        return prev, next
-    elseif dim == 3
-        prev = CartesianIndices((my_NX, my_NY, 1:pad, my_NT))
-        next = CartesianIndices((my_NX, my_NY, my_NZ+pad:my_NZ+2pad, my_NT))
-        return prev, next
-    elseif dim == 4
-        prev = CartesianIndices((my_NX, my_NY, my_NZ, 1:pad))
-        next = CartesianIndices((my_NX, my_NY, my_NZ, my_NT+pad:my_NT+2pad))
-        return prev, next
-    else
-        throw(AssertionError("dim has to be between 1 and 4"))
-    end
-end
+function update_halo_eo!(u::AbstractMPIField)
+    topology = u.topology
+    comm_cart = topology.comm_cart
+    border_sites = topology.border_sites
+    halo_sites = topology.halo_sites
 
-@inline function bulk_boundary_sites(u::AbstractField, dim)
-    my_NX, my_NY, my_NZ, my_NT = local_dims(u)
-    pad = u.pad
+    for dim in 1:4
+        prev_neighbor, next_neighbor = mpi_cart_shift(comm_cart, dim-1, 1)
+        prev_sites_from, next_sites_from = border_sites[dim]
+        prev_sites_to, next_sites_to = halo_sites[dim]
 
-    if dim == 1
-        prev = CartesianIndices((1+pad:2pad, my_NY, my_NZ, my_NT))
-        next = CartesianIndices((my_NX-pad:my_NX, my_NY, my_NZ, my_NT))
-        return prev, next
-    elseif dim == 2
-        prev = CartesianIndices((my_NX, 1+pad:2pad, my_NZ, my_NT))
-        next = CartesianIndices((my_NX, my_NY-pad:my_NY, my_NZ, my_NT))
-        return prev, next
-    elseif dim == 3
-        prev = CartesianIndices((my_NX, my_NY, 1+pad:2pad, my_NT))
-        next = CartesianIndices((my_NX, my_NY, my_NZ-pad:my_NZ, my_NT))
-        return prev, next
-    elseif dim == 4
-        prev = CartesianIndices((my_NX, my_NY, my_NZ, 1+pad:2pad))
-        next = CartesianIndices((my_NX, my_NY, my_NZ, my_NT-pad:my_NT))
-        return prev, next
-    else
-        throw(AssertionError("dim has to be between 1 and 4"))
-    end
-end
+        if prev_neighbor == next_neighbor == mpi_myrank()
+            view(u, next_sites_to) .= view(u, prev_sites_from)
+            view(u, prev_sites_to) .= view(u, next_sites_from)
+        else
+            requests = mpi_multirequest(4)
 
-update_halo!(::AbstractField{B,T,false}) where {B,T} = nothing
+            # Use references of the links themselves as buffers
+            # INFO: Here, `view` is defined such that it automatically references all four
+            # directions `μ`, and we don't have to include it as an argument
+            send_buf_prev = view(u, prev_sites_from)
+            send_buf_next = view(u, next_sites_from)
+            recv_buf_prev = view(u, prev_sites_to)
+            recv_buf_next = view(u, next_sites_to)
 
-function update_halo!(u::AbstractField{B,T,true}) where {B,T}
-    comm_cart = u.comm_cart
-    send_buf = u.halo_sendbuf
-    recv_buf = u.halo_recvbuf
+            mpi_irecv!(recv_buf_prev, comm_cart, requests[1]; source=prev_neighbor, tag=1)
+            mpi_irecv!(recv_buf_next, comm_cart, requests[2]; source=next_neighbor, tag=2)
+            mpi_isend(send_buf_prev, comm_cart, requests[3]; dest=prev_neighbor, tag=2)
+            mpi_isend(send_buf_next, comm_cart, requests[4]; dest=next_neighbor, tag=1)
 
-    for dir in 1:4
-        requests = mpi_multirequest(4)
-        prev_neighbor, next_neighbor = mpi_cart_shift(comm_cart, dir-1, 1)
-        # Source sites (bulk boundary):
-        prev_sites_from, next_sites_from = bulk_boundary_sites(u, dir)
-        # Sink sites (halo):
-        prev_sites_to, next_sites_to = halo_sites(u, dir)
-
-        halo_NX, halo_NY, halo_NZ, _ = halo_dims(u, dir)
-
-        # send - negative direction
-        start1 = prev_sites_from[1]
-
-        for site in prev_sites_from
-            for μ in 1:4
-                i = cartesian_to_linear(site, halo_NX, halo_NY, halo_NZ, start1)
-                send_buf[μ, i] = u[μ, site]
-            end
+            mpi_waitall(requests)
         end
-
-        mpi_isend(send_buf, comm_cart, requests[1]; dest=prev_neighbor)
-
-        # send - positive direction
-        start2 = next_sites_from[1]
-
-        for site in next_sites_from
-            for μ in 1:4
-                i = cartesian_to_linear(site, halo_NX, halo_NY, halo_NZ, start2)
-                send_buf[μ, i] = u[μ, site]
-            end
-        end
-
-        mpi_isend(send_buf, comm_cart, requests[2]; dest=next_neighbor)
-
-        # recv - negative direction
-        mpi_irecv!(recv_buf, comm_cart, requests[3]; source=next_neighbor)
-        start3 = prev_sites_to[1]
-
-        for site in prev_sites_to
-            for μ in 1:4
-                i = cartesian_to_linear(site, halo_NX, halo_NY, halo_NZ, start3)
-                u[μ, site] = recv_buf[μ, i]
-            end
-        end
-
-        # recv - positive direction
-        mpi_irecv!(recv_buf, comm_cart, requests[4]; source=prev_neighbor)
-        start4 = next_sites_to[1]
-
-        for site in next_sites_to
-            for μ in 1:4
-                i = cartesian_to_linear(site, halo_NX, halo_NY, halo_NZ, start4)
-                u[μ, site] = recv_buf[μ, i]
-            end
-        end
-
-        mpi_waitall(requests)
     end
 
+    mpi_barrier(comm_cart)
     return nothing
 end

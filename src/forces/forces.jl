@@ -8,14 +8,14 @@ import ..DiracOperators: WilsonDiracOperator, WilsonFermionAction
 import ..DiracOperators: WilsonEOPreDiracOperator, WilsonEOPreFermionAction
 import ..DiracOperators: WilsonEODiagonal
 import ..DiracOperators: Daggered, DdaggerD, SpinorfieldEO
-import ..DiracOperators: boundary_factor, staggered_η, solve_dirac!, solve_dirac_multishift!
+import ..DiracOperators: apply_bc, staggered_η, solve_dirac!, solve_dirac_multishift!
 import ..DiracOperators: mul_oe!, mul_eo!, mul_oo_inv!
 
 """
     calc_dSfdU_bare!(dU::Colorfield, fermion_action, U, ϕ, ::Any, ::NoSmearing)
     calc_dSfdU_bare!(dU::Colorfield, fermion_action, U, ϕ, temp_force, smearing)
 
-Calculate the derivative of `fermion_action` w.r.t. the gauge field `U` on the fermion
+Calculate the derivative of `fermion_action` w.r.t. the gauge field `U` on the pseudofermion
 background `ϕ` and store the result in `dU`.
 
 If `temp_force isa Colorfield` and `bias.smearing != nothing`, the derivative is calculated

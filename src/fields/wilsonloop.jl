@@ -14,8 +14,8 @@ function wilsonloop(U, μ, ν, site, Lμ, Lν)
 end
 
 function wilsonloop_top_right(U, μ, ν, site, Lμ, Lν)
-    Nμ = local_dims(U)[μ]
-    Nν = local_dims(U)[ν]
+    Nμ = dims(U)[μ]
+    Nν = dims(U)[ν]
     wil = eye3(float_type(U))
 
     for _ in (1i32):Lμ
@@ -42,8 +42,8 @@ function wilsonloop_top_right(U, μ, ν, site, Lμ, Lν)
 end
 
 function wilsonloop_bottom_left(U, μ, ν, site, Lμ, Lν)
-    Nμ = local_dims(U)[μ]
-    Nν = local_dims(U)[ν]
+    Nμ = dims(U)[μ]
+    Nν = dims(U)[ν]
     wil = eye3(float_type(U))
 
     for _ in (1i32):Lμ
@@ -70,8 +70,8 @@ function wilsonloop_bottom_left(U, μ, ν, site, Lμ, Lν)
 end
 
 function wilsonloop_top_left(U, μ, ν, site, Lμ, Lν)
-    Nμ = local_dims(U)[μ]
-    Nν = local_dims(U)[ν]
+    Nμ = dims(U)[μ]
+    Nν = dims(U)[ν]
     wil = eye3(float_type(U))
 
     for _ in (1i32):Lν
@@ -98,8 +98,8 @@ function wilsonloop_top_left(U, μ, ν, site, Lμ, Lν)
 end
 
 function wilsonloop_bottom_right(U, μ, ν, site, Lμ, Lν)
-    Nμ = local_dims(U)[μ]
-    Nν = local_dims(U)[ν]
+    Nμ = dims(U)[μ]
+    Nν = dims(U)[ν]
     wil = eye3(float_type(U))
 
     for _ in (1i32):Lν

@@ -9,13 +9,13 @@ function calc_dSfdU!(
     X_eo, Y_eo, temp1, temp2 = fermion_action.cg_temps
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
-    anti = D.anti_periodic
+    bc = D.boundary_condition
 
     clear!(X_eo) # initial guess is zero
     solve_dirac!(X_eo, DdagD, ϕ_eo, Y_eo, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp
     clear!(Y_eo)
-    mul_oe!(Y_eo, U, X_eo, anti, true, false)
-    add_staggered_eo_derivative!(dU, U, X_eo, Y_eo, anti)
+    mul_oe!(Y_eo, U, X_eo, bc, true, false)
+    add_staggered_eo_derivative!(dU, U, X_eo, Y_eo, bc)
     return nothing
 end
 
@@ -29,7 +29,7 @@ function calc_dSfdU!(
     n = get_n(rhmc)
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
-    anti = D.anti_periodic
+    bc = D.boundary_condition
     Xs = fermion_action.rhmc_temps1
     Ys = fermion_action.rhmc_temps2
     temp1, temp2 = fermion_action.cg_temps
@@ -43,32 +43,30 @@ function calc_dSfdU!(
     solve_dirac_multishift!(Xs, shifts, DdagD, ϕ_eo, temp1, temp2, Ys, cg_tol, cg_maxiters)
 
     for i in 1:n
-        mul_oe!(Ys[i+1], U, Xs[i+1], anti, true, false)
-        add_staggered_eo_derivative!(dU, U, Xs[i+1], Ys[i+1], anti; coeff=coeffs[i])
+        mul_oe!(Ys[i+1], U, Xs[i+1], bc, true, false)
+        add_staggered_eo_derivative!(dU, U, Xs[i+1], Ys[i+1], bc; coeff=coeffs[i])
     end
 
     return nothing
 end
 
 function add_staggered_eo_derivative!(
-    dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, X_eo::TF, Y_eo::TF, anti; coeff=1
+    dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, X_eo::TF, Y_eo::TF, bc; coeff=1
 ) where {T,TF<:StaggeredEOPreSpinorfield{CPU,T}}
     check_dims(dU, U, X_eo, Y_eo)
     X = X_eo.parent
     Y = Y_eo.parent
-    NT = dims(U)[4]
     fac = T(-0.5coeff)
 
     @batch for site in eachindex(dU)
-        bc⁺ = boundary_factor(anti, site[4], 1, NT)
-        add_staggered_eo_derivative_kernel!(dU, U, X, Y, site, bc⁺, fac)
+        add_staggered_eo_derivative_kernel!(dU, U, X, Y, site, bc, fac)
     end
 
     update_halo!(dU)
     return nothing
 end
 
-function add_staggered_eo_derivative_kernel!(dU, U, X, Y, site, bc⁺, fac)
+function add_staggered_eo_derivative_kernel!(dU, U, X, Y, site, bc, fac)
     # sites that begin with a "_" are meant for indexing into the even-odd preconn'ed
     # fermion field 
     NX, NY, NZ, NT = dims(U)
@@ -94,9 +92,9 @@ function add_staggered_eo_derivative_kernel!(dU, U, X, Y, site, bc⁺, fac)
     dU[3, site] += (fac * η) * traceless_antihermitian(cmatmul_oo(U[3, site], B - C))
 
     _siteμ⁺ = eo_site(move(site, 4, 1, NT), NX, NY, NZ, NT, NV)
-    η = bc⁺ * staggered_η(Val(4), site)
-    B = ckron(X[_siteμ⁺], Y[_site])
-    C = ckron(Y[_siteμ⁺], X[_site])
+    η = staggered_η(Val(4), site)
+    B = ckron(apply_bc(X[_siteμ⁺], bc, site, Val(1), NT), Y[_site])
+    C = ckron(apply_bc(Y[_siteμ⁺], bc, site, Val(1), NT), X[_site])
     dU[4, site] += (fac * η) * traceless_antihermitian(cmatmul_oo(U[4, site], B - C))
     return nothing
 end

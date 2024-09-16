@@ -110,7 +110,7 @@ function HMC(
     ρ_stout_gauge=0.0,
     ρ_stout_fermion=0.0;
     hmc_logging=true,
-    fermion_action=nothing,
+    fermion_action=QuenchedFermionAction,
     heavy_flavours=0,
     bias_enabled=false,
     logdir="",
@@ -124,7 +124,7 @@ function HMC(
     force = Colorfield(U)
 
     smearing_gauge = StoutSmearing(U, numsmear_gauge, ρ_stout_gauge)
-    smearing_fermion = if isnothing(fermion_action)
+    smearing_fermion = if fermion_action === QuenchedFermionAction
         NoSmearing()
     else
         StoutSmearing(U, numsmear_fermion, ρ_stout_fermion)
@@ -139,7 +139,7 @@ function HMC(
         ϕ = ntuple(_ -> even_odd(Spinorfield(U; staggered=true)), 1 + heavy_flavours)
     elseif fermion_action === WilsonFermionAction
         ϕ = ntuple(_ -> Spinorfield(U), 1 + heavy_flavours)
-    elseif fermion_action == "none" || fermion_action === nothing
+    elseif fermion_action === QuenchedFermionAction
         ϕ = nothing
     else
         throw(AssertionError("Dynamical fermions \"$fermion_action\" not supported"))
@@ -189,12 +189,12 @@ include("hmc_integrators.jl")
 function update!(
     hmc::HMC{TI},
     U;
-    fermion_action::TF=nothing,
+    fermion_action::TF=QuenchedFermionAction(),
     bias::TB=NoBias(),
     metro_test::Bool=true,
     therm::Bool=false,
 ) where {TI,TF,TB}
-    if TF !== Nothing
+    if TF !== QuenchedFermionAction
         @assert TF <: Tuple "fermion_action must be nothing or a tuple of fermion actions"
         @assert !isnothing(hmc.ϕ) "fermion_action passed but not activated in HMC"
     end
@@ -284,31 +284,37 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias)
     fp = !isnothing(hmc.forcefile) ? fopen(hmc.forcefile, "a") : nothing
 
     calc_dSdU_bare!(force, staples, U, temp_force, smearing_gauge)
+
     if !isnothing(fp)
         fnorm = norm(force)
         printf(fp, "%+-25.15E", fnorm)
     end
+
     add!(P, force, ϵ)
 
-    if !isnothing(fermion_action)
+    if fermion_action !== QuenchedFermionAction()
         for i in eachindex(fermion_action)
             calc_dSfdU_bare!(
                 force, fermion_action[i], U, ϕ[i], temp_force, smearing_fermion, i>1
             )
+
             if !isnothing(fp)
                 fnorm = norm(force)
                 printf(fp, "%+-25.15E", fnorm)
             end
+
             add!(P, force, ϵ)
         end
     end
 
     if bias isa Bias
         calc_dVdU_bare!(force, fieldstrength, U, temp_force, bias, shared_smearing)
+
         if !isnothing(fp)
             fnorm = norm(force)
             printf(fp, "%+-25.15E", fnorm)
         end
+
         add!(P, force, ϵ)
     end
 
@@ -316,6 +322,7 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias)
         printf(fp, "\n")
         fclose(fp)
     end
+
     return nothing
 end
 
@@ -328,12 +335,19 @@ function calc_gauge_action(U, smearing::StoutSmearing)
     return smeared_gauge_action
 end
 
-sample_pseudofermions!(::Any, ::Nothing, ::Any, ::NoSmearing, ::Bool) = nothing
+function sample_pseudofermions!(ϕ, ::QuenchedFermionAction, U, ::NoSmearing, ::Any)
+    return nothing
+end
+
+function sample_pseudofermions!(ϕ, ::QuenchedFermionAction, U, ::StoutSmearing, ::Any)
+    return nothing
+end
 
 function sample_pseudofermions!(ϕ, fermion_action, U, ::NoSmearing, ::Any)
     for i in eachindex(fermion_action)
         sample_pseudofermions!(ϕ[i], fermion_action[i], U)
     end
+
     return nothing
 end
 
@@ -342,19 +356,24 @@ function sample_pseudofermions!(ϕ, fermion_action, U, smearing::StoutSmearing, 
     is_smeared || calc_smearedU!(smearing, U)
     calc_smearedU!(smearing, U)
     fully_smeared_U = smearing.Usmeared_multi[end]
+
     for i in eachindex(fermion_action)
         sample_pseudofermions!(ϕ[i], fermion_action[i], fully_smeared_U)
     end
+
     return nothing
 end
 
-calc_fermion_action(::Nothing, ::Any, ::Any, ::NoSmearing, ::Any) = 0.0
+calc_fermion_action(::QuenchedFermionAction, U, ϕ, ::NoSmearing, ::Any) = 0.0
+calc_fermion_action(::QuenchedFermionAction, U, ϕ, ::StoutSmearing, ::Any) = 0.0
 
 function calc_fermion_action(fermion_action, U, ϕ, ::NoSmearing, ::Any)
     Sf = 0.0
+
     for i in eachindex(fermion_action)
         Sf += calc_fermion_action(fermion_action[i], U, ϕ[i])
     end
+
     return Sf
 end
 
@@ -362,9 +381,11 @@ function calc_fermion_action(fermion_action, U, ϕ, smearing::StoutSmearing, is_
     is_smeared || calc_smearedU!(smearing, U)
     fully_smeared_U = smearing.Usmeared_multi[end]
     Sf = 0.0
+
     for i in eachindex(fermion_action)
         Sf += calc_fermion_action(fermion_action[i], fully_smeared_U, ϕ[i])
     end
+
     return Sf
 end
 

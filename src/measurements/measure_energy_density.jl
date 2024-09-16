@@ -2,15 +2,29 @@ struct EnergyDensityMeasurement{T} <: AbstractMeasurement
     ED_dict::Dict{String,Float64} # energy density definition => value
     filename::T
     function EnergyDensityMeasurement(
-        ::Gaugefield; filename="", ED_methods=["clover"], flow=false
+        U::Gaugefield; filename="", ED_methods=["clover"], flow=false
     )
         ED_dict = Dict{String,Float64}()
+
         for method in ED_methods
             @level1("|    Method: $(method)")
-            ED_dict[method] = 0.0
+
+            if method == "plaquette"
+                ED_dict["plaquette"] = 0.0
+            elseif method == "clover"
+                ED_dict["clover"] = 0.0
+            elseif method == "improved"
+                if is_distributed(U)
+                    @assert U.topology.halo_width >= 2 "improved topological charge requires a halo width of at least 2"
+                end
+
+                ED_dict["improved"] = 0.0
+            else
+                error("Topological charge method $method not supported")
+            end
         end
 
-        if filename !== nothing && filename != ""
+        if !isnothing(filename) && filename != ""
             path = filename * MYEXT
             rpath = StaticString(path)
             header = ""
@@ -25,8 +39,10 @@ struct EnergyDensityMeasurement{T} <: AbstractMeasurement
                 header *= @sprintf("%-25s", "E_$(methodname)")
             end
 
-            open(path, "w") do fp
-                println(fp, header)
+            if mpi_amroot()
+                open(path, "w") do fp
+                    println(fp, header)
+                end
             end
         else
             rpath = nothing
@@ -47,30 +63,8 @@ function EnergyDensityMeasurement(U, params::EnergyDensityParameters, filename, 
 end
 
 function measure(
-    m::EnergyDensityMeasurement{Nothing}, U, ::Integer, itrj, flow=nothing,
-)
-    ED_dict = m.ED_dict
-    iflow, _ = isnothing(flow) ? (0, 0.0) : flow
-
-    for method in keys(ED_dict)
-        E = energy_density(U, method)
-        ED_dict[method] = E
-
-        if mpi_amroot()
-            if !isnothing(flow)
-                @level1("$itrj\t$E # energydensity_$(method)_flow_$(iflow)")
-            else
-                @level1("$itrj\t$E # energydensity_$(method)")
-            end
-        end
-    end
-
-    return ED_dict
-end
-
-function measure(
     m::EnergyDensityMeasurement{T}, U, myinstance, itrj, flow=nothing
-) where {T<:AbstractString}
+) where {T}
     ED_dict = m.ED_dict
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
@@ -79,26 +73,39 @@ function measure(
     end
 
     if mpi_amroot()
-        filename = set_ext!(m.filename, myinstance)
-        fp = fopen(filename, "a")
-        printf(fp, "%-11i", itrj::Int64)
+        for method in keys(ED_dict)
+            E = ED_dict[method]
 
-        if !isnothing(flow)
-            printf(fp, "%-7i", iflow::Int64)
-            printf(fp, "%-9.5f", τ::Float64)
+            if !isnothing(flow)
+                @level1("$itrj\t$E # energydensity_$(method)_flow_$(iflow)")
+            else
+                @level1("$itrj\t$E # energydensity_$(method)")
+            end
         end
 
-        for value in values(ED_dict)
-            printf(fp, "%+-25.15E", value::Float64)
-        end
+        if T !== Nothing
+            filename = set_ext!(m.filename, myinstance)
+            fp = fopen(filename, "a")
+            printf(fp, "%-11i", itrj)
 
-        printf(fp, "\n")
-        fclose(fp)
+            if !isnothing(flow)
+                printf(fp, "%-7i", iflow)
+                printf(fp, "%-9.5f", τ)
+            end
+
+            for value in values(ED_dict)
+                printf(fp, "%+-25.15E", value)
+            end
+
+            printf(fp, "\n")
+            fclose(fp)
+        end
     end
 
     return ED_dict
 end
 
+# Energy density definitions from: https://arxiv.org/pdf/1708.00696.pdf
 function energy_density(U, methodname::String)
     if methodname == "plaquette"
         E = energy_density(Plaquette(), U)
@@ -130,8 +137,8 @@ function energy_density(::Plaquette, U::Gaugefield{CPU})
 end
 
 function energy_density(::Clover, U::Gaugefield{CPU,T}) where {T}
-    E = 0.0
     fac = im * T(1/4)
+    E = 0.0
 
     @batch reduction = (+, E) for site in eachindex(U)
         for μ in 1:3
@@ -153,8 +160,8 @@ function energy_density(::Improved, U::Gaugefield{CPU})
 end
 
 function energy_density_rect(U::Gaugefield{CPU,T}) where {T}
-    E = 0.0
     fac = im * T(1/8)
+    E = 0.0
 
     @batch reduction = (+, E) for site in eachindex(U)
         for μ in 1:3

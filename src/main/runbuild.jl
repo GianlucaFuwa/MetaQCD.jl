@@ -1,4 +1,4 @@
-function build_bias(filenamein::String; backend="cpu", mpi_enabled=false)
+function build_bias(filenamein::String; backend="cpu")
     # When using MPI we make sure that only rank 0 prints to the console
     if mpi_amroot()
         ext = splitext(filenamein)[end]
@@ -9,11 +9,12 @@ function build_bias(filenamein::String; backend="cpu", mpi_enabled=false)
 
     # load parameters from toml file
     parameters = construct_params_from_toml(filenamein; backend=backend)
+    multi_sim = (prod(parameters.numprocs_cart) == 1) && mpi_parallel()
     mpi_barrier()
 
     if mpi_amroot()
         oneinst = parameters.numinstances == 1
-        @assert mpi_enabled ⊻ oneinst "MPI must be enabled if and only if numinstances > 1, numinstances was $(parameters.numinstances)"
+        @assert multi_sim ⊻ oneinst "MPI must be enabled if and only if numinstances > 1, numinstances was $(parameters.numinstances)"
         @assert mpi_size() == parameters.numinstances "numinstances has to be equal to the number of MPI ranks"
         @assert parameters.kind_of_bias ∉ ("none", "parametric") "bias has to be \"metad\" or \"opes\" in build, was $(parameters.kind_of_bias)"
         @assert parameters.is_static == false "Bias cannot be static in build"
@@ -34,10 +35,10 @@ function build_bias(filenamein::String; backend="cpu", mpi_enabled=false)
     # print time and system info, because it looks cool I guess
     # btw, all these "@level1" calls are just for logging, level1 is always printed
     # and anything higher has to specified in the parameter file (default is level2)
-    # @level1("Start time: @ $(current_time())")
-    buf = IOBuffer()
-    InteractiveUtils.versioninfo(buf)
-    versioninfo = String(take!(buf))
+    @level1("Start time: @ $(current_time())")
+    # buf = IOBuffer()
+    # InteractiveUtils.versioninfo(buf)
+    # versioninfo = String(take!(buf))
     # @level1(versioninfo)
     @level1("[ Running MetaQCD.jl version $(PACKAGE_VERSION)\n")
     @level1("[ Random seed is: $seed\n")
@@ -46,7 +47,7 @@ function build_bias(filenamein::String; backend="cpu", mpi_enabled=false)
         univ_args..., updatemethod, _, _ = load_checkpoint(parameters.load_checkpoint_path)
         univ = Univ(univ_args...)
     else
-        univ = Univ(parameters; use_mpi=mpi_enabled)
+        univ = Univ(parameters; use_mpi=multi_sim)
         updatemethod = nothing
     end
 
@@ -160,7 +161,7 @@ function metabuild!(
                 numaccepts += accepted
             end
 
-            # @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())\n")
+            @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())\n")
             # all procs send their CVs to all other procs and update their copy of the bias
             CVs = mpi_allgather(U.CV::Float64, comm)
             accepteds = mpi_allgather(accepted::Bool, comm)
@@ -169,7 +170,7 @@ function metabuild!(
             acceptances = mpi_allgather(numaccepts::Float64, comm) # XXX: should use MPI.gather?
             print_acceptance_rates(acceptances, itrj)
 
-            create_checkpoint(checkpointer, univ, updatemethod, itrj)
+            create_checkpoint(checkpointer, univ, updatemethod, nothing, itrj)
 
             calc_measurements(measurements, U, itrj)
             calc_measurements_flowed(measurements_with_flow, gflow, U, itrj)
@@ -184,7 +185,7 @@ function metabuild!(
     close(measurements)
     close(measurements_with_flow)
     close(bias)
-    close(Output.__GlobalLogger[])
-    set_global_logger!(1)
+    close(MetaIO.__GlobalLogger[])
+    isinteractive() && set_global_logger!(1) # Reset logger if run from REPL
     return nothing
 end

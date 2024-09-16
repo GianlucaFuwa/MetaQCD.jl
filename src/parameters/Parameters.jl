@@ -112,15 +112,19 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
     measure_dir = joinpath(ensemble_dir, "measurements/")
     save_config_dir = joinpath(ensemble_dir, "configs/")
     bias_dir = joinpath(ensemble_dir, "biaspotentials/")
+
     if !isdir(log_dir) && mpi_amroot()
         mkpath(log_dir)
     end
+
     if !isdir(measure_dir) && mpi_amroot()
         mkpath(measure_dir)
     end
+
     if !isdir(save_config_dir) && mpi_amroot()
         mkpath(save_config_dir)
     end
+
     if !isdir(bias_dir) && mpi_amroot()
         mkpath(bias_dir)
     end
@@ -141,8 +145,9 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
     config_dir_exists = isdir(save_config_dir)
     bias_dir_exists = isdir(bias_dir)
     itimer = 0
+
     while !(ensemble_dir_exists && log_dir_exists && measure_dir_exists && config_dir_exists && bias_dir_exists)
-        itimer = 50 && error("Rank $(mpi_myrank()) could not find all directories")
+        itimer == 50 && error("Rank $(mpi_myrank()) could not find all directories")
         sleep(0.1)
         ensemble_dir_exists = isdir(ensemble_dir)
         log_dir_exists = isdir(log_dir)
@@ -185,6 +190,8 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
                     else
                         value_Params[i] = val
                     end
+                elseif String(pname_i) == "numprocs_cart"
+                    value_Params[i] = Tuple(value[String(pname_i)])
                 elseif String(pname_i) == "backend"
                     value_Params[i] = backend
                 else
@@ -207,6 +214,17 @@ end
 
 function parameter_check(p::ParameterSet)
     mpi_amroot() || return nothing
+
+    @assert prod(p.numprocs_cart) == mpi_size() "Size of comm must equal number of process used in field decomposition"
+
+    if prod(p.numprocs_cart) > 1
+        @assert p.halo_width >= 1 "Halo width must be >= 1, when using field decomposition"
+        @assert lower_case(p.update_method) == "hmc" "Field decomposition not supported for local update algorithms"
+        
+        if p.gauge_action != "wilson"
+            @assert p.halo_width >= 2 "Halo width must be >= 2, when using field decomposition with improved gauge action"
+        end
+    end
 
     if lower_case(p.gauge_action) ∉ ["wilson", "iwasaki", "symanzik_tree", "dbw2"]
         ga = p.gauge_action

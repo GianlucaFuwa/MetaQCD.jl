@@ -5,9 +5,6 @@ using MetaQCD.Utils
 using MetaQCD: run_sim
 using MetaQCD.Parameters: lower_case
 
-COMM = mpi_init()
-@assert mpi_size() == 1 "metaqcd_sim can not be used with mpi, only metaqcd_build"
-
 if length(ARGS) == 0
     error("""
     A parameter file has to be given as the first input:
@@ -42,10 +39,10 @@ if length(ARGS) == 2
     end
 end
 
-if mpi_parallel() && mpi_myrank() == 0
-    println("$(mpi_size()) streams will be used")
+if mpi_parallel() && mpi_amroot()
+    println("[ $(mpi_size()) MPI processes are being used")
 end
 
 mpi_barrier()
 
-run_sim(ARGS[1]; backend=backend, mpi_enabled=with_mpi)
+run_sim(ARGS[1]; backend=backend)

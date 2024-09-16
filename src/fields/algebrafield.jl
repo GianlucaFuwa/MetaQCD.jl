@@ -1,70 +1,48 @@
 # INFO: This struct is here in case I ever want to use a more efficient storage format for
 # algebra elements
-struct Algebrafield{B,T,M,A,H} <: AbstractField{B,T,M,A}
-    U::A # Actual field storing the gauge variables
+struct Algebrafield{Backend,FloatType,IsDistributed,ArrayType} <:
+    AbstractField{Backend,FloatType,IsDistributed,ArrayType}
+    U::ArrayType # Actual field storing the gauge variables
     NX::Int64 # Number of lattice sites in the x-direction
     NY::Int64 # Number of lattice sites in the y-direction
     NZ::Int64 # Number of lattice sites in the z-direction
     NT::Int64 # Number of lattice sites in the t-direction
     NV::Int64 # Total number of lattice sites
     NC::Int64 # Number of colors
-
-    halo_sendbuf::H
-    halo_recvbuf::H
-    pad::Int64 # halo width
     
-    # Meta-data regarding portion of the field local to current process
-    my_NX::Int64
-    my_NY::Int64
-    my_NZ::Int64
-    my_NT::Int64
-    my_NV::Int64
-    nprocs::Int64
-    nprocs_cart::NTuple{4,Int64}
-    myrank::Int64
-    myrank_cart::NTuple{4,Int64}
-    comm_cart::Utils.Comm
-    function Algebrafield{B,T}(NX, NY, NZ, NT) where {B,T}
-        U = KA.zeros(B(), SU{3,9,T}, 4, NX, NY, NZ, NT)
+    topology::FieldTopology # Info regarding MPI topology
+    function Algebrafield{Backend,FloatType}(NX, NY, NZ, NT) where {Backend,FloatType}
+        U = KA.zeros(Backend(), SU{3,9,FloatType}, 4, NX, NY, NZ, NT)
         NV = NX * NY * NZ * NT
-        halo_sendbuf = halo_recvbuf = nothing
-        pad = 0
-        nprocs = 1
-        nprocs_cart = (1, 1, 1, 1)
-        myrank_cart = (0, 0, 0, 0)
-        comm_cart = mpi_comm()
-        return new{B,T,false,typeof(U),typeof(halo_sendbuf)}(
-            U, NX, NY, NZ, NT, NV, 3, halo_sendbuf, halo_recvbuf, pad, NX, NY, NZ, NT, NV,
-            nprocs, nprocs_cart, mpi_myrank(), myrank_cart, comm_cart,
-        )
+        numprocs_cart = (1, 1, 1, 1)
+        halo_width = 0
+        topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
+        return new{Backend,FloatType,false,typeof(U)}(U, NX, NY, NZ, NT, NV, 3, topology)
     end
 
-    function Algebrafield{B,T}(NX, NY, NZ, NT, nprocs_cart, pad) where {B,T}
-        sum(nprocs_cart) == 1 && return Algebrafield{B,T}(NX, NY, NZ, NT)
+    function Algebrafield{Backend,FloatType}(NX, NY, NZ, NT, numprocs_cart, halo_width) where {Backend,FloatType}
+        if prod(numprocs_cart) == 1
+            return Colorfield{Backend,FloatType}(NX, NY, NZ, NT)
+        end
+
         NV = NX * NY * NZ * NT
-        nX, nY, nZ, nT = nprocs_cart
-        nprocs = nX * nY * nZ * nT
-        @assert (NX%nX, NY%nY, NZ%nZ, NT%nT) == (0, 0, 0, 0) "Lattice dimensions must be divisible by comm dimensions"
-        my_NX, my_NY, my_NZ, my_NT = (NX÷nX, NY÷nY, NZ÷nZ, NT÷nT)
-        my_NV = my_NX * my_NY * my_NZ * my_NT
-        comm_cart = mpi_cart_create(nprocs_cart; periodic=map(_->true, nprocs_cart))
-        myrank_cart = (mpi_cart_coords(comm_cart, mpi_myrank())...,)
-        max_halo_dims = maximum([prod(halo_dims((NX, NY, NZ, NT), pad, i)) for i in 1:4])
-        halo_sendbuf = KA.zeros(B(), SU{3,9,T}, 4, max_halo_dims)
-        halo_recvbuf = KA.zeros(B(), SU{3,9,T}, 4, max_halo_dims)
-        U = KA.zeros(B(), SU{3,9,T}, 4, my_NX+2pad, my_NY+2pad, my_NZ+2pad, my_NT+2pad)
-        return new{B,T,true,typeof(U),typeof(halo_sendbuf)}(
-            U, NX, NY, NZ, NT, NV, 3, halo_sendbuf, halo_recvbuf, pad, my_NX, my_NY, my_NZ,
-            my_NT, my_NV, nprocs, nprocs_cart, mpi_myrank(), myrank_cart, comm_cart,
-        )
+        topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
+        ldims = topology.local_dims
+        dims_in = ntuple(i -> ldims[i]+2halo_width, Val(4)) 
+        U = KA.zeros(Backend(), SU{3,9,FloatType}, 4, dims_in...)
+        return new{Backend,FloatType,true,typeof(U)}(U, NX, NY, NZ, NT, NV, 3, topology)
     end
 end
 
-function Algebrafield(u::AbstractField{B,T,M}) where {B,T,M}
-    u_out = if M
-        Algebrafield{B,T}(u.NX, u.NY, u.NZ, u.NT, u.nprocs_cart, u.pad)
+function Algebrafield(
+    u::AbstractField{Backend,FloatType,IsDistributed}
+) where {Backend,FloatType,IsDistributed}
+    u_out = if IsDistributed
+        numprocs_cart = u.topology.numprocs_cart
+        halo_width = u.topology.halo_width
+        Algebrafield{Backend,FloatType}(u.NX, u.NY, u.NZ, u.NT, numprocs_cart, halo_width)
     else
-        Algebrafield{B,T}(u.NX, u.NY, u.NZ, u.NT)
+        Algebrafield{Backend,FloatType}(u.NX, u.NY, u.NZ, u.NT)
     end
 
     return u_out

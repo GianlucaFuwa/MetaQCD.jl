@@ -1,19 +1,21 @@
 using MetaQCD
 using MetaQCD.Utils
+using MetaQCD.Fields: update_halo!
 using LinearAlgebra
 using Random
+using ProfileView
 
-function test_fderivative(
+function test_mpi_fderivative(
     backend=CPU; dirac="staggered", mass=0.01, eoprec=false, single_flavor=false, csw=1.78
 )
-    Random.seed!(123)
-    println("Fermion derivative test [$dirac]")
+    if mpi_amroot()
+        println("Fermion derivative test [$dirac]")
+    end
+
     MetaQCD.MetaIO.set_global_logger!(1, nothing; tc=true)
-    NX = 4
-    NY = 4
-    NZ = 4
-    NT = 4
-    U = Gaugefield{CPU,Float64,WilsonGaugeAction}(NX, NY, NZ, NT, 6.0)
+    Ns = 4
+    Nt = 4
+    U = Gaugefield{CPU,Float64,WilsonGaugeAction}(Ns, Ns, Ns, Nt, 5.7, (1, 1, 2, 2), 1)
     random_gauges!(U)
 
     # filename = pkgdir(MetaQCD, "test", "testconf.txt")
@@ -83,7 +85,7 @@ function test_fderivative(
     else
         error("dirac operator $dirac not supported")
     end
-    @show action
+    mpi_amroot() && (@show action)
 
     sample_pseudofermions!(ψ, action, U)
 
@@ -94,7 +96,7 @@ function test_fderivative(
     dSfdU_smeared = Colorfield(U)
     temp_force = Colorfield(U)
 
-    site = SiteCoords(2, 3, 1, 2)
+    site = SiteCoords(2, 3, 2, 2)
     μ = 3
     ΔH = 0.000001
 
@@ -103,23 +105,35 @@ function test_fderivative(
     for group_direction in 1:8
         # Unsmeared
         Ufwd = deepcopy(U)
-        Ufwd[μ, site] = expλ(group_direction, ΔH) * Ufwd[μ, site]
+        if mpi_amroot()
+            Ufwd[μ, site] = expλ(group_direction, ΔH) * Ufwd[μ, site]
+        end
+        update_halo!(Ufwd)
         action_new_fwd = calc_fermion_action(action, Ufwd, ψ)
 
         Ubwd = deepcopy(U)
-        Ubwd[μ, site] = expλ(group_direction, -ΔH) * Ubwd[μ, site]
+        if mpi_amroot()
+            Ubwd[μ, site] = expλ(group_direction, -ΔH) * Ubwd[μ, site]
+        end
+        update_halo!(Ubwd)
         action_new_bwd = calc_fermion_action(action, Ubwd, ψ)
 
         # Smeared
         Ufwd = deepcopy(U)
-        Ufwd[μ, site] = expλ(group_direction, ΔH) * Ufwd[μ, site]
+        if mpi_amroot()
+            Ufwd[μ, site] = expλ(group_direction, ΔH) * Ufwd[μ, site]
+        end
+        update_halo!(Ufwd)
         calc_smearedU!(smearing, Ufwd)
         action_new_fwd_smeared = calc_fermion_action(
             action, smearing.Usmeared_multi[end], ψ
         )
 
         Ubwd = deepcopy(U)
-        Ubwd[μ, site] = expλ(group_direction, -ΔH) * Ubwd[μ, site]
+        if mpi_amroot()
+            Ubwd[μ, site] = expλ(group_direction, -ΔH) * Ubwd[μ, site]
+        end
+        update_halo!(Ubwd)
         calc_smearedU!(smearing, Ubwd)
         action_new_bwd_smeared = calc_fermion_action(
             action, smearing.Usmeared_multi[end], ψ
@@ -142,10 +156,16 @@ function test_fderivative(
         relerrors[group_direction, 2] =
             (symm_diff_smeared - daction_proj_smeared) / symm_diff_smeared
 
-        println("================= Group direction $(group_direction) =================")
-        println("/ Rel. error (unsmeared): \t", relerrors[group_direction, 1])
-        println("/ Rel. error (smeared):   \t", relerrors[group_direction, 2])
+        if mpi_amroot()
+            println("================= Group direction $(group_direction) =================")
+            println("/ Rel. error (unsmeared): \t", relerrors[group_direction, 1])
+            println("/ Rel. error (smeared):   \t", relerrors[group_direction, 2])
+        end
     end
-    println()
+    # println()
     return relerrors
 end
+
+test_mpi_fderivative()
+@profview test_mpi_fderivative()
+sleep(60)

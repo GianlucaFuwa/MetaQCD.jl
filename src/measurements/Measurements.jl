@@ -12,7 +12,7 @@ using KernelAbstractions
 using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
 using Polyester
-using Printf
+using Printf: @sprintf
 using StaticTools: StaticString
 using Unicode
 using ..MetaIO
@@ -21,13 +21,13 @@ using ..Utils
 import KernelAbstractions as KA
 import ..DiracOperators: Daggered, DdaggerD, StaggeredDiracOperator, WilsonDiracOperator
 import ..DiracOperators: StaggeredEOPreDiracOperator, even_odd, solve_dirac!
-import ..DiracOperators: ArnoldiWorkspaceMeta, get_eigenvalues
+import ..DiracOperators: ArnoldiWorkspaceMeta, get_eigenvalues, num_dirac
 import ..Fields: WilsonGaugeAction, SymanzikTreeGaugeAction, SymanzikTadGaugeAction
 import ..Fields: IwasakiGaugeAction, DBW2GaugeAction, AbstractFieldstrength
-import ..Fields: Gaugefield, Spinorfield, calc_gauge_action, clover_rect, clear!
+import ..Fields: Gaugefield, Spinorfield, calc_gauge_action, check_dims, clover_rect, clear! 
 import ..Fields: clover_square, global_dims, local_dims, float_type, plaquette, wilsonloop
 import ..Fields: @groupreduce, @latsum, Plaquette, Clover, Improved, CPU, ones!, set_source!
-import ..Fields: check_dims, distributed_reduce, plaquette_trace_sum, wilsonloop
+import ..Fields: distributed_reduce, is_distributed, plaquette_trace_sum, wilsonloop
 import ..Smearing: StoutSmearing, calc_smearedU!, flow!
 
 abstract type AbstractMeasurement end
@@ -48,7 +48,7 @@ end
 end
 
 function measure(::M, args...) where {M<:AbstractMeasurement}
-    return error("measurement with a type $M is not supported")
+    return error("Measurement of type $M is not supported")
 end
 
 include("./measurement_parameters.jl")
@@ -61,7 +61,7 @@ include("measure_wilson_loop.jl")
 include("measure_topological_charge.jl")
 include("measure_energy_density.jl")
 include("measure_pion_correlator.jl")
-include("measure_eigenvalues.jl")
+# include("measure_eigenvalues.jl")
 
 include("gpu_kernels/energydensity.jl")
 include("gpu_kernels/polyakov.jl")

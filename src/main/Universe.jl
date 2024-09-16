@@ -6,19 +6,20 @@ using TOML: parsefile
 using ..MetaIO
 using ..Utils
 
-import ..DiracOperators: WilsonFermionAction
+import ..DiracOperators: WilsonFermionAction, WilsonEOPreFermionAction
 import ..DiracOperators: StaggeredFermionAction, StaggeredEOPreFermionAction
+import ..DiracOperators: QuenchedFermionAction
 import ..Fields: Gaugefield, WilsonGaugeAction, IwasakiGaugeAction, DBW2GaugeAction
 import ..Fields: SymanzikTreeGaugeAction
 import ..BiasModule: Bias, NoBias
 import ..Parameters: ParameterSet
 
 """
-    Univ(parameters::ParameterSet; use_mpi=false)
+    Univ(parameters::ParameterSet; mpi_multi_sim=false)
 
 Create a Universe, containing the gauge configurations that are updated throughout a 
 simulation and the bias potentials, if any. \\
-`use_mpi` is soley an indicator that sets `numinstances` to 1 when using multiple walkers
+`mpi_multi_sim` is soley an indicator that sets `numinstances` to 1 when using multiple walkers
 even if stated otherwise in the parameters.
 """
 struct Univ{TG,TF,TB}
@@ -29,7 +30,7 @@ struct Univ{TG,TF,TB}
     numinstances::Int64
     function Univ(
         U::Gaugefield{BACKEND,T,A,GA}, fermion_action::TF, bias::TB, numinstances
-    ) where {BACKEND,T,A,GA,TF<:Tuple,TB}
+    ) where {BACKEND,T,A,GA,TF,TB}
         @level1("┌ Setting Universe...")
         @level1("|  NUM INSTANCES: $(numinstances)")
         @level1("|  BACKEND: $(string(BACKEND))")
@@ -38,8 +39,8 @@ struct Univ{TG,TF,TB}
         @level1("|  GAUGE ACTION: $(string(GA))")
         @level1("|  BETA: $(U.β)")
 
-        if TF === Tuple{}
-            @level1("|  FERMION ACTION:\n└\n")
+        if TF === QuenchedFermionAction
+            @level1("|  FERMION ACTION: Quenched\n└\n")
         else
             @level1("|  FERMION ACTION: $(string(fermion_action...))└\n")
         end
@@ -51,7 +52,7 @@ struct Univ{TG,TF,TB}
 
     function Univ(
         U::Vector{Gaugefield{BACKEND,T,A,GA}}, fermion_action::TF, bias::TB, numinstances
-    ) where {BACKEND,T,A,GA,TF<:Tuple,TB<:Vector{Bias}}
+    ) where {BACKEND,T,A,GA,TF,TB<:Vector{Bias}}
         @level1("┌ Setting Universe...")
         @level1("|  NUM INSTANCES: $(numinstances)")
         @level1("|  BACKEND: $(BACKEND)")
@@ -60,7 +61,7 @@ struct Univ{TG,TF,TB}
         @level1("|  GAUGE ACTION: $(GA)")
         @level1("|  BETA: $(U[1].β)")
 
-        if TF === Tuple{}
+        if TF === QuenchedFermionAction
             @level1("|  FERMION ACTION:\n└\n")
         else
             @level1("|  FERMION ACTION: $(fermion_action...)└\n")
@@ -72,9 +73,9 @@ struct Univ{TG,TF,TB}
     end
 end
 
-function Univ(parameters::ParameterSet; use_mpi=false)
+function Univ(parameters::ParameterSet; mpi_multi_sim=false)
     if parameters.kind_of_bias != "none"
-        if parameters.tempering_enabled && use_mpi == false
+        if parameters.tempering_enabled && !mpi_multi_sim
             numinstances = parameters.numinstances
             U₁ = Gaugefield(parameters)
             fermion_action = init_fermion_actions(parameters, U₁)
@@ -82,9 +83,9 @@ function Univ(parameters::ParameterSet; use_mpi=false)
 
             U = Vector{typeof(U₁)}(undef, numinstances)
             bias = Vector{typeof(bias₁)}(undef, numinstances)
-
             U[1] = U₁
             bias[1] = bias₁
+
             for i in 2:numinstances
                 U[i] = Gaugefield(parameters)
                 bias[i] = Bias(parameters, U[i]; instance=i - 1)
@@ -93,7 +94,7 @@ function Univ(parameters::ParameterSet; use_mpi=false)
             numinstances = 1
             U = Gaugefield(parameters)
             fermion_action = init_fermion_actions(parameters, U)
-            bias = Bias(parameters, U; use_mpi=use_mpi)
+            bias = Bias(parameters, U; mpi_multi_sim=mpi_multi_sim)
         end
     else
         @assert parameters.tempering_enabled == false "tempering can only be enabled with bias"
@@ -113,8 +114,8 @@ function init_fermion_actions(parameters::ParameterSet, U)
     mass = parameters.mass
     @assert length(Nf) == length(mass) "Need same amount of masses as non-degenerate flavours"
 
-    if fermion_action == "none"
-        fermion_actions = Tuple{}
+    if fermion_action ∈ ("none", "quenched")
+        fermion_actions = QuenchedFermionAction()
     elseif fermion_action == "wilson"
         if eo_precon
             error("even-odd preconditioned wilson fermions not supported yet")

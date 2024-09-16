@@ -1,26 +1,28 @@
 ["Physical Settings"]
 L = [4, 4, 4, 4]
 beta = 4.3
-gauge_action = "symanzik_tree"
+gauge_action = "wilson"
 numtherm = 10
 numsteps = 10
 initial = "cold"
 update_method = "hmc"
 parity_update = false
+numprocs_cart = [2, 2, 1, 1]
+halo_width = 1
 
-["Dynamical Fermion Settings"]
-fermion_action = "staggered"
-eo_precon = false
-Nf = [2]
-mass = [0.01]
-wilson_csw = 1.0
-cg_tol_action = 1e-16
-cg_tol_md = 1e-16
-cg_maxiters_action = 5000
-cg_maxiters_md = 5000
-rhmc_spectral_bound = [0.0001, 6.0]
-rhmc_prec_action = 64
-rhmc_prec_md = 64
+# ["Dynamical Fermion Settings"]
+# fermion_action = "staggered"
+# eo_precon = false
+# Nf = [2]
+# mass = [0.01]
+# wilson_csw = 1.0
+# cg_tol_action = 1e-16
+# cg_tol_md = 1e-16
+# cg_maxiters_action = 5000
+# cg_maxiters_md = 5000
+# rhmc_spectral_bound = [0.0001, 6.0]
+# rhmc_prec_action = 64
+# rhmc_prec_md = 64
 
 ["HMC Settings"]
 hmc_trajectory = 1

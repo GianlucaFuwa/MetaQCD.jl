@@ -5,37 +5,67 @@ struct Clover <: AbstractFieldstrength end
 struct Improved <: AbstractFieldstrength end
 
 # TODO: Docs
-struct Tensorfield{B,T,M,A} <: AbstractField{B,T,M,A}
-    U::A
-    NX::Int64
-    NY::Int64
-    NZ::Int64
-    NT::Int64
-    NV::Int64
-    NC::Int64
-    function Tensorfield{B,T}(NX, NY, NZ, NT) where {B,T}
-        # TODO: Reduce size of Tensorfield by using symmetry of the fieldstrength tensor
-        U = KA.zeros(B(), SMatrix{3,3,Complex{T},9}, 4, 4, NX, NY, NZ, NT)
+struct Tensorfield{Backend,FloatType,IsDistributed,ArrayType} <:
+    AbstractField{Backend,FloatType,IsDistributed,ArrayType}
+    U::ArrayType # Actual field storing the gauge variables
+    NX::Int64 # Number of lattice sites in the x-direction
+    NY::Int64 # Number of lattice sites in the y-direction
+    NZ::Int64 # Number of lattice sites in the z-direction
+    NT::Int64 # Number of lattice sites in the t-direction
+    NV::Int64 # Total number of lattice sites
+    NC::Int64 # Number of colors
+    
+    topology::FieldTopology # Info regarding MPI topology
+    function Tensorfield{Backend,FloatType}(NX, NY, NZ, NT) where {Backend,FloatType}
+        U = KA.zeros(Backend(), SU{3,9,FloatType}, 4, 4, NX, NY, NZ, NT)
         NV = NX * NY * NZ * NT
-        NC = 3
-        return new{B,T,false,typeof(U)}(U, NX, NY, NZ, NT, NV, NC)
+        numprocs_cart = (1, 1, 1, 1)
+        halo_width = 0
+        topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
+        return new{Backend,FloatType,false,typeof(U)}(U, NX, NY, NZ, NT, NV, 3, topology)
+    end
+
+    function Tensorfield{Backend,FloatType}(
+        NX, NY, NZ, NT, numprocs_cart, halo_width
+    ) where {Backend,FloatType}
+        if prod(numprocs_cart) == 1
+            return Tensorfield{Backend,FloatType}(NX, NY, NZ, NT)
+        end
+
+        NV = NX * NY * NZ * NT
+        topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
+        ldims = topology.local_dims
+        dims_in = ntuple(i -> ldims[i]+2halo_width, Val(4)) 
+        U = KA.zeros(Backend(), SU{3,9,FloatType}, 4, 4, dims_in...)
+        return new{Backend,FloatType,true,typeof(U)}(U, NX, NY, NZ, NT, NV, 3, topology)
     end
 end
 
-function Tensorfield(u::AbstractField{B,T,false,A}) where {B,T,A}
-    NX, NY, NZ, NT = global_dims(u)
-    return Tensorfield{B,T}(NX, NY, NZ, NT)
+function Tensorfield(
+    u::Gaugefield{Backend,FloatType,IsDistributed,ArrayType}
+) where {Backend,FloatType,IsDistributed,ArrayType}
+    u_out = if IsDistributed
+        numprocs_cart = u.topology.numprocs_cart
+        halo_width = u.topology.halo_width
+        Tensorfield{Backend,FloatType}(u.NX, u.NY, u.NZ, u.NT, numprocs_cart, halo_width)
+    else
+        Tensorfield{Backend,FloatType}(u.NX, u.NY, u.NZ, u.NT)
+    end
+
+    return u_out
 end
 
 # overload get and set for the Tensorfields, so we dont have to do u.U[μ,ν,x,y,z,t]
-Base.@propagate_inbounds Base.getindex(u::AbstractField, μ, ν, x, y, z, t) =
+Base.@propagate_inbounds Base.getindex(u::Tensorfield, μ, ν, x, y, z, t) =
     u.U[μ, ν, x, y, z, t]
-Base.@propagate_inbounds Base.getindex(u::AbstractField, μ, ν, site::SiteCoords) =
+Base.@propagate_inbounds Base.getindex(u::Tensorfield, μ, ν, site::SiteCoords) =
     u.U[μ, ν, site]
-Base.@propagate_inbounds Base.setindex!(u::AbstractField, v, μ, ν, x, y, z, t) =
+Base.@propagate_inbounds Base.setindex!(u::Tensorfield, v, μ, ν, x, y, z, t) =
     setindex!(u.U, v, μ, ν, x, y, z, t)
-Base.@propagate_inbounds Base.setindex!(u::AbstractField, v, μ, ν, site::SiteCoords) =
+Base.@propagate_inbounds Base.setindex!(u::Tensorfield, v, μ, ν, site::SiteCoords) =
     setindex!(u.U, v, μ, ν, site)
+
+Base.view(u::Tensorfield, I::CartesianIndices{4}) = view(u.U, 1:4, 1:4, I.indices...)
 
 function fieldstrength_eachsite!(F::Tensorfield, U, kind_of_fs::String)
     if kind_of_fs == "plaquette"

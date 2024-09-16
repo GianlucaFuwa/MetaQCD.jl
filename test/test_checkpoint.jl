@@ -1,5 +1,5 @@
 using MetaQCD
-using MetaQCD.Output
+using MetaQCD.MetaIO
 using Test
 using Random
 
