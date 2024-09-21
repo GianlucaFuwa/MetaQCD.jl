@@ -5,6 +5,7 @@ using MetaQCD
 
 import Random
 
+MetaQCD.MetaIO.set_global_logger!(1, nothing; tc=false) # INFO: disable logging during benchmarks
 Random.seed!(1234)
 
 N = 16

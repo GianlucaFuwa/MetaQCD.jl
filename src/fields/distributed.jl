@@ -19,9 +19,9 @@ struct FieldTopology
     local_dims::NTuple{4,Int64} # Dimensions of local partition
     halo_dims::Vector{NTuple{4,Int64}} # Dimensions of halo regions
 
-    bulk_sites::CartesianIndices{4} # Sites in partition that belong to the bulk
-    halo_sites::Vector{NTuple{2,CartesianIndices{4}}} # Sites in partition that belong to halo regions (2 per dim)
-    border_sites::Vector{NTuple{2,CartesianIndices{4}}} # Sites in bulk that belong to border regions (2 per dim)
+    bulk_sites::CartesianIndices{4,NTuple{4,UnitRange{Int64}}} # Sites in partition that belong to the bulk
+    halo_sites::Vector{NTuple{2,CartesianIndices{4,NTuple{4,UnitRange{Int64}}}}} # Sites in partition that belong to halo regions (2 per dim)
+    border_sites::Vector{NTuple{2,CartesianIndices{4,NTuple{4,UnitRange{Int64}}}}} # Sites in bulk that belong to border regions (2 per dim)
 
     local_ranges::NTuple{4,UnitRange{Int64}} # Site-range of global field that the local partition covers
 
