@@ -24,7 +24,9 @@
 #| format from the pervious one, the header line is required to start with #18BMW. |
 #+---------------------------------------------------------------------------------+
 
-function save_config(::BMWFormat, U, filename; override=false)
+function save_config(
+    ::BMWFormat, U::Gaugefield{B,T,false}, filename, parameters=nothing; override=false
+) where {B,T}
     @assert U.U isa Array
     if override == false
         @assert !isfile(filename) "File $filename to store config in already exists and override is \"false\""
@@ -51,12 +53,30 @@ function save_config(::BMWFormat, U, filename; override=false)
     checksum_str = adler64_string(checksum)
     bytes_written = 0
     bytes_written += write(
-        header_buf, "#BMW $(U.NX) $(U.NY) $(U.NZ) $(U.NT) beta_$(U.β) prec_float64 $checksum_str\n"
+        header_buf, "#BMW $(U.NX) $(U.NY) $(U.NZ) $(U.NT) $checksum_str\n"
     )
     bytes_written += write(
-        header_buf, "Generated with MetaQCD.jl 1.0.0 on Julia $(VERSION)\n"
+        header_buf, "Generated with MetaQCD.jl 1.0.0 on Julia $(VERSION) @ $(Dates.now())\n"
     )
-    bytes_written += write(header_buf, "@ $(Dates.now())\n")
+    
+    if parameters isa ParameterSet
+        bytes_written += write(
+            header_buf,
+            "gauge_action: $(parameters.gauge_action)\n",
+            "beta: $(U.β)\n",
+            "fermion_action: $(parameters.fermion_action)\n",
+            "Nf: $(parameters.Nf)\n",
+            "input_masses: $(parameters.mass)\n",
+            "boundary_condition_time: $(parameters.boundary_condition)\n",
+            "wilson_clover_csw: $(parameters.csw)\n",
+            "update_algorithm: $(parameters.update_method)\n",
+            "biaspotential: $(parameters.kind_of_bias)\n",
+            "cv_charge: $(parameters.kind_of_cv)\n",
+            "ptmetad: $(parameters.tempering_enabled)\n",
+            "gauge_smearing: $(parameters.hmc_numsmear_gauge)stout x $(parameters.hmc_rhostout_gauge)\n",
+            "fermion_smearing: $(parameters.hmc_numsmear_fermion)stout x $(parameters.hmc_rhostout_fermion)\n",
+        )
+    end
 
     while bytes_written < 4095
         bytes_written += write(header_buf, " ")
@@ -80,7 +100,7 @@ function save_config(::BMWFormat, U, filename; override=false)
     return nothing
 end
 
-function load_config!(::BMWFormat, U, filename)
+function load_config!(::BMWFormat, U::Gaugefield{B,T,false}, filename) where {B,T}
     @assert U.U isa Array
     fp = open(filename, "r")
     header_bin = Vector{UInt8}(undef, 4096)
@@ -92,7 +112,6 @@ function load_config!(::BMWFormat, U, filename)
     @assert (NX, NY, NZ, NT) == (U.NX, U.NY, U.NZ, U.NT) "Dimensions do not match"
     N = U.NC
     @assert N == 3 "Only SU(3) is supported in BMW format"
-    T = real(eltype(U[1, 1, 1, 1, 1]))
     checksum_read = parse(UInt64, split_header[6])
     checksum_calc = Adler64Checksum()
 

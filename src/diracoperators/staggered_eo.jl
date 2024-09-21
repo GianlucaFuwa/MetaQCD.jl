@@ -1,5 +1,5 @@
 """
-    StaggeredEOPreDiracOperator(::AbstractField, mass; bc_str="antiperiodic")
+    StaggeredEOPreDiracOperator(f::AbstractField, mass; bc_str="antiperiodic")
     StaggeredEOPreDiracOperator(
         D::Union{StaggeredDiracOperator,StaggeredEOPreDiracOperator},
         U::Gaugefield
@@ -12,7 +12,7 @@ condition in the time direction.
 
 If `csw ≠ 0`, a clover term is included. 
 
-This object cannot be applied to a fermion vector, since it lacks a gauge background.
+This object cannot be directly applied to a fermion vector, since it lacks a gauge background.
 A Wilson Dirac operator with gauge background is created by applying it to a `Gaugefield`
 `U` like `D_gauge = D(U)`
 
@@ -67,7 +67,7 @@ struct StaggeredEOPreFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
     cg_maxiters_action::Int64
     cg_maxiters_md::Int64
     function StaggeredEOPreFermionAction(
-        f,
+        f::AbstractField,
         mass;
         bc_str="antiperiodic",
         Nf=4,
@@ -80,6 +80,7 @@ struct StaggeredEOPreFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
         cg_tol_md=1e-12,
         cg_maxiters_action=1000,
         cg_maxiters_md=1000,
+        kwargs...,
     )
         D = StaggeredEOPreDiracOperator(f, mass; bc_str=bc_str)
         TD = typeof(D)
@@ -253,18 +254,18 @@ function LinearAlgebra.mul!(
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.parent.U
     mass = T(D.parent.mass)
-    anti = D.parent.anti_periodic
+    bc = D.parent.boundary_condition
 
     # ψₒ = Dₒₑϕₑ
-    mul_oe!(ψ_eo, U, ϕ_eo, anti, true, false)
+    mul_oe!(ψ_eo, U, ϕ_eo, bc, true, false)
     # ψₑ = DₑₒDₒₑϕₑ
-    mul_eo!(ψ_eo, U, ψ_eo, anti, false, false)
+    mul_eo!(ψ_eo, U, ψ_eo, bc, false, false)
     axpby!(mass^2, ϕ_eo, -1, ψ_eo) # ψₑ = m²ϕₑ - DₑₒDₒₑϕₑ
     return nothing
 end
 
 function mul_oe!(
-    ψ_eo::TF, U::Gaugefield{CPU,T}, ϕ_eo::TF, anti, into_odd, dagg::Bool; fac=1
+    ψ_eo::TF, U::Gaugefield{CPU,T}, ϕ_eo::TF, bc, into_odd, dagg::Bool; fac=1
 ) where {T,TF<:SpinorfieldEO{CPU,T}}
     check_dims(ψ_eo, ϕ_eo, U)
     ψ = ψ_eo.parent
@@ -279,7 +280,7 @@ function mul_oe!(
         else
             eo_site_switch(site, fdims..., NV)
         end
-        ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, anti, T, dagg)
+        ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, bc, T, dagg)
     end
 
     update_halo!(ψ) # TODO: Even-odd halo exchange
@@ -287,7 +288,7 @@ function mul_oe!(
 end
 
 function mul_eo!(
-    ψ_eo::TF, U::Gaugefield{CPU,T}, ϕ_eo::TF, anti, into_odd, dagg::Bool; fac=1
+    ψ_eo::TF, U::Gaugefield{CPU,T}, ϕ_eo::TF, bc, into_odd, dagg::Bool; fac=1
 ) where {T,TF<:SpinorfieldEO{CPU,T}}
     check_dims(ψ_eo, ϕ_eo, U)
     ψ = ψ_eo.parent
@@ -302,14 +303,14 @@ function mul_eo!(
         else
             eo_site(site, fdims..., NV)
         end
-        ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, anti, T, dagg)
+        ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, bc, T, dagg)
     end
 
     update_halo!(ψ) # TODO: Even-odd halo exchange
     return nothing
 end
 
-function staggered_eo_kernel(U, ϕ, site, anti, ::Type{T}, dagg::Bool) where {T}
+function staggered_eo_kernel(U, ϕ, site, bc, ::Type{T}, dagg::Bool) where {T}
     sgn = dagg ? -1 : 1
     # sites that begin with a "_" are meant for indexing into the even-odd preconn'ed
     # fermion field 
@@ -342,10 +343,8 @@ function staggered_eo_kernel(U, ϕ, site, anti, ::Type{T}, dagg::Bool) where {T}
     _siteμ⁺ = eo_site(move(site, 4, 1, NT), NX, NY, NZ, NT, NV)
     siteμ⁻ = move(site, 4, -1, NT)
     _siteμ⁻ = eo_site(siteμ⁻, NX, NY, NZ, NT, NV)
-    bc⁺ = boundary_factor(anti, site[4], 1, NT)
-    bc⁻ = boundary_factor(anti, site[4], -1, NT)
     η = sgn * staggered_η(Val(4), site)
-    ψₙ += η * cmvmul(U[4, site], bc⁺ * ϕ[_siteμ⁺])
-    ψₙ -= η * cmvmul_d(U[4, siteμ⁻], bc⁻ * ϕ[_siteμ⁻])
+    ψₙ += η * cmvmul(U[4, site], apply_bc(ϕ[_siteμ⁺], bc, site, Val(1), NT))
+    ψₙ -= η * cmvmul_d(U[4, siteμ⁻], apply_bc(ϕ[_siteμ⁻], bc, site, Val(-1), NT))
     return T(0.5) * ψₙ
 end

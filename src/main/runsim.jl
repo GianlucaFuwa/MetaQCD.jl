@@ -287,7 +287,7 @@ function metaqcd!(
                 )
             end
 
-            save_config(config_saver, U, itrj)
+            save_config(config_saver, U, itrj, parameters)
             create_checkpoint(checkpointer, univ, updatemethod, nothing, itrj)
 
             _, mtime = @timed calc_measurements(measurements, U, itrj, myinstance[])
@@ -395,7 +395,7 @@ function metaqcd_PT!(
 
             temper!(U, bias, numaccepts_temper, swap_every, itrj; recalc=!uses_hmc)
 
-            save_config(config_saver, U[1], itrj)
+            save_config(config_saver, U[1], itrj, parameters)
             create_checkpoint(checkpointer, univ, updatemethod, updatemethod_pt, itrj)
 
             _, mtime = @timed calc_measurements(measurements, U, itrj)

@@ -8,7 +8,7 @@ using ..Utils
 
 import ..DiracOperators: WilsonFermionAction, WilsonEOPreFermionAction
 import ..DiracOperators: StaggeredFermionAction, StaggeredEOPreFermionAction
-import ..DiracOperators: QuenchedFermionAction
+import ..DiracOperators: init_fermion_action, QuenchedFermionAction
 import ..Fields: Gaugefield, WilsonGaugeAction, IwasakiGaugeAction, DBW2GaugeAction
 import ..Fields: SymanzikTreeGaugeAction
 import ..BiasModule: Bias, NoBias
@@ -42,7 +42,7 @@ struct Univ{TG,TF,TB}
         if TF === QuenchedFermionAction
             @level1("|  FERMION ACTION: Quenched\n└\n")
         else
-            @level1("|  FERMION ACTION: $(string(fermion_action...))└\n")
+            @level1("|  FERMION ACTION: $(string(fermion_action...))\n└\n")
         end
 
         TG = typeof(U)
@@ -109,81 +109,18 @@ end
 
 function init_fermion_actions(parameters::ParameterSet, U)
     fermion_action = parameters.fermion_action
-    eo_precon = parameters.eo_precon
     Nf = parameters.Nf
     mass = parameters.mass
     @assert length(Nf) == length(mass) "Need same amount of masses as non-degenerate flavours"
 
     if fermion_action ∈ ("none", "quenched")
         fermion_actions = QuenchedFermionAction()
-    elseif fermion_action == "wilson"
-        if eo_precon
-            error("even-odd preconditioned wilson fermions not supported yet")
-        else
-            fermion_actions = ntuple(
-                i -> WilsonFermionAction(
-                    U,
-                    mass[i];
-                    Nf=Nf[i],
-                    csw=parameters.wilson_csw,
-                    r=parameters.wilson_r,
-                    anti_periodic=parameters.anti_periodic,
-                    cg_tol_action=parameters.cg_tol_action,
-                    cg_tol_md=parameters.cg_tol_md,
-                    cg_maxiters_action=parameters.cg_maxiters_action,
-                    cg_maxiters_md=parameters.cg_maxiters_md,
-                    rhmc_spectral_bound=parameters.rhmc_spectral_bound,
-                    rhmc_order_action=parameters.rhmc_order_action,
-                    rhmc_order_md=parameters.rhmc_order_md,
-                    rhmc_prec_action=parameters.rhmc_prec_action,
-                    rhmc_prec_md=parameters.rhmc_prec_md,
-                ),
-                length(Nf),
-            )
-        end
-    elseif fermion_action == "staggered"
-        if eo_precon
-            fermion_actions = ntuple(
-                i -> StaggeredEOPreFermionAction(
-                    U,
-                    mass[i];
-                    Nf=Nf[i],
-                    anti_periodic=parameters.anti_periodic,
-                    cg_tol_action=parameters.cg_tol_action,
-                    cg_tol_md=parameters.cg_tol_md,
-                    cg_maxiters_action=parameters.cg_maxiters_action,
-                    cg_maxiters_md=parameters.cg_maxiters_md,
-                    rhmc_spectral_bound=parameters.rhmc_spectral_bound,
-                    rhmc_order_action=parameters.rhmc_order_action,
-                    rhmc_order_md=parameters.rhmc_order_md,
-                    rhmc_prec_action=parameters.rhmc_prec_action,
-                    rhmc_prec_md=parameters.rhmc_prec_md,
-                ),
-                length(Nf),
-            )
-        else
-            fermion_actions = ntuple(
-                i -> StaggeredFermionAction(
-                    U,
-                    mass[i];
-                    Nf=Nf[i],
-                    anti_periodic=parameters.anti_periodic,
-                    cg_tol_action=parameters.cg_tol_action,
-                    cg_tol_md=parameters.cg_tol_md,
-                    cg_maxiters_action=parameters.cg_maxiters_action,
-                    cg_maxiters_md=parameters.cg_maxiters_md,
-                    rhmc_spectral_bound=parameters.rhmc_spectral_bound,
-                    rhmc_order_action=parameters.rhmc_order_action,
-                    rhmc_order_md=parameters.rhmc_order_md,
-                    rhmc_prec_action=parameters.rhmc_prec_action,
-                    rhmc_prec_md=parameters.rhmc_prec_md,
-                ),
-                length(Nf),
-            )
-        end
     else
-        error("Fermion action \"$(fermion_action)\" not supported")
+        fermion_actions = ntuple(
+            i -> init_fermion_action(parameters, mass[i], Nf[i], U), length(Nf),
+        )
     end
+
     return fermion_actions
 end
 

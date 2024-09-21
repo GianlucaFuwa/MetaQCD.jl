@@ -26,65 +26,30 @@ function test_mpi_fderivative(
 
     ψ = eoprec ? even_odd(Spinorfield(U; staggered=dirac=="staggered")) : Spinorfield(U; staggered=dirac=="staggered")
 
-    action = if dirac == "staggered"
-        if eoprec
-            Nf = single_flavor ? 1 : 4
-            StaggeredEOPreFermionAction(
-                U,
-                mass;
-                Nf=Nf,
-                cg_maxiters_action=5000,
-                cg_maxiters_md=5000,
-                cg_tol_action=1e-16,
-                cg_tol_md=1e-16,
-                rhmc_prec_action=64
-            )
-        else
-            Nf = single_flavor ? 1 : 8
-            StaggeredFermionAction(
-                U,
-                mass;
-                Nf=Nf,
-                cg_maxiters_action=5000,
-                cg_maxiters_md=5000,
-                cg_tol_action=1e-16,
-                cg_tol_md=1e-16,
-                rhmc_prec_action=64
-            )
-        end
-    elseif dirac == "wilson"
-        if eoprec
-            Nf = single_flavor ? 1 : 2
-            @assert Nf == 2
-            WilsonEOPreFermionAction(
-                U,
-                mass;
-                Nf=Nf,
-                csw=csw,
-                # csw=0,
-                cg_maxiters_action=5000,
-                cg_maxiters_md=5000,
-                cg_tol_action=1e-16,
-                cg_tol_md=1e-16,
-                rhmc_prec_action=64
-            )
-        else
-            Nf = single_flavor ? 1 : 2
-            WilsonFermionAction(
-                U,
-                mass;
-                Nf=Nf,
-                csw=csw,
-                cg_maxiters_action=5000,
-                cg_maxiters_md=5000,
-                cg_tol_action=1e-16,
-                cg_tol_md=1e-16,
-                rhmc_prec_action=64
-            )
-        end
-    else
-        error("dirac operator $dirac not supported")
+    spectral_bound, Nf = if dirac=="staggered"
+        (mass^2, 6.0), (single_flavor ? 1 : (eoprec ? 4 : 8))
+    elseif dirac=="wilson"
+        (mass^2, 64.0), (single_flavor ? 1 : 2)
     end
+
+    params = (
+        fermion_action=dirac,
+        eo_precon=eoprec,
+        boundary_condition="antiperiodic",
+        rhmc_spectral_bound=spectral_bound,
+        rhmc_order_md=15,
+        rhmc_prec_md=64,
+        rhmc_order_action=15,
+        rhmc_prec_action=64,
+        cg_tol_action=1e-16,
+        cg_tol_md=1e-16,
+        cg_maxiters_action=5000,
+        cg_maxiters_md=5000,
+        wilson_r=1,
+        wilson_csw=csw,
+    )
+
+    action = MetaQCD.DiracOperators.init_fermion_action(params, mass, Nf, U)
     mpi_amroot() && (@show action)
 
     sample_pseudofermions!(ψ, action, U)
@@ -167,5 +132,3 @@ function test_mpi_fderivative(
 end
 
 test_mpi_fderivative()
-@profview test_mpi_fderivative()
-sleep(60)

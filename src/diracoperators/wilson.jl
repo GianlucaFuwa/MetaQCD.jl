@@ -3,6 +3,7 @@
     WilsonDiracOperator(D::WilsonDiracOperator, U::Gaugefield)
 
 Create a free Wilson Dirac Operator with mass `mass` and Wilson parameter `r`.
+
 `bc_str` can either be `"periodic"` or `"antiperiodic"` and specifies the boundary
 condition in the time direction.
 
@@ -58,7 +59,9 @@ function (D::WilsonDiracOperator{B,T})(U::Gaugefield{B,T}) where {B,T}
     return WilsonDiracOperator(D, U)
 end
 
-struct WilsonFermionAction{Nf,C,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction{Nf}
+@inline has_clover_term(::WilsonDiracOperator{B,T,C}) where {B,T,C} = C
+
+struct WilsonFermionAction{Nf,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction{Nf}
     D::TD
     cg_temps::CT
     rhmc_info_action::RI1
@@ -71,7 +74,7 @@ struct WilsonFermionAction{Nf,C,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction{Nf
     cg_maxiters_action::Int64
     cg_maxiters_md::Int64
     function WilsonFermionAction(
-        f,
+        f::AbstractField,
         mass;
         bc_str="antiperiodic",
         r=1,
@@ -86,6 +89,7 @@ struct WilsonFermionAction{Nf,C,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction{Nf
         cg_tol_md=1e-12,
         cg_maxiters_action=1000,
         cg_maxiters_md=1000,
+        kwargs...,
     )
         D = WilsonDiracOperator(f, mass; bc_str=bc_str, r=r, csw=csw)
         TD = typeof(D)
@@ -122,11 +126,9 @@ struct WilsonFermionAction{Nf,C,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction{Nf
             rhmc_temps2 = ntuple(_ -> Spinorfield(f), n_temps + 1)
         end
 
-        if csw != 0
-            C = true
+        if has_clover_term(D)
             Xμν = Tensorfield(f)
         else
-            C = false
             Xμν = nothing
         end
 
@@ -135,7 +137,7 @@ struct WilsonFermionAction{Nf,C,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction{Nf
         RI2 = typeof(rhmc_info_md)
         RT = typeof(rhmc_temps1)
         TX = typeof(Xμν)
-        return new{Nf,C,TD,CT,RI1,RI2,RT,TX}(
+        return new{Nf,TD,CT,RI1,RI2,RT,TX}(
             D,
             cg_temps,
             rhmc_info_action,
@@ -263,8 +265,9 @@ function LinearAlgebra.mul!(
 
     update_halo!(ψ)
 
-    if C
+    if has_clover_term(D)
         fac = T(-csw / 2)
+
         @batch for site in eachindex(ψ)
             ψ[site] += clover_kernel(U, ϕ, site, fac, T)
         end
@@ -290,8 +293,9 @@ function LinearAlgebra.mul!(
 
     update_halo!(ψ)
 
-    if C
+    if has_clover_term(D)
         fac = T(-csw / 2)
+
         @batch for site in eachindex(ψ)
             ψ[site] += clover_kernel(U, ϕ, site, fac, T)
         end

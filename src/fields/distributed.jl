@@ -190,10 +190,10 @@ function Utils.update_halo!(u::AbstractMPIField)
             recv_buf_prev = view(u, prev_sites_to)
             recv_buf_next = view(u, next_sites_to)
 
-            mpi_irecv!(recv_buf_prev, comm_cart, requests[1]; source=prev_neighbor, tag=1)
+            mpi_irecv!(recv_buf_prev, comm_cart, requests[4]; source=prev_neighbor, tag=1)
             mpi_irecv!(recv_buf_next, comm_cart, requests[2]; source=next_neighbor, tag=2)
-            mpi_isend(send_buf_prev, comm_cart, requests[3]; dest=prev_neighbor, tag=2)
-            mpi_isend(send_buf_next, comm_cart, requests[4]; dest=next_neighbor, tag=1)
+            mpi_isend(send_buf_prev, comm_cart, requests[1]; dest=prev_neighbor, tag=2)
+            mpi_isend(send_buf_next, comm_cart, requests[3]; dest=next_neighbor, tag=1)
 
             mpi_waitall(requests)
         end
@@ -202,43 +202,44 @@ function Utils.update_halo!(u::AbstractMPIField)
     mpi_barrier(comm_cart)
     return nothing
 end
-
-update_halo_eo!(::AbstractField) = nothing
-
-function update_halo_eo!(u::AbstractMPIField)
-    topology = u.topology
-    comm_cart = topology.comm_cart
-    border_sites = topology.border_sites
-    halo_sites = topology.halo_sites
-
-    for dim in 1:4
-        prev_neighbor, next_neighbor = mpi_cart_shift(comm_cart, dim-1, 1)
-        prev_sites_from, next_sites_from = border_sites[dim]
-        prev_sites_to, next_sites_to = halo_sites[dim]
-
-        if prev_neighbor == next_neighbor == mpi_myrank()
-            view(u, next_sites_to) .= view(u, prev_sites_from)
-            view(u, prev_sites_to) .= view(u, next_sites_from)
-        else
-            requests = mpi_multirequest(4)
-
-            # Use references of the links themselves as buffers
-            # INFO: Here, `view` is defined such that it automatically references all four
-            # directions `μ`, and we don't have to include it as an argument
-            send_buf_prev = view(u, prev_sites_from)
-            send_buf_next = view(u, next_sites_from)
-            recv_buf_prev = view(u, prev_sites_to)
-            recv_buf_next = view(u, next_sites_to)
-
-            mpi_irecv!(recv_buf_prev, comm_cart, requests[1]; source=prev_neighbor, tag=1)
-            mpi_irecv!(recv_buf_next, comm_cart, requests[2]; source=next_neighbor, tag=2)
-            mpi_isend(send_buf_prev, comm_cart, requests[3]; dest=prev_neighbor, tag=2)
-            mpi_isend(send_buf_next, comm_cart, requests[4]; dest=next_neighbor, tag=1)
-
-            mpi_waitall(requests)
-        end
-    end
-
-    mpi_barrier(comm_cart)
-    return nothing
-end
+ 
+# TODO:
+# update_halo_eo!(::AbstractField) = nothing
+#
+# function update_halo_eo!(u::AbstractMPIField)
+#     topology = u.topology
+#     comm_cart = topology.comm_cart
+#     border_sites = topology.border_sites
+#     halo_sites = topology.halo_sites
+#
+#     for dim in 1:4
+#         prev_neighbor, next_neighbor = mpi_cart_shift(comm_cart, dim-1, 1)
+#         prev_sites_from, next_sites_from = border_sites[dim]
+#         prev_sites_to, next_sites_to = halo_sites[dim]
+#
+#         if prev_neighbor == next_neighbor == mpi_myrank()
+#             view(u, next_sites_to) .= view(u, prev_sites_from)
+#             view(u, prev_sites_to) .= view(u, next_sites_from)
+#         else
+#             requests = mpi_multirequest(4)
+#
+#             # Use references of the links themselves as buffers
+#             # INFO: Here, `view` is defined such that it automatically references all four
+#             # directions `μ`, and we don't have to include it as an argument
+#             send_buf_prev = view(u, prev_sites_from)
+#             send_buf_next = view(u, next_sites_from)
+#             recv_buf_prev = view(u, prev_sites_to)
+#             recv_buf_next = view(u, next_sites_to)
+#
+#             mpi_irecv!(recv_buf_prev, comm_cart, requests[1]; source=prev_neighbor, tag=1)
+#             mpi_irecv!(recv_buf_next, comm_cart, requests[2]; source=next_neighbor, tag=2)
+#             mpi_isend(send_buf_prev, comm_cart, requests[3]; dest=prev_neighbor, tag=2)
+#             mpi_isend(send_buf_next, comm_cart, requests[4]; dest=next_neighbor, tag=1)
+#
+#             mpi_waitall(requests)
+#         end
+#     end
+#
+#     mpi_barrier(comm_cart)
+#     return nothing
+# end

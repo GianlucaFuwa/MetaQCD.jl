@@ -1,5 +1,5 @@
 """
-    StaggeredDiracOperator(::AbstractField, mass; bc_str="antiperiodic")
+    StaggeredDiracOperator(f::AbstractField, mass; bc_str="antiperiodic")
     StaggeredDiracOperator(D::StaggeredDiracOperator, U::Gaugefield)
 
 Create a free Staggered Dirac Operator with mass `mass`.
@@ -9,7 +9,7 @@ condition in the time direction.
 
 If `csw ≠ 0`, a clover term is included. 
 
-This object cannot be applied to a fermion vector, since it lacks a gauge background.
+This object cannot be directly applied to a fermion vector, since it lacks a gauge background.
 A Wilson Dirac operator with gauge background is created by applying it to a `Gaugefield`
 `U` like `D_gauge = D(U)`
 
@@ -63,7 +63,7 @@ struct StaggeredFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction{Nf}
     cg_maxiters_action::Int64
     cg_maxiters_md::Int64
     function StaggeredFermionAction(
-        f,
+        f::AbstractField,
         mass;
         bc_str="antiperiodic",
         Nf=8,
@@ -76,6 +76,7 @@ struct StaggeredFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction{Nf}
         cg_tol_md=1e-12,
         cg_maxiters_action=1000,
         cg_maxiters_md=1000,
+        kwargs...,
     )
         D = StaggeredDiracOperator(f, mass; bc_str=bc_str)
         TD = typeof(D)

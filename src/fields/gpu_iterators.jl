@@ -10,11 +10,11 @@ function __latmap(
     COUNT == 0 && return nothing
     # KernelAbstractions requires an ndrange (indices we iterate over) and a 
     # workgroupsize (number of threads in each workgroup / thread block on the GPU)
-    ndrange = dims(U)
+    ndrange = local_dims(U)
     workgroupsize = (4, 4, 4, 4) # 4^4 = 256 threads per workgroup should be fine
     kernel! = f!(B(), workgroupsize)
-    # I couldn't be bothered working out how to make CUDA work with array wrappers such as
-    # AbstractField, so we extract the actual array from all AbstractFields in the args
+    # I couldn't be bothered making GPUs work with array wrappers such as AbstractField
+    # (see Adapt.jl), so we extract the actual array from all AbstractFields in the args
     raw_args = get_raws(args...)
 
     for _ in 1:COUNT
@@ -31,13 +31,11 @@ function __latmap(
     COUNT == 0 && return nothing
     # KernelAbstractions requires an ndrange (indices we iterate over) and a 
     # workgroupsize (number of threads in each workgroup / thread block on the GPU)
-    NX, NY, NZ, NT = dims(ϕ_eo)
+    NX, NY, NZ, NT = local_dims(ϕ_eo)
     @assert iseven(NT) "NT must be even for even-odd preconditioned fermions"
     ndrange = (NX, NY, NZ, div(NT, 2))
     workgroupsize = (4, 4, 4, 2)
     kernel! = f!(B(), workgroupsize)
-    # I couldn't be bothered working out how to make CUDA work with array wrappers such as
-    # AbstractField, so we extract the actual array from all AbstractFields in the args
     raw_args = get_raws(args...)
 
     for _ in 1:COUNT
@@ -52,7 +50,7 @@ function __latmap(
     ::Checkerboard2, ::Val{COUNT}, f!::F, U::AbstractField{B}, args...
 ) where {COUNT,F,B<:GPU}
     COUNT == 0 && return nothing
-    NX, NY, NZ, NT = dims(U)
+    NX, NY, NZ, NT = local_dims(U)
     @assert(
         mod.((NX, NY, NZ, NT), 2) == (0, 0, 0, 0),
         "CB2 only works for side lengths that are multiples of 2"
@@ -78,7 +76,7 @@ function __latmap(
     ::Checkerboard4, ::Val{COUNT}, f!::F, U::AbstractField{B}, args...
 ) where {COUNT,F,B<:GPU}
     COUNT == 0 && return nothing
-    NX, NY, NZ, NT = dims(U)
+    NX, NY, NZ, NT = local_dims(U)
     @assert(
         mod.((NX, NY, NZ, NT), 4) == (0, 0, 0, 0),
         "CB4 only works for side lengths that are multiples of 4"
@@ -110,7 +108,7 @@ function __latsum(
     ::Sequential, ::Val{COUNT}, ::Type{OutType}, f!::F, U::AbstractField{B}, args...
 ) where {COUNT,OutType,F,B<:GPU}
     COUNT == 0 && return 0.0
-    ndrange = dims(U)
+    ndrange = local_dims(U)
     workgroupsize = (4, 4, 4, 4)
     numblocks = cld(U.NV, prod(workgroupsize))
     out = KA.zeros(B(), OutType, numblocks)
@@ -129,7 +127,7 @@ function __latsum(
     ::Sequential, ::Val{COUNT}, ::Type{OutType}, f!::F, ϕ_eo::SpinorfieldEO{B}, args...
 ) where {COUNT,OutType,F,B<:GPU}
     COUNT == 0 && return 0.0
-    NX, NY, NZ, NT = dims(ϕ_eo)
+    NX, NY, NZ, NT = local_dims(ϕ_eo)
     @assert iseven(NT) "NT must be even for even-odd preconditioned fermions"
     ndrange = (NX, NY, NZ, div(NT, 2))
     workgroupsize = (4, 4, 4, 2)
@@ -150,7 +148,7 @@ function __latsum(
     ::Checkerboard2, ::Val{COUNT}, f!::F, U::AbstractField{B}, args...
 ) where {COUNT,F,B<:GPU}
     COUNT == 0 && return 0.0
-    NX, NY, NZ, NT = dims(U)
+    NX, NY, NZ, NT = local_dims(U)
     @assert(
         mod.((NX, NY, NZ, NT), 2) == (0, 0, 0, 0),
         "CB2 only works for side lengths that are multiples of 2"
@@ -179,7 +177,7 @@ function __latsum(
     ::Checkerboard4, ::Val{COUNT}, f!::F, U::AbstractField{B}, args...
 ) where {COUNT,F,B<:GPU}
     COUNT == 0 && return 0.0
-    NX, NY, NZ, NT = dims(U)
+    NX, NY, NZ, NT = local_dims(U)
     @assert(
         mod.((NX, NY, NZ, NT), 4) == (0, 0, 0, 0),
         "CB4 only works for side lengths that are multiples of 4"

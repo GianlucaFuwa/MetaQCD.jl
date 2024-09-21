@@ -105,6 +105,8 @@ function (D::WilsonEOPreDiracOperator{B,T})(U::Gaugefield{B,T}) where {B,T}
     return WilsonEOPreDiracOperator(D, U)
 end
 
+@inline has_clover_term(::WilsonEOPreDiracOperator{B,T,C}) where {B,T,C} = C
+
 struct WilsonEODiagonal{B,T,M,C,A} <: AbstractField{B,T,M,A} # So we can overload LinearAlgebra.det on the even-odd diagonal
     U::A
     mass::Float64
@@ -162,6 +164,7 @@ struct WilsonEOPreFermionAction{Nf,C,TD,CT,TX,RI1,RI2,RT} <: AbstractFermionActi
         cg_tol_md=1e-12,
         cg_maxiters_action=1000,
         cg_maxiters_md=1000,
+        kwargs...,
     ) where {B,T}
         D = WilsonEOPreDiracOperator(f, mass; bc_str=bc_str, r=r, csw=csw)
         TD = typeof(D)
@@ -269,13 +272,13 @@ function LinearAlgebra.mul!(
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.U
     check_dims(ψ_eo, ϕ_eo, U)
-    anti = D.anti_periodic
+    bc = D.boundary_condition
     D_oo_inv = D.D_oo_inv
     D_diag = D.D_diag
 
-    mul_oe!(ψ_eo, U, ϕ_eo, anti, true, Val(1)) # ψₒ = Dₒₑϕₑ
+    mul_oe!(ψ_eo, U, ϕ_eo, bc, true, Val(1)) # ψₒ = Dₒₑϕₑ
     mul_oo_inv!(ψ_eo, D_oo_inv) # ψₒ = Dₒₒ⁻¹Dₒₑϕₑ
-    mul_eo!(ψ_eo, U, ψ_eo, anti, false, Val(1)) # ψₑ = DₑₒDₒₒ⁻¹Dₒₑϕₑ
+    mul_eo!(ψ_eo, U, ψ_eo, bc, false, Val(1)) # ψₑ = DₑₒDₒₒ⁻¹Dₒₑϕₑ
     axmy!(D_diag, ϕ_eo, ψ_eo) # ψₑ = Dₑₑϕₑ - DₑₒDₒₒ⁻¹Dₒₑϕₑ
     return nothing
 end
@@ -286,13 +289,13 @@ function LinearAlgebra.mul!(
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.parent.U
     check_dims(ψ_eo, ϕ_eo, U)
-    anti = D.parent.anti_periodic
+    bc = D.parent.boundary_condition
     D_oo_inv = D.parent.D_oo_inv
     D_diag = D.parent.D_diag
 
-    mul_oe!(ψ_eo, U, ϕ_eo, anti, true, Val(-1)) # ψₒ = Dₑₒ†ϕₑ
+    mul_oe!(ψ_eo, U, ϕ_eo, bc, true, Val(-1)) # ψₒ = Dₑₒ†ϕₑ
     mul_oo_inv!(ψ_eo, D_oo_inv) # ψₒ = Dₒₒ⁻¹Dₒₑϕₑ
-    mul_eo!(ψ_eo, U, ψ_eo, anti, false, Val(-1)) # ψₑ = Dₒₑ†Dₒₒ⁻¹Dₑₒ†ϕₑ
+    mul_eo!(ψ_eo, U, ψ_eo, bc, false, Val(-1)) # ψₑ = Dₒₑ†Dₒₒ⁻¹Dₑₒ†ϕₑ
     axmy!(D_diag, ϕ_eo, ψ_eo) # ψₑ = Dₑₑϕₑ - DₑₒDₒₒ⁻¹Dₒₑϕₑ
     return nothing
 end
@@ -307,7 +310,7 @@ function LinearAlgebra.mul!(
 end
 
 function mul_oe!(
-    ψ_eo::TF, U::Gaugefield{CPU,T}, ϕ_eo::TF, anti, into_odd, ::Val{dagg}; fac=1
+    ψ_eo::TF, U::Gaugefield{CPU,T}, ϕ_eo::TF, bc, into_odd, ::Val{dagg}; fac=1
 ) where {T,TF<:WilsonEOPreSpinorfield{CPU,T},dagg}
     check_dims(ψ_eo, ϕ_eo, U)
     ψ = ψ_eo.parent
@@ -322,7 +325,7 @@ function mul_oe!(
         else
             eo_site_switch(site, fdims..., NV)
         end
-        ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, anti, T, Val(dagg))
+        ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, bc, T, Val(dagg))
     end
 
     update_halo!(ψ_eo)
@@ -330,7 +333,7 @@ function mul_oe!(
 end
 
 function mul_eo!(
-    ψ_eo::TF, U::Gaugefield{CPU,T}, ϕ_eo::TF, anti, into_odd, ::Val{dagg}; fac=1
+    ψ_eo::TF, U::Gaugefield{CPU,T}, ϕ_eo::TF, bc, into_odd, ::Val{dagg}; fac=1
 ) where {T,TF<:WilsonEOPreSpinorfield{CPU,T},dagg}
     check_dims(ψ_eo, ϕ_eo, U)
     ψ = ψ_eo.parent
@@ -345,14 +348,14 @@ function mul_eo!(
         else
             eo_site(site, fdims..., NV)
         end
-        ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, anti, T, Val(dagg))
+        ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, bc, T, Val(dagg))
     end
 
     update_halo!(ψ_eo)
     return nothing
 end
 
-function wilson_eo_kernel(U, ϕ, site, anti, ::Type{T}, ::Val{dagg}) where {T,dagg}
+function wilson_eo_kernel(U, ϕ, site, bc, ::Type{T}, ::Val{dagg}) where {T,dagg}
     # sites that begin with a "_" are meant for indexing into the even-odd preconn'ed
     # fermion field 
     NX, NY, NZ, NT = dims(U)
@@ -381,10 +384,8 @@ function wilson_eo_kernel(U, ϕ, site, anti, ::Type{T}, ::Val{dagg}) where {T,da
     _siteμ⁺ = eo_site(move(site, 4, 1, NT), NX, NY, NZ, NT, NV)
     siteμ⁻ = move(site, 4, -1, NT)
     _siteμ⁻ = eo_site(siteμ⁻, NX, NY, NZ, NT, NV)
-    bc⁺ = boundary_factor(anti, site[4], 1, NT)
-    bc⁻ = boundary_factor(anti, site[4], -1, NT)
-    ψₙ += cmvmul_spin_proj(U[4, site], bc⁺ * ϕ[_siteμ⁺], Val(-4dagg), Val(false))
-    ψₙ += cmvmul_spin_proj(U[4, siteμ⁻], bc⁻ * ϕ[_siteμ⁻], Val(4dagg), Val(true))
+    ψₙ += cmvmul_spin_proj(U[4, site], apply_bc(ϕ[_siteμ⁺]), Val(-4dagg), Val(false))
+    ψₙ += cmvmul_spin_proj(U[4, siteμ⁻], apply_bc(ϕ[_siteμ⁻]), Val(4dagg), Val(true))
     return T(0.5) * ψₙ
 end
 

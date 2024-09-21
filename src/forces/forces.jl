@@ -4,7 +4,7 @@
 
 import ..DiracOperators: StaggeredDiracOperator, StaggeredFermionAction
 import ..DiracOperators: StaggeredEOPreDiracOperator, StaggeredEOPreFermionAction
-import ..DiracOperators: WilsonDiracOperator, WilsonFermionAction
+import ..DiracOperators: WilsonDiracOperator, WilsonFermionAction, has_clover_term
 import ..DiracOperators: WilsonEOPreDiracOperator, WilsonEOPreFermionAction
 import ..DiracOperators: WilsonEODiagonal
 import ..DiracOperators: Daggered, DdaggerD, SpinorfieldEO

@@ -9,19 +9,19 @@ function calc_dSfdU!(
     X_eo, Y_eo, temp1, temp2 = fermion_action.cg_temps
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
-    anti = D.anti_periodic
+    bc = D.boundary_condition
 
     # clear!(X_eo)
     # solve_dirac!(X_eo, DdagD, ϕ_eo, Y_eo, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp LinearAlgebra.mul!(Y, D, X) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
     #
     # LinearAlgebra.mul!(Y_eo, D, X_eo)
-    # mul_oe!(X_eo, U, X_eo, anti, true, Val(1)) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
-    # mul_oe!(Y_eo, U, Y_eo, anti, true, Val(-1)) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
+    # mul_oe!(X_eo, U, X_eo, bc, true, Val(1)) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
+    # mul_oe!(Y_eo, U, Y_eo, bc, true, Val(-1)) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
     # mul_oo_inv!(X_eo, D.D_oo_inv)
     # mul_oo_inv!(Y_eo, D.D_oo_inv)
-    # add_wilson_eo_derivative!(dU, U, X_eo, Y_eo, anti)
+    # add_wilson_eo_derivative!(dU, U, X_eo, Y_eo, bc)
 
-    if C
+    if has_clover_term(D)
         Xμν = fermion_action.Xμν
         D_oo_inv = D.D_oo_inv
         # calc_Xμν_eo_eachsite!(Xμν, X_eo, Y_eo)
@@ -34,8 +34,8 @@ function calc_dSfdU!(
 end
 
 function calc_dSfdU!(
-    dU, fermion_action::WilsonEOPreFermionAction{Nf,C}, U, ϕ::WilsonEOPreSpinorfield
-) where {Nf,C}
+    dU, fermion_action::WilsonEOPreFermionAction{Nf}, U, ϕ::WilsonEOPreSpinorfield
+) where {Nf}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
     cg_maxiters = fermion_action.cg_maxiters_md
@@ -43,7 +43,7 @@ function calc_dSfdU!(
     n = get_n(rhmc)
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
-    anti = D.anti_periodic
+    bc = D.boundary_condition
     Xs = fermion_action.rhmc_temps1
     Ys = fermion_action.rhmc_temps2
     temp1, temp2 = fermion_action.cg_temps
@@ -58,13 +58,13 @@ function calc_dSfdU!(
 
     for i in 1:n
         LinearAlgebra.mul!(Ys[i+1], D, Xs[i+1]) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
-        mul_oe!(Xs[i+1], U, Xs[i+1], anti, true, Val(1)) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
-        mul_oe!(Ys[i+1], U, Ys[i+1], anti, true, Val(-1)) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
+        mul_oe!(Xs[i+1], U, Xs[i+1], bc, true, Val(1)) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
+        mul_oe!(Ys[i+1], U, Ys[i+1], bc, true, Val(-1)) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
         mul_oo_inv!(Xs[i+1], D.D_oo_inv)
         mul_oo_inv!(Ys[i+1], D.D_oo_inv)
-        add_wilson_derivative!(dU, U, Xs[i+1], Ys[i+1], anti; coeff=coeffs[i])
+        add_wilson_derivative!(dU, U, Xs[i+1], Ys[i+1], bc; coeff=coeffs[i])
 
-        if C
+        if has_clover_term(D)
             Xμν = D.Xμν
             calc_Xμν_eachsite!(Xμν, Xs[i+1], Ys[i+1])
             add_clover_derivative!(dU, U, Xμν, D.csw; coeff=coeffs[i])
@@ -72,7 +72,7 @@ function calc_dSfdU!(
     end
 
     # TODO:
-    if C
+    if has_clover_term(D)
         Xμν = D.Xμν
         calc_Xμν_small_eachsite!(Xμν, D_oo_inv)
         add_clover_derivative!(dU, U, Xμν, 2D.csw) 
@@ -82,10 +82,9 @@ function calc_dSfdU!(
 end
 
 function add_wilson_eo_derivative!(
-    dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, X_eo::TF, Y_eo::TF, anti; coeff=1
+    dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, X_eo::TF, Y_eo::TF, bc; coeff=1
 ) where {T,TF<:WilsonEOPreSpinorfield{CPU,T}}
     check_dims(dU, U, X_eo, Y_eo)
-    NT = dims(U)[4]
     fac = T(0.5coeff)
 
     # INFO: If we write out the kernel and use @batch, the program crashes for some reason
@@ -94,8 +93,7 @@ function add_wilson_eo_derivative!(
     # is fine, because writing it like this makes the GPU port easier
 
     #= @batch  =#for site in eachindex(dU)
-        bc⁺ = boundary_factor(anti, site[4], 1, NT)
-        add_wilson_eo_derivative_kernel!(dU, U, X_eo, Y_eo, site, bc⁺, fac)
+        add_wilson_eo_derivative_kernel!(dU, U, X_eo, Y_eo, site, bc, fac)
     end
 
     return nothing

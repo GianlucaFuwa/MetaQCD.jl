@@ -12,6 +12,8 @@ using StaticArrays
 using ..Parameters
 using ..Utils
 
+import ..Fields: Gaugefield, is_distributed
+
 export __GlobalLogger, MetaLogger, current_time, @level1, @level2, @level3
 export BMWFormat, BridgeFormat, Checkpointer, ConfigSaver, JLD2Format, set_global_logger!
 export fclose, fopen, printf, prints_to_console, newline
@@ -150,13 +152,13 @@ struct ConfigSaver{T}
     end
 end
 
-function save_config(saver::ConfigSaver{T}, U, itrj) where {T}
+function save_config(saver::ConfigSaver{T}, U, itrj, parameters=nothing) where {T}
     T ≡ Nothing && return nothing
 
     if itrj % saver.save_config_every == 0
         itrjstring = lpad(itrj, 8, "0")
         filename = saver.save_config_dir * "/config_$(itrjstring)$(saver.ext)"
-        save_config(T(), U, filename)
+        save_config(T(), U, filename, parameters)
         @level1("|  Config saved in $T in file \"$(filename)\"")
     end
 

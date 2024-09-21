@@ -14,7 +14,7 @@ function test_fermion_measurements(backend=CPU)
     m_pion = MetaQCD.Measurements.PionCorrelatorMeasurement(
         U; dirac_type="staggered", mass=1
     )
-    @time pion = measure(m_pion, U)
-    println("PION CORR: $pion")
+    pion = measure(m_pion, U)
+    mpi_amroot() && println("PION CORR: $pion") # XXX: I think the reference value in QCDMeasurements.jl is for wilson operator
     return nothing
 end

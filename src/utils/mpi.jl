@@ -83,20 +83,20 @@ end
     return MPI.Waitall(args...)
 end
 
-@inline function mpi_allreduce(sendbuf, op, comm)
-    return MPI.Allreduce(sendbuf, op, comm)
+@inline function mpi_allreduce(sendbuf::T, op, comm) where {T}
+    return MPI.Allreduce(sendbuf::T, op, comm)
 end
 
-@inline function mpi_allgather(sendbuf, comm)
-    return MPI.Allgather(sendbuf, comm)
+@inline function mpi_allgather(sendbuf::T, comm) where {T}
+    return MPI.Allgather(sendbuf::T, comm)
 end
 
 @inline function mpi_bcast!(buff, comm; root=0)
     return MPI.Bcast!(buff, comm, root=root)
 end
 
-@inline function mpi_bcast_isbits(obj, comm=mpi_comm(); root=0)
-    return MPI.bcast(obj, comm, root=root)
+@inline function mpi_bcast_isbits(obj::T, comm=mpi_comm(); root=0) where {T}
+    return MPI.bcast(obj::T, comm, root=root)
 end
 
 @inline function mpi_write_at(fp, offset, data)

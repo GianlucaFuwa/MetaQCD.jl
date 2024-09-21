@@ -73,6 +73,15 @@ LinearAlgebra.checksquare(D::DdaggerD) = LinearAlgebra.checksquare(D.parent)
 Base.eltype(D::DdaggerD) = eltype(D.parent)
 get_temp(D::DdaggerD) = D.parent.temp
 
+include("staggered.jl")
+include("staggered_eo.jl")
+include("wilson.jl")
+include("wilson_eo.jl")
+include("gpu_kernels/staggered.jl")
+include("gpu_kernels/staggered_eo.jl")
+include("gpu_kernels/wilson.jl")
+include("arnoldi.jl")
+
 """
     solve_dirac!(ψ, D, ϕ, temp1, temp2, temp3, tol=1e-16, maxiters=1000)
 
@@ -162,7 +171,7 @@ function construct_diracmatrix(D, U)
     NV = U.NV
     @assert n < 5000
     is_evenodd = temp1 isa SpinorfieldEO
-   
+
     ii = 1
 
     for isite in eachindex(U)
@@ -201,14 +210,17 @@ function construct_diracmatrix(D, U)
     return M
 end
 
-include("staggered.jl")
-include("staggered_eo.jl")
-include("wilson.jl")
-include("wilson_eo.jl")
-include("gpu_kernels/staggered.jl")
-include("gpu_kernels/staggered_eo.jl")
-include("gpu_kernels/wilson.jl")
-include("arnoldi.jl")
+const FERMION_ACTION = Dict{Tuple{String,Bool},Type{<:AbstractFermionAction}}(
+    # boolean determines whether even-odd or not
+    ("none", false) => QuenchedFermionAction,
+    ("none", true) => QuenchedFermionAction,
+    ("quenched", false) => QuenchedFermionAction,
+    ("quenched", true) => QuenchedFermionAction,
+    ("wilson", false) => WilsonFermionAction,
+    ("wilson", true) => WilsonEOPreFermionAction,
+    ("staggered", false) => StaggeredFermionAction,
+    ("staggered", true) => StaggeredEOPreFermionAction,
+)
 
 function fermaction_from_str(str, eo_precon::Bool)
     if str == "wilson"
@@ -222,13 +234,34 @@ function fermaction_from_str(str, eo_precon::Bool)
     end
 end
 
-const FERMION_ACTION = Dict{Tuple{String,Bool},Type{<:AbstractFermionAction}}(
-    # boolean determines whether even-odd or not
-    ("wilson", false) => WilsonFermionAction,
-    ("wilson", true) => WilsonEOPreFermionAction,
-    ("staggered", false) => StaggeredFermionAction,
-    ("staggered", true) => StaggeredEOPreFermionAction,
-)
+function init_fermion_action(params, mass::Float64, Nf::Int64, U)
+    fermion_action = params.fermion_action
+    eo_precon = params.eo_precon
+
+    ActionType = try
+        FERMION_ACTION[fermion_action, eo_precon]
+    catch
+        error("Fermion action \"$(fermion_action)\" with eo_precon=$(eo_precon) not supported")
+    end
+
+    action = ActionType(
+        U, mass;
+        bc_str=params.boundary_condition,
+        Nf=Nf,
+        rhmc_spectral_bound=(params.rhmc_spectral_bound),
+        rhmc_order_md=params.rhmc_order_md,
+        rhmc_prec_md=params.rhmc_prec_md,
+        rhmc_order_action=params.rhmc_order_action,
+        rhmc_prec_action=params.rhmc_prec_action,
+        cg_tol_action=params.cg_tol_action,
+        cg_tol_md=params.cg_tol_md,
+        cg_maxiters_action=params.cg_maxiters_action,
+        cg_maxiters_md=params.cg_maxiters_md,
+        r=params.wilson_r,
+        csw=params.wilson_csw,
+    ) 
+    return action
+end
 
 function Base.show(io::IO, ::MIME"text/plain", S::AbstractFermionAction{Nf}) where {Nf}
     name = nameof(typeof(S))

@@ -4,11 +4,11 @@ using Requires
 
 include("./utils/Utils.jl")
 include("./parameters/Parameters.jl")
+include("./fields/Fields.jl")
 include("./io/IO.jl")
 include("./solvers/Solvers.jl")
 include("./rhmc/AlgRemez.jl")
 include("./rhmc/RHMCParameters.jl")
-include("./fields/Fields.jl")
 include("./smearing/Smearing.jl")
 include("./diracoperators/DiracOperators.jl")
 include("./measurements/Measurements.jl")

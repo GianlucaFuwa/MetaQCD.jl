@@ -1,4 +1,6 @@
-function save_config(::BridgeFormat, U, filename)
+function save_config(
+    ::BridgeFormat, U::Gaugefield{B,T,false}, filename, args...
+) where {B,T}
     @assert U.U isa Array
     NX, NY, NZ, NT = (U.NX, U.NY, U.NZ, U.NT)
     fp = open(filename, "w")
@@ -26,7 +28,7 @@ function save_config(::BridgeFormat, U, filename)
     return nothing
 end
 
-function load_config!(::BridgeFormat, U, filename, T::Type{<:Real}=Float64)
+function load_config!(::BridgeFormat, U::Gaugefield{B,T,false}, filename) where {B,T}
     @assert U.U isa Array
     NX, NY, NZ, NT = (U.NX, U.NY, U.NZ, U.NT)
     fp = open(filename, "r")

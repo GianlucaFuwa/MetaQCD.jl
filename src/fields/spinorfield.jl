@@ -108,31 +108,35 @@ Base.@propagate_inbounds Base.setindex!(f::Spinorfield, v, site::SiteCoords) =
 Base.view(f::Spinorfield, I::CartesianIndices{4}) = view(f.U, I.indices...)
 
 function clear!(ϕ::Spinorfield{CPU,T}) where {T}
-    @batch for site in eachindex(ϕ)
+    @batch for site in allindices(ϕ)
         ϕ[site] = zero(ϕ[site])
     end
 
-    update_halo!(ϕ)
+    # INFO: don't need to do halo exchange here, since we iterate over all indices
+    # including halo regions
     return nothing
 end
 
 function Base.copy!(ϕ::T, ψ::T) where {T<:Spinorfield{CPU}}
     check_dims(ψ, ϕ)
 
-    @batch for site in eachindex(ϕ)
+    @batch for site in allindices(ϕ)
         ϕ[site] = ψ[site]
     end
 
-    update_halo!(ϕ)
+    # INFO: don't need to do halo exchange here, since we iterate over all indices
+    # including halo regions
+    # We assume that ψ's halo is already up-to-date before calling this
     return nothing
 end
 
 function ones!(ϕ::Spinorfield{CPU,T}) where {T}
-    @batch for site in eachindex(ϕ)
+    @batch for site in allindices(ϕ)
         ϕ[site] = fill(1, ϕ[site])
     end
 
-    update_halo!(ϕ)
+    # INFO: don't need to do halo exchange here, since we iterate over all indices
+    # including halo regions
     return nothing
 end
 
@@ -162,11 +166,13 @@ end
 function LinearAlgebra.mul!(ϕ::Spinorfield{CPU,T}, α) where {T}
     α = T(α)
 
-    @batch for site in eachindex(ϕ)
+    @batch for site in allindices(ϕ)
         ϕ[site] *= α
     end
 
-    update_halo!(ϕ)
+    # INFO: don't need to do halo exchange here, since we iterate over all indices
+    # including halo regions
+    # We assume that ϕ's halo is already up-to-date before calling this
     return nothing
 end
 
@@ -175,11 +181,13 @@ function LinearAlgebra.axpy!(α, ψ::T, ϕ::T) where {T<:Spinorfield{CPU}}
     FloatT = float_type(ϕ)
     α = Complex{FloatT}(α)
 
-    @batch for site in eachindex(ϕ)
+    # I'm pretty sure iterating over all indices is fine here
+    @batch for site in allindices(ϕ)
         ϕ[site] += α * ψ[site]
     end
 
-    update_halo!(ϕ)
+    # INFO: don't need to do halo exchange here, since we iterate over all indices
+    # including halo regions
     return nothing
 end
 
@@ -189,11 +197,13 @@ function LinearAlgebra.axpby!(α, ψ::T, β, ϕ::T) where {T<:Spinorfield{CPU}}
     α = Complex{FloatT}(α)
     β = Complex{FloatT}(β)
 
-    @batch for site in eachindex(ϕ)
+    # I'm pretty sure iterating over all indices is fine here
+    @batch for site in allindices(ϕ)
         ϕ[site] = α * ψ[site] + β * ϕ[site]
     end
 
-    update_halo!(ϕ)
+    # INFO: don't need to do halo exchange here, since we iterate over all indices
+    # including halo regions
     return nothing
 end
 
@@ -237,7 +247,9 @@ function Spinorfield(
     return SpinorfieldEO(f.parent)
 end
 
+dims(f::SpinorfieldEO) = dims(f.parent)
 local_dims(f::SpinorfieldEO) = local_dims(f.parent)
+global_dims(f::SpinorfieldEO) = global_dims(f.parent)
 Base.size(f::SpinorfieldEO) = size(f.parent)
 Base.similar(f::SpinorfieldEO) = even_odd(Spinorfield(f.parent))
 Base.eltype(::SpinorfieldEO{B,T}) where {B,T} = Complex{T}

@@ -1,8 +1,6 @@
 const WilsonSpinorfield{B,T,M,A} = Spinorfield{B,T,M,A,4}
 
-function calc_dSfdU!(
-    dU, fermion_action::WilsonFermionAction{2,C}, U, ϕ::WilsonSpinorfield
-) where {C}
+function calc_dSfdU!(dU, fermion_action::WilsonFermionAction{2}, U, ϕ::WilsonSpinorfield)
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
     cg_maxiters = fermion_action.cg_maxiters_md
@@ -15,7 +13,7 @@ function calc_dSfdU!(
     LinearAlgebra.mul!(Y, D, X) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
     add_wilson_derivative!(dU, U, X, Y, D.boundary_condition)
 
-    if C
+    if has_clover_term(D)
         Xμν = fermion_action.Xμν
         calc_Xμν_eachsite!(Xμν, X, Y)
         add_clover_derivative!(dU, U, Xμν, D.csw)
@@ -25,8 +23,8 @@ function calc_dSfdU!(
 end
 
 function calc_dSfdU!(
-    dU, fermion_action::WilsonFermionAction{Nf,C}, U, ϕ::WilsonSpinorfield
-) where {Nf,C}
+    dU, fermion_action::WilsonFermionAction{Nf}, U, ϕ::WilsonSpinorfield
+) where {Nf}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
     cg_maxiters = fermion_action.cg_maxiters_md
@@ -50,7 +48,8 @@ function calc_dSfdU!(
     for i in 1:n
         LinearAlgebra.mul!(Ys[i+1], D, Xs[i+1]) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
         add_wilson_derivative!(dU, U, Xs[i+1], Ys[i+1], bc; coeff=coeffs[i])
-        if C
+        
+        if has_clover_term(D)
             Xμν = fermion_action.Xμν
             calc_Xμν_eachsite!(Xμν, Xs[i+1], Ys[i+1])
             add_clover_derivative!(dU, U, Xμν, D.csw; coeff=coeffs[i])
@@ -64,7 +63,6 @@ function add_wilson_derivative!(
     dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, X::TF, Y::TF, bc; coeff=1
 ) where {T,TF<:WilsonSpinorfield{CPU,T}}
     check_dims(dU, U, X, Y)
-    NT = dims(U)[4]
     fac = T(0.5coeff)
 
     # If we write out the kernel and use @batch, the program crashes for some reason

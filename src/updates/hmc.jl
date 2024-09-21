@@ -148,7 +148,7 @@ function HMC(
     fieldstrength = bias_enabled ? Tensorfield(U) : nothing
 
     if hmc_logging && logdir != ""
-        # XXX: Probably want swap this too in MPI PT-MetaD
+        # XXX: Probably want to swap this too in MPI PT-MetaD
         logfile = joinpath(logdir, "hmc_acc_logs.txt")
         open(logfile, "w") do fp
             @printf(
@@ -161,13 +161,19 @@ function HMC(
         if !isnothing(ϕ)
             forcefile = joinpath(logdir, "hmc_force_logs.txt")
             force_fp = fopen(forcefile, "w")
-            printf(force_fp, "%-25s", "|F_Sg|")
+            printf(force_fp, "%-25s", "avg||F_Sg||")
+            printf(force_fp, "%-25s", "sup||F_Sg||")
+
             for i in eachindex(ϕ)
-                printf(force_fp, "%-25s", "|F_Sf$i|")
+                printf(force_fp, "%-25s", "avg||F_Sf$i||")
+                printf(force_fp, "%-25s", "sup||F_Sf$i||")
             end
+
             if bias_enabled
-                printf(force_fp, "%-25s", "|F_V|")
+                printf(force_fp, "%-25s", "avg||F_V||")
+                printf(force_fp, "%-25s", "sup||F_V||")
             end
+
             printf(force_fp, "\n")
             fclose(force_fp)
         else
@@ -259,13 +265,13 @@ function updateU!(U::Gaugefield{CPU,T}, hmc, fac) where {T}
     P = hmc.P
     check_dims(U, P)
 
-    @batch for site in eachindex(U)
-        for μ in 1:4
-            U[μ, site] = cmatmul_oo(exp_iQ(-im * ϵ * P[μ, site]), U[μ, site])
-        end
+    @batch for μsite in allindices(U)
+        U[μsite] = cmatmul_oo(exp_iQ(-im * ϵ * P[μsite]), U[μsite])
     end
 
-    update_halo!(U)
+    # INFO: don't need to do halo exchange here, since we iterate over all indices
+    # including halo regions
+    # We assume that U's and P's halos are already up-to-date before calling this
     return nothing
 end
 
@@ -286,8 +292,10 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias)
     calc_dSdU_bare!(force, staples, U, temp_force, smearing_gauge)
 
     if !isnothing(fp)
-        fnorm = norm(force)
-        printf(fp, "%+-25.15E", fnorm)
+        norm2 = norm(force, Val(2))
+        normsup = norm(force, Val(Inf))
+        printf(fp, "%+-25.15E", norm2)
+        printf(fp, "%+-25.15E", normsup)
     end
 
     add!(P, force, ϵ)
@@ -299,8 +307,10 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias)
             )
 
             if !isnothing(fp)
-                fnorm = norm(force)
-                printf(fp, "%+-25.15E", fnorm)
+                norm2 = norm(force, Val(2))
+                normsup = norm(force, Val(Inf))
+                printf(fp, "%+-25.15E", norm2)
+                printf(fp, "%+-25.15E", normsup)
             end
 
             add!(P, force, ϵ)
@@ -311,8 +321,10 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias)
         calc_dVdU_bare!(force, fieldstrength, U, temp_force, bias, shared_smearing)
 
         if !isnothing(fp)
-            fnorm = norm(force)
-            printf(fp, "%+-25.15E", fnorm)
+            norm2 = norm(force, Val(2))
+            normsup = norm(force, Val(Inf))
+            printf(fp, "%+-25.15E", norm2)
+            printf(fp, "%+-25.15E", normsup)
         end
 
         add!(P, force, ϵ)
@@ -393,11 +405,11 @@ end
 
 @inline function print_hmc_data(logfile, ΔP², ΔSg, ΔSf, ΔV, ΔH)
     fp = fopen(logfile, "a")
-    printf(fp, "%+22.15E\t", ΔP²)
-    printf(fp, "%+22.15E\t", ΔSg)
-    printf(fp, "%+22.15E\t", ΔSf)
-    printf(fp, "%+22.15E\t", ΔV)
-    printf(fp, "%+22.15E\n", ΔH)
+    printf(fp, "%+25.15E", ΔP²)
+    printf(fp, "%+25.15E", ΔSg)
+    printf(fp, "%+25.15E", ΔSf)
+    printf(fp, "%+25.15E", ΔV)
+    printf(fp, "%+25.15E\n", ΔH)
     fclose(fp)
     return nothing
 end

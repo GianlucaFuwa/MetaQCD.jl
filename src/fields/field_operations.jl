@@ -1,25 +1,23 @@
 function Base.copy!(a::AbstractField{CPU,T}, b::AbstractField{CPU,T}) where {T}
     check_dims(a, b)
 
-    @batch for site in eachindex(a)
-        for μ in 1:4
-            a[μ, site] = b[μ, site]
-        end
+    @batch for μsite in allindices(a)
+        a[μsite] = b[μsite]
     end
 
-    update_halo!(a)
+    # INFO: don't need to do halo exchange here, since we iterate over all indices
+    # including halo regions
     return nothing
 end
 
 function identity_gauges!(u::Gaugefield{CPU,T}) where {T}
-    @batch for site in eachindex(u)
-        for μ in 1:4
-            u[μ, site] = eye3(T)
-        end
+    @batch for μsite in allindices(u)
+        u[μsite] = eye3(T)
     end
 
     u.Sg = 0.0
-    update_halo!(u)
+    # INFO: don't need to do halo exchange here, since we iterate over all indices
+    # including halo regions
     return nothing
 end
 
@@ -36,28 +34,26 @@ function random_gauges!(u::Gaugefield{CPU,T}) where {T}
 end
 
 function clear!(u::AbstractField{CPU,T}) where {T} # set all link variables to zero
-    @batch for site in eachindex(u)
-        for μ in 1:4
-            u[μ, site] = zero3(T)
-        end
+    @batch for μsite in allindices(u)
+        u[μsite] = zero3(T)
     end
 
-    update_halo!(u)
+    # INFO: don't need to do halo exchange here, since we iterate over all indices
+    # including halo regions
     return nothing
 end
 
 function normalize!(u::Gaugefield{CPU})
-    @batch for site in eachindex(u)
-        for μ in 1:4
-            u[μ, site] = proj_onto_SU3(u[μ, site])
-        end
+    @batch for μsite in allindices(u)
+        u[μsite] = proj_onto_SU3(u[μsite])
     end
 
-    update_halo!(u)
+    # INFO: don't need to do halo exchange here, since we iterate over all indices
+    # including halo regions
     return nothing
 end
 
-function LinearAlgebra.norm(u::AbstractField{CPU})
+function LinearAlgebra.norm(u::AbstractField{CPU}, ::Val{2}) # avg 2-norm
     norm2 = 0.0
 
     @batch reduction=(+, norm2) for site in eachindex(u)
@@ -66,84 +62,92 @@ function LinearAlgebra.norm(u::AbstractField{CPU})
         end
     end
 
+    norm2 /= 4u.NV
     return distributed_reduce(norm2, +, u)
+end
+
+function LinearAlgebra.norm(u::AbstractField{CPU}, ::Val{Inf}) # max of 2-norms
+    normsup = 0.0
+
+    @batch reduction=(max, normsup) for site in eachindex(u)
+        for μ in 1:4
+            normsup = max(normsup, cnorm2(u[μ, site])) 
+        end
+    end
+
+    return distributed_reduce(normsup, max, u)
 end
 
 function add!(a::AbstractField{CPU,T}, b::AbstractField{CPU}, fac) where {T}
     check_dims(a, b)
     fac = T(fac)
 
-    @batch for site in eachindex(a)
-        for μ in 1:4
-            a[μ, site] += fac * b[μ, site]
-        end
+    @batch for μsite in allindices(a)
+        a[μsite] += fac * b[μsite]
     end
 
-    update_halo!(a)
+    # INFO: don't need to do halo exchange here, since we iterate over all indices
+    # including halo regions
+    # We assume that b's halo is already up-to-date before calling this
     return nothing
 end
 
 function mul!(a::AbstractField{CPU,T}, α::Number) where {T}
     α = T(α)
 
-    @batch for site in eachindex(a)
-        for μ in 1:4
-            a[μ, site] *= α
-        end
+    @batch for μsite in allindices(a)
+        a[μsite] *= α
     end
 
-    update_halo!(a)
+    # INFO: don't need to do halo exchange here, since we iterate over all indices
+    # including halo regions
     return nothing
 end
 
 function leftmul!(a::AbstractField{CPU}, b::AbstractField{CPU})
     check_dims(a, b)
 
-    @batch for site in eachindex(a)
-        for μ in 1:4
-            a[μ, site] = cmatmul_oo(b[μ, site], a[μ, site])
-        end
+    @batch for μsite in allindices(a)
+        a[μsite] = cmatmul_oo(b[μsite], a[μsite])
     end
 
-    update_halo!(a)
+    # INFO: don't need to do halo exchange here, since we iterate over all indices
+    # including halo regions
     return nothing
 end
 
 function leftmul_dagg!(a::AbstractField{CPU}, b::AbstractField{CPU})
     check_dims(a, b)
 
-    @batch for site in eachindex(a)
-        for μ in 1:4
-            a[μ, site] = cmatmul_do(b[μ, site], a[μ, site])
-        end
+    @batch for μsite in allindices(a)
+        a[μsite] = cmatmul_do(b[μsite], a[μsite])
     end
 
-    update_halo!(a)
+    # INFO: don't need to do halo exchange here, since we iterate over all indices
+    # including halo regions
     return nothing
 end
 
 function rightmul!(a::AbstractField{CPU}, b::AbstractField{CPU})
     check_dims(a, b)
 
-    @batch for site in eachindex(a)
-        for μ in 1:4
-            a[μ, site] = cmatmul_oo(a[μ, site], b[μ, site])
-        end
+    @batch for μsite in allindices(a)
+        a[μsite] = cmatmul_oo(a[μsite], b[μsite])
     end
 
-    update_halo!(a)
+    # INFO: don't need to do halo exchange here, since we iterate over all indices
+    # including halo regions
     return nothing
 end
 
 function rightmul_dagg!(a::AbstractField{CPU,T}, b::AbstractField{CPU,T}) where {T}
     check_dims(a, b)
 
-    @batch for site in eachindex(a)
-        for μ in 1:4
-            a[μ, site] = cmatmul_od(a[μ, site], b[μ, site])
-        end
+    @batch for μsite in allindices(a)
+        a[μsite] = cmatmul_od(a[μsite], b[μsite])
     end
 
-    update_halo!(a)
+    # INFO: don't need to do halo exchange here, since we iterate over all indices
+    # including halo regions
     return nothing
 end

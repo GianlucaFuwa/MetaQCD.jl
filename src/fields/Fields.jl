@@ -146,7 +146,9 @@ end
 Base.eachindex(::IndexLinear, u::AbstractMPIField) =
     error("MPI parallelized field can not be iterated over linearly")
 
-function Base.eachindex(even::Bool, u::AbstractField)
+@inline allindices(u::AbstractField) = eachindex(u.U) # all indices including halo regions
+
+@inline function Base.eachindex(even::Bool, u::AbstractField)
     NX, NY, NZ, NT = global_dims(u)
     @assert iseven(NT)
     last_range = even ? (1:div(NT, 2)) : (div(NT, 2)+1:NT)
@@ -156,12 +158,18 @@ end
 Base.length(u::AbstractField) = u.NV
 
 # overload get and set for the Abstractfields structs, so we dont have to do u.U[μ,x,y,z,t]:
+Base.@propagate_inbounds Base.getindex(u::AbstractField, i::Integer) = u.U[i]
 Base.@propagate_inbounds Base.getindex(u::AbstractField, μ, x, y, z, t) = u.U[μ, x, y, z, t]
 Base.@propagate_inbounds Base.getindex(u::AbstractField, μ, site::SiteCoords) = u.U[μ, site]
+Base.@propagate_inbounds Base.getindex(u::AbstractField, μsite) = u.U[μsite]
+Base.@propagate_inbounds Base.setindex!(u::AbstractField, v, i::Integer) =
+    setindex!(u.U, v, i)
 Base.@propagate_inbounds Base.setindex!(u::AbstractField, v, μ, x, y, z, t) =
     setindex!(u.U, v, μ, x, y, z, t)
 Base.@propagate_inbounds Base.setindex!(u::AbstractField, v, μ, site::SiteCoords) =
     setindex!(u.U, v, μ, site)
+Base.@propagate_inbounds Base.setindex!(u::AbstractField, v, μsite) =
+    setindex!(u.U, v, μsite)
 
 # So we don't print the entire array in the REPL...
 function Base.show(io::IO, ::MIME"text/plain", u::T) where {T<:AbstractField}

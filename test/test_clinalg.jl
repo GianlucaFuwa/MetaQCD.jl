@@ -10,8 +10,10 @@ function test_cdot()
     v3s = @SVector rand(ComplexF64, 12)
     v4s = @SVector rand(ComplexF64, 12)
 
-    @test isapprox(dot(v1s, v2s), cdot(v1s, v2s))
-    @test isapprox(dot(v3s, v4s), cdot(v3s, v4s))
+    @testset "Dot product" begin
+        @test isapprox(dot(v1s, v2s), cdot(v1s, v2s))
+        @test isapprox(dot(v3s, v4s), cdot(v3s, v4s))
+    end
 end
 
 function test_ckron()
@@ -28,11 +30,13 @@ function test_ckron()
     v43s = SVector{3,ComplexF64}(v4s[7:9])
     v44s = SVector{3,ComplexF64}(v4s[10:12])
 
-    @test isapprox(kron(v1s, v2s'), ckron(v1s, v2s))
-    @test isapprox(
-        kron(v31s, v41s') + kron(v32s, v42s') + kron(v33s, v43s') + kron(v34s, v44s'),
-        spintrace(v3s, v4s),
-    )
+    @testset "Kronecker product" begin
+        @test isapprox(kron(v1s, v2s'), ckron(v1s, v2s))
+        @test isapprox(
+            kron(v31s, v41s') + kron(v32s, v42s') + kron(v33s, v43s') + kron(v34s, v44s'),
+            spintrace(v3s, v4s),
+        )
+    end
 end
 
 function test_cmvmul()
@@ -46,12 +50,14 @@ function test_cmvmul()
     Avs12 = [As * vs12_1; As * vs12_2; As * vs12_3; As * vs12_4]
     Avs12d = [As' * vs12_1; As' * vs12_2; As' * vs12_3; As' * vs12_4]
 
-    @test isapprox(As * vs, cmvmul(As, vs))
-    @test isapprox(As' * vs, cmvmul_d(As, vs))
-    @test isapprox(SVector{3,ComplexF64}(vs' * As), cvmmul(vs, As))
-    @test isapprox(SVector{3,ComplexF64}(vs' * As'), cvmmul_d(vs, As))
-    @test isapprox(Avs12, cmvmul_color(As, vs12))
-    @test isapprox(Avs12d, cmvmul_d_color(As, vs12))
+    @testset "Matrix-Vector product" begin
+        @test isapprox(As * vs, cmvmul(As, vs))
+        @test isapprox(As' * vs, cmvmul_d(As, vs))
+        @test isapprox(SVector{3,ComplexF64}(vs' * As), cvmmul(vs, As))
+        @test isapprox(SVector{3,ComplexF64}(vs' * As'), cvmmul_d(vs, As))
+        @test isapprox(Avs12, cmvmul_color(As, vs12))
+        @test isapprox(Avs12d, cmvmul_d_color(As, vs12))
+    end
 end
 
 function test_spin_color()
@@ -62,16 +68,18 @@ function test_spin_color()
     v3s = SVector{3,ComplexF64}(vs[7:9])
     v4s = SVector{3,ComplexF64}(vs[10:12])
 
-    @test isapprox(vcat(As * v1s, As * v2s, As * v3s, As * v4s), cmvmul_color(As, vs))
-    @test isapprox(vcat(As' * v1s, As' * v2s, As' * v3s, As' * v4s), cmvmul_d_color(As, vs))
-    @test isapprox(
-        SVector{12,ComplexF64}(hcat(v1s' * As, v2s' * As, v3s' * As, v4s' * As)),
-        cvmmul_color(vs, As),
-    )
-    @test isapprox(
-        SVector{12,ComplexF64}(hcat(v1s' * As', v2s' * As', v3s' * As', v4s' * As')),
-        cvmmul_d_color(vs, As),
-    )
+    @testset "Operations with spin structure (part 1)" begin
+        @test isapprox(vcat(As * v1s, As * v2s, As * v3s, As * v4s), cmvmul_color(As, vs))
+        @test isapprox(vcat(As' * v1s, As' * v2s, As' * v3s, As' * v4s), cmvmul_d_color(As, vs))
+        @test isapprox(
+            SVector{12,ComplexF64}(hcat(v1s' * As, v2s' * As, v3s' * As, v4s' * As)),
+            cvmmul_color(vs, As),
+        )
+        @test isapprox(
+            SVector{12,ComplexF64}(hcat(v1s' * As', v2s' * As', v3s' * As', v4s' * As')),
+            cvmmul_d_color(vs, As),
+        )
+    end
 
     # spin_proj
     t1 = (v1s - im * v4s)
@@ -115,30 +123,32 @@ function test_spin_color()
     Aoneminγ₄v = vcat(As * t1, As * t2, As * -t1, As * -t2)
     Aoneminγ₄v_d = vcat(As' * t1, As' * t2, As' * -t1, As' * -t2)
 
-    @test isapprox(onepluγ₁v, spin_proj(vs, Val(1)))
-    @test isapprox(oneminγ₁v, spin_proj(vs, Val(-1)))
-    @test isapprox(onepluγ₂v, spin_proj(vs, Val(2)))
-    @test isapprox(oneminγ₂v, spin_proj(vs, Val(-2)))
-    @test isapprox(onepluγ₃v, spin_proj(vs, Val(3)))
-    @test isapprox(oneminγ₃v, spin_proj(vs, Val(-3)))
-    @test isapprox(onepluγ₄v, spin_proj(vs, Val(4)))
-    @test isapprox(oneminγ₄v, spin_proj(vs, Val(-4)))
-    @test isapprox(Aonepluγ₁v, cmvmul_spin_proj(As, vs, Val(1), Val(false)))
-    @test isapprox(Aoneminγ₁v, cmvmul_spin_proj(As, vs, Val(-1), Val(false)))
-    @test isapprox(Aonepluγ₂v, cmvmul_spin_proj(As, vs, Val(2), Val(false)))
-    @test isapprox(Aoneminγ₂v, cmvmul_spin_proj(As, vs, Val(-2), Val(false)))
-    @test isapprox(Aonepluγ₃v, cmvmul_spin_proj(As, vs, Val(3), Val(false)))
-    @test isapprox(Aoneminγ₃v, cmvmul_spin_proj(As, vs, Val(-3), Val(false)))
-    @test isapprox(Aonepluγ₄v, cmvmul_spin_proj(As, vs, Val(4), Val(false)))
-    @test isapprox(Aoneminγ₄v, cmvmul_spin_proj(As, vs, Val(-4), Val(false)))
-    @test isapprox(Aonepluγ₁v_d, cmvmul_spin_proj(As, vs, Val(1), Val(true)))
-    @test isapprox(Aoneminγ₁v_d, cmvmul_spin_proj(As, vs, Val(-1), Val(true)))
-    @test isapprox(Aonepluγ₂v_d, cmvmul_spin_proj(As, vs, Val(2), Val(true)))
-    @test isapprox(Aoneminγ₂v_d, cmvmul_spin_proj(As, vs, Val(-2), Val(true)))
-    @test isapprox(Aonepluγ₃v_d, cmvmul_spin_proj(As, vs, Val(3), Val(true)))
-    @test isapprox(Aoneminγ₃v_d, cmvmul_spin_proj(As, vs, Val(-3), Val(true)))
-    @test isapprox(Aonepluγ₄v_d, cmvmul_spin_proj(As, vs, Val(4), Val(true)))
-    @test isapprox(Aoneminγ₄v_d, cmvmul_spin_proj(As, vs, Val(-4), Val(true)))
+    @testset "Operations with spin structure (part 2)" begin
+        @test isapprox(onepluγ₁v, spin_proj(vs, Val(1)))
+        @test isapprox(oneminγ₁v, spin_proj(vs, Val(-1)))
+        @test isapprox(onepluγ₂v, spin_proj(vs, Val(2)))
+        @test isapprox(oneminγ₂v, spin_proj(vs, Val(-2)))
+        @test isapprox(onepluγ₃v, spin_proj(vs, Val(3)))
+        @test isapprox(oneminγ₃v, spin_proj(vs, Val(-3)))
+        @test isapprox(onepluγ₄v, spin_proj(vs, Val(4)))
+        @test isapprox(oneminγ₄v, spin_proj(vs, Val(-4)))
+        @test isapprox(Aonepluγ₁v, cmvmul_spin_proj(As, vs, Val(1), Val(false)))
+        @test isapprox(Aoneminγ₁v, cmvmul_spin_proj(As, vs, Val(-1), Val(false)))
+        @test isapprox(Aonepluγ₂v, cmvmul_spin_proj(As, vs, Val(2), Val(false)))
+        @test isapprox(Aoneminγ₂v, cmvmul_spin_proj(As, vs, Val(-2), Val(false)))
+        @test isapprox(Aonepluγ₃v, cmvmul_spin_proj(As, vs, Val(3), Val(false)))
+        @test isapprox(Aoneminγ₃v, cmvmul_spin_proj(As, vs, Val(-3), Val(false)))
+        @test isapprox(Aonepluγ₄v, cmvmul_spin_proj(As, vs, Val(4), Val(false)))
+        @test isapprox(Aoneminγ₄v, cmvmul_spin_proj(As, vs, Val(-4), Val(false)))
+        @test isapprox(Aonepluγ₁v_d, cmvmul_spin_proj(As, vs, Val(1), Val(true)))
+        @test isapprox(Aoneminγ₁v_d, cmvmul_spin_proj(As, vs, Val(-1), Val(true)))
+        @test isapprox(Aonepluγ₂v_d, cmvmul_spin_proj(As, vs, Val(2), Val(true)))
+        @test isapprox(Aoneminγ₂v_d, cmvmul_spin_proj(As, vs, Val(-2), Val(true)))
+        @test isapprox(Aonepluγ₃v_d, cmvmul_spin_proj(As, vs, Val(3), Val(true)))
+        @test isapprox(Aoneminγ₃v_d, cmvmul_spin_proj(As, vs, Val(-3), Val(true)))
+        @test isapprox(Aonepluγ₄v_d, cmvmul_spin_proj(As, vs, Val(4), Val(true)))
+        @test isapprox(Aoneminγ₄v_d, cmvmul_spin_proj(As, vs, Val(-4), Val(true)))
+    end
 end
 
 function test_cmatmul()
@@ -148,34 +158,36 @@ function test_cmatmul()
     Cs = @SMatrix rand(ComplexF64, 3, 3)
     Ds = @SMatrix rand(ComplexF64, 3, 3)
 
-    @test isapprox(As * Bs, cmatmul_oo(As, Bs))
-    @test isapprox(As * Bs', cmatmul_od(As, Bs))
-    @test isapprox(As' * Bs, cmatmul_do(As, Bs))
-    @test isapprox(As' * Bs', cmatmul_dd(As, Bs))
+    @testset "Matrix multiplication" begin
+        @test isapprox(As * Bs, cmatmul_oo(As, Bs))
+        @test isapprox(As * Bs', cmatmul_od(As, Bs))
+        @test isapprox(As' * Bs, cmatmul_do(As, Bs))
+        @test isapprox(As' * Bs', cmatmul_dd(As, Bs))
 
-    @test isapprox(As * Bs * Cs, cmatmul_ooo(As, Bs, Cs))
-    @test isapprox(As * Bs * Cs', cmatmul_ood(As, Bs, Cs))
-    @test isapprox(As * Bs' * Cs, cmatmul_odo(As, Bs, Cs))
-    @test isapprox(As' * Bs * Cs, cmatmul_doo(As, Bs, Cs))
-    @test isapprox(As * Bs' * Cs', cmatmul_odd(As, Bs, Cs))
-    @test isapprox(As' * Bs' * Cs, cmatmul_ddo(As, Bs, Cs))
-    @test isapprox(As' * Bs * Cs', cmatmul_dod(As, Bs, Cs))
-    @test isapprox(As' * Bs' * Cs', cmatmul_ddd(As, Bs, Cs))
+        @test isapprox(As * Bs * Cs, cmatmul_ooo(As, Bs, Cs))
+        @test isapprox(As * Bs * Cs', cmatmul_ood(As, Bs, Cs))
+        @test isapprox(As * Bs' * Cs, cmatmul_odo(As, Bs, Cs))
+        @test isapprox(As' * Bs * Cs, cmatmul_doo(As, Bs, Cs))
+        @test isapprox(As * Bs' * Cs', cmatmul_odd(As, Bs, Cs))
+        @test isapprox(As' * Bs' * Cs, cmatmul_ddo(As, Bs, Cs))
+        @test isapprox(As' * Bs * Cs', cmatmul_dod(As, Bs, Cs))
+        @test isapprox(As' * Bs' * Cs', cmatmul_ddd(As, Bs, Cs))
 
-    @test isapprox(As * Bs * Cs * Ds, cmatmul_oooo(As, Bs, Cs, Ds))
-    @test isapprox(As * Bs * Cs * Ds', cmatmul_oood(As, Bs, Cs, Ds))
-    @test isapprox(As * Bs * Cs' * Ds, cmatmul_oodo(As, Bs, Cs, Ds))
-    @test isapprox(As * Bs' * Cs * Ds, cmatmul_odoo(As, Bs, Cs, Ds))
-    @test isapprox(As' * Bs * Cs * Ds, cmatmul_dooo(As, Bs, Cs, Ds))
-    @test isapprox(As * Bs * Cs' * Ds', cmatmul_oodd(As, Bs, Cs, Ds))
-    @test isapprox(As * Bs' * Cs' * Ds, cmatmul_oddo(As, Bs, Cs, Ds))
-    @test isapprox(As' * Bs' * Cs * Ds, cmatmul_ddoo(As, Bs, Cs, Ds))
-    @test isapprox(As * Bs' * Cs * Ds', cmatmul_odod(As, Bs, Cs, Ds))
-    @test isapprox(As' * Bs * Cs * Ds', cmatmul_dood(As, Bs, Cs, Ds))
-    @test isapprox(As' * Bs * Cs' * Ds, cmatmul_dodo(As, Bs, Cs, Ds))
-    @test isapprox(As * Bs' * Cs' * Ds', cmatmul_oddd(As, Bs, Cs, Ds))
-    @test isapprox(As' * Bs' * Cs' * Ds, cmatmul_dddo(As, Bs, Cs, Ds))
-    @test isapprox(As' * Bs' * Cs * Ds', cmatmul_ddod(As, Bs, Cs, Ds))
-    @test isapprox(As' * Bs * Cs' * Ds', cmatmul_dodd(As, Bs, Cs, Ds))
-    @test isapprox(As' * Bs' * Cs' * Ds', cmatmul_dddd(As, Bs, Cs, Ds))
+        @test isapprox(As * Bs * Cs * Ds, cmatmul_oooo(As, Bs, Cs, Ds))
+        @test isapprox(As * Bs * Cs * Ds', cmatmul_oood(As, Bs, Cs, Ds))
+        @test isapprox(As * Bs * Cs' * Ds, cmatmul_oodo(As, Bs, Cs, Ds))
+        @test isapprox(As * Bs' * Cs * Ds, cmatmul_odoo(As, Bs, Cs, Ds))
+        @test isapprox(As' * Bs * Cs * Ds, cmatmul_dooo(As, Bs, Cs, Ds))
+        @test isapprox(As * Bs * Cs' * Ds', cmatmul_oodd(As, Bs, Cs, Ds))
+        @test isapprox(As * Bs' * Cs' * Ds, cmatmul_oddo(As, Bs, Cs, Ds))
+        @test isapprox(As' * Bs' * Cs * Ds, cmatmul_ddoo(As, Bs, Cs, Ds))
+        @test isapprox(As * Bs' * Cs * Ds', cmatmul_odod(As, Bs, Cs, Ds))
+        @test isapprox(As' * Bs * Cs * Ds', cmatmul_dood(As, Bs, Cs, Ds))
+        @test isapprox(As' * Bs * Cs' * Ds, cmatmul_dodo(As, Bs, Cs, Ds))
+        @test isapprox(As * Bs' * Cs' * Ds', cmatmul_oddd(As, Bs, Cs, Ds))
+        @test isapprox(As' * Bs' * Cs' * Ds, cmatmul_dddo(As, Bs, Cs, Ds))
+        @test isapprox(As' * Bs' * Cs * Ds', cmatmul_ddod(As, Bs, Cs, Ds))
+        @test isapprox(As' * Bs * Cs' * Ds', cmatmul_dodd(As, Bs, Cs, Ds))
+        @test isapprox(As' * Bs' * Cs' * Ds', cmatmul_dddd(As, Bs, Cs, Ds))
+    end
 end
