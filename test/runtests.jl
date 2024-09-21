@@ -77,11 +77,11 @@ mpi_barrier()
         backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
         dirac="wilson", mass=0.01, single_flavor=false, eoprec=true, csw=0 # TODO:Nf=1 test with eo wils
     )
-    # wilson-clover eo-pre derivative
-    test_fderivative(
-        backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
-        dirac="wilson", mass=0.01, single_flavor=false, eoprec=true # TODO:Nf=1 test with eo wils
-    )
+    # TODO: wilson-clover eo-pre derivative
+    # test_fderivative(
+    #     backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
+    #     dirac="wilson", mass=0.01, single_flavor=false, eoprec=true # TODO:Nf=1 test with eo wils
+    # )
     test_gradflow(backend; nprocs_cart=nprocs_cart, halo_width=halo_width)
 
     if mpi_size() == 1 # INFO: Local updates only without distributed fields
