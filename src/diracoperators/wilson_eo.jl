@@ -106,6 +106,8 @@ function (D::WilsonEOPreDiracOperator{B,T})(U::Gaugefield{B,T}) where {B,T}
 end
 
 @inline has_clover_term(::WilsonEOPreDiracOperator{B,T,C}) where {B,T,C} = C
+@inline has_clover_term(::Daggered{W}) where {B,T,C,W<:WilsonEOPreDiracOperator{B,T,C}} = C
+@inline has_clover_term(::DdaggerD{W}) where {B,T,C,W<:WilsonEOPreDiracOperator{B,T,C}} = C
 
 struct WilsonEODiagonal{B,T,M,C,A} <: AbstractField{B,T,M,A} # So we can overload LinearAlgebra.det on the even-odd diagonal
     U::A

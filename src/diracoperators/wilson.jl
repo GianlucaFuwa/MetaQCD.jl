@@ -60,6 +60,8 @@ function (D::WilsonDiracOperator{B,T})(U::Gaugefield{B,T}) where {B,T}
 end
 
 @inline has_clover_term(::WilsonDiracOperator{B,T,C}) where {B,T,C} = C
+@inline has_clover_term(::Daggered{W}) where {B,T,C,W<:WilsonDiracOperator{B,T,C}} = C
+@inline has_clover_term(::DdaggerD{W}) where {B,T,C,W<:WilsonDiracOperator{B,T,C}} = C
 
 struct WilsonFermionAction{Nf,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction{Nf}
     D::TD

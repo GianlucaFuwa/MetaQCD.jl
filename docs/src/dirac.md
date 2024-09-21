@@ -6,7 +6,7 @@ and a Boolean indicating whether there are antiperiodic boundary conditions in t
 direction (yes, only periodic and antiperiodic BCs are supported so far).
 
 To create a Dirac operator, the constructors below are used. One thing to note is that dirac
-operators can be constructed using any `Abstractfield` and so the gauge background is always
+operators can be constructed using any `AbstractField` and so the gauge background is always
 set to `nothing` on construction. In order to then add a gauge background you must use the
 dirac operator as a functor on a `Gaugefield`, like `D_U = D_free(U)`. This does not
 overwrite the `U` in `D_free` but creates a new dirac operator, that references the same

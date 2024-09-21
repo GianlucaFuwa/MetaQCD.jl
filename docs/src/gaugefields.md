@@ -38,16 +38,12 @@ is to define the fields on the even sites. While we haven't tested whether the f
 actually more performant, we map all even sites to the first half of the array to have
 contiguous memory accesses. The function `eo_site` does exactly this mapping.
 
-`Fermionfield`s are created in the same way as `Gaugefield`s with the gauge action type
-parameter being replaced by the number of Dirac indices. For `Fermionfield`s we have the
+`Spinorfield`s are created in the same way as `Gaugefield`s with the gauge action type
+parameter being replaced by the number of Dirac indices. For `Spinorfield`s we have the
 `ones!` and `gaussian_pseudofermions!` methods to init them.
 
 ```@docs
 Gaugefield
-```
-
-```@docs
-Fermionfield
 ```
 
 ```@docs
@@ -56,4 +52,8 @@ Colorfield
 
 ```@docs
 Expfield
+```
+
+```@docs
+Spinorfield
 ```
