@@ -1,5 +1,6 @@
 """
-    Gaugefield{Backend,FloatType,IsDistributed,ArrayType,GaugeAction} <: AbstractField{Backend,FloatType,IsDistributed,ArrayType}
+    Gaugefield{Backend,FloatType,IsDistributed,ArrayType,GaugeAction} <:
+    AbstractField{Backend,FloatType,IsDistributed,ArrayType}
 
 5-dimensional dense array of statically sized 3x3 matrices contatining associated meta-data.
 
@@ -58,7 +59,10 @@ struct Gaugefield{Backend,FloatType,IsDistributed,ArrayType,GaugeAction} <:
             return Gaugefield{Backend,FloatType,GaugeAction}(NX, NY, NZ, NT, β)
         end
 
-        @assert halo_width >= stencil_size(GaugeAction) "halo_width must be >= 2 when using improved gauge actions"
+        @assert halo_width >= stencil_size(GaugeAction) """
+        halo_width must be >= 2 when using improved gauge actions
+        """
+
         NV = NX * NY * NZ * NT
         topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
         ldims = topology.local_dims
@@ -78,7 +82,9 @@ function Gaugefield(
     u_out = if IsDistributed
         numprocs_cart = u.topology.numprocs_cart
         halo_width = u.topology.halo_width
-        Gaugefield{Backend,FloatType,GaugeAction}(u.NX, u.NY, u.NZ, u.NT, u.β, numprocs_cart, halo_width)
+        Gaugefield{Backend,FloatType,GaugeAction}(
+            u.NX, u.NY, u.NZ, u.NT, u.β, numprocs_cart, halo_width
+        )
     else
         Gaugefield{Backend,FloatType,GaugeAction}(u.NX, u.NY, u.NZ, u.NT, u.β)
     end
@@ -97,7 +103,9 @@ function Gaugefield(parameters)
     halo_width = parameters.halo_width
 
     U = if numprocs > 1
-        Gaugefield{Backend,FloatType,GaugeAction}(NX, NY, NZ, NT, β, numprocs_cart, halo_width)
+        Gaugefield{Backend,FloatType,GaugeAction}(
+            NX, NY, NZ, NT, β, numprocs_cart, halo_width
+        )
     else
         Gaugefield{Backend,FloatType,GaugeAction}(NX, NY, NZ, NT, β)
     end
@@ -115,7 +123,8 @@ function Gaugefield(parameters)
 end
 
 """
-    Colorfield{Backend,FloatType,IsDistributed,ArrayType} <: AbstractField{Backend,FloatType,IsDistributed,ArrayType}
+    Colorfield{Backend,FloatType,IsDistributed,ArrayType} <:
+    AbstractField{Backend,FloatType,IsDistributed,ArrayType}
 
 5-dimensional dense array of statically sized 3x3 matrices contatining associated meta-data.
 
@@ -181,7 +190,8 @@ function Colorfield(
 end
 
 """
-    Expfield{Backend,FloatType,IsDistributed,ArrayType} <: AbstractField{Backend,FloatType,IsDistributed,ArrayType}
+    Expfield{Backend,FloatType,IsDistributed,ArrayType} <:
+    AbstractField{Backend,FloatType,IsDistributed,ArrayType}
 
 5-dimensional dense array of `exp_iQ_su3` objects contatining associated meta-data. The
 objects hold the `Q`-matrices and all the exponential parameters needed for stout-force
@@ -218,7 +228,9 @@ struct Expfield{Backend,FloatType,IsDistributed,ArrayType} <:
         return new{Backend,FloatType,false,typeof(U)}(U, NX, NY, NZ, NT, NV, 3, topology)
     end
 
-    function Expfield{Backend,FloatType}(NX, NY, NZ, NT, numprocs_cart, halo_width) where {Backend,FloatType}
+    function Expfield{Backend,FloatType}(
+        NX, NY, NZ, NT, numprocs_cart, halo_width
+    ) where {Backend,FloatType}
         if prod(numprocs_cart) == 1
             return Expfield{Backend,FloatType}(NX, NY, NZ, NT)
         end

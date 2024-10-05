@@ -103,7 +103,9 @@ struct WilsonFermionAction{Nf,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction{Nf}
             rhmc_temps2 = nothing
             cg_temps = ntuple(_ -> Spinorfield(f), 4)
         else
-            @assert Nf == 1 "Nf should be 1 or 2 (was $Nf). If you want Nf > 2, use multiple actions"
+            @assert Nf == 1 """
+            Nf should be 1 or 2 (was $Nf). If you want Nf > 2, use multiple actions
+            """
             rhmc_lambda_low = rhmc_spectral_bound[1]
             rhmc_lambda_high = rhmc_spectral_bound[2]
             cg_temps = ntuple(_ -> Spinorfield(f), 2)
@@ -265,8 +267,6 @@ function LinearAlgebra.mul!(
         ψ[site] = wilson_kernel(U, ϕ, site, mass_term, bc, T, Val(1))
     end
 
-    update_halo!(ψ)
-
     if has_clover_term(D)
         fac = T(-csw / 2)
 
@@ -292,8 +292,6 @@ function LinearAlgebra.mul!(
     @batch for site in eachindex(ψ)
         ψ[site] = wilson_kernel(U, ϕ, site, mass_term, bc, T, Val(-1))
     end
-
-    update_halo!(ψ)
 
     if has_clover_term(D)
         fac = T(-csw / 2)
@@ -354,27 +352,27 @@ function clover_kernel(U, ϕ, site, fac, ::Type{T}) where {T}
     Cₙₘ = zero(ϕ[site])
 
     C₁₂ = clover_square(U, 1, 2, site, 1)
-    F₁₂ = antihermitian(C₁₂)
+    F₁₂ = C₁₂ - C₁₂'
     Cₙₘ += cmvmul_color(F₁₂, σμν_spin_mul(ϕ[site], Val(1), Val(2)))
 
     C₁₃ = clover_square(U, 1, 3, site, 1)
-    F₁₃ = antihermitian(C₁₃)
+    F₁₃ = C₁₃ - C₁₃'
     Cₙₘ += cmvmul_color(F₁₃, σμν_spin_mul(ϕ[site], Val(1), Val(3)))
 
     C₁₄ = clover_square(U, 1, 4, site, 1)
-    F₁₄ = antihermitian(C₁₄)
+    F₁₄ = C₁₄ - C₁₄'
     Cₙₘ += cmvmul_color(F₁₄, σμν_spin_mul(ϕ[site], Val(1), Val(4)))
 
     C₂₃ = clover_square(U, 2, 3, site, 1)
-    F₂₃ = antihermitian(C₂₃)
+    F₂₃ = C₂₃ - C₂₃'
     Cₙₘ += cmvmul_color(F₂₃, σμν_spin_mul(ϕ[site], Val(2), Val(3)))
 
     C₂₄ = clover_square(U, 2, 4, site, 1)
-    F₂₄ = antihermitian(C₂₄)
+    F₂₄ = C₂₄ - C₂₄'
     Cₙₘ += cmvmul_color(F₂₄, σμν_spin_mul(ϕ[site], Val(2), Val(4)))
 
     C₃₄ = clover_square(U, 3, 4, site, 1)
-    F₃₄ = antihermitian(C₃₄)
+    F₃₄ = C₃₄ - C₃₄'
     Cₙₘ += cmvmul_color(F₃₄, σμν_spin_mul(ϕ[site], Val(3), Val(4)))
-    return Complex{T}(fac * im / 4) * Cₙₘ
+    return Complex{T}(fac * im / 8) * Cₙₘ
 end

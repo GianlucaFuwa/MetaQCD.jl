@@ -3,7 +3,7 @@ using MetaQCD
 using MetaQCD.Utils
 using MetaQCD.Updates: calc_dQdU_bare!
 
-function test_derivative(backend=CPU; nprocs_cart=(1, 1, 1, 1), halo_width)
+function test_derivative(backend=CPU; nprocs_cart=(1, 1, 1, 1), halo_width=0)
     Random.seed!(123)
     mpi_amroot() && println("Gauge and Clover derivative test")
     NX = 4

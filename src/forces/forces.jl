@@ -6,10 +6,10 @@ import ..DiracOperators: StaggeredDiracOperator, StaggeredFermionAction
 import ..DiracOperators: StaggeredEOPreDiracOperator, StaggeredEOPreFermionAction
 import ..DiracOperators: WilsonDiracOperator, WilsonFermionAction, has_clover_term
 import ..DiracOperators: WilsonEOPreDiracOperator, WilsonEOPreFermionAction
-import ..DiracOperators: WilsonEODiagonal
 import ..DiracOperators: Daggered, DdaggerD, SpinorfieldEO
 import ..DiracOperators: apply_bc, staggered_η, solve_dirac!, solve_dirac_multishift!
 import ..DiracOperators: mul_oe!, mul_eo!, mul_oo_inv!
+import ..Fields: Paulifield
 
 """
     calc_dSfdU_bare!(dU::Colorfield, fermion_action, U, ϕ, ::Any, ::NoSmearing)

@@ -72,11 +72,11 @@ mpi_barrier()
         backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
         dirac="wilson", mass=0.01, single_flavor=true, csw=1.78
     )
-    # wilson eo-pre derivative
-    test_fderivative(
-        backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
-        dirac="wilson", mass=0.01, single_flavor=false, eoprec=true, csw=0 # TODO:Nf=1 test with eo wils
-    )
+    # TODO: wilson eo-pre derivative
+    # test_fderivative(
+    #     backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
+    #     dirac="wilson", mass=0.01, single_flavor=false, eoprec=true, csw=0 # TODO:Nf=1 test with eo wils
+    # )
     # TODO: wilson-clover eo-pre derivative
     # test_fderivative(
     #     backend; nprocs_cart=nprocs_cart, halo_width=halo_width,

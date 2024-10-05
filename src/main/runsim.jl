@@ -13,7 +13,9 @@ function run_sim(filenamein::String; backend="cpu")
 
     if mpi_amroot()
         if parameters.tempering_enabled
-            @assert parameters.kind_of_bias != "none" "bias cannot be \"none\" in parallel tempering"
+            @assert parameters.kind_of_bias != "none" """
+            bias cannot be \"none\" in parallel tempering
+            """
         end
     end
 

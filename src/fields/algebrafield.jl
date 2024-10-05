@@ -20,7 +20,9 @@ struct Algebrafield{Backend,FloatType,IsDistributed,ArrayType} <:
         return new{Backend,FloatType,false,typeof(U)}(U, NX, NY, NZ, NT, NV, 3, topology)
     end
 
-    function Algebrafield{Backend,FloatType}(NX, NY, NZ, NT, numprocs_cart, halo_width) where {Backend,FloatType}
+    function Algebrafield{Backend,FloatType}(
+        NX, NY, NZ, NT, numprocs_cart, halo_width
+    ) where {Backend,FloatType}
         if prod(numprocs_cart) == 1
             return Colorfield{Backend,FloatType}(NX, NY, NZ, NT)
         end

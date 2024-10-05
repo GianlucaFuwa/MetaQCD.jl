@@ -7,7 +7,9 @@ function save_config(::ILDGFormat, U, filename; parameters=nothing, override=fal
     @assert U.U isa Array
 
     if override == false
-        @assert !isfile(filename) "File $filename to store config in already exists and override is \"false\""
+        @assert !isfile(filename) """
+        File $filename to store config in already exists and override is \"false\"
+        """
     end
 
     fp = open(filename, "w")
@@ -94,7 +96,9 @@ function load_config!(::BMWFormat, U, filename)
 
     close(fp)
     adler64_finalize!(checksum_calc)
-    @assert checksum_read == checksum_calc.final "Checksums do not match (read: $checksum_read, calculated: $(checksum_calc.final))"
+    @assert checksum_read == checksum_calc.final """
+    Checksums do not match (read: $checksum_read, calculated: $(checksum_calc.final))
+    """
     return nothing
 end
 

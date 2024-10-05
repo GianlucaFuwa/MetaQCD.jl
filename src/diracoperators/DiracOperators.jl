@@ -22,10 +22,11 @@ using ..Solvers
 using ..Utils
 
 import KernelAbstractions as KA
-import ..Fields: AbstractField, Gaugefield, Spinorfield, SpinorfieldEO, Tensorfield
+import ..Fields: AbstractField, FieldTopology, Gaugefield, Paulifield, Spinorfield
+import ..Fields: SpinorfieldEO, Tensorfield
 import ..Fields: check_dims, clear!, clover_square, dims, even_odd, gaussian_pseudofermions!
 import ..Fields: Clover, Checkerboard2, Sequential, @latmap, @latsum, set_source!, volume
-import ..Fields: fieldstrength_eachsite!, fieldstrength_A_eachsite!, num_colors, num_dirac
+import ..Fields: fieldstrength_eachsite!, num_colors, num_dirac
 import ..Fields: PeriodicBC, AntiPeriodicBC, apply_bc, create_bc, distributed_reduce
 
 abstract type AbstractDiracOperator end
@@ -134,7 +135,7 @@ function Base.show(io::IO, ::MIME"text/plain", D::T) where {T<:AbstractDiracOper
     print(io, "$(typeof(D))", "(;")
 
     for fieldname in fieldnames(T)
-        if fieldname ∈ (:U, :temp)
+        if fieldname ∈ (:U, :temp, :D_diag, :D_oo_inv, :Fμν)
             continue
         else
             print(io, " ", fieldname, " = ", getfield(D, fieldname), ",")
@@ -270,12 +271,12 @@ function Base.show(io::IO, ::MIME"text/plain", S::AbstractFermionAction{Nf}) whe
         """
         
         |  $(name)(
-        |    Nf = $Nf
-        |    MASS = $(S.D.mass)
+        |    Nf: $Nf
+        |    MASS: $(S.D.mass)
         """
     )
 
-    if S isa WilsonFermionAction #|| S isa WilsonEOPreFermionAction
+    if S isa WilsonFermionAction || S isa WilsonEOPreFermionAction
         print(
             io,
             """
@@ -289,10 +290,10 @@ function Base.show(io::IO, ::MIME"text/plain", S::AbstractFermionAction{Nf}) whe
         io,
         """
         |    BOUNDARY CONDITION (TIME): $(S.D.boundary_condition))
-        |    CG TOLERANCE (ACTION) = $(S.cg_tol_action)
-        |    CG TOLERANCE (MD) = $(S.cg_tol_md)
-        |    CG MAX ITERS (ACTION) = $(S.cg_maxiters_action)
-        |    CG MAX ITERS (ACTION) = $(S.cg_maxiters_md)
+        |    CG TOLERANCE (ACTION): $(S.cg_tol_action)
+        |    CG TOLERANCE (MD): $(S.cg_tol_md)
+        |    CG MAX ITERS (ACTION): $(S.cg_maxiters_action)
+        |    CG MAX ITERS (ACTION): $(S.cg_maxiters_md)
         |    RHMC INFO (Action): $(S.rhmc_info_action)
         |    RHMC INFO (MD): $(S.rhmc_info_md))
         """
@@ -307,12 +308,12 @@ function Base.show(io::IO, S::AbstractFermionAction{Nf}) where {Nf}
         """
         
         |  $(name)(
-        |    Nf = $Nf
-        |    MASS = $(S.D.mass)
+        |    Nf: $Nf
+        |    MASS: $(S.D.mass)
         """
     )
 
-    if S isa WilsonFermionAction #|| S isa WilsonEOPreFermionAction
+    if S isa WilsonFermionAction || S isa WilsonEOPreFermionAction
         print(
             io,
             """

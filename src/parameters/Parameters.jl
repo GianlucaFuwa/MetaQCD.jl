@@ -215,14 +215,21 @@ end
 function parameter_check(p::ParameterSet)
     mpi_amroot() || return nothing
 
-    @assert prod(p.numprocs_cart) == mpi_size() "Size of comm must equal number of process used in field decomposition"
+    @assert prod(p.numprocs_cart) == mpi_size() """
+    Size of comm must equal number of process used in field decomposition
+    """
 
     if prod(p.numprocs_cart) > 1
         @assert p.halo_width >= 1 "Halo width must be >= 1, when using field decomposition"
-        @assert lower_case(p.update_method) == "hmc" "Field decomposition not supported for local update algorithms"
+        @assert lower_case(p.update_method) == "hmc" """
+        Field decomposition not supported for local update algorithms
+        """
         
         if p.gauge_action != "wilson"
-            @assert p.halo_width >= 2 "Halo width must be >= 2, when using field decomposition with improved gauge action"
+            @assert p.halo_width >= 2 """
+            Halo width must be >= 2, when using field decomposition with improved \
+            gauge action
+            """
         end
     end
 
@@ -271,7 +278,9 @@ function parameter_check(p::ParameterSet)
             """))
     end
 
-    if lower_case(p.hmc_integrator) ∉ ["leapfrog", "omf2slow", "omf2", "omf4slow", "omf4", "leapfrogra"]
+    if lower_case(p.hmc_integrator) ∉ [
+        "leapfrog", "omf2slow", "omf2", "omf4slow", "omf4", "leapfrogra"
+    ]
         throw(AssertionError("""
             hmc_integrator in [\"HMC Settings\"] = $(p.hmc_integrator) is not supported.
             Supported methods are:
@@ -329,7 +338,8 @@ function parameter_check(p::ParameterSet)
 
     if lower_case(p.save_config_format) ∉ ["", "bmw", "bridge", "jld", "jld2"]
         throw(AssertionError("""
-            save_config_format in [\"System Settings\"] = $(p.save_config_format) is not supported.
+            save_config_format in [\"System Settings\"] = $(p.save_config_format) \
+            is not supported.
             Supported methods are:
                 Bridge
                 JLD or JLD2 (both use JLD2)
@@ -341,7 +351,8 @@ function parameter_check(p::ParameterSet)
         @assert isfile(p.load_config_path) "Your load_config_path doesn't exist"
         if lower_case(p.load_config_format) ∉ ["bmw", "bridge", "jld", "jld2"]
             throw(AssertionError("""
-            loadU_format in [\"System Settings\"] = $(p.load_config_format) is not supported.
+            loadU_format in [\"System Settings\"] = $(p.load_config_format) \
+            is not supported.
             Supported methods are:
                 Bridge
                 JLD or JLD2 (both use JLD2)
@@ -349,6 +360,7 @@ function parameter_check(p::ParameterSet)
             """))
         end
     end
+
     return nothing
 end
 

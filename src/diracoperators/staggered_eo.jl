@@ -12,7 +12,8 @@ condition in the time direction.
 
 If `csw ≠ 0`, a clover term is included. 
 
-This object cannot be directly applied to a fermion vector, since it lacks a gauge background.
+This object cannot be directly applied to a fermion vector, since it lacks a gauge
+background.
 A Wilson Dirac operator with gauge background is created by applying it to a `Gaugefield`
 `U` like `D_gauge = D(U)`
 

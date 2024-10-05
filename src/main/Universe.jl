@@ -19,8 +19,8 @@ import ..Parameters: ParameterSet
 
 Create a Universe, containing the gauge configurations that are updated throughout a 
 simulation and the bias potentials, if any. \\
-`mpi_multi_sim` is soley an indicator that sets `numinstances` to 1 when using multiple walkers
-even if stated otherwise in the parameters.
+`mpi_multi_sim` is soley an indicator that sets `numinstances` to 1 when using
+multiple walkers even if stated otherwise in the parameters.
 """
 struct Univ{TG,TF,TB}
     U::TG
@@ -97,7 +97,9 @@ function Univ(parameters::ParameterSet; mpi_multi_sim=false)
             bias = Bias(parameters, U; mpi_multi_sim=mpi_multi_sim)
         end
     else
-        @assert parameters.tempering_enabled == false "tempering can only be enabled with bias"
+        @assert parameters.tempering_enabled == false """
+        tempering can only be enabled with bias
+        """
         numinstances = 1
         U = Gaugefield(parameters)
         fermion_action = init_fermion_actions(parameters, U)
@@ -111,7 +113,7 @@ function init_fermion_actions(parameters::ParameterSet, U)
     fermion_action = parameters.fermion_action
     Nf = parameters.Nf
     mass = parameters.mass
-    @assert length(Nf) == length(mass) "Need same amount of masses as non-degenerate flavours"
+    @assert length(Nf) == length(mass) "Need same amount of masses as unique flavors"
 
     if fermion_action ∈ ("none", "quenched")
         fermion_actions = QuenchedFermionAction()

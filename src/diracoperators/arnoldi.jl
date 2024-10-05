@@ -108,7 +108,9 @@ function partialschur!(
     n = LinearAlgebra.checksquare(D)
     maxdim = length(arnoldi.x)
     @assert nev ≥ 1 "nev cannot be less than 1, was $nev"
-    @assert nev ≤ mindim ≤ maxdim < n "nev ≤ mindim ≤ maxdim < n must hold, was $nev ≤ $mindim ≤ $maxdim < $n"
+    @assert nev ≤ mindim ≤ maxdim < n """
+    nev ≤ mindim ≤ maxdim < n must hold, was $nev ≤ $mindim ≤ $maxdim < $n
+    """
     _which = _symbol_to_target_meta(which)
     fill!(view(arnoldi.H, :, axes(arnoldi.H, 2)), zero(T)) 
     reinitialize_meta!(arnoldi, 0)

@@ -64,9 +64,9 @@ function temper!(
         mpi_bcast!(instance_state, comm; root=rank_i)
         mpi_bcast!(numaccepts_temper, comm; root=rank_i)
         mpi_barrier()
-        @level1(
-            "|  Acceptance [$i ⇔  $(i-1)]:\t$(100numaccepts_temper[i-1] / (itrj/swap_every)) %"
-        )
+        @level1 """
+        |  Acceptance [$i ⇔  $(i-1)]:\t$(100numaccepts_temper[i-1] / (itrj/swap_every)) %
+        """
     end
     return nothing
 end
@@ -100,9 +100,9 @@ function temper!(
             println("# swap rejected")
         end
 
-        @level1(
-            "|  Acceptance [$i ⇔  $(i-1)]:\t$(100numaccepts_temper[i-1] / (itrj/swap_every)) %"
-        )
+        @level1 """
+        "|  Acceptance [$i ⇔  $(i-1)]:\t$(100numaccepts_temper[i-1] / (itrj/swap_every)) %
+        """
     end
 
     return nothing

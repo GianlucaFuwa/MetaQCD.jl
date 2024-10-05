@@ -4,7 +4,25 @@ struct Plaquette <: AbstractFieldstrength end
 struct Clover <: AbstractFieldstrength end
 struct Improved <: AbstractFieldstrength end
 
-# TODO: Docs
+"""
+    Tensorfield{Backend,FloatType,IsDistributed,ArrayType} <:
+    AbstractField{Backend,FloatType,IsDistributed,ArrayType}
+
+6-dimensional dense array of statically sized 3x3 matrices contatining associated meta-data.
+
+    Tensorfield{Backend,FloatType}(NX, NY, NZ, NT)
+    Tensorfield{Backend,FloatType}(NX, NY, NZ, NT, numprocs_cart, halo_width)
+    Tensorfield(u::AbstractField)
+    Tensorfield(parameters::ParameterSet)
+
+Creates a Tensorfield on `Backend`, i.e. an array of 3-by-3 `FloatType`-precision matrices
+of size `4 x 4 × NX × NY × NZ × NT` or a zero-initialized Tensorfield of the same size as
+`u`.
+# Supported backends
+`CPU` \\
+`CUDABackend` \\
+`ROCBackend`
+"""
 struct Tensorfield{Backend,FloatType,IsDistributed,ArrayType} <:
     AbstractField{Backend,FloatType,IsDistributed,ArrayType}
     U::ArrayType # Actual field storing the gauge variables
@@ -42,7 +60,7 @@ struct Tensorfield{Backend,FloatType,IsDistributed,ArrayType} <:
 end
 
 function Tensorfield(
-    u::Gaugefield{Backend,FloatType,IsDistributed,ArrayType}
+    u::AbstractField{Backend,FloatType,IsDistributed,ArrayType}
 ) where {Backend,FloatType,IsDistributed,ArrayType}
     u_out = if IsDistributed
         numprocs_cart = u.topology.numprocs_cart
@@ -79,22 +97,25 @@ function fieldstrength_eachsite!(F::Tensorfield, U, kind_of_fs::String)
     return nothing
 end
 
-function fieldstrength_eachsite!(::Plaquette, F::Tensorfield{CPU}, U::Gaugefield{CPU})
+function fieldstrength_eachsite!(
+    ::Plaquette, F::Tensorfield{CPU,T}, U::Gaugefield{CPU,T}
+) where {T}
     check_dims(F, U)
+    fac = Complex{T}(im)
 
     @batch for site in eachindex(U)
         C12 = plaquette(U, 1, 2, site)
-        F[1, 2, site] = im * traceless_antihermitian(C12)
+        F[1, 2, site] = fac * (C12 - C12')
         C13 = plaquette(U, 1, 3, site)
-        F[1, 3, site] = im * traceless_antihermitian(C13)
+        F[1, 3, site] = fac * (C13 - C13')
         C14 = plaquette(U, 1, 4, site)
-        F[1, 4, site] = im * traceless_antihermitian(C14)
+        F[1, 4, site] = fac * (C14 - C14')
         C23 = plaquette(U, 2, 3, site)
-        F[2, 3, site] = im * traceless_antihermitian(C23)
+        F[2, 3, site] = fac * (C23 - C23')
         C24 = plaquette(U, 2, 4, site)
-        F[2, 4, site] = im * traceless_antihermitian(C24)
+        F[2, 4, site] = fac * (C24 - C24')
         C34 = plaquette(U, 3, 4, site)
-        F[3, 4, site] = im * traceless_antihermitian(C34)
+        F[3, 4, site] = fac * (C34 - C34')
     end
 
     update_halo!(F)
@@ -105,46 +126,21 @@ function fieldstrength_eachsite!(
     ::Clover, F::Tensorfield{CPU,T}, U::Gaugefield{CPU,T}
 ) where {T}
     check_dims(F, U)
-    fac = Complex{T}(im / 4)
+    fac = Complex{T}(im / 8)
 
     @batch for site in eachindex(U)
         C12 = clover_square(U, 1, 2, site, 1)
-        F[1, 2, site] = fac * traceless_antihermitian(C12)
+        F[1, 2, site] = fac * (C12 - C12')
         C13 = clover_square(U, 1, 3, site, 1)
-        F[1, 3, site] = fac * traceless_antihermitian(C13)
+        F[1, 3, site] = fac * (C13 - C13')
         C14 = clover_square(U, 1, 4, site, 1)
-        F[1, 4, site] = fac * traceless_antihermitian(C14)
+        F[1, 4, site] = fac * (C14 - C14')
         C23 = clover_square(U, 2, 3, site, 1)
-        F[2, 3, site] = fac * traceless_antihermitian(C23)
+        F[2, 3, site] = fac * (C23 - C23')
         C24 = clover_square(U, 2, 4, site, 1)
-        F[2, 4, site] = fac * traceless_antihermitian(C24)
+        F[2, 4, site] = fac * (C24 - C24')
         C34 = clover_square(U, 3, 4, site, 1)
-        F[3, 4, site] = fac * traceless_antihermitian(C34)
-    end
-
-    update_halo!(F)
-    return nothing
-end
-
-function fieldstrength_A_eachsite!(
-    ::Clover, F::Tensorfield{CPU,T}, U::Gaugefield{CPU,T}
-) where {T}
-    check_dims(F, U)
-    fac = Complex{T}(im / 4)
-
-    @batch for site in eachindex(U)
-        C12 = clover_square(U, 1, 2, site, 1)
-        F[1, 2, site] = fac * antihermitian(C12)
-        C13 = clover_square(U, 1, 3, site, 1)
-        F[1, 3, site] = fac * antihermitian(C13)
-        C14 = clover_square(U, 1, 4, site, 1)
-        F[1, 4, site] = fac * antihermitian(C14)
-        C23 = clover_square(U, 2, 3, site, 1)
-        F[2, 3, site] = fac * antihermitian(C23)
-        C24 = clover_square(U, 2, 4, site, 1)
-        F[2, 4, site] = fac * antihermitian(C24)
-        C34 = clover_square(U, 3, 4, site, 1)
-        F[3, 4, site] = fac * antihermitian(C34)
+        F[3, 4, site] = fac * (C34 - C34')
     end
 
     update_halo!(F)

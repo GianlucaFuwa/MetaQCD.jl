@@ -27,12 +27,12 @@ for T in (Float32, Float64)
     GA_methods = ["wilson", "symanzik_tree", "iwasaki", "dbw2"]
     m_gaction = GaugeActionMeasurement(U, GA_methods=GA_methods)
 
-    s["$(T), plaq"] = @benchmarkable(measure($m_plaq, $U, 1, 1))
-    s["$(T), poly"] = @benchmarkable(measure($m_poly, $U, 1, 1))
-    s["$(T), wilson"] = @benchmarkable(measure($m_wilson, $U, 1, 1))
-    s["$(T), topo"] = @benchmarkable(measure($m_topo, $U, 1, 1))
-    s["$(T), ed"] = @benchmarkable(measure($m_ed, $U, 1, 1))
-    s["$(T), gaction"] = @benchmarkable(measure($m_gaction, $U, 1, 1))
+    s["Avg Plaquette, $(T)"] = @benchmarkable(measure($m_plaq, $U, 1, 1))
+    s["Polyakov Loop, $(T)"] = @benchmarkable(measure($m_poly, $U, 1, 1))
+    s["Wilson Loops (2x2 + 4x4), $(T)"] = @benchmarkable(measure($m_wilson, $U, 1, 1))
+    s["Top. Charge (Plaq + Clov + Imp), $(T)"] = @benchmarkable(measure($m_topo, $U, 1, 1))
+    s["Energy Density, $(T)"] = @benchmarkable(measure($m_ed, $U, 1, 1))
+    s["Gauge Action (W + LW + IW + DBW2), $(T)"] = @benchmarkable(measure($m_gaction, $U, 1, 1))
 end
 
 end

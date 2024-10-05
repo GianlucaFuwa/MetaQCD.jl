@@ -1,5 +1,5 @@
 """
-    calc_dVdU_bare!(dU::Colorfield, F::Tensorfield, U::Gaugefield, temp_force, bias::Bias, is_smeared::Bool)
+    calc_dVdU_bare!(dU::Colorfield, F::Tensorfield, U, temp_force, bias, is_smeared)
 
 Calculate the bias force for a molecular dynamics step, i.e. the derivative of the
 bias potential w.r.t. the bare/unsmeared field U.

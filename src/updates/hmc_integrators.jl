@@ -24,6 +24,7 @@ end
 function Base.show(io::IO, ::MIME"text/plain", int::LeapfrogRA)
     print(io, "$(typeof(int))(friction=$(int.friction))")
 end
+
 Base.show(io::IO, int::LeapfrogRA) = print(io, "$(typeof(int))(friction=$(int.friction))")
 
 function evolve!(L::LeapfrogRA, U, hmc::HMC, fermion_action, bias)

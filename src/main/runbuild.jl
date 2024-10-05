@@ -14,9 +14,16 @@ function build_bias(filenamein::String; backend="cpu")
 
     if mpi_amroot()
         oneinst = parameters.numinstances == 1
-        @assert multi_sim ⊻ oneinst "MPI must be enabled if and only if numinstances > 1, numinstances was $(parameters.numinstances)"
-        @assert mpi_size() == parameters.numinstances "numinstances has to be equal to the number of MPI ranks"
-        @assert parameters.kind_of_bias ∉ ("none", "parametric") "bias has to be \"metad\" or \"opes\" in build, was $(parameters.kind_of_bias)"
+        @assert multi_sim ⊻ oneinst """
+        MPI must be enabled if and only if numinstances > 1, numinstances was \
+        $(parameters.numinstances)
+        """
+        @assert mpi_size() == parameters.numinstances """
+        numinstances has to be equal to the number of MPI ranks
+        """
+        @assert parameters.kind_of_bias ∉ ("none", "parametric") """
+        bias has to be \"metad\" or \"opes\" in build, was $(parameters.kind_of_bias)
+        """
         @assert parameters.is_static == false "Bias cannot be static in build"
     end
 

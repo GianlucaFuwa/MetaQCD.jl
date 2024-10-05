@@ -36,7 +36,9 @@ include("distributed.jl") # utility functions for MPI-distributed fields
 include("boundaries.jl") # boundary conditions in time direction for spinors
 include("gaugefield.jl") # Gaugefield, Colorfield and Expfield structs defined here
 include("algebrafield.jl") # For now just a placeholder in case I want to implement more efficient storage of su(3) algebra elements
-include("spinorfield.jl") # Spinorfield and SpinorfieldEO (Even-Odd) structs defined here 
+include("spinorfield.jl") # Spinorfield structs defined here 
+include("spinorfield_eo.jl") # Spinorfield for even-odd precon
+include("paulifield.jl") # For now just a placeholder in case I want to implement more efficient storage of su(3) algebra elements
 include("tensorfield.jl") # Tensorfield struct and fieldstrength methods defined here
 include("iterators.jl") # Sequential and Checkerboard iterators defined here 
 include("gpu_iterators.jl") # GPU version of the above
@@ -51,6 +53,7 @@ include("wilsonloop.jl") # Definition of arbitrary side length Wilson loops
 include("gpu_kernels/action.jl") # GPU versions of the above:
 include("gpu_kernels/algebrafield.jl")
 include("gpu_kernels/field_operations.jl")
+# TODO: include("gpu_kernels/paulifield.jl")
 include("gpu_kernels/spinorfield.jl")
 include("gpu_kernels/tensorfield.jl")
 include("gpu_kernels/wilsonloop.jl")
@@ -131,10 +134,12 @@ Check if all fields have the same dimensions. Throw an `AssertionError` otherwis
 """
 @generated function check_dims(x1, rest::Vararg{Any,N}) where {N}
     q_inner = Expr(:comparison, :(global_dims(x1)))
+
     for i in 1:N
         push!(q_inner.args, :(==))
         push!(q_inner.args, :(global_dims(rest[$i])))
     end
+
     q = Expr(:macrocall, Symbol("@assert"), :(), q_inner)
     return q
 end
@@ -146,14 +151,14 @@ end
 Base.eachindex(::IndexLinear, u::AbstractMPIField) =
     error("MPI parallelized field can not be iterated over linearly")
 
-@inline allindices(u::AbstractField) = eachindex(u.U) # all indices including halo regions
-
 @inline function Base.eachindex(even::Bool, u::AbstractField)
     NX, NY, NZ, NT = global_dims(u)
     @assert iseven(NT)
     last_range = even ? (1:div(NT, 2)) : (div(NT, 2)+1:NT)
     return CartesianIndices((NX, NY, NZ, last_range))
 end
+
+@inline allindices(u::AbstractField) = eachindex(u.U) # all indices including halo regions
 
 Base.length(u::AbstractField) = u.NV
 

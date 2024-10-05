@@ -14,7 +14,7 @@ export mpi_init, mpi_comm, mpi_size, mpi_parallel, mpi_myrank, mpi_amroot, mpi_b
 export mpi_cart_create, mpi_cart_coords, mpi_cart_shift, mpi_multirequest, mpi_send
 export mpi_isend, mpi_recv, mpi_irecv!, mpi_waitall, mpi_allreduce, mpi_allgather
 export mpi_bcast_isbits, mpi_write_at, update_halo!
-export exp_iQ, exp_iQ_coeffs, exp_iQ_su3, get_B₁, get_B₂, get_Q, get_Q²
+export PauliMatrix, exp_iQ, exp_iQ_coeffs, exp_iQ_su3, get_B₁, get_B₂, get_Q, get_Q²
 export gen_SU3_matrix, is_special_unitary, is_traceless_antihermitian
 export kenney_laub, proj_onto_SU3, multr, cnorm2
 export make_submatrix_12, make_submatrix_13, make_submatrix_23
@@ -24,7 +24,7 @@ export zero2, zero3, zerov3, eye2, eye3, onev3, gaussian_TA_mat, rand_SU3
 export SiteCoords, eo_site, eo_site_switch, move, switch_sides
 export cartesian_to_linear
 export Sequential, Checkerboard2, Checkerboard4
-export λ, expλ, γ₁, γ₂, γ₃, γ₄, γ₅, σ₁₂, σ₁₃, σ₁₄, σ₂₃, σ₂₄, σ₃₄
+export λ, expλ, γ1, γ2, γ3, γ4, γ5, σ12, σ13, σ14, σ23, σ24, σ34
 export cmatmul_oo, cmatmul_dd, cmatmul_do, cmatmul_od
 export cmatmul_ooo,
     cmatmul_ood,
@@ -118,6 +118,28 @@ const i32 = Literal{Int32}
 ]
 
 const SU{N,N²,T} = SMatrix{N,N,Complex{T},N²}
+
+struct PauliMatrix{T<:AbstractFloat}
+    upper::SU{6,36,T}
+    lower::SU{6,36,T}
+    function PauliMatrix(λ::UniformScaling{T}) where {T<:AbstractFloat}
+        upper = lower = @SMatrix(zeros(Complex{T}, 6, 6)) + λ
+        return new{T}(upper, lower)
+    end
+
+    function PauliMatrix(upper::SU{6,36,T}, lower::SU{6,36,T}) where {T<:AbstractFloat}
+        return new{T}(upper, lower)
+    end
+end
+
+Base.zero(::Type{PauliMatrix{T}}) where {T} = PauliMatrix(UniformScaling(zero(T)))
+Base.one(::Type{PauliMatrix{T}}) where {T} = PauliMatrix(UniformScaling(one(T)))
+
+function Base.rand(::Type{PauliMatrix{T}}) where {T}
+    upper = hermitian(@SMatrix(rand(Complex{T}, 6, 6)))
+    lower = hermitian(@SMatrix(rand(Complex{T}, 6, 6)))
+    return PauliMatrix(upper, lower)
+end
 
 """
     multr(A::SMatrix{N,N,Complex{T},N²}, B::SMatrix{N,N,Complex{T},N²}) where {N,N²,T}

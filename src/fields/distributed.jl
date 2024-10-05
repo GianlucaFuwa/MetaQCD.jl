@@ -28,8 +28,12 @@ struct FieldTopology
     global_volume::Int64 # Number of sites in global field
     local_volume::Int64 # Number of sites in local partition
     function FieldTopology(numprocs_cart, halo_width, global_dims)
-        @assert global_dims .% numprocs_cart == (0, 0, 0, 0) "Lattice size must be divisible by number of processes per dimension"
-        @assert minimum(global_dims ./ numprocs_cart) >= halo_width "Halo must not be wider than the bulk"
+        @assert global_dims .% numprocs_cart == (0, 0, 0, 0) """
+        Lattice size must be divisible by number of processes per dimension
+        """
+        @assert minimum(global_dims ./ numprocs_cart) >= halo_width """
+        Halo must not be wider than the bulk
+        """
         comm_cart = mpi_cart_create(numprocs_cart; periodic=map(_->true, numprocs_cart))
 
         numprocs = prod(numprocs_cart)
