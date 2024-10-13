@@ -916,7 +916,6 @@ a `Val` and must be within the range `[1,4]` with `μ < ν`
     return SVector(σμν_spin_mul!(MVector{M,Complex{T}}(undef), MVector(x), Val(μ), Val(ν)))
 end
 
-# TODO: make it return two 2Mx2M matrices instead of one 4Mx4M
 @generated function σμν_spin_mul!(
     yc::MVector{M,Complex{T}}, xc::MVector{M,Complex{T}}, ::Val{μ}, ::Val{ν}
 ) where {T,M,μ,ν}
@@ -1015,13 +1014,13 @@ end
 end
 
 """
-    spintrace_σμν(P::PauliMatrix, ::Val{μ}, ::Val{ν})
+    spintrace_pauli(P::PauliMatrix, ::Val{μ}, ::Val{ν})
 """
-@generated function spintrace_σμν(
-    P::PauliMatrix{T},
+@generated function spintrace_pauli(
+    P::PauliMatrix{N,N²,T},
     ::Val{μ},
     ::Val{ν}
-) where {T,μ,ν}
+) where {N,N²,T,μ,ν}
     q = quote
         $(Expr(:meta, :inline))
         A = P.upper
@@ -1034,13 +1033,13 @@ end
     inner_q = if μ === 1 && ν === 2
         :(return -A[$i, $i] + A[$j, $j] - B[$i, $i] + B[$j, $j])
     elseif μ === 1 && ν === 3
-        :(return im * (A[$j, $i] - A[$i, $j] + B[$j, $i] - B[$i, $j]))
+        :(return im * (A[$i, $j] - A[$j, $i] + B[$i, $j] - B[$j, $i]))
     elseif μ === 1 && ν === 4
         :(return A[$j, $i] + A[$i, $j] - B[$j, $i] - B[$i, $j])
     elseif μ === 2 && ν === 3
         :(return -A[$j, $i] - A[$i, $j] - B[$j, $i] - B[$i, $j])
     elseif μ === 2 && ν === 4
-        :(return im * (A[$j, $i] - A[$i, $j] - B[$j, $i] + B[$i, $j]))
+        :(return im * (A[$i, $j] - A[$j, $i] - B[$i, $j] + B[$j, $i]))
     elseif μ === 3 && ν === 4
         :(return A[$i, $i] - A[$j, $j] - B[$i, $i] + B[$j, $j])
     else
@@ -1058,9 +1057,9 @@ Return the matrix-vector product of the block diagonal matrix containing `A₊` 
 `A₋` and the vector `x`        
 """
 @inline function cmvmul_block(
-    P::PauliMatrix{T},
+    P::PauliMatrix{N,N²,T},
     x::SVector{N2,Complex{T}}
-) where {T,N2}
+) where {N,N²,T,N2}
     idx1 = SVector(1:6...)
     idx2 = SVector(7:12...)
     A₊ = P.upper

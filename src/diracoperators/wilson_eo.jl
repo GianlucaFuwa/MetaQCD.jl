@@ -46,7 +46,7 @@ struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO,BC} <: AbstractDiracOperator
         Fμν = C ? Tensorfield(f) : nothing
         temp = even_odd(Spinorfield(f))
         D_diag = Paulifield(temp, csw)
-        D_oo_inv = Paulifield(temp, csw)
+        D_oo_inv = Paulifield(temp, csw; inverse=true)
         boundary_condition = create_bc(bc_str, f.topology)
 
         TG = Nothing
@@ -67,7 +67,7 @@ struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO,BC} <: AbstractDiracOperator
         csw = D.csw
         temp = even_odd(D.temp)
         D_diag = Paulifield(temp, csw)
-        D_oo_inv = Paulifield(temp, csw)
+        D_oo_inv = Paulifield(temp, csw; inverse=true)
 
         Fμν = C ? Tensorfield(U) : nothing
         calc_diag!(D_diag, D_oo_inv, Fμν, U, mass)
@@ -109,7 +109,7 @@ end
 @inline has_clover_term(::Daggered{W}) where {B,T,C,W<:WilsonEOPreDiracOperator{B,T,C}} = C
 @inline has_clover_term(::DdaggerD{W}) where {B,T,C,W<:WilsonEOPreDiracOperator{B,T,C}} = C
 
-struct WilsonEOPreFermionAction{Nf,C,TD,CT,TX,RI1,RI2,RT} <: AbstractFermionAction{Nf}
+struct WilsonEOPreFermionAction{R,Nf,C,TD,CT,TX,RI1,RI2,RT} <: AbstractFermionAction{R,Nf}
     D::TD
     cg_temps::CT
     Xμν::TX
@@ -142,6 +142,7 @@ struct WilsonEOPreFermionAction{Nf,C,TD,CT,TX,RI1,RI2,RT} <: AbstractFermionActi
         TD = typeof(D)
 
         if Nf == 2
+            R = false
             rhmc_info_md = nothing
             rhmc_info_action = nothing
             rhmc_temps1 = nothing
@@ -151,6 +152,7 @@ struct WilsonEOPreFermionAction{Nf,C,TD,CT,TX,RI1,RI2,RT} <: AbstractFermionActi
             @assert Nf == 1 """
             Nf should be 1 or 2 (was $Nf). If you want Nf > 2, use multiple actions
             """
+            R = true
             cg_temps = ntuple(_ -> even_odd(Spinorfield(f)), 2)
             power = Nf//4
             rhmc_info_action = RHMCParams(
@@ -172,7 +174,7 @@ struct WilsonEOPreFermionAction{Nf,C,TD,CT,TX,RI1,RI2,RT} <: AbstractFermionActi
         RI1 = typeof(rhmc_info_action)
         RI2 = typeof(rhmc_info_md)
         RT = typeof(rhmc_temps1)
-        return new{Nf,C,TD,CT,TX,RI1,RI2,RT}(
+        return new{R,Nf,C,TD,CT,TX,RI1,RI2,RT}(
             D,
             cg_temps,
             Xμν,
@@ -188,8 +190,9 @@ struct WilsonEOPreFermionAction{Nf,C,TD,CT,TX,RI1,RI2,RT} <: AbstractFermionActi
     end
 end
 
+# INFO: Need to explicitly define fermion action here, because of the small determinant
 function calc_fermion_action(
-    fermion_action::WilsonEOPreFermionAction{2},
+    fermion_action::WilsonEOPreFermionAction{false,2},
     U::Gaugefield,
     ϕ_eo::WilsonEOPreSpinorfield,
 )
@@ -199,40 +202,51 @@ function calc_fermion_action(
     cg_tol = fermion_action.cg_tol_action
     cg_maxiters = fermion_action.cg_maxiters_action
 
-    # clear!(ψ_eo) # initial guess is zero
-    # solve_dirac!(ψ_eo, DdagD, ϕ_eo, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
-    Sf = #= dot(ϕ_eo, ψ_eo) =# - 2trlog(D.D_diag, D.mass)
-    return distributed_reduce(real(Sf), +, U)
+    clear!(ψ_eo) # initial guess is zero
+    solve_dirac!(ψ_eo, DdagD, ϕ_eo, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
+    Sf = real(dot(ϕ_eo, ψ_eo)) - 2trlog(D.D_diag, D.mass)
+    return Sf
 end
 
 function calc_fermion_action(
-    fermion_action::WilsonEOPreFermionAction{1},
+    fermion_action::WilsonEOPreFermionAction{true,1},
     U::Gaugefield,
     ϕ_eo::WilsonEOPreSpinorfield,
 )
-    error("Not implemented yet")
-    # TODO:
-    # return distributed_reduce(real(Sf), +, U)
-end
-
-function sample_pseudofermions!(ϕ, fermion_action::WilsonEOPreFermionAction{2}, U)
+    cg_tol = fermion_action.cg_tol_action
+    cg_maxiters = fermion_action.cg_maxiters_action
+    rhmc = fermion_action.rhmc_info_action
+    n = get_n(rhmc)
     D = fermion_action.D(U)
-    temp = fermion_action.cg_temps[1]
-    gaussian_pseudofermions!(temp)
-    mul!(ϕ, adjoint(D), temp)
-    return nothing
-end
+    DdagD = DdaggerD(D)
+    ψs = fermion_action.rhmc_temps1[1:n+1]
+    ps = fermion_action.rhmc_temps2[1:n+1]
+    temp1, temp2 = fermion_action.cg_temps
 
-function sample_pseudofermions!(ϕ, fermion_action::WilsonEOPreFermionAction{1}, U)
-    error("Not implemented yet")
-    # TODO
-    return nothing
+    for v_eo in ψs
+        clear!(v_eo)
+    end
+
+    shifts = get_β_inverse(rhmc)
+    coeffs = get_α_inverse(rhmc)
+    α₀ = get_α0_inverse(rhmc)
+    solve_dirac_multishift!(ψs, shifts, DdagD, ϕ_eo, temp1, temp2, ps, cg_tol, cg_maxiters)
+    ψ_eo = ψs[1]
+    clear!(ψ_eo) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
+
+    axpy!(α₀, ϕ_eo, ψ_eo)
+
+    for i in 1:n
+        axpy!(coeffs[i], ψs[i+1], ψ_eo)
+    end
+
+    Sf = real(dot(ψ_eo, ψ_eo)) - 2trlog(D.D_diag, D.mass)
+    return Sf
 end
 
 function solve_dirac!(
     ψ_eo, D::T, ϕ_eo, temp1, temp2, temp3, temp4, temp5; tol=1e-14, maxiters=1000
 ) where {T<:WilsonEOPreDiracOperator}
-    check_dims(ψ_eo, ϕ_eo, D.U, temp1, temp2, temp3, temp4, temp5)
     bicg_stab!(ψ_eo, D, ϕ_eo, temp1, temp2, temp3, temp4, temp5; tol=tol, maxiters=maxiters)
     return nothing
 end
@@ -375,7 +389,7 @@ function calc_diag!(
     fdims = dims(U)
     NV = U.NV
 
-    #= @batch  =#for site in eachindex(U)
+    @batch for site in eachindex(U)
         _site = eo_site(site, fdims..., NV)
         A = SMatrix{6,6,Complex{T},36}(mass_term * I)
         D_diag[site] = PauliMatrix(A, A)
@@ -395,11 +409,11 @@ function calc_diag!(
     mass_term = Complex{T}(4 + mass)
     fdims = dims(U)
     NV = U.NV
-    fac = Complex{T}(-D_diag.csw / 2)
+    fac = Complex{T}(D_diag.csw / 2)
 
     fieldstrength_eachsite!(Clover(), Fμν, U)
 
-    #= @batch  =#for site in eachindex(U)
+    @batch for site in eachindex(U)
         _site = eo_site(site, fdims..., NV)
         M = SMatrix{6,6,Complex{T},36}(mass_term * I)
         i = SVector((1, 2))
@@ -437,26 +451,26 @@ function calc_diag!(
 
         A₊ = fac * A₊ + M
         A₋ = fac * A₋ + M
-        D_diag[site] = PauliMatrix(A₊, A₋) # XXX:
+        D_diag[_site] = PauliMatrix(A₊, A₋)
 
-        # if isodd(site)
-            # o_site = switch_sides(_site, fdims..., NV)
-            D_oo_inv[site] = PauliMatrix(cinv(A₊), cinv(A₋)) # XXX:
-        # end
+        if isodd(site)
+            o_site = switch_sides(_site, fdims..., NV)
+            D_oo_inv[o_site] = PauliMatrix(cinv(A₊), cinv(A₋))
+        end
     end
 end
 
 function mul_oo_inv!(
-    ϕ_eo::WilsonEOPreSpinorfield{CPU,T}, D_diag::Paulifield{CPU,T}
+    ϕ_eo::WilsonEOPreSpinorfield{CPU,T}, D_oo_inv::Paulifield{CPU,T}
 ) where {T}
-    check_dims(ϕ_eo, D_diag)
+    check_dims(ϕ_eo, D_oo_inv)
     ϕ = ϕ_eo.parent
     fdims = dims(ϕ)
     NV = ϕ.NV
 
-    #= @batch  =#for _site in eachindex(true, ϕ)
+    @batch for _site in eachindex(true, ϕ)
         o_site = switch_sides(_site, fdims..., NV)
-        ϕ[o_site] = cmvmul_block(D_diag[_site], ϕ[o_site])
+        ϕ[o_site] = cmvmul_block(D_oo_inv[_site], ϕ[o_site])
     end
 
     return nothing
@@ -464,13 +478,13 @@ end
 
 function axmy!(
     D_diag::Paulifield{CPU,T}, ψ_eo::TF, ϕ_eo::TF
-) where {T,TF<:SpinorfieldEO{CPU,T}} # even on even is the default
+) where {T,TF<:WilsonEOPreSpinorfield{CPU,T}} # even on even is the default
     check_dims(ϕ_eo, ψ_eo)
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent
     even = true
 
-    #= @batch  =#for _site in eachindex(even, ϕ)
+    @batch for _site in eachindex(even, ϕ)
         ϕ[_site] = cmvmul_block(D_diag[_site], ψ[_site]) - ϕ[_site]
     end
 
@@ -487,10 +501,10 @@ end
 function trlog(D_diag::Paulifield{CPU,T,M,true}, ::Any) where {T,M} # With clover term
     d = 0.0
 
-    @batch reduction=(+, d) for site in eachindex(D_diag) # XXX:
-        p = D_diag[site] # XXX:
+    @batch reduction=(+, d) for _site in eachindex(false, D_diag)
+        p = D_diag[_site]
         d += log(real(det(p.upper)) * real(det(p.lower)))
     end
 
-    return d
+    return distributed_reduce(d, +, D_diag)
 end

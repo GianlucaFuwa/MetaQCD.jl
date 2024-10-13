@@ -54,7 +54,7 @@ export cdot, cmvmul, cmvmul_d, cvmmul, cvmmul_d, cmvmul_block
 export cmvmul_color, cmvmul_d_color, cvmmul_color, cvmmul_d_color
 export ckron, spintrace, cmvmul_spin_proj, spin_proj, σμν_spin_mul
 export _unwrap_val, SU, restore_last_col, restore_last_row, FLOAT_TYPE
-export cinv, i32, spintrace_σμν
+export cinv, i32, spintrace_pauli
 
 abstract type AbstractIterator end
 struct Sequential <: AbstractIterator end
@@ -119,25 +119,28 @@ const i32 = Literal{Int32}
 
 const SU{N,N²,T} = SMatrix{N,N,Complex{T},N²}
 
-struct PauliMatrix{T<:AbstractFloat}
-    upper::SU{6,36,T}
-    lower::SU{6,36,T}
-    function PauliMatrix(λ::UniformScaling{T}) where {T<:AbstractFloat}
-        upper = lower = @SMatrix(zeros(Complex{T}, 6, 6)) + λ
-        return new{T}(upper, lower)
+struct PauliMatrix{N,N²,T<:AbstractFloat}
+    upper::SU{N,N²,T}
+    lower::SU{N,N²,T}
+    function PauliMatrix(λ::UniformScaling{T}, ::Val{N}) where {N,T<:AbstractFloat}
+        upper = lower = @SMatrix(zeros(Complex{T}, N, N)) + λ
+        N² = N^2
+        return new{N,N²,T}(upper, lower)
     end
 
-    function PauliMatrix(upper::SU{6,36,T}, lower::SU{6,36,T}) where {T<:AbstractFloat}
-        return new{T}(upper, lower)
+    function PauliMatrix(upper::SU{N,N²,T}, lower::SU{N,N²,T}) where {N,N²,T<:AbstractFloat}
+        return new{N,N²,T}(upper, lower)
     end
 end
 
-Base.zero(::Type{PauliMatrix{T}}) where {T} = PauliMatrix(UniformScaling(zero(T)))
-Base.one(::Type{PauliMatrix{T}}) where {T} = PauliMatrix(UniformScaling(one(T)))
+Base.zero(::Type{PauliMatrix{N,N²,T}}) where {N,N²,T} =
+    PauliMatrix(UniformScaling(zero(T)), Val(N))
+Base.one(::Type{PauliMatrix{N,N²,T}}) where {N,N²,T} =
+    PauliMatrix(UniformScaling(one(T)), Val(N))
 
-function Base.rand(::Type{PauliMatrix{T}}) where {T}
-    upper = hermitian(@SMatrix(rand(Complex{T}, 6, 6)))
-    lower = hermitian(@SMatrix(rand(Complex{T}, 6, 6)))
+function Base.rand(::Type{PauliMatrix{N,N²,T}}) where {N,N²,T}
+    upper = hermitian(@SMatrix(rand(Complex{T}, N, N)))
+    lower = hermitian(@SMatrix(rand(Complex{T}, N, N)))
     return PauliMatrix(upper, lower)
 end
 
@@ -234,7 +237,7 @@ include("simd_matmul.jl")
 include("simd_vecops.jl")
 include("generators.jl")
 include("exp.jl")
-include("projections.jl")
+include("algebra.jl")
 include("sitecoords.jl")
 
 end

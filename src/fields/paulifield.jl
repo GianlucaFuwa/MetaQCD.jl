@@ -28,7 +28,7 @@ struct Paulifield{B,T,M,C,A} <: AbstractField{B,T,M,A} # So we can overload Line
         ND = num_dirac(f)
         NV = NX * NY * NZ * NT
         C = csw == 0 ? false : true
-        U = KA.zeros(B(), PauliMatrix{T}, NX, NY, NZ, _NT)
+        U = KA.zeros(B(), PauliMatrix{6,36,T}, NX, NY, NZ, _NT)
 
         A = typeof(U)
         return new{B,T,false,C,A}(U, csw, NX, NY, NZ, NT, NV, NC, ND, topology)
@@ -37,4 +37,3 @@ end
 
 @inline global_dims(p::Paulifield) = NTuple{4,Int64}((p.NX, p.NY, p.NZ, p.NT))
 num_colors(p::Paulifield) = p.NC
-

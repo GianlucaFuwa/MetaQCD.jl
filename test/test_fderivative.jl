@@ -127,10 +127,10 @@ function test_fderivative(
         symm_diff = (action_new_fwd - action_new_bwd) / 2ΔH
         symm_diff_smeared = (action_new_fwd_smeared - action_new_bwd_smeared) / 2ΔH
 
-        if group_direction == 1
-            @show daction_proj
-            @show symm_diff
-        end
+        # if group_direction == 1
+        #     @show daction_proj
+        #     @show symm_diff
+        # end
         relerrors[group_direction, 1] = (symm_diff - daction_proj) / symm_diff
         relerrors[group_direction, 2] =
             (symm_diff_smeared - daction_proj_smeared) / symm_diff_smeared
@@ -142,10 +142,10 @@ function test_fderivative(
         end
     end
 
-    # if mpi_amroot()
-    #     println()
-    #     @test length(findall(x -> abs(x) > 1e-4, relerrors[:, 2])) == 0
-    # end
+    if mpi_amroot()
+        println()
+        # @test length(findall(x -> abs(x) > 1e-4, relerrors[:, 2])) == 0
+    end
 
     mpi_barrier()
     return relerrors

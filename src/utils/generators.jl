@@ -1,4 +1,5 @@
-# Chiral(Weyl)-Basis γ matrices
+# INFO: Chiral(Weyl)-Basis γ matrices
+
 @inline function γ1(::Type{T}) where {T}
     return @SArray [
         Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, -1)

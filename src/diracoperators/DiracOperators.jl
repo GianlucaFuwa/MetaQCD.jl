@@ -30,9 +30,9 @@ import ..Fields: fieldstrength_eachsite!, num_colors, num_dirac
 import ..Fields: PeriodicBC, AntiPeriodicBC, apply_bc, create_bc, distributed_reduce
 
 abstract type AbstractDiracOperator end
-abstract type AbstractFermionAction{Nf} end
+abstract type AbstractFermionAction{R,Nf} end # R indicates whether the action uses rational approximation or not
 
-struct QuenchedFermionAction <: AbstractFermionAction{0} end
+struct QuenchedFermionAction <: AbstractFermionAction{false,0} end
 
 # some aliases
 const StaggeredSpinorfield{B,T,M,A} = Spinorfield{B,T,M,A,1}
@@ -43,7 +43,7 @@ const WilsonEOPreSpinorfield{B,T,M,A} = SpinorfieldEO{B,T,M,A,4}
 Base.eltype(D::AbstractDiracOperator) = eltype(D.temp)
 LinearAlgebra.checksquare(D::AbstractDiracOperator) = LinearAlgebra.checksquare(D.temp)
 get_temp(D::AbstractDiracOperator) = D.temp
-@inline num_flavors(::AbstractFermionAction{Nf}) where {Nf} = Nf
+@inline num_flavors(::AbstractFermionAction{R,Nf}) where {R,Nf} = Nf
 
 """
     Daggered(D::AbstractDiracOperator)
@@ -110,25 +110,103 @@ function solve_dirac_multishift!(
 end
 
 """
-    calc_fermion_action(fermion_action, ϕ)
+    calc_fermion_action(fermion_action, U, ϕ)
 
-Calculate the fermion action for the fermion field `ϕ` using the fermion action
-`fermion_action`.
+Calculate the fermion action for the fermion field `ϕ` on the gauge background `U`using the
+fermion action `fermion_action`.
 """
-function calc_fermion_action(fermion_action::TA, U, ϕ::TF) where {TA,TF}
-    @nospecialize fermion_action U ϕ
-    return error("calc_fermion_action is not supported for type $TA with field of type $TF")
+function calc_fermion_action(fermion_action::AbstractFermionAction{false}, U, ϕ)
+    D = fermion_action.D(U)
+    DdagD = DdaggerD(D)
+    ψ, temp1, temp2, temp3 = fermion_action.cg_temps
+    cg_tol = fermion_action.cg_tol_action
+    cg_maxiters = fermion_action.cg_maxiters_action
+
+    clear!(ψ) # initial guess is zero
+    solve_dirac!(ψ, DdagD, ϕ, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
+    Sf = real(dot(ϕ, ψ))
+    return Sf
 end
 
-calc_fermion_action(::QuenchedFermionAction, ::Gaugefield) = 0.0
+function calc_fermion_action(fermion_action::AbstractFermionAction{true}, U, ϕ)
+    cg_tol = fermion_action.cg_tol_action
+    cg_maxiters = fermion_action.cg_maxiters_action
+    rhmc = fermion_action.rhmc_info_action
+    n = get_n(rhmc)
+    D = fermion_action.D(U)
+    DdagD = DdaggerD(D)
+    ψs = fermion_action.rhmc_temps1[1:n+1]
+    ps = fermion_action.rhmc_temps2[1:n+1]
+    temp1, temp2 = fermion_action.cg_temps
+
+    for v in ψs
+        clear!(v)
+    end
+
+    shifts = get_β_inverse(rhmc)
+    coeffs = get_α_inverse(rhmc)
+    α₀ = get_α0_inverse(rhmc)
+    solve_dirac_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
+    ψ = ψs[1]
+    clear!(ψ) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
+
+    axpy!(α₀, ϕ, ψ)
+
+    for i in 1:n
+        axpy!(coeffs[i], ψs[i+1], ψ)
+    end
+
+    Sf = real(dot(ψ, ψ))
+    return Sf
+end
+
+calc_fermion_action(::QuenchedFermionAction, ::Gaugefield, ::Any) = 0.0
 
 """
-    sample_pseudofermions!(ϕ, fermion_action)
+    sample_pseudofermions!(ϕ, fermion_action, U)
 
 Sample pseudo fermions for an HMC update according to the probability density specified by
 `fermion_action`.
 """
-sample_pseudofermions!(::AbstractField, ::QuenchedFermionAction) = nothing
+function sample_pseudofermions!(ϕ, fermion_action::AbstractFermionAction{false}, U)
+    D = fermion_action.D(U)
+    temp = fermion_action.cg_temps[1]
+    gaussian_pseudofermions!(temp)
+    LinearAlgebra.mul!(ϕ, adjoint(D), temp)
+    return nothing
+end
+
+function sample_pseudofermions!(ϕ, fermion_action::AbstractFermionAction{true}, U)
+    cg_tol = fermion_action.cg_tol_action
+    cg_maxiters = fermion_action.cg_maxiters_action
+    rhmc = fermion_action.rhmc_info_action
+    n = get_n(rhmc)
+    D = fermion_action.D(U)
+    DdagD = DdaggerD(D)
+    ψs = fermion_action.rhmc_temps1[1:n+1]
+    ps = fermion_action.rhmc_temps2[1:n+1]
+    temp1, temp2 = fermion_action.cg_temps
+
+    for v in ψs
+        clear!(v)
+    end
+
+    shifts = get_β(rhmc)
+    coeffs = get_α(rhmc)
+    α₀ = get_α0(rhmc)
+    gaussian_pseudofermions!(ϕ) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
+    solve_dirac_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
+
+    mul!(ϕ, α₀)
+
+    for i in 1:n
+        axpy!(coeffs[i], ψs[i+1], ϕ)
+    end
+
+    return nothing
+end
+
+sample_pseudofermions!(::AbstractField, ::QuenchedFermionAction, U) = nothing
 
 # So we don't print the entire array in the REPL...
 function Base.show(io::IO, ::MIME"text/plain", D::T) where {T<:AbstractDiracOperator}

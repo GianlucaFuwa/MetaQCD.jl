@@ -63,7 +63,7 @@ end
 @inline has_clover_term(::Daggered{W}) where {B,T,C,W<:WilsonDiracOperator{B,T,C}} = C
 @inline has_clover_term(::DdaggerD{W}) where {B,T,C,W<:WilsonDiracOperator{B,T,C}} = C
 
-struct WilsonFermionAction{Nf,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction{Nf}
+struct WilsonFermionAction{R,Nf,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction{R,Nf}
     D::TD
     cg_temps::CT
     rhmc_info_action::RI1
@@ -97,6 +97,7 @@ struct WilsonFermionAction{Nf,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction{Nf}
         TD = typeof(D)
 
         if Nf == 2
+            R = false
             rhmc_info_action = nothing
             rhmc_info_md = nothing
             rhmc_temps1 = nothing
@@ -106,6 +107,7 @@ struct WilsonFermionAction{Nf,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction{Nf}
             @assert Nf == 1 """
             Nf should be 1 or 2 (was $Nf). If you want Nf > 2, use multiple actions
             """
+            R = true
             rhmc_lambda_low = rhmc_spectral_bound[1]
             rhmc_lambda_high = rhmc_spectral_bound[2]
             cg_temps = ntuple(_ -> Spinorfield(f), 2)
@@ -141,7 +143,7 @@ struct WilsonFermionAction{Nf,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction{Nf}
         RI2 = typeof(rhmc_info_md)
         RT = typeof(rhmc_temps1)
         TX = typeof(Xμν)
-        return new{Nf,TD,CT,RI1,RI2,RT,TX}(
+        return new{R,Nf,TD,CT,RI1,RI2,RT,TX}(
             D,
             cg_temps,
             rhmc_info_action,
@@ -155,92 +157,6 @@ struct WilsonFermionAction{Nf,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction{Nf}
             cg_maxiters_md,
         )
     end
-end
-
-function calc_fermion_action(
-    fermion_action::WilsonFermionAction{2}, U::Gaugefield, ϕ::WilsonSpinorfield
-)
-    D = fermion_action.D(U)
-    DdagD = DdaggerD(D)
-    ψ, temp1, temp2, temp3 = fermion_action.cg_temps
-    cg_tol = fermion_action.cg_tol_action
-    cg_maxiters = fermion_action.cg_maxiters_action
-
-    clear!(ψ) # initial guess is zero
-    solve_dirac!(ψ, DdagD, ϕ, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
-    Sf = dot(ϕ, ψ)
-    return distributed_reduce(real(Sf), +, U)
-end
-
-function calc_fermion_action(
-    fermion_action::WilsonFermionAction{1}, U::Gaugefield, ϕ::WilsonSpinorfield
-)
-    cg_tol = fermion_action.cg_tol_action
-    cg_maxiters = fermion_action.cg_maxiters_action
-    rhmc = fermion_action.rhmc_info_action
-    n = get_n(rhmc)
-    D = fermion_action.D(U)
-    DdagD = DdaggerD(D)
-    ψs = fermion_action.rhmc_temps1
-    ps = fermion_action.rhmc_temps2
-    temp1, temp2 = fermion_action.cg_temps
-
-    for v in ψs
-        clear!(v)
-    end
-
-    shifts = get_β_inverse(rhmc)
-    coeffs = get_α_inverse(rhmc)
-    α₀ = get_α0_inverse(rhmc)
-    solve_dirac_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
-    ψ = ψs[1]
-    clear!(ψ) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
-
-    axpy!(α₀, ϕ, ψ)
-    for i in 1:n
-        axpy!(coeffs[i], ψs[i+1], ψ)
-    end
-
-    Sf = dot(ψ, ψ)
-    return distributed_reduce(real(Sf), +, U)
-end
-
-function sample_pseudofermions!(ϕ, fermion_action::WilsonFermionAction{2}, U)
-    D = fermion_action.D(U)
-    temp = fermion_action.cg_temps[1]
-    gaussian_pseudofermions!(temp)
-    mul!(ϕ, adjoint(D), temp)
-    return nothing
-end
-
-function sample_pseudofermions!(ϕ, fermion_action::WilsonFermionAction{Nf}, U) where {Nf}
-    cg_tol = fermion_action.cg_tol_action
-    cg_maxiters = fermion_action.cg_maxiters_action
-    rhmc = fermion_action.rhmc_info_action
-    n = get_n(rhmc)
-    D = fermion_action.D(U)
-    DdagD = DdaggerD(D)
-    ψs = fermion_action.rhmc_temps1
-    ps = fermion_action.rhmc_temps2
-    temp1, temp2 = fermion_action.cg_temps
-
-    for v in ψs
-        clear!(v)
-    end
-
-    shifts = get_β(rhmc)
-    coeffs = get_α(rhmc)
-    α₀ = get_α0(rhmc)
-    gaussian_pseudofermions!(ϕ) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
-    solve_dirac_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
-
-    mul!(ϕ, α₀)
-
-    for i in 1:n
-        axpy!(coeffs[i], ψs[i+1], ϕ)
-    end
-
-    return nothing
 end
 
 function solve_dirac!(

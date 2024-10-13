@@ -43,6 +43,7 @@ force recursion when using a bias.
 
 # Supported Fermion Actions
 - `WilsonFermionAction`
+- `WilsonEOPreFermionAction`
 - `StaggeredFermionAction`
 - `StaggeredEOPreFermionAction`
 """
@@ -139,6 +140,8 @@ function HMC(
         ϕ = ntuple(_ -> even_odd(Spinorfield(U; staggered=true)), 1 + heavy_flavours)
     elseif fermion_action === WilsonFermionAction
         ϕ = ntuple(_ -> Spinorfield(U), 1 + heavy_flavours)
+    elseif fermion_action === WilsonEOPreFermionAction
+        ϕ = ntuple(_ -> even_odd(Spinorfield(U)), 1 + heavy_flavours)
     elseif fermion_action === QuenchedFermionAction
         ϕ = nothing
     else

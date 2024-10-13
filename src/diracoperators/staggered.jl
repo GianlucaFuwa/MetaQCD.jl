@@ -52,7 +52,7 @@ function (D::StaggeredDiracOperator{B,T})(U::Gaugefield{B,T}) where {B,T}
     return StaggeredDiracOperator(D, U)
 end
 
-struct StaggeredFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction{Nf}
+struct StaggeredFermionAction{R,Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction{R,Nf}
     D::TD
     cg_temps::CT
     rhmc_info_action::RI1
@@ -83,6 +83,7 @@ struct StaggeredFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction{Nf}
         TD = typeof(D)
 
         if Nf == 8
+            R = false
             rhmc_info_action = nothing
             rhmc_info_md = nothing
             rhmc_temps1 = nothing
@@ -90,6 +91,7 @@ struct StaggeredFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction{Nf}
             cg_temps = ntuple(_ -> Spinorfield(f; staggered=true), 4)
         else
             @assert 8 > Nf > 0 "Nf should be between 1 and 8 (was $Nf)"
+            R = true
             rhmc_lambda_low = rhmc_spectral_bound[1]
             rhmc_lambda_high = rhmc_spectral_bound[2]
             cg_temps = ntuple(_ -> Spinorfield(f; staggered=true), 2)
@@ -118,7 +120,7 @@ struct StaggeredFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction{Nf}
         RI1 = typeof(rhmc_info_action)
         RI2 = typeof(rhmc_info_md)
         RT = typeof(rhmc_temps1)
-        return new{Nf,TD,CT,RI1,RI2,RT}(
+        return new{R,Nf,TD,CT,RI1,RI2,RT}(
             D,
             cg_temps,
             rhmc_info_action,
@@ -133,97 +135,9 @@ struct StaggeredFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction{Nf}
     end
 end
 
-function calc_fermion_action(
-    fermion_action::StaggeredFermionAction{8}, U::Gaugefield, ϕ::StaggeredSpinorfield
-)
-    D = fermion_action.D(U)
-    DdagD = DdaggerD(D)
-    ψ, temp1, temp2, temp3 = fermion_action.cg_temps
-    cg_tol = fermion_action.cg_tol_action
-    cg_maxiters = fermion_action.cg_maxiters_action
-
-    clear!(ψ) # initial guess is zero
-    solve_dirac!(ψ, DdagD, ϕ, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
-    Sf = dot(ϕ, ψ)
-    return real(Sf)
-end
-
-function calc_fermion_action(
-    fermion_action::StaggeredFermionAction{Nf}, U::Gaugefield, ϕ::StaggeredSpinorfield
-) where {Nf}
-    cg_tol = fermion_action.cg_tol_action
-    cg_maxiters = fermion_action.cg_maxiters_action
-    rhmc = fermion_action.rhmc_info_action
-    n = get_n(rhmc)
-    D = fermion_action.D(U)
-    DdagD = DdaggerD(D)
-    ψs = fermion_action.rhmc_temps1
-    ps = fermion_action.rhmc_temps2
-    temp1, temp2 = fermion_action.cg_temps
-
-    for v in ψs
-        clear!(v)
-    end
-
-    shifts = get_β_inverse(rhmc)
-    coeffs = get_α_inverse(rhmc)
-    α₀ = get_α0_inverse(rhmc)
-    solve_dirac_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
-    ψ = ψs[1]
-    clear!(ψ) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
-
-    axpy!(α₀, ϕ, ψ)
-
-    for i in 1:n
-        axpy!(coeffs[i], ψs[i+1], ψ)
-    end
-
-    Sf = dot(ψ, ψ)
-    return real(Sf)
-end
-
-function sample_pseudofermions!(ϕ, fermion_action::StaggeredFermionAction{8}, U)
-    D = fermion_action.D(U)
-    temp = fermion_action.cg_temps[1]
-    gaussian_pseudofermions!(temp)
-    LinearAlgebra.mul!(ϕ, Daggered(D), temp)
-    return nothing
-end
-
-function sample_pseudofermions!(ϕ, fermion_action::StaggeredFermionAction{Nf}, U) where {Nf}
-    cg_tol = fermion_action.cg_tol_action
-    cg_maxiters = fermion_action.cg_maxiters_action
-    rhmc = fermion_action.rhmc_info_action
-    n = get_n(rhmc)
-    D = fermion_action.D(U)
-    DdagD = DdaggerD(D)
-    ψs = fermion_action.rhmc_temps1
-    ps = fermion_action.rhmc_temps2
-    temp1, temp2 = fermion_action.cg_temps
-
-    for v in ψs
-        clear!(v)
-    end
-
-    shifts = get_β(rhmc)
-    coeffs = get_α(rhmc)
-    α₀ = get_α0(rhmc)
-    gaussian_pseudofermions!(ϕ) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
-    solve_dirac_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
-
-    mul!(ϕ, α₀)
-
-    for i in 1:n
-        axpy!(coeffs[i], ψs[i+1], ϕ)
-    end
-
-    return nothing
-end
-
 function solve_dirac!(
     ψ, D::T, ϕ, temp1, temp2, temp3, temp4, temp5; tol=1e-14, maxiters=1000
 ) where {T<:StaggeredDiracOperator}
-    check_dims(ψ, ϕ, D.U, temp1, temp2, temp3, temp4, temp5)
     bicg_stab!(ψ, D, ϕ, temp1, temp2, temp3, temp4, temp5; tol=tol, maxiters=maxiters)
     return nothing
 end

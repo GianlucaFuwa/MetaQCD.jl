@@ -56,7 +56,7 @@ function (D::StaggeredEOPreDiracOperator{B,T})(U::Gaugefield{B,T}) where {B,T}
     return StaggeredEOPreDiracOperator(D, U)
 end
 
-struct StaggeredEOPreFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction{Nf}
+struct StaggeredEOPreFermionAction{R,Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction{R,Nf}
     D::TD
     cg_temps::CT
     rhmc_info_action::RI1
@@ -89,6 +89,7 @@ struct StaggeredEOPreFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
         rhmc_lambda_high = rhmc_spectral_bound[2]
 
         if Nf == 4
+            R = false
             cg_temps = ntuple(_ -> even_odd(Spinorfield(f; staggered=true)), 4)
             power = Nf//8
             rhmc_info_action = RHMCParams(
@@ -108,6 +109,7 @@ struct StaggeredEOPreFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
             rhmc_info_md = nothing
         else
             @assert 4 > Nf > 0 "Nf should be between 1 and 4 (was $Nf)"
+            R = true
             cg_temps = ntuple(_ -> even_odd(Spinorfield(f; staggered=true)), 2)
             power = Nf//8
             rhmc_info_action = RHMCParams(
@@ -138,7 +140,7 @@ struct StaggeredEOPreFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
         RI1 = typeof(rhmc_info_action)
         RI2 = typeof(rhmc_info_md)
         RT = typeof(rhmc_temps1)
-        return new{Nf,TD,CT,RI1,RI2,RT}(
+        return new{R,Nf,TD,CT,RI1,RI2,RT}(
             D,
             cg_temps,
             rhmc_info_action,
@@ -151,91 +153,6 @@ struct StaggeredEOPreFermionAction{Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction
             cg_maxiters_md,
         )
     end
-end
-
-function calc_fermion_action(
-    fermion_action::StaggeredEOPreFermionAction{4},
-    U::Gaugefield,
-    ϕ_eo::StaggeredEOPreSpinorfield,
-)
-    D = fermion_action.D(U)
-    DdagD = DdaggerD(D)
-    ψ_eo, temp1, temp2, temp3 = fermion_action.cg_temps
-    cg_tol = fermion_action.cg_tol_action
-    cg_maxiters = fermion_action.cg_maxiters_action
-
-    clear!(ψ_eo) # initial guess is zero
-    solve_dirac!(ψ_eo, DdagD, ϕ_eo, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
-    Sf = dot(ϕ_eo, ψ_eo)
-    return distributed_reduce(real(Sf), +, U)
-end
-
-function calc_fermion_action(
-    fermion_action::StaggeredEOPreFermionAction{Nf},
-    U::Gaugefield,
-    ϕ_eo::StaggeredEOPreSpinorfield,
-) where {Nf}
-    cg_tol = fermion_action.cg_tol_action
-    cg_maxiters = fermion_action.cg_maxiters_action
-    rhmc = fermion_action.rhmc_info_action
-    n = get_n(rhmc)
-    D = fermion_action.D(U)
-    DdagD = DdaggerD(D)
-    ψs = fermion_action.rhmc_temps1[1:n+1]
-    ps = fermion_action.rhmc_temps2[1:n+1]
-    temp1, temp2 = fermion_action.cg_temps
-
-    for v_eo in ψs
-        clear!(v_eo)
-    end
-
-    shifts = get_β_inverse(rhmc)
-    coeffs = get_α_inverse(rhmc)
-    α₀ = get_α0_inverse(rhmc)
-    solve_dirac_multishift!(ψs, shifts, DdagD, ϕ_eo, temp1, temp2, ps, cg_tol, cg_maxiters)
-    ψ_eo = ψs[1]
-    clear!(ψ_eo) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
-
-    axpy!(α₀, ϕ_eo, ψ_eo)
-
-    for i in 1:n
-        axpy!(coeffs[i], ψs[i+1], ψ_eo)
-    end
-
-    Sf = dot(ψ_eo, ψ_eo)
-    return distributed_reduce(real(Sf), +, U)
-end
-
-function sample_pseudofermions!(
-    ϕ_eo, fermion_action::StaggeredEOPreFermionAction{Nf}, U
-) where {Nf}
-    cg_tol = fermion_action.cg_tol_action
-    cg_maxiters = fermion_action.cg_maxiters_action
-    rhmc = fermion_action.rhmc_info_action
-    n = get_n(rhmc)
-    D = fermion_action.D(U)
-    DdagD = DdaggerD(D)
-    ψs = fermion_action.rhmc_temps1[1:n+1]
-    ps = fermion_action.rhmc_temps2[1:n+1]
-    temp1, temp2 = fermion_action.cg_temps
-
-    for v in ψs
-        clear!(v)
-    end
-
-    shifts = get_β(rhmc)
-    coeffs = get_α(rhmc)
-    α₀ = get_α0(rhmc)
-    gaussian_pseudofermions!(ϕ_eo) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
-    solve_dirac_multishift!(ψs, shifts, DdagD, ϕ_eo, temp1, temp2, ps, cg_tol, cg_maxiters)
-
-    mul!(ϕ_eo, α₀)
-
-    for i in 1:n
-        axpy!(coeffs[i], ψs[i+1], ϕ_eo)
-    end
-
-    return nothing
 end
 
 function solve_dirac!(

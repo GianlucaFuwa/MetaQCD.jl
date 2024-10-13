@@ -1,8 +1,6 @@
-const WilsonEOPreSpinorfield{B,T,M,A} = SpinorfieldEO{B,T,M,A,4}
-
 function calc_dSfdU!(
-    dU, fermion_action::WilsonEOPreFermionAction{2,C}, U, ϕ_eo::WilsonEOPreSpinorfield
-) where {C}
+    dU, fermion_action::WilsonEOPreFermionAction{false,2}, U, ϕ_eo::WilsonEOPreSpinorfield
+)
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
     cg_maxiters = fermion_action.cg_maxiters_md
@@ -11,30 +9,30 @@ function calc_dSfdU!(
     DdagD = DdaggerD(D)
     bc = D.boundary_condition
 
-    # clear!(X_eo)
-    # solve_dirac!(X_eo, DdagD, ϕ_eo, Y_eo, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp LinearAlgebra.mul!(Y, D, X) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
-    #
-    # LinearAlgebra.mul!(Y_eo, D, X_eo)
-    # mul_oe!(X_eo, U, X_eo, bc, true, Val(1))
-    # mul_oe!(Y_eo, U, Y_eo, bc, true, Val(-1))
-    # mul_oo_inv!(X_eo, D.D_oo_inv)
-    # mul_oo_inv!(Y_eo, D.D_oo_inv)
-    # add_wilson_eo_derivative!(dU, U, X_eo, Y_eo, bc)
+    clear!(X_eo)
+    solve_dirac!(X_eo, DdagD, ϕ_eo, Y_eo, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp LinearAlgebra.mul!(Y, D, X) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
+
+    LinearAlgebra.mul!(Y_eo, D, X_eo)
+    mul_oe!(X_eo, U, X_eo, bc, true, Val(1))
+    mul_oe!(Y_eo, U, Y_eo, bc, true, Val(-1))
+    mul_oo_inv!(X_eo, D.D_oo_inv)
+    mul_oo_inv!(Y_eo, D.D_oo_inv)
+    add_wilson_eo_derivative!(dU, U, X_eo, Y_eo, bc)
 
     if has_clover_term(D)
         Xμν = fermion_action.Xμν
         D_oo_inv = D.D_oo_inv
-        # calc_Xμν_eo_eachsite!(Xμν, X_eo, Y_eo)
-        # add_clover_derivative!(dU, U, Xμν, D.csw)
+        calc_Xμν_eo_eachsite!(Xμν, X_eo, Y_eo)
+        add_clover_derivative!(dU, U, Xμν, -D.csw)
         calc_small_Xμν_eachsite!(Xμν, D_oo_inv)
-        add_small_det_derivative!(dU, U, Xμν, -2D.csw) 
+        add_clover_derivative!(dU, U, Xμν, -2D.csw) 
     end
 
     return nothing
 end
 
 function calc_dSfdU!(
-    dU, fermion_action::WilsonEOPreFermionAction{Nf}, U, ϕ::WilsonEOPreSpinorfield
+    dU, fermion_action::WilsonEOPreFermionAction{true,Nf}, U, ϕ::WilsonEOPreSpinorfield
 ) where {Nf}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
@@ -43,6 +41,7 @@ function calc_dSfdU!(
     n = get_n(rhmc)
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
+    D_oo_inv = D.D_oo_inv
     bc = D.boundary_condition
     Xs = fermion_action.rhmc_temps1
     Ys = fermion_action.rhmc_temps2
@@ -60,22 +59,17 @@ function calc_dSfdU!(
         LinearAlgebra.mul!(Ys[i+1], D, Xs[i+1]) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
         mul_oe!(Xs[i+1], U, Xs[i+1], bc, true, Val(1))
         mul_oe!(Ys[i+1], U, Ys[i+1], bc, true, Val(-1))
-        mul_oo_inv!(Xs[i+1], D.D_oo_inv)
-        mul_oo_inv!(Ys[i+1], D.D_oo_inv)
+        mul_oo_inv!(Xs[i+1], D_oo_inv)
+        mul_oo_inv!(Ys[i+1], D_oo_inv)
         add_wilson_derivative!(dU, U, Xs[i+1], Ys[i+1], bc; coeff=coeffs[i])
 
         if has_clover_term(D)
             Xμν = D.Xμν
-            calc_Xμν_eachsite!(Xμν, Xs[i+1], Ys[i+1])
-            add_clover_derivative!(dU, U, Xμν, D.csw; coeff=coeffs[i])
+            calc_Xμν_eo_eachsite!(Xμν, Xs[i+1], Ys[i+1])
+            add_clover_derivative!(dU, U, Xμν, -D.csw; coeff=coeffs[i])
+            calc_small_Xμν_eachsite!(Xμν, D_oo_inv)
+            add_clover_derivative!(dU, U, Xμν, -2D.csw; coeff=coeffs[i]) 
         end
-    end
-
-    # TODO:
-    if has_clover_term(D)
-        Xμν = D.Xμν
-        calc_Xμν_small_eachsite!(Xμν, D.D_oo_inv)
-        add_clover_derivative!(dU, U, Xμν, 2D.csw) 
     end
 
     return nothing
@@ -86,14 +80,16 @@ function add_wilson_eo_derivative!(
 ) where {T,TF<:WilsonEOPreSpinorfield{CPU,T}}
     check_dims(dU, U, X_eo, Y_eo)
     fac = T(0.5coeff)
+    X = X_eo.parent
+    Y = Y_eo.parent
 
     # INFO: If we write out the kernel and use @batch, the program crashes for some reason
     # Stems from "pload" from StrideArraysCore.jl but ONLY if we write it out AND overload
     # "object_and_preserve" (cant reproduce in MWE yet)
     # is fine, because writing it like this makes the GPU port easier
 
-    #= @batch  =#for site in eachindex(dU)
-        add_wilson_eo_derivative_kernel!(dU, U, X_eo, Y_eo, site, bc, fac)
+    @batch for site in eachindex(dU)
+        add_wilson_eo_derivative_kernel!(dU, U, X, Y, site, bc, fac)
     end
 
     return nothing
@@ -201,89 +197,48 @@ function calc_small_Xμν_eachsite!(
 end
 
 function calc_small_Xμν_kernel!(Xμν, D_oo_inv, site, ::Type{T}) where {T}
-    # if isodd(site)
+    if isodd(site)
         NX, NY, NZ, NT = dims(Xμν)
         NV = NX * NY * NZ * NT
-        # _site = eo_site(site, NX, NY, NZ, NT, NV)
-        Minv = D_oo_inv[site] # XXX:
+        _site = eo_site_switch(site, NX, NY, NZ, NT, NV)
+        Minv = D_oo_inv[_site]
 
-        X₁₂ = spintrace_σμν(Minv, Val(1), Val(2))
+        X₁₂ = spintrace_pauli(Minv, Val(1), Val(2))
         Xμν[1i32, 2i32, site] = X₁₂
         Xμν[2i32, 1i32, site] = -X₁₂
 
-        X₁₃ = spintrace_σμν(Minv, Val(1), Val(3))
+        X₁₃ = spintrace_pauli(Minv, Val(1), Val(3))
         Xμν[1i32, 3i32, site] = X₁₃
         Xμν[3i32, 1i32, site] = -X₁₃
 
-        X₁₄ = spintrace_σμν(Minv, Val(1), Val(4))
+        X₁₄ = spintrace_pauli(Minv, Val(1), Val(4))
         Xμν[1i32, 4i32, site] = X₁₄
         Xμν[4i32, 1i32, site] = -X₁₄
 
-        X₂₃ = spintrace_σμν(Minv, Val(2), Val(3))
+        X₂₃ = spintrace_pauli(Minv, Val(2), Val(3))
         Xμν[2i32, 3i32, site] = X₂₃
         Xμν[3i32, 2i32, site] = -X₂₃
 
-        X₂₄ = spintrace_σμν(Minv, Val(2), Val(4))
+        X₂₄ = spintrace_pauli(Minv, Val(2), Val(4))
         Xμν[2i32, 4i32, site] = X₂₄
         Xμν[4i32, 2i32, site] = -X₂₄
 
-        X₃₄ = spintrace_σμν(Minv, Val(3), Val(4))
+        X₃₄ = spintrace_pauli(Minv, Val(3), Val(4))
         Xμν[3i32, 4i32, site] = X₃₄
         Xμν[4i32, 3i32, site] = -X₃₄
-    # else
-    #     X = zero3(T)
-    #     Xμν[1i32, 2i32, site] = X
-    #     Xμν[2i32, 1i32, site] = X
-    #     Xμν[1i32, 3i32, site] = X
-    #     Xμν[3i32, 1i32, site] = X
-    #     Xμν[1i32, 4i32, site] = X
-    #     Xμν[4i32, 1i32, site] = X
-    #     Xμν[2i32, 3i32, site] = X
-    #     Xμν[3i32, 2i32, site] = X
-    #     Xμν[2i32, 4i32, site] = X
-    #     Xμν[4i32, 2i32, site] = X
-    #     Xμν[3i32, 4i32, site] = X
-    #     Xμν[4i32, 3i32, site] = X
-    # end
-end
-
-function add_small_det_derivative!(
-    dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, Xμν::Tensorfield{CPU,T}, csw; coeff=1
-) where {T}
-    check_dims(dU, U, Xμν)
-    fac = T(csw * coeff / 2)
-
-    @batch for site in eachindex(dU)
-        add_small_det_derivative_kernel!(dU, U, Xμν, site, fac, T)
+    else
+        X = zero3(T)
+        Xμν[1i32, 2i32, site] = X
+        Xμν[2i32, 1i32, site] = X
+        Xμν[1i32, 3i32, site] = X
+        Xμν[3i32, 1i32, site] = X
+        Xμν[1i32, 4i32, site] = X
+        Xμν[4i32, 1i32, site] = X
+        Xμν[2i32, 3i32, site] = X
+        Xμν[3i32, 2i32, site] = X
+        Xμν[2i32, 4i32, site] = X
+        Xμν[4i32, 2i32, site] = X
+        Xμν[3i32, 4i32, site] = X
+        Xμν[4i32, 3i32, site] = X
     end
-
-    update_halo!(dU)
-    return nothing
-end
-
-function add_small_det_derivative_kernel!(dU, U, Xμν, site, fac, ::Type{T}) where {T}
-    tmp =
-        Xμν∇Fμν(Xμν, U, 1, 2, site, T) +
-        Xμν∇Fμν(Xμν, U, 1, 3, site, T) +
-        Xμν∇Fμν(Xμν, U, 1, 4, site, T)
-    dU[1i32, site] += fac * traceless_antihermitian(cmatmul_oo(U[1i32, site], tmp))
-
-    tmp =
-        Xμν∇Fμν(Xμν, U, 2, 1, site, T) +
-        Xμν∇Fμν(Xμν, U, 2, 3, site, T) +
-        Xμν∇Fμν(Xμν, U, 2, 4, site, T)
-    dU[2i32, site] += fac * traceless_antihermitian(cmatmul_oo(U[2i32, site], tmp))
-
-    tmp =
-        Xμν∇Fμν(Xμν, U, 3, 1, site, T) +
-        Xμν∇Fμν(Xμν, U, 3, 2, site, T) +
-        Xμν∇Fμν(Xμν, U, 3, 4, site, T)
-    dU[3i32, site] += fac * traceless_antihermitian(cmatmul_oo(U[3i32, site], tmp))
-
-    tmp =
-        Xμν∇Fμν(Xμν, U, 4, 1, site, T) +
-        Xμν∇Fμν(Xμν, U, 4, 2, site, T) +
-        Xμν∇Fμν(Xμν, U, 4, 3, site, T)
-    dU[4i32, site] += fac * traceless_antihermitian(cmatmul_oo(U[4i32, site], tmp))
-    return nothing
 end

@@ -1,7 +1,5 @@
-const StaggeredEOPreSpinorfield{B,T,M,A} = SpinorfieldEO{B,T,M,A,1}
-
 function calc_dSfdU!(
-    dU, fermion_action::StaggeredEOPreFermionAction{4}, U, ϕ_eo::StaggeredEOPreSpinorfield
+    dU, fermion_action::StaggeredEOPreFermionAction{false,4}, U, ϕ_eo::StaggeredEOPreSpinorfield
 )
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
@@ -20,7 +18,7 @@ function calc_dSfdU!(
 end
 
 function calc_dSfdU!(
-    dU, fermion_action::StaggeredEOPreFermionAction{Nf}, U, ϕ_eo::StaggeredEOPreSpinorfield
+    dU, fermion_action::StaggeredEOPreFermionAction{true,Nf}, U, ϕ_eo::StaggeredEOPreSpinorfield
 ) where {Nf}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md

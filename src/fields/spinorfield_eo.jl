@@ -261,4 +261,3 @@ function axpy_eo!(α, ψ_eo::T, ϕ_eo::T) where {T<:SpinorfieldEO{CPU}}
     # including halo regions
     return nothing
 end
-

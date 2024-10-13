@@ -1,7 +1,5 @@
-const StaggeredSpinorfield{B,T,M,A} = Spinorfield{B,T,M,A,1}
-
 function calc_dSfdU!(
-    dU, fermion_action::StaggeredFermionAction{8}, U, ϕ::StaggeredSpinorfield
+    dU, fermion_action::StaggeredFermionAction{false,8}, U, ϕ::StaggeredSpinorfield
 )
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
@@ -19,7 +17,7 @@ function calc_dSfdU!(
 end
 
 function calc_dSfdU!(
-    dU, fermion_action::StaggeredFermionAction{Nf}, U, ϕ::StaggeredSpinorfield
+    dU, fermion_action::StaggeredFermionAction{true,Nf}, U, ϕ::StaggeredSpinorfield
 ) where {Nf}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md

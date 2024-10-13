@@ -11,6 +11,12 @@ import ..DiracOperators: apply_bc, staggered_η, solve_dirac!, solve_dirac_multi
 import ..DiracOperators: mul_oe!, mul_eo!, mul_oo_inv!
 import ..Fields: Paulifield
 
+# some aliases
+const StaggeredSpinorfield{B,T,M,A} = Spinorfield{B,T,M,A,1}
+const StaggeredEOPreSpinorfield{B,T,M,A} = SpinorfieldEO{B,T,M,A,1}
+const WilsonSpinorfield{B,T,M,A} = Spinorfield{B,T,M,A,4}
+const WilsonEOPreSpinorfield{B,T,M,A} = SpinorfieldEO{B,T,M,A,4}
+
 """
     calc_dSfdU_bare!(dU::Colorfield, fermion_action, U, ϕ, ::Any, ::NoSmearing)
     calc_dSfdU_bare!(dU::Colorfield, fermion_action, U, ϕ, temp_force, smearing)

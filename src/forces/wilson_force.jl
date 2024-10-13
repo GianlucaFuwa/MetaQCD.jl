@@ -1,6 +1,4 @@
-const WilsonSpinorfield{B,T,M,A} = Spinorfield{B,T,M,A,4}
-
-function calc_dSfdU!(dU, fermion_action::WilsonFermionAction{2}, U, ϕ::WilsonSpinorfield)
+function calc_dSfdU!(dU, fermion_action::WilsonFermionAction{false,2}, U, ϕ::WilsonSpinorfield)
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
     cg_maxiters = fermion_action.cg_maxiters_md
@@ -23,7 +21,7 @@ function calc_dSfdU!(dU, fermion_action::WilsonFermionAction{2}, U, ϕ::WilsonSp
 end
 
 function calc_dSfdU!(
-    dU, fermion_action::WilsonFermionAction{Nf}, U, ϕ::WilsonSpinorfield
+    dU, fermion_action::WilsonFermionAction{true,Nf}, U, ϕ::WilsonSpinorfield
 ) where {Nf}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md

@@ -22,7 +22,7 @@ Inspired by the [LatticeQCD.jl](https://github.com/akio-tomiya/LatticeQCD.jl/tre
 - [ ] Mass-splitting preconditioner / Hasenbusch trick
 - [x] RHMC to simulate odd number of flavours
 - [ ] Support for CUDA and ROCm backends
-- [ ] Multi-device simulations using MPI
+- [ ] Multi-node parallelism using MPI
 
 ## Installation:
 First make sure you have Julia version 1.9.x or 1.10.x installed. You can use [juliaup](https://github.com/JuliaLang/juliaup) for that or just install the release from the [Julia website](https://julialang.org/downloads/).
