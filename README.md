@@ -17,12 +17,12 @@ Inspired by the [LatticeQCD.jl](https://github.com/akio-tomiya/LatticeQCD.jl/tre
 - [x] Improved Topological charge definitions (clover, rectangle clover-improved)
 - [x] Wilson(-Clover) fermions
 - [x] Staggered fermions
-- [ ] Even-odd preconditioner for Wilson(-Clover)
+- [x] Even-odd preconditioner for Wilson(-Clover)
 - [x] Even-odd preconditioner for Staggered
 - [ ] Mass-splitting preconditioner / Hasenbusch trick
 - [x] RHMC to simulate odd number of flavours
-- [ ] Support for CUDA and ROCm backends
-- [ ] Multi-node parallelism using MPI
+- [ ] Full support for CUDA and ROCm backends
+- [x] Multi-node parallelism using MPI
 
 ## Installation:
 First make sure you have Julia version 1.9.x or 1.10.x installed. You can use [juliaup](https://github.com/JuliaLang/juliaup) for that or just install the release from the [Julia website](https://julialang.org/downloads/).

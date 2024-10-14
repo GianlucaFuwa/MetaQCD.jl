@@ -23,7 +23,7 @@ export antihermitian, hermitian, traceless_antihermitian, traceless_hermitian, m
 export zero2, zero3, zerov3, eye2, eye3, onev3, gaussian_TA_mat, rand_SU3
 export SiteCoords, eo_site, eo_site_switch, move, switch_sides
 export cartesian_to_linear
-export Sequential, Checkerboard2, Checkerboard4
+export Sequential, Checkerboard2, Checkerboard4, EvenSites, OddSites
 export λ, expλ, γ1, γ2, γ3, γ4, γ5, σ12, σ13, σ14, σ23, σ24, σ34
 export cmatmul_oo, cmatmul_dd, cmatmul_do, cmatmul_od
 export cmatmul_ooo,
@@ -60,6 +60,8 @@ abstract type AbstractIterator end
 struct Sequential <: AbstractIterator end
 struct Checkerboard2 <: AbstractIterator end
 struct Checkerboard4 <: AbstractIterator end
+struct EvenSites <: AbstractIterator end
+struct OddSites <: AbstractIterator end
 
 _unwrap_val(::Val{B}) where {B} = B
 

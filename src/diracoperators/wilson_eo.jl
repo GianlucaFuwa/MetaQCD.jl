@@ -255,8 +255,8 @@ end
 # The Gaugefields module into CG.jl, which also allows us to use the solvers for 
 # for arbitrary arrays, not just fermion fields and dirac operators (good for testing)
 function LinearAlgebra.mul!(
-    ψ_eo::TF, D::WilsonEOPreDiracOperator{CPU,T,C,TF,TG,TX,TO}, ϕ_eo::TF
-) where {T,C,TF,TG,TX,TO}
+    ψ_eo::TF, D::WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO}, ϕ_eo::TF
+) where {B,T,C,TF,TG,TX,TO}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.U
     check_dims(ψ_eo, ϕ_eo, U)
@@ -272,8 +272,8 @@ function LinearAlgebra.mul!(
 end
 
 function LinearAlgebra.mul!(
-    ψ_eo::TF, D::Daggered{WilsonEOPreDiracOperator{CPU,T,C,TF,TG,TX,TO,BC}}, ϕ_eo::TF
-) where {T,C,TF,TG,TX,TO,BC}
+    ψ_eo::TF, D::Daggered{WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO,BC}}, ϕ_eo::TF
+) where {B,T,C,TF,TG,TX,TO,BC}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.parent.U
     check_dims(ψ_eo, ϕ_eo, U)
@@ -289,8 +289,8 @@ function LinearAlgebra.mul!(
 end
 
 function LinearAlgebra.mul!(
-    ψ_eo::TF, D::DdaggerD{WilsonEOPreDiracOperator{CPU,T,C,TF,TG,TX,TO,BC}}, ϕ_eo::TF
-) where {T,C,TF,TG,TX,TO,BC}
+    ψ_eo::TF, D::DdaggerD{WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO,BC}}, ϕ_eo::TF
+) where {B,T,C,TF,TG,TX,TO,BC}
     temp = D.parent.temp
     mul!(temp, D.parent, ϕ_eo) # temp = Dϕ
     mul!(ψ_eo, adjoint(D.parent), temp) # ψ = D†Dϕ
@@ -306,13 +306,14 @@ function mul_oe!(
     fdims = dims(ψ)
     NV = ψ.NV
 
-    #= @batch  =#for site in eachindex(ψ)
+    @batch for site in eachindex(ψ)
         isodd(site) || continue
         _site = if into_odd
             eo_site(site, fdims..., NV)
         else
             eo_site_switch(site, fdims..., NV)
         end
+
         ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, bc, T, Val(dagg))
     end
 
@@ -329,13 +330,14 @@ function mul_eo!(
     fdims = dims(ψ)
     NV = ψ.NV
 
-    #= @batch  =#for site in eachindex(ψ)
+    @batch for site in eachindex(ψ)
         iseven(site) || continue
         _site = if into_odd
             eo_site_switch(site, fdims..., NV)
         else
             eo_site(site, fdims..., NV)
         end
+
         ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, bc, T, Val(dagg))
     end
 
@@ -382,7 +384,7 @@ function wilson_eo_kernel(U, ϕ, site, bc, ::Type{T}, ::Val{dagg}) where {T,dagg
 end
 
 function calc_diag!(
-    D_diag::TW, D_oo_inv::TW, ::Nothing, U::Gaugefield{CPU,T}, mass
+    D_diag::TW, D_oo_inv::TW, ::Nothing, U::Gaugefield{CPU,T,M}, mass
 ) where {T,M,TW<:Paulifield{CPU,T,M,false}}
     check_dims(D_diag, D_oo_inv, U)
     mass_term = Complex{T}(4 + mass)
@@ -390,21 +392,29 @@ function calc_diag!(
     NV = U.NV
 
     @batch for site in eachindex(U)
-        _site = eo_site(site, fdims..., NV)
-        A = SMatrix{6,6,Complex{T},36}(mass_term * I)
-        D_diag[site] = PauliMatrix(A, A)
-
-        if isodd(site)
-            o_site = switch_sides(_site, fdims..., NV)
-            A_inv = SMatrix{6,6,Complex{T},36}(1/mass_term * I)
-            D_oo_inv[o_site] = PauliMatrix(A_inv, A_inv)
-        end
+        calc_diag_kernel!(D_diag, D_oo_inv, mass_term, site, fdims, NV, T)
     end
 end
 
+function calc_diag_kernel!(
+    D_diag, D_oo_inv, mass_term, site, fdims, NV, ::Type{T}
+) where {T}
+    _site = eo_site(site, fdims..., NV)
+    A = SMatrix{6,6,Complex{T},36}(mass_term * I)
+    D_diag[site] = PauliMatrix(A, A)
+
+    if isodd(site)
+        o_site = switch_sides(_site, fdims..., NV)
+        A_inv = SMatrix{6,6,Complex{T},36}(1/mass_term * I)
+        D_oo_inv[o_site] = PauliMatrix(A_inv, A_inv)
+    end
+
+    return nothing
+end
+
 function calc_diag!(
-    D_diag::TW, D_oo_inv::TW, Fμν, U::Gaugefield{CPU,T}, mass
-) where {T,MP,TW<:Paulifield{CPU,T,MP,true}} # With clover term
+    D_diag::TW, D_oo_inv::TW, Fμν::Tensorfield{B,T,M}, U::Gaugefield{CPU,T,M}, mass
+) where {B,T,M,TW<:Paulifield{CPU,T,M,true}} # With clover term
     check_dims(D_diag, D_oo_inv, U)
     mass_term = Complex{T}(4 + mass)
     fdims = dims(U)
@@ -414,49 +424,55 @@ function calc_diag!(
     fieldstrength_eachsite!(Clover(), Fμν, U)
 
     @batch for site in eachindex(U)
-        _site = eo_site(site, fdims..., NV)
-        M = SMatrix{6,6,Complex{T},36}(mass_term * I)
-        i = SVector((1, 2))
-        j = SVector((3, 4))
+        calc_diag_kernel!(D_diag, D_oo_inv, Fμν, mass_term, site, fdims, NV, fac, T)
+    end
+end
 
-        F₁₂ = Fμν[1, 2, site]
-        σ = σ12(T)
-        A₊ = ckron(σ[i, i], F₁₂)
-        A₋ = ckron(σ[j, j], F₁₂)
+function calc_diag_kernel!(
+    D_diag, D_oo_inv, Fμν, mass_term, site, fdims, NV, fac, ::Type{T}
+) where {T}
+    _site = eo_site(site, fdims..., NV)
+    M = SMatrix{6,6,Complex{T},36}(mass_term * I)
+    i = SVector((1, 2))
+    j = SVector((3, 4))
 
-        F₁₃ = Fμν[1, 3, site]
-        σ = σ13(T)
-        A₊ += ckron(σ[i, i], F₁₃)
-        A₋ += ckron(σ[j, j], F₁₃)
+    F₁₂ = Fμν[1, 2, site]
+    σ = σ12(T)
+    A₊ = ckron(σ[i, i], F₁₂)
+    A₋ = ckron(σ[j, j], F₁₂)
 
-        F₁₄ = Fμν[1, 4, site]
-        σ = σ14(T)
-        A₊ += ckron(σ[i, i], F₁₄)
-        A₋ += ckron(σ[j, j], F₁₄)
+    F₁₃ = Fμν[1, 3, site]
+    σ = σ13(T)
+    A₊ += ckron(σ[i, i], F₁₃)
+    A₋ += ckron(σ[j, j], F₁₃)
 
-        F₂₃ = Fμν[2, 3, site]
-        σ = σ23(T)
-        A₊ += ckron(σ[i, i], F₂₃)
-        A₋ += ckron(σ[j, j], F₂₃)
+    F₁₄ = Fμν[1, 4, site]
+    σ = σ14(T)
+    A₊ += ckron(σ[i, i], F₁₄)
+    A₋ += ckron(σ[j, j], F₁₄)
 
-        F₂₄ = Fμν[2, 4, site]
-        σ = σ24(T)
-        A₊ += ckron(σ[i, i], F₂₄)
-        A₋ += ckron(σ[j, j], F₂₄)
+    F₂₃ = Fμν[2, 3, site]
+    σ = σ23(T)
+    A₊ += ckron(σ[i, i], F₂₃)
+    A₋ += ckron(σ[j, j], F₂₃)
 
-        F₃₄ = Fμν[3, 4, site]
-        σ = σ34(T)
-        A₊ += ckron(σ[i, i], F₃₄)
-        A₋ += ckron(σ[j, j], F₃₄)
+    F₂₄ = Fμν[2, 4, site]
+    σ = σ24(T)
+    A₊ += ckron(σ[i, i], F₂₄)
+    A₋ += ckron(σ[j, j], F₂₄)
 
-        A₊ = fac * A₊ + M
-        A₋ = fac * A₋ + M
-        D_diag[_site] = PauliMatrix(A₊, A₋)
+    F₃₄ = Fμν[3, 4, site]
+    σ = σ34(T)
+    A₊ += ckron(σ[i, i], F₃₄)
+    A₋ += ckron(σ[j, j], F₃₄)
 
-        if isodd(site)
-            o_site = switch_sides(_site, fdims..., NV)
-            D_oo_inv[o_site] = PauliMatrix(cinv(A₊), cinv(A₋))
-        end
+    A₊ = fac * A₊ + M
+    A₋ = fac * A₋ + M
+    D_diag[_site] = PauliMatrix(A₊, A₋)
+
+    if isodd(site)
+        o_site = switch_sides(_site, fdims..., NV)
+        D_oo_inv[o_site] = PauliMatrix(cinv(A₊), cinv(A₋))
     end
 end
 
@@ -491,7 +507,7 @@ function axmy!(
     return nothing
 end
 
-function trlog(D_diag::Paulifield{CPU,T,M,false}, mass) where {T,M} # Without clover term
+function trlog(D_diag::Paulifield{B,T,M,false}, mass) where {B,T,M} # Without clover term
     NC = num_colors(D_diag)
     mass_term = Float64(4 + mass)
     logd = 4NC * log(mass_term)

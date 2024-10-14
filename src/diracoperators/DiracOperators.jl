@@ -25,8 +25,8 @@ import KernelAbstractions as KA
 import ..Fields: AbstractField, FieldTopology, Gaugefield, Paulifield, Spinorfield
 import ..Fields: SpinorfieldEO, Tensorfield
 import ..Fields: check_dims, clear!, clover_square, dims, even_odd, gaussian_pseudofermions!
-import ..Fields: Clover, Checkerboard2, Sequential, @latmap, @latsum, set_source!, volume
-import ..Fields: fieldstrength_eachsite!, num_colors, num_dirac
+import ..Fields: @latmap, @latsum, Clover, Checkerboard2, Sequential, set_source!, volume
+import ..Fields: @groupreduce, fieldstrength_eachsite!, num_colors, num_dirac
 import ..Fields: PeriodicBC, AntiPeriodicBC, apply_bc, create_bc, distributed_reduce
 
 abstract type AbstractDiracOperator end
@@ -81,6 +81,7 @@ include("wilson_eo.jl")
 include("gpu_kernels/staggered.jl")
 include("gpu_kernels/staggered_eo.jl")
 include("gpu_kernels/wilson.jl")
+include("gpu_kernels/wilson_eo.jl")
 include("arnoldi.jl")
 
 """
