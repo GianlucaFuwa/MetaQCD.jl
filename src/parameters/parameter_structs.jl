@@ -9,6 +9,8 @@ Base.@kwdef mutable struct PhysicalParameters
     beta::Float64 = 5.7
     NC::Int64 = 3
     gauge_action::String = "wilson"
+    numprocs_cart::NTuple{4,Int64} = (1, 1, 1, 1)
+    halo_width::Int64 = 0
     numtherm::Int64 = 10
     numsteps::Int64 = 100
     inital::String = "cold"
@@ -30,7 +32,7 @@ Base.@kwdef mutable struct DynamicalFermionParameters
     mass::Union{Float64,Vector{Float64}} = 0.0
     wilson_r::Float64 = 1.0
     wilson_csw::Float64 = 0.0
-    anti_periodic::Bool = true
+    boundary_condition::String = "antiperiodic"
     cg_tol_action::Float64 = 1e-12
     cg_tol_md::Float64 = 1e-14
     cg_maxiters_action::Int64 = 1000

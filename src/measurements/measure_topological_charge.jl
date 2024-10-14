@@ -2,23 +2,29 @@ struct TopologicalChargeMeasurement{T} <: AbstractMeasurement
     TC_dict::Dict{String,Float64} # topological charge definition => value
     filename::T
     function TopologicalChargeMeasurement(
-        ::Gaugefield; filename="", TC_methods=["clover"], flow=false
+        U::Gaugefield; filename="", TC_methods=["clover"], flow=false
     )
         TC_dict = Dict{String,Float64}()
+
         for method in TC_methods
             @level1("|    Method: $(method)")
+
             if method == "plaquette"
                 TC_dict["plaquette"] = 0.0
             elseif method == "clover"
                 TC_dict["clover"] = 0.0
             elseif method == "improved"
+                if is_distributed(U)
+                    @assert U.topology.halo_width >= 2 "improved topological charge requires a halo width of at least 2"
+                end
+
                 TC_dict["improved"] = 0.0
             else
                 error("Topological charge method $method not supported")
             end
         end
 
-        if filename !== nothing && filename != ""
+        if !isnothing(filename) && filename != ""
             path = filename * MYEXT
             rpath = StaticString(path)
             header = ""
@@ -33,8 +39,10 @@ struct TopologicalChargeMeasurement{T} <: AbstractMeasurement
                 header *= @sprintf("%-25s", "Q_$(method)")
             end
 
-            open(path, "w") do fp
-                println(fp, header)
+            if mpi_amroot()
+                open(path, "w") do fp
+                    println(fp, header)
+                end
             end
         else
             rpath = nothing
@@ -56,29 +64,9 @@ function TopologicalChargeMeasurement(
     )
 end
 
-@inline function measure(
-    m::TopologicalChargeMeasurement{Nothing}, U, ::Integer, itrj, flow=nothing,
-)
-    TC_dict = m.TC_dict
-    iflow, _ = isnothing(flow) ? (0, 0.0) : flow
-
-    for method in keys(TC_dict)
-        Q = top_charge(U, method)
-        TC_dict[method] = Q
-
-        if !isnothing(flow)
-            @level1("$itrj\t$Q # topcharge_$(method)_flow_$(iflow)")
-        else
-            @level1("$itrj\t$Q # topcharge_$(method)")
-        end
-    end
-
-    return TC_dict
-end
-
 function measure(
     m::TopologicalChargeMeasurement{T}, U, myinstance, itrj, flow=nothing,
-) where {T<:AbstractString}
+) where {T}
     TC_dict = m.TC_dict
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
@@ -86,23 +74,34 @@ function measure(
         TC_dict[method] = top_charge(U, method)
     end
 
-    if T !== Nothing
-        filename = set_ext!(m.filename, myinstance)
-        fp = fopen(filename, "a")
-        printf(fp, "%-11i", itrj)
-
-        if !isnothing(flow)
-            printf(fp, "%-7i", iflow)
-            printf(fp, "%-9.5f", τ)
-        end
-
+    if mpi_amroot()
         for method in keys(TC_dict)
-            v = TC_dict[method]
-            printf(fp, "%+-25.15E", v)
+            Q = TC_dict[method]
+
+            if !isnothing(flow)
+                @level1("$itrj\t$Q # topcharge_$(method)_flow_$(τ)")
+            else
+                @level1("$itrj\t$Q # topcharge_$(method)")
+            end
         end
 
-        printf(fp, "\n")
-        fclose(fp)
+        if T !== Nothing
+            filename = set_ext!(m.filename, myinstance)
+            fp = fopen(filename, "a")
+            printf(fp, "%-11i", itrj)
+
+            if !isnothing(flow)
+                printf(fp, "%-7i", iflow)
+                printf(fp, "%-9.5f", τ)
+            end
+
+            for value in values(TC_dict)
+                printf(fp, "%+-25.15E", value)
+            end
+
+            newline(fp)
+            fclose(fp)
+        end
     end
 
     return TC_dict
@@ -130,7 +129,7 @@ function top_charge(::Plaquette, U::Gaugefield{CPU})
         Q += top_charge_density_plaq(U, site)
     end
 
-    return Q/4π^2
+    return distributed_reduce(Q/4π^2, +, U)
 end
 
 function top_charge(::Clover, U::Gaugefield{CPU,T}) where {T}
@@ -140,55 +139,55 @@ function top_charge(::Clover, U::Gaugefield{CPU,T}) where {T}
         Q += top_charge_density_clover(U, site, T)
     end
 
-    return Q/4π^2
+    return distributed_reduce(Q/4π^2, +, U)
 end
 
 function top_charge(::Improved, U::Gaugefield{CPU,T}) where {T}
-    Q = 0.0
     c₀ = T(5/3)
     c₁ = T(-2/12)
+    Q = 0.0
 
     @batch reduction = (+, Q) for site in eachindex(U)
         Q += top_charge_density_imp(U, site, c₀, c₁, T)
     end
 
-    return Q/4π^2
+    return distributed_reduce(Q/4π^2, +, U)
 end
 
 function top_charge_density_plaq(U, site)
     C₁₂ = plaquette(U, 1i32, 2i32, site)
-    F₁₂ = im * traceless_antihermitian(C₁₂)
+    F₁₂ = C₁₂ - C₁₂'
     C₁₃ = plaquette(U, 1i32, 3i32, site)
-    F₁₃ = im * traceless_antihermitian(C₁₃)
+    F₁₃ = C₁₃ - C₁₃'
     C₂₃ = plaquette(U, 2i32, 3i32, site)
-    F₂₃ = im * traceless_antihermitian(C₂₃)
+    F₂₃ = C₂₃ - C₂₃'
     C₁₄ = plaquette(U, 1i32, 4i32, site)
-    F₁₄ = im * traceless_antihermitian(C₁₄)
+    F₁₄ = C₁₄ - C₁₄'
     C₂₄ = plaquette(U, 2i32, 4i32, site)
-    F₂₄ = im * traceless_antihermitian(C₂₄)
+    F₂₄ = C₂₄ - C₂₄'
     C₃₄ = plaquette(U, 3i32, 4i32, site)
-    F₃₄ = im * traceless_antihermitian(C₃₄)
+    F₃₄ = C₃₄ - C₃₄'
 
     qₙ = real(multr(F₁₂, F₃₄)) - real(multr(F₁₃, F₂₄)) + real(multr(F₁₄, F₂₃))
-    return qₙ
+    return -qₙ
 end
 
 function top_charge_density_clover(U, site, ::Type{T}) where {T}
     C₁₂ = clover_square(U, 1i32, 2i32, site, 1i32)
-    F₁₂ = im * T(1/4) * traceless_antihermitian(C₁₂)
+    F₁₂ = C₁₂ - C₁₂'
     C₁₃ = clover_square(U, 1i32, 3i32, site, 1i32)
-    F₁₃ = im * T(1/4) * traceless_antihermitian(C₁₃)
+    F₁₃ = C₁₃ - C₁₃'
     C₂₃ = clover_square(U, 2i32, 3i32, site, 1i32)
-    F₂₃ = im * T(1/4) * traceless_antihermitian(C₂₃)
+    F₂₃ = C₂₃ - C₂₃'
     C₁₄ = clover_square(U, 1i32, 4i32, site, 1i32)
-    F₁₄ = im * T(1/4) * traceless_antihermitian(C₁₄)
+    F₁₄ = C₁₄ - C₁₄'
     C₂₄ = clover_square(U, 2i32, 4i32, site, 1i32)
-    F₂₄ = im * T(1/4) * traceless_antihermitian(C₂₄)
+    F₂₄ = C₂₄ - C₂₄'
     C₃₄ = clover_square(U, 3i32, 4i32, site, 1i32)
-    F₃₄ = im * T(1/4) * traceless_antihermitian(C₃₄)
+    F₃₄ = C₃₄ - C₃₄'
 
-    out = real(multr(F₁₂, F₃₄)) - real(multr(F₁₃, F₂₄)) + real(multr(F₁₄, F₂₃))
-    return out
+    qₙ = real(multr(F₁₂, F₃₄)) - real(multr(F₁₃, F₂₄)) + real(multr(F₁₄, F₂₃))
+    return -T(1/64) * qₙ
 end
 
 function top_charge_density_imp(U, site, c₀, c₁, ::Type{T}) where {T}
@@ -200,18 +199,18 @@ end
 
 function top_charge_density_rect(U, site, ::Type{T}) where {T}
     C₁₂ = clover_rect(U, 1i32, 2i32, site, 1i32, 2i32)
-    F₁₂ = im * T(1/8) * traceless_antihermitian(C₁₂)
+    F₁₂ = C₁₂ - C₁₂'
     C₁₃ = clover_rect(U, 1i32, 3i32, site, 1i32, 2i32)
-    F₁₃ = im * T(1/8) * traceless_antihermitian(C₁₃)
+    F₁₃ = C₁₃ - C₁₃'
     C₂₃ = clover_rect(U, 2i32, 3i32, site, 1i32, 2i32)
-    F₂₃ = im * T(1/8) * traceless_antihermitian(C₂₃)
+    F₂₃ = C₂₃ - C₂₃'
     C₁₄ = clover_rect(U, 1i32, 4i32, site, 1i32, 2i32)
-    F₁₄ = im * T(1/8) * traceless_antihermitian(C₁₄)
+    F₁₄ = C₁₄ - C₁₄'
     C₂₄ = clover_rect(U, 2i32, 4i32, site, 1i32, 2i32)
-    F₂₄ = im * T(1/8) * traceless_antihermitian(C₂₄)
+    F₂₄ = C₂₄ - C₂₄'
     C₃₄ = clover_rect(U, 3i32, 4i32, site, 1i32, 2i32)
-    F₃₄ = im * T(1/8) * traceless_antihermitian(C₃₄)
+    F₃₄ = C₃₄ - C₃₄'
 
-    out = real(multr(F₁₂, F₃₄)) - real(multr(F₁₃, F₂₄)) + real(multr(F₁₄, F₂₃))
-    return out
+    qₙ = real(multr(F₁₂, F₃₄)) - real(multr(F₁₃, F₂₄)) + real(multr(F₁₄, F₂₃))
+    return -T(1/256) * qₙ
 end

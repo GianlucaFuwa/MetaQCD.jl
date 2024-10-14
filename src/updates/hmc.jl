@@ -43,6 +43,7 @@ force recursion when using a bias.
 
 # Supported Fermion Actions
 - `WilsonFermionAction`
+- `WilsonEOPreFermionAction`
 - `StaggeredFermionAction`
 - `StaggeredEOPreFermionAction`
 """
@@ -110,7 +111,7 @@ function HMC(
     ρ_stout_gauge=0.0,
     ρ_stout_fermion=0.0;
     hmc_logging=true,
-    fermion_action=nothing,
+    fermion_action=QuenchedFermionAction,
     heavy_flavours=0,
     bias_enabled=false,
     logdir="",
@@ -124,7 +125,7 @@ function HMC(
     force = Colorfield(U)
 
     smearing_gauge = StoutSmearing(U, numsmear_gauge, ρ_stout_gauge)
-    smearing_fermion = if isnothing(fermion_action)
+    smearing_fermion = if fermion_action === QuenchedFermionAction
         NoSmearing()
     else
         StoutSmearing(U, numsmear_fermion, ρ_stout_fermion)
@@ -134,12 +135,14 @@ function HMC(
     force2 = (!has_smearing && !bias_enabled) ? nothing : Colorfield(U)
 
     if fermion_action === StaggeredFermionAction
-        ϕ = ntuple(_ -> Fermionfield(U; staggered=true), 1 + heavy_flavours)
+        ϕ = ntuple(_ -> Spinorfield(U; staggered=true), 1 + heavy_flavours)
     elseif fermion_action === StaggeredEOPreFermionAction
-        ϕ = ntuple(_ -> even_odd(Fermionfield(U; staggered=true)), 1 + heavy_flavours)
+        ϕ = ntuple(_ -> even_odd(Spinorfield(U; staggered=true)), 1 + heavy_flavours)
     elseif fermion_action === WilsonFermionAction
-        ϕ = ntuple(_ -> Fermionfield(U), 1 + heavy_flavours)
-    elseif fermion_action == "none" || fermion_action === nothing
+        ϕ = ntuple(_ -> Spinorfield(U), 1 + heavy_flavours)
+    elseif fermion_action === WilsonEOPreFermionAction
+        ϕ = ntuple(_ -> even_odd(Spinorfield(U)), 1 + heavy_flavours)
+    elseif fermion_action === QuenchedFermionAction
         ϕ = nothing
     else
         throw(AssertionError("Dynamical fermions \"$fermion_action\" not supported"))
@@ -148,7 +151,7 @@ function HMC(
     fieldstrength = bias_enabled ? Tensorfield(U) : nothing
 
     if hmc_logging && logdir != ""
-        # XXX: Probably want swap this too in MPI PT-MetaD
+        # XXX: Probably want to swap this too in MPI PT-MetaD
         logfile = joinpath(logdir, "hmc_acc_logs.txt")
         open(logfile, "w") do fp
             @printf(
@@ -161,13 +164,19 @@ function HMC(
         if !isnothing(ϕ)
             forcefile = joinpath(logdir, "hmc_force_logs.txt")
             force_fp = fopen(forcefile, "w")
-            printf(force_fp, "%-25s", "|F_Sg|")
+            printf(force_fp, "%-25s", "avg||F_Sg||")
+            printf(force_fp, "%-25s", "sup||F_Sg||")
+
             for i in eachindex(ϕ)
-                printf(force_fp, "%-25s", "|F_Sf$i|")
+                printf(force_fp, "%-25s", "avg||F_Sf$i||")
+                printf(force_fp, "%-25s", "sup||F_Sf$i||")
             end
+
             if bias_enabled
-                printf(force_fp, "%-25s", "|F_V|")
+                printf(force_fp, "%-25s", "avg||F_V||")
+                printf(force_fp, "%-25s", "sup||F_V||")
             end
+
             printf(force_fp, "\n")
             fclose(force_fp)
         else
@@ -189,12 +198,12 @@ include("hmc_integrators.jl")
 function update!(
     hmc::HMC{TI},
     U;
-    fermion_action::TF=nothing,
+    fermion_action::TF=QuenchedFermionAction(),
     bias::TB=NoBias(),
     metro_test::Bool=true,
     therm::Bool=false,
 ) where {TI,TF,TB}
-    if TF !== Nothing
+    if TF !== QuenchedFermionAction
         @assert TF <: Tuple "fermion_action must be nothing or a tuple of fermion actions"
         @assert !isnothing(hmc.ϕ) "fermion_action passed but not activated in HMC"
     end
@@ -259,12 +268,13 @@ function updateU!(U::Gaugefield{CPU,T}, hmc, fac) where {T}
     P = hmc.P
     check_dims(U, P)
 
-    @batch for site in eachindex(U)
-        for μ in 1:4
-            U[μ, site] = cmatmul_oo(exp_iQ(-im * ϵ * P[μ, site]), U[μ, site])
-        end
+    @batch for μsite in allindices(U)
+        U[μsite] = cmatmul_oo(exp_iQ(-im * ϵ * P[μsite]), U[μsite])
     end
 
+    # INFO: don't need to do halo exchange here, since we iterate over all indices
+    # including halo regions
+    # We assume that U's and P's halos are already up-to-date before calling this
     return nothing
 end
 
@@ -283,31 +293,43 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias)
     fp = !isnothing(hmc.forcefile) ? fopen(hmc.forcefile, "a") : nothing
 
     calc_dSdU_bare!(force, staples, U, temp_force, smearing_gauge)
+
     if !isnothing(fp)
-        fnorm = norm(force)
-        printf(fp, "%+-25.15E", fnorm)
+        norm2 = norm(force, Val(2))
+        normsup = norm(force, Val(Inf))
+        printf(fp, "%+-25.15E", norm2)
+        printf(fp, "%+-25.15E", normsup)
     end
+
     add!(P, force, ϵ)
 
-    if !isnothing(fermion_action)
+    if fermion_action !== QuenchedFermionAction()
         for i in eachindex(fermion_action)
             calc_dSfdU_bare!(
                 force, fermion_action[i], U, ϕ[i], temp_force, smearing_fermion, i>1
             )
+
             if !isnothing(fp)
-                fnorm = norm(force)
-                printf(fp, "%+-25.15E", fnorm)
+                norm2 = norm(force, Val(2))
+                normsup = norm(force, Val(Inf))
+                printf(fp, "%+-25.15E", norm2)
+                printf(fp, "%+-25.15E", normsup)
             end
+
             add!(P, force, ϵ)
         end
     end
 
     if bias isa Bias
         calc_dVdU_bare!(force, fieldstrength, U, temp_force, bias, shared_smearing)
+
         if !isnothing(fp)
-            fnorm = norm(force)
-            printf(fp, "%+-25.15E", fnorm)
+            norm2 = norm(force, Val(2))
+            normsup = norm(force, Val(Inf))
+            printf(fp, "%+-25.15E", norm2)
+            printf(fp, "%+-25.15E", normsup)
         end
+
         add!(P, force, ϵ)
     end
 
@@ -315,6 +337,7 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias)
         printf(fp, "\n")
         fclose(fp)
     end
+
     return nothing
 end
 
@@ -327,12 +350,19 @@ function calc_gauge_action(U, smearing::StoutSmearing)
     return smeared_gauge_action
 end
 
-sample_pseudofermions!(::Any, ::Nothing, ::Any, ::NoSmearing, ::Bool) = nothing
+function sample_pseudofermions!(ϕ, ::QuenchedFermionAction, U, ::NoSmearing, ::Any)
+    return nothing
+end
+
+function sample_pseudofermions!(ϕ, ::QuenchedFermionAction, U, ::StoutSmearing, ::Any)
+    return nothing
+end
 
 function sample_pseudofermions!(ϕ, fermion_action, U, ::NoSmearing, ::Any)
     for i in eachindex(fermion_action)
         sample_pseudofermions!(ϕ[i], fermion_action[i], U)
     end
+
     return nothing
 end
 
@@ -341,19 +371,24 @@ function sample_pseudofermions!(ϕ, fermion_action, U, smearing::StoutSmearing, 
     is_smeared || calc_smearedU!(smearing, U)
     calc_smearedU!(smearing, U)
     fully_smeared_U = smearing.Usmeared_multi[end]
+
     for i in eachindex(fermion_action)
         sample_pseudofermions!(ϕ[i], fermion_action[i], fully_smeared_U)
     end
+
     return nothing
 end
 
-calc_fermion_action(::Nothing, ::Any, ::Any, ::NoSmearing, ::Any) = 0.0
+calc_fermion_action(::QuenchedFermionAction, U, ϕ, ::NoSmearing, ::Any) = 0.0
+calc_fermion_action(::QuenchedFermionAction, U, ϕ, ::StoutSmearing, ::Any) = 0.0
 
 function calc_fermion_action(fermion_action, U, ϕ, ::NoSmearing, ::Any)
     Sf = 0.0
+
     for i in eachindex(fermion_action)
         Sf += calc_fermion_action(fermion_action[i], U, ϕ[i])
     end
+
     return Sf
 end
 
@@ -361,9 +396,11 @@ function calc_fermion_action(fermion_action, U, ϕ, smearing::StoutSmearing, is_
     is_smeared || calc_smearedU!(smearing, U)
     fully_smeared_U = smearing.Usmeared_multi[end]
     Sf = 0.0
+
     for i in eachindex(fermion_action)
         Sf += calc_fermion_action(fermion_action[i], fully_smeared_U, ϕ[i])
     end
+
     return Sf
 end
 
@@ -371,11 +408,11 @@ end
 
 @inline function print_hmc_data(logfile, ΔP², ΔSg, ΔSf, ΔV, ΔH)
     fp = fopen(logfile, "a")
-    printf(fp, "%+22.15E\t", ΔP²)
-    printf(fp, "%+22.15E\t", ΔSg)
-    printf(fp, "%+22.15E\t", ΔSf)
-    printf(fp, "%+22.15E\t", ΔV)
-    printf(fp, "%+22.15E\n", ΔH)
+    printf(fp, "%+25.15E", ΔP²)
+    printf(fp, "%+25.15E", ΔSg)
+    printf(fp, "%+25.15E", ΔSf)
+    printf(fp, "%+25.15E", ΔV)
+    printf(fp, "%+25.15E\n", ΔH)
     fclose(fp)
     return nothing
 end

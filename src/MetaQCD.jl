@@ -3,36 +3,29 @@ module MetaQCD
 using Requires
 
 include("./utils/Utils.jl")
-include("./output/Output.jl")
+include("./parameters/Parameters.jl")
+include("./fields/Fields.jl")
+include("./io/IO.jl")
 include("./solvers/Solvers.jl")
 include("./rhmc/AlgRemez.jl")
 include("./rhmc/RHMCParameters.jl")
-include("./fields/Fields.jl")
-include("./diracoperators/DiracOperators.jl")
 include("./smearing/Smearing.jl")
+include("./diracoperators/DiracOperators.jl")
 include("./measurements/Measurements.jl")
-include("./parameters/Parameters.jl")
 include("./bias/Bias.jl")
 include("./main/Universe.jl")
 include("./updates/Updates.jl")
 include("./viz/Viz.jl")
-
-function __init__()
-    @require MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195" begin
-        MPI.Init()
-    end
-end
-
 include("./main/Main.jl")
 
-using .Output
+using .MetaIO
 using .Utils
 using .Main
 using .Solvers
 using .Viz
 using Unicode
 
-export BridgeFormat, JLD2Format, load_config!, save_config
+export BMWFormat, BridgeFormat, JLD2Format, load_config!, save_config
 export MetaLogger, current_time, @level1, @level2, @level3, set_global_logger!
 export run_sim, build_bias
 export MetaMeasurements, MetaBias, biaspotential, eigenvalues, hadroncorrelator, timeseries
@@ -43,7 +36,7 @@ import .DiracOperators: AbstractDiracOperator, Daggered, DdaggerD, calc_fermion_
 import .DiracOperators: StaggeredDiracOperator, StaggeredEOPreDiracOperator, even_odd
 import .DiracOperators: WilsonDiracOperator, WilsonEOPreDiracOperator, sample_pseudofermions!
 import .DiracOperators: StaggeredFermionAction, StaggeredEOPreFermionAction
-import .DiracOperators: WilsonFermionAction, WilsonEOPreFermionAction
+import .DiracOperators: WilsonFermionAction, WilsonEOPreFermionAction, QuenchedFermionAction
 import .Fields: CPU, DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
 import .Fields: SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
 import .Fields: Expfield, Colorfield, Gaugefield
@@ -51,7 +44,7 @@ import .Fields: calc_gauge_action, fieldstrength_eachsite!, identity_gauges!
 import .Fields: normalize!, plaquette, plaquette_trace_sum, random_gauges!
 import .Fields: staple, staple_eachsite!, wilsonloop, to_backend
 import .Fields: Tensorfield, calc_kinetic_energy, gaussian_TA!
-import .Fields: Fermionfield, gaussian_pseudofermions!
+import .Fields: Spinorfield, gaussian_pseudofermions!
 import .Measurements: measure, top_charge
 import .Measurements: EnergyDensityMeasurement, GaugeActionMeasurement, PlaquetteMeasurement
 import .Measurements: PolyakovMeasurement, TopologicalChargeMeasurement
@@ -73,9 +66,9 @@ export calc_gauge_action, fieldstrength_eachsite!, identity_gauges!
 export normalize!, plaquette, plaquette_trace_sum, random_gauges!
 export staple, staple_eachsite!, wilsonloop
 export Tensorfield, calc_kinetic_energy, gaussian_TA!
-export Fermionfield, Daggered, DdaggerD
+export Spinorfield, Daggered, DdaggerD
 export StaggeredDiracOperator, StaggeredEOPreDiracOperator 
-export WilsonDiracOperator, WilsonEOPreDiracOperator
+export WilsonDiracOperator, WilsonEOPreDiracOperator, QuenchedFermionAction
 export even_odd, sample_pseudofermions!
 export StaggeredFermionAction, StaggeredEOPreFermionAction
 export WilsonFermionAction, WilsonEOPreFermionAction

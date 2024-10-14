@@ -67,6 +67,7 @@ function updateU!(U::Gaugefield{CPU,T}, Z::Colorfield{CPU,T}, ϵ) where {T}
         end
     end
 
+    update_halo!(U)
     return nothing
 end
 
@@ -81,6 +82,7 @@ function calcZ!(Z::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, ϵ) where {T}
         end
     end
 
+    update_halo!(Z)
     return nothing
 end
 
@@ -96,5 +98,6 @@ function updateZ!(Z::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, ϵ_old, ϵ_new) wh
         end
     end
 
+    update_halo!(Z)
     return nothing
 end

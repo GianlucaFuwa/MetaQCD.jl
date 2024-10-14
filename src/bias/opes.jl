@@ -1,6 +1,10 @@
 include("opes_kernel.jl")
 
 """
+    OPES <: AbstractBias
+
+OPES bias-enhanced sampler from https://arxiv.org/abs/1909.07250 .
+
     OPES(; symmetric=true, stride=1, cvlims=(-6, 6), barrier=30,
          biasfactor=Inf, σ₀=0.1, σ_min=1e-6, fixed_σ=true, opes_epsilon=0.0,
          no_Z=false, threshold=1.0, cutoff=0.0)

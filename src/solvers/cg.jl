@@ -154,28 +154,37 @@ function bicg_stab!(x, A, b, v, r, p, r₀, t; tol=1e-14, maxiters=1000)
         axpy!(-α, v, r)
         res = abs(dot(r, r))
         @level3 "|  BiCGStab: residual $(iter).5 = $res"
+
         if res < tol
             @level2 "|  BiCGStab: converged at iter $(iter).5 with res = $res"
             return nothing
         end
-        @assert isfinite(res) && isfinite(α) "BiCG: NaN or Inf encountered, res = $res, α = $α"
+
+        @assert isfinite(res) && isfinite(α) """
+        BiCG: NaN or Inf encountered, res = $res, α = $α
+        """
         mul!(t, A, r)
         ω = dot(t, r) / dot(t, t)
         axpy!(ω, r, x)
         axpy!(-ω, t, r)
         res = abs(dot(r, r))
         @level3 "|  BiCGStab: residual $(iter) = $res"
+
         if res < tol
             @level2 "|  BiCGStab: converged at iter $(iter) with res = $res"
             return nothing
         end
-        @assert isfinite(res) && isfinite(ω) "BiCG: NaN or Inf encountered, res = $res, ω = $ω"
+
+        @assert isfinite(res) && isfinite(ω) """
+        BiCG: NaN or Inf encountered, res = $res, ω = $ω
+        """
         ρ_new = dot(r₀, r)
         β = (ρ_new / ρ) * (α / ω)
         axpy!(-ω, v, p)
         axpby!(1, r, β, p)
         ρ = ρ_new
     end
+
     # @level1 "|  BiCGStab: did not converge in $maxiters iterations"
     throw(AssertionError("BiCGStab did not converge in $maxiters iterations"))
     return nothing

@@ -3,15 +3,16 @@ using MetaQCD
 using MetaQCD.Utils
 using MetaQCD.Updates: calc_dQdU_bare!
 
-function test_derivative(backend=CPU)
+function test_derivative(backend=CPU; nprocs_cart=(1, 1, 1, 1), halo_width=0)
     Random.seed!(123)
-    println("SU3test_gauge_derivative")
+    mpi_amroot() && println("Gauge and Clover derivative test")
     NX = 4
     NY = 4
     NZ = 4
     NT = 4
-    U = Gaugefield{CPU,Float64,WilsonGaugeAction}(NX, NY, NZ, NT, 6.0)
+    U = Gaugefield{CPU,Float64,WilsonGaugeAction}(NX, NY, NZ, NT, 6.0, nprocs_cart, halo_width)
     random_gauges!(U)
+
     # filename = pkgdir(MetaQCD, "test", "testconf.txt")
     # load_config!(BridgeFormat(), U, filename);
     if backend !== CPU
@@ -32,7 +33,7 @@ function test_derivative(backend=CPU)
     dQdU = Colorfield(U)
     dQdU_smeared = Colorfield(U)
 
-    site = SiteCoords(2, 3, 1, 2)
+    site = SiteCoords(2, 3, 3, 3)
     μ = 3
     ΔH = 0.00001
 
@@ -41,24 +42,36 @@ function test_derivative(backend=CPU)
     for group_direction in 1:8
         # Unsmeared
         Ufwd = deepcopy(U)
-        Ufwd[μ, site] = expλ(group_direction, ΔH) * Ufwd[μ, site]
+        if mpi_amroot()
+            Ufwd[μ, site] = expλ(group_direction, ΔH) * Ufwd[μ, site]
+        end
+        update_halo!(Ufwd)
         gaction_new_fwd = calc_gauge_action(Ufwd)
         topcharge_new_fwd = top_charge(Clover(), Ufwd)
 
         Ubwd = deepcopy(U)
-        Ubwd[μ, site] = expλ(group_direction, -ΔH) * Ubwd[μ, site]
+        if mpi_amroot()
+            Ubwd[μ, site] = expλ(group_direction, -ΔH) * Ubwd[μ, site]
+        end
+        update_halo!(Ubwd)
         gaction_new_bwd = calc_gauge_action(Ubwd)
         topcharge_new_bwd = top_charge(Clover(), Ubwd)
 
         # Smeared
         Ufwd = deepcopy(U)
-        Ufwd[μ, site] = expλ(group_direction, ΔH) * Ufwd[μ, site]
+        if mpi_amroot()
+            Ufwd[μ, site] = expλ(group_direction, ΔH) * Ufwd[μ, site]
+        end
+        update_halo!(Ufwd)
         calc_smearedU!(smearing, Ufwd)
         gaction_new_fwd_smeared = calc_gauge_action(smearing.Usmeared_multi[end])
         topcharge_new_fwd_smeared = top_charge(Clover(), smearing.Usmeared_multi[end])
 
         Ubwd = deepcopy(U)
-        Ubwd[μ, site] = expλ(group_direction, -ΔH) * Ubwd[μ, site]
+        if mpi_amroot()
+            Ubwd[μ, site] = expλ(group_direction, -ΔH) * Ubwd[μ, site]
+        end
+        update_halo!(Ubwd)
         calc_smearedU!(smearing, Ubwd)
         gaction_new_bwd_smeared = calc_gauge_action(smearing.Usmeared_multi[end])
         topcharge_new_bwd_smeared = top_charge(Clover(), smearing.Usmeared_multi[end])
@@ -92,24 +105,35 @@ function test_derivative(backend=CPU)
         relerrors[group_direction, 4] =
             (tc_symm_diff_smeared - dtopcharge_proj_smeared) / tc_symm_diff_smeared
 
-        println("================= Group direction $(group_direction) =================")
-        println(
-            "/ GA rel. error (unsmeared): \t", (ga_symm_diff - dgaction_proj) / ga_symm_diff
-        )
-        println(
-            "/ GA rel. error (smeared):   \t",
-            (ga_symm_diff_smeared - dgaction_proj_smeared) / ga_symm_diff_smeared,
-        )
-        println("")
-        println(
-            "/ TC rel. error (unsmeared): \t",
-            (tc_symm_diff - dtopcharge_proj) / tc_symm_diff,
-        )
-        println(
-            "/ TC rel. error (smeared):   \t",
-            (tc_symm_diff_smeared - dtopcharge_proj_smeared) / tc_symm_diff_smeared,
-        )
+        if mpi_amroot()
+            println("================= Group direction $(group_direction) =================")
+            println(
+                "/ GA rel. error (unsmeared): \t", (ga_symm_diff - dgaction_proj) / ga_symm_diff
+            )
+            println(
+                "/ GA rel. error (smeared):   \t",
+                (ga_symm_diff_smeared - dgaction_proj_smeared) / ga_symm_diff_smeared,
+            )
+            println("")
+            println(
+                "/ TC rel. error (unsmeared): \t",
+                (tc_symm_diff - dtopcharge_proj) / tc_symm_diff,
+            )
+            println(
+                "/ TC rel. error (smeared):   \t",
+                (tc_symm_diff_smeared - dtopcharge_proj_smeared) / tc_symm_diff_smeared,
+            )
+        end
     end
-    # println()
+
+    if mpi_amroot()
+        println()
+
+        @testset "Gauge and Clover derivative" begin
+            @test length(findall(x -> abs(x) > 1e-4, relerrors[:, 2])) == 0
+        end
+    end
+
+    mpi_barrier()
     return relerrors
 end

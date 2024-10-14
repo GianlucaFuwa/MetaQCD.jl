@@ -1,25 +1,31 @@
 """
-    WilsonEOPreDiracOperator(::Abstractfield, mass; anti_periodic=true)
+    WilsonEOPreDiracOperator(::AbstractField, mass; bc_str="antiperiodic")
     WilsonEOPreDiracOperator(
         D::Union{WilsonDiracOperator,WilsonEOPreDiracOperator},
         U::Gaugefield
     )
 
 Create a free even-odd preconditioned Wilson Dirac Operator with mass `mass`.
-If `anti_periodic` is `true` the fermion fields are anti periodic in the time direction.
+
+`bc_str` can either be `"periodic"` or `"antiperiodic"` and specifies the boundary
+condition in the time direction.
+
+If `csw ≠ 0`, a clover term is included. 
+
 This object cannot be applied to a fermion vector, since it lacks a gauge background.
 A Wilson Dirac operator with gauge background is created by applying it to a `Gaugefield`
-`U` like `D_gauge = D_free(U)`
+`U` like `D_gauge = D(U)`
 
 # Type Parameters:
 - `B`: Backend (CPU / CUDA / ROCm)
 - `T`: Floating point precision
-- `TF`: Type of the `Fermionfield` used to store intermediate results when using the 
+- `TF`: Type of the `Spinorfield` used to store intermediate results when using the 
         Hermitian version of the operator
 - `TG`: Type of the underlying `Gaugefield`
 - `C`: Boolean declaring whether the operator is clover improved or not
+- `BC`: Boundary Condition in time direction
 """
-struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO} <: AbstractDiracOperator
+struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO,BC} <: AbstractDiracOperator
     U::TG
     Fμν::TX
     temp::TF # temp for storage of intermediate result for DdaggerD operator
@@ -29,25 +35,27 @@ struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO} <: AbstractDiracOperator
     κ::Float64
     r::Float64
     csw::Float64
-    anti_periodic::Bool # Only in time direction
+    boundary_condition::BC # Only in time direction
     function WilsonEOPreDiracOperator(
-        f::Abstractfield{B,T}, mass; anti_periodic=true, r=1, csw=0, kwargs...
+        f::AbstractField{B,T}, mass; bc_str="antiperiodic", r=1, csw=0, kwargs...
     ) where {B,T}
-        @assert r === 1 "Only r=1 in Wilson Dirac supported for now"
+        @assert r == 1 "Only r=1 in Wilson Dirac supported for now"
         κ = 1 / (2mass + 8)
         U = nothing
         C = csw == 0 ? false : true
         Fμν = C ? Tensorfield(f) : nothing
-        temp = even_odd(Fermionfield{B,T,4}(dims(f)...))
-        D_diag = WilsonEODiagonal(temp, mass, csw)
-        D_oo_inv = WilsonEODiagonal(temp, mass, csw; inverse=true)
+        temp = even_odd(Spinorfield(f))
+        D_diag = Paulifield(temp, csw)
+        D_oo_inv = Paulifield(temp, csw; inverse=true)
+        boundary_condition = create_bc(bc_str, f.topology)
 
         TG = Nothing
         TX = typeof(Fμν)
         TF = typeof(temp)
         TO = typeof(D_diag)
-        return new{B,T,C,TF,TG,TX,TO}(
-            U, Fμν, temp, D_diag, D_oo_inv, mass, κ, r, csw, anti_periodic
+        BC = typeof(boundary_condition)
+        return new{B,T,C,TF,TG,TX,TO,BC}(
+            U, Fμν, temp, D_diag, D_oo_inv, mass, κ, r, csw, boundary_condition
         )
     end
 
@@ -58,8 +66,8 @@ struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO} <: AbstractDiracOperator
         mass = D.mass
         csw = D.csw
         temp = even_odd(D.temp)
-        D_diag = WilsonEODiagonal(temp, mass, csw)
-        D_oo_inv = WilsonEODiagonal(temp, D.mass, csw; inverse=true)
+        D_diag = Paulifield(temp, csw)
+        D_oo_inv = Paulifield(temp, csw; inverse=true)
 
         Fμν = C ? Tensorfield(U) : nothing
         calc_diag!(D_diag, D_oo_inv, Fμν, U, mass)
@@ -68,8 +76,9 @@ struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO} <: AbstractDiracOperator
         TX = typeof(Fμν)
         TG = typeof(U)
         TO = typeof(D_diag)
-        return new{B,T,C,TF_new,TG,TX,TO}(
-            U, Fμν, temp, D_diag, D_oo_inv, mass, D.κ, D.r, csw, D.anti_periodic
+        BC = typeof(D.boundary_condition)
+        return new{B,T,C,TF_new,TG,TX,TO,BC}(
+            U, Fμν, temp, D_diag, D_oo_inv, mass, D.κ, D.r, csw, D.boundary_condition
         )
     end
 
@@ -85,8 +94,9 @@ struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO} <: AbstractDiracOperator
         D_oo_inv = D.D_oo_inv
 
         calc_diag!(D_diag, D_oo_inv, Fμν, U, mass)
-        return new{B,T,C,TF,typeof(U),TX,TO}(
-            U, Fμν, temp, D_diag, D_oo_inv, mass, D.κ, D.r, csw, D.anti_periodic
+        BC = typeof(D.boundary_condition)
+        return new{B,T,C,TF,typeof(U),TX,TO,BC}(
+            U, Fμν, temp, D_diag, D_oo_inv, mass, D.κ, D.r, csw, D.boundary_condition
         )
     end
 end
@@ -95,39 +105,11 @@ function (D::WilsonEOPreDiracOperator{B,T})(U::Gaugefield{B,T}) where {B,T}
     return WilsonEOPreDiracOperator(D, U)
 end
 
-struct WilsonEODiagonal{B,T,C,A} <: Abstractfield{B,T,A} # So we can overload LinearAlgebra.det on the even-odd diagonal
-    U::A
-    mass::Float64
-    csw::Float64
-    NX::Int64 # Number of lattice sites in the x-direction
-    NY::Int64 # Number of lattice sites in the y-direction
-    NZ::Int64 # Number of lattice sites in the z-direction
-    NT::Int64 # Number of lattice sites in the t-direction
-    NV::Int64 # Total number of lattice sites
-    NC::Int64 # Number of colors
-    ND::Int64 # Number of dirac indices
-    function WilsonEODiagonal(
-        f::TF, mass, csw; inverse=false
-    ) where {B,T,TF<:Union{Fermionfield{B,T},EvenOdd{B,T}}}
-        NX, NY, NZ, NT = dims(f)
-        _NT = inverse ? NT ÷ 2 : NT
-        NC = num_colors(f)
-        ND = num_dirac(f)
-        NV = NX * NY * NZ * NT
-        C = csw == 0 ? false : true
-        U = KA.zeros(B(), SMatrix{6,6,Complex{T},36}, 2, NX, NY, NZ, _NT)
+@inline has_clover_term(::WilsonEOPreDiracOperator{B,T,C}) where {B,T,C} = C
+@inline has_clover_term(::Daggered{W}) where {B,T,C,W<:WilsonEOPreDiracOperator{B,T,C}} = C
+@inline has_clover_term(::DdaggerD{W}) where {B,T,C,W<:WilsonEOPreDiracOperator{B,T,C}} = C
 
-        A = typeof(U)
-        return new{B,T,C,A}(U, mass, csw, NX, NY, NZ, NT, NV, NC, ND)
-    end
-end
-
-dims(D_diag::WilsonEODiagonal) = D_diag.NX, D_diag.NY, D_diag.NZ, D_diag.NT
-num_colors(D_diag::WilsonEODiagonal) = D_diag.NC
-
-const WilsonEOPreFermionfield{B,T,A} = EvenOdd{B,T,A,4}
-
-struct WilsonEOPreFermionAction{Nf,C,TD,CT,TX,RI1,RI2,RT} <: AbstractFermionAction
+struct WilsonEOPreFermionAction{R,Nf,C,TD,CT,TX,RI1,RI2,RT} <: AbstractFermionAction{R,Nf}
     D::TD
     cg_temps::CT
     Xμν::TX
@@ -140,9 +122,9 @@ struct WilsonEOPreFermionAction{Nf,C,TD,CT,TX,RI1,RI2,RT} <: AbstractFermionActi
     cg_maxiters_action::Int64
     cg_maxiters_md::Int64
     function WilsonEOPreFermionAction(
-        f::Abstractfield{B,T},
+        f::AbstractField{B,T},
         mass;
-        anti_periodic=true,
+        bc_str="antiperiodic",
         r=1,
         csw=0,
         Nf=2,
@@ -154,19 +136,24 @@ struct WilsonEOPreFermionAction{Nf,C,TD,CT,TX,RI1,RI2,RT} <: AbstractFermionActi
         cg_tol_md=1e-12,
         cg_maxiters_action=1000,
         cg_maxiters_md=1000,
+        kwargs...,
     ) where {B,T}
-        D = WilsonEOPreDiracOperator(f, mass; anti_periodic=anti_periodic, r=r, csw=csw)
+        D = WilsonEOPreDiracOperator(f, mass; bc_str=bc_str, r=r, csw=csw)
         TD = typeof(D)
 
         if Nf == 2
+            R = false
             rhmc_info_md = nothing
             rhmc_info_action = nothing
             rhmc_temps1 = nothing
             rhmc_temps2 = nothing
-            cg_temps = ntuple(_ -> even_odd(Fermionfield(f)), 4)
+            cg_temps = ntuple(_ -> even_odd(Spinorfield(f)), 4)
         else
-            @assert Nf == 1 "Nf should be 1 or 2 (was $Nf). If you want Nf > 2, use multiple actions"
-            cg_temps = ntuple(_ -> even_odd(Fermionfield(f)), 2)
+            @assert Nf == 1 """
+            Nf should be 1 or 2 (was $Nf). If you want Nf > 2, use multiple actions
+            """
+            R = true
+            cg_temps = ntuple(_ -> even_odd(Spinorfield(f)), 2)
             power = Nf//4
             rhmc_info_action = RHMCParams(
                 power; n=rhmc_order_action, precision=rhmc_prec_action
@@ -176,8 +163,8 @@ struct WilsonEOPreFermionAction{Nf,C,TD,CT,TX,RI1,RI2,RT} <: AbstractFermionActi
                 power; n=rhmc_order_md, precision=rhmc_prec_md
             )
             n_temps = max(rhmc_order_md, rhmc_order_action)
-            rhmc_temps1 = ntuple(_ -> even_odd(Fermionfield(f)), n_temps + 1)
-            rhmc_temps2 = ntuple(_ -> even_odd(Fermionfield(f)), n_temps + 1)
+            rhmc_temps1 = ntuple(_ -> even_odd(Spinorfield(f)), n_temps + 1)
+            rhmc_temps2 = ntuple(_ -> even_odd(Spinorfield(f)), n_temps + 1)
         end
 
         C = csw != 0 ? true : false
@@ -187,7 +174,7 @@ struct WilsonEOPreFermionAction{Nf,C,TD,CT,TX,RI1,RI2,RT} <: AbstractFermionActi
         RI1 = typeof(rhmc_info_action)
         RI2 = typeof(rhmc_info_md)
         RT = typeof(rhmc_temps1)
-        return new{Nf,C,TD,CT,TX,RI1,RI2,RT}(
+        return new{R,Nf,C,TD,CT,TX,RI1,RI2,RT}(
             D,
             cg_temps,
             Xμν,
@@ -203,52 +190,11 @@ struct WilsonEOPreFermionAction{Nf,C,TD,CT,TX,RI1,RI2,RT} <: AbstractFermionActi
     end
 end
 
-function Base.show(io::IO, ::MIME"text/plain", S::WilsonEOPreFermionAction{Nf}) where {Nf}
-    print(
-        io,
-        """
-        
-        |  WilsonEOPreFermionAction(
-        |    Nf: $Nf
-        |    MASS: $(S.D.mass)
-        |    KAPPA: $(S.D.κ)
-        |    CSW: $(S.D.csw)
-        |    CG TOLERANCE (ACTION): $(S.cg_tol_action)
-        |    CG TOLERANCE (MD): $(S.cg_tol_md)
-        |    CG MAX ITERS (ACTION): $(S.cg_maxiters_action)
-        |    CG MAX ITERS (ACTION): $(S.cg_maxiters_md)
-        |    RHMC INFO (Action): $(S.rhmc_info_action)
-        |    RHMC INFO (MD): $(S.rhmc_info_md))
-        """
-    )
-    return nothing
-end
-
-function Base.show(io::IO, S::WilsonEOPreFermionAction{Nf}) where {Nf}
-    print(
-        io,
-        """
-        
-        |  WilsonEOPreFermionAction(
-        |    Nf: $Nf
-        |    MASS: $(S.D.mass)
-        |    KAPPA: $(S.D.κ)
-        |    CSW: $(S.D.csw)
-        |    CG TOLERANCE (ACTION): $(S.cg_tol_action)
-        |    CG TOLERANCE (MD): $(S.cg_tol_md)
-        |    CG MAX ITERS (ACTION): $(S.cg_maxiters_action)
-        |    CG MAX ITERS (ACTION): $(S.cg_maxiters_md)
-        |    RHMC INFO (Action): $(S.rhmc_info_action)
-        |    RHMC INFO (MD): $(S.rhmc_info_md))
-        """
-    )
-    return nothing
-end
-
+# INFO: Need to explicitly define fermion action here, because of the small determinant
 function calc_fermion_action(
-    fermion_action::WilsonEOPreFermionAction{2},
+    fermion_action::WilsonEOPreFermionAction{false,2},
     U::Gaugefield,
-    ϕ_eo::WilsonEOPreFermionfield,
+    ϕ_eo::WilsonEOPreSpinorfield,
 )
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
@@ -258,38 +204,49 @@ function calc_fermion_action(
 
     clear!(ψ_eo) # initial guess is zero
     solve_dirac!(ψ_eo, DdagD, ϕ_eo, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
-    Sf = #= dot(ϕ_eo, ψ_eo) =# - 2trlog(D.D_diag)
-    return real(Sf)
+    Sf = real(dot(ϕ_eo, ψ_eo)) - 2trlog(D.D_diag, D.mass)
+    return Sf
 end
 
 function calc_fermion_action(
-    fermion_action::WilsonEOPreFermionAction{1},
+    fermion_action::WilsonEOPreFermionAction{true,1},
     U::Gaugefield,
-    ϕ_eo::WilsonEOPreFermionfield,
+    ϕ_eo::WilsonEOPreSpinorfield,
 )
-    error("Not implemented yet")
-    # TODO
-    return nothing
-end
-
-function sample_pseudofermions!(ϕ, fermion_action::WilsonEOPreFermionAction{2}, U)
+    cg_tol = fermion_action.cg_tol_action
+    cg_maxiters = fermion_action.cg_maxiters_action
+    rhmc = fermion_action.rhmc_info_action
+    n = get_n(rhmc)
     D = fermion_action.D(U)
-    temp = fermion_action.cg_temps[1]
-    gaussian_pseudofermions!(temp)
-    mul!(ϕ, adjoint(D), temp)
-    return nothing
-end
+    DdagD = DdaggerD(D)
+    ψs = fermion_action.rhmc_temps1[1:n+1]
+    ps = fermion_action.rhmc_temps2[1:n+1]
+    temp1, temp2 = fermion_action.cg_temps
 
-function sample_pseudofermions!(ϕ, fermion_action::WilsonEOPreFermionAction{1}, U)
-    error("Not implemented yet")
-    # TODO
-    return nothing
+    for v_eo in ψs
+        clear!(v_eo)
+    end
+
+    shifts = get_β_inverse(rhmc)
+    coeffs = get_α_inverse(rhmc)
+    α₀ = get_α0_inverse(rhmc)
+    solve_dirac_multishift!(ψs, shifts, DdagD, ϕ_eo, temp1, temp2, ps, cg_tol, cg_maxiters)
+    ψ_eo = ψs[1]
+    clear!(ψ_eo) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
+
+    axpy!(α₀, ϕ_eo, ψ_eo)
+
+    for i in 1:n
+        axpy!(coeffs[i], ψs[i+1], ψ_eo)
+    end
+
+    Sf = real(dot(ψ_eo, ψ_eo)) - 2trlog(D.D_diag, D.mass)
+    return Sf
 end
 
 function solve_dirac!(
     ψ_eo, D::T, ϕ_eo, temp1, temp2, temp3, temp4, temp5; tol=1e-14, maxiters=1000
 ) where {T<:WilsonEOPreDiracOperator}
-    check_dims(ψ_eo, ϕ_eo, D.U, temp1, temp2, temp3, temp4, temp5)
     bicg_stab!(ψ_eo, D, ϕ_eo, temp1, temp2, temp3, temp4, temp5; tol=tol, maxiters=maxiters)
     return nothing
 end
@@ -298,42 +255,42 @@ end
 # The Gaugefields module into CG.jl, which also allows us to use the solvers for 
 # for arbitrary arrays, not just fermion fields and dirac operators (good for testing)
 function LinearAlgebra.mul!(
-    ψ_eo::TF, D::WilsonEOPreDiracOperator{CPU,T,C,TF,TG,TX,TO}, ϕ_eo::TF
-) where {T,C,TF,TG,TX,TO}
+    ψ_eo::TF, D::WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO}, ϕ_eo::TF
+) where {B,T,C,TF,TG,TX,TO}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.U
     check_dims(ψ_eo, ϕ_eo, U)
-    anti = D.anti_periodic
+    bc = D.boundary_condition
     D_oo_inv = D.D_oo_inv
     D_diag = D.D_diag
 
-    mul_oe!(ψ_eo, U, ϕ_eo, anti, true, Val(1)) # ψₒ = Dₒₑϕₑ
+    mul_oe!(ψ_eo, U, ϕ_eo, bc, true, Val(1)) # ψₒ = Dₒₑϕₑ
     mul_oo_inv!(ψ_eo, D_oo_inv) # ψₒ = Dₒₒ⁻¹Dₒₑϕₑ
-    mul_eo!(ψ_eo, U, ψ_eo, anti, false, Val(1)) # ψₑ = DₑₒDₒₒ⁻¹Dₒₑϕₑ
+    mul_eo!(ψ_eo, U, ψ_eo, bc, false, Val(1)) # ψₑ = DₑₒDₒₒ⁻¹Dₒₑϕₑ
     axmy!(D_diag, ϕ_eo, ψ_eo) # ψₑ = Dₑₑϕₑ - DₑₒDₒₒ⁻¹Dₒₑϕₑ
     return nothing
 end
 
 function LinearAlgebra.mul!(
-    ψ_eo::TF, D::Daggered{WilsonEOPreDiracOperator{CPU,T,C,TF,TG,TX,TO}}, ϕ_eo::TF
-) where {T,C,TF,TG,TX,TO}
+    ψ_eo::TF, D::Daggered{WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO,BC}}, ϕ_eo::TF
+) where {B,T,C,TF,TG,TX,TO,BC}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.parent.U
     check_dims(ψ_eo, ϕ_eo, U)
-    anti = D.parent.anti_periodic
+    bc = D.parent.boundary_condition
     D_oo_inv = D.parent.D_oo_inv
     D_diag = D.parent.D_diag
 
-    mul_oe!(ψ_eo, U, ϕ_eo, anti, true, Val(-1)) # ψₒ = Dₑₒ†ϕₑ
+    mul_oe!(ψ_eo, U, ϕ_eo, bc, true, Val(-1)) # ψₒ = Dₑₒ†ϕₑ
     mul_oo_inv!(ψ_eo, D_oo_inv) # ψₒ = Dₒₒ⁻¹Dₒₑϕₑ
-    mul_eo!(ψ_eo, U, ψ_eo, anti, false, Val(-1)) # ψₑ = Dₒₑ†Dₒₒ⁻¹Dₑₒ†ϕₑ
+    mul_eo!(ψ_eo, U, ψ_eo, bc, false, Val(-1)) # ψₑ = Dₒₑ†Dₒₒ⁻¹Dₑₒ†ϕₑ
     axmy!(D_diag, ϕ_eo, ψ_eo) # ψₑ = Dₑₑϕₑ - DₑₒDₒₒ⁻¹Dₒₑϕₑ
     return nothing
 end
 
 function LinearAlgebra.mul!(
-    ψ_eo::TF, D::DdaggerD{WilsonEOPreDiracOperator{CPU,T,C,TF,TG,TX,TO}}, ϕ_eo::TF
-) where {T,C,TF,TG,TX,TO}
+    ψ_eo::TF, D::DdaggerD{WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO,BC}}, ϕ_eo::TF
+) where {B,T,C,TF,TG,TX,TO,BC}
     temp = D.parent.temp
     mul!(temp, D.parent, ϕ_eo) # temp = Dϕ
     mul!(ψ_eo, adjoint(D.parent), temp) # ψ = D†Dϕ
@@ -341,46 +298,54 @@ function LinearAlgebra.mul!(
 end
 
 function mul_oe!(
-    ψ_eo::TF, U::Gaugefield{CPU,T}, ϕ_eo::TF, anti, into_odd, ::Val{dagg}; fac=1
-) where {T,TF<:WilsonEOPreFermionfield{CPU,T},dagg}
+    ψ_eo::TF, U::Gaugefield{CPU,T}, ϕ_eo::TF, bc, into_odd, ::Val{dagg}; fac=1
+) where {T,TF<:WilsonEOPreSpinorfield{CPU,T},dagg}
     check_dims(ψ_eo, ϕ_eo, U)
     ψ = ψ_eo.parent
     ϕ = ϕ_eo.parent
     fdims = dims(ψ)
     NV = ψ.NV
 
-    #= @batch  =#for site in eachindex(ψ)
+    @batch for site in eachindex(ψ)
         isodd(site) || continue
         _site = if into_odd
             eo_site(site, fdims..., NV)
         else
             eo_site_switch(site, fdims..., NV)
         end
-        ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, anti, T, Val(dagg))
+
+        ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, bc, T, Val(dagg))
     end
+
+    update_halo!(ψ_eo)
+    return nothing
 end
 
 function mul_eo!(
-    ψ_eo::TF, U::Gaugefield{CPU,T}, ϕ_eo::TF, anti, into_odd, ::Val{dagg}; fac=1
-) where {T,TF<:WilsonEOPreFermionfield{CPU,T},dagg}
+    ψ_eo::TF, U::Gaugefield{CPU,T}, ϕ_eo::TF, bc, into_odd, ::Val{dagg}; fac=1
+) where {T,TF<:WilsonEOPreSpinorfield{CPU,T},dagg}
     check_dims(ψ_eo, ϕ_eo, U)
     ψ = ψ_eo.parent
     ϕ = ϕ_eo.parent
     fdims = dims(ψ)
     NV = ψ.NV
 
-    #= @batch  =#for site in eachindex(ψ)
+    @batch for site in eachindex(ψ)
         iseven(site) || continue
         _site = if into_odd
             eo_site_switch(site, fdims..., NV)
         else
             eo_site(site, fdims..., NV)
         end
-        ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, anti, T, Val(dagg))
+
+        ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, bc, T, Val(dagg))
     end
+
+    update_halo!(ψ_eo)
+    return nothing
 end
 
-function wilson_eo_kernel(U, ϕ, site, anti, ::Type{T}, ::Val{dagg}) where {T,dagg}
+function wilson_eo_kernel(U, ϕ, site, bc, ::Type{T}, ::Val{dagg}) where {T,dagg}
     # sites that begin with a "_" are meant for indexing into the even-odd preconn'ed
     # fermion field 
     NX, NY, NZ, NT = dims(U)
@@ -409,140 +374,153 @@ function wilson_eo_kernel(U, ϕ, site, anti, ::Type{T}, ::Val{dagg}) where {T,da
     _siteμ⁺ = eo_site(move(site, 4, 1, NT), NX, NY, NZ, NT, NV)
     siteμ⁻ = move(site, 4, -1, NT)
     _siteμ⁻ = eo_site(siteμ⁻, NX, NY, NZ, NT, NV)
-    bc⁺ = boundary_factor(anti, site[4], 1, NT)
-    bc⁻ = boundary_factor(anti, site[4], -1, NT)
-    ψₙ += cmvmul_spin_proj(U[4, site], bc⁺ * ϕ[_siteμ⁺], Val(-4dagg), Val(false))
-    ψₙ += cmvmul_spin_proj(U[4, siteμ⁻], bc⁻ * ϕ[_siteμ⁻], Val(4dagg), Val(true))
+    ψₙ += cmvmul_spin_proj(
+        U[4, site], apply_bc(ϕ[_siteμ⁺], bc, site, Val(1), NT), Val(-4dagg), Val(false)
+    )
+    ψₙ += cmvmul_spin_proj(
+        U[4, siteμ⁻], apply_bc(ϕ[_siteμ⁻], bc, site, Val(-1), NT), Val(4dagg), Val(true)
+    )
     return T(0.5) * ψₙ
 end
 
 function calc_diag!(
-    D_diag::TW, D_oo_inv::TW, ::Nothing, U::Gaugefield{CPU,T}, mass
-) where {T,TW<:WilsonEODiagonal{CPU,T,false}}
+    D_diag::TW, D_oo_inv::TW, ::Nothing, U::Gaugefield{CPU,T,M}, mass
+) where {T,M,TW<:Paulifield{CPU,T,M,false}}
     check_dims(D_diag, D_oo_inv, U)
     mass_term = Complex{T}(4 + mass)
     fdims = dims(U)
     NV = U.NV
-    sz = 2U.NC
-    sz2 = sz^2
 
-    #= @batch  =#for site in eachindex(U)
-        _site = eo_site(site, fdims..., NV)
-        A = SMatrix{sz,sz,Complex{T},sz2}(mass_term * I)
-
-        D_diag[1, site] = A
-        D_diag[2, site] = A 
-
-        if isodd(site)
-            o_site = switch_sides(_site, fdims..., NV)
-            A_inv = SMatrix{sz,sz,Complex{T},sz2}(1/mass_term * I)
-            D_oo_inv[1, o_site] = A_inv
-            D_oo_inv[2, o_site] = A_inv
-        end
+    @batch for site in eachindex(U)
+        calc_diag_kernel!(D_diag, D_oo_inv, mass_term, site, fdims, NV, T)
     end
 end
 
+function calc_diag_kernel!(
+    D_diag, D_oo_inv, mass_term, site, fdims, NV, ::Type{T}
+) where {T}
+    _site = eo_site(site, fdims..., NV)
+    A = SMatrix{6,6,Complex{T},36}(mass_term * I)
+    D_diag[site] = PauliMatrix(A, A)
+
+    if isodd(site)
+        o_site = switch_sides(_site, fdims..., NV)
+        A_inv = SMatrix{6,6,Complex{T},36}(1/mass_term * I)
+        D_oo_inv[o_site] = PauliMatrix(A_inv, A_inv)
+    end
+
+    return nothing
+end
+
 function calc_diag!(
-    D_diag::TW, D_oo_inv::TW, Fμν, U::Gaugefield{CPU,T}, mass
-) where {T,TW<:WilsonEODiagonal{CPU,T,true}}
+    D_diag::TW, D_oo_inv::TW, Fμν::Tensorfield{B,T,M}, U::Gaugefield{CPU,T,M}, mass
+) where {B,T,M,TW<:Paulifield{CPU,T,M,true}} # With clover term
     check_dims(D_diag, D_oo_inv, U)
     mass_term = Complex{T}(4 + mass)
     fdims = dims(U)
     NV = U.NV
-    sz = 2U.NC
-    sz2 = sz^2
-    fac = T(-D_diag.csw / 2)
+    fac = Complex{T}(D_diag.csw / 2)
 
-    fieldstrength_A_eachsite!(Clover(), Fμν, U)
+    fieldstrength_eachsite!(Clover(), Fμν, U)
 
-    #= @batch  =#for site in eachindex(U)
-        _site = eo_site(site, fdims..., NV)
-        M = SMatrix{sz,sz,Complex{T},sz2}(mass_term * I)
-        i = SVector((1, 2))
-        j = SVector((3, 4))
+    @batch for site in eachindex(U)
+        calc_diag_kernel!(D_diag, D_oo_inv, Fμν, mass_term, site, fdims, NV, fac, T)
+    end
+end
 
-        F₁₂ = Fμν[1, 2, site]
-        A₊ = ckron(σ₁₂(T)[i, i], F₁₂)
-        A₋ = ckron(σ₁₂(T)[j, j], F₁₂)
+function calc_diag_kernel!(
+    D_diag, D_oo_inv, Fμν, mass_term, site, fdims, NV, fac, ::Type{T}
+) where {T}
+    _site = eo_site(site, fdims..., NV)
+    M = SMatrix{6,6,Complex{T},36}(mass_term * I)
+    i = SVector((1, 2))
+    j = SVector((3, 4))
 
-        F₁₃ = Fμν[1, 3, site]
-        A₊ += ckron(σ₁₃(T)[i, i], F₁₃)
-        A₋ += ckron(σ₁₃(T)[j, j], F₁₃)
+    F₁₂ = Fμν[1, 2, site]
+    σ = σ12(T)
+    A₊ = ckron(σ[i, i], F₁₂)
+    A₋ = ckron(σ[j, j], F₁₂)
 
-        F₁₄ = Fμν[1, 4, site]
-        A₊ += ckron(σ₁₄(T)[i, i], F₁₄)
-        A₋ += ckron(σ₁₄(T)[j, j], F₁₄)
+    F₁₃ = Fμν[1, 3, site]
+    σ = σ13(T)
+    A₊ += ckron(σ[i, i], F₁₃)
+    A₋ += ckron(σ[j, j], F₁₃)
 
-        F₂₃ = Fμν[2, 3, site]
-        A₊ += ckron(σ₂₃(T)[i, i], F₂₃)
-        A₋ += ckron(σ₂₃(T)[j, j], F₂₃)
+    F₁₄ = Fμν[1, 4, site]
+    σ = σ14(T)
+    A₊ += ckron(σ[i, i], F₁₄)
+    A₋ += ckron(σ[j, j], F₁₄)
 
-        F₂₄ = Fμν[2, 4, site]
-        A₊ += ckron(σ₂₄(T)[i, i], F₂₄)
-        A₋ += ckron(σ₂₄(T)[j, j], F₂₄)
+    F₂₃ = Fμν[2, 3, site]
+    σ = σ23(T)
+    A₊ += ckron(σ[i, i], F₂₃)
+    A₋ += ckron(σ[j, j], F₂₃)
 
-        F₃₄ = Fμν[3, 4, site]
-        A₊ += ckron(σ₃₄(T)[i, i], F₃₄)
-        A₋ += ckron(σ₃₄(T)[j, j], F₃₄)
+    F₂₄ = Fμν[2, 4, site]
+    σ = σ24(T)
+    A₊ += ckron(σ[i, i], F₂₄)
+    A₋ += ckron(σ[j, j], F₂₄)
 
-        A₊ = fac * A₊ + M
-        A₋ = fac * A₋ + M
-        D_diag[1, _site] = A₊ 
-        D_diag[2, _site] = A₋ 
+    F₃₄ = Fμν[3, 4, site]
+    σ = σ34(T)
+    A₊ += ckron(σ[i, i], F₃₄)
+    A₋ += ckron(σ[j, j], F₃₄)
 
-        if isodd(site)
-            o_site = switch_sides(_site, fdims..., NV)
-            D_oo_inv[1, o_site] = cinv(A₊)
-            D_oo_inv[2, o_site] = cinv(A₋)
-        end
+    A₊ = fac * A₊ + M
+    A₋ = fac * A₋ + M
+    D_diag[_site] = PauliMatrix(A₊, A₋)
+
+    if isodd(site)
+        o_site = switch_sides(_site, fdims..., NV)
+        D_oo_inv[o_site] = PauliMatrix(cinv(A₊), cinv(A₋))
     end
 end
 
 function mul_oo_inv!(
-    ϕ_eo::WilsonEOPreFermionfield{CPU,T}, D_diag::WilsonEODiagonal{CPU,T}
+    ϕ_eo::WilsonEOPreSpinorfield{CPU,T}, D_oo_inv::Paulifield{CPU,T}
 ) where {T}
-    check_dims(ϕ_eo, D_diag)
+    check_dims(ϕ_eo, D_oo_inv)
     ϕ = ϕ_eo.parent
     fdims = dims(ϕ)
     NV = ϕ.NV
 
-    #= @batch  =#for _site in eachindex(true, ϕ)
+    @batch for _site in eachindex(true, ϕ)
         o_site = switch_sides(_site, fdims..., NV)
-        ϕ[o_site] = cmvmul_block(D_diag[1, _site], D_diag[2, _site], ϕ[o_site])
+        ϕ[o_site] = cmvmul_block(D_oo_inv[_site], ϕ[o_site])
     end
 
     return nothing
 end
 
 function axmy!(
-    D_diag::WilsonEODiagonal{CPU,T}, ψ_eo::TF, ϕ_eo::TF
-) where {T,TF<:EvenOdd{CPU,T}} # even on even is the default
+    D_diag::Paulifield{CPU,T}, ψ_eo::TF, ϕ_eo::TF
+) where {T,TF<:WilsonEOPreSpinorfield{CPU,T}} # even on even is the default
     check_dims(ϕ_eo, ψ_eo)
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent
     even = true
 
-    #= @batch  =#for _site in eachindex(even, ϕ)
-        ϕ[_site] = cmvmul_block(D_diag[1, _site], D_diag[2, _site], ψ[_site]) - ϕ[_site]
+    @batch for _site in eachindex(even, ϕ)
+        ϕ[_site] = cmvmul_block(D_diag[_site], ψ[_site]) - ϕ[_site]
     end
 
     return nothing
 end
 
-function trlog(D_diag::WilsonEODiagonal{CPU,T,true}) where {T}
-    d = 0.0
-
-    @batch reduction=(+, d) for _site in eachindex(true, D_diag)
-        d += log(real(det(D_diag[1, _site])))
-        d += log(real(det(D_diag[2, _site])))
-    end
-
-    return d
-end
-
-function trlog(D_diag::WilsonEODiagonal{CPU,T,false}) where {T}
+function trlog(D_diag::Paulifield{B,T,M,false}, mass) where {B,T,M} # Without clover term
     NC = num_colors(D_diag)
-    mass_term = Float64(4 + D_diag.mass)
+    mass_term = Float64(4 + mass)
     logd = 4NC * log(mass_term)
     return D_diag.NV÷2 * logd
+end
+
+function trlog(D_diag::Paulifield{CPU,T,M,true}, ::Any) where {T,M} # With clover term
+    d = 0.0
+
+    @batch reduction=(+, d) for _site in eachindex(false, D_diag)
+        p = D_diag[_site]
+        d += log(real(det(p.upper)) * real(det(p.lower)))
+    end
+
+    return distributed_reduce(d, +, D_diag)
 end

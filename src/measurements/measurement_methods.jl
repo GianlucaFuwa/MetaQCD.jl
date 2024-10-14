@@ -45,7 +45,7 @@ function calc_measurements(m::Vector{MeasurementMethods}, U, itrj, measure_on_al
     return nothing
 end
 
-function calc_measurements(m::MeasurementMethods, U, itrj, myinstance=MYRANK)
+function calc_measurements(m::MeasurementMethods, U, itrj, myinstance=mpi_myrank())
     # check if the current iteration has any measurements to be made to avoid work
     check_for_measurements(itrj, m.intervals) || return nothing
 
@@ -75,7 +75,7 @@ function calc_measurements_flowed(
 end
 
 function calc_measurements_flowed(
-    m::MeasurementMethods, gradient_flow, U, itrj, myinstance=MYRANK
+    m::MeasurementMethods, gradient_flow, U, itrj, myinstance=mpi_myrank()
 )
     # check if the current iteration has any measurements to be made to avoid work
     check_for_measurements(itrj, m.intervals) || return nothing

@@ -3,13 +3,18 @@ module Utils
 using Accessors: @set
 using LinearAlgebra
 using LoopVectorization
+using MPI
 using MuladdMacro: @muladd
 using Polyester
 using Random
 using StaticArrays
 using PrecompileTools: PrecompileTools
 
-export exp_iQ, exp_iQ_coeffs, exp_iQ_su3, get_B₁, get_B₂, get_Q, get_Q²
+export mpi_init, mpi_comm, mpi_size, mpi_parallel, mpi_myrank, mpi_amroot, mpi_barrier
+export mpi_cart_create, mpi_cart_coords, mpi_cart_shift, mpi_multirequest, mpi_send
+export mpi_isend, mpi_recv, mpi_irecv!, mpi_waitall, mpi_allreduce, mpi_allgather
+export mpi_bcast_isbits, mpi_write_at, update_halo!
+export PauliMatrix, exp_iQ, exp_iQ_coeffs, exp_iQ_su3, get_B₁, get_B₂, get_Q, get_Q²
 export gen_SU3_matrix, is_special_unitary, is_traceless_antihermitian
 export kenney_laub, proj_onto_SU3, multr, cnorm2
 export make_submatrix_12, make_submatrix_13, make_submatrix_23
@@ -17,8 +22,9 @@ export embed_into_SU3_12, embed_into_SU3_13, embed_into_SU3_23
 export antihermitian, hermitian, traceless_antihermitian, traceless_hermitian, materialize_TA
 export zero2, zero3, zerov3, eye2, eye3, onev3, gaussian_TA_mat, rand_SU3
 export SiteCoords, eo_site, eo_site_switch, move, switch_sides
-export Sequential, Checkerboard2, Checkerboard4
-export λ, expλ, γ₁, γ₂, γ₃, γ₄, γ₅, σ₁₂, σ₁₃, σ₁₄, σ₂₃, σ₂₄, σ₃₄
+export cartesian_to_linear
+export Sequential, Checkerboard2, Checkerboard4, EvenSites, OddSites
+export λ, expλ, γ1, γ2, γ3, γ4, γ5, σ12, σ13, σ14, σ23, σ24, σ34
 export cmatmul_oo, cmatmul_dd, cmatmul_do, cmatmul_od
 export cmatmul_ooo,
     cmatmul_ood,
@@ -48,12 +54,14 @@ export cdot, cmvmul, cmvmul_d, cvmmul, cvmmul_d, cmvmul_block
 export cmvmul_color, cmvmul_d_color, cvmmul_color, cvmmul_d_color
 export ckron, spintrace, cmvmul_spin_proj, spin_proj, σμν_spin_mul
 export _unwrap_val, SU, restore_last_col, restore_last_row, FLOAT_TYPE
-export cinv, i32, spintrace_σμν
+export cinv, i32, spintrace_pauli
 
 abstract type AbstractIterator end
 struct Sequential <: AbstractIterator end
 struct Checkerboard2 <: AbstractIterator end
 struct Checkerboard4 <: AbstractIterator end
+struct EvenSites <: AbstractIterator end
+struct OddSites <: AbstractIterator end
 
 _unwrap_val(::Val{B}) where {B} = B
 
@@ -112,6 +120,31 @@ const i32 = Literal{Int32}
 ]
 
 const SU{N,N²,T} = SMatrix{N,N,Complex{T},N²}
+
+struct PauliMatrix{N,N²,T<:AbstractFloat}
+    upper::SU{N,N²,T}
+    lower::SU{N,N²,T}
+    function PauliMatrix(λ::UniformScaling{T}, ::Val{N}) where {N,T<:AbstractFloat}
+        upper = lower = @SMatrix(zeros(Complex{T}, N, N)) + λ
+        N² = N^2
+        return new{N,N²,T}(upper, lower)
+    end
+
+    function PauliMatrix(upper::SU{N,N²,T}, lower::SU{N,N²,T}) where {N,N²,T<:AbstractFloat}
+        return new{N,N²,T}(upper, lower)
+    end
+end
+
+Base.zero(::Type{PauliMatrix{N,N²,T}}) where {N,N²,T} =
+    PauliMatrix(UniformScaling(zero(T)), Val(N))
+Base.one(::Type{PauliMatrix{N,N²,T}}) where {N,N²,T} =
+    PauliMatrix(UniformScaling(one(T)), Val(N))
+
+function Base.rand(::Type{PauliMatrix{N,N²,T}}) where {N,N²,T}
+    upper = hermitian(@SMatrix(rand(Complex{T}, N, N)))
+    lower = hermitian(@SMatrix(rand(Complex{T}, N, N)))
+    return PauliMatrix(upper, lower)
+end
 
 """
     multr(A::SMatrix{N,N,Complex{T},N²}, B::SMatrix{N,N,Complex{T},N²}) where {N,N²,T}
@@ -200,12 +233,13 @@ end
     return q
 end
 
+include("mpi.jl")
 include("auxiliary.jl")
 include("simd_matmul.jl")
 include("simd_vecops.jl")
 include("generators.jl")
 include("exp.jl")
-include("projections.jl")
+include("algebra.jl")
 include("sitecoords.jl")
 
 end

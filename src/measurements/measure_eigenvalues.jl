@@ -19,7 +19,7 @@ struct EigenvaluesMeasurement{T,TA,TD} <: AbstractMeasurement
         mass=0.1,
         csw=0,
         r=1,
-        anti_periodic=true,
+        bc_str="antiperiodic",
         nev = 10,
         which = "LM",
         tol = sqrt(eps(real(Float64))),
@@ -38,16 +38,17 @@ struct EigenvaluesMeasurement{T,TA,TD} <: AbstractMeasurement
         @level1("|    Max. Krylov dimension: $(maxdim)")
         @level1("|    Number of restarts: $(restarts)")
         @level1("|    Use D†D: $(ddaggerd)")
+        @level1("|    Boundary Condition: $(bc_str)")
         if dirac_type == "staggered"
             if eo_precon
                 dirac_operator = StaggeredEOPreDiracOperator(
-                    U, mass; anti_periodic=anti_periodic
+                    U, mass; bc_str=bc_str
                 )
                 @level1("@Warn Eigenvalues with \"eo_precon=true\" defaults to DdaggerD")
                 ddaggerd = true
             else
                 dirac_operator = StaggeredDiracOperator(
-                    U, mass; anti_periodic=anti_periodic
+                    U, mass; bc_str=bc_str
                 )
             end
         elseif dirac_type == "wilson"
@@ -55,14 +56,14 @@ struct EigenvaluesMeasurement{T,TA,TD} <: AbstractMeasurement
                 error("Even-odd preconditioned Wilson Operator not supported in Eigenvalues")
             else
                 dirac_operator = WilsonDiracOperator(
-                    U, mass; anti_periodic=anti_periodic, r=r, csw=csw
+                    U, mass; bc_str=bc_str, r=r, csw=csw
                 )
             end
         else
             throw(ArgumentError("Dirac operator \"$dirac_type\" is not supported"))
         end
 
-        if filename !== nothing && filename != ""
+        if !isnothing(filename) && filename != ""
             path = filename * MYEXT
             rpath = StaticString(path)
             header = ""
@@ -87,8 +88,10 @@ struct EigenvaluesMeasurement{T,TA,TD} <: AbstractMeasurement
                 header *= @sprintf("%-25s%-25s", "eig_re_$(i)", "eig_im_$(i)")
             end
 
-            open(path, "w") do fp
-                println(fp, header)
+            if mpi_amroot()
+                open(path, "w") do fp
+                    println(fp, header)
+                end
             end
         else
             rpath = nothing
@@ -123,7 +126,7 @@ function EigenvaluesMeasurement(U, params::EigenvaluesParameters, filename, flow
         dirac_type=params.dirac_type,
         mass=params.mass,
         csw=params.csw,
-        anti_periodic=params.anti_periodic,
+        bc_str=params.boundary_condition,
         eo_precon=params.eo_precon,
         nev=params.nev,
         which=params.which,
@@ -139,6 +142,7 @@ function measure(
     m::EigenvaluesMeasurement{T}, U, myinstance, itrj, flow=nothing
 ) where {T}
     vals = m.vals
+    iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
     if m.which == :LSM
         view(vals, 1:m.nev) .= try
@@ -192,23 +196,25 @@ function measure(
         end
     end
 
-    if T !== Nothing
-        filename = m.filename
-        set_ext!(filename, myinstance)
-        fp = fopen(filename, "a")
-        printf(fp, "%-11i", itrj)
-        if !isnothing(flow)
-            printf(fp, "%-7i", flow[1])
-            printf(fp, "%-9.5f", flow[2])
-        end
+    if mpi_amroot()
+        if T !== Nothing
+            filename = set_ext!(m.filename, myinstance)
+            fp = fopen(filename, "a")
+            @printf(fp, "%-11i", itrj)
 
-        for value in vals
-            printf(fp, "%+-25.15E", real(value))
-            printf(fp, "%+-25.15E", imag(value))
-        end
+            if !isnothing(flow)
+                @printf(fp, "%-7i", iflow)
+                @printf(fp, "%-9.5f", τ)
+            end
 
-        printf(fp, "\n")
-        fclose(fp)
+            for value in vals
+                @printf(fp, "%+-25.15E", real(value))
+                @printf(fp, "%+-25.15E", imag(value))
+            end
+
+            @printf(fp, "\n")
+            fclose(fp)
+        end
     end
 
     return vals

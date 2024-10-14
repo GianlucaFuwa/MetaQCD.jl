@@ -1,4 +1,8 @@
 """
+    Metadynamics <: AbstractBias
+
+Metadynamics bias-enhanced sampler from https://arxiv.org/abs/cond-mat/0208352 .
+    
     Metadynamics(; symmetric=true, stride=1, cvlims=(-6, 6), biasfactor=Inf,
                   bin_width=0.1, weight=0.01, penalty_weight=1000)
     Metadynamics(p::ParameterSet; instance=1)

@@ -1,54 +1,81 @@
-module Output
+module MetaIO
 
 using Dates
-using Format
 using InteractiveUtils: InteractiveUtils
 using JLD2
-using KernelAbstractions # TODO: save and load of GPUD
-using MPI
+using KernelAbstractions # TODO: save and load of Fields on GPUs
 using LinearAlgebra
+using Polyester
 using Printf
 using Random
 using StaticArrays
-using ..Utils: restore_last_row
+using ..Parameters
+using ..Utils
+
+import ..Fields: Gaugefield, is_distributed
 
 export __GlobalLogger, MetaLogger, current_time, @level1, @level2, @level3
 export BMWFormat, BridgeFormat, Checkpointer, ConfigSaver, JLD2Format, set_global_logger!
-export fclose, fopen, printf, prints_to_console
+export fclose, fopen, printf, prints_to_console, newline
 export create_checkpoint, load_checkpoint, load_config!, save_config
 
-MPI.Initialized() || MPI.Init()
-const COMM = MPI.COMM_WORLD
-const COMM_SIZE = MPI.Comm_size(COMM)
-const MYRANK = MPI.Comm_rank(COMM)
-
-include("cio.jl")
+include("printf.jl")
 include("verbose.jl")
 
 abstract type AbstractFormat end
 struct BMWFormat <: AbstractFormat end
 struct BridgeFormat <: AbstractFormat end
+# TODO: struct ILDGFormat <: AbstractFormat end
 struct JLD2Format <: AbstractFormat end
+struct MPIFormat <: AbstractFormat end
 
 const FORMATS = Dict{String, Any}(
     "bmw" => BMWFormat,
     "bridge" => BridgeFormat,
+    # "ildg" => ILDGFormat,
     "jld" => JLD2Format,
     "jld2" => JLD2Format,
+    "mpi" => MPIFormat,
     "" => Nothing,
 )
 
 const EXT = Dict{String, String}(
     "bmw" => ".bmw",
     "bridge" => ".txt",
+    # "ildg" => ".ildg",
     "jld" => ".jld2",
     "jld2" => ".jld2",
+    "mpi" => ".bin",
     "" => "",
 )
+
+function proc_offset(args...) end # INFO: Need this for writing fields to file --- is implemented in fields/parallel.jl
+
+function set_view!(fp, U, ::Type{T}; offset=0, infokws...) where {T}
+    etype = Utils.MPI.Datatype(T)
+    filetype = create_filetype(U, T)
+    datarep = "native"
+    Utils.MPI.File.set_view!(fp, offset, etype, filetype, datarep; infokws...)
+    return nothing
+end
+
+function create_filetype(U, ::Type{T}) where {T}
+    topology = U.topology
+    # 18 entries in matrix * 4 directions per site
+    global_dims = (4, topology.global_dims...)
+    local_dims = (4, topology.local_dims...)
+    local_ranges = (1:4, topology.local_ranges...) 
+    offsets = map(r -> (first(r) - 1), local_ranges)
+    oldtype = Utils.MPI.Datatype(T)
+    ftype = Utils.MPI.Types.create_subarray(global_dims, local_dims, offsets, oldtype)
+    Utils.MPI.Types.commit!(ftype)
+    return ftype
+end
 
 include("bmw_format.jl")
 include("bridge_format.jl")
 include("jld2_format.jl")
+include("mpi_format.jl")
 
 @inline current_time() = Dates.now(UTC)
 
@@ -78,7 +105,7 @@ function create_checkpoint(
     T ≡ Nothing && return nothing
 
     if itrj % cp.checkpoint_every == 0
-        filename = cp.checkpoint_dir * "/checkpoint_$(MYRANK).jld2"
+        filename = cp.checkpoint_dir * "/checkpoint_$(mpi_myrank()).jld2"
         create_checkpoint(T(), univ, updatemethod, updatemethod_pt, itrj, filename)
         @level1("|")
         @level1("|  Checkpoint created in $(filename)")
@@ -90,8 +117,8 @@ end
 
 function load_checkpoint(checkpoint_path)
     @level1("[ Checkpoint loaded from $(checkpoint_path)\n")
-    if COMM_SIZE > 1
-        checkpoint_file = checkpoint_path * "_$(MYRANK).jld2"
+    if mpi_size() > 1
+        checkpoint_file = checkpoint_path * "_$(mpi_myrank()).jld2"
     else
         checkpoint_file = checkpoint_path * ".jld2"
     end
@@ -125,13 +152,13 @@ struct ConfigSaver{T}
     end
 end
 
-function save_config(saver::ConfigSaver{T}, U, itrj) where {T}
+function save_config(saver::ConfigSaver{T}, U, itrj, parameters=nothing) where {T}
     T ≡ Nothing && return nothing
 
     if itrj % saver.save_config_every == 0
         itrjstring = lpad(itrj, 8, "0")
         filename = saver.save_config_dir * "/config_$(itrjstring)$(saver.ext)"
-        save_config(T(), U, filename)
+        save_config(T(), U, filename, parameters)
         @level1("|  Config saved in $T in file \"$(filename)\"")
     end
 

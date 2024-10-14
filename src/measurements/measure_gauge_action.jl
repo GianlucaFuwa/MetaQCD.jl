@@ -4,12 +4,13 @@ struct GaugeActionMeasurement{T} <: AbstractMeasurement
     filename::T
     function GaugeActionMeasurement(U; filename="", GA_methods=["wilson"], flow=false)
         GA_dict = Dict{String,Float64}()
+
         for method in GA_methods
             @level1("|    Method: $(method)")
             GA_dict[method] = 0.0
         end
 
-        if filename !== nothing && filename != ""
+        if !isnothing(filename) && filename != ""
             path = filename * MYEXT
             rpath = StaticString(path)
             header = ""
@@ -24,8 +25,10 @@ struct GaugeActionMeasurement{T} <: AbstractMeasurement
                 header *= @sprintf("%-25s", "S_$(methodname)")
             end
 
-            open(path, "w") do fp
-                println(fp, header)
+            if mpi_amroot()
+                open(path, "w") do fp
+                    println(fp, header)
+                end
             end
         else
             rpath = nothing
@@ -52,28 +55,11 @@ function measure(
     GA_dict = m.GA_dict
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
-    for methodname in keys(GA_dict)
-        Sg = calc_gauge_action(U, methodname) * m.factor
-        GA_dict[methodname] = Sg
+    for method in keys(GA_dict)
+        GA_dict[method] = calc_gauge_action(U, method) * m.factor
     end
 
-    if T !== Nothing
-        filename = set_ext!(m.filename, myinstance)
-        fp = fopen(filename, "a")
-        printf(fp, "%-11i", itrj::Int64)
-
-        if !isnothing(flow)
-            printf(fp, "%-7i", iflow::Int64)
-            printf(fp, "%-9.5f", τ::Float64)
-        end
-
-        for value in values(GA_dict)
-            printf(fp, "%+-25.15E", value::Float64)
-        end
-
-        printf(fp, "\n")
-        fclose(fp)
-    else
+    if mpi_amroot()
         for method in keys(GA_dict)
             S = GA_dict[method]
 
@@ -82,6 +68,24 @@ function measure(
             else
                 @level1("$itrj\t$S # gaction_$(method)")
             end
+        end
+
+        if T !== Nothing
+            filename = set_ext!(m.filename, myinstance)
+            fp = fopen(filename, "a")
+            printf(fp, "%-11i", itrj)
+
+            if !isnothing(flow)
+                printf(fp, "%-7i", iflow)
+                printf(fp, "%-9.5f", τ)
+            end
+
+            for value in values(GA_dict)
+                printf(fp, "%+-25.15E", value)
+            end
+
+            printf(fp, "\n")
+            fclose(fp)
         end
     end
 

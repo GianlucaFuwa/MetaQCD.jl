@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        version: ['1.9', '1.10', 'nightly']
+        version: ['1.9', 'nightly']
         juliathreads: [1, 2]
     steps:
       - uses: actions/checkout@v4

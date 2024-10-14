@@ -916,7 +916,6 @@ a `Val` and must be within the range `[1,4]` with `μ < ν`
     return SVector(σμν_spin_mul!(MVector{M,Complex{T}}(undef), MVector(x), Val(μ), Val(ν)))
 end
 
-# TODO: make it return two 2Mx2M matrices instead of one 4Mx4M
 @generated function σμν_spin_mul!(
     yc::MVector{M,Complex{T}}, xc::MVector{M,Complex{T}}, ::Val{μ}, ::Val{ν}
 ) where {T,M,μ,ν}
@@ -932,8 +931,8 @@ end
         x = reinterpret(reshape, $T, xc)
     end
 
-    if μ === 1 && ν === 2
-        inner_q = quote
+    inner_q = if μ === 1 && ν === 2
+        quote
             y[1, m] = -x[1, m]
             y[2, m] = -x[2, m]
             y[1, $N+m] = x[1, $N+m]
@@ -944,7 +943,7 @@ end
             y[2, $(3N)+m] = x[2, $(3N)+m]
         end
     elseif μ === 1 && ν === 3
-        inner_q = quote
+        quote
             y[1, m] = x[2, $N+m]
             y[2, m] = -x[1, $N+m]
             y[1, $N+m] = -x[2, m]
@@ -955,7 +954,7 @@ end
             y[2, $(3N)+m] = x[1, $(2N)+m]
         end
     elseif μ === 1 && ν === 4
-        inner_q = quote
+        quote
             y[1, m] = x[1, $N+m]
             y[2, m] = x[2, $N+m]
             y[1, $N+m] = x[1, m]
@@ -966,7 +965,7 @@ end
             y[2, $(3N)+m] = -x[2, $(2N)+m]
         end
     elseif μ === 2 && ν === 3
-        inner_q = quote
+        quote
             y[1, m] = -x[1, $N+m]
             y[2, m] = -x[2, $N+m]
             y[1, $N+m] = -x[1, m]
@@ -977,7 +976,7 @@ end
             y[2, $(3N)+m] = -x[2, $(2N)+m]
         end
     elseif μ === 2 && ν === 4
-        inner_q = quote
+        quote
             y[1, m] = x[2, $N+m]
             y[2, m] = -x[1, $N+m]
             y[1, $N+m] = -x[2, m]
@@ -988,7 +987,7 @@ end
             y[2, $(3N)+m] = -x[1, $(2N)+m]
         end
     elseif μ === 3 && ν === 4
-        inner_q = quote
+        quote
             y[1, m] = x[1, m]
             y[2, m] = x[2, m]
             y[1, $N+m] = -x[1, $N+m]
@@ -1006,6 +1005,7 @@ end
         @turbo for m in Base.Slice(static(1):static($N))
             $inner_q
         end
+
         return yc
     end
 
@@ -1014,50 +1014,34 @@ end
 end
 
 """
-    spintrace_σμν(A, B, ::Val{μ}, ::Val{ν})
+    spintrace_pauli(P::PauliMatrix, ::Val{μ}, ::Val{ν})
 """
-@generated function spintrace_σμν(
-    A::SMatrix{M,M,Complex{T},MM},
-    B::SMatrix{M,M,Complex{T},MM},
+@generated function spintrace_pauli(
+    P::PauliMatrix{N,N²,T},
     ::Val{μ},
     ::Val{ν}
-) where {T,M,MM,μ,ν}
-    if M % 2 != 0
-        return :(throw(DimensionMismatch("M must be a multiple of 2")))
-    end
-
-    N = M ÷ 2
-    i = SVector(1:N...)
-    j = SVector(N+1:M...)
-
+) where {N,N²,T,μ,ν}
     q = quote
         $(Expr(:meta, :inline))
+        A = P.upper
+        B = P.lower
     end
 
-    if μ === 1 && ν === 2
-        inner_q = quote
-            Cc = -A[$i, $i] + A[$j, $j] - B[$i, $i] + B[$j, $j]
-        end
+    i = SVector(1:3...)
+    j = SVector(4:6...)
+
+    inner_q = if μ === 1 && ν === 2
+        :(return -A[$i, $i] + A[$j, $j] - B[$i, $i] + B[$j, $j])
     elseif μ === 1 && ν === 3
-        inner_q = quote
-            Cc = im * (A[$j, $i] - A[$i, $j] + B[$j, $i] - B[$i, $j])
-        end
+        :(return im * (A[$i, $j] - A[$j, $i] + B[$i, $j] - B[$j, $i]))
     elseif μ === 1 && ν === 4
-        inner_q = quote
-            Cc = A[$j, $i] + A[$i, $j] - B[$j, $i] - B[$i, $j]
-        end
+        :(return A[$j, $i] + A[$i, $j] - B[$j, $i] - B[$i, $j])
     elseif μ === 2 && ν === 3
-        inner_q = quote
-            Cc = -A[$j, $i] - A[$i, $j] - B[$j, $i] - B[$i, $j]
-        end
+        :(return -A[$j, $i] - A[$i, $j] - B[$j, $i] - B[$i, $j])
     elseif μ === 2 && ν === 4
-        inner_q = quote
-            Cc = im * (A[$j, $i] - A[$i, $j] - B[$j, $i] + B[$i, $j])
-        end
+        :(return im * (A[$i, $j] - A[$j, $i] - B[$i, $j] + B[$j, $i]))
     elseif μ === 3 && ν === 4
-        inner_q = quote
-            Cc = A[$i, $i] - A[$j, $j] - B[$i, $i] + B[$j, $j]
-        end
+        :(return A[$i, $i] - A[$j, $j] - B[$i, $i] + B[$j, $j])
     else
         return :(throw(AssertionError("Invalid combination of μ and ν")))
     end
@@ -1067,20 +1051,21 @@ end
 end
 
 """
-    cmvmul_block(A₊, A₋, x)
+    cmvmul_block(P::PauliMatrix, x::SVector)
 
 Return the matrix-vector product of the block diagonal matrix containing `A₊` and
 `A₋` and the vector `x`        
 """
 @inline function cmvmul_block(
-    A₊::SMatrix{N,N,Complex{T},NN},
-    A₋::SMatrix{N,N,Complex{T},NN},
+    P::PauliMatrix{N,N²,T},
     x::SVector{N2,Complex{T}}
-) where {T,N,NN,N2}
-    idx1 = SVector(1:N...)
-    idx2 = SVector((N+1):2N...)
+) where {N,N²,T,N2}
+    idx1 = SVector(1:6...)
+    idx2 = SVector(7:12...)
+    A₊ = P.upper
+    A₋ = P.lower
     x₊ = cmvmul(A₊, x[idx1])
-    x₋ = cmvmul(A₊, x[idx2])
+    x₋ = cmvmul(A₋, x[idx2])
     return vcat(x₊, x₋)  
 end
 

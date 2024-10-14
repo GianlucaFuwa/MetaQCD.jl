@@ -6,12 +6,12 @@ using LinearAlgebra
 using Polyester: @batch
 using StaticArrays
 using Unicode
-using ..Output
+using ..MetaIO
 using ..Utils
 
 import ..Fields: AbstractGaugeAction, Expfield, Colorfield, Gaugefield, WilsonGaugeAction
-import ..Fields: check_dims, leftmul_dagg!, staple, staple_eachsite!, @groupreduce
-import ..Fields: Abstractfield, dims, float_type, @latmap
+import ..Fields: check_dims, leftmul_dagg!, staple, staple_eachsite!, update_halo!
+import ..Fields: AbstractField, dims, float_type, @groupreduce, @latmap
 
 abstract type AbstractSmearing end
 

@@ -1,5 +1,6 @@
-# Chiral(Weyl)-Basis γ matrices
-@inline function γ₁(::Type{T}) where {T}
+# INFO: Chiral(Weyl)-Basis γ matrices
+
+@inline function γ1(::Type{T}) where {T}
     return @SArray [
         Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, -1)
         Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, -1) Complex{T}(0, 0)
@@ -8,7 +9,7 @@
     ]
 end
 
-@inline function γ₂(::Type{T}) where {T}
+@inline function γ2(::Type{T}) where {T}
     return @SArray [
         Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(-1, 0)
         Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(1, 0) Complex{T}(0, 0)
@@ -17,7 +18,7 @@ end
     ]
 end
 
-@inline function γ₃(::Type{T}) where {T}
+@inline function γ3(::Type{T}) where {T}
     return @SArray [
         Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, -1) Complex{T}(0, 0)
         Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 1)
@@ -26,7 +27,7 @@ end
     ]
 end
 
-@inline function γ₄(::Type{T}) where {T}
+@inline function γ4(::Type{T}) where {T}
     return @SArray [
         Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(1, 0) Complex{T}(0, 0)
         Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(1, 0)
@@ -35,7 +36,7 @@ end
     ]
 end
 
-@inline function γ₅(::Type{T}) where {T}
+@inline function γ5(::Type{T}) where {T}
     return @SArray [
         Complex{T}(1, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0)
         Complex{T}(0, 0) Complex{T}(1, 0) Complex{T}(0, 0) Complex{T}(0, 0)
@@ -44,23 +45,23 @@ end
     ]
 end
 
-const σ₁ = @SArray [
+const σ1 = @SArray [
     0 1
     1 0
 ]
 
-const σ₂ = @SArray [
+const σ2 = @SArray [
     0 -im
     im 0
 ]
 
-const σ₃ = @SArray [
+const σ3 = @SArray [
     1 0
     0 -1
 ]
 
 # σ_μν = i/2 * [γ_μ, γ_ν]
-@inline function σ₁₂(::Type{T}) where {T}
+@inline function σ12(::Type{T}) where {T}
     return @SArray [
         Complex{T}(-1, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0)
         Complex{T}(0, 0) Complex{T}(1, 0) Complex{T}(0, 0) Complex{T}(0, 0)
@@ -69,7 +70,7 @@ const σ₃ = @SArray [
     ]
 end
 
-@inline function σ₁₃(::Type{T}) where {T}
+@inline function σ13(::Type{T}) where {T}
     return @SArray [
         Complex{T}(0, 0) Complex{T}(0, -1) Complex{T}(0, 0) Complex{T}(0, 0)
         Complex{T}(0, 1) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0)
@@ -78,7 +79,7 @@ end
     ]
 end
 
-@inline function σ₁₄(::Type{T}) where {T}
+@inline function σ14(::Type{T}) where {T}
     return @SArray [
         Complex{T}(0, 0) Complex{T}(1, 0) Complex{T}(0, 0) Complex{T}(0, 0)
         Complex{T}(1, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0)
@@ -87,7 +88,7 @@ end
     ]
 end
 
-@inline function σ₂₃(::Type{T}) where {T}
+@inline function σ23(::Type{T}) where {T}
     return @SArray [
         Complex{T}(0, 0) Complex{T}(-1, 0) Complex{T}(0, 0) Complex{T}(0, 0)
         Complex{T}(-1, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0)
@@ -96,7 +97,7 @@ end
     ]
 end
 
-@inline function σ₂₄(::Type{T}) where {T}
+@inline function σ24(::Type{T}) where {T}
     return @SArray [
         Complex{T}(0, 0) Complex{T}(0, -1) Complex{T}(0, 0) Complex{T}(0, 0)
         Complex{T}(0, 1) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0)
@@ -105,7 +106,7 @@ end
     ]
 end
 
-@inline function σ₃₄(::Type{T}) where {T}
+@inline function σ34(::Type{T}) where {T}
     return @SArray [
         Complex{T}(1, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0)
         Complex{T}(0, 0) Complex{T}(-1, 0) Complex{T}(0, 0) Complex{T}(0, 0)
@@ -114,57 +115,61 @@ end
     ]
 end
 
-const λ₁ = @SArray [
+@generated function σ(::Val{μ}, ::Val{ν}) where {μ,ν}
+    return Symbol(:σ, "$μ$ν")
+end
+
+const λ1 = @SArray [
     0.0+0.0im 1.0+0.0im 0.0+0.0im
     1.0+0.0im 0.0+0.0im 0.0+0.0im
     0.0+0.0im 0.0+0.0im 0.0+0.0im
 ]
 
-const λ₂ = @SArray [
+const λ2 = @SArray [
     0.0+0.0im 0.0-1.0im 0.0+0.0im
     0.0+1.0im 0.0+0.0im 0.0+0.0im
     0.0+0.0im 0.0+0.0im 0.0+0.0im
 ]
 
-const λ₃ = @SArray [
+const λ3 = @SArray [
     1.0+0.0im 0.0+0.0im 0.0+0.0im
     0.0+0.0im -1.0+0.0im 0.0+0.0im
     0.0+0.0im 0.0+0.0im 0.0+0.0im
 ]
 
-const λ₄ = @SArray [
+const λ4 = @SArray [
     0.0+0.0im 0.0+0.0im 1.0+0.0im
     0.0+0.0im 0.0+0.0im 0.0+0.0im
     1.0+0.0im 0.0+0.0im 0.0+0.0im
 ]
 
-const λ₅ = @SArray [
+const λ5 = @SArray [
     0.0+0.0im 0.0+0.0im 0.0-1.0im
     0.0+0.0im 0.0+0.0im 0.0+0.0im
     0.0+1.0im 0.0+0.0im 0.0+0.0im
 ]
 
-const λ₆ = @SArray [
+const λ6 = @SArray [
     0.0+0.0im 0.0+0.0im 0.0+0.0im
     0.0+0.0im 0.0+0.0im 1.0+0.0im
     0.0+0.0im 1.0+0.0im 0.0+0.0im
 ]
 
-const λ₇ = @SArray [
+const λ7 = @SArray [
     0.0+0.0im 0.0+0.0im 0.0+0.0im
     0.0+0.0im 0.0+0.0im 0.0-1.0im
     0.0+0.0im 0.0+1.0im 0.0+0.0im
 ]
 
-const λ₈ = @SArray [
+const λ8 = @SArray [
     1/sqrt(3) 0.0+0.0im 0.0+0.0im
     0.0+0.0im 1/sqrt(3) 0.0+0.0im
     0.0+0.0im 0.0+0.0im -2/sqrt(3)
 ]
 
-const λ = (λ₁, λ₂, λ₃, λ₄, λ₅, λ₆, λ₇, λ₈)
+const λ = (λ1, λ2, λ3, λ4, λ5, λ6, λ7, λ8)
 
-function expλ₁(α)
+function expλ1(α)
     φ = 0.5 * α
     sinφ = sin(φ)
     cosφ = cos(φ)
@@ -177,7 +182,7 @@ function expλ₁(α)
     return out
 end
 
-function expλ₂(α)
+function expλ2(α)
     φ = 0.5 * α
     sinφ = sin(φ)
     cosφ = cos(φ)
@@ -190,7 +195,7 @@ function expλ₂(α)
     return out
 end
 
-function expλ₃(α)
+function expλ3(α)
     φ = 0.5 * α
     expiφ = cis(φ)
 
@@ -202,7 +207,7 @@ function expλ₃(α)
     return out
 end
 
-function expλ₄(α)
+function expλ4(α)
     φ = 0.5 * α
     sinφ = sin(φ)
     cosφ = cos(φ)
@@ -215,7 +220,7 @@ function expλ₄(α)
     return out
 end
 
-function expλ₅(α)
+function expλ5(α)
     φ = 0.5 * α
     sinφ = sin(φ)
     cosφ = cos(φ)
@@ -228,7 +233,7 @@ function expλ₅(α)
     return out
 end
 
-function expλ₆(α)
+function expλ6(α)
     φ = 0.5 * α
     sinφ = sin(φ)
     cosφ = cos(φ)
@@ -241,7 +246,7 @@ function expλ₆(α)
     return out
 end
 
-function expλ₇(α)
+function expλ7(α)
     φ = 0.5 * α
     sinφ = sin(φ)
     cosφ = cos(φ)
@@ -254,7 +259,7 @@ function expλ₇(α)
     return out
 end
 
-function expλ₈(α)
+function expλ8(α)
     φ = 0.5 / sqrt(3) * α
     expiφ = cis(φ)
 
@@ -268,21 +273,21 @@ end
 
 function expλ(i, α)
     if i == 1
-        return expλ₁(α)
+        return expλ1(α)
     elseif i == 2
-        return expλ₂(α)
+        return expλ2(α)
     elseif i == 3
-        return expλ₃(α)
+        return expλ3(α)
     elseif i == 4
-        return expλ₄(α)
+        return expλ4(α)
     elseif i == 5
-        return expλ₅(α)
+        return expλ5(α)
     elseif i == 6
-        return expλ₆(α)
+        return expλ6(α)
     elseif i == 7
-        return expλ₇(α)
+        return expλ7(α)
     elseif i == 8
-        return expλ₈(α)
+        return expλ8(α)
     else
         return eye3(Float64)
     end

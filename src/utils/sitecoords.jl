@@ -20,6 +20,15 @@ end
     return i
 end
 
+@inline function cartesian_to_linear(
+    site::SiteCoords, NX::T, NY::T, NZ::T, start::SiteCoords
+) where {T<:Integer}
+    ix, iy, iz, it = site.I
+    sx, sy, sz, st = start.I
+    i = (ix-sx+1) + NX * (iy - sy) + NX * NY * (iz - sz) + NX * NY * NZ * (it - st)
+    return i
+end
+
 """
     switch_sides(site::CartesianIndex, NX, NY, NZ, NT, NV)
 

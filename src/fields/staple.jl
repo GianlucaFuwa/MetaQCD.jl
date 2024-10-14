@@ -1,4 +1,4 @@
-staple(U::Gaugefield{B,T,A,GA}, μ, site) where {B,T,A,GA} = staple(GA(), U, μ, site)
+staple(U::Gaugefield{B,T,M,A,GA}, μ, site) where {B,T,M,A,GA} = staple(GA(), U, μ, site)
 
 function staple(::WilsonGaugeAction, U, μ, site)
     return staple_plaq(U, μ, site)

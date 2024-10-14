@@ -1,10 +1,10 @@
 using MetaQCD
-using MetaQCD.Output
+using MetaQCD.MetaIO
 using Test
 using Random
 
 function test_io()
-    println("test_io")
+    mpi_amroot() && println("IO tests")
     Random.seed!(1234)
     Ns = 4
     Nt = 4
@@ -23,13 +23,19 @@ function test_io()
     U_jld = Gaugefield{CPU,Float64,WilsonGaugeAction}(Ns, Ns, Ns, Nt, 5.7)
     load_config!(JLD2Format(), U_jld, tmpfile_jld)
 
-    # U_bmw = Gaugefield{CPU,Float64,WilsonGaugeAction}(Ns, Ns, Ns, Nt, 5.7)
-    # load_config!(BMWFormat(), U_bmw, tmpfile_bmw)
+    U_bmw = Gaugefield{CPU,Float64,WilsonGaugeAction}(Ns, Ns, Ns, Nt, 5.7)
+    load_config!(BMWFormat(), U_bmw, tmpfile_bmw)
 
     site = CartesianIndex{4}(rand(1:Ns), rand(1:Ns), rand(1:Ns), rand(1:Nt))
     μ = rand(1:4)
-    @test U[μ, site] ≈ U_bridge[μ, site]
-    @test U[μ, site] ≈ U_jld[μ, site]
-    # @test U[μ, site] ≈ U_bmw[μ, site]
+
+    if mpi_amroot()
+        @testset "IO" begin
+            @test U[μ, site] ≈ U_bridge[μ, site]
+            @test U[μ, site] ≈ U_jld[μ, site]
+            @test U[μ, site] ≈ U_bmw[μ, site]
+        end
+    end
+
     return nothing
 end

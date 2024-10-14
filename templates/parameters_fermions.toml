@@ -1,16 +1,18 @@
 ["Physical Settings"]
 L = [4, 4, 4, 4]
 beta = 4.3
-gauge_action = "symanzik_tree"
+gauge_action = "wilson"
 numtherm = 10
 numsteps = 10
 initial = "cold"
 update_method = "hmc"
 parity_update = false
+numprocs_cart = [1, 1, 1, 1]
+halo_width = 1
 
 ["Dynamical Fermion Settings"]
 fermion_action = "staggered"
-eo_precon = false
+eo_precon = true
 Nf = [2]
 mass = [0.01]
 wilson_csw = 1.0
@@ -34,7 +36,7 @@ float_type = "double"
 ensemble_dir = "/home/gialuf/data/MetaQCD/test_fermions"
 randomseed = 0
 overwrite = true
-save_checkpoint_every = 100
+save_checkpoint_every = 10
 verboselevel = 1
 log_to_console = true
 # load_checkpoint_fromfile = true

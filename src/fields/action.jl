@@ -13,6 +13,12 @@ const GAUGE_ACTION = Dict{String,Type{<:AbstractGaugeAction}}(
     "dbw2" => DBW2GaugeAction,
 )
 
+stencil_size(::Type{WilsonGaugeAction}) = 1
+stencil_size(::Type{SymanzikTreeGaugeAction}) = 2
+stencil_size(::Type{SymanzikTadGaugeAction}) = 2
+stencil_size(::Type{IwasakiGaugeAction}) = 2
+stencil_size(::Type{DBW2GaugeAction}) = 2
+
 function calc_gauge_action(U::Gaugefield, methodname::String)
     if methodname == "wilson"
         Sg = calc_gauge_action(WilsonGaugeAction(), U)
@@ -31,7 +37,7 @@ function calc_gauge_action(U::Gaugefield, methodname::String)
     return Sg
 end
 
-calc_gauge_action(U::Gaugefield{B,T,A,GA}) where {B,T,A,GA} = calc_gauge_action(GA(), U)
+calc_gauge_action(U::Gaugefield{B,T,M,A,GA}) where {B,T,M,A,GA} = calc_gauge_action(GA(), U)
 
 function calc_gauge_action(::WilsonGaugeAction, U)
     P = plaquette_trace_sum(U)
@@ -87,7 +93,7 @@ function plaquette_trace_sum(U::Gaugefield{CPU})
         end
     end
 
-    return P
+    return distributed_reduce(P, +, U)
 end
 
 function rect_trace_sum(U::Gaugefield{CPU})
@@ -101,7 +107,7 @@ function rect_trace_sum(U::Gaugefield{CPU})
         end
     end
 
-    return R
+    return distributed_reduce(R, +, U)
 end
 
 function plaquette(U, μ, ν, site)
