@@ -55,15 +55,21 @@ adjacent to `site` within an `AbstractField`.
 `dir` ∈ {-1, 1} specifies whether `el` is a negative or positive neighbor and `NT`
 is the maximum time extent.
 """
-@inline apply_bc(::Any, ::PeriodicBC, ::SiteCoords, ::Val{dir}, ::Int64) where {dir} = el   
+@inline function apply_bc(
+    el, ::PeriodicBC, ::SiteCoords, ::Val{dir}, ::Int64, ::Any=nothing
+) where {dir}
+    return el
+end
 
-@generated function apply_bc(el, bc::AntiPeriodicBC{T}, site, ::Val{dir}, NT) where {T,dir}
+@generated function apply_bc(
+    el, ::AntiPeriodicBC{T}, site::SiteCoords, ::Val{dir}, NT, ::Val{dim}=Val(4)
+) where {T,dir,dim}
     q = quote
         $(Expr(:meta, :inline))
         it = site[4]
     end
 
-    if T === NoBoundary
+    if T === NoBoundary || dim != 4
         push!(q.args, :(return el))
     else
         if dir == 1

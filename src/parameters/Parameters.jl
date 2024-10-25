@@ -245,7 +245,9 @@ function parameter_check(p::ParameterSet)
               """))
     end
 
-    if lower_case(p.fermion_action) ∉ ["none", "wilson", "staggered"]
+    if lower_case(p.fermion_action) ∉ [
+        "none", "wilson", "staggered", "staggered-h1234", "staggered-h1324"
+    ]
         fa = p.fermion_action
         throw(AssertionError("""
               fermion_action in [\"Physical Settings\"] = $(fa) is not supported.
@@ -253,6 +255,8 @@ function parameter_check(p::ParameterSet)
                 None
                 Wilson
                 Staggered
+                Staggered-H1234
+                Staggered-H1324
               """))
     else
         @assert lower_case(p.update_method) == "hmc" "Dynamical fermions only with HMC"
@@ -290,17 +294,6 @@ function parameter_check(p::ParameterSet)
                 OMF2
                 OMF4Slow
                 OMF4
-            """))
-    end
-
-    if lower_case(p.fermion_action) ∉ ["none", "wilson", "staggered"]
-        fa = p.fermion_action
-        throw(AssertionError("""
-            fermion_action in [\"Dynamical Fermion Settings\"] = $(fa) is not supported.
-            Supported fermion actions are:
-                None
-                Wilson
-                Staggered
             """))
     end
 

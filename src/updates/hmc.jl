@@ -138,6 +138,8 @@ function HMC(
         ϕ = ntuple(_ -> Spinorfield(U; staggered=true), 1 + heavy_flavours)
     elseif fermion_action === StaggeredEOPreFermionAction
         ϕ = ntuple(_ -> even_odd(Spinorfield(U; staggered=true)), 1 + heavy_flavours)
+    elseif fermion_action <: StaggeredHoelblingFermionAction
+        ϕ = ntuple(_ -> Spinorfield(U; staggered=true), 1 + heavy_flavours)
     elseif fermion_action === WilsonFermionAction
         ϕ = ntuple(_ -> Spinorfield(U), 1 + heavy_flavours)
     elseif fermion_action === WilsonEOPreFermionAction

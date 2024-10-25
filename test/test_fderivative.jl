@@ -34,15 +34,18 @@ function test_fderivative(
         U = MetaQCD.to_backend(backend, U)
     end
 
+    is_staggered = contains(dirac, "staggered")
+    is_hoelbling = dirac ∈ ("staggered-h1234", "staggered-h1324")
+
     ψ = if eoprec
-        even_odd(Spinorfield(U; staggered=dirac=="staggered"))
+        even_odd(Spinorfield(U; staggered=is_staggered))
     else
-        Spinorfield(U; staggered=dirac=="staggered")
+        Spinorfield(U; staggered=is_staggered)
     end
 
-    spectral_bound, Nf = if dirac=="staggered"
+    spectral_bound, Nf = if is_staggered && !is_hoelbling
         (mass^2, 6.0), (single_flavor ? 1 : (eoprec ? 4 : 8))
-    elseif dirac=="wilson"
+    else
         (mass^2, 64.0), (single_flavor ? 1 : 2)
     end
 
@@ -64,9 +67,10 @@ function test_fderivative(
     )
 
     action = MetaQCD.DiracOperators.init_fermion_action(params, mass, Nf, U)
-    # mpi_amroot() && (@show action)
+    mpi_amroot() && (@show action)
 
     sample_pseudofermions!(ψ, action, U)
+    # gaussian_pseudofermions!(ψ)
 
     # Test for smearing with 5 steps and stout parameter 0.12
     smearing = StoutSmearing(U, 5, 0.12)
@@ -76,7 +80,7 @@ function test_fderivative(
     temp_force = Colorfield(U)
 
     site = SiteCoords(2, 3, 1, 2)
-    μ = 3
+    μ = 1
     ΔH = 0.000001
 
     relerrors = Matrix{Float64}(undef, 8, 2)
@@ -127,10 +131,10 @@ function test_fderivative(
         symm_diff = (action_new_fwd - action_new_bwd) / 2ΔH
         symm_diff_smeared = (action_new_fwd_smeared - action_new_bwd_smeared) / 2ΔH
 
-        # if group_direction == 1
-        #     @show daction_proj
-        #     @show symm_diff
-        # end
+        if group_direction == 1
+            @show daction_proj
+            @show symm_diff
+        end
         relerrors[group_direction, 1] = (symm_diff - daction_proj) / symm_diff
         relerrors[group_direction, 2] =
             (symm_diff_smeared - daction_proj_smeared) / symm_diff_smeared

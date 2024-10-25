@@ -477,8 +477,8 @@ function calc_diag_kernel!(
 end
 
 function mul_oo_inv!(
-    ϕ_eo::WilsonEOPreSpinorfield{CPU,T}, D_oo_inv::Paulifield{CPU,T}
-) where {T}
+    ϕ_eo::WilsonEOPreSpinorfield{CPU,T,M}, D_oo_inv::Paulifield{CPU,T,M}
+) where {T,M}
     check_dims(ϕ_eo, D_oo_inv)
     ϕ = ϕ_eo.parent
     fdims = dims(ϕ)
@@ -493,8 +493,8 @@ function mul_oo_inv!(
 end
 
 function axmy!(
-    D_diag::Paulifield{CPU,T}, ψ_eo::TF, ϕ_eo::TF
-) where {T,TF<:WilsonEOPreSpinorfield{CPU,T}} # even on even is the default
+    D_diag::Paulifield{CPU,T,M}, ψ_eo::TF, ϕ_eo::TF
+) where {T,M,TF<:WilsonEOPreSpinorfield{CPU,T,M}} # even on even is the default
     check_dims(ϕ_eo, ψ_eo)
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent

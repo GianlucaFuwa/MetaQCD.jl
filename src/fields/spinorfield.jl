@@ -1,7 +1,7 @@
 """
     Spinorfield{Backend,FloatType,NumDirac}(NX, NY, NZ, NT)
     Spinorfield(ψ::Spinorfield)
-    Spinorfield(f::AbstractField, staggered)
+    Spinorfield(f::AbstractField; staggered=false)
 
 Creates a Spinorfield on `Backend`, i.e. an array of link-variables (numcolors×NumDirac complex vectors
 with `FloatType` precision) of size `NX × NY × NZ × NT` or a zero-initialized copy of `ψ`.
@@ -163,11 +163,11 @@ function gaussian_pseudofermions!(ϕ::Spinorfield{CPU,T}) where {T}
     return nothing
 end
 
-function LinearAlgebra.mul!(ϕ::Spinorfield{CPU,T}, α) where {T}
+function LinearAlgebra.mul!(ψ::TF, ϕ::TF, α) where {T,TF<:Spinorfield{CPU,T}}
     α = T(α)
 
     @batch for site in allindices(ϕ)
-        ϕ[site] *= α
+        ψ[site] = ϕ[site] * α
     end
 
     # INFO: don't need to do halo exchange here, since we iterate over all indices
@@ -176,10 +176,9 @@ function LinearAlgebra.mul!(ϕ::Spinorfield{CPU,T}, α) where {T}
     return nothing
 end
 
-function LinearAlgebra.axpy!(α, ψ::T, ϕ::T) where {T<:Spinorfield{CPU}}
+function LinearAlgebra.axpy!(α, ψ::TF, ϕ::TF) where {T,TF<:Spinorfield{CPU,T}}
     check_dims(ψ, ϕ)
-    FloatT = float_type(ϕ)
-    α = Complex{FloatT}(α)
+    α = Complex{T}(α)
 
     # I'm pretty sure iterating over all indices is fine here
     @batch for site in allindices(ϕ)
@@ -191,11 +190,10 @@ function LinearAlgebra.axpy!(α, ψ::T, ϕ::T) where {T<:Spinorfield{CPU}}
     return nothing
 end
 
-function LinearAlgebra.axpby!(α, ψ::T, β, ϕ::T) where {T<:Spinorfield{CPU}}
+function LinearAlgebra.axpby!(α, ψ::TF, β, ϕ::TF) where {T,TF<:Spinorfield{CPU,T}}
     check_dims(ψ, ϕ)
-    FloatT = float_type(ϕ)
-    α = Complex{FloatT}(α)
-    β = Complex{FloatT}(β)
+    α = Complex{T}(α)
+    β = Complex{T}(β)
 
     # I'm pretty sure iterating over all indices is fine here
     @batch for site in allindices(ϕ)
