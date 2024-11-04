@@ -2,11 +2,12 @@ using MetaQCD
 using MetaQCD.Utils
 using LinearAlgebra
 using Random
+using Test
 
 function test_fderivative(
     backend=CPU;
     nprocs_cart=(1, 1, 1, 1),
-    halo_width=0,
+    halo_width=1,
     dirac="staggered",
     mass=0.01,
     eoprec=false,
@@ -17,7 +18,7 @@ function test_fderivative(
         println("Fermion derivative test [$dirac]")
     end
 
-    Random.seed!(123)
+    Random.seed!(123 * (mpi_myrank() + 1))
     MetaQCD.MetaIO.set_global_logger!(1, nothing; tc=true)
     NX = 4
     NY = 4
@@ -28,8 +29,14 @@ function test_fderivative(
     )
     random_gauges!(U)
 
-    filename = pkgdir(MetaQCD, "test", "testconf.txt")
-    load_config!(BridgeFormat(), U, filename)
+    # filename = if nprocs_cart != (1, 1, 1, 1)
+    #     pkgdir(MetaQCD, "test", "testconf_mpi")
+    # else
+    #     pkgdir(MetaQCD, "test", "testconf.txt")
+    # end
+
+    # load_config!(BridgeFormat(), U, filename)
+
     if backend !== CPU
         U = MetaQCD.to_backend(backend, U)
     end
@@ -79,8 +86,9 @@ function test_fderivative(
     dSfdU_smeared = Colorfield(U)
     temp_force = Colorfield(U)
 
-    site = SiteCoords(2, 3, 1, 2)
-    μ = 1
+    coord = (2, 3, 1, 2) .+ halo_width
+    site = SiteCoords(coord...)
+    μ = 3
     ΔH = 0.000001
 
     relerrors = Matrix{Float64}(undef, 8, 2)
@@ -131,10 +139,10 @@ function test_fderivative(
         symm_diff = (action_new_fwd - action_new_bwd) / 2ΔH
         symm_diff_smeared = (action_new_fwd_smeared - action_new_bwd_smeared) / 2ΔH
 
-        if group_direction == 1
-            @show daction_proj
-            @show symm_diff
-        end
+        # if group_direction == 1
+        #     @show daction_proj
+        #     @show symm_diff
+        # end
         relerrors[group_direction, 1] = (symm_diff - daction_proj) / symm_diff
         relerrors[group_direction, 2] =
             (symm_diff_smeared - daction_proj_smeared) / symm_diff_smeared
@@ -148,7 +156,7 @@ function test_fderivative(
 
     if mpi_amroot()
         println()
-        # @test length(findall(x -> abs(x) > 1e-4, relerrors[:, 2])) == 0
+        @test sum(relerrors[:, 2]) / length(relerrors[:, 2]) < 1e-4
     end
 
     mpi_barrier()

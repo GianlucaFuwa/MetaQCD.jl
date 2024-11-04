@@ -24,9 +24,9 @@ function test_mpi()
     U_4 = Gaugefield{CPU,Float64,WilsonGaugeAction}(Ns, Ns, Ns, Nt, 5.7, (4, 1, 1, 1), 1)
     U_w2 = Gaugefield{CPU,Float64,WilsonGaugeAction}(Ns, Ns, Ns, Nt, 5.7, (1, 1, 2, 2), 2)
     filename = pkgdir(MetaQCD, "test", "testconf_mpi")
-    load_config!(BridgeFormat(), U_22, filename, true)
-    load_config!(BridgeFormat(), U_4, filename, true)
-    load_config!(BridgeFormat(), U_w2, filename, true)
+    load_config!(BridgeFormat(), U_22, filename)
+    load_config!(BridgeFormat(), U_4, filename)
+    load_config!(BridgeFormat(), U_w2, filename)
 
     factor_22 = 1 / (6 * U_22.NV * U_22.NC)
     plaq_22 = plaquette_trace_sum(U_22) * factor_22

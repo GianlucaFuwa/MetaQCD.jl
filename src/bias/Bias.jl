@@ -7,6 +7,7 @@ using Statistics
 using Unicode
 using ..MetaIO
 using ..Parameters: ParameterSet
+using ..Utils
 
 import ..Fields: Gaugefield, Plaquette, Clover
 import ..Measurements: top_charge
@@ -77,7 +78,7 @@ function Bias(p::ParameterSet, U; use_mpi=false, instance=1)
             for name in kinds_of_weights
                 @printf(fp, "%-25s", "weight_$(name)")
             end
-            cnewline(fp)
+            newline(fp)
         end
     elseif bias isa Parametric
         kinds_of_weights = ["branduardi"]
@@ -85,7 +86,7 @@ function Bias(p::ParameterSet, U; use_mpi=false, instance=1)
         datafile = joinpath(p.measure_dir, "bias_data_$inum.txt")
         open(datafile, "w") do fp
             @printf(fp, "%-11s%-25s%-25s", "itrj", "cv", "weight_branduardi")
-            cnewline(fp)
+            newline(fp)
         end
         @level1(
             "|  @info: Parametric bias defaults to static and weight-type \"branduardi\""
@@ -98,7 +99,7 @@ function Bias(p::ParameterSet, U; use_mpi=false, instance=1)
         write_bias_every = p.stride
     end
     @level1("|  WRITE_BIAS_EVERY: $(write_bias_every)")
-    @assert write_bias_every == 0
+    @assert write_bias_every >= 0
 
     # write to file after construction to make sure nothing went wrong
     mpi_amroot() && write_to_file(bias, biasfile)
@@ -144,9 +145,11 @@ include("parametric.jl")
 function update_bias!(b::Bias, values, itrj)
     (b.is_static || length(values) == 0) && return nothing
     update!(b.bias, values, itrj)
-    if itrj % b.write_bias_every == 0
+
+    if (b.write_bias_every != 0) && (itrj % b.write_bias_every == 0)
         mpi_amroot() && write_to_file(b.bias, b.biasfile)
     end
+    
     return nothing
 end
 

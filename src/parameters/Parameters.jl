@@ -207,17 +207,19 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
 
     parameters = ParameterSet(value_Params...)
 
-    parameter_check(parameters)
+    check_parameters(parameters)
     mpi_barrier()
     return parameters
 end
 
-function parameter_check(p::ParameterSet)
+function check_parameters(p::ParameterSet)
     mpi_amroot() || return nothing
 
     @assert prod(p.numprocs_cart) == mpi_size() """
     Size of comm must equal number of process used in field decomposition
     """
+
+    @assert p.verboselevel > 0 "verboselevel in parameters has to be bigger than 0"
 
     if prod(p.numprocs_cart) > 1
         @assert p.halo_width >= 1 "Halo width must be >= 1, when using field decomposition"

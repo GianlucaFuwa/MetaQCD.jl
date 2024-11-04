@@ -5,6 +5,16 @@ https://pubs.acs.org/doi/pdf/10.1021/acs.jctc.9b00867
 calc_weights(::Nothing, args...) = nothing
 calc_weights(::NoBias, args...) = nothing
 
+calc_weights(b::Bias, cv, itrj) = calc_weights(b.datafile, b, cv, itrj)
+
+function calc_weights(b::Vector{<:Bias}, cv, itrj)
+    for i in eachindex(b)
+        calc_weights(b[i].datafile, b[i], cv[i], itrj)
+    end
+
+    return nothing
+end
+
 function calc_weights(filenames, b::Vector{<:Bias}, cv, itrj)
     for i in eachindex(b)
         calc_weights(filenames[i], b[i], cv[i], itrj)
@@ -20,13 +30,16 @@ function calc_weights(filename, b::Bias{TCV,TS,TB}, cv, itrj) where {TCV,TS,TB}
             @level1("$itrj\t$cv\t$w # cv weight_$method")
         end
     else
-        fp = copen(filename, "a")
-        cprint(fp, "%-11i%+-25.15E", itrj, cv)
+        fp = fopen(filename, "a")
+        printf(fp, "%-11i", itrj)
+        printf(fp, "%+-25.15E", cv)
 
         for method in b.kinds_of_weights
             w = calc_weight(b.bias, cv, method)
-            cprint(fp, "%-25.15E", w)
+            printf(fp, "%-25.15E", w)
         end
+
+        fclose(fp)
     end
 
     return nothing

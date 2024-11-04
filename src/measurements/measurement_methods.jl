@@ -16,7 +16,7 @@ function MeasurementMethods(
     # measurement_parameters_set = Vector{MeasurementParameters}(undef, num_measurements)
     intervals = zeros(Int64, num_measurements)
 
-    str = flow ? "_flowed" : ""
+    add_string = (flow ? "_flowed" : "") * additional_string
 
     measurements = ntuple(num_measurements) do i
         measurement_parameters = meas_parameters_from_dict(measurement_methods[i])
@@ -24,7 +24,7 @@ function MeasurementMethods(
         @level1("|  OBSERVABLE $i: $(measurement_parameters.methodname)")
         intervals[i] = measurement_parameters.measure_every
         @level1("|    every $(intervals[i]) updates")
-        filename = joinpath(measurement_dir, name * additional_string * "$str")
+        filename = joinpath(measurement_dir, name * add_string)
         # measurement_parameters_set[i] = deepcopy(measurement_parameters)
         prepare_measurement(U, measurement_parameters, filename, flow)
     end

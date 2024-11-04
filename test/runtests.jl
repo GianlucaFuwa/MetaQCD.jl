@@ -17,7 +17,7 @@ include("./test_gflow.jl")
 include("./test_clinalg.jl")
 # include("test_reversibility.jl")
 
-if mpi_amroot()
+if mpi_size() == 1
     @testset "Linear Algebra Tests" begin
         test_cdot()
         test_ckron()
@@ -27,7 +27,7 @@ if mpi_amroot()
     end
 end
 
-if mpi_amroot()
+if mpi_size() == 1
     @testset "IO Tests" begin
         test_io()
         test_checkpoint()
@@ -42,14 +42,16 @@ mpi_barrier()
     nprocs_cart = if mpi_size() == 1
         (1, 1, 1, 1)
     elseif mpi_size() == 2
-        (2, 1, 1, 1)
+        (1, 1, 2, 1)
     elseif mpi_size() == 4
-        (2, 2, 1, 1)
+        (1, 2, 2, 1)
     else
         error("MPI Size in unit tests can only be 1, 2 or 4")
     end
 
-    test_measurements(backend; nprocs_cart=nprocs_cart, halo_width=halo_width)
+    mpi_size() != 1 && @level1("\nMPI Tests...")
+
+    test_measurements(backend; nprocs_cart=nprocs_cart, halo_width=2)
     # gauge derivative
     test_derivative(backend; nprocs_cart=nprocs_cart, halo_width=halo_width)
     # staggered derivative
@@ -62,6 +64,16 @@ mpi_barrier()
         backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
         dirac="staggered", mass=0.01, single_flavor=true, eoprec=true
     )
+    # staggered-hoelbling1234 derivative
+    test_fderivative(
+        backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
+        dirac="staggered-h1234", mass=0.01, single_flavor=true
+    )
+    # staggered-hoelbling1324 derivative
+    test_fderivative(
+        backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
+        dirac="staggered-h1324", mass=0.01, single_flavor=true
+    )
     # wilson derivative
     test_fderivative(
         backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
@@ -72,16 +84,16 @@ mpi_barrier()
         backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
         dirac="wilson", mass=0.01, single_flavor=true, csw=1.78
     )
-    # TODO: wilson eo-pre derivative
-    # test_fderivative(
-    #     backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
-    #     dirac="wilson", mass=0.01, single_flavor=false, eoprec=true, csw=0 # TODO:Nf=1 test with eo wils
-    # )
-    # TODO: wilson-clover eo-pre derivative
-    # test_fderivative(
-    #     backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
-    #     dirac="wilson", mass=0.01, single_flavor=false, eoprec=true # TODO:Nf=1 test with eo wils
-    # )
+    # wilson eo-pre derivative
+    test_fderivative(
+        backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
+        dirac="wilson", mass=0.01, single_flavor=false, eoprec=true, csw=0
+    )
+    # wilson-clover eo-pre derivative
+    test_fderivative(
+        backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
+        dirac="wilson", mass=0.01, single_flavor=false, eoprec=true, csw=1.78
+    )
     test_gradflow(backend; nprocs_cart=nprocs_cart, halo_width=halo_width)
 
     if mpi_size() == 1 # INFO: Local updates only without distributed fields
@@ -90,6 +102,13 @@ mpi_barrier()
     end
 
     test_update(backend; update_method="hmc")
+    
+    # Run a short simulation as final test
+    if mpi_size() == 1 # INFO: Local updates only without distributed fields
+        run_sim("parameters_test.toml")
+    elseif mpi_size() == 2
+        run_sim("parameters_test_mpi.toml")
+    end
 end
 
 mpi_barrier()
@@ -132,10 +151,15 @@ mpi_barrier()
 #     end
 # end
 
-# if mpi_amroot()
+# if mpi_amroot() && mpi_size() == 1
 #     if VERSION >= v"1.9"
 #         Aqua.test_all(MetaQCD; stale_deps=false, ambiguities=false)
 #     end
 # end
 
 mpi_barrier()
+
+if mpi_size() == 1
+    cmd = string(Base.julia_cmd())
+    run(`mpiexec -n 2 $(Base.julia_cmd()) --project --threads=1 $(abspath("runtests.jl"))`)
+end

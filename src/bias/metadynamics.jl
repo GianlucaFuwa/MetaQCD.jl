@@ -45,7 +45,7 @@ function Metadynamics(;
 )
     @level1("|  STRIDE: $(stride)")
     @assert stride > 0 "STRIDE must be >0"
-    @level1("|  CVLIMS: $(cvlims)")
+    @level1("|  CVLIMS: $(string(cvlims))")
     @assert issorted(cvlims) "CVLIMS must be sorted from low to high"
     @level1("|  BIN_WIDTH: $(bin_width)")
     @assert bin_width > 0 "BIN_WIDTH must be > 0"

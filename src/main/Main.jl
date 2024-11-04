@@ -10,6 +10,7 @@ using ..Utils
 import ..BiasModule: NoBias, calc_weights, recalc_CV!, update_bias!
 import ..DiracOperators: QuenchedFermionAction, fermaction_from_str
 import ..Fields: calc_gauge_action, normalize!
+import ..Measurements: MYEXT_str
 import ..Measurements: MeasurementMethods, calc_measurements, calc_measurements_flowed
 import ..Parameters: ParameterSet, construct_params_from_toml
 import ..Smearing: GradientFlow

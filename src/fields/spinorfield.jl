@@ -124,9 +124,6 @@ function Base.copy!(ϕ::T, ψ::T) where {T<:Spinorfield{CPU}}
         ϕ[site] = ψ[site]
     end
 
-    # INFO: don't need to do halo exchange here, since we iterate over all indices
-    # including halo regions
-    # We assume that ψ's halo is already up-to-date before calling this
     return nothing
 end
 
@@ -135,8 +132,6 @@ function ones!(ϕ::Spinorfield{CPU,T}) where {T}
         ϕ[site] = fill(1, ϕ[site])
     end
 
-    # INFO: don't need to do halo exchange here, since we iterate over all indices
-    # including halo regions
     return nothing
 end
 
@@ -167,12 +162,9 @@ function LinearAlgebra.mul!(ψ::TF, ϕ::TF, α) where {T,TF<:Spinorfield{CPU,T}}
     α = T(α)
 
     @batch for site in allindices(ϕ)
-        ψ[site] = ϕ[site] * α
+        ψ[site] = α * ϕ[site]
     end
 
-    # INFO: don't need to do halo exchange here, since we iterate over all indices
-    # including halo regions
-    # We assume that ϕ's halo is already up-to-date before calling this
     return nothing
 end
 
@@ -185,8 +177,6 @@ function LinearAlgebra.axpy!(α, ψ::TF, ϕ::TF) where {T,TF<:Spinorfield{CPU,T}
         ϕ[site] += α * ψ[site]
     end
 
-    # INFO: don't need to do halo exchange here, since we iterate over all indices
-    # including halo regions
     return nothing
 end
 

@@ -135,9 +135,9 @@ function prepare_measurement(
     elseif T == PionCorrelatorParameters
         filename_input = ifelse(filename == "", "pion_correlator.txt", filename)
         measurement = PionCorrelatorMeasurement(U, meas_parameters, filename_input, flow)
-    elseif T == EigenvaluesParameters
-        filename_input = ifelse(filename == "", "eigenvalues.txt", filename)
-        measurement = EigenvaluesMeasurement(U, meas_parameters, filename_input, flow)
+    # elseif T == EigenvaluesParameters
+    #     filename_input = ifelse(filename == "", "eigenvalues.txt", filename)
+    #     measurement = EigenvaluesMeasurement(U, meas_parameters, filename_input, flow)
     else
         error("$T is not supported in measurements")
     end

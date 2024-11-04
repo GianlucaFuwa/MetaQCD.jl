@@ -29,8 +29,8 @@ struct Univ{TG,TF,TB}
     myinstance::Base.RefValue{Int64}
     numinstances::Int64
     function Univ(
-        U::Gaugefield{BACKEND,T,A,GA}, fermion_action::TF, bias::TB, numinstances
-    ) where {BACKEND,T,A,GA,TF,TB}
+        U::Gaugefield{BACKEND,T,M,A,GA}, fermion_action::TF, bias::TB, numinstances
+    ) where {BACKEND,T,M,A,GA,TF,TB}
         @level1("┌ Setting Universe...")
         @level1("|  NUM INSTANCES: $(numinstances)")
         @level1("|  BACKEND: $(string(BACKEND))")
@@ -51,11 +51,11 @@ struct Univ{TG,TF,TB}
     end
 
     function Univ(
-        U::Vector{Gaugefield{BACKEND,T,A,GA}}, fermion_action::TF, bias::TB, numinstances
-    ) where {BACKEND,T,A,GA,TF,TB<:Vector{Bias}}
+        U::Vector{TG}, fermion_action::TF, bias::Vector{TB}, numinstances
+    ) where {B,T,M,A,GA,TG<:Gaugefield{B,T,M,A,GA},TF,TB}
         @level1("┌ Setting Universe...")
         @level1("|  NUM INSTANCES: $(numinstances)")
-        @level1("|  BACKEND: $(BACKEND)")
+        @level1("|  BACKEND: $(B)")
         @level1("|  FP PREC: $(T)")
         @level1("|  L: $(U[1].NX)x$(U[1].NY)x$(U[1].NZ)x$(U[1].NT)")
         @level1("|  GAUGE ACTION: $(GA)")
@@ -67,9 +67,8 @@ struct Univ{TG,TF,TB}
             @level1("|  FERMION ACTION: $(fermion_action...)└\n")
         end
 
-        TG = typeof(U)
         myinstance = Base.RefValue{Int64}(mpi_myrank())
-        return new{TG,TF,TB}(U, fermion_action, bias, myinstance, numinstances)
+        return new{Vector{TG},TF,Vector{TB}}(U, fermion_action, bias, myinstance, numinstances)
     end
 end
 
@@ -88,7 +87,7 @@ function Univ(parameters::ParameterSet; mpi_multi_sim=false)
 
             for i in 2:numinstances
                 U[i] = Gaugefield(parameters)
-                bias[i] = Bias(parameters, U[i]; instance=i - 1)
+                bias[i] = Bias(parameters, U[i]; instance=i-1)
             end
         else
             numinstances = 1

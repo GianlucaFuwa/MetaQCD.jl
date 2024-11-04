@@ -60,6 +60,17 @@ macro level3(msg)
     end
 end
 
+macro level4(msg)
+    pmsg = prepare_message(msg)
+    return quote
+        if __GlobalLogger[].LEVEL ≥ 4 && mpi_amroot()
+            __GlobalLogger[].to_console && printf($pmsg)
+            !isnothing(__GlobalLogger[].fp) && printf(__GlobalLogger[].fp, $pmsg)
+        end
+        nothing
+    end
+end
+
 @inline prepare_message(msg::String) = :(($msg, "\n"))
 
 @inline prepare_message(msg::Symbol) = :(($(esc(msg)), "\n"))

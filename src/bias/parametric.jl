@@ -28,7 +28,7 @@ end
 
 function Parametric(p::ParameterSet; instance=1)
     cvlims = instance > 0 ? p.cvlims : (-Inf, Inf)
-    @level1("|  CVLIMS: $(cvlims)")
+    @level1("|  CVLIMS: $(string(cvlims))")
     penalty_weight = instance > 0 ? p.penalty_weight : 0.0
     @level1("|  PENALTY WEIGHT: $(penalty_weight)")
 

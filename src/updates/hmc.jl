@@ -134,17 +134,17 @@ function HMC(
     has_smearing = smearing_gauge != NoSmearing() || smearing_fermion != NoSmearing()
     force2 = (!has_smearing && !bias_enabled) ? nothing : Colorfield(U)
 
-    if fermion_action === StaggeredFermionAction
+    if fermion_action <: StaggeredFermionAction
         ϕ = ntuple(_ -> Spinorfield(U; staggered=true), 1 + heavy_flavours)
-    elseif fermion_action === StaggeredEOPreFermionAction
+    elseif fermion_action <: StaggeredEOPreFermionAction
         ϕ = ntuple(_ -> even_odd(Spinorfield(U; staggered=true)), 1 + heavy_flavours)
     elseif fermion_action <: StaggeredHoelblingFermionAction
         ϕ = ntuple(_ -> Spinorfield(U; staggered=true), 1 + heavy_flavours)
-    elseif fermion_action === WilsonFermionAction
+    elseif fermion_action <: WilsonFermionAction
         ϕ = ntuple(_ -> Spinorfield(U), 1 + heavy_flavours)
-    elseif fermion_action === WilsonEOPreFermionAction
+    elseif fermion_action <: WilsonEOPreFermionAction
         ϕ = ntuple(_ -> even_odd(Spinorfield(U)), 1 + heavy_flavours)
-    elseif fermion_action === QuenchedFermionAction
+    elseif fermion_action <: QuenchedFermionAction
         ϕ = nothing
     else
         throw(AssertionError("Dynamical fermions \"$fermion_action\" not supported"))
@@ -158,7 +158,7 @@ function HMC(
         open(logfile, "w") do fp
             @printf(
                 fp,
-                "%-22s\t%-22s\t%-22s\t%-22s\t%-22s\n",
+                "%-25s\t%-25s\t%-25s\t%-25s\t%-25s\n",
                 "ΔP²", "ΔSg", "ΔSf", "ΔV", "ΔH",
             )
         end
@@ -261,6 +261,7 @@ function update!(
         end
         @level2("|    Rejected")
     end
+
     normalize!(U)
     return accept
 end
@@ -336,7 +337,7 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias)
     end
 
     if !isnothing(fp)
-        printf(fp, "\n")
+        newline(fp)
         fclose(fp)
     end
 
@@ -406,15 +407,23 @@ function calc_fermion_action(fermion_action, U, ϕ, smearing::StoutSmearing, is_
     return Sf
 end
 
-@inline print_hmc_data(::Nothing, args...) = nothing
+@inline function print_hmc_data(::Nothing, ΔP², ΔSg, ΔSf, ΔV, ΔH)
+    @level2("ΔP²:\t$ΔP²")
+    @level2("ΔSg:\t$ΔSg")
+    @level2("ΔSf:\t$ΔSf")
+    @level2("ΔV:\t$ΔV")
+    @level2("ΔH:\t$ΔH")
+    return nothing
+end
 
 @inline function print_hmc_data(logfile, ΔP², ΔSg, ΔSf, ΔV, ΔH)
     fp = fopen(logfile, "a")
-    printf(fp, "%+25.15E", ΔP²)
-    printf(fp, "%+25.15E", ΔSg)
-    printf(fp, "%+25.15E", ΔSf)
-    printf(fp, "%+25.15E", ΔV)
-    printf(fp, "%+25.15E\n", ΔH)
+    printf(fp, "%+-25.15E", ΔP²)
+    printf(fp, "%+-25.15E", ΔSg)
+    printf(fp, "%+-25.15E", ΔSf)
+    printf(fp, "%+-25.15E", ΔV)
+    printf(fp, "%+-25.15E", ΔH)
+    newline(fp)
     fclose(fp)
     return nothing
 end

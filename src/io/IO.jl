@@ -14,7 +14,7 @@ using ..Utils
 
 import ..Fields: Gaugefield, is_distributed
 
-export __GlobalLogger, MetaLogger, current_time, @level1, @level2, @level3
+export __GlobalLogger, MetaLogger, current_time, @level1, @level2, @level3, @level4
 export BMWFormat, BridgeFormat, Checkpointer, ConfigSaver, JLD2Format, set_global_logger!
 export fclose, fopen, printf, prints_to_console, newline
 export create_checkpoint, load_checkpoint, load_config!, save_config
