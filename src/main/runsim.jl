@@ -261,6 +261,8 @@ function metaqcd!(
     @level1("└ Total elapsed time:\t$(runtime_therm) [s]\n")
     recalc_CV!(U, bias) # need to recalc cv since it was not updated during therm
 
+    mpi_barrier()
+
     @level1("┌ Production:")
     _, runtime_all = @timed begin
         numaccepts = 0.0

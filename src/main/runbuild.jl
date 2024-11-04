@@ -142,7 +142,8 @@ function metabuild!(
                     therm=true,
                 )
             end
-            # @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())\n-")
+
+            @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")
         end
     end
 
@@ -168,7 +169,7 @@ function metabuild!(
                 numaccepts += accepted
             end
 
-            @level1("|  Elapsed time:\t$(updatetime) [s] @ $(current_time())\n")
+            @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")
             # all procs send their CVs to all other procs and update their copy of the bias
             CVs = mpi_allgather(U.CV::Float64, comm)
             accepteds = mpi_allgather(accepted::Bool, comm)
@@ -185,13 +186,8 @@ function metabuild!(
         end
     end
 
-    # @level1("└\nTotal elapsed time:\t$(convert_seconds(runtime_all))\n@ $(current_time())")
+    print_total_time(runtime_all)
     flush(stdout)
-    # close all the I/O streams
-    close(updatemethod)
-    close(measurements)
-    close(measurements_with_flow)
-    close(bias)
     close(MetaIO.__GlobalLogger[])
     isinteractive() && set_global_logger!(1) # Reset logger if run from REPL
     return nothing

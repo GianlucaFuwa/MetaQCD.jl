@@ -24,3 +24,7 @@ StaggeredDiracOperator
 ```@docs
 StaggeredEOPreDiracOperator
 ```
+
+```@docs
+StaggeredHoelblingDiracOperator
+```

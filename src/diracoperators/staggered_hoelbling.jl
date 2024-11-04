@@ -1,13 +1,15 @@
 """
-    StaggeredHoelblingDiracOperator(f::AbstractField, mass; bc_str="antiperiodic")
+    StaggeredHoelblingDiracOperator{MT}(f::AbstractField, mass; bc_str="antiperiodic")
     StaggeredHoelblingDiracOperator(D::StaggeredHoelblingDiracOperator, U::Gaugefield)
 
-Create a free Hölbling mass split Staggered Dirac Operator with mass `mass`.
+Create a free Hölbling mass split Staggered Dirac Operator (arXiv:1009.5362) with mass
+`mass`.
+The type-parameter `MT` determines the kind of operator that is used:
+- `MT = 1`: M12 + M34
+- `MT = 2`: M13 + M24
 
 `bc_str` can either be `"periodic"` or `"antiperiodic"` and specifies the boundary
 condition in the time direction.
-
-If `csw ≠ 0`, a clover term is included. 
 
 This object cannot be directly applied to a fermion vector, since it lacks a gauge
 background.
