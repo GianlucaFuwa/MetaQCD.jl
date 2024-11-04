@@ -10,8 +10,8 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    runs-on: [ubuntu-latest, windows-latest]
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:

@@ -30,5 +30,3 @@ function test_checkpoint()
 
     return nothing
 end
-
-test_checkpoint()

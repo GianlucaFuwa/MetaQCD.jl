@@ -6,8 +6,7 @@ struct PolyakovMeasurement{T} <: AbstractMeasurement
         end
 
         if !isnothing(filename) && filename != ""
-            path = filename * MYEXT
-            rpath = StaticString(path)
+            rpath = StaticString(filename)
             header = ""
 
             if flow
@@ -24,7 +23,7 @@ struct PolyakovMeasurement{T} <: AbstractMeasurement
             end
 
             if mpi_amroot()
-                open(path, "w") do fp
+                open(filename, "w") do fp
                     println(fp, header)
                 end
             end

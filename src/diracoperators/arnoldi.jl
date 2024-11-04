@@ -254,7 +254,7 @@ function reinitialize_meta!(arnoldi, j)
     rnorm = norm(v)
 
     if j==0
-        mul!(v, 1 / rnorm)
+        mul!(v, v, 1 / rnorm)
         return true
     end
 
@@ -287,7 +287,7 @@ function reinitialize_meta!(arnoldi, j)
     if wnorm ≤ η * rnorm
         return false
     else
-        mul!(v, 1 / wnorm)
+        mul!(v, v, 1 / wnorm)
         return true
     end
 end
@@ -329,7 +329,7 @@ function orthogonalize_meta!(arnoldi, j)
         return false
     else
         H[j+1, j] = wnorm
-        mul!(v, 1 / wnorm)
+        mul!(v, v, 1 / wnorm)
         return true
     end
 end

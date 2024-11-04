@@ -122,7 +122,7 @@ function OPES(;
     @assert counter > 0 "COUNTER must be ≥0"
     @level1("|  STRIDE: $(stride)")
     @assert stride > 0 "STRIDE must be >0"
-    @level1("|  CVLIMS: $(cvlims)")
+    @level1("|  CVLIMS: $(string(cvlims))")
     @assert cvlims[1] < cvlims[2] "CVLIMS[1] must be <CVLIMS[2]"
     @level1("|  BARRIER: $(barrier)")
     @assert barrier >= 0 "BARRIER must be > 0"

@@ -1,8 +1,8 @@
 """
-    StaggeredDiracOperator(f::AbstractField, mass; bc_str="antiperiodic")
-    StaggeredDiracOperator(D::StaggeredDiracOperator, U::Gaugefield)
+    StaggeredHoelblingDiracOperator(f::AbstractField, mass; bc_str="antiperiodic")
+    StaggeredHoelblingDiracOperator(D::StaggeredHoelblingDiracOperator, U::Gaugefield)
 
-Create a free Staggered Dirac Operator with mass `mass`.
+Create a free Hölbling mass split Staggered Dirac Operator with mass `mass`.
 
 `bc_str` can either be `"periodic"` or `"antiperiodic"` and specifies the boundary
 condition in the time direction.
@@ -22,52 +22,71 @@ A Wilson Dirac operator with gauge background is created by applying it to a `Ga
 - `TG`: Type of the underlying `Gaugefield`
 - `BC`: Boundary Condition in time direction
 """
-struct StaggeredDiracOperator{B,T,TF,TG,BC} <: AbstractDiracOperator
+struct StaggeredHoelblingDiracOperator{MT,B,T,TF,TG,BC} <: AbstractDiracOperator
     U::TG
     temp::TF # temp for storage of intermediate result for DdaggerD operator
     mass::Float64
+    c1::Float64
+    c2::Float64
     boundary_condition::BC # Only in time direction
-    function StaggeredDiracOperator(
-        f::AbstractField{B,T}, mass; bc_str="antiperiodic", kwargs...
-    ) where {B,T}
+    function StaggeredHoelblingDiracOperator{MT}(
+        f::AbstractField{B,T}, mass; bc_str="antiperiodic", c1=1.0, c2=1.0, kwargs...
+    ) where {MT,B,T}
+        @assert MT ∈ (1, 2) "Only 2 Mass Term modes supported so far"
         U = nothing
         temp = Spinorfield(f; staggered=true)
         TG = Nothing
         TF = typeof(temp)
         boundary_condition = create_bc(bc_str, f.topology)
         BC = typeof(boundary_condition)
-        return new{B,T,TF,TG,BC}(U, temp, mass, boundary_condition)
+        return new{MT,B,T,TF,TG,BC}(U, temp, mass, c1, c2, boundary_condition)
     end
 
-    function StaggeredDiracOperator(
-        D::StaggeredDiracOperator{B,T,TF}, U::Gaugefield{B,T}
-    ) where {B,T,TF}
-        TG = typeof(U)
-        BC = typeof(D.boundary_condition)
-        return new{B,T,TF,TG,BC}(U, D.temp, D.mass, D.boundary_condition)
+    function StaggeredHoelblingDiracOperator(
+        D::StaggeredHoelblingDiracOperator{MT,B,T,TF,TG,BC}, U::Gaugefield{B,T}
+    ) where {MT,B,T,TF,TG,BC}
+        TG_new = typeof(U)
+        return new{MT,B,T,TF,TG_new,BC}(U, D.temp, D.mass, D.c1, D.c2, D.boundary_condition)
     end
 end
 
-function (D::StaggeredDiracOperator{B,T})(U::Gaugefield{B,T}) where {B,T}
-    return StaggeredDiracOperator(D, U)
+@inline function get_mass_term(::Val{MT}) where {MT}
+    return if MT == 1
+        (Val(1), Val(2), Val(3), Val(4))
+    elseif MT == 2
+        (Val(1), Val(3), Val(2), Val(4))
+    end
 end
 
-struct StaggeredFermionAction{R,Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction{R,Nf}
+@inline function get_mass_term(::StaggeredHoelblingDiracOperator{MT}) where {MT}
+    return get_mass_term(Val(MT))
+end
+
+function (D::StaggeredHoelblingDiracOperator{MT,B,T})(U::Gaugefield{B,T}) where {MT,B,T}
+    return StaggeredHoelblingDiracOperator(D, U)
+end
+
+struct StaggeredHoelblingFermionAction{R,Nf,TD,CT,RI1,RI2,RT} <:
+    AbstractFermionAction{R,Nf}
     D::TD
     cg_temps::CT
     rhmc_info_action::RI1
     rhmc_info_md::RI2
     rhmc_temps1::RT # this holds the results of multishift cg
     rhmc_temps2::RT # this holds the basis vectors in multishift cg
+    # X̃::TX # Used for force calculation
+    # Ỹ::TX # Used for force calculation
     cg_tol_action::Float64
     cg_tol_md::Float64
     cg_maxiters_action::Int64
     cg_maxiters_md::Int64
-    function StaggeredFermionAction(
+    function StaggeredHoelblingFermionAction{MT}( # INFO: MT: Mass Term
         f::AbstractField,
         mass;
+        c1=1.0,
+        c2=1.0,
         bc_str="antiperiodic",
-        Nf=8,
+        Nf=2,
         rhmc_spectral_bound=(mass^2, 6.0),
         rhmc_order_md=10,
         rhmc_prec_md=42,
@@ -78,11 +97,11 @@ struct StaggeredFermionAction{R,Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction{R,
         cg_maxiters_action=1000,
         cg_maxiters_md=1000,
         kwargs...,
-    )
-        D = StaggeredDiracOperator(f, mass; bc_str=bc_str)
+    ) where {MT}
+        D = StaggeredHoelblingDiracOperator{MT}(f, mass; c1=c1, c2=c2, bc_str=bc_str)
         TD = typeof(D)
 
-        if Nf == 8
+        if Nf == 2
             R = false
             rhmc_info_action = nothing
             rhmc_info_md = nothing
@@ -90,12 +109,14 @@ struct StaggeredFermionAction{R,Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction{R,
             rhmc_temps2 = nothing
             cg_temps = ntuple(_ -> Spinorfield(f; staggered=true), 4)
         else
-            @assert 8 > Nf > 0 "Nf should be between 1 and 8 (was $Nf)"
+            @assert Nf == 1 """
+            Nf should be 1 or 2 (was $Nf). If you want Nf > 2, use multiple actions
+            """
             R = true
             rhmc_lambda_low = rhmc_spectral_bound[1]
             rhmc_lambda_high = rhmc_spectral_bound[2]
             cg_temps = ntuple(_ -> Spinorfield(f; staggered=true), 2)
-            power = Nf//16
+            power = Nf//4
             rhmc_info_action = RHMCParams(
                 power;
                 n=rhmc_order_action,
@@ -103,7 +124,7 @@ struct StaggeredFermionAction{R,Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction{R,
                 lambda_low=rhmc_lambda_low,
                 lambda_high=rhmc_lambda_high,
             )
-            power = Nf//8
+            power = Nf//2
             rhmc_info_md = RHMCParams(
                 power;
                 n=rhmc_order_md,
@@ -116,10 +137,13 @@ struct StaggeredFermionAction{R,Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction{R,
             rhmc_temps2 = ntuple(_ -> Spinorfield(f; staggered=true), n_temps + 1)
         end
 
+        # X̃ = Spinorfield(f; staggered=true)
+        # Ỹ = Spinorfield(f; staggered=true)
         CT = typeof(cg_temps)
         RI1 = typeof(rhmc_info_action)
         RI2 = typeof(rhmc_info_md)
         RT = typeof(rhmc_temps1)
+        # TX = typeof(X̃)
         return new{R,Nf,TD,CT,RI1,RI2,RT}(
             D,
             cg_temps,
@@ -127,6 +151,8 @@ struct StaggeredFermionAction{R,Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction{R,
             rhmc_info_md,
             rhmc_temps1,
             rhmc_temps2,
+            # X̃,
+            # Ỹ,
             cg_tol_action,
             cg_tol_md,
             cg_maxiters_action,
@@ -137,7 +163,7 @@ end
 
 function solve_dirac!(
     ψ, D::T, ϕ, temp1, temp2, temp3, temp4, temp5; tol=1e-14, maxiters=1000
-) where {T<:StaggeredDiracOperator}
+) where {T<:StaggeredHoelblingDiracOperator}
     bicg_stab!(ψ, D, ϕ, temp1, temp2, temp3, temp4, temp5; tol=tol, maxiters=maxiters)
     return nothing
 end
@@ -146,16 +172,17 @@ end
 # The Gaugefields module into CG.jl, which also allows us to use the solvers for 
 # for arbitrary arrays, not just fermion fields and dirac operators (good for testing)
 function LinearAlgebra.mul!(
-    ψ::TF, D::StaggeredDiracOperator{CPU,T,TF,TG}, ϕ::TF
-) where {T,TF,TG}
+    ψ::TF, D::StaggeredHoelblingDiracOperator{MT,CPU,T,TF,TG}, ϕ::TF
+) where {MT,T,TF,TG}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.U
     mass = T(D.mass)
+    term = get_mass_term(D)
     bc = D.boundary_condition
     check_dims(ψ, ϕ, U)
 
     @batch for site in eachindex(ψ)
-        ψ[site] = staggered_kernel(U, ϕ, site, mass, bc, T, false)
+        ψ[site] = staggered_hoelbling_kernel(U, ϕ, site, mass, bc, term, T, false)
     end
 
     update_halo!(ψ)
@@ -163,16 +190,17 @@ function LinearAlgebra.mul!(
 end
 
 function LinearAlgebra.mul!(
-    ψ::TF, D::Daggered{StaggeredDiracOperator{CPU,T,TF,TG,BC}}, ϕ::TF
-) where {T,TF,TG,BC}
+    ψ::TF, D::Daggered{StaggeredHoelblingDiracOperator{MT,CPU,T,TF,TG,BC}}, ϕ::TF
+) where {MT,T,TF,TG,BC}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.parent.U
     mass = T(D.parent.mass)
+    term = get_mass_term(D.parent)
     bc = D.parent.boundary_condition
     check_dims(ψ, ϕ, U)
 
     @batch for site in eachindex(ψ)
-        ψ[site] = staggered_kernel(U, ϕ, site, mass, bc, T, true)
+        ψ[site] = staggered_hoelbling_kernel(U, ϕ, site, mass, bc, term, T, true)
     end
 
     update_halo!(ψ)
@@ -180,90 +208,88 @@ function LinearAlgebra.mul!(
 end
 
 function LinearAlgebra.mul!(
-    ψ::TF, D::DdaggerD{StaggeredDiracOperator{B,T,TF,TG,BC}}, ϕ::TF
-) where {B,T,TF,TG,BC}
+    ψ::TF, D::DdaggerD{StaggeredHoelblingDiracOperator{MT,B,T,TF,TG,BC}}, ϕ::TF
+) where {MT,B,T,TF,TG,BC}
     temp = D.parent.temp
     mul!(temp, D.parent, ϕ) # temp = Dϕ
     mul!(ψ, adjoint(D.parent), temp) # ψ = D†Dϕ
     return nothing
 end
 
-function staggered_kernel(U, ϕ, site, mass, bc, ::Type{T}, dagg::Bool) where {T}
+function staggered_hoelbling_kernel(U, ϕ, site, mass, bc, term, ::Type{T}, dagg::Bool) where {T}
     sgn = dagg ? -1 : 1
     NX, NY, NZ, NT = dims(U)
-    ψₙ = 2mass * ϕ[site]
+    _μ, _ν, _ρ, _σ = term
+    ψₙ = (2mass + 4) * ϕ[site] + (
+        hoelbling_mass(_μ, _ν, U, ϕ, site, bc, T) +
+        hoelbling_mass(_ρ, _σ, U, ϕ, site, bc, T)
+    )
+
     # Cant do a for loop here because Val(μ) cannot be known at compile time and is 
     # therefore dynamically dispatched
     siteμ⁺ = move(site, 1, 1, NX)
     siteμ⁻ = move(site, 1, -1, NX)
     η = sgn * staggered_η(Val(1), site)
-    ψₙ += η * cmvmul(U[1, site], ϕ[siteμ⁺])
-    ψₙ -= η * cmvmul_d(U[1, siteμ⁻], ϕ[siteμ⁻])
+    ψₙ += η * (cmvmul(U[1, site], ϕ[siteμ⁺]) - cmvmul_d(U[1, siteμ⁻], ϕ[siteμ⁻]))
 
     siteμ⁺ = move(site, 2, 1, NY)
     siteμ⁻ = move(site, 2, -1, NY)
     η = sgn * staggered_η(Val(2), site)
-    ψₙ += η * cmvmul(U[2, site], ϕ[siteμ⁺])
-    ψₙ -= η * cmvmul_d(U[2, siteμ⁻], ϕ[siteμ⁻])
+    ψₙ += η * (cmvmul(U[2, site], ϕ[siteμ⁺]) - cmvmul_d(U[2, siteμ⁻], ϕ[siteμ⁻]))
 
     siteμ⁺ = move(site, 3, 1, NZ)
     siteμ⁻ = move(site, 3, -1, NZ)
     η = sgn * staggered_η(Val(3), site)
-    ψₙ += η * cmvmul(U[3, site], ϕ[siteμ⁺])
-    ψₙ -= η * cmvmul_d(U[3, siteμ⁻], ϕ[siteμ⁻])
+    ψₙ += η * (cmvmul(U[3, site], ϕ[siteμ⁺]) - cmvmul_d(U[3, siteμ⁻], ϕ[siteμ⁻]))
 
     siteμ⁺ = move(site, 4, 1, NT)
     siteμ⁻ = move(site, 4, -1, NT)
     η = sgn * staggered_η(Val(4), site)
-    ψₙ += η * cmvmul(U[4, site], apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT))
-    ψₙ -= η * cmvmul_d(U[4, siteμ⁻], apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT))
+    ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT)
+    ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT)
+    ψₙ += η * (cmvmul(U[4, site], ϕ⁺) - cmvmul_d(U[4, siteμ⁻], ϕ⁻))
     return T(0.5) * ψₙ
 end
 
-# Use Val to reduce the amount of if-statements in the kernel
-@inline staggered_η(::Val{1}, site) = 1
-@inline staggered_η(::Val{2}, site) = ifelse(iseven(site[1]), 1, -1)
-@inline staggered_η(::Val{3}, site) = ifelse(iseven(site[1] + site[2]), 1, -1)
-@inline staggered_η(::Val{4}, site) = ifelse(iseven(site[1] + site[2] + site[3]), 1, -1)
-@inline staggered_η(::Val{5}, site) = ifelse(iseven(site[1] + site[3]), 1, -1)
-@inline staggered_ϵμν(::Val{μ}, ::Val{ν}, site) where {μ,ν} =
-    ifelse(iseven(site[μ] + site[ν]), 1, -1)
+function hoelbling_mass(::Val{μ}, ::Val{ν}, U, ϕ, site, bc, ::Type{T}) where {μ,ν,T}
+    # XXX:Assuming μ < ν
+    Nμ = dims(U)[μ]
+    Nν = dims(U)[ν]
+    siteμ⁺ = move(site, μ, 1, Nμ)
+    siteμ⁻ = move(site, μ, -1, Nμ)
+    siteν⁺ = move(site, ν, 1, Nν)
+    siteν⁻ = move(site, ν, -1, Nν)
+    siteμ⁺ν⁺ = move(siteμ⁺, ν, 1, Nν)
+    siteμ⁺ν⁻ = move(siteμ⁺, ν, -1, Nν)
+    siteμ⁻ν⁺ = move(siteμ⁻, ν, 1, Nν)
+    siteμ⁻ν⁻ = move(siteμ⁻, ν, -1, Nν)
 
-@inline function staggered_ημν(::Val{1}, ::Val{2}, site)
-    return ifelse(iseven(site[2]), 1, -1)
-end
-@inline staggered_ημν(::Val{2}, ::Val{1}, site) = staggered_ημν(Val(1), Val(2), site)
+    tmpϕ = apply_bc(
+        apply_bc(ϕ[siteμ⁺ν⁺], bc, site, Val(1), Nμ, Val(μ)),
+        bc, site, Val(1), Nν, Val(ν)
+    )
+    tmp = cmatmul_oo(U[μ, site], U[ν, siteμ⁺]) + cmatmul_oo(U[ν, site], U[μ, siteν⁺])
+    Mμν = cmvmul(tmp, tmpϕ)
 
-@inline function staggered_ημν(::Val{1}, ::Val{3}, site)
-    return ifelse(iseven(site[2] + site[3]), 1, -1)
-end
-@inline staggered_ημν(::Val{3}, ::Val{1}, site) = staggered_ημν(Val(1), Val(3), site)
+    tmpϕ = apply_bc(
+        apply_bc(ϕ[siteμ⁺ν⁻], bc, site, Val(1), Nμ, Val(μ)),
+        bc, site, Val(-1), Nν, Val(ν)
+    )
+    tmp = cmatmul_od(U[μ, site], U[ν, siteμ⁺ν⁻]) + cmatmul_do(U[ν, siteν⁻], U[μ, siteν⁻])
+    Mμν += cmvmul(tmp, tmpϕ)
 
-@inline function staggered_ημν(::Val{1}, ::Val{4}, site)
-    return ifelse(iseven(site[2] + site[3] + site[4]), 1, -1)
-end
-@inline staggered_ημν(::Val{4}, ::Val{1}, site) = staggered_ημν(Val(1), Val(4), site)
+    tmpϕ = apply_bc(
+        apply_bc(ϕ[siteμ⁻ν⁺], bc, site, Val(-1), Nμ, Val(μ)),
+        bc, site, Val(1), Nν, Val(ν)
+    )
+    tmp = cmatmul_do(U[μ, siteμ⁻], U[ν, siteμ⁻]) + cmatmul_od(U[ν, site], U[μ, siteμ⁻ν⁺])
+    Mμν += cmvmul(tmp, tmpϕ)
 
-@inline function staggered_ημν(::Val{2}, ::Val{3}, site)
-    return ifelse(iseven(site[2]), 1, -1)
-end
-@inline staggered_ημν(::Val{3}, ::Val{2}, site) = staggered_ημν(Val(2), Val(3), site)
-
-@inline function staggered_ημν(::Val{2}, ::Val{4}, site)
-    return ifelse(iseven(site[3] + site[4]), 1, -1)
-end
-@inline staggered_ημν(::Val{4}, ::Val{2}, site) = staggered_ημν(Val(2), Val(4), site)
-
-@inline function staggered_ημν(::Val{3}, ::Val{4}, site)
-    return ifelse(iseven(site[4]), 1, -1)
-end
-@inline staggered_ημν(::Val{4}, ::Val{3}, site) = staggered_ημν(Val(3), Val(4), site)
-
-@inline function ξ5(::Type{T}) where {T}
-    return @SArray [
-        Complex{T}(-1, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0)
-        Complex{T}(0, 0) Complex{T}(-1, 0) Complex{T}(0, 0) Complex{T}(0, 0)
-        Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(1, 0) Complex{T}(0, 0)
-        Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(1, 0)
-    ]
+    tmpϕ = apply_bc(
+        apply_bc(ϕ[siteμ⁻ν⁻], bc, site, Val(-1), Nμ, Val(μ)),
+        bc, site, Val(-1), Nν, Val(ν)
+    )
+    tmp = cmatmul_dd(U[μ, siteμ⁻], U[ν, siteμ⁻ν⁻]) + cmatmul_dd(U[ν, siteν⁻], U[μ, siteμ⁻ν⁻])
+    Mμν += cmvmul(tmp, tmpϕ)
+    return im * T(1/4 * staggered_ημν(Val(μ), Val(ν), site)) * Mμν # The extra factor 1/2 is contained in the kernel function
 end

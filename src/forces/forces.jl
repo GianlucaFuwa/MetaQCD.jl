@@ -4,12 +4,13 @@
 
 import ..DiracOperators: StaggeredDiracOperator, StaggeredFermionAction
 import ..DiracOperators: StaggeredEOPreDiracOperator, StaggeredEOPreFermionAction
+import.. DiracOperators: StaggeredHoelblingDiracOperator, StaggeredHoelblingFermionAction
 import ..DiracOperators: WilsonDiracOperator, WilsonFermionAction, has_clover_term
 import ..DiracOperators: WilsonEOPreDiracOperator, WilsonEOPreFermionAction
 import ..DiracOperators: Daggered, DdaggerD, SpinorfieldEO
-import ..DiracOperators: apply_bc, staggered_η, solve_dirac!, solve_dirac_multishift!
-import ..DiracOperators: mul_oe!, mul_eo!, mul_oo_inv!
-import ..Fields: Paulifield
+import ..DiracOperators: apply_bc, staggered_η, staggered_ημν, solve_dirac!, solve_dirac_multishift!
+import ..DiracOperators: mul_oe!, mul_eo!, mul_oo_inv!, get_mass_term
+import ..Fields: Paulifield, MultiSpinorfield
 
 # some aliases
 const StaggeredSpinorfield{B,T,M,A} = Spinorfield{B,T,M,A,1}
@@ -54,6 +55,7 @@ include("wilson_force.jl")
 include("wilson_eo_force.jl")
 include("staggered_force.jl")
 include("staggered_eo_force.jl")
+include("staggered_hoelbling_force.jl")
 
 include("gpu_kernels/gauge_force.jl")
 include("gpu_kernels/bias_force.jl")

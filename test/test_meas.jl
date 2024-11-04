@@ -1,3 +1,9 @@
+using MetaQCD
+using MetaQCD.Utils
+using Test
+using LinearAlgebra
+using Random
+
 const PLAQ_EXP = 0.587818337847024
 const POLY_EXP = 0.5255246068616176 - 0.15140850971249734im
 const TOPO_EXP = Dict(
@@ -6,15 +12,15 @@ const TOPO_EXP = Dict(
     "improved" => -0.03210085960569041,
 )
 
-function test_measurements(backend=CPU; nprocs_cart=(1, 1, 1, 1), halo_width=1)
-    println("Gauge observable tests")
+function test_measurements(backend=CPU; nprocs_cart=(1, 1, 1, 1), halo_width=2)
+    mpi_amroot() && println("Gauge observable tests")
     NX = 4
     NY = 4
     NZ = 4
     NT = 4
     U = Gaugefield{CPU,Float64,WilsonGaugeAction}(NX, NY, NZ, NT, 6.0, nprocs_cart, halo_width)
 
-    filename = if MetaQCD.Fields.is_distributed(U)
+    filename = if nprocs_cart != (1, 1, 1, 1)
         pkgdir(MetaQCD, "test", "testconf_mpi")
     else
         pkgdir(MetaQCD, "test", "testconf.txt")
@@ -31,15 +37,19 @@ function test_measurements(backend=CPU; nprocs_cart=(1, 1, 1, 1), halo_width=1)
 
     mpi_amroot() && println("==========")
 
-    m_poly = PolyakovMeasurement(U)
-    poly = measure(m_poly, U, 1, 1)
+    if nprocs_cart[4] == 1
+        m_poly = PolyakovMeasurement(U)
+        poly =  measure(m_poly, U, 1, 1)
 
-    mpi_amroot() && println("==========")
+        mpi_amroot() && println("==========")
+    end
 
-    m_wilson = WilsonLoopMeasurement(U)
-    wilsonloop = measure(m_wilson, U, 1, 1)
+    if nprocs_cart == (1, 1, 1, 1)
+        m_wilson = WilsonLoopMeasurement(U)
+        wilsonloop = measure(m_wilson, U, 1, 1)
 
-    mpi_amroot() && println("==========")
+        mpi_amroot() && println("==========")
+    end
 
     TC_methods  = ["plaquette", "clover", "improved"]
     m_topo = TopologicalChargeMeasurement(U, TC_methods=TC_methods)
@@ -64,10 +74,19 @@ function test_measurements(backend=CPU; nprocs_cart=(1, 1, 1, 1), halo_width=1)
             # @test isapprox(TOPO_EXP["plaquette"], topo["plaquette"])
             # @test isapprox(TOPO_EXP["clover"], topo["clover"])
             # @test isapprox(TOPO_EXP["improved"], topo["improved"])
-            @test isapprox(PLAQ_EXP, wilsonloop[1, 1])
+            if nprocs_cart == (1, 1, 1, 1)
+                @test isapprox(PLAQ_EXP, wilsonloop[1, 1])
+            end
         end
     end
 
     mpi_barrier()
     return nothing
 end
+
+# test_measurements(nprocs_cart=(1, 1, 2, 2))
+# test_measurements(nprocs_cart=(1, 2, 1, 2))
+# test_measurements(nprocs_cart=(2, 1, 1, 2))
+# test_measurements(nprocs_cart=(1, 2, 2, 1))
+# test_measurements(nprocs_cart=(2, 2, 1, 1))
+# test_measurements(nprocs_cart=(2, 1, 2, 1))

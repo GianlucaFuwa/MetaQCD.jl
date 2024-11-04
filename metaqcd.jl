@@ -5,16 +5,16 @@ using MetaQCD.Utils
 using MetaQCD: @level1, build_bias, run_sim
 
 function parse_args(args)
-    parameterfile = args[1]
-    @assert length(args) > 2 && isfile(parameterfile) """
-    An existing parameter file has to be given as the first input, e.g.:
-    julia metaqcd.jl parameters.toml -mode=sim
+    parameterfile = args[end]
+    @assert length(args) >= 2 && isfile(parameterfile) """
+    An existing parameter file has to be given as the last input, e.g.:
+    julia metaqcd.jl -mode=sim parameters.toml
 
     You either did not provide a file or the file you provided does not exist.
     """
 
     @assert count(x -> occursin("-mode", x), args) == 1 """
-    The flag \"-mode\" has to be set after the parameter file.
+    The flag \"-mode\" has to be set before the parameter file.
     Options are:
 
     \"-mode=sim\"   to run a simulation with or without Metadynamics or
@@ -66,6 +66,7 @@ end
 mpi_parallel() && @level1("[ $(mpi_size()) MPI processes are being used")
 
 if mode == "sim"
+    @assert mpi_size() < 10 "At max 9 MPI processes can be used in parallel tempering for now"
     run_sim(parameterfile; backend=backend)
 elseif mode == "build"
     build_bias(parameterfile; backend=backend, mpi_multi_sim=with_mpi)

@@ -80,9 +80,11 @@ function run_sim!(
                     typeof(univ.fermion_action[1])
                 end
                 # all MetaD streams use HMC, so there is no need to initialize more than 1
+                hmc_integrator = parameters.hmc_integrator
+                hmc_rafriction = parameters.hmc_rafriction
                 updatemethod_pt = HMC(
                     U[1],
-                    integrator_from_str(parameters.hmc_integrator),
+                    integrator_from_str(hmc_integrator, hmc_rafriction),
                     parameters.hmc_trajectory,
                     parameters.hmc_steps,
                     parameters.hmc_friction,
@@ -96,16 +98,16 @@ function run_sim!(
                     bias_enabled=true,
                 )
             end
+
             parity = parameters.parity_update ? ParityUpdate(U[1]) : nothing
         end
     else
         if isnothing(updatemethod)
             updatemethod = Updatemethod(parameters, U)
         end
+
         parity = parameters.parity_update ? ParityUpdate(U) : nothing
     end
-
-    isnothing(parity) || @level1("[ Parity update enabled\n")
 
     if parameters.tempering_enabled && !mpi_multi_sim
         gflow = GradientFlow(
@@ -120,7 +122,8 @@ function run_sim!(
         measurements_with_flow = Vector{MeasurementMethods}(undef, parameters.numinstances)
 
         measurements[1] = MeasurementMethods(
-            U[1], parameters.measure_dir, parameters.measurements; additional_string="_0"
+            U[1], parameters.measure_dir, parameters.measurements;
+            additional_string="_0.txt",
         )
 
         measurements_with_flow[1] = MeasurementMethods(
@@ -128,7 +131,7 @@ function run_sim!(
             parameters.measure_dir,
             parameters.measurements_with_flow;
             flow=true,
-            additional_string="_0",
+            additional_string="_0.txt",
         )
         for i in 2:(parameters.numinstances)
             if parameters.measure_on_all
@@ -136,21 +139,21 @@ function run_sim!(
                     U[i],
                     parameters.measure_dir,
                     parameters.measurements;
-                    additional_string="_$(i-1)",
+                    additional_string="_$(i-1).txt",
                 )
                 measurements_with_flow[i] = MeasurementMethods(
                     U[i],
                     parameters.measure_dir,
                     parameters.measurements_with_flow;
                     flow=true,
-                    additional_string="_$(i-1)",
+                    additional_string="_$(i-1).txt",
                 )
             else
                 measurements[i] = MeasurementMethods(
-                    U[i], parameters.measure_dir, Dict[]; additional_string="_$(i-1)"
+                    U[i], parameters.measure_dir, Dict[]; additional_string="_$(i-1).txt"
                 )
                 measurements_with_flow[i] = MeasurementMethods(
-                    U[i], parameters.measure_dir, Dict[]; additional_string="_$(i-1)"
+                    U[i], parameters.measure_dir, Dict[]; additional_string="_$(i-1).txt"
                 )
             end
         end
@@ -164,9 +167,12 @@ function run_sim!(
             measure_every=parameters.flow_measure_every,
         )
 
-        measurements = MeasurementMethods(U, parameters.measure_dir, parameters.measurements)
+        measurements = MeasurementMethods(
+            U, parameters.measure_dir, parameters.measurements; additional_string=MYEXT_str
+        )
         measurements_with_flow = MeasurementMethods(
-            U, parameters.measure_dir, parameters.measurements_with_flow; flow=true
+            U, parameters.measure_dir, parameters.measurements_with_flow;
+            flow=true, additional_string=MYEXT_str
         )
     end
 
@@ -344,10 +350,10 @@ function metaqcd_PT!(
                     update!(
                         updatemethod,
                         U[i];
-                        fermion_action=fermion_action[i],
+                        fermion_action=fermion_action,
                         bias=NoBias(),
                         metro_test=false,
-                        friction=0,
+                        therm=true,
                     )
                 end
             end

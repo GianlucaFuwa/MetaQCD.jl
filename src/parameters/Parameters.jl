@@ -207,17 +207,19 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
 
     parameters = ParameterSet(value_Params...)
 
-    parameter_check(parameters)
+    check_parameters(parameters)
     mpi_barrier()
     return parameters
 end
 
-function parameter_check(p::ParameterSet)
+function check_parameters(p::ParameterSet)
     mpi_amroot() || return nothing
 
     @assert prod(p.numprocs_cart) == mpi_size() """
     Size of comm must equal number of process used in field decomposition
     """
+
+    @assert p.verboselevel > 0 "verboselevel in parameters has to be bigger than 0"
 
     if prod(p.numprocs_cart) > 1
         @assert p.halo_width >= 1 "Halo width must be >= 1, when using field decomposition"
@@ -245,7 +247,9 @@ function parameter_check(p::ParameterSet)
               """))
     end
 
-    if lower_case(p.fermion_action) ∉ ["none", "wilson", "staggered"]
+    if lower_case(p.fermion_action) ∉ [
+        "none", "wilson", "staggered", "staggered-h1234", "staggered-h1324"
+    ]
         fa = p.fermion_action
         throw(AssertionError("""
               fermion_action in [\"Physical Settings\"] = $(fa) is not supported.
@@ -253,6 +257,8 @@ function parameter_check(p::ParameterSet)
                 None
                 Wilson
                 Staggered
+                Staggered-H1234
+                Staggered-H1324
               """))
     else
         @assert lower_case(p.update_method) == "hmc" "Dynamical fermions only with HMC"
@@ -290,17 +296,6 @@ function parameter_check(p::ParameterSet)
                 OMF2
                 OMF4Slow
                 OMF4
-            """))
-    end
-
-    if lower_case(p.fermion_action) ∉ ["none", "wilson", "staggered"]
-        fa = p.fermion_action
-        throw(AssertionError("""
-            fermion_action in [\"Dynamical Fermion Settings\"] = $(fa) is not supported.
-            Supported fermion actions are:
-                None
-                Wilson
-                Staggered
             """))
     end
 

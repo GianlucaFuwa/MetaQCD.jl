@@ -94,14 +94,14 @@ function temper!(
             println("# swap accepted")
             numaccepts_temper[i-1] += 1
             swap_U!(U1, U2)
-            update_bias!(bias1, cv2, itrj, true)
-            update_bias!(bias2, cv1, itrj, true)
+            update_bias!(bias1, cv2, itrj)
+            update_bias!(bias2, cv1, itrj)
         else
             println("# swap rejected")
         end
 
         @level1 """
-        "|  Acceptance [$i ⇔  $(i-1)]:\t$(100numaccepts_temper[i-1] / (itrj/swap_every)) %
+        |  Acceptance [$i ⇔  $(i-1)]:\t$(100numaccepts_temper[i-1] / (itrj/swap_every)) %
         """
     end
 

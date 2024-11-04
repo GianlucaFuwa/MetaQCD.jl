@@ -13,7 +13,7 @@ function calc_dSfdU!(dU, fermion_action::WilsonFermionAction{false,2}, U, ϕ::Wi
 
     if has_clover_term(D)
         Xμν = fermion_action.Xμν
-        calc_Xμν_eachsite!(Xμν, X, Y)
+        calc_Xμν_wilson_eachsite!(Xμν, X, Y)
         add_clover_derivative!(dU, U, Xμν, D.csw)
     end
 
@@ -49,7 +49,7 @@ function calc_dSfdU!(
         
         if has_clover_term(D)
             Xμν = fermion_action.Xμν
-            calc_Xμν_eachsite!(Xμν, Xs[i+1], Ys[i+1])
+            calc_Xμν_wilson_eachsite!(Xμν, Xs[i+1], Ys[i+1])
             add_clover_derivative!(dU, U, Xμν, D.csw; coeff=coeffs[i])
         end
     end
@@ -140,19 +140,19 @@ function add_clover_derivative_kernel!(dU, U, Xμν, site, fac, ::Type{T}) where
     return nothing
 end
 
-function calc_Xμν_eachsite!(
+function calc_Xμν_wilson_eachsite!(
     Xμν::Tensorfield{CPU,T}, X::TF, Y::TF
 ) where {T,TF<:WilsonSpinorfield}
     check_dims(Xμν, X, Y)
 
     @batch for site in eachindex(Xμν)
-        calc_Xμν_kernel!(Xμν, X, Y, site)
+        calc_Xμν_wilson_kernel!(Xμν, X, Y, site)
     end
 
     return nothing
 end
 
-function calc_Xμν_kernel!(Xμν, X, Y, site)
+function calc_Xμν_wilson_kernel!(Xμν, X, Y, site)
     X₁₂ =
         spintrace(σμν_spin_mul(X[site], Val(1), Val(2)), Y[site]) +
         spintrace(σμν_spin_mul(Y[site], Val(1), Val(2)), X[site])

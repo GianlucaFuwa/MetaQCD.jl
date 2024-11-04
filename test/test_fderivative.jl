@@ -2,11 +2,12 @@ using MetaQCD
 using MetaQCD.Utils
 using LinearAlgebra
 using Random
+using Test
 
 function test_fderivative(
     backend=CPU;
     nprocs_cart=(1, 1, 1, 1),
-    halo_width=0,
+    halo_width=1,
     dirac="staggered",
     mass=0.01,
     eoprec=false,
@@ -17,7 +18,7 @@ function test_fderivative(
         println("Fermion derivative test [$dirac]")
     end
 
-    Random.seed!(123)
+    Random.seed!(123 * (mpi_myrank() + 1))
     MetaQCD.MetaIO.set_global_logger!(1, nothing; tc=true)
     NX = 4
     NY = 4
@@ -28,21 +29,30 @@ function test_fderivative(
     )
     random_gauges!(U)
 
-    filename = pkgdir(MetaQCD, "test", "testconf.txt")
-    load_config!(BridgeFormat(), U, filename)
+    # filename = if nprocs_cart != (1, 1, 1, 1)
+    #     pkgdir(MetaQCD, "test", "testconf_mpi")
+    # else
+    #     pkgdir(MetaQCD, "test", "testconf.txt")
+    # end
+
+    # load_config!(BridgeFormat(), U, filename)
+
     if backend !== CPU
         U = MetaQCD.to_backend(backend, U)
     end
 
+    is_staggered = contains(dirac, "staggered")
+    is_hoelbling = dirac ∈ ("staggered-h1234", "staggered-h1324")
+
     ψ = if eoprec
-        even_odd(Spinorfield(U; staggered=dirac=="staggered"))
+        even_odd(Spinorfield(U; staggered=is_staggered))
     else
-        Spinorfield(U; staggered=dirac=="staggered")
+        Spinorfield(U; staggered=is_staggered)
     end
 
-    spectral_bound, Nf = if dirac=="staggered"
+    spectral_bound, Nf = if is_staggered && !is_hoelbling
         (mass^2, 6.0), (single_flavor ? 1 : (eoprec ? 4 : 8))
-    elseif dirac=="wilson"
+    else
         (mass^2, 64.0), (single_flavor ? 1 : 2)
     end
 
@@ -64,9 +74,10 @@ function test_fderivative(
     )
 
     action = MetaQCD.DiracOperators.init_fermion_action(params, mass, Nf, U)
-    # mpi_amroot() && (@show action)
+    mpi_amroot() && (@show action)
 
     sample_pseudofermions!(ψ, action, U)
+    # gaussian_pseudofermions!(ψ)
 
     # Test for smearing with 5 steps and stout parameter 0.12
     smearing = StoutSmearing(U, 5, 0.12)
@@ -75,7 +86,8 @@ function test_fderivative(
     dSfdU_smeared = Colorfield(U)
     temp_force = Colorfield(U)
 
-    site = SiteCoords(2, 3, 1, 2)
+    coord = (2, 3, 1, 2) .+ halo_width
+    site = SiteCoords(coord...)
     μ = 3
     ΔH = 0.000001
 
@@ -144,7 +156,7 @@ function test_fderivative(
 
     if mpi_amroot()
         println()
-        # @test length(findall(x -> abs(x) > 1e-4, relerrors[:, 2])) == 0
+        @test sum(relerrors[:, 2]) / length(relerrors[:, 2]) < 1e-4
     end
 
     mpi_barrier()

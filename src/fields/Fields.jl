@@ -38,6 +38,7 @@ include("gaugefield.jl") # Gaugefield, Colorfield and Expfield structs defined h
 include("algebrafield.jl") # For now just a placeholder in case I want to implement more efficient storage of su(3) algebra elements
 include("spinorfield.jl") # Spinorfield structs defined here 
 include("spinorfield_eo.jl") # Spinorfield for even-odd precon
+include("multispinorfield.jl") # MultiSpinorfield structs defined here 
 include("paulifield.jl") # For now just a placeholder in case I want to implement more efficient storage of su(3) algebra elements
 include("tensorfield.jl") # Tensorfield struct and fieldstrength methods defined here
 include("iterators.jl") # Sequential and Checkerboard iterators defined here 

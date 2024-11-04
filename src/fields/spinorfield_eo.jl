@@ -107,25 +107,26 @@ function gaussian_pseudofermions!(ϕ_eo::SpinorfieldEO{CPU,T}) where {T}
     return nothing
 end
 
-function LinearAlgebra.mul!(ϕ_eo::SpinorfieldEO{CPU,T}, α) where {T}
+function LinearAlgebra.mul!(ψ_eo::TF, ϕ_eo::TF, α) where {T,TF<:SpinorfieldEO{CPU,T}}
+    check_dims(ϕ_eo, ψ_eo)
     ϕ = ϕ_eo.parent
+    ψ = ψ_eo.parent
     α = Complex{T}(α)
     even = true
 
     @batch for _site in eachindex(even, ϕ)
-        ϕ[_site] *= α
+        ψ[_site] = ϕ[_site] * α
     end
 
-    update_halo!(ϕ) # TODO: Even-odd halo exchange
+    update_halo!(ψ) # TODO: Even-odd halo exchange
     return nothing
 end
 
-function LinearAlgebra.axpy!(α, ψ_eo::T, ϕ_eo::T) where {T<:SpinorfieldEO{CPU}} # even on even is the default
+function LinearAlgebra.axpy!(α, ψ_eo::TF, ϕ_eo::TF) where {T,TF<:SpinorfieldEO{CPU,T}} # even on even is the default
     check_dims(ϕ_eo, ψ_eo)
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent
-    FloatT = float_type(ϕ)
-    α = Complex{FloatT}(α)
+    α = Complex{T}(α)
     even = true
 
     @batch for _site in eachindex(even, ϕ)
@@ -137,14 +138,13 @@ function LinearAlgebra.axpy!(α, ψ_eo::T, ϕ_eo::T) where {T<:SpinorfieldEO{CPU
 end
 
 function LinearAlgebra.axpby!(
-    α, ψ_eo::T, β, ϕ_eo::T, even=true
-) where {T<:SpinorfieldEO{CPU}}
+    α, ψ_eo::TF, β, ϕ_eo::TF, even=true
+) where {T,TF<:SpinorfieldEO{CPU,T}}
     check_dims(ϕ_eo, ψ_eo)
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent
-    FloatT = float_type(ϕ)
-    α = Complex{FloatT}(α)
-    β = Complex{FloatT}(β)
+    α = Complex{T}(α)
+    β = Complex{T}(β)
 
     @batch for _site in allindices(even, ϕ)
         ϕ[_site] = α * ψ[_site] + β * ϕ[_site]

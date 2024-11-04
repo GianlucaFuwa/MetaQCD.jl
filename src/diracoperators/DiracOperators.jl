@@ -23,7 +23,7 @@ using ..Utils
 
 import KernelAbstractions as KA
 import ..Fields: AbstractField, FieldTopology, Gaugefield, Paulifield, Spinorfield
-import ..Fields: SpinorfieldEO, Tensorfield
+import ..Fields: MultiSpinorfield, SpinorfieldEO, Tensorfield
 import ..Fields: check_dims, clear!, clover_square, dims, even_odd, gaussian_pseudofermions!
 import ..Fields: @latmap, @latsum, Clover, Checkerboard2, Sequential, set_source!, volume
 import ..Fields: @groupreduce, fieldstrength_eachsite!, num_colors, num_dirac
@@ -76,6 +76,7 @@ get_temp(D::DdaggerD) = D.parent.temp
 
 include("staggered.jl")
 include("staggered_eo.jl")
+include("staggered_hoelbling.jl")
 include("wilson.jl")
 include("wilson_eo.jl")
 include("gpu_kernels/staggered.jl")
@@ -177,7 +178,9 @@ function sample_pseudofermions!(ϕ, fermion_action::AbstractFermionAction{false}
     return nothing
 end
 
-function sample_pseudofermions!(ϕ, fermion_action::AbstractFermionAction{true}, U)
+function sample_pseudofermions!(
+    ϕ, fermion_action::FA, U
+) where {FA<:Union{AbstractFermionAction{true},StaggeredEOPreSpinorfield{false,4}}}
     cg_tol = fermion_action.cg_tol_action
     cg_maxiters = fermion_action.cg_maxiters_action
     rhmc = fermion_action.rhmc_info_action
@@ -198,7 +201,7 @@ function sample_pseudofermions!(ϕ, fermion_action::AbstractFermionAction{true},
     gaussian_pseudofermions!(ϕ) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
     solve_dirac_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
 
-    mul!(ϕ, α₀)
+    mul!(ϕ, ϕ, α₀)
 
     for i in 1:n
         axpy!(coeffs[i], ψs[i+1], ϕ)
@@ -290,27 +293,19 @@ function construct_diracmatrix(D, U)
     return M
 end
 
-const FERMION_ACTION = Dict{Tuple{String,Bool},Type{<:AbstractFermionAction}}(
-    # boolean determines whether even-odd or not
-    ("none", false) => QuenchedFermionAction,
-    ("none", true) => QuenchedFermionAction,
-    ("quenched", false) => QuenchedFermionAction,
-    ("quenched", true) => QuenchedFermionAction,
-    ("wilson", false) => WilsonFermionAction,
-    ("wilson", true) => WilsonEOPreFermionAction,
-    ("staggered", false) => StaggeredFermionAction,
-    ("staggered", true) => StaggeredEOPreFermionAction,
-)
-
 function fermaction_from_str(str, eo_precon::Bool)
     if str == "wilson"
         return eo_precon ? WilsonEOPreFermionAction : WilsonFermionAction
     elseif str == "staggered"
         return eo_precon ? StaggeredEOPreFermionAction : StaggeredFermionAction
+    elseif str == "staggered-h1234" && !eo_precon
+        return StaggeredHoelblingFermionAction{1}
+    elseif str == "staggered-h1324" && !eo_precon
+        return StaggeredHoelblingFermionAction{2}
     elseif str ∈ ("none", "quenched") || str === nothing
         return QuenchedFermionAction
     else
-        error("fermion action \"$(str)\" not supported")
+        error("fermion action \"$(str)\" with eo_precon = $(eo_precon) not supported")
     end
 end
 
@@ -319,7 +314,7 @@ function init_fermion_action(params, mass::Float64, Nf::Int64, U)
     eo_precon = params.eo_precon
 
     ActionType = try
-        FERMION_ACTION[fermion_action, eo_precon]
+        fermaction_from_str(fermion_action, eo_precon)
     catch
         error("Fermion action \"$(fermion_action)\" with eo_precon=$(eo_precon) not supported")
     end
@@ -343,7 +338,7 @@ function init_fermion_action(params, mass::Float64, Nf::Int64, U)
     return action
 end
 
-function Base.show(io::IO, ::MIME"text/plain", S::AbstractFermionAction{Nf}) where {Nf}
+function Base.show(io::IO, ::MIME"text/plain", S::AbstractFermionAction{R,Nf}) where {R,Nf}
     name = nameof(typeof(S))
     print(
         io,
@@ -380,7 +375,7 @@ function Base.show(io::IO, ::MIME"text/plain", S::AbstractFermionAction{Nf}) whe
     return nothing
 end
 
-function Base.show(io::IO, S::AbstractFermionAction{Nf}) where {Nf}
+function Base.show(io::IO, S::AbstractFermionAction{R,Nf}) where {R,Nf}
     name = nameof(typeof(S))
     print(
         io,
@@ -398,6 +393,14 @@ function Base.show(io::IO, S::AbstractFermionAction{Nf}) where {Nf}
             """
             |    KAPPA: $(S.D.κ)
             |    CSW: $(S.D.csw)
+            """
+        )
+    elseif S isa StaggeredHoelblingFermionAction
+        
+        print(
+            io,
+            """
+            |    MASS TERM: $(_unwrap_val.(get_mass_term(S.D)))
             """
         )
     end

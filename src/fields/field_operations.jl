@@ -16,8 +16,6 @@ function identity_gauges!(u::Gaugefield{CPU,T}) where {T}
     end
 
     u.Sg = 0.0
-    # INFO: don't need to do halo exchange here, since we iterate over all indices
-    # including halo regions
     return nothing
 end
 
@@ -38,8 +36,6 @@ function clear!(u::AbstractField{CPU,T}) where {T} # set all link variables to z
         u[μsite] = zero3(T)
     end
 
-    # INFO: don't need to do halo exchange here, since we iterate over all indices
-    # including halo regions
     return nothing
 end
 
@@ -48,8 +44,6 @@ function normalize!(u::Gaugefield{CPU})
         u[μsite] = proj_onto_SU3(u[μsite])
     end
 
-    # INFO: don't need to do halo exchange here, since we iterate over all indices
-    # including halo regions
     return nothing
 end
 
@@ -86,9 +80,6 @@ function add!(a::AbstractField{CPU,T}, b::AbstractField{CPU}, fac) where {T}
         a[μsite] += fac * b[μsite]
     end
 
-    # INFO: don't need to do halo exchange here, since we iterate over all indices
-    # including halo regions
-    # We assume that b's halo is already up-to-date before calling this
     return nothing
 end
 
@@ -99,8 +90,6 @@ function mul!(a::AbstractField{CPU,T}, α::Number) where {T}
         a[μsite] *= α
     end
 
-    # INFO: don't need to do halo exchange here, since we iterate over all indices
-    # including halo regions
     return nothing
 end
 
@@ -111,8 +100,6 @@ function leftmul!(a::AbstractField{CPU}, b::AbstractField{CPU})
         a[μsite] = cmatmul_oo(b[μsite], a[μsite])
     end
 
-    # INFO: don't need to do halo exchange here, since we iterate over all indices
-    # including halo regions
     return nothing
 end
 
@@ -123,8 +110,6 @@ function leftmul_dagg!(a::AbstractField{CPU}, b::AbstractField{CPU})
         a[μsite] = cmatmul_do(b[μsite], a[μsite])
     end
 
-    # INFO: don't need to do halo exchange here, since we iterate over all indices
-    # including halo regions
     return nothing
 end
 
@@ -135,8 +120,6 @@ function rightmul!(a::AbstractField{CPU}, b::AbstractField{CPU})
         a[μsite] = cmatmul_oo(a[μsite], b[μsite])
     end
 
-    # INFO: don't need to do halo exchange here, since we iterate over all indices
-    # including halo regions
     return nothing
 end
 
@@ -147,7 +130,5 @@ function rightmul_dagg!(a::AbstractField{CPU,T}, b::AbstractField{CPU,T}) where 
         a[μsite] = cmatmul_od(a[μsite], b[μsite])
     end
 
-    # INFO: don't need to do halo exchange here, since we iterate over all indices
-    # including halo regions
     return nothing
 end
