@@ -103,12 +103,12 @@ mpi_barrier()
 
     test_update(backend; update_method="hmc")
     
-    # Run a short simulation as final test
-    if mpi_size() == 1 # INFO: Local updates only without distributed fields
-        run_sim("parameters_test.toml")
-    elseif mpi_size() == 2
-        run_sim("parameters_test_mpi.toml")
-    end
+    # Run a short simulation as final test (doesnt work on github actions)
+    # if mpi_size() == 1 # INFO: Local updates only without distributed fields
+    #     run_sim("parameters_test.toml")
+    # elseif mpi_size() == 2
+    #     run_sim("parameters_test_mpi.toml")
+    # end
 end
 
 mpi_barrier()
