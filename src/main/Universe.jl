@@ -55,16 +55,16 @@ struct Univ{TG,TF,TB}
     ) where {B,T,M,A,GA,TG<:Gaugefield{B,T,M,A,GA},TF,TB}
         @level1("┌ Setting Universe...")
         @level1("|  NUM INSTANCES: $(numinstances)")
-        @level1("|  BACKEND: $(B)")
-        @level1("|  FP PREC: $(T)")
+        @level1("|  BACKEND: $(string(B))")
+        @level1("|  FP PREC: $(string(T))")
         @level1("|  L: $(U[1].NX)x$(U[1].NY)x$(U[1].NZ)x$(U[1].NT)")
-        @level1("|  GAUGE ACTION: $(GA)")
+        @level1("|  GAUGE ACTION: $(string(GA))")
         @level1("|  BETA: $(U[1].β)")
 
         if TF === QuenchedFermionAction
             @level1("|  FERMION ACTION:\n└\n")
         else
-            @level1("|  FERMION ACTION: $(fermion_action...)└\n")
+            @level1("|  FERMION ACTION: $(string(fermion_action...))└\n")
         end
 
         myinstance = Base.RefValue{Int64}(mpi_myrank())
