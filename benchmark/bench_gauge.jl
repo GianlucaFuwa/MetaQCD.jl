@@ -5,6 +5,8 @@ using MetaQCD
 
 import Random
 
+MetaQCD.MetaIO.set_global_logger!(1, nothing; tc=false) # INFO: disable logging during benchmarks
+
 actions = (
     WilsonGaugeAction,
     SymanzikTreeGaugeAction,

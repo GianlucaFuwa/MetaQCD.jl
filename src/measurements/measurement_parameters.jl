@@ -47,7 +47,7 @@ Base.@kwdef mutable struct PionCorrelatorParameters <: MeasurementParameters
     eo_precon::Bool = false
     cg_tol::Float64 = 1e-16
     cg_maxiters::Int64 = 1000
-    anti_periodic::Bool = true
+    boundary_condition::String = "antiperiodic"
     measure_every::Int64 = 10
     methodname::String = "pion_correlator"
 end
@@ -58,7 +58,7 @@ Base.@kwdef mutable struct EigenvaluesParameters <: MeasurementParameters
     r::Float64 = 1.0
     csw::Float64 = 0.0
     eo_precon::Bool = false
-    anti_periodic::Bool = true
+    boundary_condition::String = "antiperiodic"
     nev::Int64 = 10
     which::String = "LM"
     mindim::Int64 = max(10, nev)
@@ -135,9 +135,9 @@ function prepare_measurement(
     elseif T == PionCorrelatorParameters
         filename_input = ifelse(filename == "", "pion_correlator.txt", filename)
         measurement = PionCorrelatorMeasurement(U, meas_parameters, filename_input, flow)
-    elseif T == EigenvaluesParameters
-        filename_input = ifelse(filename == "", "eigenvalues.txt", filename)
-        measurement = EigenvaluesMeasurement(U, meas_parameters, filename_input, flow)
+    # elseif T == EigenvaluesParameters
+    #     filename_input = ifelse(filename == "", "eigenvalues.txt", filename)
+    #     measurement = EigenvaluesMeasurement(U, meas_parameters, filename_input, flow)
     else
         error("$T is not supported in measurements")
     end

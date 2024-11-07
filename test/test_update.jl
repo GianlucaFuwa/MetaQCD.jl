@@ -5,13 +5,17 @@ function test_update(
     hmc_integrator="OMF4",
     hmc_numsmear_gauge=0,
     gaction=WilsonGaugeAction,
+    nprocs_cart=(1, 1, 1, 1),
+    halo_width=1,
 )
     Random.seed!(123)
 
-    println("SU3testupdate")
+    mpi_amroot() && println("Update algorithm tests")
+    MetaQCD.MetaIO.set_global_logger!(1, nothing; tc=true)
     NX = NY = NZ = NT = 4
-    U = Gaugefield{CPU,Float64,gaction}(NX, NY, NZ, NT, 6.0)
+    U = Gaugefield{CPU,Float64,gaction}(NX, NY, NZ, NT, 6.0, nprocs_cart, halo_width)
     random_gauges!(U)
+
     if backend !== CPU
         U = MetaQCD.to_backend(backend, U)
     end
@@ -29,34 +33,25 @@ function test_update(
     numorelax = 4
 
     updatemethod = Updatemethod(
-        U,
-        update_method,
-        "",
-        "none",
-        false,
-        0,
-        kind_of_bias,
-        metro_ϵ,
-        metro_numhits,
-        metro_target_acc,
-        hmc_integrator,
-        hmc_steps,
-        hmc_trajectory,
-        hmc_friction,
-        0,
-        hmc_numsmear_gauge,
-        0,
-        hmc_rhostout_gauge,
-        0,
-        false,
-        hb_maxit,
-        numheatbath,
-        or_algorithm,
-        numorelax,
+        U, update_method;
+        kind_of_bias=kind_of_bias,
+        metro_ϵ=metro_ϵ,
+        metro_numhits=metro_numhits,
+        metro_target_acc=metro_target_acc,
+        hmc_integrator=hmc_integrator,
+        hmc_steps=hmc_steps,
+        hmc_trajectory=hmc_trajectory,
+        hmc_friction=hmc_friction,
+        hmc_numsmear_gauge=hmc_numsmear_gauge,
+        hmc_rhostout_gauge=hmc_rhostout_gauge,
+        hb_maxit=hb_maxit,
+        numheatbath=numheatbath,
+        or_algorithm=or_algorithm,
+        numorelax=numorelax,
     );
 
-    println(typeof(updatemethod), "\n") # To check if we are using the right iterator
-    println("Starting action is: $(calc_gauge_action(U))")
+    mpi_amroot() && println(typeof(updatemethod), "\n") # To check if we are using the right iterator
+    mpi_amroot() && println("Starting action is: $(calc_gauge_action(U))")
 
     for _ in 1:10
         _, runtime = @timed update!(updatemethod, U, metro_test=false)
@@ -78,17 +73,18 @@ function test_update(
     else
         if typeof(updatemethod.smearing_gauge) == NoSmearing
             Sg_final_unsmeared = U.Sg
-            println("Final Gauge Action is: ", Sg_final_unsmeared)
+            mpi_amroot() && println("Final Gauge Action is: ", Sg_final_unsmeared)
         else
             Sg_final_unsmeared = U.Sg
-            println("Final Gauge Action is: ", Sg_final_unsmeared)
+            mpi_amroot() && println("Final Gauge Action is: ", Sg_final_unsmeared)
             calc_smearedU!(updatemethod.smearing_gauge, U)
             fully_smeared_U = updatemethod.smearing_gauge.Usmeared_multi[end]
             Sg_final_smeared = calc_gauge_action(fully_smeared_U)
-            println("Final smeared Gauge Action is: ", Sg_final_smeared)
+            mpi_amroot() && println("Final smeared Gauge Action is: ", Sg_final_smeared)
         end
     end
 
-    println("Acceptance Rate: ", 100 * numaccepts / nsweeps, " %\n")
+    mpi_amroot() && println("Acceptance Rate: ", 100 * numaccepts / nsweeps, " %\n")
+    mpi_barrier()
     return true
 end

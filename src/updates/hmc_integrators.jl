@@ -24,10 +24,12 @@ end
 function Base.show(io::IO, ::MIME"text/plain", int::LeapfrogRA)
     print(io, "$(typeof(int))(friction=$(int.friction))")
 end
+
 Base.show(io::IO, int::LeapfrogRA) = print(io, "$(typeof(int))(friction=$(int.friction))")
 
 function evolve!(L::LeapfrogRA, U, hmc::HMC, fermion_action, bias)
     Δτ = hmc.Δτ
+
     for _ in 1:div(hmc.steps, 2)
         mul!(hmc.P, exp(0.5Δτ * L.friction))
         updateP!(U, hmc, 0.5, fermion_action, bias)
@@ -35,6 +37,7 @@ function evolve!(L::LeapfrogRA, U, hmc::HMC, fermion_action, bias)
         updateP!(U, hmc, 0.5, fermion_action, bias)
         mul!(hmc.P, exp(0.5Δτ * L.friction))
     end
+
     for _ in 1:div(hmc.steps, 2)
         mul!(hmc.P, exp(-0.5Δτ * L.friction))
         updateP!(U, hmc, 0.5, fermion_action, bias)
@@ -42,6 +45,7 @@ function evolve!(L::LeapfrogRA, U, hmc::HMC, fermion_action, bias)
         updateP!(U, hmc, 0.5, fermion_action, bias)
         mul!(hmc.P, exp(-0.5Δτ * L.friction))
     end
+
     return nothing
 end
 
@@ -49,7 +53,6 @@ struct OMF2Slow <: AbstractIntegrator
     α::Float64
     β::Float64
     γ::Float64
-
     function OMF2Slow()
         α = 0.1931833275037836
         β = 0.5
@@ -74,7 +77,6 @@ struct OMF2 <: AbstractIntegrator
     α::Float64
     β::Float64
     γ::Float64
-
     function OMF2()
         α = 0.1931833275037836
         β = 0.5
@@ -107,7 +109,6 @@ struct OMF4Slow <: AbstractIntegrator
     δ::Float64
     μ::Float64
     ν::Float64
-
     function OMF4Slow()
         α = 0.08398315262876693
         β = 0.2539785108410595
@@ -146,7 +147,6 @@ struct OMF4 <: AbstractIntegrator
     δ::Float64
     μ::Float64
     ν::Float64
-
     function OMF4()
         α = 0.08398315262876693
         β = 0.2539785108410595
@@ -200,7 +200,6 @@ struct OMF4RA <: AbstractIntegrator
     μ::Float64
     ν::Float64
     friction::Float64
-
     function OMF4RA(friction)
         α = 0.08398315262876693
         β = 0.2539785108410595

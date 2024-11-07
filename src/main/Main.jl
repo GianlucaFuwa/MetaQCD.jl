@@ -3,13 +3,14 @@ module Main
 using Dates
 using DelimitedFiles
 using InteractiveUtils
-using MPI
 using Random
-using ..Output
+using ..MetaIO
+using ..Utils
 
 import ..BiasModule: NoBias, calc_weights, recalc_CV!, update_bias!
-import ..DiracOperators: fermaction_from_str
+import ..DiracOperators: QuenchedFermionAction, fermaction_from_str
 import ..Fields: calc_gauge_action, normalize!
+import ..Measurements: MYEXT_str
 import ..Measurements: MeasurementMethods, calc_measurements, calc_measurements_flowed
 import ..Parameters: ParameterSet, construct_params_from_toml
 import ..Smearing: GradientFlow
@@ -17,10 +18,6 @@ import ..Universe: Univ
 import ..Updates: HMC, ParityUpdate, Updatemethod, update!, temper!, integrator_from_str
 
 export build_bias, run_sim
-
-const COMM = MPI.COMM_WORLD
-const MYRANK = MPI.Comm_rank(COMM)
-const COMM_SIZE = MPI.Comm_size(COMM)
 
 const PACKAGE_VERSION = "1.0.0"
 

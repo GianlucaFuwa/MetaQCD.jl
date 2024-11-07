@@ -1,4 +1,9 @@
 """
+    Parametric <: AbstractBias
+
+Bias-enhanced sampler that uses the parametrization from https://arxiv.org/pdf/2212.11665
+up to first order.
+
     Parametric(cvlims, penalty_weight, Q, A, Z)
     Parametric(p::ParameterSet; instance=1)
 
@@ -23,7 +28,7 @@ end
 
 function Parametric(p::ParameterSet; instance=1)
     cvlims = instance > 0 ? p.cvlims : (-Inf, Inf)
-    @level1("|  CVLIMS: $(cvlims)")
+    @level1("|  CVLIMS: $(string(cvlims))")
     penalty_weight = instance > 0 ? p.penalty_weight : 0.0
     @level1("|  PENALTY WEIGHT: $(penalty_weight)")
 

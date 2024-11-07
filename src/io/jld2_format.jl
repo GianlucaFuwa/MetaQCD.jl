@@ -1,17 +1,19 @@
-function save_config(::JLD2Format, U, filename::String)
+function save_config(
+    ::JLD2Format, U::Gaugefield{B,T,false}, filename::String, args...
+) where {B,T}
     filename != "" && jldsave(filename; U=U.U)
     return nothing
 end
 
-function load_config!(::JLD2Format, U, filename::String)
+function load_config!(::JLD2Format, U::Gaugefield{B,T,false}, filename::String) where {B,T}
     Unew = jldopen(filename, "r") do file
         file["U"]
     end
     @assert (size(Unew) == size(U.U)) "Size of supplied config is wrong"
 
-    for ii in eachindex(U)
+    for site in eachindex(U)
         for μ in 1:4
-            U[μ, ii] = Unew[μ, ii]
+            U[μ, site] = SMatrix{3,3,Complex{T},9}(Unew[μ, site])
         end
     end
 

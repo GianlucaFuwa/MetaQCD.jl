@@ -1,5 +1,5 @@
-function polyakov_traced(U::Gaugefield{B,T}) where {B<:GPU,T}
-    NX, NY, NZ, NT = dims(U)
+function polyakov_traced(U::Gaugefield{B,T,false}) where {B<:GPU,T}
+    NX, NY, NZ, NT = global_dims(U)
     ndrange = (NX, NY, NZ)
     workgroupsize = (4, 4, 4)
     numblocks = cld(prod(ndrange), prod(workgroupsize))

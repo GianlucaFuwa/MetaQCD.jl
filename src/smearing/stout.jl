@@ -56,13 +56,8 @@ end
     return (s1.numlayers == s2.numlayers) && (s1.ρ == s2.ρ)
 end
 
-@inline function Base.length(s::StoutSmearing)
-    return s.numlayers
-end
-
-@inline function get_layer(s::StoutSmearing, i)
-    return s.Usmeared_multi[i]
-end
+Base.length(s::StoutSmearing) = s.numlayers
+get_layer(s::StoutSmearing, i) = s.Usmeared_multi[i]
 
 function apply_smearing!(smearing, Uin)
     numlayers = length(smearing)
@@ -90,6 +85,8 @@ function apply_stout_smearing!(Uout, C, Q, U, ρ)
         end
     end
 
+    update_halo!(Q)
+    update_halo!(Uout)
     return nothing
 end
 
@@ -163,6 +160,7 @@ function stout_recursion!(Σ, Σ′, U′, U, C, Q, Λ, ρ)
         end
     end
 
+    update_halo!(Σ)
     return nothing
 end
 
@@ -190,6 +188,7 @@ function calc_stout_Λ!(Λ, Σ′, Q, U)
         end
     end
 
+    update_halo!(Λ)
     return nothing
 end
 

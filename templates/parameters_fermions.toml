@@ -1,18 +1,20 @@
 ["Physical Settings"]
 L = [4, 4, 4, 4]
-beta = 4.3
-gauge_action = "symanzik_tree"
+beta = 6.0
+gauge_action = "wilson"
 numtherm = 10
 numsteps = 10
 initial = "cold"
 update_method = "hmc"
 parity_update = false
+numprocs_cart = [1, 1, 2, 2]
+halo_width = 1
 
 ["Dynamical Fermion Settings"]
-fermion_action = "staggered"
+fermion_action = "none"
 eo_precon = false
 Nf = [2]
-mass = [0.01]
+mass = [0.0]
 wilson_csw = 1.0
 cg_tol_action = 1e-16
 cg_tol_md = 1e-16
@@ -26,15 +28,17 @@ rhmc_prec_md = 64
 hmc_trajectory = 1
 hmc_steps = 5
 hmc_integrator = "OMF4"
-hmc_numsmear_fermion = 4
+hmc_numsmear_fermion = 0
 hmc_rhostout_fermion = 0.12
 
 ["System Settings"]
 float_type = "double"
-ensemble_dir = "/home/gialuf/data/MetaQCD/test_fermions"
+ensemble_dir = "/home/gialuf/data/MetaQCD/nuha/test/L4x4x4x4_beta6.0_mass0.0"
 randomseed = 0
 overwrite = true
-save_checkpoint_every = 100
+# save_checkpoint_every = 10
+# save_config_format = "bridge"
+# save_config_every = 10
 verboselevel = 1
 log_to_console = true
 # load_checkpoint_fromfile = true

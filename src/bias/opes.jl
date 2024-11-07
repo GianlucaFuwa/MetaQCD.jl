@@ -1,6 +1,10 @@
 include("opes_kernel.jl")
 
 """
+    OPES <: AbstractBias
+
+OPES bias-enhanced sampler from https://arxiv.org/abs/1909.07250 .
+
     OPES(; symmetric=true, stride=1, cvlims=(-6, 6), barrier=30,
          biasfactor=Inf, σ₀=0.1, σ_min=1e-6, fixed_σ=true, opes_epsilon=0.0,
          no_Z=false, threshold=1.0, cutoff=0.0)
@@ -118,7 +122,7 @@ function OPES(;
     @assert counter > 0 "COUNTER must be ≥0"
     @level1("|  STRIDE: $(stride)")
     @assert stride > 0 "STRIDE must be >0"
-    @level1("|  CVLIMS: $(cvlims)")
+    @level1("|  CVLIMS: $(string(cvlims))")
     @assert cvlims[1] < cvlims[2] "CVLIMS[1] must be <CVLIMS[2]"
     @level1("|  BARRIER: $(barrier)")
     @assert barrier >= 0 "BARRIER must be > 0"
@@ -233,7 +237,7 @@ function OPES(p::ParameterSet; instance=1)
     @assert counter > 0 "COUNTER must be ≥0"
     @level1("|  STRIDE: $(stride)")
     @assert stride > 0 "STRIDE must be >0"
-    @level1("|  CVLIMS: $(cvlims)")
+    @level1("|  CVLIMS: $(string(cvlims))")
     @assert cvlims[1] < cvlims[2] "CVLIMS[1] must be <CVLIMS[2]"
     @level1("|  BARRIER: $(barrier)")
     @assert barrier >= 0 "BARRIER must be > 0"

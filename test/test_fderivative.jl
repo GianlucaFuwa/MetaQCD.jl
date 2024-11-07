@@ -1,91 +1,83 @@
 using MetaQCD
-using MetaQCD
 using MetaQCD.Utils
 using LinearAlgebra
 using Random
+using Test
 
 function test_fderivative(
-    backend=CPU; dirac="staggered", mass=0.01, eoprec=false, single_flavor=false, csw=1.78
+    backend=CPU;
+    nprocs_cart=(1, 1, 1, 1),
+    halo_width=1,
+    dirac="staggered",
+    mass=0.01,
+    eoprec=false,
+    single_flavor=false,
+    csw=1.78
 )
-    Random.seed!(123)
-    println("Fermion derivative test [$dirac]")
-    MetaQCD.Output.set_global_logger!(1, nothing; tc=true)
+    if mpi_amroot()
+        println("Fermion derivative test [$dirac]")
+    end
+
+    Random.seed!(123 * (mpi_myrank() + 1))
+    MetaQCD.MetaIO.set_global_logger!(1, nothing; tc=true)
     NX = 4
     NY = 4
     NZ = 4
     NT = 4
-    U = Gaugefield{CPU,Float64,WilsonGaugeAction}(NX, NY, NZ, NT, 6.0)
+    U = Gaugefield{CPU,Float64,WilsonGaugeAction}(
+        NX, NY, NZ, NT, 6.0, nprocs_cart, halo_width
+    )
     random_gauges!(U)
 
-    # filename = pkgdir(MetaQCD, "test", "testconf.txt")
+    # filename = if nprocs_cart != (1, 1, 1, 1)
+    #     pkgdir(MetaQCD, "test", "testconf_mpi")
+    # else
+    #     pkgdir(MetaQCD, "test", "testconf.txt")
+    # end
+
     # load_config!(BridgeFormat(), U, filename)
+
     if backend !== CPU
         U = MetaQCD.to_backend(backend, U)
     end
 
-    ψ = eoprec ? even_odd(Fermionfield(U; staggered=dirac=="staggered")) : Fermionfield(U; staggered=dirac=="staggered")
+    is_staggered = contains(dirac, "staggered")
+    is_hoelbling = dirac ∈ ("staggered-h1234", "staggered-h1324")
 
-    action = if dirac == "staggered"
-        if eoprec
-            Nf = single_flavor ? 1 : 4
-            StaggeredEOPreFermionAction(
-                U,
-                mass;
-                Nf=Nf,
-                cg_maxiters_action=5000,
-                cg_maxiters_md=5000,
-                cg_tol_action=1e-16,
-                cg_tol_md=1e-16,
-                rhmc_prec_action=64
-            )
-        else
-            Nf = single_flavor ? 1 : 8
-            StaggeredFermionAction(
-                U,
-                mass;
-                Nf=Nf,
-                cg_maxiters_action=5000,
-                cg_maxiters_md=5000,
-                cg_tol_action=1e-16,
-                cg_tol_md=1e-16,
-                rhmc_prec_action=64
-            )
-        end
-    elseif dirac == "wilson"
-        if eoprec
-            Nf = single_flavor ? 1 : 2
-            @assert Nf == 2
-            WilsonEOPreFermionAction(
-                U,
-                mass;
-                Nf=Nf,
-                csw=csw,
-                cg_maxiters_action=5000,
-                cg_maxiters_md=5000,
-                cg_tol_action=1e-16,
-                cg_tol_md=1e-16,
-                rhmc_prec_action=64
-            )
-        else
-            Nf = single_flavor ? 1 : 2
-            WilsonFermionAction(
-                U,
-                mass;
-                Nf=Nf,
-                csw=csw,
-                cg_maxiters_action=5000,
-                cg_maxiters_md=5000,
-                cg_tol_action=1e-16,
-                cg_tol_md=1e-16,
-                rhmc_prec_action=64
-            )
-        end
+    ψ = if eoprec
+        even_odd(Spinorfield(U; staggered=is_staggered))
     else
-        error("dirac operator $dirac not supported")
+        Spinorfield(U; staggered=is_staggered)
     end
-    @show action
+
+    spectral_bound, Nf = if is_staggered && !is_hoelbling
+        (mass^2, 6.0), (single_flavor ? 1 : (eoprec ? 4 : 8))
+    else
+        (mass^2, 64.0), (single_flavor ? 1 : 2)
+    end
+
+    params = (
+        fermion_action=dirac,
+        eo_precon=eoprec,
+        boundary_condition="antiperiodic",
+        rhmc_spectral_bound=spectral_bound,
+        rhmc_order_md=15,
+        rhmc_prec_md=64,
+        rhmc_order_action=15,
+        rhmc_prec_action=64,
+        cg_tol_action=1e-16,
+        cg_tol_md=1e-16,
+        cg_maxiters_action=5000,
+        cg_maxiters_md=5000,
+        wilson_r=1,
+        wilson_csw=csw,
+    )
+
+    action = MetaQCD.DiracOperators.init_fermion_action(params, mass, Nf, U)
+    mpi_amroot() && (@show action)
 
     sample_pseudofermions!(ψ, action, U)
+    # gaussian_pseudofermions!(ψ)
 
     # Test for smearing with 5 steps and stout parameter 0.12
     smearing = StoutSmearing(U, 5, 0.12)
@@ -94,7 +86,8 @@ function test_fderivative(
     dSfdU_smeared = Colorfield(U)
     temp_force = Colorfield(U)
 
-    site = SiteCoords(2, 3, 1, 2)
+    coord = (2, 3, 1, 2) .+ halo_width
+    site = SiteCoords(coord...)
     μ = 3
     ΔH = 0.000001
 
@@ -103,23 +96,35 @@ function test_fderivative(
     for group_direction in 1:8
         # Unsmeared
         Ufwd = deepcopy(U)
-        Ufwd[μ, site] = expλ(group_direction, ΔH) * Ufwd[μ, site]
+        if mpi_amroot()
+            Ufwd[μ, site] = expλ(group_direction, ΔH) * Ufwd[μ, site]
+        end
+        update_halo!(Ufwd)
         action_new_fwd = calc_fermion_action(action, Ufwd, ψ)
 
         Ubwd = deepcopy(U)
-        Ubwd[μ, site] = expλ(group_direction, -ΔH) * Ubwd[μ, site]
+        if mpi_amroot()
+            Ubwd[μ, site] = expλ(group_direction, -ΔH) * Ubwd[μ, site]
+        end
+        update_halo!(Ubwd)
         action_new_bwd = calc_fermion_action(action, Ubwd, ψ)
 
         # Smeared
         Ufwd = deepcopy(U)
-        Ufwd[μ, site] = expλ(group_direction, ΔH) * Ufwd[μ, site]
+        if mpi_amroot()
+            Ufwd[μ, site] = expλ(group_direction, ΔH) * Ufwd[μ, site]
+        end
+        update_halo!(Ufwd)
         calc_smearedU!(smearing, Ufwd)
         action_new_fwd_smeared = calc_fermion_action(
             action, smearing.Usmeared_multi[end], ψ
         )
 
         Ubwd = deepcopy(U)
-        Ubwd[μ, site] = expλ(group_direction, -ΔH) * Ubwd[μ, site]
+        if mpi_amroot()
+            Ubwd[μ, site] = expλ(group_direction, -ΔH) * Ubwd[μ, site]
+        end
+        update_halo!(Ubwd)
         calc_smearedU!(smearing, Ubwd)
         action_new_bwd_smeared = calc_fermion_action(
             action, smearing.Usmeared_multi[end], ψ
@@ -142,10 +147,20 @@ function test_fderivative(
         relerrors[group_direction, 2] =
             (symm_diff_smeared - daction_proj_smeared) / symm_diff_smeared
 
-        println("================= Group direction $(group_direction) =================")
-        println("/ Rel. error (unsmeared): \t", relerrors[group_direction, 1])
-        println("/ Rel. error (smeared):   \t", relerrors[group_direction, 2])
+        if mpi_amroot()
+            println("================= Group direction $(group_direction) =================")
+            println("/ Rel. error (unsmeared): \t", relerrors[group_direction, 1])
+            println("/ Rel. error (smeared):   \t", relerrors[group_direction, 2])
+        end
     end
-    println()
+
+    if mpi_amroot()
+        println()
+        @test sum(relerrors[:, 2]) / length(relerrors[:, 2]) < 1e-4
+    end
+
+    mpi_barrier()
     return relerrors
 end
+
+# test_fderivative(nprocs_cart=(1, 1, 2, 1), single_flavor=true, halo_width=1)

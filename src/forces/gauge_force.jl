@@ -33,5 +33,7 @@ function calc_dSdU!(
         end
     end
 
+    update_halo!(staples)
+    update_halo!(dU)
     return nothing
 end

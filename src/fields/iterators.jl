@@ -9,7 +9,7 @@ macro latmap(itr, C, f!, U, GA, fac)
     end
 end
 
-function __latmap(::Sequential, ::Val{C}, f!::F, U::Abstractfield{CPU}, GA, fac) where {F,C}
+function __latmap(::Sequential, ::Val{C}, f!::F, U::AbstractField{CPU}, GA, fac) where {F,C}
     C == 0 && return nothing
 
     for _ in 1:C
@@ -20,14 +20,15 @@ function __latmap(::Sequential, ::Val{C}, f!::F, U::Abstractfield{CPU}, GA, fac)
         end
     end
 
+    update_halo!(U)
     return nothing
 end
 
 function __latmap(
-    ::Checkerboard2, ::Val{C}, f!::F, U::Abstractfield{CPU}, GA, fac
+    ::Checkerboard2, ::Val{C}, f!::F, U::AbstractField{CPU}, GA, fac
 ) where {F,C}
     C == 0 && return nothing
-    NX, NY, NZ, NT = dims(U)
+    NX, NY, NZ, NT = local_dims(U)
 
     for _ in 1:C
         for μ in 1:4
@@ -46,7 +47,7 @@ function __latmap(
 end
 
 function __latmap(
-    ::Checkerboard4, ::Val{C}, f!::F, U::Abstractfield{CPU}, GA, fac
+    ::Checkerboard4, ::Val{C}, f!::F, U::AbstractField{CPU}, GA, fac
 ) where {F,C}
     C == 0 && return nothing
 
@@ -76,7 +77,7 @@ macro latsum(itr, C, f!, U, GA, fac)
     end
 end
 
-function __latsum(::Sequential, ::Val{C}, f!::F, U::Abstractfield{CPU}, GA, fac) where {C,F}
+function __latsum(::Sequential, ::Val{C}, f!::F, U::AbstractField{CPU}, GA, fac) where {C,F}
     C == 0 && return 0.0
     out = 0.0
 
@@ -88,14 +89,15 @@ function __latsum(::Sequential, ::Val{C}, f!::F, U::Abstractfield{CPU}, GA, fac)
         end
     end
 
-    return out
+    update_halo!(U)
+    return distributed_reduce(out, +, U)
 end
 
 function __latsum(
-    ::Checkerboard2, ::Val{C}, f!::F, U::Abstractfield{CPU}, GA, fac
-) where {C,F}
+    ::Checkerboard2, ::Val{C}, f!::F, U::AbstractField{CPU,T,false}, GA, fac
+) where {C,F,T}
     C == 0 && return 0.0
-    NX, NY, NZ, NT = dims(U)
+    NX, NY, NZ, NT = global_dims(U)
     out = 0.0
 
     for _ in 1:C
@@ -115,8 +117,8 @@ function __latsum(
 end
 
 function __latsum(
-    ::Checkerboard4, ::Val{C}, f!::F, U::Abstractfield{CPU}, GA, fac
-) where {C,F}
+    ::Checkerboard4, ::Val{C}, f!::F, U::AbstractField{CPU,T,false}, GA, fac
+) where {C,F,T}
     C == 0 && return 0.0
     out = 0.0
 

@@ -136,5 +136,5 @@ function wilsonloop(U::Gaugefield{CPU}, Lμ, Lν)
         end
     end
 
-    return W
+    return distributed_reduce(W, +, U)
 end

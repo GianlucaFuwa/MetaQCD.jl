@@ -7,13 +7,17 @@ struct ParameterSet
     numsteps::Int64
     initial::String
 
+    # mpi-related parameters
+    numprocs_cart::NTuple{4,Int64}
+    halo_width::Int64
+
     # dynamical fermion parameters
     fermion_action::String
     Nf::Union{Int,Vector{Int}}
     mass::Union{Float64,Vector{Float64}}
     wilson_r::Float64
     wilson_csw::Float64
-    anti_periodic::Bool
+    boundary_condition::String
     cg_tol_action::Float64
     cg_tol_md::Float64
     cg_maxiters_action::Int64

@@ -1,4 +1,8 @@
 """
+    Metadynamics <: AbstractBias
+
+Metadynamics bias-enhanced sampler from https://arxiv.org/abs/cond-mat/0208352 .
+    
     Metadynamics(; symmetric=true, stride=1, cvlims=(-6, 6), biasfactor=Inf,
                   bin_width=0.1, weight=0.01, penalty_weight=1000)
     Metadynamics(p::ParameterSet; instance=1)
@@ -41,7 +45,7 @@ function Metadynamics(;
 )
     @level1("|  STRIDE: $(stride)")
     @assert stride > 0 "STRIDE must be >0"
-    @level1("|  CVLIMS: $(cvlims)")
+    @level1("|  CVLIMS: $(string(cvlims))")
     @assert issorted(cvlims) "CVLIMS must be sorted from low to high"
     @level1("|  BIN_WIDTH: $(bin_width)")
     @assert bin_width > 0 "BIN_WIDTH must be > 0"
@@ -73,7 +77,7 @@ function Metadynamics(p::ParameterSet; instance=1)
     @level1("|  STRIDE: $(stride)")
     @assert stride > 0 "STRIDE must be >0"
 
-    @level1("|  CVLIMS: $(p.cvlims)")
+    @level1("|  CVLIMS: $(string(p.cvlims))")
     @assert issorted(p.cvlims) "CVLIMS must be sorted from low to high"
 
     @level1("|  BIN_WIDTH: $(p.bin_width)")

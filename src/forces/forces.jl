@@ -4,18 +4,25 @@
 
 import ..DiracOperators: StaggeredDiracOperator, StaggeredFermionAction
 import ..DiracOperators: StaggeredEOPreDiracOperator, StaggeredEOPreFermionAction
-import ..DiracOperators: WilsonDiracOperator, WilsonFermionAction
+import.. DiracOperators: StaggeredHoelblingDiracOperator, StaggeredHoelblingFermionAction
+import ..DiracOperators: WilsonDiracOperator, WilsonFermionAction, has_clover_term
 import ..DiracOperators: WilsonEOPreDiracOperator, WilsonEOPreFermionAction
-import ..DiracOperators: WilsonEODiagonal
-import ..DiracOperators: Daggered, DdaggerD, EvenOdd
-import ..DiracOperators: boundary_factor, staggered_η, solve_dirac!, solve_dirac_multishift!
-import ..DiracOperators: mul_oe!, mul_eo!, mul_oo_inv!
+import ..DiracOperators: Daggered, DdaggerD, SpinorfieldEO
+import ..DiracOperators: apply_bc, staggered_η, staggered_ημν, solve_dirac!, solve_dirac_multishift!
+import ..DiracOperators: mul_oe!, mul_eo!, mul_oo_inv!, get_mass_term
+import ..Fields: Paulifield, MultiSpinorfield
+
+# some aliases
+const StaggeredSpinorfield{B,T,M,A} = Spinorfield{B,T,M,A,1}
+const StaggeredEOPreSpinorfield{B,T,M,A} = SpinorfieldEO{B,T,M,A,1}
+const WilsonSpinorfield{B,T,M,A} = Spinorfield{B,T,M,A,4}
+const WilsonEOPreSpinorfield{B,T,M,A} = SpinorfieldEO{B,T,M,A,4}
 
 """
     calc_dSfdU_bare!(dU::Colorfield, fermion_action, U, ϕ, ::Any, ::NoSmearing)
     calc_dSfdU_bare!(dU::Colorfield, fermion_action, U, ϕ, temp_force, smearing)
 
-Calculate the derivative of `fermion_action` w.r.t. the gauge field `U` on the fermion
+Calculate the derivative of `fermion_action` w.r.t. the gauge field `U` on the pseudofermion
 background `ϕ` and store the result in `dU`.
 
 If `temp_force isa Colorfield` and `bias.smearing != nothing`, the derivative is calculated
@@ -48,6 +55,7 @@ include("wilson_force.jl")
 include("wilson_eo_force.jl")
 include("staggered_force.jl")
 include("staggered_eo_force.jl")
+include("staggered_hoelbling_force.jl")
 
 include("gpu_kernels/gauge_force.jl")
 include("gpu_kernels/bias_force.jl")

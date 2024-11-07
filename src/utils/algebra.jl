@@ -38,7 +38,7 @@
         r₂ = rand(T) - onehalf
         r₃ = rand(T) - onehalf
         rnorm = sqrt(r₁^2 + r₂^2 + r₃^2)
-        out = sqrt(one(T) - ϵ^2) * eye2(T) + im * ϵ / rnorm * (r₁ * σ₁ + r₂ * σ₂ + r₃ * σ₃)
+        out = sqrt(one(T) - ϵ^2) * eye2(T) + im * ϵ / rnorm * (r₁ * σ1 + r₂ * σ2 + r₃ * σ3)
         return out
     end
 

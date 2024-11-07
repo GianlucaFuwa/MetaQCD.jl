@@ -3,37 +3,32 @@ module Updates
 using KernelAbstractions
 using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
-using MPI
 using StaticArrays
 using Polyester: @batch
 using Printf
 using Random: rand, default_rng
 using Unicode
-using ..Output
+using ..MetaIO
 using ..RHMCParameters
 using ..Utils
 
 import KernelAbstractions as KA
 import ..BiasModule: Bias, NoBias, calc_CV, ∂V∂Q, recalc_CV!
 import ..BiasModule: kind_of_cv, update_bias!
-import ..DiracOperators: AbstractDiracOperator, calc_fermion_action, fermaction_from_str
-import ..DiracOperators: sample_pseudofermions!
+import ..DiracOperators: AbstractDiracOperator, QuenchedFermionAction, calc_fermion_action
+import ..DiracOperators: fermaction_from_str, sample_pseudofermions!
 import ..Fields: AbstractGaugeAction, Gaugefield, Colorfield
 import ..Fields: WilsonGaugeAction, add!, calc_gauge_action, calc_kinetic_energy
-import ..Fields: clear!, dims, normalize!, fieldstrength_eachsite!, float_type
+import ..Fields: allindices, clear!, dims, normalize!, fieldstrength_eachsite!, float_type
 import ..Fields: check_dims, even_odd, gaussian_TA!, mul!, staple, staple_eachsite!
-import ..Fields: @groupreduce, @latmap, @latsum, gauge_action
-import ..Fields: Abstractfield, Plaquette, Clover, Fermionfield, Tensorfield
+import ..Fields: @groupreduce, @latmap, @latsum, gauge_action, update_halo!
+import ..Fields: AbstractField, Plaquette, Clover, Spinorfield, Tensorfield
 import ..Parameters: ParameterSet
 import ..Smearing: AbstractSmearing, NoSmearing, StoutSmearing
 import ..Smearing: calc_smearedU!, get_layer, stout_backprop!
 import ..Universe: Univ
 
 abstract type AbstractUpdate end
-
-const COMM = MPI.COMM_WORLD
-const MYRANK = MPI.Comm_rank(COMM)
-const COMM_SIZE = MPI.Comm_size(COMM)
 
 include("../forces/forces.jl")
 include("./heatbath.jl")
@@ -54,35 +49,35 @@ function Updatemethod(parameters::ParameterSet, U)
     updatemethod = Updatemethod(
         U,
         parameters.update_method,
-        parameters.log_dir,
-        parameters.fermion_action,
-        parameters.eo_precon,
-        parameters.Nf,
-        parameters.kind_of_bias,
-        parameters.metro_epsilon,
-        parameters.metro_numhits,
-        parameters.metro_target_acc,
-        parameters.hmc_integrator,
-        parameters.hmc_steps,
-        parameters.hmc_trajectory,
-        parameters.hmc_friction,
-        parameters.hmc_rafriction,
-        parameters.hmc_numsmear_gauge,
-        parameters.hmc_numsmear_fermion,
-        parameters.hmc_rhostout_gauge,
-        parameters.hmc_rhostout_fermion,
-        parameters.hmc_logging,
-        parameters.hb_maxit,
-        parameters.numheatbath,
-        parameters.or_algorithm,
-        parameters.numorelax,
+        logdir=parameters.log_dir,
+        fermion_action=parameters.fermion_action,
+        eo_precon=parameters.eo_precon,
+        Nf=parameters.Nf,
+        kind_of_bias=parameters.kind_of_bias,
+        metro_ϵ=parameters.metro_epsilon,
+        metro_numhits=parameters.metro_numhits,
+        metro_target_acc=parameters.metro_target_acc,
+        hmc_integrator=parameters.hmc_integrator,
+        hmc_steps=parameters.hmc_steps,
+        hmc_trajectory=parameters.hmc_trajectory,
+        hmc_friction=parameters.hmc_friction,
+        hmc_rafriction=parameters.hmc_rafriction,
+        hmc_numsmear_gauge=parameters.hmc_numsmear_gauge,
+        hmc_numsmear_fermion=parameters.hmc_numsmear_fermion,
+        hmc_rhostout_gauge=parameters.hmc_rhostout_gauge,
+        hmc_rhostout_fermion=parameters.hmc_rhostout_fermion,
+        hmc_logging=parameters.hmc_logging,
+        hb_maxit=parameters.hb_maxit,
+        numheatbath=parameters.numheatbath,
+        or_algorithm=parameters.or_algorithm,
+        numorelax=parameters.numorelax,
     )
     return updatemethod
 end
 
 function Updatemethod(
     U,
-    update_method,
+    update_method;
     logdir="",
     fermion_action="none",
     eo_precon=false,

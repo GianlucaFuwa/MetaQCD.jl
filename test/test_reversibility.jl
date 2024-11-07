@@ -11,7 +11,7 @@ function test_reversibility(;
     println("|  fermion action: $faction")
     println("|  bias enabled: $(with_bias)")
     println("└\n")
-    MetaQCD.Output.set_global_logger!(1, devnull; tc=true)
+    MetaQCD.MetaIO.set_global_logger!(1, devnull; tc=true)
     Random.seed!(123)
     N = 4
     U = Gaugefield{CPU,Float64,gaction}(N, N, N, N, 6.0)
@@ -35,9 +35,9 @@ function test_reversibility(;
             true,
             Parametric((-5, 5), 10, 0, 100, 1.4),
             nothing,
+            nothing,
+            nothing,
             0,
-            nothing,
-            nothing,
         )
     else
         nothing
