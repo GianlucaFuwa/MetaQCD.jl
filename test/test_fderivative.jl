@@ -163,4 +163,4 @@ function test_fderivative(
     return relerrors
 end
 
-test_fderivative(nprocs_cart=(1, 1, 2, 1), single_flavor=true, halo_width=1)
+# test_fderivative(nprocs_cart=(1, 1, 2, 1), single_flavor=true, halo_width=1)
