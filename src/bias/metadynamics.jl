@@ -77,7 +77,7 @@ function Metadynamics(p::ParameterSet; instance=1)
     @level1("|  STRIDE: $(stride)")
     @assert stride > 0 "STRIDE must be >0"
 
-    @level1("|  CVLIMS: $(string((p.cvlims))")
+    @level1("|  CVLIMS: $(string(p.cvlims))")
     @assert issorted(p.cvlims) "CVLIMS must be sorted from low to high"
 
     @level1("|  BIN_WIDTH: $(p.bin_width)")
