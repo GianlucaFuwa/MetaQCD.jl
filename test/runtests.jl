@@ -101,14 +101,16 @@ mpi_barrier()
         test_update(backend; update_method="metropolis", gaction=IwasakiGaugeAction)
     end
 
-    test_update(backend; update_method="hmc")
+    test_update(backend; update_method="hmc", hmc_integrator="Leapfrog")
+    test_update(backend; update_method="hmc", hmc_integrator="OMF2")
+    test_update(backend; update_method="hmc", hmc_integrator="OMF4")
     
     # Run a short simulation as final test (doesnt work on github actions)
-    # if mpi_size() == 1 # INFO: Local updates only without distributed fields
-    #     run_sim("parameters_test.toml")
-    # elseif mpi_size() == 2
-    #     run_sim("parameters_test_mpi.toml")
-    # end
+    if mpi_size() == 1 # INFO: Local updates only without distributed fields
+        run_sim("parameters_test.toml")
+    elseif mpi_size() == 2
+        run_sim("parameters_test_mpi.toml")
+    end
 end
 
 mpi_barrier()
@@ -162,5 +164,5 @@ mpi_barrier()
 if mpi_size() == 1
     cmd = Base.julia_cmd()
     path = joinpath(@__DIR__, "runtests.jl")
-    run(`mpiexec -n 2 $(cmd) --project --startup-file=no $(path)`)
+    run(`$(mpiexec()) -n 2 $(cmd) --project --startup-file=no $(path)`)
 end

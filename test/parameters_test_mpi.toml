@@ -7,13 +7,13 @@ numsteps = 10
 initial = "cold"
 update_method = "hmc"
 parity_update = true
-nprocs_cart = [1, 1, 2, 1]
+numprocs_cart = [1, 1, 1, 2]
 halo_width = 1
 
 ["Dynamical Fermion Settings"]
 fermion_action = "staggered"
 eo_precon = false
-Nf = [2]
+Nf = [8]
 mass = [0.0]
 wilson_csw = 1.0
 cg_tol_action = 1e-16
@@ -56,7 +56,7 @@ hmc_rhostout_fermion = 0.12
 
 ["System Settings"]
 float_type = "double"
-ensemble_dir = "/home/MetaQCD/test"
+ensemble_dir = "/home/runner/work/MetaQCD.jl/MetaQCD.jl/mpi"
 randomseed = 0
 overwrite = true
 verboselevel = 1

@@ -54,7 +54,7 @@ hmc_rhostout_fermion = 0.12
 
 ["System Settings"]
 float_type = "double"
-ensemble_dir = "/home/MetaQCD/test"
+ensemble_dir = "/home/runner/work/MetaQCD.jl/MetaQCD.jl/nonmpi"
 randomseed = 0
 overwrite = true
 verboselevel = 1
