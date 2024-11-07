@@ -78,7 +78,8 @@ function Bias(p::ParameterSet, U; use_mpi=false, instance=1)
             for name in kinds_of_weights
                 @printf(fp, "%-25s", "weight_$(name)")
             end
-            newline(fp)
+
+            println(fp)
         end
     elseif bias isa Parametric
         kinds_of_weights = ["branduardi"]
@@ -86,7 +87,7 @@ function Bias(p::ParameterSet, U; use_mpi=false, instance=1)
         datafile = joinpath(p.measure_dir, "bias_data_$inum.txt")
         open(datafile, "w") do fp
             @printf(fp, "%-11s%-25s%-25s", "itrj", "cv", "weight_branduardi")
-            newline(fp)
+            println(fp)
         end
         @level1(
             "|  @info: Parametric bias defaults to static and weight-type \"branduardi\""
