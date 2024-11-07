@@ -32,7 +32,16 @@ struct MetaMeasurements # TODO: overload Base.show and do some @level1 printing
         dir = if fullpath
             ensemblename
         else
-            pkgdir(Viz) * "/ensembles/$(ensemblename)/measurements"
+            try
+                pkgdir(Viz) * "/ensembles/$(ensemblename)/measurements"
+            catch
+                error(
+                """
+                    Ensemble \"$(ensemblename)\" could not be found or doesn't exist.
+                    In case your ensemble is not located within \"/MetaQCD.jl/ensembles\"
+                    the keyword-argument `fullpath=true`, has to be enabled
+                """)
+            end
         end
 
         hmc_logfile = pkgdir(Viz) * "/ensembles/$(ensemblename)/logs/hmc_acc_logs.txt"
@@ -107,7 +116,16 @@ struct MetaBias{F}
         dir = if fullpath
             ensemblename
         else
-            pkgdir(Viz) * "/ensembles/$(ensemblename)/metapotentials/"
+            try
+                pkgdir(Viz) * "/ensembles/$(ensemblename)/metapotentials/"
+            catch
+                error(
+                """
+                    Ensemble \"$(ensemblename)\" could not be found or doesn't exist.
+                    In case your ensemble is not located within \"/MetaQCD.jl/ensembles\"
+                    the keyword-argument `fullpath=true`, has to be enabled
+                """)
+            end
         end
 
         @assert isdir(dir) "Directory \"$(dir)\" doesn't exist."

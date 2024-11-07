@@ -22,7 +22,7 @@ Inspired by the [LatticeQCD.jl](https://github.com/akio-tomiya/LatticeQCD.jl/tre
 - [ ] Mass-splitting preconditioner / Hasenbusch trick
 - [x] RHMC to simulate odd number of flavours
 - [ ] Full support for CUDA and ROCm backends
-- [x] Multi-node parallelism using MPI
+- [x] Multi-node parallelism using MPI (experimental)
 
 ## Installation:
 First make sure you have Julia version 1.9.x or 1.10.x installed. You can use [juliaup](https://github.com/JuliaLang/juliaup) for that or just install the release from the [Julia website](https://julialang.org/downloads/).
@@ -54,7 +54,7 @@ If you want to use a GPU (not yet fully ready), make sure you not only have CUDA
 1. Set parameters using one of the templates in template folder
 2. From shell, do:
 ```
-julia --threads=auto metaqcd_sim.jl parameters.toml
+julia --threads=auto metaqcd.jl -mode=sim parameters.toml
 ```
 
 or
@@ -71,16 +71,16 @@ using MetaQCD
 ``` julia
 run_sim("parameters.toml")
 ```
-To use another backend, just append its name to the command:
+To use another backend, add the `-backend` flag like:
 ```
-julia --threads=auto metaqcd_sim.jl parameters.toml cuda
+julia --threads=auto metaqcd.jl -mode=sim -backend=cuda parameters.toml
 ```
 
 ## Build a Bias:
 1. Set parameters using the "parameters_build.toml" example in template folder
 2. From shell, do:
 ```
-julia --threads=auto metaqcd_build.jl parameters.toml
+julia --threads=auto metaqcd.jl -mode=build parameters.toml
 ```
 
 or
@@ -101,12 +101,16 @@ build_bias("parameters.toml")
 ## Visualization:
 We include the ability to visualize your data. For that, you just have to pass the directory where your ensemble lives:
 ```julia
-pkg> measurements = MetaMeasurements("my_ensemble")
-pkg> timeseries(measurements, :my_observable)
+using Plots
+
+measurements = MetaMeasurements("my_ensemble")
+timeseries(measurements, :my_observable)
 ```
 
 You can also create a holder of a bias potential and plot it. MetaQCD.jl creates the bias files with an extension that gives their type (.metad or .opes), but if you changed the extension you have to provide the bias type as a symbol under the kwarg `which`:
 ```julia
+using Plots
+
 bias = MetaBias(myfile, which=:mytype)
 biaspotential(bias)
 ```
