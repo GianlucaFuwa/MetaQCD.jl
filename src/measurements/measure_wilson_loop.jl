@@ -27,7 +27,7 @@ struct WilsonLoopMeasurement{T} <: AbstractMeasurement
                 end
             end
 
-            if mpi_amroot()
+            if U.topology.numprocs==1 || mpi_amroot()
                 open(filename, "w") do fp
                     println(fp, header)
                 end
@@ -63,7 +63,7 @@ function measure(
         end
     end
 
-    if mpi_amroot()
+    if U.topology.numprocs==1 || mpi_amroot()
         if T !== Nothing
             filename = set_ext!(m.filename, myinstance)
             fp = fopen(filename, "a")

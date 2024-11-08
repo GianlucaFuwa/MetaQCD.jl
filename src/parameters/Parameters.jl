@@ -83,9 +83,16 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
     ensemble_dir = try
         parameters["System Settings"]["ensemble_dir"]
     catch
-        tmp = "$(homedir())/data/MetaQCD/$(generated_dirname)"
-        @info "\"ensemble_dir\" not specified! Data will be stored in $tmp"
-        tmp
+        tmp = if mpi_amroot()
+            tmpp = "$(homedir())/data/MetaQCD/$(generated_dirname)"
+            @info "\"ensemble_dir\" not specified! Data will be stored in $tmpp"
+            tmpp
+        else
+            nothing
+        end
+
+        ed = mpi_bcast_isbits(tmp)
+        ed
     end
 
     if !overwrite
@@ -146,7 +153,10 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
     bias_dir_exists = isdir(bias_dir)
     itimer = 0
 
-    while !(ensemble_dir_exists && log_dir_exists && measure_dir_exists && config_dir_exists && bias_dir_exists)
+    while !(
+        ensemble_dir_exists && log_dir_exists &&
+        measure_dir_exists && config_dir_exists && bias_dir_exists
+    )
         itimer == 50 && error("Rank $(mpi_myrank()) could not find all directories")
         sleep(0.1)
         ensemble_dir_exists = isdir(ensemble_dir)
@@ -215,8 +225,9 @@ end
 function check_parameters(p::ParameterSet)
     mpi_amroot() || return nothing
 
-    @assert prod(p.numprocs_cart) == mpi_size() """
-    Size of comm must equal number of process used in field decomposition
+    @assert prod(p.numprocs_cart) <= mpi_size() """
+    Size of comm must equal number of process used in field decomposition if distributed
+    or bigger if using multiple walkers
     """
 
     @assert p.verboselevel > 0 "verboselevel in parameters has to be bigger than 0"

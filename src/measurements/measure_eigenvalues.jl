@@ -88,7 +88,7 @@ struct EigenvaluesMeasurement{T,TA,TD} <: AbstractMeasurement
                 header *= @sprintf("%-25s%-25s", "eig_re_$(i)", "eig_im_$(i)")
             end
 
-            if mpi_amroot()
+            if U.topology.numprocs==1 || mpi_amroot()
                 open(path, "w") do fp
                     println(fp, header)
                 end
@@ -196,7 +196,7 @@ function measure(
         end
     end
 
-    if mpi_amroot()
+    if U.topology.numprocs==1 || mpi_amroot()
         if T !== Nothing
             filename = set_ext!(m.filename, myinstance)
             fp = fopen(filename, "a")

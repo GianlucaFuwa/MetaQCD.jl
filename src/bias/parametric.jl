@@ -26,13 +26,13 @@ struct Parametric <: AbstractBias
     Z::Float64
 end
 
-function Parametric(p::ParameterSet; instance=1)
-    cvlims = instance > 0 ? p.cvlims : (-Inf, Inf)
+function Parametric(p::ParameterSet; dummy=false)
+    cvlims = !dummy ? p.cvlims : (-Inf, Inf)
     @level1("|  CVLIMS: $(string(cvlims))")
-    penalty_weight = instance > 0 ? p.penalty_weight : 0.0
+    penalty_weight = !dummy ? p.penalty_weight : 0.0
     @level1("|  PENALTY WEIGHT: $(penalty_weight)")
 
-    Q, A, Z = instance > 0 ? (p.bias_Q, p.bias_A, p.bias_Z) : (0.0, 0.0, 0.0)
+    Q, A, Z = !dummy ? (p.bias_Q, p.bias_A, p.bias_Z) : (0.0, 0.0, 0.0)
     @level1("|  PARAMETERS: $Q, $A, $Z")
     return Parametric(cvlims, penalty_weight, Q, A, Z)
 end

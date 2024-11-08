@@ -37,7 +37,7 @@ struct FieldTopology
         comm_cart = mpi_cart_create(numprocs_cart; periodic=map(_->true, numprocs_cart))
 
         numprocs = prod(numprocs_cart)
-        myrank_cart = (mpi_cart_coords(comm_cart, mpi_myrank())...,)
+        myrank_cart = numprocs == 1 ? (0, 0, 0, 0) : (mpi_cart_coords(comm_cart)...,)
 
         local_dims = global_dims .÷ numprocs_cart
         halo_dims = calc_halo_dims(local_dims, halo_width)

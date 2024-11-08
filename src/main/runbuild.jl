@@ -14,12 +14,12 @@ function build_bias(filenamein::String; backend="cpu")
 
     if mpi_amroot()
         oneinst = parameters.numinstances == 1
-        @assert multi_sim ⊻ oneinst """
-        MPI must be enabled if and only if numinstances > 1, numinstances was \
-        $(parameters.numinstances)
-        """
         @assert mpi_size() == parameters.numinstances """
         numinstances has to be equal to the number of MPI ranks
+        """
+        @assert multi_sim ⊻ oneinst """
+        MPI must be enabled only if numinstances > 1 or fields are distributed
+        numinstances was: $(parameters.numinstances) but comm size was $(mpi_size())
         """
         @assert parameters.kind_of_bias ∉ ("none", "parametric") """
         bias has to be \"metad\" or \"opes\" in build, was $(parameters.kind_of_bias)
@@ -36,8 +36,10 @@ function build_bias(filenamein::String; backend="cpu")
         Random.seed!(seed)
     end
 
-    logger_io = mpi_amroot() ? parameters.log_dir * "/logs.txt" : devnull
-    set_global_logger!(parameters.verboselevel, logger_io; tc=parameters.log_to_console)
+    logpath = mpi_amroot() ? joinpath(parameters.log_dir, "logs.txt") : nothing
+    set_global_logger!(
+        parameters.verboselevel, logpath; tc=parameters.log_to_console
+    )
 
     # print time and system info, because it looks cool I guess
     # btw, all these "@level1" calls are just for logging, level1 is always printed
@@ -50,11 +52,11 @@ function build_bias(filenamein::String; backend="cpu")
     @level1("[ Running MetaQCD.jl version $(PACKAGE_VERSION)\n")
     @level1("[ Random seed is: $seed\n")
 
-    if parameters.load_checkpoint
+    if parameters.load_checkpoint_fromfile
         univ_args..., updatemethod, _, _ = load_checkpoint(parameters.load_checkpoint_path)
         univ = Univ(univ_args...)
     else
-        univ = Univ(parameters; use_mpi=multi_sim)
+        univ = Univ(parameters; mpi_multi_sim=multi_sim)
         updatemethod = nothing
     end
 
@@ -65,7 +67,7 @@ end
 function build_bias!(univ, parameters, updatemethod=nothing)
     U = univ.U
 
-    if updatemethod === nothing
+    if isnothing(updatemethod)
         updatemethod = Updatemethod(parameters, U)
     end
 
@@ -78,7 +80,7 @@ function build_bias!(univ, parameters, updatemethod=nothing)
         measure_every=parameters.flow_measure_every,
     )
 
-    additional_string = "_$(mpi_myrank()+1)"
+    additional_string = "_$(mpi_myrank()).txt"
 
     measurements = MeasurementMethods(
         U,

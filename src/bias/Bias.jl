@@ -43,22 +43,28 @@ struct Bias{TCV,TS,TB,TW,T}
     write_bias_every::Int64
 end
 
-function Bias(p::ParameterSet, U; use_mpi=false, instance=1)
+function Bias(p::ParameterSet, U; mpi_multi_sim=false, instance=1, dummy=false)
     @level1("┌ Setting Bias instance $(instance)...")
     kind_of_bias = Unicode.normalize(p.kind_of_bias; casefold=true)
     TCV = get_cvtype_from_parameters(p)
     smearing = StoutSmearing(U, p.numsmears_for_cv, p.rhostout_for_cv)
-    is_static = instance == 0 ? true : p.is_static[instance]
+    is_static = dummy ? true : p.is_static[instance]
     sstr = (is_static || kind_of_bias == "parametric") ? "static" : "dynamic"
-    inum = use_mpi ? mpi_myrank()+1 : instance
+    inum = if dummy
+        0
+    elseif mpi_multi_sim
+        mpi_myrank()
+    else
+        instance-1
+    end
     @level1("|  Type: $(sstr) $(kind_of_bias)")
 
     if kind_of_bias ∈ ["metad", "metadynamics"]
-        bias = Metadynamics(p; instance=instance)
+        bias = Metadynamics(p; instance=instance, dummy=dummy)
     elseif kind_of_bias == "opes"
-        bias = OPES(p; instance=instance)
+        bias = OPES(p; instance=instance, dummy=dummy)
     elseif kind_of_bias == "parametric"
-        bias = Parametric(p; instance=instance)
+        bias = Parametric(p; dummy=dummy)
     else
         error("kind_of_bias $(kind_of_bias) not supported. Try metad, opes or parametric")
     end

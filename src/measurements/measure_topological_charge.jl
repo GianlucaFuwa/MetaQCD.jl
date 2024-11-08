@@ -38,7 +38,7 @@ struct TopologicalChargeMeasurement{T} <: AbstractMeasurement
                 header *= @sprintf("%-25s", "Q_$(method)")
             end
 
-            if mpi_amroot()
+            if U.topology.numprocs==1 || mpi_amroot()
                 open(filename, "w") do fp
                     println(fp, header)
                 end
@@ -73,7 +73,7 @@ function measure(
         TC_dict[method] = top_charge(U, method)
     end
 
-    if mpi_amroot()
+    if U.topology.numprocs==1 || mpi_amroot()
         for method in keys(TC_dict)
             Q = TC_dict[method]
 

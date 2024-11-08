@@ -22,7 +22,7 @@ struct PolyakovMeasurement{T} <: AbstractMeasurement
                 header *= @sprintf("%-11s%-25s%-25s", "itrj", "Re(poly)", "Im(poly)")
             end
 
-            if mpi_amroot()
+            if U.topology.numprocs==1 || mpi_amroot()
                 open(filename, "w") do fp
                     println(fp, header)
                 end
@@ -46,7 +46,7 @@ function measure(
     poly = polyakov_traced(U)
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
-    if mpi_amroot()
+    if U.topology.numprocs==1 || mpi_amroot()
         if !isnothing(flow)
             @level1("$itrj\t$(real(poly)) + $(imag(poly))im # poly_flow_$(τ)")
         else

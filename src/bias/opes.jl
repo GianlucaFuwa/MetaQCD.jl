@@ -152,7 +152,7 @@ function OPES(;
     )
 end
 
-function OPES(p::ParameterSet; instance=1)
+function OPES(p::ParameterSet; instance=1, dummy=false)
     is_first_step = true
 
     symmetric = p.symmetric
@@ -212,7 +212,7 @@ function OPES(p::ParameterSet; instance=1)
         "penalty" => penalty,
     )
 
-    if 0 < instance <= length(p.usebiases)
+    if 0 < instance <= length(p.usebiases) && !dummy
         kernels, nker = opes_from_file!(state, p.usebiases[instance])
         is_first_step = false
         symmetric = state["symmetric"]

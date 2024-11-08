@@ -71,7 +71,7 @@ function Metadynamics(;
     )
 end
 
-function Metadynamics(p::ParameterSet; instance=1)
+function Metadynamics(p::ParameterSet; instance=1, dummy=false)
     symmetric = p.symmetric
     stride = p.stride
     @level1("|  STRIDE: $(stride)")
@@ -83,7 +83,7 @@ function Metadynamics(p::ParameterSet; instance=1)
     @level1("|  BIN_WIDTH: $(p.bin_width)")
     @assert p.bin_width > 0 "BIN_WIDTH must be > 0"
 
-    if instance == 0
+    if dummy || instance==0
         bin_vals, values = metad_from_file(p, "")
     elseif instance > length(p.usebiases)
         bin_vals, values = metad_from_file(p, "")

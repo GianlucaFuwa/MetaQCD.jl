@@ -14,7 +14,7 @@ struct PlaquetteMeasurement{T} <: AbstractMeasurement
                 header *= @sprintf("%-11s%-25s", "itrj", "Re(plaq)")
             end
 
-            if mpi_amroot()
+            if U.topology.numprocs==1 || mpi_amroot()
                 open(filename, "w") do fp
                     println(fp, header)
                 end

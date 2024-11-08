@@ -24,7 +24,7 @@ struct GaugeActionMeasurement{T} <: AbstractMeasurement
                 header *= @sprintf("%-25s", "S_$(methodname)")
             end
 
-            if mpi_amroot()
+            if U.topology.numprocs==1 || mpi_amroot()
                 open(filename, "w") do fp
                     println(fp, header)
                 end
@@ -58,7 +58,7 @@ function measure(
         GA_dict[method] = calc_gauge_action(U, method) * m.factor
     end
 
-    if mpi_amroot()
+    if U.topology.numprocs==1 || mpi_amroot()
         for method in keys(GA_dict)
             S = GA_dict[method]
 

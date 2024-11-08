@@ -38,7 +38,7 @@ struct EnergyDensityMeasurement{T} <: AbstractMeasurement
                 header *= @sprintf("%-25s", "E_$(methodname)")
             end
 
-            if mpi_amroot()
+            if U.topology.numprocs==1 || mpi_amroot()
                 open(filename, "w") do fp
                     println(fp, header)
                 end
@@ -71,7 +71,7 @@ function measure(
         ED_dict[method] = energy_density(U, method)
     end
 
-    if mpi_amroot()
+    if U.topology.numprocs==1 || mpi_amroot()
         for method in keys(ED_dict)
             E = ED_dict[method]
 

@@ -69,7 +69,7 @@ if mode == "sim"
     @assert mpi_size() < 10 "At max 9 MPI processes can be used in parallel tempering for now"
     run_sim(parameterfile; backend=backend)
 elseif mode == "build"
-    build_bias(parameterfile; backend=backend, mpi_multi_sim=with_mpi)
+    build_bias(parameterfile; backend=backend)
 else
     throw(ArgumentError(
         """

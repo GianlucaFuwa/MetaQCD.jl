@@ -78,7 +78,7 @@ function Univ(parameters::ParameterSet; mpi_multi_sim=false)
             numinstances = parameters.numinstances
             U₁ = Gaugefield(parameters)
             fermion_action = init_fermion_actions(parameters, U₁)
-            bias₁ = Bias(parameters, U₁; instance=0) # instance=0 -> dummy bias for non-MetaD stream
+            bias₁ = Bias(parameters, U₁; dummy=true) # dummy bias for non-MetaD stream
 
             U = Vector{typeof(U₁)}(undef, numinstances)
             bias = Vector{typeof(bias₁)}(undef, numinstances)

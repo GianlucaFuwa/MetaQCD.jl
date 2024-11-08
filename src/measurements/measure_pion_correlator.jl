@@ -68,7 +68,7 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT} <: AbstractMeasurement
                 header *= @sprintf("%-25s", "pion_corr_$(it)")
             end
 
-            if mpi_amroot()
+            if U.topology.numprocs==1 || mpi_amroot()
                 open(filename, "w") do fp
                     println(fp, header)
                 end
@@ -112,7 +112,7 @@ function measure(
     )
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
-    if mpi_amroot()
+    if U.topology.numprocs==1 || mpi_amroot()
         if T !== Nothing
             filename = set_ext!(m.filename, myinstance)
             fp = fopen(filename, "a")

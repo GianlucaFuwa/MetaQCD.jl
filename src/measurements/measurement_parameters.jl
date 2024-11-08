@@ -100,7 +100,7 @@ function meas_parameters_from_dict(value_i::Dict)
 
     for (key_ii, value_ii) in value_i
         if haskey(method_dict, key_ii)
-            if typeof(value_ii) !== nothing
+            if !isnothing(typeof(value_ii))
                 keytype = typeof(getfield(method, Symbol(key_ii)))
                 setfield!(method, Symbol(key_ii), keytype(value_ii))
             end

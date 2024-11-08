@@ -55,8 +55,8 @@ end
     return MPI.Cart_shift(comm_cart, dir, disp)
 end
 
-@inline function mpi_cart_coords(comm_cart, rank)
-    return MPI.Cart_coords(comm_cart, rank)
+@inline function mpi_cart_coords(comm_cart)
+    return MPI.Cart_coords(comm_cart)
 end
 
 @inline function mpi_multirequest(n)
