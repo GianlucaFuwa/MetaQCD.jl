@@ -44,7 +44,7 @@ function build_bias(filenamein::String; backend="cpu")
     # print time and system info, because it looks cool I guess
     # btw, all these "@level1" calls are just for logging, level1 is always printed
     # and anything higher has to specified in the parameter file (default is level2)
-    @level1("Start time: @ $(current_time())")
+    @level1("# Working directory: $(pwd()) @ $(string(current_time()))")
     # buf = IOBuffer()
     # InteractiveUtils.versioninfo(buf)
     # versioninfo = String(take!(buf))
