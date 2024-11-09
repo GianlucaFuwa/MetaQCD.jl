@@ -39,6 +39,7 @@ function calc_weights(filename, b::Bias{TCV,TS,TB}, cv, itrj) where {TCV,TS,TB}
             printf(fp, "%-25.15E", w)
         end
 
+        newline(fp)
         fclose(fp)
     end
 
