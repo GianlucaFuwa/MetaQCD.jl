@@ -159,7 +159,7 @@ Base.eachindex(::IndexLinear, u::AbstractMPIField) =
     return CartesianIndices((NX, NY, NZ, last_range))
 end
 
-@inline allindices(u::AbstractField) = eachindex(u.U) # all indices including halo regions
+@inline allindices(u::AbstractField) = eachindex(IndexCartesian(), u.U) # all indices including halo regions
 
 Base.length(u::AbstractField) = u.NV
 

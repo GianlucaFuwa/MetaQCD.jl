@@ -3,7 +3,7 @@
 To update a `Gaugefield` simply use the `update!` function that takes 2 positional
 arguments and however many keyword arguments specific to the update algorithm. 
 The first positional is the actual update algorithm
-[`update_alg`](@ref "Suppoorted Update Algorithms") and the second is the `Gaugefield` `U`.
+[`update_alg`](@ref "Supported Update Algorithms") and the second is the `Gaugefield` `U`.
 ```julia
 U = Gaugefield(...)
 random_gauges!(U)
