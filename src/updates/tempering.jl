@@ -1,6 +1,7 @@
 function temper!(
     U::Gaugefield,
     bias::Bias,
+    swap_accepted,
     numaccepts_temper,
     instance_state,
     myinstance,
@@ -19,43 +20,43 @@ function temper!(
     for i in (mpi_size()-1):-1:1
         # Determine the ranks that have instances i and i-1
         rank_i = get_rank_from_instance(i, instance_state)
-        rank_i_minus_1 = get_rank_from_instance(i-1, instance_state)
+        rank_i_min_1 = get_rank_from_instance(i-1, instance_state)
 
-        if myrank == rank_i || myrank == rank_i_minus_1
+        if myrank == rank_i || myrank == rank_i_min_1
             if myrank == rank_i
-                mpi_send(U.CV::Float64, comm; dest=rank_i_minus_1::Int64, tag=0) 
-                CV_j = mpi_recv(Float64, comm; source=rank_i_minus_1::Int64, tag=0)
-            else myrank == rank_i_minus_1
-                CV_j = mpi_recv(Float64, comm; source=rank_i::Int64, tag=0)
-                mpi_send(U.CV::Float64, comm; dest=rank_i::Int64, tag=0) 
+                mpi_send(U.CV::Float64, comm; dest=rank_i_min_1::Int64, tag=rank_i) 
+                CV_j = mpi_recv(Float64, comm; source=rank_i_min_1::Int64, tag=rank_i_min_1)
+            else myrank == rank_i_min_1
+                CV_j = mpi_recv(Float64, comm; source=rank_i::Int64, tag=rank_i)
+                mpi_send(U.CV::Float64, comm; dest=rank_i::Int64, tag=rank_i_min_1) 
             end
 
             if myrank == rank_i
                 ΔV1 = bias(CV_j) - bias(U.CV)
-                ΔV2 = mpi_recv(Float64, comm; source=rank_i_minus_1::Int64, tag=1)
+                ΔV2 = mpi_recv(Float64, comm; source=rank_i_min_1::Int64, tag=rank_i_min_1)
                 acc_prob = exp(-ΔV1 - ΔV2)
                 is_accepted = rand() ≤ acc_prob
-                mpi_send(is_accepted::Bool, comm; dest=rank_i_minus_1::Int64, tag=2) 
+                mpi_send(is_accepted::Bool, comm; dest=rank_i_min_1::Int64, tag=101) 
             else 
                 ΔV2 = bias(CV_j) - bias(U.CV)
-                mpi_send(ΔV2::Float64, comm; dest=rank_i::Int64, tag=1) 
-                is_accepted = mpi_recv(Bool, comm; source=rank_i::Int64, tag=2)
+                mpi_send(ΔV2::Float64, comm; dest=rank_i::Int64, tag=rank_i_min_1) 
+                is_accepted = mpi_recv(Bool, comm; source=rank_i::Int64, tag=101)
             end
 
             if is_accepted
                 if myrank == rank_i
-                    instance_state[myrank+1] = i-1
-                    instance_state[rank_i_minus_1+1] = i
+                    instance_state[rank_i+1] = i-1
+                    instance_state[rank_i_min_1+1] = i
 
                     # Update the local instance variable
                     myinstance[] = i-1
-                elseif myrank == rank_i_minus_1
-                    instance_state[myrank+1] = i
+                    numaccepts_temper[i] += 1
+                elseif myrank == rank_i_min_1
+                    instance_state[rank_i_min_1+1] = i
                     instance_state[rank_i+1] = i-1
 
                     # Update the local instance variable
                     myinstance[] = i
-                    numaccepts_temper[i-1] += 1
                 end
             end
         end
@@ -63,11 +64,10 @@ function temper!(
         # Synchronize vectors across all processes
         mpi_bcast!(instance_state, comm; root=rank_i)
         mpi_bcast!(numaccepts_temper, comm; root=rank_i)
-        mpi_barrier()
-        @level1 """
-        |  Acceptance [$i ⇔  $(i-1)]:\t$(100numaccepts_temper[i-1] / (itrj/swap_every)) %
-        """
+        acc_pct = 100numaccepts_temper[i] / (itrj/swap_every)
+        @level1 "|  Acceptance [$i <-> $(i-1)]:\t$(acc_pct) %"
     end
+
     return nothing
 end
 
@@ -88,7 +88,7 @@ function temper!(
         ΔV1 = bias1(cv2) - bias1(cv1)
         ΔV2 = bias2(cv1) - bias2(cv2)
         acc_prob = exp(-ΔV1 - ΔV2)
-        @level1("|  ΔV$(i) = $(ΔV1)\tΔV$(i-1) = $(ΔV2)")
+        @level1("|  delta_V$(i) = $(ΔV1)\tdelta_V$(i-1) = $(ΔV2)")
 
         if rand() ≤ acc_prob
             println("# swap accepted")
@@ -100,9 +100,8 @@ function temper!(
             println("# swap rejected")
         end
 
-        @level1 """
-        |  Acceptance [$i ⇔  $(i-1)]:\t$(100numaccepts_temper[i-1] / (itrj/swap_every)) %
-        """
+        acc_pct = 100numaccepts_temper[i-1] / (itrj/swap_every)
+        @level1 "|  Acceptance [$i <-> $(i-1)]:\t$(acc_pct) %"
     end
 
     return nothing
@@ -118,7 +117,7 @@ function swap_U!(a, b)
     b.Sg = a_Sg_tmp
     b.CV = a_CV_tmp
 
-    @batch for site in eachindex(a)
+    @batch for site in allindices(a)
         for μ in 1:4
             a_tmp = a[μ, site]
             a[μ, site] = b[μ, site]
@@ -126,8 +125,6 @@ function swap_U!(a, b)
         end
     end
 
-    update_halo!(a)
-    update_halo!(b)
     return nothing
 end
 

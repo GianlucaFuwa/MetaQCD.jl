@@ -6,7 +6,7 @@ struct GaugeActionMeasurement{T} <: AbstractMeasurement
         GA_dict = Dict{String,Float64}()
 
         for method in GA_methods
-            @level1("|    Method: $(method)")
+            @level1("|    type: $(method)")
             GA_dict[method] = 0.0
         end
 
@@ -24,7 +24,7 @@ struct GaugeActionMeasurement{T} <: AbstractMeasurement
                 header *= @sprintf("%-25s", "S_$(methodname)")
             end
 
-            if U.topology.numprocs==1 || mpi_amroot()
+            if !is_distributed(U) || mpi_amroot()
                 open(filename, "w") do fp
                     println(fp, header)
                 end
@@ -43,13 +43,18 @@ function GaugeActionMeasurement(U, params::GaugeActionParameters, filename, flow
     return GaugeActionMeasurement(
         U;
         filename=filename,
-        GA_methods=params.kinds_of_gauge_action,
+        GA_methods=params.type,
         flow=flow,
     )
 end
 
 function measure(
-    m::GaugeActionMeasurement{T}, U, myinstance, itrj, flow=nothing
+    m::GaugeActionMeasurement{T},
+    U,
+    myinstance=mpi_myrank(),
+    itrj=0,
+    flow=nothing;
+    mpi_multi_sim=false,
 ) where {T}
     GA_dict = m.GA_dict
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
@@ -58,7 +63,7 @@ function measure(
         GA_dict[method] = calc_gauge_action(U, method) * m.factor
     end
 
-    if U.topology.numprocs==1 || mpi_amroot()
+    if !is_distributed(U) || mpi_amroot()
         for method in keys(GA_dict)
             S = GA_dict[method]
 
@@ -70,7 +75,12 @@ function measure(
         end
 
         if T !== Nothing
-            filename = set_ext!(m.filename, myinstance)
+            filename = if mpi_multi_sim
+                set_ext!(m.filename, myinstance)
+            else
+                m.filename
+            end
+
             fp = fopen(filename, "a")
             printf(fp, "%-11i", itrj)
 

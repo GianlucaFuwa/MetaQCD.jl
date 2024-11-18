@@ -31,7 +31,7 @@ struct Univ{TG,TF,TB}
     function Univ(
         U::Gaugefield{BACKEND,T,M,A,GA}, fermion_action::TF, bias::TB, numinstances
     ) where {BACKEND,T,M,A,GA,TF,TB}
-        @level1("┌ Setting Universe...")
+        @level1("- Setting Universe...")
         @level1("|  NUM INSTANCES: $(numinstances)")
         @level1("|  BACKEND: $(string(BACKEND))")
         @level1("|  FP PREC: $(string(T))")
@@ -40,9 +40,9 @@ struct Univ{TG,TF,TB}
         @level1("|  BETA: $(U.β)")
 
         if TF === QuenchedFermionAction
-            @level1("|  FERMION ACTION: Quenched\n└\n")
+            @level1("|  FERMION ACTION: Quenched\n-\n")
         else
-            @level1("|  FERMION ACTION: $(string(fermion_action...))\n└\n")
+            @level1("|  FERMION ACTION: $(string(fermion_action...))\n-\n")
         end
 
         TG = typeof(U)
@@ -53,7 +53,7 @@ struct Univ{TG,TF,TB}
     function Univ(
         U::Vector{TG}, fermion_action::TF, bias::Vector{TB}, numinstances
     ) where {B,T,M,A,GA,TG<:Gaugefield{B,T,M,A,GA},TF,TB}
-        @level1("┌ Setting Universe...")
+        @level1("- Setting Universe...")
         @level1("|  NUM INSTANCES: $(numinstances)")
         @level1("|  BACKEND: $(string(B))")
         @level1("|  FP PREC: $(string(T))")
@@ -62,9 +62,9 @@ struct Univ{TG,TF,TB}
         @level1("|  BETA: $(U[1].β)")
 
         if TF === QuenchedFermionAction
-            @level1("|  FERMION ACTION:\n└\n")
+            @level1("|  FERMION ACTION:\n-\n")
         else
-            @level1("|  FERMION ACTION: $(string(fermion_action...))└\n")
+            @level1("|  FERMION ACTION: $(string(fermion_action...))-\n")
         end
 
         myinstance = Base.RefValue{Int64}(mpi_myrank())
@@ -93,7 +93,8 @@ function Univ(parameters::ParameterSet; mpi_multi_sim=false)
             numinstances = 1
             U = Gaugefield(parameters)
             fermion_action = init_fermion_actions(parameters, U)
-            bias = Bias(parameters, U; mpi_multi_sim=mpi_multi_sim)
+            dummy = mpi_multi_sim && mpi_amroot()
+            bias = Bias(parameters, U; mpi_multi_sim=mpi_multi_sim, dummy=dummy)
         end
     else
         @assert parameters.tempering_enabled == false """

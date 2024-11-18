@@ -7,7 +7,7 @@ struct EnergyDensityMeasurement{T} <: AbstractMeasurement
         ED_dict = Dict{String,Float64}()
 
         for method in ED_methods
-            @level1("|    Method: $(method)")
+            @level1("|    type: $(method)")
 
             if method == "plaquette"
                 ED_dict["plaquette"] = 0.0
@@ -38,7 +38,7 @@ struct EnergyDensityMeasurement{T} <: AbstractMeasurement
                 header *= @sprintf("%-25s", "E_$(methodname)")
             end
 
-            if U.topology.numprocs==1 || mpi_amroot()
+            if !is_distributed(U) || mpi_amroot()
                 open(filename, "w") do fp
                     println(fp, header)
                 end
@@ -56,13 +56,18 @@ function EnergyDensityMeasurement(U, params::EnergyDensityParameters, filename, 
     return EnergyDensityMeasurement(
         U;
         filename=filename,
-        ED_methods=params.kinds_of_energy_density,
+        ED_methods=params.type,
         flow=flow,
     )
 end
 
 function measure(
-    m::EnergyDensityMeasurement{T}, U, myinstance, itrj, flow=nothing
+    m::EnergyDensityMeasurement{T},
+    U,
+    myinstance=mpi_myrank(),
+    itrj=0,
+    flow=nothing;
+    mpi_multi_sim=false,
 ) where {T}
     ED_dict = m.ED_dict
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
@@ -71,7 +76,7 @@ function measure(
         ED_dict[method] = energy_density(U, method)
     end
 
-    if U.topology.numprocs==1 || mpi_amroot()
+    if !is_distributed(U) || mpi_amroot()
         for method in keys(ED_dict)
             E = ED_dict[method]
 
@@ -83,7 +88,12 @@ function measure(
         end
 
         if T !== Nothing
-            filename = set_ext!(m.filename, myinstance)
+            filename = if mpi_multi_sim
+                set_ext!(m.filename, myinstance)
+            else
+                m.filename
+            end
+
             fp = fopen(filename, "a")
             printf(fp, "%-11i", itrj)
 

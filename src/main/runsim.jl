@@ -9,14 +9,14 @@ function run_sim(filenamein::String; backend="cpu")
 
     # load parameters from toml file
     parameters = construct_params_from_toml(filenamein; backend=backend)
+    multi_sim = (prod(parameters.numprocs_cart) == 1) && mpi_parallel()
     mpi_barrier()
 
-    if mpi_amroot()
-        if parameters.tempering_enabled
-            @assert parameters.kind_of_bias != "none" """
-            bias cannot be \"none\" in parallel tempering
-            """
-        end
+    if parameters.tempering_enabled
+        multi_sim && (@assert parameters.numinstances == mpi_size())
+        @assert parameters.kind_of_bias != "none" """
+        bias cannot be \"none\" in parallel tempering
+        """
     end
 
     # set random seed if provided, otherwise generate one
@@ -50,27 +50,54 @@ function run_sim(filenamein::String; backend="cpu")
         )
         univ = Univ(univ_args...)
     else
-        univ = Univ(parameters)
+        univ = Univ(parameters; mpi_multi_sim=multi_sim)
         updatemethod = updatemethod_pt = nothing
     end
 
-    run_sim!(univ, parameters, updatemethod, updatemethod_pt)
+    run_sim!(univ, parameters, updatemethod, updatemethod_pt; mpi_multi_sim=multi_sim)
     return nothing
 end
 
-function run_sim!(
-    univ::Univ, parameters::ParameterSet, updatemethod, updatemethod_pt; mpi_multi_sim=false
-)
+function run_sim!(univ, parameters, updatemethod, updatemethod_pt; mpi_multi_sim=false)
     U = univ.U
 
     # initialize update method, measurements, and bias
     if parameters.tempering_enabled
         if mpi_multi_sim
-            if isnothing(updatemethod)
+            if isnothing(updatemethod) && mpi_amroot()
                 updatemethod = Updatemethod(parameters, U)
+            elseif !isnothing(updatemethod) && mpi_amroot()
+            elseif isnothing(updatemethod_pt) && !mpi_amroot()
+                faction_type = if univ.fermion_action == QuenchedFermionAction() 
+                    QuenchedFermionAction
+                else
+                    typeof(univ.fermion_action[1])
+                end
+                # all MetaD streams use HMC, so there is no need to initialize more than 1
+                hmc_integrator = parameters.hmc_integrator
+                hmc_rafriction = parameters.hmc_rafriction
+                updatemethod = HMC(
+                    U,
+                    integrator_from_str(hmc_integrator, hmc_rafriction),
+                    parameters.hmc_trajectory,
+                    parameters.hmc_steps,
+                    parameters.hmc_friction,
+                    parameters.hmc_numsmear_gauge,
+                    parameters.hmc_numsmear_fermion,
+                    parameters.hmc_rhostout_gauge,
+                    parameters.hmc_rhostout_fermion;
+                    hmc_logging=true,
+                    fermion_action=faction_type,
+                    heavy_flavours=length(parameters.Nf) - 1,
+                    bias_enabled=true,
+                    logdir=parameters.log_dir,
+                    instance=mpi_myrank(),
+                )
+            elseif !isnothing(updatemethod_pt) && !mpi_amroot()
+                updatemethod = updatemethod_pt[mpi_myrank()]
             end
 
-            parity = parameters.parity_update ? ParityUpdate(U) : nothing
+            parity = (parameters.parity_update && mpi_amroot()) ? ParityUpdate(U) : nothing
         else
             if isnothing(updatemethod) && isnothing(updatemethod_pt)
                 updatemethod = Updatemethod(parameters, U[1])
@@ -92,10 +119,12 @@ function run_sim!(
                     parameters.hmc_numsmear_fermion,
                     parameters.hmc_rhostout_gauge,
                     parameters.hmc_rhostout_fermion;
-                    hmc_logging=false,
+                    hmc_logging=true,
                     fermion_action=faction_type,
                     heavy_flavours=length(parameters.Nf) - 1,
                     bias_enabled=true,
+                    logdir=parameters.log_dir,
+                    instance=1:parameters.numinstances-1,
                 )
             end
 
@@ -123,7 +152,7 @@ function run_sim!(
 
         measurements[1] = MeasurementMethods(
             U[1], parameters.measure_dir, parameters.measurements;
-            additional_string="_0.txt",
+            additional_string="_000.txt",
         )
 
         measurements_with_flow[1] = MeasurementMethods(
@@ -131,7 +160,7 @@ function run_sim!(
             parameters.measure_dir,
             parameters.measurements_with_flow;
             flow=true,
-            additional_string="_0.txt",
+            additional_string="_000.txt",
         )
         for i in 2:(parameters.numinstances)
             if parameters.measure_on_all
@@ -139,21 +168,23 @@ function run_sim!(
                     U[i],
                     parameters.measure_dir,
                     parameters.measurements;
-                    additional_string="_$(i-1).txt",
+                    additional_string = "_$(lpad(i-1, 3, "0")).txt"
                 )
                 measurements_with_flow[i] = MeasurementMethods(
                     U[i],
                     parameters.measure_dir,
                     parameters.measurements_with_flow;
                     flow=true,
-                    additional_string="_$(i-1).txt",
+                    additional_string = "_$(lpad(i-1, 3, "0")).txt"
                 )
             else
                 measurements[i] = MeasurementMethods(
-                    U[i], parameters.measure_dir, Dict[]; additional_string="_$(i-1).txt"
+                    U[i], parameters.measure_dir, Dict[];
+                    additional_string="_$(lpad(i-1, 3, "0")).txt"
                 )
                 measurements_with_flow[i] = MeasurementMethods(
-                    U[i], parameters.measure_dir, Dict[]; additional_string="_$(i-1).txt"
+                    U[i], parameters.measure_dir, Dict[];
+                    additional_string="_$(lpad(i-1, 3, "0")).txt"
                 )
             end
         end
@@ -168,11 +199,12 @@ function run_sim!(
         )
 
         measurements = MeasurementMethods(
-            U, parameters.measure_dir, parameters.measurements; additional_string=MYEXT_str
+            U, parameters.measure_dir, parameters.measurements;
+            additional_string="_$(lpad(mpi_myrank(), 3, "0")).txt"
         )
         measurements_with_flow = MeasurementMethods(
             U, parameters.measure_dir, parameters.measurements_with_flow;
-            flow=true, additional_string=MYEXT_str
+            flow=true, additional_string="_$(lpad(mpi_myrank(), 3, "0")).txt"
         )
     end
 
@@ -211,6 +243,7 @@ function run_sim!(
             parity,
             config_saver,
             checkpointer,
+            mpi_multi_sim,
         )
     end
 
@@ -227,20 +260,22 @@ function metaqcd!(
     parity,
     config_saver,
     checkpointer,
+    mpi_multi_sim,
 )
     U = univ.U
     fermion_action = univ.fermion_action
     bias = univ.bias
     myinstance = univ.myinstance
     tempering_enabled = parameters.tempering_enabled
-    numaccepts_temper = zeros(Int64, univ.numinstances-1)
-    instance_state = collect(0:univ.numinstances-1)
+    numaccepts_temper = zeros(Int64, mpi_size()-1)
+    swap_accepted = zeros(Bool, mpi_size()-1)
+    instance_state = collect(0:mpi_size())
     swap_every = parameters.swap_every
 
     # load in config and recalculate gauge action if given
     load_config!(U, parameters) && (U.Sg = calc_gauge_action(U))
 
-    @level1("┌ Thermalization:")
+    @level1("- Thermalization:")
     _, runtime_therm = @timed begin
         for itrj in 1:(parameters.numtherm)
             @level1("|  itrj = $itrj")
@@ -252,18 +287,20 @@ function metaqcd!(
                     bias=NoBias(),
                     metro_test=itrj>10, # So we dont get stuck at the beginning
                     therm=true,
+                    mpi_multi_sim=mpi_multi_sim,
+                    myinstance=myinstance[],
                 )
             end
             @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))\n-")
         end
     end
 
-    @level1("└ Total elapsed time:\t$(runtime_therm) [s]\n")
+    @level1("-- Total elapsed time:\t$(runtime_therm) [s]\n")
     recalc_CV!(U, bias) # need to recalc cv since it was not updated during therm
 
     mpi_barrier()
 
-    @level1("┌ Production:")
+    @level1("- Production:")
     _, runtime_all = @timed begin
         numaccepts = 0.0
         for itrj in 1:(parameters.numsteps)
@@ -275,9 +312,17 @@ function metaqcd!(
                     fermion_action=fermion_action,
                     bias=bias,
                     metro_test=true,
+                    mpi_multi_sim=mpi_multi_sim,
+                    myinstance=myinstance[],
                 )
                 rand() < 0.5 && update!(parity, U)
-                accepted == true && update_bias!(bias, U.CV, itrj)
+
+                if accepted && (!is_distributed(U) || mpi_amroot())
+                    update_bias!(
+                        bias, U.CV, itrj, myinstance[]; mpi_multi_sim=mpi_multi_sim
+                    )
+                end
+
                 numaccepts += accepted
             end
 
@@ -288,6 +333,7 @@ function metaqcd!(
                 temper!(
                     U,
                     bias,
+                    swap_accepted,
                     numaccepts_temper,
                     instance_state,
                     myinstance,
@@ -300,11 +346,14 @@ function metaqcd!(
             save_config(config_saver, U, itrj, parameters)
             create_checkpoint(checkpointer, univ, updatemethod, nothing, itrj)
 
-            _, mtime = @timed calc_measurements(measurements, U, itrj, myinstance[])
-            _, fmtime = @timed calc_measurements_flowed(
-                measurements_with_flow, gflow, U, itrj, myinstance[]
+            _, mtime = @timed calc_measurements(
+                measurements, U, itrj, myinstance[]; mpi_multi_sim=mpi_multi_sim
             )
-            calc_weights(bias, U.CV, itrj)
+            _, fmtime = @timed calc_measurements_flowed(
+                measurements_with_flow, gflow, U, itrj, myinstance[];
+                mpi_multi_sim=mpi_multi_sim
+            )
+            calc_weights(bias, U.CV, itrj, myinstance[]; mpi_multi_sim=mpi_multi_sim)
             @level1("|  Meas. elapsed time:     $(mtime)  [s]")
             @level1("|  FlowMeas. elapsed time: $(fmtime) [s]\n-")
         end
@@ -340,7 +389,7 @@ function metaqcd_PT!(
     # if stream 1 uses hmc then we have to recalc the CV before tempering
     uses_hmc = updatemethod isa HMC
 
-    @level1("┌ Thermalization:")
+    @level1("- Thermalization:")
     _, runtime_therm = @timed begin
         for itrj in 1:(parameters.numtherm)
             @level1("|  itrj = $itrj")
@@ -356,6 +405,7 @@ function metaqcd_PT!(
                         bias=NoBias(),
                         metro_test=false,
                         therm=true,
+                        myinstance=i-1,
                     )
                 end
             end
@@ -363,10 +413,10 @@ function metaqcd_PT!(
         end
     end
 
-    @level1("└ Total elapsed time:\t$(runtime_therm) [s]\n")
+    @level1("-- Total elapsed time:\t$(runtime_therm) [s]\n")
     recalc_CV!(U, bias) # need to recalc cv since it was not updated during therm
 
-    @level1("┌ Production:")
+    @level1("- Production:")
     _, runtime_all = @timed begin
         numaccepts = zeros(numinstances)
         numaccepts_temper = zeros(Int64, numinstances - 1)
@@ -382,6 +432,7 @@ function metaqcd_PT!(
                         fermion_action=fermion_action,
                         bias=NoBias(),
                         metro_test=true,
+                        myinstance=0,
                     )
                 end
                 numaccepts[1] += tmp / rank0_updates
@@ -394,6 +445,7 @@ function metaqcd_PT!(
                         fermion_action=fermion_action,
                         bias=bias[i],
                         metro_test=true,
+                        myinstance=i-1,
                     )
                     accepted == true && update_bias!(bias[i], U[i].CV, itrj)
                     numaccepts[i] += accepted

@@ -25,7 +25,7 @@ struct Metropolis{ITR,NH,TOR,NOR} <: AbstractUpdate
     overrelaxation::TOR
     numorelax::Int64
     function Metropolis(
-        ::Gaugefield{B,T,A,GA}, ϵ, numhits, target_acc, or_alg, numorelax
+        ::Gaugefield{B,T,A,GA}, ϵ, numhits, target_acc, or_alg, numorelax; kwargs...
     ) where {B,T,A,GA}
         @level1("┌ Setting Metropolis...")
         m_ϵ = Base.RefValue{Float64}(ϵ)

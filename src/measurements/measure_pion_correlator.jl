@@ -68,7 +68,7 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT} <: AbstractMeasurement
                 header *= @sprintf("%-25s", "pion_corr_$(it)")
             end
 
-            if U.topology.numprocs==1 || mpi_amroot()
+            if !is_distributed(U) || mpi_amroot()
                 open(filename, "w") do fp
                     println(fp, header)
                 end
@@ -105,16 +105,26 @@ function PionCorrelatorMeasurement(
 end
 
 function measure(
-    m::PionCorrelatorMeasurement{T}, U, myinstance=mpi_myrank(), itrj=0, flow=nothing
+    m::PionCorrelatorMeasurement{T}, 
+    U,
+    myinstance=mpi_myrank(),
+    itrj=0,
+    flow=nothing;
+    mpi_multi_sim=false,
 ) where {T}
     pion_correlators_avg!(
         m.pion_corr, m.dirac_operator(U), m.temp, m.cg_temps, m.cg_tol, m.cg_maxiters
     )
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
-    if U.topology.numprocs==1 || mpi_amroot()
+    if !is_distributed(U) || mpi_amroot()
         if T !== Nothing
-            filename = set_ext!(m.filename, myinstance)
+            filename = if mpi_multi_sim
+                set_ext!(m.filename, myinstance)
+            else
+                m.filename
+            end
+
             fp = fopen(filename, "a")
             printf(fp, "%-11i", itrj)
 

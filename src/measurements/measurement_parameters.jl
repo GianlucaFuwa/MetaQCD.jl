@@ -6,13 +6,13 @@ abstract type MeasurementParameters end
 
 Base.@kwdef mutable struct EnergyDensityParameters <: MeasurementParameters
     measure_every::Int64 = 10
-    kinds_of_energy_density::Vector{String} = ["clover"]
+    type::Vector{String} = ["clover"]
     methodname::String = "energy_density"
 end
 
 Base.@kwdef mutable struct GaugeActionParameters <: MeasurementParameters
     measure_every::Int64 = 1
-    kinds_of_gauge_action::Vector{String} = ["wilson"]
+    type::Vector{String} = ["wilson"]
     methodname::String = "gauge_action"
 end
 
@@ -28,7 +28,7 @@ end
 
 Base.@kwdef mutable struct TopologicalChargeParameters <: MeasurementParameters
     measure_every::Int64 = 10
-    kinds_of_topological_charge::Vector{String} = ["clover"]
+    type::Vector{String} = ["clover"]
     methodname::String = "topological_charge"
 end
 

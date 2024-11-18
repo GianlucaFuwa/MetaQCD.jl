@@ -299,9 +299,11 @@ function fermaction_from_str(str, eo_precon::Bool)
     elseif str == "staggered"
         return eo_precon ? StaggeredEOPreFermionAction : StaggeredFermionAction
     elseif str == "staggered-h1234" && !eo_precon
-        return StaggeredHoelblingFermionAction{1}
+        return StaggeredHoelblingFermionAction{1234}
     elseif str == "staggered-h1324" && !eo_precon
-        return StaggeredHoelblingFermionAction{2}
+        return StaggeredHoelblingFermionAction{1324}
+    elseif str == "staggered-h1342" && !eo_precon
+        return StaggeredHoelblingFermionAction{1342}
     elseif str ∈ ("none", "quenched") || str === nothing
         return QuenchedFermionAction
     else

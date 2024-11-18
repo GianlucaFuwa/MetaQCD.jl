@@ -70,7 +70,7 @@ struct HMC{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TFP1,TFP2} <: AbstractUpdate
         integrator, steps, Δτ, friction, P, P_old, U_old, ϕ, staples, force, force2,
         fieldstrength, smearing_gauge, smearing_fermion, logfile, forcefile,
     )
-        @level1("┌ Setting HMC...")
+        @level1("- Setting HMC...")
         @level1("|  INTEGRATOR: $(string(integrator))")
         @level1("|  TRAJECTORY LENGTH: $(steps * Δτ)")
         @level1("|  STEPS: $(steps)")
@@ -81,7 +81,7 @@ struct HMC{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TFP1,TFP2} <: AbstractUpdate
         @level1("|  FERMION SMEARING: $(string(smearing_fermion))")
         !isnothing(logfile) && @level1("|  HMC LOGFILE: $(logfile)")
         !isnothing(forcefile) && @level1("|  HMC FORCEFILE: $(forcefile)")
-        @level1("└\n")
+        @level1("-\n")
         TI = typeof(integrator)
         TG = typeof(U_old)
         TT = typeof(staples)
@@ -115,6 +115,7 @@ function HMC(
     heavy_flavours=0,
     bias_enabled=false,
     logdir="",
+    instance=mpi_myrank(),
 )
     Δτ = trajectory/steps
     P = Colorfield(U)
@@ -152,35 +153,48 @@ function HMC(
 
     fieldstrength = bias_enabled ? Tensorfield(U) : nothing
 
-    if hmc_logging && logdir != ""
+    if hmc_logging && (logdir != "") && (!is_distributed(U) || mpi_amroot())
         # XXX: Probably want to swap this too in MPI PT-MetaD
-        logfile = joinpath(logdir, "hmc_acc_logs.txt")
-        open(logfile, "w") do fp
-            @printf(
-                fp,
-                "%-25s\t%-25s\t%-25s\t%-25s\t%-25s\n",
-                "ΔP²", "ΔSg", "ΔSf", "ΔV", "ΔH",
-            )
+
+        for ii in instance
+            _logfile = joinpath(logdir, "hmc_acc_logs_$(lpad(ii, 3, "0")).txt")
+            open(_logfile, "w") do fp
+                @printf(
+                    fp,
+                    "%-25s%-25s%-25s%-25s%-25s\n",
+                    "ΔP²", "ΔSg", "ΔSf", "ΔV", "ΔH",
+                )
+            end
         end
 
+        _logfile = joinpath(logdir, "hmc_acc_logs_$(lpad(instance[1], 3, "0")).txt")
+        logfile = StaticString(_logfile)
+
         if !isnothing(ϕ)
-            forcefile = joinpath(logdir, "hmc_force_logs.txt")
-            force_fp = fopen(forcefile, "w")
-            printf(force_fp, "%-25s", "avg||F_Sg||")
-            printf(force_fp, "%-25s", "sup||F_Sg||")
+            for ii in instance
+                ext = "$(lpad(ii, 3, "0")).txt"
+                _forcefile = joinpath(logdir, "hmc_force_logs_$(ext)")
+                force_fp = fopen(_forcefile, "w")
+                printf(force_fp, "%-25s", "avg||F_Sg||")
+                printf(force_fp, "%-25s", "sup||F_Sg||")
 
-            for i in eachindex(ϕ)
-                printf(force_fp, "%-25s", "avg||F_Sf$i||")
-                printf(force_fp, "%-25s", "sup||F_Sf$i||")
+                for i in eachindex(ϕ)
+                    printf(force_fp, "%-25s", "avg||F_Sf$i||")
+                    printf(force_fp, "%-25s", "sup||F_Sf$i||")
+                end
+
+                if bias_enabled
+                    printf(force_fp, "%-25s", "avg||F_V||")
+                    printf(force_fp, "%-25s", "sup||F_V||")
+                end
+
+                newline(force_fp)
+                fclose(force_fp)
             end
 
-            if bias_enabled
-                printf(force_fp, "%-25s", "avg||F_V||")
-                printf(force_fp, "%-25s", "sup||F_V||")
-            end
-
-            printf(force_fp, "\n")
-            fclose(force_fp)
+            ext = "$(lpad(instance[1], 3, "0")).txt"
+            _forcefile = joinpath(logdir, "hmc_force_logs_$(ext)")
+            forcefile = StaticString(_forcefile)
         else
             forcefile = nothing
         end
@@ -204,11 +218,16 @@ function update!(
     bias::TB=NoBias(),
     metro_test::Bool=true,
     therm::Bool=false,
+    myinstance::Int64=mpi_myrank(),
+    mpi_multi_sim::Bool=false,
 ) where {TI,TF,TB}
     if TF !== QuenchedFermionAction
         @assert TF <: Tuple "fermion_action must be nothing or a tuple of fermion actions"
         @assert !isnothing(hmc.ϕ) "fermion_action passed but not activated in HMC"
     end
+
+    set_ext!(hmc.logfile, myinstance)
+    set_ext!(hmc.forcefile, myinstance)
 
     U_old = hmc.U_old
     P_old = hmc.P_old
@@ -408,11 +427,11 @@ function calc_fermion_action(fermion_action, U, ϕ, smearing::StoutSmearing, is_
 end
 
 @inline function print_hmc_data(::Nothing, ΔP², ΔSg, ΔSf, ΔV, ΔH)
-    @level2("ΔP²:\t$ΔP²")
-    @level2("ΔSg:\t$ΔSg")
-    @level2("ΔSf:\t$ΔSf")
-    @level2("ΔV:\t$ΔV")
-    @level2("ΔH:\t$ΔH")
+    @level2("delta_P²:\t$ΔP²")
+    @level2("delta_Sg:\t$ΔSg")
+    @level2("delta_Sf:\t$ΔSf")
+    @level2("delta_V:\t$ΔV")
+    @level2("delta_H:\t$ΔH")
     return nothing
 end
 

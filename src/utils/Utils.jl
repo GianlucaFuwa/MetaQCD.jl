@@ -8,6 +8,7 @@ using MuladdMacro: @muladd
 using Polyester
 using Random
 using StaticArrays
+using StaticTools
 using PrecompileTools: PrecompileTools
 
 export mpi_init, mpi_comm, mpi_size, mpi_parallel, mpi_myrank, mpi_amroot, mpi_barrier
@@ -22,7 +23,7 @@ export embed_into_SU3_12, embed_into_SU3_13, embed_into_SU3_23
 export antihermitian, hermitian, traceless_antihermitian, traceless_hermitian, materialize_TA
 export zero2, zero3, zerov3, eye2, eye3, onev3, gaussian_TA_mat, rand_SU3
 export SiteCoords, eo_site, eo_site_switch, move, switch_sides
-export cartesian_to_linear
+export cartesian_to_linear, set_ext!
 export Sequential, Checkerboard2, Checkerboard4, EvenSites, OddSites
 export λ, expλ, γ1, γ2, γ3, γ4, γ5, σ12, σ13, σ14, σ23, σ24, σ34
 export cmatmul_oo, cmatmul_dd, cmatmul_do, cmatmul_od
@@ -63,7 +64,15 @@ struct Checkerboard4 <: AbstractIterator end
 struct EvenSites <: AbstractIterator end
 struct OddSites <: AbstractIterator end
 
-_unwrap_val(::Val{B}) where {B} = B
+@inline _unwrap_val(::Val{B}) where {B} = B
+
+@inline set_ext!(::Nothing, ::Integer) = nothing
+@inline set_ext!(filename::String, ::Integer) = filename
+
+@inline function set_ext!(filename::StaticString{N}, myinstance::Integer) where {N}
+    filename[end-7:end-5] = lpad(myinstance, 3, "0")
+    return filename
+end
 
 const FLOAT_TYPE = Dict{String,DataType}(
     "float16" => Float16,

@@ -97,9 +97,9 @@ function Y∇MμνX(X, Y, U, ::Val{μ}, ::Val{ν}, site, bc, ::Type{T}) where {�
     siteμ⁺ν⁻ = move(siteμ⁺, ν, -1, Nν)
 
     # Start
-    η1 = im * T(1/8 * staggered_ημν(Val(μ), Val(ν), site))
-    η2 = im * T(1/8 * staggered_ημν(Val(μ), Val(ν), siteν⁺))
-    η3 = im * T(1/8 * staggered_ημν(Val(μ), Val(ν), siteν⁻))
+    η1 = im * T(1/8 * staggered_ημν(Val(μ), Val(ν), site, Val(true)))
+    η2 = im * T(1/8 * staggered_ημν(Val(μ), Val(ν), siteν⁺, Val(true)))
+    η3 = im * T(1/8 * staggered_ημν(Val(μ), Val(ν), siteν⁻, Val(true)))
     Y1 = η1 * Y[site]
     Y2 = η2 * apply_bc(Y[siteν⁺], bc, site, Val(1), Nν, Val(ν))
     Y3 = η3 * apply_bc(Y[siteν⁻], bc, site, Val(-1), Nν, Val(ν))

@@ -7,7 +7,7 @@ struct TopologicalChargeMeasurement{T} <: AbstractMeasurement
         TC_dict = Dict{String,Float64}()
 
         for method in TC_methods
-            @level1("|    Method: $(method)")
+            @level1("|    type: $(method)")
 
             if method == "plaquette"
                 TC_dict["plaquette"] = 0.0
@@ -38,7 +38,7 @@ struct TopologicalChargeMeasurement{T} <: AbstractMeasurement
                 header *= @sprintf("%-25s", "Q_$(method)")
             end
 
-            if U.topology.numprocs==1 || mpi_amroot()
+            if !is_distributed(U) || mpi_amroot()
                 open(filename, "w") do fp
                     println(fp, header)
                 end
@@ -58,13 +58,18 @@ function TopologicalChargeMeasurement(
     return TopologicalChargeMeasurement(
         U;
         filename=filename,
-        TC_methods=params.kinds_of_topological_charge,
+        TC_methods=params.type,
         flow=flow,
     )
 end
 
 function measure(
-    m::TopologicalChargeMeasurement{T}, U, myinstance, itrj, flow=nothing,
+    m::TopologicalChargeMeasurement{T},
+    U,
+    myinstance=mpi_myrank(),
+    itrj=0,
+    flow=nothing;
+    mpi_multi_sim=false,
 ) where {T}
     TC_dict = m.TC_dict
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
@@ -73,7 +78,7 @@ function measure(
         TC_dict[method] = top_charge(U, method)
     end
 
-    if U.topology.numprocs==1 || mpi_amroot()
+    if !is_distributed(U) || mpi_amroot()
         for method in keys(TC_dict)
             Q = TC_dict[method]
 
@@ -85,7 +90,12 @@ function measure(
         end
 
         if T !== Nothing
-            filename = set_ext!(m.filename, myinstance)
+            filename = if mpi_multi_sim
+                set_ext!(m.filename, myinstance)
+            else
+                m.filename
+            end
+
             fp = fopen(filename, "a")
             printf(fp, "%-11i", itrj)
 

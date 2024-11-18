@@ -15,7 +15,7 @@ include("gradientflow_integrators.jl")
 function GradientFlow(
     U::TG, integrator="euler", numflow=1, steps=1, tf=0.12; measure_every=1
 ) where {TG}
-    @level1("┌ Setting Gradient Flow...")
+    @level1("- Setting Gradient Flow...")
     Z = Colorfield(U)
     Uflow = similar(U)
 
@@ -46,7 +46,7 @@ function GradientFlow(
     @level1("|  INTEGRATION STEPS PER GFLOW: $(steps)")
     @level1("|  INTEGRATION STEP SIZE: $(ϵ)")
     @level1("|  MEASURING ON GFLOW NUMBERS: $(string(measure_at))")
-    @level1("└\n")
+    @level1("-\n")
     return GradientFlow{TI,TG,typeof(Z)}(numflow, steps, ϵ, tf, measure_at, Uflow, Z)
 end
 

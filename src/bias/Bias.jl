@@ -1,8 +1,9 @@
 module BiasModule
 
-using Base.Threads
 using DelimitedFiles
+using Polyester: @batch
 using Printf
+using StaticTools: StaticString
 using Statistics
 using Unicode
 using ..MetaIO
@@ -23,7 +24,7 @@ struct NoBias end
     
 Container for bias potential and metadata.
 
-    Bias(p::ParameterSet, U::Gaugefield; instance=1)
+    Bias(p::ParameterSet, U::Gaugefield; instance=0)
 
 Create a Bias that holds general parameters of bias enhanced sampling, like the kind of CV,
 its smearing and filenames relevant to the bias. Also holds the specific kind
@@ -32,31 +33,31 @@ of bias (`Metadynamics`, `OPES` or `Parametric` for now).
 The `instance` keyword is used in case of PT-MetaD and multiple walkers to assign the
 correct `usebias` to each stream.
 """
-struct Bias{TCV,TS,TB,TW,T}
+struct Bias{TCV,TS,TB,TW,T1,T2}
     kind_of_cv::TCV
     smearing::TS
     is_static::Bool
     bias::TB
     kinds_of_weights::TW
-    biasfile::T
-    datafile::T
+    biasfile::T1
+    datafile::T2
     write_bias_every::Int64
 end
 
-function Bias(p::ParameterSet, U; mpi_multi_sim=false, instance=1, dummy=false)
-    @level1("┌ Setting Bias instance $(instance)...")
-    kind_of_bias = Unicode.normalize(p.kind_of_bias; casefold=true)
-    TCV = get_cvtype_from_parameters(p)
-    smearing = StoutSmearing(U, p.numsmears_for_cv, p.rhostout_for_cv)
-    is_static = dummy ? true : p.is_static[instance]
-    sstr = (is_static || kind_of_bias == "parametric") ? "static" : "dynamic"
+function Bias(p::ParameterSet, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false)
     inum = if dummy
         0
     elseif mpi_multi_sim
         mpi_myrank()
     else
-        instance-1
+        instance
     end
+    @level1("- Setting Bias instance $(inum)...")
+    kind_of_bias = Unicode.normalize(p.kind_of_bias; casefold=true)
+    TCV = get_cvtype_from_parameters(p)
+    smearing = StoutSmearing(U, p.numsmears_for_cv, p.rhostout_for_cv)
+    is_static = dummy ? true : (inum==0 ? false : p.is_static[inum])
+    sstr = (is_static || kind_of_bias == "parametric") ? "static" : "dynamic"
     @level1("|  Type: $(sstr) $(kind_of_bias)")
 
     if kind_of_bias ∈ ["metad", "metadynamics"]
@@ -74,11 +75,17 @@ function Bias(p::ParameterSet, U; mpi_multi_sim=false, instance=1, dummy=false)
     if !(bias isa Parametric)
         is_opes = bias isa OPES
         kinds_of_weights = is_opes ? ["opes"] : p.kinds_of_weights
+        inum_str = lpad(inum, 3, "0")
         ext = is_opes ? "opes" : "metad"
-        biasfile = mpi_amroot() ? joinpath(p.bias_dir, "stream_$(inum).$(ext)") : ""
-        datafile = joinpath(p.measure_dir, "bias_data_$inum.txt")
+        biasfile = if mpi_amroot()
+            dummy ? "" : joinpath(p.bias_dir, "stream_$(inum_str).$(ext)")
+        else
+            ""
+        end
+        _datafile = joinpath(p.measure_dir, "bias_data_$(inum_str).txt")
+        datafile = StaticString(_datafile)
         # FIXME: For some reason this errors with MPI on the UNI's cluster
-        open(datafile, "w") do fp
+        open(_datafile, "w") do fp
             @printf(fp, "%-11s%-25s", "itrj", "cv")
 
             for name in kinds_of_weights
@@ -89,9 +96,11 @@ function Bias(p::ParameterSet, U; mpi_multi_sim=false, instance=1, dummy=false)
         end
     elseif bias isa Parametric
         kinds_of_weights = ["branduardi"]
+        inum_str = lpad(inum, 3, "0")
         biasfile = ""
-        datafile = joinpath(p.measure_dir, "bias_data_$inum.txt")
-        open(datafile, "w") do fp
+        _datafile = joinpath(p.measure_dir, "bias_data_$(inum_str).txt")
+        datafile = StaticString(_datafile)
+        open(_datafile, "w") do fp
             @printf(fp, "%-11s%-25s%-25s", "itrj", "cv", "weight_branduardi")
             println(fp)
         end
@@ -105,12 +114,12 @@ function Bias(p::ParameterSet, U; mpi_multi_sim=false, instance=1, dummy=false)
     if write_bias_every <= p.stride
         write_bias_every = p.stride
     end
-    @level1("|  WRITE_BIAS_EVERY: $(write_bias_every)")
+    @level1("|  WRITE_BIAS_EVERY: $(dummy ? "" : write_bias_every)")
     @assert write_bias_every >= 0
 
     # write to file after construction to make sure nothing went wrong
     mpi_amroot() && write_to_file(bias, biasfile)
-    @level1("└")
+    @level1("-")
     @level1("")
     return Bias(
         TCV(),
@@ -126,6 +135,7 @@ end
 
 function Base.show(io::IO, b::Bias)
     print(io, "$(typeof(b))", "(;")
+
     for fieldname in fieldnames(typeof(b))
         if fieldname == :smearing
             print(io, " ", fieldname, " = ", typeof(getfield(b, fieldname)), ",")
@@ -133,6 +143,7 @@ function Base.show(io::IO, b::Bias)
             print(io, " ", fieldname, " = ", getfield(b, fieldname), ",")
         end
     end
+
     print(io, ")")
     return nothing
 end
@@ -141,20 +152,28 @@ end
 
 kind_of_cv(::NoBias) = nothing
 kind_of_cv(b::Bias) = b.kind_of_cv
-update_bias!(::NoBias, args...) = nothing
-update_bias!(::Nothing, args...) = nothing
+update_bias!(::NoBias, args...; kwargs...) = nothing
+update_bias!(::Nothing, args...; kwargs...) = nothing
 write_to_file(::AbstractBias, args...) = nothing
 
 include("metadynamics.jl")
 include("opes.jl")
 include("parametric.jl")
 
-function update_bias!(b::Bias, values, itrj)
+function update_bias!(b::Bias, values, itrj, myinstance=mpi_myrank(); mpi_multi_sim=false)
     (b.is_static || length(values) == 0) && return nothing
     update!(b.bias, values, itrj)
 
     if (b.write_bias_every != 0) && (itrj % b.write_bias_every == 0)
-        mpi_amroot() && write_to_file(b.bias, b.biasfile)
+        filename = if mpi_multi_sim
+            set_ext!(b.biasfile, myinstance)
+        else
+            b.biasfile
+        end
+
+        if (mpi_multi_sim || mpi_amroot()) && isfile(filename)
+            write_to_file(b.bias, filename)
+        end
     end
     
     return nothing

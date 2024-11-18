@@ -30,7 +30,7 @@ function build_bias(filenamein::String; backend="cpu")
     # set random seed if provided, otherwise generate one
     if parameters.randomseed != 0
         seed = parameters.randomseed
-        Random.seed!(seed * (mpi_myrank() + 1))
+        Random.seed!(seed * (mpi_myrank() + 1) % UInt64)
     else
         seed = rand(UInt64)
         Random.seed!(seed)
@@ -60,11 +60,11 @@ function build_bias(filenamein::String; backend="cpu")
         updatemethod = nothing
     end
 
-    build_bias!(univ, parameters, updatemethod)
+    build_bias!(univ, parameters, updatemethod; mpi_multi_sim=multi_sim)
     return nothing
 end
 
-function build_bias!(univ, parameters, updatemethod=nothing)
+function build_bias!(univ, parameters, updatemethod; mpi_multi_sim=false)
     U = univ.U
 
     if isnothing(updatemethod)
@@ -80,7 +80,7 @@ function build_bias!(univ, parameters, updatemethod=nothing)
         measure_every=parameters.flow_measure_every,
     )
 
-    additional_string = "_$(mpi_myrank()).txt"
+    additional_string = "_$(lpad(mpi_myrank(), 3, "0")).txt"
 
     measurements = MeasurementMethods(
         U,
@@ -109,6 +109,7 @@ function build_bias!(univ, parameters, updatemethod=nothing)
         measurements,
         measurements_with_flow,
         checkpointer,
+        mpi_multi_sim,
     )
     return nothing
 end
@@ -121,6 +122,7 @@ function metabuild!(
     measurements,
     measurements_with_flow,
     checkpointer,
+    mpi_multi_sim,
 )
     U = univ.U
     fermion_action = univ.fermion_action
@@ -142,6 +144,7 @@ function metabuild!(
                     bias=NoBias(),
                     metro_test=itrj>10, # So we dont get stuck at the beginning
                     therm=true,
+                    mpi_multi_sim=mpi_multi_sim,
                 )
             end
 
@@ -167,6 +170,7 @@ function metabuild!(
                     fermion_action=fermion_action,
                     bias=bias,
                     metro_test=true,
+                    mpi_multi_sim=mpi_multi_sim,
                 )
                 numaccepts += accepted
             end
@@ -176,14 +180,20 @@ function metabuild!(
             CVs = mpi_allgather(U.CV::Float64, comm)
             accepteds = mpi_allgather(accepted::Bool, comm)
             accepted_CVs = CVs[findall(accepteds)] # update only on those CVs that were accepted
-            update_bias!(bias, accepted_CVs, itrj)
+
+            if !is_distributed(U) || mpi_amroot()
+                update_bias!(bias, accepted_CVs, itrj; mpi_multi_sim=mpi_multi_sim)
+            end
+
             acceptances = mpi_allgather(numaccepts::Float64, comm) # XXX: should use MPI.gather?
             print_acceptance_rates(acceptances, itrj)
 
             create_checkpoint(checkpointer, univ, updatemethod, nothing, itrj)
 
-            calc_measurements(measurements, U, itrj)
-            calc_measurements_flowed(measurements_with_flow, gflow, U, itrj)
+            calc_measurements(measurements, U, itrj; mpi_multi_sim=mpi_multi_sim)
+            calc_measurements_flowed(
+                measurements_with_flow, gflow, U, itrj; mpi_multi_sim=mpi_multi_sim
+            )
             calc_weights(bias, U.CV, itrj)
         end
     end

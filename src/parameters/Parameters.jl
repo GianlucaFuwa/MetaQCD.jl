@@ -259,7 +259,8 @@ function check_parameters(p::ParameterSet)
     end
 
     if lower_case(p.fermion_action) ∉ [
-        "none", "wilson", "staggered", "staggered-h1234", "staggered-h1324"
+        "none", "wilson", "staggered",
+        "staggered-h1234", "staggered-h1324", "staggered-h1342"
     ]
         fa = p.fermion_action
         throw(AssertionError("""
@@ -270,8 +271,11 @@ function check_parameters(p::ParameterSet)
                 Staggered
                 Staggered-H1234
                 Staggered-H1324
+                Staggered-H1342
               """))
-    else
+    end
+
+    if lower_case(p.fermion_action) != "none"
         @assert lower_case(p.update_method) == "hmc" "Dynamical fermions only with HMC"
     end
 

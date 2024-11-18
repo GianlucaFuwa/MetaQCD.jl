@@ -27,7 +27,7 @@ the same format.
 struct MetaMeasurements # TODO: overload Base.show and do some @level1 printing
     measurement_dict::Dict{String,Dict{String,Vector{Float64}}}
     observables::Vector{Symbol}
-    ensemble::String
+    ensemblename::String
     function MetaMeasurements(ensemblename::String; fullpath=false)
         dir = if fullpath
             ensemblename
@@ -99,11 +99,18 @@ end
 Base.length(m::MetaMeasurements, observable) = Int(getproperty(m, observable)["itrj"][end])
 
 """
-    MetaBias(ensemblename::String; which = nothing, stream::Int = 1, fullpath::Bool = false)
+    MetaBias(
+        ; ensemblename::String="",
+        filname = nothing,
+        which = nothing,
+        stream::Int = 0,
+        fullpath::Bool = false
+    )
 
 Create a `MetaBias` object using the bias from stream `stream` in the directory `ensemblename`.
+or directly from the file `filename`.
 This serves as a functor returning the bias value at an input cv. \\
-The constructor by default only searches for the directory in the ./metapotentials folder,
+The constructor by default only searches for the directory in the ./biaspotentials folder,
 but if you want any directory on your machine to be used, specify `fullpath = true`.
 Make sure the directory only contains bias files produced by MetaQCD.jl or in
 the same format. If the file extension is not .metad or .opes then you will need to
@@ -112,12 +119,20 @@ specify `which` as either `:metad` or `:opes`.
 struct MetaBias{F}
     bias::F
     ensemblename::String
-    function MetaBias(ensemblename::String; which=nothing, stream=1, fullpath=false)
-        dir = if fullpath
+    function MetaBias(
+        ; filename=nothing, ensemblename::String="", which=nothing, stream=0, fullpath=false
+    )
+        from_ensemble = ensemblename != ""
+        from_file = filename isa String
+        @assert from_file ⊻ from_ensemble """
+        One and only one of the filename or the ensemblename of the bias potential has to \
+        be given
+        """
+        dir = if fullpath && from_ensemble
             ensemblename
-        else
+        elseif from_ensemble
             try
-                pkgdir(Viz) * "/ensembles/$(ensemblename)/metapotentials/"
+                pkgdir(Viz) * "/ensembles/$(ensemblename)/biaspotentials/"
             catch
                 error(
                 """
@@ -126,17 +141,24 @@ struct MetaBias{F}
                     the keyword-argument `fullpath=true`, has to be enabled
                 """)
             end
+        else
+            ""
         end
 
-        @assert isdir(dir) "Directory \"$(dir)\" doesn't exist."
-        filenames = readdir(dir)
-        streams = [occursin("stream_$(stream)", name) for name in filenames]
-        @assert(
-            sum(streams) == 1,
-            "There has to be exactly 1 file pertaining to stream $(stream) in the directory."
-        )
-        file = dir * filenames[findfirst(x -> x == true, streams)]
-        ext = splitext(file)[end]
+        file, ext = if from_ensemble
+            @assert isdir(dir) "Directory \"$(dir)\" doesn't exist."
+            filenames = readdir(dir)
+            streams = [occursin("stream_$(stream)", name) for name in filenames]
+            @assert(
+                sum(streams) == 1,
+                "There has to be exactly 1 file pertaining to stream $(stream) in the directory."
+            )
+            _file = dir * filenames[findfirst(x -> x == true, streams)]
+            _ext = splitext(_file)[end]
+            _file, _ext
+        else
+            filename, splitext(filename)[end]
+        end
 
         if ext == ".metad" || which == :metad
             data = readdlm(file; skipstart=1)
@@ -169,21 +191,17 @@ end
 (m::MetaBias{F})(cv::Float64) where {F} = m.bias(cv)
 
 function Base.show(io::IO, m::MetaMeasurements)
-    print(io, "MetaMeasurements(")
-    print(io, "\"$(m.ensemble)\"")
-    print(io, ")")
+    print(io, "MetaMeasurements(ensemble: \"$(m.ensemblename)\")")
     return nothing
 end
 
 function Base.show(io::IO, m::MetaBias)
-    print(io, "MetaBias(")
-    print(io, typeof(m.bias))
-    print(io, ")")
+    print(io, "MetaBias{$(typeof(m.bias))}(ensemble: \"$(m.ensemblename)\")")
     return nothing
 end
 
 function Base.getproperty(m::MetaMeasurements, s::Symbol)
-    s == :ensemble && return getfield(m, :ensemble)
+    s == :ensemblename && return getfield(m, :ensemblename)
     s == :measurement_dict && return getfield(m, :measurement_dict)
     s == :observables && return getfield(m, :observables)
     valid_names = Symbol.(keys(m.measurement_dict))

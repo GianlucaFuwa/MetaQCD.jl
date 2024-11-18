@@ -9,7 +9,7 @@ using ..Utils
 
 import ..BiasModule: NoBias, calc_weights, recalc_CV!, update_bias!
 import ..DiracOperators: QuenchedFermionAction, fermaction_from_str
-import ..Fields: calc_gauge_action, normalize!
+import ..Fields: calc_gauge_action, is_distributed, normalize!
 import ..Measurements: MYEXT_str
 import ..Measurements: MeasurementMethods, calc_measurements, calc_measurements_flowed
 import ..Parameters: ParameterSet, construct_params_from_toml
@@ -35,7 +35,7 @@ function print_total_time(sec::AbstractFloat)
     y, minutes = divrem(x, 60)
     days, hours = divrem(y, 24)
     @level1(
-        "└\nTotal elapsed time:\t$days days $hours hours $minutes minutes $seconds seconds"
+        "--Total elapsed time:\t$days days $hours hours $minutes minutes $seconds seconds"
     )
 end
 

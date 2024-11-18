@@ -50,7 +50,7 @@ measure_every = 1
 
 ["Measurement Settings".measurements.Topological_charge]
 measure_every = 1
-kinds_of_topological_charge = ["plaquette", "clover"]
+type = ["plaquette", "clover"]
 # ["Measurement Settings".measurements.Eigenvalues]
 # measure_every = 10
 # dirac_type = "staggered"
@@ -81,7 +81,7 @@ flow_measure_every = 7
     #
     ["Gradient Flow Settings".measurements_with_flow.Topological_charge]
     measure_every = 1
-    kinds_of_topological_charge = ["plaquette", "clover"]
+    type = ["plaquette", "clover"]
     # ["Gradient Flow Settings".measurements_with_flow.Eigenvalues]
     # measure_every = 10
     # dirac_type = "staggered"

@@ -229,36 +229,6 @@ end
 @inline staggered_ϵμν(::Val{μ}, ::Val{ν}, site) where {μ,ν} =
     ifelse(iseven(site[μ] + site[ν]), 1, -1)
 
-@inline function staggered_ημν(::Val{1}, ::Val{2}, site)
-    return ifelse(iseven(site[2]), 1, -1)
-end
-@inline staggered_ημν(::Val{2}, ::Val{1}, site) = staggered_ημν(Val(1), Val(2), site)
-
-@inline function staggered_ημν(::Val{1}, ::Val{3}, site)
-    return ifelse(iseven(site[2] + site[3]), 1, -1)
-end
-@inline staggered_ημν(::Val{3}, ::Val{1}, site) = staggered_ημν(Val(1), Val(3), site)
-
-@inline function staggered_ημν(::Val{1}, ::Val{4}, site)
-    return ifelse(iseven(site[2] + site[3] + site[4]), 1, -1)
-end
-@inline staggered_ημν(::Val{4}, ::Val{1}, site) = staggered_ημν(Val(1), Val(4), site)
-
-@inline function staggered_ημν(::Val{2}, ::Val{3}, site)
-    return ifelse(iseven(site[2]), 1, -1)
-end
-@inline staggered_ημν(::Val{3}, ::Val{2}, site) = staggered_ημν(Val(2), Val(3), site)
-
-@inline function staggered_ημν(::Val{2}, ::Val{4}, site)
-    return ifelse(iseven(site[3] + site[4]), 1, -1)
-end
-@inline staggered_ημν(::Val{4}, ::Val{2}, site) = staggered_ημν(Val(2), Val(4), site)
-
-@inline function staggered_ημν(::Val{3}, ::Val{4}, site)
-    return ifelse(iseven(site[4]), 1, -1)
-end
-@inline staggered_ημν(::Val{4}, ::Val{3}, site) = staggered_ημν(Val(3), Val(4), site)
-
 @inline function ξ5(::Type{T}) where {T}
     return @SArray [
         Complex{T}(-1, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0)

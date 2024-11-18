@@ -5,8 +5,9 @@
 Create a free Hölbling mass split Staggered Dirac Operator (arXiv:1009.5362) with mass
 `mass`.
 The type-parameter `MT` determines the kind of operator that is used:
-- `MT = 1`: M12 + M34
-- `MT = 2`: M13 + M24
+- `MT = 1234`: M12 + M34
+- `MT = 1324`: M13 + M24
+- `MT = 1342`: M13 + M42
 
 `bc_str` can either be `"periodic"` or `"antiperiodic"` and specifies the boundary
 condition in the time direction.
@@ -34,7 +35,7 @@ struct StaggeredHoelblingDiracOperator{MT,B,T,TF,TG,BC} <: AbstractDiracOperator
     function StaggeredHoelblingDiracOperator{MT}(
         f::AbstractField{B,T}, mass; bc_str="antiperiodic", c1=1.0, c2=1.0, kwargs...
     ) where {MT,B,T}
-        @assert MT ∈ (1, 2) "Only 2 Mass Term modes supported so far"
+        @assert MT ∈ (1234, 1324, 1342) "Mass term $(MT) not supported"
         U = nothing
         temp = Spinorfield(f; staggered=true)
         TG = Nothing
@@ -53,10 +54,12 @@ struct StaggeredHoelblingDiracOperator{MT,B,T,TF,TG,BC} <: AbstractDiracOperator
 end
 
 @inline function get_mass_term(::Val{MT}) where {MT}
-    return if MT == 1
+    return if MT == 1234
         (Val(1), Val(2), Val(3), Val(4))
-    elseif MT == 2
+    elseif MT == 1324
         (Val(1), Val(3), Val(2), Val(4))
+    elseif MT == 1342
+        (Val(1), Val(3), Val(4), Val(2))
     end
 end
 
@@ -254,7 +257,6 @@ function staggered_hoelbling_kernel(U, ϕ, site, mass, bc, term, ::Type{T}, dagg
 end
 
 function hoelbling_mass(::Val{μ}, ::Val{ν}, U, ϕ, site, bc, ::Type{T}) where {μ,ν,T}
-    # XXX:Assuming μ < ν
     Nμ = dims(U)[μ]
     Nν = dims(U)[ν]
     siteμ⁺ = move(site, μ, 1, Nμ)
@@ -295,3 +297,63 @@ function hoelbling_mass(::Val{μ}, ::Val{ν}, U, ϕ, site, bc, ::Type{T}) where 
     Mμν += cmvmul(tmp, tmpϕ)
     return im * T(1/4 * staggered_ημν(Val(μ), Val(ν), site)) * Mμν # The extra factor 1/2 is contained in the kernel function
 end
+
+@generated function staggered_ημν(
+    ::Val{μ}, ::Val{ν}, site, ::Val{swap}=Val(false)
+) where {μ,ν,swap}
+    fac1 = (μ < ν) ? 1 : -1
+    fac2 = swap ? -1 : 1
+    fac = fac1 * fac2
+
+    q_η = if (μ==1 && ν==2) || (μ==2 && ν==1)
+        :(return ifelse(iseven(site[2]), 1, -1))
+    elseif (μ==1 && ν==3) || (μ==3 && ν==1)
+        :(return ifelse(iseven(site[2] + site[3]), 1, -1))
+    elseif (μ==1 && ν==4) || (μ==4 && ν==1)
+        :(return ifelse(iseven(site[2] + site[3] + site[4]), 1, -1))
+    elseif (μ==2 && ν==3) || (μ==3 && ν==2)
+        :(return ifelse(iseven(site[3]), 1, -1))
+    elseif (μ==2 && ν==4) || (μ==4 && ν==2)
+        :(return ifelse(iseven(site[3] + site[4]), 1, -1))
+    elseif (μ==3 && ν==4) || (μ==4 && ν==3)
+        :(return ifelse(iseven(site[4]), 1, -1))
+    end
+
+    q = quote
+        $(Expr(:meta, :inline))
+        η = $q_η
+        return $fac * η
+    end
+
+    return q
+end
+
+# @inline function staggered_ημν(::Val{1}, ::Val{2}, site)
+#     return ifelse(iseven(site[2]), 1, -1)
+# end
+# @inline staggered_ημν(::Val{2}, ::Val{1}, site) = staggered_ημν(Val(1), Val(2), site)
+#
+# @inline function staggered_ημν(::Val{1}, ::Val{3}, site)
+#     return ifelse(iseven(site[2] + site[3]), 1, -1)
+# end
+# @inline staggered_ημν(::Val{3}, ::Val{1}, site) = -staggered_ημν(Val(1), Val(3), site)
+#
+# @inline function staggered_ημν(::Val{1}, ::Val{4}, site)
+#     return ifelse(iseven(site[2] + site[3] + site[4]), 1, -1)
+# end
+# @inline staggered_ημν(::Val{4}, ::Val{1}, site) = -staggered_ημν(Val(1), Val(4), site)
+#
+# @inline function staggered_ημν(::Val{2}, ::Val{3}, site)
+#     return ifelse(iseven(site[2]), 1, -1)
+# end
+# @inline staggered_ημν(::Val{3}, ::Val{2}, site) = -staggered_ημν(Val(2), Val(3), site)
+#
+# @inline function staggered_ημν(::Val{2}, ::Val{4}, site)
+#     return ifelse(iseven(site[3] + site[4]), 1, -1)
+# end
+# @inline staggered_ημν(::Val{4}, ::Val{2}, site) = -staggered_ημν(Val(2), Val(4), site)
+#
+# @inline function staggered_ημν(::Val{3}, ::Val{4}, site)
+#     return ifelse(iseven(site[4]), 1, -1)
+# end
+# @inline staggered_ημν(::Val{4}, ::Val{3}, site) = staggered_ημν(Val(3), Val(4), site)

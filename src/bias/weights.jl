@@ -2,10 +2,13 @@
 Weighting schemes based on the ones compared in \\
 https://pubs.acs.org/doi/pdf/10.1021/acs.jctc.9b00867
 """
-calc_weights(::Nothing, args...) = nothing
-calc_weights(::NoBias, args...) = nothing
+calc_weights(::Nothing, args...; kwargs...) = nothing
+calc_weights(::NoBias, args...; kwargs...) = nothing
 
-calc_weights(b::Bias, cv, itrj) = calc_weights(b.datafile, b, cv, itrj)
+function calc_weights(b::Bias, cv, itrj, myinstance=mpi_myrank(); mpi_multi_sim=false)
+    calc_weights(b.datafile, b, cv, itrj)
+    return nothing
+end
 
 function calc_weights(b::Vector{<:Bias}, cv, itrj)
     for i in eachindex(b)
@@ -23,14 +26,23 @@ function calc_weights(filenames, b::Vector{<:Bias}, cv, itrj)
     return nothing
 end
 
-function calc_weights(filename, b::Bias{TCV,TS,TB}, cv, itrj) where {TCV,TS,TB}
-    if isnothing(filename)
+function calc_weights(
+    filename, b::Bias{TCV,TS,TB}, cv, itrj, myinstance=mpi_myrank();
+    mpi_multi_sim=false
+) where {TCV,TS,TB}
+    if isnothing(filename) || !isfile(filename)
         for method in b.kinds_of_weights
             w = calc_weight(b.bias, cv, method)
             @level1("$itrj\t$cv\t$w # cv weight_$method")
         end
     else
-        fp = fopen(filename, "a")
+        _filename = if mpi_multi_sim
+            set_ext!(filename, myinstance)
+        else
+            filename
+        end
+
+        fp = fopen(_filename, "a")
         printf(fp, "%-11i", itrj)
         printf(fp, "%+-25.15E", cv)
 

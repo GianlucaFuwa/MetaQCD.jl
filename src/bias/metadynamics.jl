@@ -179,7 +179,7 @@ function ∂V∂Q(m::Metadynamics, cv)
 end
 
 function clear!(m::Metadynamics)
-    @threads for i in eachindex(m)
+    @batch for i in eachindex(m)
         m[i] = 0.0
     end
 

@@ -42,7 +42,7 @@ function test_fderivative(
     end
 
     is_staggered = contains(dirac, "staggered")
-    is_hoelbling = dirac ∈ ("staggered-h1234", "staggered-h1324")
+    is_hoelbling = dirac ∈ ("staggered-h1234", "staggered-h1324", "staggered-h1342")
 
     ψ = if eoprec
         even_odd(Spinorfield(U; staggered=is_staggered))

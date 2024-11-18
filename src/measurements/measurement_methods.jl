@@ -11,7 +11,7 @@ end
 function MeasurementMethods(
     U, measurement_dir, measurement_methods::Vector{Dict}; flow=false, additional_string=""
 )
-    @level1("┌ Preparing $(ifelse(flow, "flowed", "")) Measurements...")
+    @level1("- Preparing $(ifelse(flow, "flowed", "")) Measurements...")
     num_measurements = length(measurement_methods)
     # measurement_parameters_set = Vector{MeasurementParameters}(undef, num_measurements)
     intervals = zeros(Int64, num_measurements)
@@ -23,17 +23,19 @@ function MeasurementMethods(
         name = measurement_parameters.methodname
         @level1("|  OBSERVABLE $i: $(measurement_parameters.methodname)")
         intervals[i] = measurement_parameters.measure_every
-        @level1("|    every $(intervals[i]) updates")
+        @level1("|    interval: $(intervals[i])")
         filename = joinpath(measurement_dir, name * add_string)
         # measurement_parameters_set[i] = deepcopy(measurement_parameters)
         prepare_measurement(U, measurement_parameters, filename, flow)
     end
 
-    @level1("└\n")
+    @level1("-\n")
     return MeasurementMethods(measurements, intervals, num_measurements)
 end
 
-function calc_measurements(m::Vector{MeasurementMethods}, U, itrj, measure_on_all=false)
+function calc_measurements(
+    m::Vector{MeasurementMethods}, U, itrj, measure_on_all=false; kwargs...
+)
     if measure_on_all # if we measure on all streams in PT-MetaD
         for i in eachindex(m)
             calc_measurements(m[i], U[i], itrj, i-1)
@@ -45,7 +47,9 @@ function calc_measurements(m::Vector{MeasurementMethods}, U, itrj, measure_on_al
     return nothing
 end
 
-function calc_measurements(m::MeasurementMethods, U, itrj, myinstance=mpi_myrank())
+function calc_measurements(
+    m::MeasurementMethods, U, itrj, myinstance=mpi_myrank(); mpi_multi_sim=false
+)
     # check if the current iteration has any measurements to be made to avoid work
     check_for_measurements(itrj, m.intervals) || return nothing
 
@@ -53,7 +57,7 @@ function calc_measurements(m::MeasurementMethods, U, itrj, myinstance=mpi_myrank
         interval = m.intervals[i]
 
         if itrj%interval == 0
-            measure(m[i], U, myinstance, itrj)
+            measure(m[i], U, myinstance, itrj, nothing; mpi_multi_sim=mpi_multi_sim)
         end
     end
 
@@ -61,7 +65,7 @@ function calc_measurements(m::MeasurementMethods, U, itrj, myinstance=mpi_myrank
 end
 
 function calc_measurements_flowed(
-    m::Vector{MeasurementMethods}, gflow, U, itrj, measure_on_all=false
+    m::Vector{MeasurementMethods}, gflow, U, itrj, measure_on_all=false; kwargs...
 )
     if measure_on_all # if we measure on all streams in PT-MetaD
         for i in eachindex(m)
@@ -75,7 +79,8 @@ function calc_measurements_flowed(
 end
 
 function calc_measurements_flowed(
-    m::MeasurementMethods, gradient_flow, U, itrj, myinstance=mpi_myrank()
+    m::MeasurementMethods, gradient_flow, U, itrj, myinstance=mpi_myrank();
+    mpi_multi_sim=false
 )
     # check if the current iteration has any measurements to be made to avoid work
     check_for_measurements(itrj, m.intervals) || return nothing
@@ -92,7 +97,10 @@ function calc_measurements_flowed(
                 interval = m.intervals[i]
 
                 if itrj%interval == 0
-                    measure(m.measurements[i], Uflow, myinstance, itrj, (iflow, τ))
+                    measure(
+                        m.measurements[i], Uflow, myinstance, itrj, (iflow, τ);
+                        mpi_multi_sim=mpi_multi_sim
+                    )
                 end
             end
         end

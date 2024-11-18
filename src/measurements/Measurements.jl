@@ -32,22 +32,15 @@ import ..Smearing: StoutSmearing, calc_smearedU!, flow!
 
 abstract type AbstractMeasurement end
 
-const MYEXT_str = "_$(mpi_myrank()).txt"
+const MYEXT_str = "_$(lpad(mpi_myrank(), 3, "0")).txt"
 const MYEXT = StaticString(MYEXT_str)
-
-@inline set_ext!(filename::String, ::Integer) = filename
-
-@inline function set_ext!(filename::StaticString{N}, myinstance::Integer) where {N}
-    filename[end-5] = digit_to_char(myinstance)
-    return filename
-end
 
 @inline function digit_to_char(x::Integer)
     @assert 10 > x ≥ 0
     return Char('0' + x)
 end
 
-function measure(::M, args...) where {M<:AbstractMeasurement}
+function measure(::M, args...; kwargs...) where {M<:AbstractMeasurement}
     return error("Measurement of type $M is not supported")
 end
 

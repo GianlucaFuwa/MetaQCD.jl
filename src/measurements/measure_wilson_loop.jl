@@ -27,7 +27,7 @@ struct WilsonLoopMeasurement{T} <: AbstractMeasurement
                 end
             end
 
-            if U.topology.numprocs==1 || mpi_amroot()
+            if !is_distributed(U) || mpi_amroot()
                 open(filename, "w") do fp
                     println(fp, header)
                 end
@@ -52,7 +52,12 @@ function WilsonLoopMeasurement(U, params::WilsonLoopParameters, filename, flow=f
 end
 
 function measure(
-    m::WilsonLoopMeasurement{T}, U, myinstance, itrj, flow=nothing
+    m::WilsonLoopMeasurement{T},
+    U,
+    myinstance=mpi_myrank(),
+    itrj=0,
+    flow=nothing;
+    mpi_multi_sim=false,
 ) where {T}
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
@@ -63,9 +68,14 @@ function measure(
         end
     end
 
-    if U.topology.numprocs==1 || mpi_amroot()
+    if !is_distributed(U) || mpi_amroot()
         if T !== Nothing
-            filename = set_ext!(m.filename, myinstance)
+            filename = if mpi_multi_sim
+                set_ext!(m.filename, myinstance)
+            else
+                m.filename
+            end
+
             fp = fopen(filename, "a")
             printf(fp, "%-11i", itrj)
 

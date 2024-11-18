@@ -43,12 +43,12 @@ struct StoutSmearing{TG,TT,TC} <: AbstractSmearing
 end
 
 function Base.show(io::IO, ::MIME"text/plain", stout::StoutSmearing)
-    print(io, "StoutSmearing(; numlayers = $(stout.numlayers), ρ = $(stout.ρ))")
+    print(io, "StoutSmearing(; numlayers = $(stout.numlayers), rho = $(stout.ρ))")
     return nothing
 end
 
 function Base.show(io::IO, stout::StoutSmearing)
-    print(io, "StoutSmearing(; numlayers = $(stout.numlayers), ρ = $(stout.ρ))")
+    print(io, "StoutSmearing(; numlayers = $(stout.numlayers), rho = $(stout.ρ))")
     return nothing
 end
 

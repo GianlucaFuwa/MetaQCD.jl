@@ -14,7 +14,7 @@ struct PlaquetteMeasurement{T} <: AbstractMeasurement
                 header *= @sprintf("%-11s%-25s", "itrj", "Re(plaq)")
             end
 
-            if U.topology.numprocs==1 || mpi_amroot()
+            if !is_distributed(U) || mpi_amroot()
                 open(filename, "w") do fp
                     println(fp, header)
                 end
@@ -34,12 +34,17 @@ function PlaquetteMeasurement(U, ::PlaquetteParameters, filename, flow=false)
 end
 
 function measure(
-    m::PlaquetteMeasurement{T}, U, myinstance=mpi_myrank(), itrj=0, flow=nothing
+    m::PlaquetteMeasurement{T},
+    U,
+    myinstance=mpi_myrank(),
+    itrj=0,
+    flow=nothing;
+    mpi_multi_sim=false,
 ) where {T}
     plaq = plaquette_trace_sum(U) * m.factor
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
-    if (is_distributed(U) && mpi_amroot()) || !is_distributed(U)
+    if !is_distributed(U) || mpi_amroot()
         if !isnothing(flow)
             @level1("$itrj\t$plaq # plaq_flow_$(τ)")
         else
@@ -47,7 +52,12 @@ function measure(
         end
 
         if T !== Nothing
-            filename = set_ext!(m.filename, myinstance)
+            filename = if mpi_multi_sim
+                set_ext!(m.filename, myinstance)
+            else
+                m.filename
+            end
+
             fp = fopen(filename, "a")
             printf(fp, "%-11i", itrj)
 

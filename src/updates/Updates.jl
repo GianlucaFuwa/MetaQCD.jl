@@ -7,6 +7,7 @@ using StaticArrays
 using Polyester: @batch
 using Printf
 using Random: rand, default_rng
+using StaticTools: StaticString
 using Unicode
 using ..MetaIO
 using ..RHMCParameters
@@ -21,7 +22,7 @@ import ..Fields: AbstractGaugeAction, Gaugefield, Colorfield
 import ..Fields: WilsonGaugeAction, add!, calc_gauge_action, calc_kinetic_energy
 import ..Fields: allindices, clear!, dims, normalize!, fieldstrength_eachsite!, float_type
 import ..Fields: check_dims, even_odd, gaussian_TA!, mul!, staple, staple_eachsite!
-import ..Fields: @groupreduce, @latmap, @latsum, gauge_action, update_halo!
+import ..Fields: @groupreduce, @latmap, @latsum, gauge_action, is_distributed, update_halo!
 import ..Fields: AbstractField, Plaquette, Clover, Spinorfield, Tensorfield
 import ..Parameters: ParameterSet
 import ..Smearing: AbstractSmearing, NoSmearing, StoutSmearing
@@ -45,7 +46,7 @@ include("gpu_kernels/overrelaxation.jl")
 include("gpu_kernels/parity.jl")
 include("gpu_kernels/tempering.jl")
 
-function Updatemethod(parameters::ParameterSet, U)
+function Updatemethod(parameters::ParameterSet, U; instance=mpi_myrank())
     updatemethod = Updatemethod(
         U,
         parameters.update_method,
@@ -71,6 +72,7 @@ function Updatemethod(parameters::ParameterSet, U)
         numheatbath=parameters.numheatbath,
         or_algorithm=parameters.or_algorithm,
         numorelax=parameters.numorelax,
+        instance=instance,
     )
     return updatemethod
 end
@@ -100,6 +102,7 @@ function Updatemethod(
     numheatbath=1,
     or_algorithm="subgroups",
     numorelax=4,
+    instance=mpi_myrank(),
 )
     lower_case(str) = Unicode.normalize(str; casefold=true)
     if lower_case(update_method) == "hmc"
@@ -118,6 +121,7 @@ function Updatemethod(
             heavy_flavours=length(Nf) - 1,
             bias_enabled=kind_of_bias != "none",
             logdir=logdir,
+            instance=instance,
         )
     elseif lower_case(update_method) == "metropolis"
         updatemethod = Metropolis(

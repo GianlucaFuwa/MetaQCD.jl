@@ -1,11 +1,11 @@
 ["Physical Settings"]
-L = [16, 16, 16, 16]
+L = [4, 4, 4, 4]
 beta = 1.25
 gauge_action = "dbw2"
-numtherm = 20
+numtherm = 10
 numsteps = 1
 initial = "cold"
-update_method = "heatbath"
+update_method = "hmc"
 numheatbath = 1
 numorelax = 4
 eo = true
@@ -17,12 +17,12 @@ kind_of_bias = "metad"
 kind_of_cv = "clover"
 numsmears_for_cv = 4
 rhostout_for_cv = 0.12
-is_static = true
+is_static = [false, false]
 symmetric = true
 stride = 1
 cvlims = [-5, 5]
 biasfactor = "Inf"
-kinds_of_weights = ["tiwari", "branduardi", "balanced_exp"]
+weight_type = ["tiwari", "branduardi", "balanced_exp"]
 # metadynamics specific parameters
 bin_width = 0.02
 meta_weight = 0.01
@@ -32,7 +32,7 @@ barrier = 40
 sigma0 = 0.1
 # tempering specific parameters
 tempering_enabled = true
-numinstances = 2
+numinstances = 3
 swap_every = 1
 non_metadynamics_updates = 1
 measure_on_all = true
@@ -43,18 +43,18 @@ hmc_steps = 5
 hmc_integrator = "OMF4"
 
 ["System Settings"]               
-# ensemble_dir = ""
+ensemble_dir = "/Users/gianl/data/MetaQCD/ptmetad"
 randomseed = 0
 verboselevel = 2
 overwrite = true
 
 ["Measurement Settings".measurements.Energy_density]
 measure_every = 1
-kinds_of_energy_density = ["plaquette", "clover", "improved"]
+type = ["plaquette", "clover", "improved"]
 
 ["Measurement Settings".measurements.Gauge_action]
 measure_every = 1
-kinds_of_gauge_action = ["wilson", "symanzik_tree", "iwasaki", "dbw2"]
+type = ["wilson", "symanzik_tree", "iwasaki", "dbw2"]
 
 ["Measurement Settings".measurements.Plaquette]
 measure_every = 1
@@ -64,7 +64,7 @@ measure_every = 1
 
 ["Measurement Settings".measurements.Topological_charge]
 measure_every = 1
-kinds_of_topological_charge = ["plaquette", "clover", "improved"]
+type = ["plaquette", "clover", "improved"]
 
 ["Measurement Settings".measurements.Wilson_loop]
 measure_every = 1
@@ -80,7 +80,7 @@ flow_measure_every = 7
 
     ["Gradient Flow Settings".measurements_with_flow.Topological_charge]
     measure_every = 10
-    kinds_of_topological_charge = ["clover"]
+    type = ["clover"]
 
     ["Gradient Flow Settings".measurements_with_flow.Wilson_loop]
     measure_every = 10
