@@ -48,7 +48,7 @@ or
 pkg> instantiate
 ```
 
-If you want to use a GPU (not yet fully ready), make sure you not only have CUDA.jl or AMDGPU.jl installed, but also a fairly recent version of the CUDA Toolkit or ROCm.
+If you want to use a GPU (still experimental), make sure you not only have CUDA.jl or AMDGPU.jl installed, but also a fairly recent version of the CUDA Toolkit or ROCm.
 
 ## Quick Start:
 1. Set parameters using one of the templates in template folder

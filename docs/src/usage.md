@@ -5,7 +5,7 @@ If you just want to perform a simulation with some parameters, then
 1. Set parameters using one of the templates in template folder
 2. From shell, do:
 ```
-julia --threads=auto metaqcd_sim.jl parameters.toml
+julia --threads=auto metaqcd.jl -mode=sim parameters.toml
 ```
 
 or
@@ -22,9 +22,9 @@ using MetaQCD
 ``` julia
 run_sim("parameters.toml")
 ```
-To use another backend, just append its name to the command:
+To use another backend (still experimental), just append its name to the command:
 ```
-julia --threads=auto metaqcd_sim.jl parameters.toml cuda
+julia --threads=auto metaqcd.jl -mode=sim -backend=cuda parameters.toml
 ```
 
 Logs, measurements and the lot are all written to files in the `ensembles` directory under
@@ -35,7 +35,7 @@ time the simulation was started at.
 1. Set parameters using the "parameters_build.toml" example in template folder
 2. From shell, do:
 ```
-julia --threads=auto metaqcd_build.jl parameters.toml
+julia --threads=auto metaqcd.jl -mode=build parameters.toml
 ```
 
 or

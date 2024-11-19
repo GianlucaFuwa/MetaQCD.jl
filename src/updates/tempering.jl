@@ -118,9 +118,9 @@ function swap_U!(a, b)
     b.CV = a_CV_tmp
 
     @batch for μsite in allindices(a)
-        a_tmp = a[site]
-        a[site] = b[site]
-        b[site] = a_tmp
+        a_tmp = a[μsite]
+        a[μsite] = b[μsite]
+        b[μsite] = a_tmp
     end
 
     return nothing
