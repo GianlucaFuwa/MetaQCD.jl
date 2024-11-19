@@ -36,6 +36,7 @@ import .DiracOperators: AbstractDiracOperator, Daggered, DdaggerD, calc_fermion_
 import .DiracOperators: StaggeredDiracOperator, StaggeredEOPreDiracOperator, even_odd
 import .DiracOperators: WilsonDiracOperator, WilsonEOPreDiracOperator, sample_pseudofermions!
 import .DiracOperators: StaggeredFermionAction, StaggeredEOPreFermionAction
+import .DiracOperators: StaggeredHoelblingDiracOperator, StaggeredHoelblingFermionAction
 import .DiracOperators: WilsonFermionAction, WilsonEOPreFermionAction, QuenchedFermionAction
 import .Fields: CPU, DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
 import .Fields: SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
@@ -71,6 +72,7 @@ export StaggeredDiracOperator, StaggeredEOPreDiracOperator
 export WilsonDiracOperator, WilsonEOPreDiracOperator, QuenchedFermionAction
 export even_odd, sample_pseudofermions!
 export StaggeredFermionAction, StaggeredEOPreFermionAction
+export StaggeredHoelblingDiracOperator, StaggeredHoelblingFermionAction
 export WilsonFermionAction, WilsonEOPreFermionAction
 export calc_fermion_action, gaussian_pseudofermions!
 export measure, top_charge

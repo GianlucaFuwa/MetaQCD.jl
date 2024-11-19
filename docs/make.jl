@@ -19,7 +19,7 @@ makedocs(
         "Creating Gaugefields" => "gaugefields.md",
         "Updating a Gaugefield" => "updates.md",
         "Dirac Operators" => "dirac.md",
-        # "Fermion Actions" => "fermion_actions.md",
+        "Fermion Actions" => "fermion_actions.md",
         "Biased Sampling Methods" => "biased_sampling.md",
         "Visualization" => "viz.md",
         "Parameters" => "parameters.md",

@@ -117,12 +117,10 @@ function swap_U!(a, b)
     b.Sg = a_Sg_tmp
     b.CV = a_CV_tmp
 
-    @batch for site in allindices(a)
-        for μ in 1:4
-            a_tmp = a[μ, site]
-            a[μ, site] = b[μ, site]
-            b[μ, site] = a_tmp
-        end
+    @batch for μsite in allindices(a)
+        a_tmp = a[site]
+        a[site] = b[site]
+        b[site] = a_tmp
     end
 
     return nothing
