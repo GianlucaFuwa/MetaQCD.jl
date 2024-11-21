@@ -59,14 +59,14 @@ end
     @inbounds ϕ[site] = @SVector randn(Complex{T}, L) # σ = 0.5
 end
 
-function LinearAlgebra.mul!(ϕ::AnySpinorfield{B,T,A,ND}, α) where {B<:GPU,T,A,ND}
-    @latmap(Sequential(), Val(1), scalar_mul_kernel!, ϕ, T(α))
+function LinearAlgebra.mul!(ψ::TF, ϕ::TF, α) where {T,TF<:AnySpinorfield{<:GPU,T}}
+    @latmap(Sequential(), Val(1), scalar_mul_kernel!, ψ, ϕ, T(α))
     return nothing
 end
 
-@kernel function scalar_mul_kernel!(ϕ, α)
+@kernel function scalar_mul_kernel!(ψ, ϕ, α)
     site = @index(Global, Cartesian)
-    @inbounds ϕ[site] *= α
+    @inbounds ψ[site] = α * ϕ[site]
 end
 
 function LinearAlgebra.axpy!(α, ψ::TF, ϕ::TF) where {T,TF<:AnySpinorfield{<:GPU,T}}

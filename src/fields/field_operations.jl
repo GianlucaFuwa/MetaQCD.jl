@@ -60,7 +60,7 @@ function LinearAlgebra.norm(u::AbstractField{CPU}, ::Val{2}) # avg 2-norm
     return distributed_reduce(norm2, +, u)
 end
 
-function LinearAlgebra.norm(u::AbstractField{CPU}, ::Val{Inf}) # max of 2-norms
+function LinearAlgebra.norm(u::AbstractField{CPU}, ::Val{Inf}) # FIXME: max of 2-norms, Inf misleading
     normsup = 0.0
 
     @batch reduction=(max, normsup) for site in eachindex(u)

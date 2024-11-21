@@ -6,10 +6,10 @@ numtherm = 10
 numsteps = 10
 initial = "cold"
 update_method = "HMC"
-# numinstances = 2
+numinstances = 2
 
 ["Bias Settings"]
-kind_of_bias = "opes"
+kind_of_bias = "metad"
 kind_of_cv = "clover"
 numsmears_for_cv = 4
 rhostout_for_cv = 0.12
@@ -32,7 +32,7 @@ hmc_steps = 5
 hmc_integrator = "OMF4"
 
 ["System Settings"]               
-ensemble_dir = "/Users/gianl/data/MetaQCD/build"
+# ensemble_dir = ""
 randomseed = 0
 verboselevel = 2
 overwrite = true

@@ -2,10 +2,10 @@ module MetaCUDAExt
 
 using CUDA
 using CUDA: CUDABackend, CuArray
-using MetaQCD.Fields
+import MetaQCD.Fields
 
 function __init__()
-    Fields.BACKEND["cuda"] = CUDABackend
+    Fields.BACKENDS["cuda"] = CUDABackend
     return nothing
 end
 

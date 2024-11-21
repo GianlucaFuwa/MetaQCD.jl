@@ -1,7 +1,6 @@
-function temper!(
+function temper!( # INFO: When using MPI in tempering
     U::Gaugefield,
     bias::Bias,
-    swap_accepted,
     numaccepts_temper,
     instance_state,
     myinstance,
@@ -71,7 +70,7 @@ function temper!(
     return nothing
 end
 
-function temper!(
+function temper!( # INFO: When not using MPI in tempering
     U::Vector{TG}, bias::Vector{TB}, numaccepts_temper, swap_every, itrj; recalc=false
 ) where {TG<:Gaugefield,TB<:Bias}
     itrj % swap_every != 0 && return nothing
@@ -117,10 +116,12 @@ function swap_U!(a, b)
     b.Sg = a_Sg_tmp
     b.CV = a_CV_tmp
 
-    @batch for μsite in allindices(a)
-        a_tmp = a[μsite]
-        a[μsite] = b[μsite]
-        b[μsite] = a_tmp
+    @batch for site in eachindex(a)
+        for μ in 1:4
+            a_tmp = a[μ, site]
+            a[μ, site] = b[μ, site]
+            b[μ, site] = a_tmp
+        end
     end
 
     return nothing

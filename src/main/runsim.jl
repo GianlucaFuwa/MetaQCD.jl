@@ -268,7 +268,6 @@ function metaqcd!(
     myinstance = univ.myinstance
     tempering_enabled = parameters.tempering_enabled
     numaccepts_temper = zeros(Int64, mpi_size()-1)
-    swap_accepted = zeros(Bool, mpi_size()-1)
     instance_state = collect(0:mpi_size())
     swap_every = parameters.swap_every
 
@@ -295,13 +294,13 @@ function metaqcd!(
         end
     end
 
-    @level1("-- Total elapsed time:\t$(runtime_therm) [s]\n")
+    @level1("-- Thermalization elapsed time:\t$(runtime_therm) [s]\n")
     recalc_CV!(U, bias) # need to recalc cv since it was not updated during therm
 
     mpi_barrier()
 
     @level1("- Production:")
-    _, runtime_all = @timed begin
+    _, runtime_prod = @timed begin
         numaccepts = 0.0
         for itrj in 1:(parameters.numsteps)
             @level1("|  itrj = $itrj")
@@ -333,7 +332,6 @@ function metaqcd!(
                 temper!(
                     U,
                     bias,
-                    swap_accepted,
                     numaccepts_temper,
                     instance_state,
                     myinstance,
@@ -359,7 +357,8 @@ function metaqcd!(
         end
     end
 
-    print_total_time(runtime_all)
+    @level1("- Production elapsed time:\t$(runtime_prod) [s]\n")
+    print_total_time(runtime_therm + runtime_prod)
     flush(stdout)
     close(MetaIO.__GlobalLogger[])
     isinteractive() && set_global_logger!(1) # Reset logger if run from REPL
@@ -413,11 +412,11 @@ function metaqcd_PT!(
         end
     end
 
-    @level1("-- Total elapsed time:\t$(runtime_therm) [s]\n")
+    @level1("-- Thermalization elapsed time:\t$(runtime_therm) [s]\n")
     recalc_CV!(U, bias) # need to recalc cv since it was not updated during therm
 
     @level1("- Production:")
-    _, runtime_all = @timed begin
+    _, runtime_prod = @timed begin
         numaccepts = zeros(numinstances)
         numaccepts_temper = zeros(Int64, numinstances - 1)
 
@@ -470,7 +469,8 @@ function metaqcd_PT!(
         end
     end
 
-    print_total_time(runtime_all)
+    @level1("- Production elapsed time:\t$(runtime_prod) [s]\n")
+    print_total_time(runtime_therm + runtime_prod)
     flush(stdout)
     close(MetaIO.__GlobalLogger[])
     isinteractive() && set_global_logger!(1) # Reset logger if run from REPL

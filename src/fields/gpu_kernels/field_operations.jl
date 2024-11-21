@@ -69,22 +69,45 @@ end
     end
 end
 
-function norm(u::AbstractField{B}) where {B<:GPU}
-    return @latsum(Sequential(), Val(1), Float64, norm_kenel!, u, eachindex(u))
+function LinearAlgebra.norm(u::AbstractField{B}, ::Val{2}) where {B<:GPU}
+    return @latsum(Sequential(), Val(1), Float64, norm2_kernel!, u, eachindex(u))
 end
 
-@kernel function norm_kernel!(out, @Const(U), bulk_sites)
+@kernel function norm2_kernel!(out, @Const(U), bulk_sites)
     # workgroup index, that we use to pass the reduced value to global "out"
     bi = @index(Group, Linear)
     site_raw = @index(Global, Cartesian)
     site = bulk_sites[site_raw]
 
     n = 0.0
-    @unroll for μ in (1i32):(3i32)
+    @unroll for μ in (1i32):(4i32)
         n += cnorm2(U[μ, site])
     end
 
     out_group = @groupreduce(+, n, 0.0)
+
+    ti = @index(Local)
+    if ti == 1
+        @inbounds out[bi] = out_group
+    end
+end
+
+function LinearAlgebra.norm(u::AbstractField{B}, ::Val{Inf}) where {B<:GPU}
+    return @latmax(Sequential(), Val(1), Float64, norminf_kernel!, u, eachindex(u))
+end
+
+@kernel function norminf_kernel!(out, @Const(U), bulk_sites)
+    # workgroup index, that we use to pass the reduced value to global "out"
+    bi = @index(Group, Linear)
+    site_raw = @index(Global, Cartesian)
+    site = bulk_sites[site_raw]
+
+    n = 0.0
+    @unroll for μ in (1i32):(4i32)
+        n = max(n, cnorm2(U[μ, site]))
+    end
+
+    out_group = @groupreduce(max, n, 0.0)
 
     ti = @index(Local)
     if ti == 1

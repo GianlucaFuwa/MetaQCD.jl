@@ -6,10 +6,12 @@ Base.@kwdef mutable struct PhysicalParameters
     beta::Float64 = 5.7
     NC::Int64 = 3
     gauge_action::String = "wilson"
+    numprocs_cart::NTuple{4,Int64} = (1, 1, 1, 1)
+    halo_width::Int64 = 0
     numtherm::Int64 = 10
     numsteps::Int64 = 100
     inital::String = "cold"
-    update_method::Vector{String} = ["HMC"]
+    update_method::String = "HMC"
     hb_maxit::Int64 = 10^5
     numheatbath::Int64 = 4
     metro_epsilon::Float64 = 0.1
@@ -59,6 +61,7 @@ Base.@kwdef mutable struct BiasParameters
     meta_weight::Float64 = 1e-3
     penalty_weight::Float64 = 1000.0
     # opes specific
+    explore::Bool = false
     barrier::Float64 = 0.0
     sigma0::Float64 = 0.1
     sigma_min::Float64 = 1e-6
@@ -101,6 +104,7 @@ Base.@kwdef mutable struct GradientFlowParameters
 end
 
 Base.@kwdef mutable struct SystemParameters
+    backend::String = "cpu"
     float_type::String = "float64"
     ensemble_dir::String = ""
     log_to_console::Bool = true

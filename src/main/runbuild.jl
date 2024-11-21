@@ -128,11 +128,9 @@ function metabuild!(
     fermion_action = univ.fermion_action
     bias = univ.bias
     comm = mpi_comm()
-    # This used to be in Bias itself, but I took all the IOBuffers away from structs
-    # that are needed for checkpointing
     mpi_barrier()
 
-    @level1("┌ Thermalization:")
+    @level1("- Thermalization:")
     _, runtime_therm = @timed begin
         for itrj in 1:(parameters.numtherm)
             @level1("|  itrj = $itrj")
@@ -152,13 +150,13 @@ function metabuild!(
         end
     end
 
-    @level1("└ Total elapsed time:\t$(runtime_therm) [s]\n")
+    @level1("- Thermalization elapsed time:\t$(runtime_therm) [s]\n")
     recalc_CV!(U, bias) # need to recalc cv since it was not updated during therm
 
     mpi_barrier()
 
-    @level1("┌ Production:")
-    _, runtime_all = @timed begin
+    @level1("- Production:")
+    _, runtime_prod = @timed begin
         numaccepts = 0.0
         for itrj in 1:(parameters.numsteps)
             @level1("|  itrj = $itrj")
@@ -198,7 +196,8 @@ function metabuild!(
         end
     end
 
-    print_total_time(runtime_all)
+    @level1("- Production elapsed time:\t$(runtime_prod) [s]\n")
+    print_total_time(runtime_therm + runtime_prod)
     flush(stdout)
     close(MetaIO.__GlobalLogger[])
     isinteractive() && set_global_logger!(1) # Reset logger if run from REPL

@@ -1,6 +1,6 @@
 function LinearAlgebra.mul!(
-    ψ::TF, D::WilsonDiracOperator{B,T,C,TF,TG}, ϕ::TF
-) where {B<:GPU,T,C,TF,TG}
+    ψ::TF, D::WilsonDiracOperator{B,T,C,TF,TG,BC}, ϕ::TF
+) where {B<:GPU,T,C,TF,TG,BC}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.U
     check_dims(ψ, ϕ, U)
@@ -16,8 +16,8 @@ function LinearAlgebra.mul!(
 end
 
 function LinearAlgebra.mul!(
-    ψ::TF, D::Daggered{WilsonDiracOperator{B,T,C,TF,TG}}, ϕ::TF
-) where {B<:GPU,T,C,TF,TG}
+    ψ::TF, D::Daggered{WilsonDiracOperator{B,T,C,TF,TG,BC}}, ϕ::TF
+) where {B<:GPU,T,C,TF,TG,BC}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.parent.U
     check_dims(ψ, ϕ, U)

@@ -35,7 +35,7 @@ function print_total_time(sec::AbstractFloat)
     y, minutes = divrem(x, 60)
     days, hours = divrem(y, 24)
     @level1(
-        "--Total elapsed time:\t$days days $hours hours $minutes minutes $seconds seconds"
+        ">> Total elapsed time:\t$days days $hours hours $minutes minutes $seconds seconds"
     )
 end
 

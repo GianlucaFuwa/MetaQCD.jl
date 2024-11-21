@@ -12,7 +12,7 @@ function __latmap(
     # workgroupsize (number of threads in each workgroup / thread block on the GPU)
     ndrange = local_dims(U)
     workgroupsize = ntuple(i -> min(ndrange[i], 4), Val(4)) # 4^4 = 256 threads per workgroup should be fine
-    kernel! = f!(B(), workgroupsize)
+    kernel! = f!(B(), workgroupsize, ndrange)
     # I couldn't be bothered making GPUs work with array wrappers such as AbstractField
     # (see Adapt.jl), so we extract the actual array from all AbstractFields in the args
     raw_args = get_raws(args...)
@@ -35,7 +35,7 @@ function __latmap(
     @assert iseven(NT) "NT must be even for even-odd preconditioned fermions"
     ndrange = (NX, NY, NZ, div(NT, 2))
     workgroupsize = ntuple(i -> min(ndrange[i], 4), Val(4))
-    kernel! = f!(B(), workgroupsize)
+    kernel! = f!(B(), workgroupsize, ndrange)
     raw_args = get_raws(args...)
 
     for _ in 1:COUNT
@@ -112,7 +112,7 @@ function __latsum(
     workgroupsize = ntuple(i -> min(ndrange[i], 4), Val(4))
     numblocks = cld(U.NV, prod(workgroupsize))
     out = KA.zeros(B(), OutType, numblocks)
-    kernel! = f!(B(), workgroupsize)
+    kernel! = f!(B(), workgroupsize, ndrange)
     raw_args = get_raws(args...)
 
     for _ in 1:COUNT
@@ -133,7 +133,7 @@ function __latsum(
     workgroupsize = ntuple(i -> min(ndrange[i], 4), Val(4))
     numblocks = cld(div(ϕ_eo.parent.NV, 2), prod(workgroupsize))
     out = KA.zeros(B(), OutType, numblocks)
-    kernel! = f!(B(), workgroupsize)
+    kernel! = f!(B(), workgroupsize, ndrange)
     raw_args = get_raws(args...)
 
     for _ in 1:COUNT
@@ -142,6 +142,31 @@ function __latsum(
     end
 
     return sum(out)
+end
+
+macro latmax(itr, C, f!, U, args...)
+    quote
+        $__latmax($(esc(itr)), $(esc(C)), $(esc(f!)), $(esc(U)), $(map(esc, args)...))
+    end
+end
+
+function __latmax(
+    ::Sequential, ::Val{COUNT}, ::Type{OutType}, f!::F, U::AbstractField{B}, args...
+) where {COUNT,OutType,F,B<:GPU}
+    COUNT == 0 && return 0.0
+    ndrange = local_dims(U)
+    workgroupsize = ntuple(i -> min(ndrange[i], 4), Val(4))
+    numblocks = cld(U.NV, prod(workgroupsize))
+    out = KA.zeros(B(), OutType, numblocks)
+    kernel! = f!(B(), workgroupsize, ndrange)
+    raw_args = get_raws(args...)
+
+    for _ in 1:COUNT
+        kernel!(out, U.U, raw_args...; ndrange=ndrange)
+        KA.synchronize(B())
+    end
+
+    return maximum(out)
 end
 
 # function __latsum(
@@ -210,7 +235,7 @@ function __latsum(
     workgroupsize = ntuple(i -> min(ndrange[i], 4), Val(4))
     numblocks = cld(U.NV, prod(workgroupsize))
     out = KA.zeros(B(), OutType, numblocks)
-    kernel! = f!(B(), workgroupsize)
+    kernel! = f!(B(), workgroupsize, ndrange)
     raw_args = get_raws(args...)
 
     for _ in 1:COUNT

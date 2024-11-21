@@ -1,7 +1,7 @@
 function gaussian_TA!(p::Colorfield{B,T}, ϕ) where {B,T}
     ϕ₁ = T(sqrt(1 - ϕ^2))
     ϕ₂ = T(ϕ)
-    @latmap(Sequential(), Val(1), gaussian_TA_kernel!, p, ϕ₁, ϕ₂, T, eachindex(U))
+    @latmap(Sequential(), Val(1), gaussian_TA_kernel!, p, ϕ₁, ϕ₂, T, eachindex(p))
 end
 
 @kernel function gaussian_TA_kernel!(P, ϕ₁, ϕ₂, ::Type{T}, bulk_sites) where {T}
@@ -15,7 +15,7 @@ end
 
 function calc_kinetic_energy(p::Colorfield{B}) where {B}
     return @latsum(
-        Sequential(), Val(1), Float64, calc_kinetic_energy_kernel!, p, eachindex(U)
+        Sequential(), Val(1), Float64, calc_kinetic_energy_kernel!, p, eachindex(p)
     )
 end
 

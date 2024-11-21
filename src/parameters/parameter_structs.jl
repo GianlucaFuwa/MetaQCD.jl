@@ -14,7 +14,7 @@ Base.@kwdef mutable struct PhysicalParameters
     numtherm::Int64 = 10
     numsteps::Int64 = 100
     inital::String = "cold"
-    update_method::Vector{String} = ["HMC"]
+    update_method::String = "HMC"
     hb_maxit::Int64 = 10^5
     numheatbath::Int64 = 4
     metro_epsilon::Float64 = 0.1

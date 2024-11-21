@@ -2,18 +2,18 @@
 L = [4, 4, 4, 4]
 beta = 6.0
 gauge_action = "wilson"
-numtherm = 10
-numsteps = 10
+numtherm = 1
+numsteps = 1
 initial = "cold"
 update_method = "hmc"
 parity_update = false
-numprocs_cart = [1, 1, 2, 2]
+numprocs_cart = [1, 1, 1, 1]
 halo_width = 1
 
 ["Dynamical Fermion Settings"]
-fermion_action = "none"
+fermion_action = "staggered"
 eo_precon = false
-Nf = [2]
+Nf = [8]
 mass = [0.0]
 wilson_csw = 1.0
 cg_tol_action = 1e-16
@@ -32,8 +32,9 @@ hmc_numsmear_fermion = 0
 hmc_rhostout_fermion = 0.12
 
 ["System Settings"]
+backend = "cuda"
 float_type = "double"
-ensemble_dir = "/home/gialuf/data/MetaQCD/nuha/test/L4x4x4x4_beta6.0_mass0.0"
+# ensemble_dir = ""
 randomseed = 0
 overwrite = true
 # save_checkpoint_every = 10
@@ -51,14 +52,6 @@ measure_every = 1
 ["Measurement Settings".measurements.Topological_charge]
 measure_every = 1
 type = ["plaquette", "clover"]
-# ["Measurement Settings".measurements.Eigenvalues]
-# measure_every = 10
-# dirac_type = "staggered"
-# mass = 0.01
-# nev = 1
-# which = "LSM"
-# ddaggerd = true
-# maxdim = 20
     
 ["Gradient Flow Settings"]
 flow_integrator = "euler"
@@ -70,24 +63,7 @@ flow_measure_every = 7
     ["Gradient Flow Settings".measurements_with_flow]
     ["Gradient Flow Settings".measurements_with_flow.Plaquette]
     measure_every = 1
-    #
-    # ["Gradient Flow Settings".measurements_with_flow.Pion_correlator]
-    # measure_every = 10
-    # dirac_type = "wilson"
-    # mass = 0.01
-    # csw = 1.0
-    # cg_tol = 1e-16
-    # cg_maxiters = 5000
-    #
+
     ["Gradient Flow Settings".measurements_with_flow.Topological_charge]
     measure_every = 1
     type = ["plaquette", "clover"]
-    # ["Gradient Flow Settings".measurements_with_flow.Eigenvalues]
-    # measure_every = 10
-    # dirac_type = "staggered"
-    # mass = 0.01
-    # nev = 20
-    # which = "SI"
-    # ddaggerd = false
-    # mindim = 20
-    # maxdim = 40
