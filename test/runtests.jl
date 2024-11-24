@@ -164,5 +164,5 @@ mpi_barrier()
 if mpi_size() == 1
     cmd = Base.julia_cmd()
     path = joinpath(@__DIR__, "runtests.jl")
-    run(`$(mpiexec()) -n 2 $(cmd) --project --startup-file=no $(path)`)
+    run(`$(Utils.MPI.mpiexec()) -n 2 $(cmd) --project --startup-file=no $(path)`)
 end
