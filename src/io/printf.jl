@@ -7,6 +7,7 @@ struct FILE end
 @inline printfmt(::Type{<:Integer}) = "%d"
 @inline printfmt(::Type{UInt64}) = "%#x"
 @inline printfmt(::Type{UInt32}) = "%#x"
+@inline printfmt(::Type{Bool}) = "%s"
 @inline printfmt(::Type{<:AbstractString}) = "%s"
 
 if Sys.iswindows() # ccall printf with floats doesnt work on windows for some reason
@@ -65,15 +66,19 @@ else
     end
 
     @inline printf(s) = GC.@preserve s printf(pointer(s))
+    @inline printf(b::Bool) = printf("%s", b)
     @inline printf(n::T) where {T<:Number} = printf(printfmt(T), n)
     @inline printf(::Nothing) = Int32(0)
     @inline printf(fp::Ptr{FILE}, s) = GC.@preserve s printf(fp, pointer(s))
+    @inline printf(fp::Ptr{FILE}, b::Bool) = printf(fp, "%s", b)
     @inline printf(fp::Ptr{FILE}, n::T) where {T<:Number} = printf(fp, printfmt(T), n)
     @inline printf(::Ptr{FILE}, ::Nothing) = Int32(0)
-    @inline printf(fmt, s) = GC.@preserve s printf(pointer(fmt), pointer(s))
-    @inline printf(fmt, n::Number) = printf(pointer(fmt), n)
+    @inline printf(fmt, s) = GC.@preserve fmt s printf(pointer(fmt), pointer(s))
+    @inline printf(fmt, b::Bool) = GC.@preserve fmt printf(pointer(fmt), b)
+    @inline printf(fmt, n::Number) = GC.@preserve fmt printf(pointer(fmt), n)
     @inline printf(::AbstractString, ::Nothing) = Int32(0)
     @inline printf(fp::Ptr{FILE}, fmt, s) = GC.@preserve fmt s printf(fp, pointer(fmt), pointer(s))
+    @inline printf(fp::Ptr{FILE}, fmt, b::Bool) = GC.@preserve fmt printf(fp, pointer(fmt), b)
     @inline printf(fp::Ptr{FILE}, fmt, n::Number) = GC.@preserve fmt printf(fp, pointer(fmt), n)
     @inline newline(fp::Ptr{FILE}) = printf(fp, "\n")
 
@@ -109,6 +114,15 @@ else
 
     @inline function printf(fp::Ptr{FILE}, fmt::Ptr{UInt8}, n::UInt64)
         ccall(:fprintf, Cint, (Ptr{FILE}, Ptr{UInt8}, Culonglong), fp, fmt, n)
+    end
+
+    # Bool
+    @inline function printf(fmt::Ptr{UInt8}, b::Bool)
+        ccall(:printf, Cint, (Ptr{UInt8}, Cstring), fmt, string(b))
+    end
+
+    @inline function printf(fp::Ptr{FILE}, fmt::Ptr{UInt8}, b::Bool)
+        ccall(:fprintf, Cint, (Ptr{FILE}, Ptr{UInt8}, Cstring), fp, fmt, string(b))
     end
 
     # AbstractFloat

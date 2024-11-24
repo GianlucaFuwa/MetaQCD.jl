@@ -102,11 +102,11 @@ function measure(
                 printf(fp, "%-9.5f", τ)
             end
 
-            for value in values(ED_dict)
-                printf(fp, "%+-25.15E", value)
+            for method in keys(ED_dict)
+                printf(fp, "%+-25.15E", ED_dict[method])
             end
 
-            printf(fp, "\n")
+            newline(fp)
             fclose(fp)
         end
     end

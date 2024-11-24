@@ -89,8 +89,8 @@ function measure(
                 printf(fp, "%-9.5f", τ)
             end
 
-            for value in values(GA_dict)
-                printf(fp, "%+-25.15E", value)
+            for method in keys(GA_dict)
+                printf(fp, "%+-25.15E", GA_dict[method])
             end
 
             printf(fp, "\n")

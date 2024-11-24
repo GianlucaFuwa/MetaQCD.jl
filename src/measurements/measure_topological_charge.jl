@@ -104,8 +104,8 @@ function measure(
                 printf(fp, "%-9.5f", τ)
             end
 
-            for value in values(TC_dict)
-                printf(fp, "%+-25.15E", value)
+            for method in keys(TC_dict)
+                printf(fp, "%+-25.15E", TC_dict[method])
             end
 
             newline(fp)
