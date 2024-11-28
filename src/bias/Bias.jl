@@ -119,6 +119,8 @@ function Bias(p::ParameterSet, U; mpi_multi_sim=false, instance=mpi_myrank(), du
 
     # write to file after construction to make sure nothing went wrong
     mpi_amroot() && write_to_file(bias, biasfile)
+
+    !isnothing(p.starting_Q) && @level1("|  STARTING SECTOR: $(string(p.starting_Q))")
     @level1("-")
     @level1("")
     return Bias(
