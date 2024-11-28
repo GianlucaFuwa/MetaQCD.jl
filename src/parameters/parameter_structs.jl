@@ -59,6 +59,7 @@ Base.@kwdef mutable struct BiasParameters
     kinds_of_weights::Vector{String} = ["tiwari"]
     usebiases::Vector{String} = [""]
     write_bias_every::Int64 = 1
+    starting_Q::Union{Nothing,Vector{Int64}} = nothing
     # metadynamics specific
     bin_width::Float64 = 1e-2
     meta_weight::Float64 = 1e-3

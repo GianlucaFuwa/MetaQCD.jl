@@ -24,8 +24,10 @@ function build_bias(filenamein::String; backend="cpu")
         @assert parameters.kind_of_bias ∉ ("none", "parametric") """
         bias has to be \"metad\" or \"opes\" in build, was $(parameters.kind_of_bias)
         """
-        @assert parameters.is_static == false "Bias cannot be static in build"
     end
+
+    rid = mpi_myrank()+1
+    @assert parameters.is_static[rid] == false "Bias $rid cannot be static in build"
 
     # set random seed if provided, otherwise generate one
     if parameters.randomseed != 0
@@ -128,10 +130,13 @@ function metabuild!(
     fermion_action = univ.fermion_action
     bias = univ.bias
     comm = mpi_comm()
+    starting_Q = parameters.starting_Q
     mpi_barrier()
 
     @level1("- Thermalization:")
     _, runtime_therm = @timed begin
+        !isnothing(starting_Q) && set_instanton!(U, starting_Q[mpi_myrank()+1])
+
         for itrj in 1:(parameters.numtherm)
             @level1("|  itrj = $itrj")
             _, updatetime = @timed begin

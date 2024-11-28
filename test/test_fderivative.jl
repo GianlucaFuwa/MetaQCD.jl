@@ -86,7 +86,7 @@ function test_fderivative(
     dSfdU_smeared = Colorfield(U)
     temp_force = Colorfield(U)
 
-    coord = (2, 3, 1, 2) .+ halo_width
+    coord = (2, 3, 1, 2) .+ U.topology.halo_width
     site = SiteCoords(coord...)
     μ = 3
     ΔH = 0.000001

@@ -18,7 +18,7 @@ import ..BiasModule: Bias, NoBias, calc_CV, ∂V∂Q, recalc_CV!
 import ..BiasModule: kind_of_cv, update_bias!
 import ..DiracOperators: AbstractDiracOperator, QuenchedFermionAction, calc_fermion_action
 import ..DiracOperators: fermaction_from_str, sample_pseudofermions!
-import ..Fields: AbstractGaugeAction, Gaugefield, Colorfield
+import ..Fields: AbstractGaugeAction, Gaugefield, Colorfield, identity_gauges!, global_dims
 import ..Fields: WilsonGaugeAction, add!, calc_gauge_action, calc_kinetic_energy
 import ..Fields: allindices, clear!, dims, normalize!, fieldstrength_eachsite!, float_type
 import ..Fields: check_dims, even_odd, gaussian_TA!, mul!, staple, staple_eachsite!
@@ -38,6 +38,7 @@ include("./metropolis.jl")
 include("./overrelaxation.jl")
 include("./parity.jl")
 include("./tempering.jl")
+include("./instanton.jl")
 
 include("gpu_kernels/heatbath.jl")
 include("gpu_kernels/hmc.jl")
@@ -45,6 +46,7 @@ include("gpu_kernels/metropolis.jl")
 include("gpu_kernels/overrelaxation.jl")
 include("gpu_kernels/parity.jl")
 include("gpu_kernels/tempering.jl")
+include("gpu_kernels/instanton.jl")
 
 function Updatemethod(parameters::ParameterSet, U; instance=mpi_myrank())
     updatemethod = Updatemethod(

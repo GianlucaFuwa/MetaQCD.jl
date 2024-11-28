@@ -39,19 +39,19 @@ mpi_barrier()
 @testset verbose=true "CPU Tests" begin
     backend = CPU
     halo_width = 1
-    nprocs_cart = if mpi_size() == 1
-        (1, 1, 1, 1)
-    elseif mpi_size() == 2
-        (1, 1, 2, 1)
-    elseif mpi_size() == 4
-        (1, 2, 2, 1)
-    else
-        error("MPI Size in unit tests can only be 1, 2 or 4")
-    end
-
+    nprocs_cart = (1, 1, 1, mpi_size())
     mpi_size() != 1 && @level1("\nMPI Tests...")
 
-    test_measurements(backend; nprocs_cart=nprocs_cart, halo_width=2)
+    # INFO: Cant partition in time dimension if we want to measure polyakov loop
+    if mpi_size() == 1
+        test_measurements(backend)
+    elseif mpi_size() == 2
+        test_measurements(backend; nprocs_cart=(1, 1, 2, 1), halo_width=2)
+    elseif mpi_size() == 4
+        test_measurements(backend; nprocs_cart=(1, 2, 2, 1), halo_width=2)
+    else
+        error("mpi_size has to be 1, 2 or 4 in tests")
+    end
     # gauge derivative
     test_derivative(backend; nprocs_cart=nprocs_cart, halo_width=halo_width)
     # staggered derivative
@@ -59,20 +59,15 @@ mpi_barrier()
         backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
         dirac="staggered", mass=0.01, single_flavor=true
     )
-    # staggered eo-pre derivative
-    test_fderivative(
-        backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
-        dirac="staggered", mass=0.01, single_flavor=true, eoprec=true
-    )
     # staggered-hoelbling1234 derivative
     test_fderivative(
         backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
         dirac="staggered-h1234", mass=0.01, single_flavor=true
     )
-    # staggered-hoelbling1324 derivative
+    # staggered-hoelbling1342 derivative
     test_fderivative(
         backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
-        dirac="staggered-h1324", mass=0.01, single_flavor=true
+        dirac="staggered-h1342", mass=0.01, single_flavor=true
     )
     # wilson derivative
     test_fderivative(
@@ -81,8 +76,13 @@ mpi_barrier()
     )
     # wilson-clover derivative
     test_fderivative(
-        backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
+        backend; nprocs_cart=nprocs_cart, halo_width=2, # INFO: Halo width has to be 2 here
         dirac="wilson", mass=0.01, single_flavor=true, csw=1.78
+    )
+    # staggered eo-pre derivative
+    test_fderivative(
+        backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
+        dirac="staggered", mass=0.01, single_flavor=true, eoprec=true
     )
     # wilson eo-pre derivative
     test_fderivative(
@@ -91,7 +91,7 @@ mpi_barrier()
     )
     # wilson-clover eo-pre derivative
     test_fderivative(
-        backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
+        backend; nprocs_cart=nprocs_cart, halo_width=2, # INFO: Halo width has to be 2 here
         dirac="wilson", mass=0.01, single_flavor=false, eoprec=true, csw=1.78
     )
     test_gradflow(backend; nprocs_cart=nprocs_cart, halo_width=halo_width)

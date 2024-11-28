@@ -16,6 +16,7 @@ import ..Parameters: ParameterSet, construct_params_from_toml
 import ..Smearing: GradientFlow
 import ..Universe: Univ
 import ..Updates: HMC, ParityUpdate, Updatemethod, update!, temper!, integrator_from_str
+import ..Updates: set_instanton!
 
 export build_bias, run_sim
 

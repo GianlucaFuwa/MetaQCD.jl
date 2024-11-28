@@ -251,6 +251,8 @@ function check_parameters(p::ParameterSet)
             gauge action
             """
         end
+    elseif prod(p.numprocs_cart) == 1 && !isnothing(p.starting_Q)
+        @assert length(p.starting_Q) == mpi_size()
     end
 
     if lower_case(p.gauge_action) ∉ ["wilson", "iwasaki", "symanzik_tree", "dbw2"]

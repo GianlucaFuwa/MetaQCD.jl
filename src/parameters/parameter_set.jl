@@ -43,6 +43,7 @@ struct ParameterSet
     kinds_of_weights::Vector{String}
     usebiases::Vector{String}
     write_bias_every::Int64
+    starting_Q::Union{Nothing,Vector{Int64}}
     # metadynamics specific parameters
     bin_width::Float64
     meta_weight::Float64
