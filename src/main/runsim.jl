@@ -454,12 +454,12 @@ function metaqcd_PT!(
             print_acceptance_rates(numaccepts, itrj)
             @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")
 
-            temper!(U, bias, numaccepts_temper, swap_every, itrj; recalc=!uses_hmc)
+            temper!(U, bias, numaccepts_temper, swap_every, itrj; recalc=true)
 
             save_config(config_saver, U[1], itrj, parameters)
             create_checkpoint(checkpointer, univ, updatemethod, updatemethod_pt, itrj)
 
-            _, mtime = @timed calc_measurements(measurements, U, itrj)
+            _, mtime = @timed calc_measurements(measurements, U, itrj, measure_on_all)
             _, fmtime = @timed calc_measurements_flowed(
                 measurements_with_flow, gflow, U, itrj, measure_on_all
             )
