@@ -125,11 +125,11 @@ function HMC(
     staples = Colorfield(U)
     force = Colorfield(U)
 
-    smearing_gauge = StoutSmearing(U; numsmear=numsmear_gauge, rho=ρ_stout_gauge)
+    smearing_gauge = StoutSmearing(U; numlayers=numsmear_gauge, rho=ρ_stout_gauge)
     smearing_fermion = if fermion_action === QuenchedFermionAction
         NoSmearing()
     else
-        StoutSmearing(U; numsmear=numsmear_fermion, rho=ρ_stout_fermion)
+        StoutSmearing(U; numlayers=numsmear_fermion, rho=ρ_stout_fermion)
     end
 
     has_smearing = smearing_gauge != NoSmearing() || smearing_fermion != NoSmearing()
