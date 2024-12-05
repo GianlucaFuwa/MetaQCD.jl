@@ -1,17 +1,3 @@
-module Viz
-
-using ..BiasModule: OPES, Metadynamics
-using DelimitedFiles
-using RecipesBase
-
-include("endpointranges.jl")
-
-export MetaMeasurements, MetaBias, biaspotential, eigenvalues, hadroncorrelator, timeseries
-export ibegin, iend
-
-# Use Wong colors as default
-const default_colors = ["#0072b2", "#e69f00", "#009e73", "#cc79a7", "#56b4e9", "#d55e00"]
-
 """
     MetaMeasurements(ensemblename::String, fullpath::Bool = false)
 
@@ -24,28 +10,27 @@ if you want any directory on your machine to be used, specify `fullpath = true`.
 Make sure the directory only contains .txt measurement files produced by MetaQCD.jl or in
 the same format.
 """
-struct MetaMeasurements # TODO: overload Base.show and do some @level1 printing
+struct MetaMeasurements
     measurement_dict::Dict{String,Dict{String,Vector{Float64}}}
     observables::Vector{Symbol}
     ensemblename::String
-    function MetaMeasurements(ensemblename::String; fullpath=false)
-        dir = if fullpath
+    function MetaMeasurements(ensemblename::String)
+        _dir = if isabspath(ensemblename)
+            @assert isdir(ensemblename) """
+            Ensemble \"$(ensemblename)\" could not be found or doesn't exist.
+            """
             ensemblename
         else
-            try
-                pkgdir(Viz) * "/ensembles/$(ensemblename)/measurements"
-            catch
-                error(
-                """
-                    Ensemble \"$(ensemblename)\" could not be found or doesn't exist.
-                    In case your ensemble is not located within \"/MetaQCD.jl/ensembles\"
-                    the keyword-argument `fullpath=true`, has to be enabled
-                """)
-            end
+            path = joinpath(splitpath(@__DIR__())[1:end-2]...) * "/ensembles/$(ensemblename)/measurements/"
+            @assert isdir(path) """
+            Ensemble \"$(ensemblename)\" could not be found or doesn't exist.
+            """
+            path
         end
 
-        hmc_logfile = pkgdir(Viz) * "/ensembles/$(ensemblename)/logs/hmc_acc_logs.txt"
-        @assert isdir(dir) "Directory \"$(dir)\" doesn't exist."
+        dir = joinpath(_dir, "measurements")
+        @assert isdir(dir) "Directory $(dir) does not exist"
+        hmc_logfile = "$(dir)/logs/hmc_acc_logs.txt"
         measurement_dict = Dict{String,Dict{String,Vector{Float64}}}()
 
         filenames = readdir(dir)
@@ -98,107 +83,6 @@ end
 
 Base.length(m::MetaMeasurements, observable) = Int(getproperty(m, observable)["itrj"][end])
 
-"""
-    MetaBias(
-        ; ensemblename::String="",
-        filname = nothing,
-        which = nothing,
-        stream::Int = 0,
-        fullpath::Bool = false
-    )
-
-Create a `MetaBias` object using the bias from stream `stream` in the directory `ensemblename`.
-or directly from the file `filename`.
-This serves as a functor returning the bias value at an input cv. \\
-The constructor by default only searches for the directory in the ./biaspotentials folder,
-but if you want any directory on your machine to be used, specify `fullpath = true`.
-Make sure the directory only contains bias files produced by MetaQCD.jl or in
-the same format. If the file extension is not .metad or .opes then you will need to
-specify `which` as either `:metad` or `:opes`.
-"""
-struct MetaBias{F}
-    bias::F
-    ensemblename::String
-    function MetaBias(
-        ; filename=nothing, ensemblename::String="", which=nothing, stream=0, fullpath=false
-    )
-        from_ensemble = ensemblename != ""
-        from_file = filename isa String
-        @assert from_file ⊻ from_ensemble """
-        One and only one of the filename or the ensemblename of the bias potential has to \
-        be given
-        """
-        dir = if fullpath && from_ensemble
-            ensemblename
-        elseif from_ensemble
-            try
-                pkgdir(Viz) * "/ensembles/$(ensemblename)/biaspotentials/"
-            catch
-                error(
-                """
-                    Ensemble \"$(ensemblename)\" could not be found or doesn't exist.
-                    In case your ensemble is not located within \"/MetaQCD.jl/ensembles\"
-                    the keyword-argument `fullpath=true`, has to be enabled
-                """)
-            end
-        else
-            ""
-        end
-
-        file, ext = if from_ensemble
-            @assert isdir(dir) "Directory \"$(dir)\" doesn't exist."
-            filenames = readdir(dir)
-            streams = [occursin("stream_$(stream)", name) for name in filenames]
-            @assert(
-                sum(streams) == 1,
-                "There has to be exactly 1 file pertaining to stream $(stream) in the directory."
-            )
-            _file = dir * filenames[findfirst(x -> x == true, streams)]
-            _ext = splitext(_file)[end]
-            _file, _ext
-        else
-            filename, splitext(filename)[end]
-        end
-
-        if ext == ".metad" || which == :metad
-            data = readdlm(file; skipstart=1)
-            cvlims = data[1, 1], data[end, 1]
-            bin_width = data[2, 1] - data[1, 1]
-            bin_vals = data[:, 1]
-            values = data[:, 2]
-            bias = Metadynamics(
-                true,
-                1,
-                cvlims,
-                Inf,
-                bin_width,
-                1.0,
-                100,
-                bin_vals,
-                values,
-            )
-        elseif ext == ".opes" || which == :opes
-            bias = OPES(file)
-        else
-            throw(AssertionError("File extension $ext not recognized.
-                                 Must be either .metad or .opes"))
-        end
-
-        return new{typeof(bias)}(bias, ensemblename)
-    end
-end
-
-(m::MetaBias{F})(cv::Float64) where {F} = m.bias(cv)
-
-function Base.show(io::IO, m::MetaMeasurements)
-    print(io, "MetaMeasurements(ensemble: \"$(m.ensemblename)\")")
-    return nothing
-end
-
-function Base.show(io::IO, m::MetaBias)
-    print(io, "MetaBias{$(typeof(m.bias))}(ensemble: \"$(m.ensemblename)\")")
-    return nothing
-end
 
 function Base.getproperty(m::MetaMeasurements, s::Symbol)
     s == :ensemblename && return getfield(m, :ensemblename)
@@ -210,6 +94,11 @@ function Base.getproperty(m::MetaMeasurements, s::Symbol)
 end
 
 observables(m::MetaMeasurements) = m.observables
+
+function Base.show(io::IO, m::MetaMeasurements)
+    print(io, "MetaMeasurements(ensemble: \"$(m.ensemblename)\")")
+    return nothing
+end
 
 @userplot TimeSeries
 
@@ -230,7 +119,7 @@ RecipesBase.@recipe function timeseries(
     seriestype := seriestype
     obs_keys = collect(keys(getproperty(m, observable)))
     filter!(x -> x ≠ "itrj", obs_keys)
-    palette --> default_colors
+    palette --> DEFAULT_COLORS
 
     x = try
         view(getproperty(m, observable)["itrj"], irange)
@@ -245,7 +134,7 @@ RecipesBase.@recipe function timeseries(
         link := :x
         layout := (length(obs_keys) + 1, 1)
         legend := false
-        palette --> default_colors
+        palette --> DEFAULT_COLORS
 
         @series begin
             xlabel --> ""
@@ -261,14 +150,14 @@ RecipesBase.@recipe function timeseries(
                 xl = i == length(obs_keys) ? "Monte Carlo Time" : ""
                 xlabel --> xl
                 ylabel --> name
-                color --> default_colors[i+1]
+                color --> DEFAULT_COLORS[i+1]
                 subplot := i + 1
                 y = view(getproperty(m, observable)[name], irange)
                 x, y
             end
         end
     elseif occursin("hmc_data", string(observable))
-        palette --> default_colors
+        palette --> DEFAULT_COLORS
         xlabel --> "Monte Carlo Time"
         ylabel --> "$(observable)"
 
@@ -281,7 +170,7 @@ RecipesBase.@recipe function timeseries(
         # end
     elseif occursin("flowed", string(observable))
         # size --> (600, 250 * length(obs_keys))
-        palette --> default_colors
+        palette --> DEFAULT_COLORS
         xlabel --> "Monte Carlo Time"
         ylabel --> first(split(obs_keys[1], " "))
         linewidth --> 2
@@ -306,7 +195,7 @@ RecipesBase.@recipe function timeseries(
     else
         xlabel --> "Monte Carlo Time"
         ylabel --> "$(observable)"
-        palette --> default_colors
+        palette --> DEFAULT_COLORS
 
         for name in obs_keys
             @series begin
@@ -316,38 +205,6 @@ RecipesBase.@recipe function timeseries(
             end
         end
     end
-end
-
-@userplot BiasPotential
-
-"""
-    biaspotential(bias::MetaBias; cvlims::NTuple{2, AbstractFloat})
-
-Plot the bias potential `bias` in the range given by either the cvlims of the bias itself
-or `cvlims` if specified. If the cvlims of the bias contain infinities and `cvlims` is not
-specified then the limits default to [-5, 5].
-"""
-RecipesBase.@recipe function biaspotential(
-    bp::BiasPotential; cvlims=nothing, normalize=false, ylims=nothing
-)
-    b = bp.args[1]
-    bias = b.bias
-    xlims = cvlims ≡ nothing ? bias.cvlims : cvlims
-    yylims = ylims ≡ nothing ? :auto : ylims
-    isinf(sum(xlims)) && (xlims = (-6, 6))
-
-    legend := false
-    xticks --> floor(xlims[1]):ceil(xlims[2])
-    xlims := (xlims[1], xlims[2])
-    ylims := yylims
-    xlabel --> "Collective Variable"
-    ylabel --> "Bias Potential ($(typeof(bias)))"
-    title --> b.ensemblename
-    titlefontsize --> 10
-    x = (bias isa OPES) ? (xlims[1]:0.001:xlims[2]-0.001) : bias.bin_vals
-    yraw = b.(x)
-    y = normalize ? yraw .- maximum(yraw) : yraw
-    return x, y
 end
 
 @userplot HadronCorrelator
@@ -369,7 +226,7 @@ RecipesBase.@recipe function hadroncorrelator(
     obs_keys = collect(keys(getproperty(m, correlator)))
     filter!(x -> x ≠ "itrj", obs_keys)
     filter!(x -> x ≠ "C" && x ≠ "C_flowed", obs_keys)
-    palette --> default_colors
+    palette --> DEFAULT_COLORS
     x = collect(1:length(obs_keys))
     len = length(x)
     C = zeros(len)
@@ -404,8 +261,8 @@ RecipesBase.@recipe function hadroncorrelator(
     end
 
     xlabel --> "Time Extent"
-    linecolor := default_colors[1]
-    markercolor := default_colors[1]
+    linecolor := DEFAULT_COLORS[1]
+    markercolor := DEFAULT_COLORS[1]
     markershape := :circ
 
     @series begin
@@ -469,13 +326,11 @@ RecipesBase.@recipe function eigenvalues(ev::Eigenvalues; tf=0, xlims=(-1, 16), 
     ylabel --> "Im(λ)"
     xlims --> xlims
     ylims --> ylims
-    markercolor := default_colors[1]
+    markercolor := DEFAULT_COLORS[1]
     markershape := :circ
 
     @series begin
         label --> "dirac eigenvalues"
         yre, yim
     end
-end
-
 end

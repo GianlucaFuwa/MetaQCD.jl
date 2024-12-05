@@ -24,7 +24,7 @@ function test_derivative(backend=CPU; nprocs_cart=(1, 1, 1, 1), halo_width=1)
     # topcharge_old = top_charge(Clover(), U)
 
     # Test for smearing with 5 steps and stout parameter 0.12
-    smearing = StoutSmearing(U, 5, 0.12)
+    smearing = StoutSmearing(U; numlayers=5, rho=0.12)
 
     staples = Colorfield(U)
     fieldstrength = Tensorfield(U)

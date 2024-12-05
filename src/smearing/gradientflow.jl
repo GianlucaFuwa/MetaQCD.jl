@@ -13,7 +13,7 @@ end
 include("gradientflow_integrators.jl")
 
 function GradientFlow(
-    U::TG, integrator="euler", numflow=1, steps=1, tf=0.12; measure_every=1
+    U::TG; integrator="euler", numflow=1, steps=1, tf=0.12, measure_every=1
 ) where {TG}
     @level1("- Setting Gradient Flow...")
     Z = Colorfield(U)

@@ -11,10 +11,10 @@ struct StoutSmearing{TG,TT,TC} <: AbstractSmearing
     C_multi::Vector{TT}
     Q_multi::Vector{TC}
     Λ::TT
-    function StoutSmearing(U::TG, numlayers, ρ) where {TG}
-        @assert numlayers >= 0 && ρ >= 0 "number of stout layers and ρ must be >= 0"
+    function StoutSmearing(U::TG; numlayers=0, rho=0) where {TG}
+        @assert numlayers >= 0 && rho >= 0 "number of stout layers and ρ must be >= 0"
 
-        if numlayers == 0 || ρ == 0
+        if numlayers == 0 || rho == 0
             return NoSmearing()
         else
             C₁ = Colorfield(U)
@@ -36,7 +36,7 @@ struct StoutSmearing{TG,TT,TC} <: AbstractSmearing
             end
 
             return new{TG,typeof(C₁),typeof(Q₁)}(
-                numlayers, ρ, Usmeared_multi, C_multi, Q_multi, Λ
+                numlayers, rho, Usmeared_multi, C_multi, Q_multi, Λ
             )
         end
     end
@@ -120,7 +120,7 @@ function stout_recursion!(Σ, Σ′, U′, U, C, Q, Λ, ρ)
     @batch for site in eachindex(Σ)
         for μ in 1:4
             Nμ = dimsΣ′[μ]
-            siteμp = move(site, μ, 1, Nμ)
+            siteμ⁺ = move(site, μ, 1, Nμ)
             force_sum = zero3(float_type(U))
 
             for ν in 1:4
@@ -129,25 +129,25 @@ function stout_recursion!(Σ, Σ′, U′, U, C, Q, Λ, ρ)
                 end
 
                 Nν = dimsΣ′[ν]
-                siteνp = move(site, ν, 1, Nν)
-                siteνn = move(site, ν, -1, Nν)
-                siteμpνn = move(siteμp, ν, -1, Nν)
+                siteν⁺ = move(site, ν, 1, Nν)
+                siteν⁻ = move(site, ν, -1, Nν)
+                siteμ⁺ν⁻ = move(siteμ⁺, ν, -1, Nν)
 
                 # bring reused matrices up to cache (can also precalculate some products)
-                # Uνsiteμ⁺ = U[ν,siteμp]
-                # Uμsiteμ⁺ = U[μ,siteνp]
+                # Uνsiteμ⁺ = U[ν,siteμ⁺]
+                # Uμsiteμ⁺ = U[μ,siteν⁺]
                 # Uνsite = U[ν,site]
-                # Uνsiteμ⁺ν⁻ = U[ν,siteμpνn]
-                # Uμsiteν⁻ = U[μ,siteνn]
-                # Uνsiteν⁻ = U[ν,siteνn]
+                # Uνsiteμ⁺ν⁻ = U[ν,siteμ⁺ν⁻]
+                # Uμsiteν⁻ = U[μ,siteν⁻]
+                # Uνsiteν⁻ = U[ν,siteν⁻]
 
                 force_sum +=
-                    cmatmul_oddo(U[ν, siteμp], U[μ, siteνp], U[ν, site], Λ[ν, site]) +
-                    cmatmul_ddoo(U[ν, siteμpνn], U[μ, siteνn], Λ[μ, siteνn], U[ν, siteνn]) +
-                    cmatmul_dodo(U[ν, siteμpνn], Λ[ν, siteμpνn], U[μ, siteνn], U[ν, siteνn]) -
-                    cmatmul_ddoo(U[ν, siteμpνn], U[μ, siteνn], Λ[ν, siteνn], U[ν, siteνn]) -
-                    cmatmul_oodd(Λ[ν, siteμp], U[ν, siteμp], U[μ, siteνp], U[ν, site]) +
-                    cmatmul_odod(U[ν, siteμp], U[μ, siteνp], Λ[μ, siteνp], U[ν, site])
+                    cmatmul_oddo(U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site], Λ[ν, site]) +
+                    cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], Λ[μ, siteν⁻], U[ν, siteν⁻]) +
+                    cmatmul_dodo(U[ν, siteμ⁺ν⁻], Λ[ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻]) -
+                    cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], Λ[ν, siteν⁻], U[ν, siteν⁻]) -
+                    cmatmul_oodd(Λ[ν, siteμ⁺], U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site]) +
+                    cmatmul_odod(U[ν, siteμ⁺], U[μ, siteν⁺], Λ[μ, siteν⁺], U[ν, site])
             end
 
             link = U[μ, site]

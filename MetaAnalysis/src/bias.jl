@@ -1,5 +1,117 @@
-# INFO: Copy the definition of the Metadynamics and OPES struct from
-# MetaQCD so that we dont have to add it as a dependency and cut loading time
+"""
+    MetaBias(
+        ; ensemblename::String="",
+        filname = nothing,
+        which = nothing,
+        stream::Int = 0,
+        fullpath::Bool = false
+    )
+
+Create a `MetaBias` object using the bias from stream `stream` in the directory `ensemblename`.
+or directly from the file `filename`.
+This serves as a functor returning the bias value at an input cv. \\
+The constructor by default only searches for the directory in the ./biaspotentials folder,
+but if you want any directory on your machine to be used, specify `fullpath = true`.
+Make sure the directory only contains bias files produced by MetaQCD.jl or in
+the same format. If the file extension is not .metad or .opes then you will need to
+specify `which` as either `:metad` or `:opes`.
+"""
+struct MetaBias{F}
+    bias::F
+    ensemblename::String
+    ext::String
+    function MetaBias(
+        ; filename=nothing, ensemblename::String="", which=nothing, stream=0
+    )
+        from_ensemble = ensemblename != ""
+        from_file = filename isa String
+        @assert from_file ⊻ from_ensemble """
+        One and only one of the filename or the ensemblename of the bias potential has to \
+        be given
+        """
+        dir = if isabspath(ensemblename) && from_ensemble
+            ensemblename
+        elseif from_ensemble
+            path = joinpath(splitpath(@__DIR__())[1:end-2]...) * "/ensembles/$(ensemblename)/biaspotentials/"
+            @assert ispath(path) """
+            Ensemble \"$(ensemblename)\" could not be found or doesn't exist.
+            """
+            path
+        else
+            ""
+        end
+
+        file, ext = if from_ensemble
+            @assert isdir(dir) "Directory \"$(dir)\" doesn't exist."
+            filenames = readdir(dir)
+            streams = [occursin("stream_$(stream)", name) for name in filenames]
+            @assert(
+                sum(streams) == 1,
+                "There has to be exactly 1 file pertaining to stream $(stream) in the directory."
+            )
+            _file = dir * filenames[findfirst(x -> x == true, streams)]
+            _ext = splitext(_file)[end]
+            _file, _ext
+        else
+            filename, splitext(filename)[end]
+        end
+
+        if ext == ".metad" || which == :metad
+            data = readdlm(file; skipstart=1)
+            cvlims = data[1, 1], data[end, 1]
+            bin_width = data[2, 1] - data[1, 1]
+            bin_vals = data[:, 1]
+            values = data[:, 2]
+            bias = Metadynamics(
+                true,
+                1,
+                cvlims,
+                Inf,
+                bin_width,
+                1.0,
+                100,
+                bin_vals,
+                values,
+            )
+        elseif ext == ".opes" || which == :opes
+            bias = OPES(file)
+        else
+            throw(AssertionError("File extension $ext not recognized.
+                                 Must be either .metad or .opes"))
+        end
+
+        return new{typeof(bias)}(bias, ensemblename, ext)
+    end
+end
+
+(m::MetaBias{F})(cv::Float64) where {F} = m.bias(cv)
+
+function Base.show(io::IO, m::MetaBias)
+    print(io, "MetaBias{$(typeof(m.bias))}(ensemble: \"$(m.ensemblename)\")")
+    return nothing
+end
+
+RecipesBase.@recipe function f(
+    b::MetaBias; cvlims=nothing, normalize=false, ylims=nothing
+)
+    bias = b.bias
+    xlims = cvlims ≡ nothing ? bias.cvlims : cvlims
+    yylims = ylims ≡ nothing ? :auto : ylims
+    isinf(sum(xlims)) && (xlims = (-6, 6))
+
+    legend := false
+    xticks --> floor(xlims[1]):ceil(xlims[2])
+    xlims := (xlims[1], xlims[2])
+    ylims := yylims
+    xlabel --> "Collective Variable"
+    ylabel --> "Bias Potential ($(typeof(bias)))"
+    title --> b.ensemblename
+    titlefontsize --> 10
+    x = (bias isa OPES) ? (xlims[1]:0.001:xlims[2]-0.001) : bias.bin_vals
+    yraw = b.(x)
+    y = normalize ? yraw .- maximum(yraw) : yraw
+    return x, y
+end
 
 @inline function in_bounds(cv, lb, ub)
     lb <= cv < ub && return true

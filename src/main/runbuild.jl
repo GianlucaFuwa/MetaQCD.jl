@@ -74,11 +74,11 @@ function build_bias!(univ, parameters, updatemethod; mpi_multi_sim=false)
     end
 
     gflow = GradientFlow(
-        U,
-        parameters.flow_integrator,
-        parameters.flow_num,
-        parameters.flow_steps,
-        parameters.flow_tf;
+        U;
+        integrator=parameters.flow_integrator,
+        numflow=parameters.flow_num,
+        steps=parameters.flow_steps,
+        tf=parameters.flow_tf,
         measure_every=parameters.flow_measure_every,
     )
 

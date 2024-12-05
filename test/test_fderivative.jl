@@ -80,7 +80,7 @@ function test_fderivative(
     # gaussian_pseudofermions!(ψ)
 
     # Test for smearing with 5 steps and stout parameter 0.12
-    smearing = StoutSmearing(U, 5, 0.12)
+    smearing = StoutSmearing(U; numlayers=5, rho=0.12)
 
     dSfdU = Colorfield(U)
     dSfdU_smeared = Colorfield(U)

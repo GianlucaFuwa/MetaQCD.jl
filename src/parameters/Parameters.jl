@@ -309,7 +309,7 @@ function check_parameters(p::ParameterSet)
     end
 
     if lower_case(p.hmc_integrator) ∉ [
-        "leapfrog", "omf2slow", "omf2", "omf4slow", "omf4", "leapfrogra"
+        "leapfrog", "omf2slow", "omf2", "omf4slow", "omf4", "leapfrogra", "omf4ra"
     ]
         throw(AssertionError("""
             hmc_integrator in [\"HMC Settings\"] = $(p.hmc_integrator) is not supported.

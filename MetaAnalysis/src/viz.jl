@@ -428,4 +428,3 @@ RecipesBase.@recipe function eigenvalues(ev::Eigenvalues; tf=0, xlims=(-1, 16), 
         yre, yim
     end
 end
-

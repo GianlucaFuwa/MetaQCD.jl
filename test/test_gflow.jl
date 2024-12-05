@@ -22,8 +22,8 @@ function test_gradflow(backend=CPU; nprocs_cart=(1, 1, 1, 1), halo_width=1)
     mfac = 1 / (6 * U.NV * U.NC)
     plaq = plaquette_trace_sum(U) * mfac
 
-    g = GradientFlow(U, "euler", 3, 1, 0.12)
-    s = StoutSmearing(U, 3, 0.12)
+    g = GradientFlow(U; integrator="euler", numflow=3, steps=1, tf=0.12)
+    s = StoutSmearing(U; numlayers=3, rho=0.12)
 
     copy!(g.Uflow, U)
 

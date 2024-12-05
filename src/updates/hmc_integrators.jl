@@ -21,15 +21,14 @@ struct LeapfrogRA <: AbstractIntegrator
     LeapfrogRA(friction) = new(friction)
 end
 
-function Base.show(io::IO, ::MIME"text/plain", int::LeapfrogRA)
+Base.show(io::IO, ::MIME"text/plain", int::LeapfrogRA) =
     print(io, "$(typeof(int))(friction=$(int.friction))")
-end
-
 Base.show(io::IO, int::LeapfrogRA) = print(io, "$(typeof(int))(friction=$(int.friction))")
 
 function evolve!(L::LeapfrogRA, U, hmc::HMC, fermion_action, bias)
     Δτ = hmc.Δτ
 
+    # Repell
     for _ in 1:div(hmc.steps, 2)
         mul!(hmc.P, exp(0.5Δτ * L.friction))
         updateP!(U, hmc, 0.5, fermion_action, bias)
@@ -38,6 +37,7 @@ function evolve!(L::LeapfrogRA, U, hmc::HMC, fermion_action, bias)
         mul!(hmc.P, exp(0.5Δτ * L.friction))
     end
 
+    # Attract
     for _ in 1:div(hmc.steps, 2)
         mul!(hmc.P, exp(-0.5Δτ * L.friction))
         updateP!(U, hmc, 0.5, fermion_action, bias)
@@ -211,54 +211,45 @@ struct OMF4RA <: AbstractIntegrator
     end
 end
 
-Base.:-(O4::OMF4RA) = OMF4RA(-O4.friction)
-
 function evolve!(O4::OMF4RA, U, hmc::HMC, fermion_action, bias)
     Δτ = hmc.Δτ
-    mul!(hmc.P, exp(Δτ * O4.friction))
-    updateP!(U, hmc, O4.α, fermion_action, bias)
-    # mul!(hmc.P, exp(O4.α * Δτ * O4.friction))
-    updateU!(U, hmc, O4.β)
-    # mul!(hmc.P, exp(O4.γ * Δτ * O4.friction))
-    updateP!(U, hmc, O4.γ, fermion_action, bias)
-    # mul!(hmc.P, exp(O4.γ * Δτ * O4.friction))
-    updateU!(U, hmc, O4.δ)
 
-    # mul!(hmc.P, exp(O4.μ * Δτ * O4.friction))
-    updateP!(U, hmc, O4.μ, fermion_action, bias)
-    updateU!(U, hmc, O4.ν)
-    # mul!(hmc.P, exp(O4.μ * Δτ * O4.friction))
-    updateP!(U, hmc, O4.μ, fermion_action, bias)
-
-    updateU!(U, hmc, O4.δ)
-    # mul!(hmc.P, exp(O4.γ * Δτ * O4.friction))
-    updateP!(U, hmc, O4.γ, fermion_action, bias)
-    updateU!(U, hmc, O4.β)
-
-    for i in 1:hmc.steps-1 
-        sgn = i <= fld(hmc.steps-1, 2) ? 1 : -1
-        mul!(hmc.P, exp(sgn * 2 * O4.α * Δτ * O4.friction))
-        updateP!(U, hmc, 2 * O4.α, fermion_action, bias)
+    for _ in 1:div(hmc.steps, 2)
+        mul!(hmc.P, exp(Δτ * O4.friction))
+        updateP!(U, hmc, O4.α, fermion_action, bias)
         updateU!(U, hmc, O4.β)
-        mul!(hmc.P, exp(sgn * O4.γ * Δτ * O4.friction))
         updateP!(U, hmc, O4.γ, fermion_action, bias)
         updateU!(U, hmc, O4.δ)
 
-        mul!(hmc.P, exp(sgn * O4.μ * Δτ * O4.friction))
         updateP!(U, hmc, O4.μ, fermion_action, bias)
         updateU!(U, hmc, O4.ν)
-        mul!(hmc.P, exp(sgn * O4.μ * Δτ * O4.friction))
         updateP!(U, hmc, O4.μ, fermion_action, bias)
 
         updateU!(U, hmc, O4.δ)
-        mul!(hmc.P, exp(sgn * O4.γ * Δτ * O4.friction))
         updateP!(U, hmc, O4.γ, fermion_action, bias)
         updateU!(U, hmc, O4.β)
+        updateP!(U, hmc, O4.α, fermion_action, bias)
+        mul!(hmc.P, exp(Δτ * O4.friction))
     end
 
-    # mul!(hmc.P, exp(-O4.α * Δτ * O4.friction))
-    updateP!(U, hmc, O4.α, fermion_action, bias)
-    mul!(hmc.P, exp(-Δτ * O4.friction))
+    for _ in 1:div(hmc.steps, 2)
+        mul!(hmc.P, exp(-Δτ * O4.friction))
+        updateP!(U, hmc, O4.α, fermion_action, bias)
+        updateU!(U, hmc, O4.β)
+        updateP!(U, hmc, O4.γ, fermion_action, bias)
+        updateU!(U, hmc, O4.δ)
+
+        updateP!(U, hmc, O4.μ, fermion_action, bias)
+        updateU!(U, hmc, O4.ν)
+        updateP!(U, hmc, O4.μ, fermion_action, bias)
+
+        updateU!(U, hmc, O4.δ)
+        updateP!(U, hmc, O4.γ, fermion_action, bias)
+        updateU!(U, hmc, O4.β)
+        updateP!(U, hmc, O4.α, fermion_action, bias)
+        mul!(hmc.P, exp(-Δτ * O4.friction))
+    end
+
     return nothing
 end
 
@@ -286,3 +277,7 @@ function integrator_from_str(str::String, friction)
         error("integrator \"$(str)\" not supported")
     end
 end
+
+@inline default_integrator(int::AbstractIntegrator) = int
+@inline default_integrator(int::LeapfrogRA) = Leapfrog()
+@inline default_integrator(int::OMF4RA) = OMF4()

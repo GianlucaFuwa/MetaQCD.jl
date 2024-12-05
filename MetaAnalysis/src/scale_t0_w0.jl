@@ -15,7 +15,7 @@ const W0 = Dict{Int64,uwreal}(
 
 fm⁻¹_to_GeV(x) = x / (1/0.197)
 
-function t0_scale(filename, Nf; save_filename="")
+function t0_scale(filename, Nf, error_est::AbstractErrorEstimator; save_filename="")
     dat = readdlm(filename, skipstart=1)
     firstitrj = dat[1, 1]
     flow_num = findfirst(x -> x!=firstitrj, view(dat, :, 1)) - 1
@@ -27,8 +27,8 @@ function t0_scale(filename, Nf; save_filename="")
 
     for (i, tf) in enumerate(flow_times)
         results = analyze(
-            view(dat, i:flow_num:len-flow_num*20, 4),
-            UWerr(),
+            dat[i:flow_num:len-flow_num, 4],
+            error_est,
             save_filename=save_filename,
         )
         E = uwreal([results["mean"], results["stderr"]], "$tf")
@@ -40,19 +40,53 @@ function t0_scale(filename, Nf; save_filename="")
 
     errs = ADerrors.err.(t²E)
 
-    ℰ= Spline1D(flow_times, value.(t²E); w=1 ./ errs.^2, k=3)
-    ℰ_err = Spline1D(flow_times, errs; k=3)
+    ℰ = Spline1D(flow_times, value.(t²E); w=1 ./ errs.^2, k=3, bc="extrapolate")
+    ℰ_err = Spline1D(flow_times, errs; k=3, bc="extrapolate")
     W(t) = t * Dierckx.derivative(ℰ, t)
     W_err(t) = t * Dierckx.derivative(ℰ_err, t)
+    plt = plot(flow_times, t -> ℰ(t) - 0.3, ribbon=(t -> ℰ_err(t)))
+    display(plt)
 
-    t0_val = find_zero(t -> ℰ(t) - 0.3, (flow_times[1], flow_times[end]))
-    t0_err = ℰ_err(t0_val)
+    t0_val = try
+        find_zero(t -> ℰ(t) - 0.3, (flow_times[1], flow_times[end]))
+    catch _
+        error("Could not find t0, i.e., tf^2*E is not equal to 0.3 up to the maximum flow time")
+    end
+    t0_val_left = try
+        find_zero(t -> ℰ(t) - 0.3 + ℰ_err(t), (flow_times[1], flow_times[end]))
+    catch _
+        error("Could not find t0, i.e., tf^2*E is not equal to 0.3 up to the maximum flow time")
+    end
+    t0_val_right = try
+        find_zero(t -> ℰ(t) - 0.3 - ℰ_err(t), (flow_times[1], flow_times[end]*2))
+    catch _
+        error("Could not find t0, i.e., tf^2*E is not equal to 0.3 up to the maximum flow time")
+    end
+
+    t0_err = 0.5 * (abs(t0_val_left - t0_val) + abs(t0_val_right - t0_val))
     t0 = uwreal([t0_val, t0_err], "t0"); uwerr(t0)
-    w0_val = sqrt(find_zero(t -> W(t) - 0.3, 2))
-    w0_err = W_err(w0_val)
+
+    w0_val = try
+        sqrt(find_zero(t -> W(t) - 0.3, 2))
+    catch _
+        error("Could not find w0^2")
+    end
+    w0_val_left = try
+        sqrt(find_zero(t -> W(t) - 0.3 + W_err(t), 2))
+    catch _
+        error("Could not find w0^2")
+    end
+    w0_val_right = try
+        sqrt(find_zero(t -> W(t) - 0.3 - W_err(t), 2))
+    catch _
+        @warn "w0 right sided error could not be determined; using left sided instead"
+        w0_val_left
+    end
+
+    w0_err = 0.5 * (abs(w0_val_left - w0_val) + abs(w0_val_right - w0_val))
     w0 = uwreal([w0_val, w0_err], "w0"); uwerr(w0)
     if w0_val^2 > flow_times[end]
-        @warn("w₀² is bigger than tf_max, so probably not reliable")
+        @warn("w0^2 is bigger than tf_max, so probably not reliable")
     end
 
     a_t0 = SQRTT0[Nf] / sqrt(t0); uwerr(a_t0)
@@ -76,6 +110,11 @@ function t0_scale(filename, Nf; save_filename="")
     println("a⁻¹ from t₀ = $(phys_not(ainv_t0)) GeV\n")
     println("w₀ = $(phys_not(w0))")
     println("a from w₀ = $(phys_not(a_w0)) fm")
-    println("a⁻¹ from w₀ = $(phys_not(ainv_w0)) GeV")
-    return flow_times, t²E, ℰ, x->W(x)
+    println("a⁻¹ from w₀ = $(phys_not(ainv_w0)) GeV\n")
+    return Dict(
+        "flow times" => flow_times,
+        "tf^2E" => t²E,
+        "T spline" => ℰ,
+        "W spline" => x->W(x),
+    )
 end

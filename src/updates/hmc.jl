@@ -10,7 +10,7 @@ abstract type AbstractIntegrator end
         numsmear = 0,
         ρ_stout = 0;
         hmc_logging = true,
-        fermion_action = nothing,
+        fermion_action = QuenchedFermionAction,
         heavy_flavours = 0,
         bias_enabled = false,
         logdir = "",
@@ -125,11 +125,11 @@ function HMC(
     staples = Colorfield(U)
     force = Colorfield(U)
 
-    smearing_gauge = StoutSmearing(U, numsmear_gauge, ρ_stout_gauge)
+    smearing_gauge = StoutSmearing(U; numsmear=numsmear_gauge, rho=ρ_stout_gauge)
     smearing_fermion = if fermion_action === QuenchedFermionAction
         NoSmearing()
     else
-        StoutSmearing(U, numsmear_fermion, ρ_stout_fermion)
+        StoutSmearing(U; numsmear=numsmear_fermion, rho=ρ_stout_fermion)
     end
 
     has_smearing = smearing_gauge != NoSmearing() || smearing_fermion != NoSmearing()
@@ -219,7 +219,6 @@ function update!(
     metro_test::Bool=true,
     therm::Bool=false,
     myinstance::Int64=mpi_myrank(),
-    mpi_multi_sim::Bool=false,
 ) where {TI,TF,TB}
     if TF !== QuenchedFermionAction
         @assert TF <: Tuple "fermion_action must be nothing or a tuple of fermion actions"
@@ -228,6 +227,8 @@ function update!(
 
     set_ext!(hmc.logfile, myinstance)
     set_ext!(hmc.forcefile, myinstance)
+
+    integrator = therm ? default_integrator(hmc.integrator) : hmc.integrator
 
     U_old = hmc.U_old
     P_old = hmc.P_old
@@ -248,9 +249,9 @@ function update!(
     CV_old = calc_CV(U, bias)
     V_old = bias(CV_old)
     sample_pseudofermions!(ϕ, fermion_action, U, smearing_fermion, shared_smearing)
-    Sf_old = calc_fermion_action(fermion_action, U, ϕ, smearing_fermion, true)
+    Sf_old = calc_fermion_action(fermion_action, U, ϕ, smearing_fermion, true) # INFO: fields are already smeared in sampling, so we dont have to here
 
-    evolve!(hmc.integrator, U, hmc, fermion_action, bias)
+    evolve!(integrator, U, hmc, fermion_action, bias)
 
     trP²_new = -calc_kinetic_energy(P)
     Sg_new = calc_gauge_action(U, smearing_gauge)
@@ -308,8 +309,13 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias)
     ϕ = hmc.ϕ
     temp_force = hmc.force2
     smearing_gauge = hmc.smearing_gauge
-    shared_smearing = (bias == NoBias()) ? false : (bias.smearing == hmc.smearing_fermion)
-    smearing_fermion = shared_smearing ? bias.smearing : hmc.smearing_fermion
+    smearing_fermion = if bias == NoBias() || isnothing(bias)
+        hmc.smearing_fermion
+    else
+        shared_smearing = (bias.smearing == hmc.smearing_fermion)
+        shared_smearing ? bias.smearing : hmc.smearing_fermion
+    end
+
     fieldstrength = hmc.fieldstrength
 
     fp = !isnothing(hmc.forcefile) ? fopen(hmc.forcefile, "a") : nothing

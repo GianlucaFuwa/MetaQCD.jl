@@ -15,21 +15,17 @@ include("./measurements/Measurements.jl")
 include("./bias/Bias.jl")
 include("./main/Universe.jl")
 include("./updates/Updates.jl")
-include("./viz/Viz.jl")
 include("./main/Main.jl")
 
 using .MetaIO
 using .Utils
 using .Main
 using .Solvers
-using .Viz
 using Unicode
 
 export BMWFormat, BridgeFormat, JLD2Format, load_config!, save_config
 export MetaLogger, current_time, @level1, @level2, @level3, set_global_logger!
 export run_sim, build_bias
-export MetaMeasurements, MetaBias, biaspotential, eigenvalues, hadroncorrelator, timeseries
-export ibegin, iend
 
 import .BiasModule: Bias, Metadynamics, NoBias, OPES, Parametric, calc_CV, update_bias!
 import .DiracOperators: AbstractDiracOperator, Daggered, DdaggerD, calc_fermion_action
@@ -54,7 +50,7 @@ import .Parameters: ParameterSet, construct_params_from_toml
 import .Smearing: Euler, RK2, RK3, RK3W7, GradientFlow, NoSmearing, StoutSmearing
 import .Smearing: calc_smearedU!, flow!, stout_backprop!
 import .Updates: Updatemethod, Heatbath, HMC, Metropolis, evolve!, update!
-import .Updates: Leapfrog, OMF2, OMF2Slow, OMF4, OMF4Slow
+import .Updates: Leapfrog, LeapfrogRA, OMF2, OMF2Slow, OMF4, OMF4RA, OMF4Slow
 import .Updates: Overrelaxation, Subgroups, KenneyLaub
 import .Updates: calc_dSdU_bare!, calc_dSfdU_bare!, calc_dVdU_bare!, ∇trFμνFρσ
 import .Universe: Univ
@@ -82,7 +78,7 @@ export ParameterSet, construct_params_from_toml
 export Euler, RK2, RK3, RK3W7, GradientFlow, NoSmearing, StoutSmearing
 export calc_smearedU!, flow!, stout_backprop!
 export Updatemethod, Heatbath, HMC, Metropolis
-export Leapfrog, OMF2, OMF2Slow, OMF4, OMF4Slow
+export Leapfrog, LeapfrogRA, OMF2, OMF2Slow, OMF4, OMF4RA, OMF4Slow
 export Overrelaxation, Subgroups, KenneyLaub
 export calc_dSdU_bare!, calc_dSfdU_bare!, calc_dVdU_bare!, evolve!, update!, ∇trFμνFρσ
 export NoSmearing, StoutSmearing, calc_smearedU!, GradientFlow, flow!, stout_backprop!

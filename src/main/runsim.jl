@@ -140,11 +140,11 @@ function run_sim!(univ, parameters, updatemethod, updatemethod_pt; mpi_multi_sim
 
     if parameters.tempering_enabled && !mpi_multi_sim
         gflow = GradientFlow(
-            U[1],
-            parameters.flow_integrator,
-            parameters.flow_num,
-            parameters.flow_steps,
-            parameters.flow_tf;
+            U[1];
+            integrator=parameters.flow_integrator,
+            numflow=parameters.flow_num,
+            steps=parameters.flow_steps,
+            tf=parameters.flow_tf,
             measure_every=parameters.flow_measure_every,
         )
         measurements = Vector{MeasurementMethods}(undef, parameters.numinstances)
@@ -190,11 +190,11 @@ function run_sim!(univ, parameters, updatemethod, updatemethod_pt; mpi_multi_sim
         end
     else
         gflow = GradientFlow(
-            U,
-            parameters.flow_integrator,
-            parameters.flow_num,
-            parameters.flow_steps,
-            parameters.flow_tf;
+            U;
+            integrator=parameters.flow_integrator,
+            numflow=parameters.flow_num,
+            steps=parameters.flow_steps,
+            tf=parameters.flow_tf,
             measure_every=parameters.flow_measure_every,
         )
 
@@ -286,7 +286,6 @@ function metaqcd!(
                     bias=NoBias(),
                     metro_test=itrj>10, # So we dont get stuck at the beginning
                     therm=true,
-                    mpi_multi_sim=mpi_multi_sim,
                     myinstance=myinstance[],
                 )
             end
@@ -311,7 +310,6 @@ function metaqcd!(
                     fermion_action=fermion_action,
                     bias=bias,
                     metro_test=true,
-                    mpi_multi_sim=mpi_multi_sim,
                     myinstance=myinstance[],
                 )
                 rand() < 0.5 && update!(parity, U)

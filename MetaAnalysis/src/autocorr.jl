@@ -4,7 +4,7 @@ function autoc_time_int(x::Vector{<:Real})
 
     C = Γ₀ = zero(Float64) 
 
-    @tturbo for k in 1:(M - 1)
+    for k in 1:(M - 1)
         Γ₀ += (x[k] - avg) * (x[k + 1] - avg)
     end
 
@@ -13,7 +13,7 @@ function autoc_time_int(x::Vector{<:Real})
     for t in 2:M-1
         tmp = 0.0
 
-        @tturbo for k in 1:(M - t)
+        for k in 1:(M - t)
             tmp += (x[k] - avg) * (x[k + t] - avg)
         end
     

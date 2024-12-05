@@ -55,7 +55,7 @@ function Bias(p::ParameterSet, U; mpi_multi_sim=false, instance=mpi_myrank(), du
     @level1("- Setting Bias instance $(inum)...")
     kind_of_bias = Unicode.normalize(p.kind_of_bias; casefold=true)
     TCV = get_cvtype_from_parameters(p)
-    smearing = StoutSmearing(U, p.numsmears_for_cv, p.rhostout_for_cv)
+    smearing = StoutSmearing(U; numlayers=p.numsmears_for_cv, rho=p.rhostout_for_cv)
     is_static = dummy ? true : (inum==0 ? false : p.is_static[inum])
     sstr = (is_static || kind_of_bias == "parametric") ? "static" : "dynamic"
     @level1("|  Type: $(sstr) $(kind_of_bias)")

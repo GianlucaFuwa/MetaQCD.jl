@@ -28,7 +28,7 @@ function construct_smearing(U, smearingparameters, coefficient, numlayers)
     elseif smearingparameters == "stout"
         @assert coefficient !== nothing "Stout coefficient must be set"
         println("Stout smearing will be used")
-        smearing = StoutSmearing(U, numlayers, coefficient)
+        smearing = StoutSmearing(U; numlayers=numlayers, rho=coefficient)
     else
         error("Smearing = $smearing is not supported")
     end

@@ -3,7 +3,6 @@ module MetaAnalysis
 using ADerrors
 using DelimitedFiles
 using Dierckx
-using LoopVectorization
 using LsqFit
 using Plots
 using Polyester
@@ -14,12 +13,16 @@ using Roots
 using SingularSpectrumAnalysis
 using Statistics
 
-export Bootstrap, Jackknife, UWerr, analyze, modify_bias
+export MetaMeasurements, MetaBias, eigenvalues, hadroncorrelator, timeseries, observables
+export Bootstrap, Jackknife, UWerr, analyze, modify_bias, plot
+export t0_scale
 
 abstract type AbstractErrorEstimator end
 
+const DEFAULT_COLORS = ["#0072b2", "#e69f00", "#009e73", "#cc79a7", "#56b4e9", "#d55e00"]
+
 include("bias.jl")
-include("viz.jl")
+include("measurements.jl")
 include("autocorr.jl")
 include("bootstrap.jl")
 include("jackknife.jl")
@@ -118,7 +121,7 @@ end
 phys_not(val::uwreal) = phys_not(value(val), ADerrors.err(val))
 
 function phys_not(val::Float64, err::Float64)
-    @assert err < 1
+    err > 1 && return phys_not_cp(val, err)
     exp_err = round(Int64, log10(err), RoundDown)-1
     err_shifted = err / 10.0^exp_err
     val_str = if exp_err < -5
@@ -129,6 +132,38 @@ function phys_not(val::Float64, err::Float64)
     xx = abs(val) > 1 ? Int(2 + floor(log10(abs(val)))) : 2
     val_str = length(val_str)!=-exp_err+xx ? rpad(val_str, -exp_err+xx, "0") : val_str
     err_str = "($(round(Int64, err_shifted)))"
+    return val_str * err_str
+end
+
+function phys_not(val::Int64, err::Int64)
+    exp_err = round(Int64, log10(err), RoundDown)
+    err_shifted = err / 10^exp_err
+    val_str = @sprintf("%g", round(val, digits=-exp_err))
+    val_str = length(val_str)!=-exp_err+2 ? rpad(val_str, -exp_err+2, "0") : val_str
+    err_str = "($(round(Int64, err_shifted)))"
+    return val_str * err_str
+end
+
+function phys_not_cp(val::Float64, err::Float64)
+    # Calculate the exponent of the error
+    exp_err = floor(log10(err))
+
+    # Shift the error to have 2 significant digits
+    err_shifted = exp_err > 1 ? round(err / 10^exp_err, sigdigits=2) : round(err, sigdigits=2)
+    num_nachkomma = length(strip(splitext("$err_shifted")[2], '.'))
+
+    # Format the value without trailing zeroes
+    val_str = strip(@sprintf("%.2f", round(val, digits=num_nachkomma)), '0')
+    val_str = strip(val_str, '.')
+
+    # Format the error with trailing zeroes
+    err_str = @sprintf("%.2f", err_shifted)
+    err_str = rstrip(err_str, '.')
+    err_str = rstrip(err_str, '0')
+    err_str = rstrip(err_str, '.')
+    err_str = @sprintf("(%s)", err_str)
+
+    # Return the formatted string
     return val_str * err_str
 end
 
