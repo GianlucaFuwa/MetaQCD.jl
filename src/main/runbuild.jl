@@ -84,13 +84,15 @@ function build_bias!(univ, parameters, updatemethod; mpi_multi_sim=false)
         additional_string=additional_string,
     )
 
-    measurements_with_flow = MeasurementMethods(
-        U,
-        parameters.measure_dir,
-        parameters.measurements_with_flow;
-        additional_string=additional_string,
-        flow=true,
-    )
+    measurements_with_flow = ntuple(length(gflow)) do i
+        MeasurementMethods(
+            U,
+            parameters.measure_dir,
+            parameters.measurements_with_flow;
+            additional_string=additional_string,
+            flow=gflow[i],
+        )
+    end
 
     checkpointer = Checkpointer(
         parameters.ensemble_dir, parameters.save_checkpoint_every
@@ -124,7 +126,8 @@ function metabuild!(
     bias = univ.bias
     comm = mpi_comm()
     starting_Q = parameters.starting_Q
-    mpi_barrier()
+    therm_cv = Vector{Float64}(undef, parameters.numtherm)
+    adaptive_σ = is_adaptive(bias)
 
     @level1("- Thermalization:")
     _, runtime_therm = @timed begin
@@ -140,10 +143,13 @@ function metabuild!(
                     bias=NoBias(),
                     metro_test=itrj>10, # So we dont get stuck at the beginning
                     therm=true,
-                    mpi_multi_sim=mpi_multi_sim,
                 )
             end
 
+            if adaptive_σ
+                recalc_CV!(U, bias)
+                therm_cv[itrj] = U.CV
+            end
             @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")
         end
     end
@@ -152,6 +158,11 @@ function metabuild!(
     recalc_CV!(U, bias) # need to recalc cv since it was not updated during therm
 
     mpi_barrier()
+
+    if adaptive_σ
+        std_cv = mpi_allgather(std(therm_cv)::Float64, comm)
+        set_σ₀!(bias, mean(std_cv))
+    end
 
     @level1("- Production:")
     _, runtime_prod = @timed begin
@@ -166,7 +177,6 @@ function metabuild!(
                     fermion_action=fermion_action,
                     bias=bias,
                     metro_test=true,
-                    mpi_multi_sim=mpi_multi_sim,
                 )
                 numaccepts += accepted
             end

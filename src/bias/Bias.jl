@@ -55,7 +55,9 @@ function Bias(p::ParameterSet, U; mpi_multi_sim=false, instance=mpi_myrank(), du
     @level1("- Constructing Bias instance $(inum)...")
     kind_of_bias = Unicode.normalize(p.kind_of_bias; casefold=true)
     TCV = get_cvtype_from_parameters(p)
-    smearing = StoutSmearing(U; numlayers=p.numsmears_for_cv, rho=p.rhostout_for_cv)
+    numsmears = p.numsmears_for_cv
+    rho = p.rhostout_for_cv
+    smearing = StoutSmearing(U; numlayers=maximum(numsmears), rho=rho)
     is_static = dummy ? true : (inum==0 ? false : p.is_static[inum])
     sstr = (is_static || kind_of_bias == "parametric") ? "static" : "dynamic"
     @level1("|  Type: $(sstr) $(kind_of_bias)")
@@ -70,7 +72,11 @@ function Bias(p::ParameterSet, U; mpi_multi_sim=false, instance=mpi_myrank(), du
         error("kind_of_bias $(kind_of_bias) not supported. Try metad, opes or parametric")
     end
 
-    @level1("|  CV: $(string(TCV)) with $(string(smearing))")
+    for i in eachindex(p.numsmears_for_cv)
+        @level1 """
+        |  CV$(i): $(string(TCV)) with StoutSmearing(numlayers=$(numsmears[i]), rho=$(rho))
+        """
+    end
 
     if !(bias isa Parametric)
         is_opes = bias isa OPES
@@ -157,6 +163,8 @@ kind_of_cv(b::Bias) = b.kind_of_cv
 update_bias!(::NoBias, args...; kwargs...) = nothing
 update_bias!(::Nothing, args...; kwargs...) = nothing
 write_to_file(::AbstractBias, args...) = nothing
+is_adaptive(b::Bias) = is_adaptive(b.bias)
+set_σ₀!(b::Bias, val) = set_σ₀!(b.bias, val)
 
 include("metadynamics.jl")
 include("opes.jl")

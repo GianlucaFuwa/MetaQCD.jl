@@ -66,6 +66,8 @@ function calc_weight(o::OPES, cv, args...)
 end
 
 function calc_weight(m::Metadynamics, cv, weight_method)
+    w = 0.0
+
     if weight_method == "tiwari" # average over exp(V) in denom
         w = calc_weight_tiwari(m, cv)
     elseif weight_method == "balanced_exp" # average over V in denom

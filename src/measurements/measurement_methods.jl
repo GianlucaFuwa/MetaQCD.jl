@@ -88,11 +88,12 @@ end
 
 
 function calc_measurements_flowed(
-    m::MeasurementMethods, flow::Tuple, U, itrj, myinstance=mpi_myrank();
-    mpi_multi_sim=false
+    m::Tuple, flow::Tuple, U, itrj, myinstance=mpi_myrank(); mpi_multi_sim=false
 )
-    for f in flow
-        calc_measurements_flowed(m, f, U, itrj, myinstance; mpi_multi_sim=mpi_multi_sim)
+    for i in eachindex(flow)
+        calc_measurements_flowed(
+            m[i], flow[i], U, itrj, myinstance; mpi_multi_sim=mpi_multi_sim
+        )
     end
 
     return nothing

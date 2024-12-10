@@ -37,6 +37,8 @@ function Parametric(p::ParameterSet; dummy=false)
     return Parametric(cvlims, penalty_weight, Q, A, Z)
 end
 
+is_adaptive(::Parametric) = false
+set_σ₀!(::Parametric, ::Any) = nothing
 update!(::Parametric, cv, args...) = nothing
 clear!(::Parametric) = nothing
 

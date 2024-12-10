@@ -115,6 +115,8 @@ end
 Base.length(m::Metadynamics) = length(m.values)
 Base.eachindex(m::Metadynamics) = eachindex(m.values)
 Base.lastindex(m::Metadynamics) = lastindex(m.values)
+is_adaptive(::Metadynamics) = false
+set_σ₀!(::Metadynamics, ::Any) = nothing
 
 function Base.setindex!(m::Metadynamics, v, i)
     return m.values[i] = v

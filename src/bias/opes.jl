@@ -131,7 +131,8 @@ function OPES(;
     @level1("|  SIGMA0: $(σ₀)")
     @assert σ₀ >= 0 "SIGMA0 must be >= 0"
     @level1("|  SIGMA_MIN: $(σ_min)")
-    @assert σ_min >= 0 "SIGMA_MIN must be > 0"
+    @assert σ_min > 0 "SIGMA_MIN must be > 0"
+    σ₀ > 0 && (@assert σ₀ >= σ_min "If SIGMA0 is > 0 then it must be bigger than SIGMA_MIN")
     @level1("|  FIXED_SIGMA: $(fixed_σ)")
     @level1("|  EPSILON: $(ϵ)")
     @assert ϵ > 0 "EPSILON must be > 0, maybe your BARRIER is to high?"
@@ -312,6 +313,13 @@ end
 
 get_kernels(o::OPES) = o.kernels
 get_δkernels(o::OPES) = o.δkernels
+is_adaptive(o::OPES) = (o.σ₀ == 0)
+
+function set_σ₀!(o::OPES, val)
+    o.σ₀ = val
+    @level1("|  sigma0 is adaptively set to $(o.σ₀)!")
+    return nothing
+end
 
 update!(o::OPES, cv, itrj) = update_opes!(o, cv, itrj)
 
