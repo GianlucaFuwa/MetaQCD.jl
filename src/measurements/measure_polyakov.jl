@@ -1,6 +1,6 @@
 struct PolyakovMeasurement{T} <: AbstractMeasurement
     filename::T
-    function PolyakovMeasurement(U::Gaugefield; filename="", flow=false)
+    function PolyakovMeasurement(U::Gaugefield; filename="", flow=NoSmearing())
         if is_distributed(U)
             @assert U.topology.numprocs_cart[4] == 1 "Field cannot be decomposed in time direction for polykov loop calculation"
         end
@@ -9,7 +9,7 @@ struct PolyakovMeasurement{T} <: AbstractMeasurement
             rpath = StaticString(filename)
             header = ""
 
-            if flow
+            if flow == true || flow == NoSmearing()
                 header *= @sprintf(
                     "%-11s%-7s%-9s%-25s%-25s",
                     "itrj",
@@ -47,13 +47,14 @@ function measure(
     itrj=0,
     flow=nothing;
     mpi_multi_sim=false,
+    fstr="",
 ) where {T}
     poly = polyakov_traced(U)
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
     if !is_distributed(U) || mpi_amroot()
         if !isnothing(flow)
-            @level1("$itrj\t$(real(poly)) + $(imag(poly))im # poly_flow_$(τ)")
+            @level1("$itrj\t$(real(poly)) + $(imag(poly))im # poly$(fstr)_$(τ)")
         else
             @level1("$itrj\t$(real(poly)) + $(imag(poly))im # poly")
         end

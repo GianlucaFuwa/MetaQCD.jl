@@ -21,7 +21,7 @@ struct MetaMeasurements
             """
             ensemblename
         else
-            path = joinpath(splitpath(@__DIR__())[1:end-2]...) * "/ensembles/$(ensemblename)/measurements/"
+            path = joinpath(splitpath(@__DIR__())[1:end-2]...) * "/ensembles/$(ensemblename)/"
             @assert isdir(path) """
             Ensemble \"$(ensemblename)\" could not be found or doesn't exist.
             """

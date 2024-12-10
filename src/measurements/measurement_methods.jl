@@ -7,16 +7,22 @@ end
 
 @inline Base.getindex(m::MeasurementMethods{M}, i) where {M} = m.measurements[i]
 @inline Base.eachindex(m::MeasurementMethods{M}) where {M} = Base.OneTo(length(m.measurements))
+@inline flow_string(::Nothing) = ""
+@inline flow_string(::NoSmearing) = ""
+@inline flow_string(::GradientFlow) = "_gflow"
+@inline flow_string(::Cooling) = "_cooling"
 
 function MeasurementMethods(
-    U, measurement_dir, measurement_methods::Vector{Dict}; flow=false, additional_string=""
+    U, measurement_dir, measurement_methods::Vector{Dict};
+    flow=NoSmearing(), additional_string="",
 )
-    @level1("- Preparing $(ifelse(flow, "flowed", "")) Measurements...")
+    fstr = flow_string(flow)
+    @level1("- Preparing $(fstr) Measurements...")
     num_measurements = length(measurement_methods)
     # measurement_parameters_set = Vector{MeasurementParameters}(undef, num_measurements)
     intervals = zeros(Int64, num_measurements)
 
-    add_string = (flow ? "_flowed" : "") * additional_string
+    add_string = fstr * additional_string
 
     measurements = ntuple(num_measurements) do i
         measurement_parameters = meas_parameters_from_dict(measurement_methods[i])
@@ -64,42 +70,56 @@ function calc_measurements(
     return nothing
 end
 
+calc_measurements_flowed(::Any, ::NoSmearing, args...; kwargs...) = nothing
+
 function calc_measurements_flowed(
-    m::Vector{MeasurementMethods}, gflow, U, itrj, measure_on_all=false; kwargs...
+    m::Vector{MeasurementMethods}, flow, U, itrj, measure_on_all=false; kwargs...
 )
     if measure_on_all # if we measure on all streams in PT-MetaD
         for i in eachindex(m)
-            calc_measurements_flowed(m[i], gflow, U[i], itrj, i-1)
+            calc_measurements_flowed(m[i], flow, U[i], itrj, i-1)
         end
     else
-        calc_measurements_flowed(m[1], gflow, U[1], itrj, 0)
+        calc_measurements_flowed(m[1], flow, U[1], itrj, 0)
+    end
+
+    return nothing
+end
+
+
+function calc_measurements_flowed(
+    m::MeasurementMethods, flow::Tuple, U, itrj, myinstance=mpi_myrank();
+    mpi_multi_sim=false
+)
+    for f in flow
+        calc_measurements_flowed(m, f, U, itrj, myinstance; mpi_multi_sim=mpi_multi_sim)
     end
 
     return nothing
 end
 
 function calc_measurements_flowed(
-    m::MeasurementMethods, gradient_flow, U, itrj, myinstance=mpi_myrank();
+    m::MeasurementMethods, flow::AbstractSmearing, U, itrj, myinstance=mpi_myrank();
     mpi_multi_sim=false
 )
     # check if the current iteration has any measurements to be made to avoid work
     check_for_measurements(itrj, m.intervals) || return nothing
-    copy!(gradient_flow.Uflow, U)
-    tf = gradient_flow.tf
+    copy!(flow.Uflow, U)
+    tf = flow.tf
 
-    for iflow in 1:(gradient_flow.numflow)
-        flow!(gradient_flow)
-        Uflow = gradient_flow.Uflow
+    for iflow in 1:(flow.numflow)
+        flow!(flow)
+        Uflow = flow.Uflow
         τ = iflow * tf
 
-        if iflow ∈ gradient_flow.measure_at
+        if iflow ∈ flow.measure_at
             for i in 1:(m.num_measurements)
                 interval = m.intervals[i]
 
                 if itrj%interval == 0
                     measure(
                         m.measurements[i], Uflow, myinstance, itrj, (iflow, τ);
-                        mpi_multi_sim=mpi_multi_sim
+                        mpi_multi_sim=mpi_multi_sim, fstr=flow_string(flow)
                     )
                 end
             end

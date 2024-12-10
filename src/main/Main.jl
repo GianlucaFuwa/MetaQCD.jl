@@ -13,7 +13,7 @@ import ..Fields: calc_gauge_action, is_distributed, normalize!
 import ..Measurements: MYEXT_str
 import ..Measurements: MeasurementMethods, calc_measurements, calc_measurements_flowed
 import ..Parameters: ParameterSet, construct_params_from_toml
-import ..Smearing: GradientFlow
+import ..Smearing: construct_flow
 import ..Universe: Univ
 import ..Updates: HMC, ParityUpdate, Updatemethod, update!, temper!, integrator_from_str
 import ..Updates: set_instanton!

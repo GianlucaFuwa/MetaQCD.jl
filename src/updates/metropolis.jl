@@ -27,7 +27,7 @@ struct Metropolis{ITR,NH,TOR,NOR} <: AbstractUpdate
     function Metropolis(
         ::Gaugefield{B,T,A,GA}, ϵ, numhits, target_acc, or_alg, numorelax; kwargs...
     ) where {B,T,A,GA}
-        @level1("┌ Setting Metropolis...")
+        @level1("┌ Constructing Metropolis...")
         m_ϵ = Base.RefValue{Float64}(ϵ)
         ITR = (GA == WilsonGaugeAction) ? Checkerboard2 : Checkerboard4
 

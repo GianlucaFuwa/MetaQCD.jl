@@ -70,7 +70,7 @@ struct HMC{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TFP1,TFP2} <: AbstractUpdate
         integrator, steps, Δτ, friction, P, P_old, U_old, ϕ, staples, force, force2,
         fieldstrength, smearing_gauge, smearing_fermion, logfile, forcefile,
     )
-        @level1("- Setting HMC...")
+        @level1("- Constructing HMC...")
         @level1("|  INTEGRATOR: $(string(integrator))")
         @level1("|  TRAJECTORY LENGTH: $(steps * Δτ)")
         @level1("|  STEPS: $(steps)")

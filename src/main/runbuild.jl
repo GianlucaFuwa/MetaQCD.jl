@@ -73,14 +73,7 @@ function build_bias!(univ, parameters, updatemethod; mpi_multi_sim=false)
         updatemethod = Updatemethod(parameters, U)
     end
 
-    gflow = GradientFlow(
-        U;
-        integrator=parameters.flow_integrator,
-        numflow=parameters.flow_num,
-        steps=parameters.flow_steps,
-        tf=parameters.flow_tf,
-        measure_every=parameters.flow_measure_every,
-    )
+    gflow = construct_flow(U, parameters)
 
     additional_string = "_$(lpad(mpi_myrank(), 3, "0")).txt"
 

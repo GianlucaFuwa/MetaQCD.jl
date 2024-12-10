@@ -52,7 +52,7 @@ function Bias(p::ParameterSet, U; mpi_multi_sim=false, instance=mpi_myrank(), du
     else
         instance
     end
-    @level1("- Setting Bias instance $(inum)...")
+    @level1("- Constructing Bias instance $(inum)...")
     kind_of_bias = Unicode.normalize(p.kind_of_bias; casefold=true)
     TCV = get_cvtype_from_parameters(p)
     smearing = StoutSmearing(U; numlayers=p.numsmears_for_cv, rho=p.rhostout_for_cv)

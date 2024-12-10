@@ -1,12 +1,12 @@
 struct PlaquetteMeasurement{T} <: AbstractMeasurement
     factor::Float64 # 1 / (6*U.NV*U.NC)
     filename::T
-    function PlaquetteMeasurement(U::Gaugefield; filename="", flow=false)
+    function PlaquetteMeasurement(U::Gaugefield; filename="", flow=NoSmearing())
         if !isnothing(filename) && filename != ""
             rpath = StaticString(filename)
             header = ""
 
-            if flow
+            if flow == true || flow == NoSmearing()
                 header *= @sprintf(
                     "%-11s%-7s%-9s%-25s", "itrj", "iflow", "tflow", "Re(plaq)"
                 )
@@ -40,13 +40,14 @@ function measure(
     itrj=0,
     flow=nothing;
     mpi_multi_sim=false,
+    fstr="",
 ) where {T}
     plaq = plaquette_trace_sum(U) * m.factor
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
     if !is_distributed(U) || mpi_amroot()
         if !isnothing(flow)
-            @level1("$itrj\t$plaq # plaq_flow_$(τ)")
+            @level1("$itrj\t$plaq # plaq$(fstr)_$(τ)")
         else
             @level1("$itrj\t$plaq # plaq")
         end

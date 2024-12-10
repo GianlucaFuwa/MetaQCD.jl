@@ -27,7 +27,7 @@ struct Heatbath{MAXIT,ITR,TOR,NHB,NOR} <: AbstractUpdate end
 function Heatbath(
     ::Gaugefield{B,T,A,GA}, MAXIT, numheatbath, or_alg, numorelax; kwargs...
 ) where {B,T,A,GA}
-    @level1("┌ Setting Heatbath...")
+    @level1("┌ Constructing Heatbath...")
     ITR = GA == WilsonGaugeAction ? Checkerboard2 : Checkerboard4
     @level1("|  ITERATOR: $(string(ITR))")
 

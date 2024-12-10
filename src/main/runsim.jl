@@ -138,31 +138,17 @@ function run_sim!(univ, parameters, updatemethod, updatemethod_pt; mpi_multi_sim
         parity = parameters.parity_update ? ParityUpdate(U) : nothing
     end
 
-    if parameters.tempering_enabled && !mpi_multi_sim
-        gflow = GradientFlow(
-            U[1];
-            integrator=parameters.flow_integrator,
-            numflow=parameters.flow_num,
-            steps=parameters.flow_steps,
-            tf=parameters.flow_tf,
-            measure_every=parameters.flow_measure_every,
-        )
-        measurements = Vector{MeasurementMethods}(undef, parameters.numinstances)
-        measurements_with_flow = Vector{MeasurementMethods}(undef, parameters.numinstances)
+    numinstances = parameters.numinstances
 
+    if parameters.tempering_enabled && !mpi_multi_sim
+        gflow = construct_flow(U[1], parameters)
+        measurements = Vector{MeasurementMethods}(undef, numinstances)
         measurements[1] = MeasurementMethods(
             U[1], parameters.measure_dir, parameters.measurements;
             additional_string="_000.txt",
         )
 
-        measurements_with_flow[1] = MeasurementMethods(
-            U[1],
-            parameters.measure_dir,
-            parameters.measurements_with_flow;
-            flow=true,
-            additional_string="_000.txt",
-        )
-        for i in 2:(parameters.numinstances)
+        for i in 2:numinstances
             if parameters.measure_on_all
                 measurements[i] = MeasurementMethods(
                     U[i],
@@ -170,42 +156,50 @@ function run_sim!(univ, parameters, updatemethod, updatemethod_pt; mpi_multi_sim
                     parameters.measurements;
                     additional_string = "_$(lpad(i-1, 3, "0")).txt"
                 )
-                measurements_with_flow[i] = MeasurementMethods(
-                    U[i],
-                    parameters.measure_dir,
-                    parameters.measurements_with_flow;
-                    flow=true,
-                    additional_string = "_$(lpad(i-1, 3, "0")).txt"
-                )
             else
-                measurements[i] = MeasurementMethods(
-                    U[i], parameters.measure_dir, Dict[];
-                    additional_string="_$(lpad(i-1, 3, "0")).txt"
-                )
-                measurements_with_flow[i] = MeasurementMethods(
-                    U[i], parameters.measure_dir, Dict[];
-                    additional_string="_$(lpad(i-1, 3, "0")).txt"
-                )
+                measurements[i] = MeasurementMethods(U[i], parameters.measure_dir, Dict[])
             end
         end
-    else
-        gflow = GradientFlow(
-            U;
-            integrator=parameters.flow_integrator,
-            numflow=parameters.flow_num,
-            steps=parameters.flow_steps,
-            tf=parameters.flow_tf,
-            measure_every=parameters.flow_measure_every,
-        )
 
+        measurements_with_flow = ntuple(length(gflow)) do i
+            _measurements_with_flow = Vector{MeasurementMethods}(undef, numinstances)
+            _measurements_with_flow[1] = MeasurementMethods(
+                U[1],
+                parameters.measure_dir,
+                parameters.measurements_with_flow;
+                flow=gflow[i],
+                additional_string="_000.txt",
+            )
+
+            for j in 2:numinstances
+                if parameters.measure_on_all
+                    _measurements_with_flow[j] = MeasurementMethods(
+                        U[j],
+                        parameters.measure_dir,
+                        parameters.measurements_with_flow;
+                        flow=gflow[i],
+                        additional_string = "_$(lpad(j-1, 3, "0")).txt"
+                    )
+                else
+                    measure_dir = parameters.measure_dir
+                    _measurements_with_flow[i] = MeasurementMethods(U[i], measure_dir, Dict[])
+                end
+            end
+
+            _measurements_with_flow
+        end
+    else
+        gflow = construct_flow(U, parameters)
         measurements = MeasurementMethods(
             U, parameters.measure_dir, parameters.measurements;
             additional_string="_$(lpad(mpi_myrank(), 3, "0")).txt"
         )
-        measurements_with_flow = MeasurementMethods(
-            U, parameters.measure_dir, parameters.measurements_with_flow;
-            flow=true, additional_string="_$(lpad(mpi_myrank(), 3, "0")).txt"
-        )
+        measurements_with_flow = ntuple(length(gflow)) do i
+            MeasurementMethods(
+                U, parameters.measure_dir, parameters.measurements_with_flow;
+                flow=gflow[i], additional_string="_$(lpad(mpi_myrank(), 3, "0")).txt"
+            )
+        end
     end
 
     # initialize functor responsible for saving gaugefield configurations
@@ -345,10 +339,12 @@ function metaqcd!(
             _, mtime = @timed calc_measurements(
                 measurements, U, itrj, myinstance[]; mpi_multi_sim=mpi_multi_sim
             )
-            _, fmtime = @timed calc_measurements_flowed(
-                measurements_with_flow, gflow, U, itrj, myinstance[];
-                mpi_multi_sim=mpi_multi_sim
-            )
+            _, fmtime = @timed for i in eachindex(gflow)
+                calc_measurements_flowed(
+                    measurements_with_flow[i], gflow[i], U, itrj, myinstance[];
+                    mpi_multi_sim=mpi_multi_sim
+                )
+            end
             calc_weights(bias, U.CV, itrj, myinstance[]; mpi_multi_sim=mpi_multi_sim)
             @level1("|  Meas. elapsed time:     $(mtime)  [s]")
             @level1("|  FlowMeas. elapsed time: $(fmtime) [s]\n-")

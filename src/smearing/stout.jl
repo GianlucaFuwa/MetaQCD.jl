@@ -1,5 +1,5 @@
 """
-	StoutSmearing(U::Gaugefield, numlayers, ρ)
+	StoutSmearing(U::Gaugefield; numlayers=0, rho=0)
 	
 Struct StoutSmearing holds all fields relevant to smearing and subsequent recursion. \\
 Since we never actually use the smeared fields in main, they dont have to leave this scope

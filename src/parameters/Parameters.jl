@@ -10,8 +10,6 @@ include("./parameter_set.jl")
 
 export ParameterSet
 
-lower_case(str) = Unicode.normalize(str; casefold=true)
-
 function set_params_value!(value_Params, values)
     d = struct2dict(values)
     pnames = fieldnames(ParameterSet)
@@ -180,6 +178,12 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
                     value_Params[i] = valuedir
                 elseif String(pname_i) == "L"
                     value_Params[i] = Tuple(value[String(pname_i)])
+                elseif String(pname_i) == "flow_integrator"
+                    if value[String(pname_i)] isa String
+                        value_Params[i] = [value[String(pname_i)]]
+                    else
+                        value_Params[i] = value[String(pname_i)]
+                    end
                 elseif String(pname_i) == "rhmc_spectral_bound"
                     value_Params[i] = Tuple(value[String(pname_i)])
                 elseif String(pname_i) == "is_static"
@@ -255,129 +259,111 @@ function check_parameters(p::ParameterSet)
         @assert length(p.starting_Q) == mpi_size()
     end
 
-    if lower_case(p.gauge_action) ∉ ["wilson", "iwasaki", "symanzik_tree", "dbw2"]
-        ga = p.gauge_action
-        throw(AssertionError("""
-              gauge_action in [\"Physical Settings\"] = $(ga) is not supported.
-              Supported gactions are:
-                Wilson
-                Iwasaki
-                DBW2
-                Symanzik_tree
-              """))
-    end
+    @assert lower_case(p.gauge_action) ∈ ["wilson", "iwasaki", "symanzik_tree", "dbw2"] """
+    gauge_action in [\"Physical Settings\"]: \"$(p.gauge_action)\" is not supported.
+    Supported gactions are:
+    Wilson
+    Iwasaki
+    DBW2
+    Symanzik_tree
+    """
 
-    if lower_case(p.fermion_action) ∉ [
+    @assert lower_case(p.fermion_action) ∈ [
         "none", "wilson", "staggered",
         "staggered-h1234", "staggered-h1324", "staggered-h1342"
-    ]
-        fa = p.fermion_action
-        throw(AssertionError("""
-              fermion_action in [\"Physical Settings\"] = $(fa) is not supported.
-              Supported gactions are:
-                None
-                Wilson
-                Staggered
-                Staggered-H1234
-                Staggered-H1324
-                Staggered-H1342
-              """))
-    end
+    ] """
+    fermion_action in [\"Physical Settings\"]: \"$(p.fermion_action)\" is not supported.
+    Supported gactions are:
+    None
+    Wilson
+    Staggered
+    Staggered-H1234
+    Staggered-H1324
+    Staggered-H1342
+    """
 
     if lower_case(p.fermion_action) != "none"
         @assert lower_case(p.update_method) == "hmc" "Dynamical fermions only with HMC"
     end
 
-    if lower_case(p.initial) ∉ ["cold", "hot"]
-        throw(AssertionError("""
-            intial in [\"Physical Settings\"] = $(p.initial) is not supported.
-            Supported initial conditions are:
-                cold
-                hot
-            """))
-    end
+    @assert lower_case(p.initial) ∈ ["cold", "hot"] """
+    intial in [\"Physical Settings\"]: \"$(p.initial)\" is not supported.
+    Supported initial conditions are:
+    cold
+    hot
+    """
 
-    if lower_case(p.update_method) ∉ ["hmc", "metropolis", "heatbath"]
-        um = p.update_method
-        throw(AssertionError("""
-            update_method in [\"Physical Settings\"] = $(um) is not supported.
-            Supported methods are:
-                HMC
-                Metropolis
-                Heatbath
-            """))
-    end
+    @assert lower_case(p.update_method) ∈ ["hmc", "metropolis", "heatbath"] """
+    update_method in [\"Physical Settings\"]: \"$(p.update_method)\" is not supported.
+    Supported methods are:
+    HMC
+    Metropolis
+    Heatbath
+    """
 
-    if lower_case(p.hmc_integrator) ∉ [
+    @assert lower_case(p.hmc_integrator) ∈ [
         "leapfrog", "omf2slow", "omf2", "omf4slow", "omf4", "leapfrogra", "omf4ra"
-    ]
-        throw(AssertionError("""
-            hmc_integrator in [\"HMC Settings\"] = $(p.hmc_integrator) is not supported.
-            Supported methods are:
-                Leapfrog
-                LeapfrogRA
-                OMF2Slow
-                OMF2
-                OMF4Slow
-                OMF4
-            """))
+    ] """
+    hmc_integrator in [\"HMC Settings\"]: \"$(p.hmc_integrator)\" is not supported.
+    Supported methods are:
+    Leapfrog
+    LeapfrogRA
+    OMF2Slow
+    OMF2
+    OMF4Slow
+    OMF4
+    OMF4RA
+    """
+
+    @assert lower_case(p.kind_of_bias) ∈ [
+        "none", "metad", "metadynamics", "opes", "parametric"
+    ] """
+    kind_of_bias in [\"Bias Settings\"]: \"$(p.kind_of_bias)\" is not supported.
+    Supported biases are:
+    None
+    Metadynamics/MetaD
+    OPES
+    Parametric
+    """
+
+    @assert lower_case(p.kind_of_cv) ∈ ["plaquette", "clover"] """
+    kind_of_cv in [\"Bias Settings\"]: \"$(p.kind_of_cv)\" is not supported.
+    Supported biases are:
+    Plaquette
+    Clover
+    """
+
+    for flow_int in p.flow_integrator
+        @assert lower_case(flow_int) ∈ ["euler", "rk2", "rk3", "rk3w7", "cooling"] """
+        flow_integrator in [\"Gradient Flow Settings\"]: \"$(flow_int)\" is not supported.
+        Supported methods are:
+        Euler
+        RK2
+        RK3
+        RK3W7
+        Cooling
+        """
     end
 
-    if lower_case(p.kind_of_bias) ∉ ["none", "metad", "metadynamics", "opes", "parametric"]
-        throw(AssertionError("""
-            kind_of_bias in [\"Bias Settings\"] = $(p.kind_of_bias) is not supported.
-            Supported biases are:
-                None
-                Metadynamics/MetaD
-                OPES
-                Parametric
-            """))
-    end
-
-    if lower_case(p.kind_of_cv) ∉ ["plaquette", "clover"]
-        throw(AssertionError("""
-            kind_of_cv in [\"Bias Settings\"] = $(p.kind_of_cv) is not supported.
-            Supported biases are:
-                Plaquette
-                Clover
-            """))
-    end
-
-    if lower_case(p.flow_integrator) ∉ ["euler", "rk2", "rk3", "rk3w7"]
-        fi = p.flow_integrator
-        throw(AssertionError("""
-             flow_integrator in [\"Gradient Flow Settings\"] = $(fi) is not supported.
-             Supported methods are:
-                 Euler
-                 RK2
-                 RK3
-                 RK3W7
-             """))
-    end
-
-    if lower_case(p.save_config_format) ∉ ["", "bmw", "bridge", "jld", "jld2"]
-        throw(AssertionError("""
-            save_config_format in [\"System Settings\"] = $(p.save_config_format) \
-            is not supported.
-            Supported methods are:
-                Bridge
-                JLD or JLD2 (both use JLD2)
-                BMW
-            """))
-    end
+    @assert lower_case(p.save_config_format) ∈ ["", "bmw", "bridge", "jld", "jld2"] """
+    save_config_format in [\"System Settings\"]: \"$(p.save_config_format)\" \
+    is not supported.
+    Supported methods are:
+    Bridge
+    JLD or JLD2 (both use JLD2)
+    BMW
+    """
 
     if p.load_config_fromfile
         @assert isfile(p.load_config_path) "Your load_config_path doesn't exist"
-        if lower_case(p.load_config_format) ∉ ["bmw", "bridge", "jld", "jld2"]
-            throw(AssertionError("""
-            loadU_format in [\"System Settings\"] = $(p.load_config_format) \
-            is not supported.
-            Supported methods are:
-                Bridge
-                JLD or JLD2 (both use JLD2)
-                BMW
-            """))
-        end
+        @assert lower_case(p.load_config_format) ∈ ["bmw", "bridge", "jld", "jld2"] """
+        loadU_format in [\"System Settings\"]: \"$(p.load_config_format)\" \
+        is not supported.
+        Supported methods are:
+        Bridge
+        JLD or JLD2 (both use JLD2)
+        BMW
+        """
     end
 
     return nothing

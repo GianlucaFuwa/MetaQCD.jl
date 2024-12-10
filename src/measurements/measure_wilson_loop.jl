@@ -4,7 +4,7 @@ struct WilsonLoopMeasurement{T} <: AbstractMeasurement
     Rmax::Int64 # maximum length of the Wilson loop
     filename::T
     function WilsonLoopMeasurement(
-        U::Gaugefield; filename="", Rmax=4, Tmax=4, flow=false
+        U::Gaugefield; filename="", Rmax=4, Tmax=4, flow=NoSmearing()
     )
         @assert !is_distributed(U) "Wilson loop not supported for distributed fields"
         @level1("|    Maximum Extends: $Tmax x $Rmax (only even extends are measured for now)")
@@ -15,7 +15,7 @@ struct WilsonLoopMeasurement{T} <: AbstractMeasurement
             rpath = StaticString(filename)
             header = ""
 
-            if flow
+            if flow == true || flow == NoSmearing()
                 header *= @sprintf("%-11s%-7s%-9s", "itrj", "iflow", "tflow")
             else
                 header *= @sprintf("%-11s", "itrj")
@@ -58,6 +58,7 @@ function measure(
     itrj=0,
     flow=nothing;
     mpi_multi_sim=false,
+    kwargs...,
 ) where {T}
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 

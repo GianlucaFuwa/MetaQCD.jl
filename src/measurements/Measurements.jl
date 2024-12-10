@@ -28,7 +28,8 @@ import ..Fields: Gaugefield, Spinorfield, calc_gauge_action, check_dims, clover_
 import ..Fields: clover_square, global_dims, local_dims, float_type, plaquette, wilsonloop
 import ..Fields: @groupreduce, @latsum, Plaquette, Clover, Improved, CPU, ones!, set_source!
 import ..Fields: distributed_reduce, is_distributed, plaquette_trace_sum, wilsonloop
-import ..Smearing: StoutSmearing, calc_smearedU!, flow!
+import ..Smearing: AbstractSmearing, Cooling, GradientFlow, NoSmearing, StoutSmearing
+import ..Smearing: calc_smearedU!, flow!
 
 abstract type AbstractMeasurement end
 

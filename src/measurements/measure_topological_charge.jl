@@ -2,7 +2,7 @@ struct TopologicalChargeMeasurement{T} <: AbstractMeasurement
     TC_dict::Dict{String,Float64} # topological charge definition => value
     filename::T
     function TopologicalChargeMeasurement(
-        U::Gaugefield; filename="", TC_methods=["clover"], flow=false
+        U::Gaugefield; filename="", TC_methods=["clover"], flow=NoSmearing()
     )
         TC_dict = Dict{String,Float64}()
 
@@ -28,7 +28,7 @@ struct TopologicalChargeMeasurement{T} <: AbstractMeasurement
             rpath = StaticString(filename)
             header = ""
 
-            if flow
+            if flow == true || flow != NoSmearing()
                 header *= @sprintf("%-11s%-7s%-9s", "itrj", "iflow", "tflow")
             else
                 header *= @sprintf("%-11s", "itrj")
@@ -70,6 +70,7 @@ function measure(
     itrj=0,
     flow=nothing;
     mpi_multi_sim=false,
+    fstr="",
 ) where {T}
     TC_dict = m.TC_dict
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
@@ -83,7 +84,7 @@ function measure(
             Q = TC_dict[method]
 
             if !isnothing(flow)
-                @level1("$itrj\t$Q # topcharge_$(method)_flow_$(τ)")
+                @level1("$itrj\t$Q # topcharge_$(method)$(fstr)_$(τ)")
             else
                 @level1("$itrj\t$Q # topcharge_$(method)")
             end

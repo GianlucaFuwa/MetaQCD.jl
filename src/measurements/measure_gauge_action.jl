@@ -2,7 +2,9 @@ struct GaugeActionMeasurement{T} <: AbstractMeasurement
     GA_dict::Dict{String,Float64} # gauge action definition => value
     factor::Float64 # 1 / (6*U.NV*U.β)
     filename::T
-    function GaugeActionMeasurement(U; filename="", GA_methods=["wilson"], flow=false)
+    function GaugeActionMeasurement(
+        U; filename="", GA_methods=["wilson"], flow=NoSmearing()
+    )
         GA_dict = Dict{String,Float64}()
 
         for method in GA_methods
@@ -14,7 +16,7 @@ struct GaugeActionMeasurement{T} <: AbstractMeasurement
             rpath = StaticString(filename)
             header = ""
 
-            if flow
+            if flow == true || flow == NoSmearing()
                 header *= @sprintf("%-11s%-7s%-9s", "itrj", "iflow", "tflow")
             else
                 header *= @sprintf("%-11s", "itrj")
@@ -55,6 +57,7 @@ function measure(
     itrj=0,
     flow=nothing;
     mpi_multi_sim=false,
+    fstr="",
 ) where {T}
     GA_dict = m.GA_dict
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
@@ -68,7 +71,7 @@ function measure(
             S = GA_dict[method]
 
             if !isnothing(flow)
-                @level1("$itrj\t$S # gaction_$(method)_flow_$(iflow)")
+                @level1("$itrj\t$S # gaction_$(method)$(fstr)_$(iflow)")
             else
                 @level1("$itrj\t$S # gaction_$(method)")
             end

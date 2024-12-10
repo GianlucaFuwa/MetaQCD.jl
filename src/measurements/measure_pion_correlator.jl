@@ -12,7 +12,7 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT} <: AbstractMeasurement
         filename="",
         dirac_type="wilson",
         eo_precon=false,
-        flow=false,
+        flow=NoSmearing(),
         mass=0.1,
         csw=0,
         r=1,
@@ -58,7 +58,7 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT} <: AbstractMeasurement
             rpath = StaticString(filename)
             header = ""
 
-            if flow
+            if flow == true || flow == NoSmearing()
                 header *= @sprintf("%-11s%-7s%-9s", "itrj", "iflow", "tflow")
             else
                 header *= @sprintf("%-11s", "itrj")
@@ -111,6 +111,7 @@ function measure(
     itrj=0,
     flow=nothing;
     mpi_multi_sim=false,
+    kwargs...,
 ) where {T}
     pion_correlators_avg!(
         m.pion_corr, m.dirac_operator(U), m.temp, m.cg_temps, m.cg_tol, m.cg_maxiters

@@ -100,10 +100,10 @@ Base.@kwdef mutable struct HMCParameters
 end
 
 Base.@kwdef mutable struct GradientFlowParameters
-    flow_integrator::String = "euler"
-    flow_num::Int64 = 1
-    flow_tf::Float64 = 0.1
-    flow_steps::Int64 = 10
+    flow_integrator::String = "none"
+    flow_num::Int64 = 0
+    flow_tf::Float64 = 0.0
+    flow_steps::Int64 = 0
     flow_measure_every::Union{Int64,Vector{Int64}} = 1
 end
 

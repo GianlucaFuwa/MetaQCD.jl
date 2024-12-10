@@ -1,5 +1,14 @@
 abstract type AbstractIntegrator end
 
+"""
+	GradientFlow(U::Gaugefield; numflow=1, steps=1, tf=0.12, measure_every=1)
+
+Create a gradient flow struct that smears `numflow` times with a flow of `tf` and
+a step size of `tf / steps`. When used in `calc_measurements_flowed` observables are
+after every integer multiple of `measure_every * tf` if `measure_every` is a positive
+integer and at `measure_every[i] * tf for i in eachindex(measure_every)` if `measure_every`
+is a range.
+"""
 struct GradientFlow{TI,TG,TT} <: AbstractSmearing
     numflow::Int64
     steps::Int64
@@ -15,7 +24,9 @@ include("gradientflow_integrators.jl")
 function GradientFlow(
     U::TG; integrator="euler", numflow=1, steps=1, tf=0.12, measure_every=1
 ) where {TG}
-    @level1("- Setting Gradient Flow...")
+    (numflow == 0 || tf == 0) && (return NoSmearing())
+
+    @level1("- Constructing Gradient Flow...")
     Z = Colorfield(U)
     Uflow = similar(U)
 
@@ -50,11 +61,11 @@ function GradientFlow(
     return GradientFlow{TI,TG,typeof(Z)}(numflow, steps, ϵ, tf, measure_at, Uflow, Z)
 end
 
-flow!(method::GradientFlow{TI}) where {TI} = flow!(TI(), method)
+flow!(gflow::GradientFlow{TI}) where {TI} = flow!(TI(), gflow)
 
-function flow!(method::GradientFlow{TI}, Uin) where {TI}
-    copy!(method.Uflow, Uin)
-    flow!(TI(), method)
+function flow!(gflow::GradientFlow{TI}, Uin) where {TI}
+    copy!(gflow.Uflow, Uin)
+    flow!(TI(), gflow)
     return nothing
 end
 

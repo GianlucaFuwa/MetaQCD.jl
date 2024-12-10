@@ -2,7 +2,7 @@ struct EnergyDensityMeasurement{T} <: AbstractMeasurement
     ED_dict::Dict{String,Float64} # energy density definition => value
     filename::T
     function EnergyDensityMeasurement(
-        U::Gaugefield; filename="", ED_methods=["clover"], flow=false
+        U::Gaugefield; filename="", ED_methods=["clover"], flow=NoSmearing()
     )
         ED_dict = Dict{String,Float64}()
 
@@ -28,7 +28,7 @@ struct EnergyDensityMeasurement{T} <: AbstractMeasurement
             rpath = StaticString(filename)
             header = ""
 
-            if flow
+            if flow == true || flow != NoSmearing()
                 header *= @sprintf("%-11s%-7s%-9s", "itrj", "iflow", "tflow")
             else
                 header *= @sprintf("%-11s", "itrj")
@@ -68,6 +68,7 @@ function measure(
     itrj=0,
     flow=nothing;
     mpi_multi_sim=false,
+    fstr="",
 ) where {T}
     ED_dict = m.ED_dict
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
@@ -81,7 +82,7 @@ function measure(
             E = ED_dict[method]
 
             if !isnothing(flow)
-                @level1("$itrj\t$E # energydensity_$(method)_flow_$(iflow)")
+                @level1("$itrj\t$E # energydensity_$(method)$(fstr)_$(iflow)")
             else
                 @level1("$itrj\t$E # energydensity_$(method)")
             end

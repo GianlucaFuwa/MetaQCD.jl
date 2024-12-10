@@ -95,7 +95,7 @@ struct ParameterSet
     # measurements
     measurements::Vector{Dict}
     measurements_with_flow::Vector{Dict}
-    flow_integrator::String
+    flow_integrator::Vector{String}
     flow_num::Int64
     flow_tf::Float64
     flow_steps::Int64
