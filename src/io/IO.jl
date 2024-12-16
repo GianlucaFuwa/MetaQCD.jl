@@ -86,11 +86,11 @@ struct Checkpointer{T}
     function Checkpointer(checkpoint_dir, checkpoint_every)
         if checkpoint_every > 0
             T = JLD2Format
-            @level1("┌ Checkpoints will be created!")
+            @level1("- Checkpoints will be created!")
             @level1("|  FORMAT: JLD2")
             @level1("|  DIRECTORY: $(checkpoint_dir)")
             @level1("|  INTERVAL: $(checkpoint_every)")
-            @level1("└\n")
+            @level1("-\n")
         else
             T = Nothing
         end
@@ -141,11 +141,11 @@ struct ConfigSaver{T}
         end
 
         if T ≢ Nothing
-            @level1("┌ Configs will be saved!")
+            @level1("- Configs will be saved!")
             @level1("|  FORMAT: $(save_config_format)")
             @level1("|  DIRECTORY: $(save_config_dir)")
             @level1("|  INTERVAL: $(save_config_every)")
-            @level1("└\n")
+            @level1("-\n")
         end
 
         return new{T}(save_config_dir, save_config_every, ext)
@@ -159,7 +159,7 @@ function save_config(saver::ConfigSaver{T}, U, itrj, parameters=nothing) where {
         itrjstring = lpad(itrj, 8, "0")
         filename = saver.save_config_dir * "/config_$(itrjstring)$(saver.ext)"
         save_config(T(), U, filename, parameters)
-        @level1("|  Config saved in $T in file \"$(filename)\"")
+        @level1("|  Config saved in $(string(T)) in file \"$(filename)\"")
     end
 
     return nothing
