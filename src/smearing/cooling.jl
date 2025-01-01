@@ -51,7 +51,7 @@ function flow!(cool::Cooling)
         for μ in 1:4
             old_link = Uflow[μ, site]
             A_adj = staple(GA, Uflow, μ, site)'
-            Uflow[μ, site] = cooling_SU3(old_link, A_adj)
+            Uflow[μ, site] = proj_onto_SU3(cooling_SU3(old_link, A_adj))
         end
     end
 
