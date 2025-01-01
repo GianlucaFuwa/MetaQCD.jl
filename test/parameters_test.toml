@@ -59,6 +59,8 @@ randomseed = 0
 overwrite = true
 verboselevel = 1
 log_to_console = true
+save_config_format = "bridge"
+save_config_every = 10
 
 ["Measurement Settings".measurements]
 ["Measurement Settings".measurements.Plaquette]

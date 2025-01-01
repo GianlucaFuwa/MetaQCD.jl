@@ -43,7 +43,7 @@ end
 
 function construct_params_from_toml(filename::String; backend="cpu")
     parameters = TOML.parsefile(filename)
-    inputfile = pwd() * "/" * filename
+    inputfile = isabspath(filename) ? filename : joinpath(pwd(), filename)
     mpi_amroot() && println("inputfile: ", inputfile * "\n")
     return construct_params_from_toml(parameters, inputfile; backend=backend)
 end
