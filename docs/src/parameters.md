@@ -56,6 +56,7 @@ Base.@kwdef mutable struct BiasParameters
     kinds_of_weights::Vector{String} = ["tiwari"]
     usebiases::Vector{String} = [""]
     write_bias_every::Int64 = 1
+    starting_Q::Union{Nothing,Vector{Int64}} = nothing
     # metadynamics specific
     bin_width::Float64 = 1e-2
     meta_weight::Float64 = 1e-3
@@ -87,7 +88,7 @@ Base.@kwdef mutable struct HMCParameters
     hmc_steps::Int64 = 10
     hmc_friction::Float64 = 0.0
     hmc_integrator::String = "Leapfrog"
-    hmc_rafriction::Float64 = 1.0
+    hmc_rafriction::Float64 = 0.0
     hmc_numsmear_gauge::Int64 = 0
     hmc_numsmear_fermion::Int64 = 0
     hmc_rhostout_gauge::Float64 = 0.0
@@ -96,10 +97,10 @@ Base.@kwdef mutable struct HMCParameters
 end
 
 Base.@kwdef mutable struct GradientFlowParameters
-    flow_integrator::String = "euler"
-    flow_num::Int64 = 1
-    flow_tf::Float64 = 0.1
-    flow_steps::Int64 = 10
+    flow_integrator::String = "none"
+    flow_num::Int64 = 0
+    flow_tf::Float64 = 0.0
+    flow_steps::Int64 = 0
     flow_measure_every::Union{Int64,Vector{Int64}} = 1
 end
 

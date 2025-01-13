@@ -15,7 +15,8 @@ makedocs(
     modules = [MetaQCD],
     pages = [
         "MetaQCD.jl: Metadynamics in Lattice QCD" => "index.md",
-        "Usage" => "usage.md",
+        "Quick Start" => "usage.md",
+        "Creating a Parameter File" => "parameter_file.md",
         "Creating Gaugefields" => "gaugefields.md",
         "Updating a Gaugefield" => "updates.md",
         "Dirac Operators" => "dirac.md",
