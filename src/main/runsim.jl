@@ -454,9 +454,11 @@ function metaqcd_PT!(
             create_checkpoint(checkpointer, univ, updatemethod, updatemethod_pt, itrj)
 
             _, mtime = @timed calc_measurements(measurements, U, itrj, measure_on_all)
-            _, fmtime = @timed calc_measurements_flowed(
-                measurements_with_flow, gflow, U, itrj, measure_on_all
-            )
+            _, fmtime = @timed for i in eachindex(gflow)
+                calc_measurements_flowed(
+                                         measurements_with_flow[i], gflow[i], U, itrj, measure_on_all
+                )
+            end
             calc_weights(bias, [U[i].CV for i in 1:numinstances], itrj)
             @level1("|  Meas. elapsed time:     $(mtime)  [s]")
             @level1("|  FlowMeas. elapsed time: $(fmtime) [s]\n-")

@@ -9,7 +9,7 @@ struct PolyakovMeasurement{T} <: AbstractMeasurement
             rpath = StaticString(filename)
             header = ""
 
-            if flow == true || flow == NoSmearing()
+            if flow == true || flow != NoSmearing()
                 header *= @sprintf(
                     "%-11s%-7s%-9s%-25s%-25s",
                     "itrj",
