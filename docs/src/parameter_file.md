@@ -168,7 +168,7 @@ kind_of_bias = "metad"
 ["Bias Settings".biases.2]
 kind_of_bias = "opes"
 ...
-["Bias Settings".biases.2]
+["Bias Settings".biases.3]
 kind_of_bias = "opesmt"
 ...
 ```
