@@ -27,7 +27,8 @@ For detailed information on how to use this package, see the [docs](https://gian
 - [ ] Multi-node parallelism using MPI (not working with even-odd preconditioned fermions yet)
 
 ## Installation:
-First make sure you have Julia version 1.9.x or 1.10.x installed. You can use [juliaup](https://github.com/JuliaLang/juliaup) for that or just install the release from the [Julia website](https://julialang.org/downloads/).
+First make sure you have Julia version **1.9.4** installed. You can use [juliaup](https://github.com/JuliaLang/juliaup) for that or just install the release from the [Julia website](https://julialang.org/downloads/oldreleases).
+> Versions above this work too, but all development and optimization is done on 1.9.4 up until now and for the foreseeable future.
 
 Then:
 
