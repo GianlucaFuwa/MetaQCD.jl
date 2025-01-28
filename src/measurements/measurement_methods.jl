@@ -27,7 +27,7 @@ function MeasurementMethods(
     measurements = ntuple(num_measurements) do i
         measurement_parameters = meas_parameters_from_dict(measurement_methods[i])
         name = measurement_parameters.methodname
-        @level1("|  OBSERVABLE $i: $(measurement_parameters.methodname)")
+        @level1("|  OBSERVABLE $i: $(name)")
         intervals[i] = measurement_parameters.measure_every
         @level1("|    interval: $(intervals[i])")
         filename = joinpath(measurement_dir, name * add_string)

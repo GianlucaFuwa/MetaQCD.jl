@@ -4,14 +4,11 @@
         filname = nothing,
         which = nothing,
         stream::Int = 0,
-        fullpath::Bool = false
     )
 
 Create a `MetaBias` object using the bias from stream `stream` in the directory `ensemblename`.
 or directly from the file `filename`.
 This serves as a functor returning the bias value at an input cv. \\
-The constructor by default only searches for the directory in the ./biaspotentials folder,
-but if you want any directory on your machine to be used, specify `fullpath = true`.
 Make sure the directory only contains bias files produced by MetaQCD.jl or in
 the same format. If the file extension is not .metad or .opes then you will need to
 specify `which` as either `:metad` or `:opes`.
@@ -30,7 +27,7 @@ struct MetaBias{F}
         be given
         """
         dir = if isabspath(ensemblename) && from_ensemble
-            ensemblename
+            joinpath(ensemblename, "biaspotentials/")
         elseif from_ensemble
             path = joinpath(splitpath(@__DIR__())[1:end-2]...) * "/ensembles/$(ensemblename)/biaspotentials/"
             @assert ispath(path) """
@@ -80,11 +77,14 @@ struct MetaBias{F}
                                  Must be either .metad or .opes"))
         end
 
-        return new{typeof(bias)}(bias, ensemblename, ext)
+        ename = split(ensemblename, "/")[end]
+        @show ename
+        return new{typeof(bias)}(bias, ename, ext)
     end
 end
 
 (m::MetaBias{F})(cv::Float64) where {F} = m.bias(cv)
+Base.nameof(::MetaBias{F}) where {F} = nameof(F)
 
 function Base.show(io::IO, m::MetaBias)
     print(io, "MetaBias{$(typeof(m.bias))}(ensemble: \"$(m.ensemblename)\")")
@@ -104,7 +104,7 @@ RecipesBase.@recipe function f(
     xlims := (xlims[1], xlims[2])
     ylims := yylims
     xlabel --> "Collective Variable"
-    ylabel --> "Bias Potential ($(typeof(bias)))"
+    ylabel --> "Bias Potential ($(nameof(b)))"
     title --> b.ensemblename
     titlefontsize --> 10
     x = (bias isa OPES) ? (xlims[1]:0.001:xlims[2]-0.001) : bias.bin_vals
@@ -215,6 +215,7 @@ end
 mutable struct OPES
     is_first_step::Bool
 
+    explore::Bool
     symmetric::Bool
     counter::Int64
     stride::Int64
@@ -252,11 +253,13 @@ end
 
 function OPES(filename::String)
     state = Dict{String,Any}(
+        "explore" => false,
         "counter" => 0,
         "biasfactor" => Inf,
         "sigma0" => 0.0,
         "epsilon" => 0.0,
         "sum_weights" => 0.0,
+        "sum_weights2" => 0.0,
         "Z" => 1.0,
         "threshold" => 1.0,
         "cutoff" => 1.0,
@@ -266,12 +269,15 @@ function OPES(filename::String)
     @assert isfile(filename) "file \"$(filename)\" doesn't exist"
     kernels, nker = opes_from_file!(state, filename)
     is_first_step = false
+    explore = state["explore"]
     counter = Int64(state["counter"])
     biasfactor = state["biasfactor"]
     bias_prefactor = 1 - 1 / biasfactor
     σ₀ = state["sigma0"]
     ϵ = state["epsilon"]
     sum_weights = state["sum_weights"]
+    sum_weights² = state["sum_weights2"]
+    KDEnorm = state["KDEnorm"]
     Z = state["Z"]
     threshold = state["threshold"]
     cutoff² = state["cutoff"]^2
@@ -279,33 +285,13 @@ function OPES(filename::String)
 
     return OPES(
         is_first_step,
-        true,
-        counter,
-        1,
-        (-5, 5),
-        biasfactor,
-        bias_prefactor,
-        σ₀,
-        1e-6,
-        false,
-        ϵ,
-        sum_weights,
-        sum_weights^2,
-        0.0,
-        0.0,
-        false,
-        Z,
-        sum_weights,
-        threshold,
-        cutoff²,
-        penalty,
-        sum_weights,
-        Z,
-        sum_weights,
-        nker,
-        kernels,
-        0,
-        Vector{Kernel}(undef, 2),
+        explore, true, counter, 1, (-5, 5),
+        biasfactor, bias_prefactor,
+        σ₀, 1e-6, false,
+        ϵ, sum_weights, sum_weights², 0.0, 0.0, false, Z, KDEnorm,
+        threshold, cutoff², penalty,
+        sum_weights, Z, sum_weights,
+        nker, kernels, 0, Vector{Kernel}(undef, 2),
     )
 end
 
@@ -330,15 +316,13 @@ function calculate!(o::OPES, cv)
     penalty = o.penalty
 
     prob = 0.0
+
     for kernel in o.kernels
         prob += kernel(cv, cutoff², penalty)
-        if prob > 1e10
-            throw(AssertionError("prob = $prob is dangerously high,
-                                  something probably went wrong"))
-        end
+        @assert prob < 1e10 "opes_prob = $prob is too high, something probably went wrong"
     end
-    prob /= o.sum_weights
 
+    prob /= o.KDEnorm
     current_bias = o.bias_prefactor * log(prob / o.Z + o.ϵ)
     o.current_weight = prob
     o.current_bias = current_bias
@@ -348,32 +332,33 @@ end
 function ∂V∂Q(o::OPES, cv)
     cutoff² = o.cutoff²
     penalty = o.penalty
-
     prob = 0.0
     deriv = 0.0
+
     for kernel in o.kernels
         prob += kernel(cv, cutoff², penalty)
         deriv += derivative(kernel, cv, cutoff², penalty)
     end
-    prob /= o.sum_weights
-    deriv /= o.sum_weights
 
+    prob /= o.KDEnorm
+    deriv /= o.KDEnorm
     Z = o.Z
     out = -o.bias_prefactor / (prob / Z + o.ϵ) * deriv / Z
     return out
 end
 
-const state_vars = [
-    "counter",
-    "biasfactor",
-    "sigma0",
-    "epsilon",
-    "sum_weights",
-    "sum_weights²",
-    "Z",
-    "threshold",
-    "cutoff",
-    "penalty",
+const opes_state_vars = [
+    :counter,
+    :biasfactor,
+    :sigma0,
+    :epsilon,
+    :sum_weights,
+    :sum_weights2,
+    :KDEnorm,
+    :Z,
+    :threshold,
+    :cutoff2,
+    :penalty,
 ]
 
 function opes_from_file!(dict, usebias)
@@ -383,16 +368,18 @@ function opes_from_file!(dict, usebias)
     else
         # state is stored in header, which is always read as a string so we have to parse it
         kernel_data, state_data = readdlm(usebias; comments=true, header=true)
-        state_parse = [parse(Float64, state_param) for state_param in state_data]
+        state_parse = [parse(Float64, state_data[i]) for i in eachindex(state_data)]
 
-        for i in eachindex(state_vars)
-            dict[state_vars[i]] = state_parse[i]
+        for i in eachindex(opes_state_vars)
+            dict[opes_state_vars[i]] = state_parse[i]
         end
 
         kernels = Vector{Kernel}(undef, size(kernel_data, 1))
+
         for i in axes(kernel_data, 1)
             kernels[i] = Kernel(view(kernel_data, i, 1:3)...)
         end
+
         return kernels, length(kernels)
     end
 end

@@ -5,6 +5,8 @@
 
 Inspired by the [LatticeQCD.jl](https://github.com/akio-tomiya/LatticeQCD.jl/tree/master) package by Akio Tomiya et al.
 
+For detailed information on how to use this package, see the [docs](https://gianlucafuwa.github.io/MetaQCD.jl/dev/).
+
 ## Features:
 - [x] Simulations of 4D-SU(3) Yang-Mills (Pure Gauge) theory
 - [x] Simulations of full lattice QCD with arbitrary number of flavours (Staggered, Wilson-Clover)
@@ -17,12 +19,12 @@ Inspired by the [LatticeQCD.jl](https://github.com/akio-tomiya/LatticeQCD.jl/tre
 - [x] Improved Topological charge definitions (clover, rectangle clover-improved)
 - [x] Wilson(-Clover) fermions
 - [x] Staggered fermions
+- [x] RHMC to simulate odd number of flavours
 - [x] Even-odd preconditioner for Wilson(-Clover)
 - [x] Even-odd preconditioner for Staggered
 - [ ] Mass-splitting preconditioner / Hasenbusch trick
-- [x] RHMC to simulate odd number of flavours
 - [ ] Full support for CUDA and ROCm backends
-- [x] Multi-node parallelism using MPI (experimental)
+- [ ] Multi-node parallelism using MPI (not working with even-odd preconditioned fermions yet)
 
 ## Installation:
 First make sure you have Julia version 1.9.x or 1.10.x installed. You can use [juliaup](https://github.com/JuliaLang/juliaup) for that or just install the release from the [Julia website](https://julialang.org/downloads/).
@@ -32,7 +34,6 @@ Then:
 1. Clone the latest release onto your machine.
 2. Open Julia in the directory which you cloned the repo into, with the project specific environment. This can either be done by starting Julia with the command line argument "--project" or by activating the environment within an opened Julia instance via the package manager:
 ``` julia
-using Pkg
 Pkg.activate(".")
 ```
 Or you can switch to package manager mode by typing "]" and then do
@@ -101,16 +102,15 @@ build_bias("parameters.toml")
 ## Visualization:
 We include the ability to visualize your data. For that, you just have to pass the directory where your ensemble lives:
 ```julia
-using Plots
-
+] activate MetaAnalysis/
+] instantiate
+using MetaAnalysis
 measurements = MetaMeasurements("my_ensemble")
 timeseries(measurements, :my_observable)
 ```
 
 You can also create a holder of a bias potential and plot it. MetaQCD.jl creates the bias files with an extension that gives their type (.metad or .opes), but if you changed the extension you have to provide the bias type as a symbol under the kwarg `which`:
 ```julia
-using Plots
-
-bias = MetaBias(myfile, which=:mytype)
-biaspotential(bias)
+bias = MetaBias(myfile)
+plot(bias)
 ```

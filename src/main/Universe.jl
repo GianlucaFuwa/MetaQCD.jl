@@ -73,7 +73,7 @@ struct Univ{TG,TF,TB}
 end
 
 function Univ(parameters::ParameterSet; mpi_multi_sim=false)
-    if parameters.kind_of_bias != "none"
+    if length(parameters.biases) != 0
         if parameters.tempering_enabled && !mpi_multi_sim
             numinstances = parameters.numinstances
             U₁ = Gaugefield(parameters)

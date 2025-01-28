@@ -53,6 +53,7 @@ function construct_flow(U, parameters)
     return smearing
 end
 
+calc_smearedU!(::NoSmearing, ::Any) = nothing
 calc_smearedU!(smearing::StoutSmearing, Uin) = apply_smearing!(smearing, Uin)
 calc_smearedU!(smearing::GradientFlow, Uin) = flow!(smearing, Uin)
 calc_smearedU!(smearing::Cooling, Uin) = flow!(smearing, Uin)

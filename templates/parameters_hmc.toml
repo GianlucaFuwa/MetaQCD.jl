@@ -21,6 +21,13 @@ randomseed = 0
 verboselevel = 2
 overwrite = true
 
+["Gradient Flow Settings"]
+flow_integrator = "euler"
+flow_num = 7
+flow_steps = 1
+flow_tf = 0.12 # total flow time is flow_num * flow_tf
+flow_measure_every = 7
+
 ["Measurement Settings".measurements.Energy_density]
 measure_every = 1
 type = ["plaquette", "clover", "improved"]
@@ -44,20 +51,12 @@ measure_every = 1
 Rmax = 2
 Tmax = 2
 
-["Gradient Flow Settings"]
-flow_integrator = "euler"
-flow_num = 7
-flow_steps = 1
-flow_tf = 0.12 # total flow time is flow_num * flow_tf
-flow_measure_every = 7
+["Measurement Settings".measurements_with_flow.Topological_charge]
+measure_every = 10
+type = ["clover"]
 
-    ["Gradient Flow Settings".measurements_with_flow.Topological_charge]
-    measure_every = 10
-    type = ["clover"]
-
-    ["Gradient Flow Settings".measurements_with_flow.Wilson_loop]
-    measure_every = 10
-    Rmax = 2
-    Tmax = 2
-
+["Measurement Settings".measurements_with_flow.Wilson_loop]
+measure_every = 10
+Rmax = 2
+Tmax = 2
 

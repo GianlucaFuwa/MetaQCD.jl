@@ -20,20 +20,6 @@ end
 function calc_dSdU!(
     dU::Colorfield{CPU,T}, staples::Colorfield{CPU,T}, U::Gaugefield{CPU,T},
 ) where {T}
-    check_dims(dU, staples, U)
-    mβover6 = T(-U.β / 6)
-    gaction = gauge_action(U)()
-
-    @batch for site in eachindex(U)
-        for μ in 1:4
-            A = staple(gaction, U, μ, site)
-            staples[μ, site] = A
-            UA = cmatmul_od(U[μ, site], A)
-            dU[μ, site] = mβover6 * traceless_antihermitian(UA)
-        end
-    end
-
-    update_halo!(staples)
-    update_halo!(dU)
+    gauge_action_deriv!(dU, staples, U)
     return nothing
 end

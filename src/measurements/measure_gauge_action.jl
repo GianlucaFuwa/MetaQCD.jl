@@ -71,7 +71,7 @@ function measure(
             S = GA_dict[method]
 
             if !isnothing(flow)
-                @level1("$itrj\t$S # gaction_$(method)$(fstr)_$(iflow)")
+                @level1("$itrj\t$S # gaction_$(method)$(fstr)_$(τ)")
             else
                 @level1("$itrj\t$S # gaction_$(method)")
             end
@@ -102,4 +102,25 @@ function measure(
     end
 
     return GA_dict
+end
+
+function gauge_action_deriv!(
+    dU::Colorfield{CPU,T}, staples::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, fac=1
+) where {T}
+    check_dims(dU, staples, U)
+    mβover6 = T(-U.β*fac / 6)
+    gaction = gauge_action(U)()
+
+    @batch for site in eachindex(U)
+        for μ in 1:4
+            A = staple(gaction, U, μ, site)
+            staples[μ, site] = A
+            UA = cmatmul_od(U[μ, site], A)
+            dU[μ, site] = mβover6 * traceless_antihermitian(UA)
+        end
+    end
+
+    update_halo!(staples)
+    update_halo!(dU)
+    return nothing
 end

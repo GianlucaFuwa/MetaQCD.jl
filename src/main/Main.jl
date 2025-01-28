@@ -8,7 +8,7 @@ using Statistics
 using ..MetaIO
 using ..Utils
 
-import ..BiasModule: NoBias, calc_weights, is_adaptive, recalc_CV!, update_bias!, set_σ₀!
+import ..BiasModule: NoBias, calc_weights, is_adaptive, recalc_cv!, update_bias!, set_sigma0!
 import ..DiracOperators: QuenchedFermionAction, fermaction_from_str
 import ..Fields: calc_gauge_action, is_distributed, normalize!
 import ..Measurements: MYEXT_str

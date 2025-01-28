@@ -47,37 +47,11 @@ Base.@kwdef mutable struct DynamicalFermionParameters
 end
 
 Base.@kwdef mutable struct BiasParameters
-    kind_of_bias::String = "none"
-    kind_of_cv::String = "clover"
-    numsmears_for_cv::Int64 = 4
-    rhostout_for_cv::Float64 = 0.125
-    is_static::Union{Bool,Vector{Bool}} = false
-    symmetric::Bool = false
-    stride::Int64 = 1
-    cvlims::NTuple{2,Float64} = (-7, 7)
-    biasfactor::Float64 = Inf
+    rhostout_for_cv::Float64 = 0.12
     kinds_of_weights::Vector{String} = ["tiwari"]
-    usebiases::Vector{String} = [""]
-    write_bias_every::Int64 = 1
     starting_Q::Union{Nothing,Vector{Int64}} = nothing
-    # metadynamics specific
-    bin_width::Float64 = 1e-2
-    meta_weight::Float64 = 1e-3
-    penalty_weight::Float64 = 1000.0
-    # opes specific
-    explore::Bool = false
-    barrier::Float64 = 0.0
-    sigma0::Float64 = 0.1
-    sigma_min::Float64 = 1e-6
-    fixed_sigma::Bool = false
-    no_Z::Bool = false
-    opes_epsilon::Float64 = 0.0
-    threshold::Float64 = 1.0
-    cutoff::Float64 = 0.0
-    # for parametric
-    bias_Q::Float64 = 0.0
-    bias_A::Float64 = 0.0
-    bias_Z::Float64 = 0.0
+    usebiases::Vector{String} = [""]
+    biases::Vector{Dict} = Dict[]
     # tempering specific
     tempering_enabled::Bool = false
     numinstances::Int64 = 1

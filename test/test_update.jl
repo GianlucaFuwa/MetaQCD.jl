@@ -33,8 +33,8 @@ function test_update(
     numorelax = 4
 
     updatemethod = Updatemethod(
-        U, update_method;
-        kind_of_bias=kind_of_bias,
+        U,
+        update_method;
         metro_ϵ=metro_ϵ,
         metro_numhits=metro_numhits,
         metro_target_acc=metro_target_acc,

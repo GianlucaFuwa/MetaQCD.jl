@@ -176,6 +176,9 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
                 elseif String(pname_i) == "measurements_with_flow"
                     valuedir = construct_measurement_dicts(value[String(pname_i)])
                     value_Params[i] = valuedir
+                elseif String(pname_i) == "biases"
+                    valuedir = construct_bias_dicts(value[String(pname_i)])
+                    value_Params[i] = valuedir
                 elseif String(pname_i) == "L"
                     value_Params[i] = Tuple(value[String(pname_i)])
                 elseif String(pname_i) == "flow_integrator"
@@ -186,20 +189,6 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
                     end
                 elseif String(pname_i) == "rhmc_spectral_bound"
                     value_Params[i] = Tuple(value[String(pname_i)])
-                elseif String(pname_i) == "is_static"
-                    val = value[String(pname_i)]
-                    if length(val) < mpi_size()
-                        value_Params[i] = fill(value[String(pname_i)], mpi_size())
-                    else
-                        value_Params[i] = val
-                    end
-                elseif String(pname_i) == "cvlims"
-                    value_Params[i] = Tuple(value[String(pname_i)])
-                elseif String(pname_i) == "biasfactor"
-                    val = value[String(pname_i)]
-                    num = val == "Inf" ? Inf : val
-                    @assert typeof(num) <: Real && num > 1 "wt_factor must be in (1,Inf]"
-                    value_Params[i] = num
                 elseif String(pname_i) == "randomseed"
                     val = value[String(pname_i)]
                     if typeof(val) == Int64
@@ -315,24 +304,6 @@ function check_parameters(p::ParameterSet)
     OMF4RA
     """
 
-    @assert lower_case(p.kind_of_bias) ∈ [
-        "none", "metad", "metadynamics", "opes", "parametric"
-    ] """
-    kind_of_bias in [\"Bias Settings\"]: \"$(p.kind_of_bias)\" is not supported.
-    Supported biases are:
-    None
-    Metadynamics/MetaD
-    OPES
-    Parametric
-    """
-
-    @assert lower_case(p.kind_of_cv) ∈ ["plaquette", "clover"] """
-    kind_of_cv in [\"Bias Settings\"]: \"$(p.kind_of_cv)\" is not supported.
-    Supported biases are:
-    Plaquette
-    Clover
-    """
-
     for flow_int in p.flow_integrator
         @assert lower_case(flow_int) ∈ ["euler", "rk2", "rk3", "rk3w7", "cooling"] """
         flow_integrator in [\"Gradient Flow Settings\"]: \"$(flow_int)\" is not supported.
@@ -384,6 +355,23 @@ function construct_measurement_dicts(x)
     end
 
     return meas_dicts
+end
+
+function construct_bias_dicts(x)
+    bias_dicts = Dict[]
+
+    for (method, method_dict) in x
+        dictᵢ = Dict()
+        dictᵢ["bias"] = method
+
+        for (key, value) in method_dict
+            dictᵢ[key] = value
+        end
+
+        push!(bias_dicts, dictᵢ)
+    end
+
+    return bias_dicts
 end
 
 @noinline function overwrite_detected(s::String)

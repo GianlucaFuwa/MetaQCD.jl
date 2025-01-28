@@ -45,14 +45,6 @@ log_to_console = true
 # load_checkpoint_fromfile = true
 # load_checkpoint_path = ""
 
-["Measurement Settings".measurements]
-["Measurement Settings".measurements.Plaquette]
-measure_every = 1
-
-["Measurement Settings".measurements.Topological_charge]
-measure_every = 1
-type = ["plaquette", "clover"]
-    
 ["Gradient Flow Settings"]
 flow_integrator = "euler"
 flow_num = 7
@@ -60,10 +52,16 @@ flow_steps = 1
 flow_tf = 0.12 # total flow time is flow_num * flow_tf
 flow_measure_every = 7
 
-    ["Gradient Flow Settings".measurements_with_flow]
-    ["Gradient Flow Settings".measurements_with_flow.Plaquette]
-    measure_every = 1
+["Measurement Settings".measurements.Plaquette]
+measure_every = 1
 
-    ["Gradient Flow Settings".measurements_with_flow.Topological_charge]
-    measure_every = 1
-    type = ["plaquette", "clover"]
+["Measurement Settings".measurements.Topological_charge]
+measure_every = 1
+kinds_of_topological_charge = ["plaquette", "clover"]
+
+["Measurement Settings".measurements_with_flow.Plaquette]
+measure_every = 1
+
+["Measurement Settings".measurements_with_flow.Topological_charge]
+measure_every = 1
+kinds_of_topological_charge = ["plaquette", "clover"]

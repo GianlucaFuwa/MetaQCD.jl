@@ -4,13 +4,14 @@
 Bias-enhanced sampler that uses the parametrization from https://arxiv.org/pdf/2212.11665
 up to first order.
 
-    Parametric(cvlims, penalty_weight, Q, A, Z)
-    Parametric(p::ParameterSet; instance=1)
+    Parametric(p::ParametricParameters; dummy=false)
 
 Create an instance of a static Parametric bias using the inputs or the
 parameters given in `p`.
 
 # Specifiable parameters
+`kind_of_cv::String = "topcharge_clover"` - Collective variable
+`numsmears_for_cv::Int64 = 4` - Number of smearing steps for the CV (step size is given in superstructure `Bias`)
 `cvlims::NTuple{2, Float64} = (-6, 6)` - Minimum and maximum of the explorable cv-space;
 must be ordered \\
 `penalty_weight::Float64 = 1000` - Penalty when cv is outside of `cvlims`; must be positive \\
@@ -18,7 +19,9 @@ must be ordered \\
 `A::Float64 = 0` - Amplitude of the cosine term in the bias \\
 `Z::Float64 = 0` - Frequency of the cosine term in the bias \\
 """
-struct Parametric <: AbstractBias
+struct Parametric{CV} <: AbstractBias
+    cvinfo::CV
+    static::Bool
     cvlims::NTuple{2,Float64}
     penalty_weight::Float64
     Q::Float64
@@ -26,19 +29,22 @@ struct Parametric <: AbstractBias
     Z::Float64
 end
 
-function Parametric(p::ParameterSet; dummy=false)
-    cvlims = !dummy ? p.cvlims : (-Inf, Inf)
+function Parametric(p::ParametricParameters; dummy=false)
+    cvinfo = get_cvinfo_from_parameters(p)
+    static = true
+    cvlims = !dummy ? tuple(p.cvlims...) : (-Inf, Inf)
     @level1("|  CVLIMS: $(string(cvlims))")
     penalty_weight = !dummy ? p.penalty_weight : 0.0
     @level1("|  PENALTY WEIGHT: $(penalty_weight)")
 
-    Q, A, Z = !dummy ? (p.bias_Q, p.bias_A, p.bias_Z) : (0.0, 0.0, 0.0)
+    Q, A, Z = !dummy ? (p.Q, p.A, p.Z) : (0.0, 0.0, 0.0)
     @level1("|  PARAMETERS: $Q, $A, $Z")
-    return Parametric(cvlims, penalty_weight, Q, A, Z)
+    return Parametric(cvinfo, static, cvlims, penalty_weight, Q, A, Z)
 end
 
+get_ext(::Parametric) = ""
 is_adaptive(::Parametric) = false
-set_σ₀!(::Parametric, ::Any) = nothing
+set_sigma0!(::Parametric, ::Any) = nothing
 update!(::Parametric, cv, args...) = nothing
 clear!(::Parametric) = nothing
 

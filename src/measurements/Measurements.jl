@@ -22,12 +22,13 @@ import KernelAbstractions as KA
 import ..DiracOperators: Daggered, DdaggerD, StaggeredDiracOperator, WilsonDiracOperator
 import ..DiracOperators: StaggeredEOPreDiracOperator, even_odd, solve_dirac!
 import ..DiracOperators: ArnoldiWorkspaceMeta, get_eigenvalues, num_dirac
-import ..Fields: WilsonGaugeAction, SymanzikTreeGaugeAction, SymanzikTadGaugeAction
-import ..Fields: IwasakiGaugeAction, DBW2GaugeAction, AbstractFieldstrength
-import ..Fields: Gaugefield, Spinorfield, calc_gauge_action, check_dims, clover_rect, clear! 
+import ..Fields: WilsonGaugeAction, SymanzikTreeGaugeAction, SymanzikTadGaugeAction, dims
+import ..Fields: IwasakiGaugeAction, DBW2GaugeAction, AbstractFieldstrength, Colorfield
+import ..Fields: Gaugefield, Spinorfield, Tensorfield, calc_gauge_action, check_dims 
+import ..Fields: Plaquette, Clover, Improved, fieldstrength_eachsite!, gauge_action, staple
 import ..Fields: clover_square, global_dims, local_dims, float_type, plaquette, wilsonloop
-import ..Fields: @groupreduce, @latsum, Plaquette, Clover, Improved, CPU, ones!, set_source!
-import ..Fields: distributed_reduce, is_distributed, plaquette_trace_sum, wilsonloop
+import ..Fields: @groupreduce, @latmap, @latsum, CPU, ones!, set_source!, clover_rect
+import ..Fields: clear!, distributed_reduce, is_distributed, plaquette_trace_sum, wilsonloop
 import ..Smearing: AbstractSmearing, Cooling, GradientFlow, NoSmearing, StoutSmearing
 import ..Smearing: calc_smearedU!, flow!
 

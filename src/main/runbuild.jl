@@ -1,14 +1,15 @@
-function build_bias(filenamein::String; backend="cpu")
+function build_bias(parameterfile::String; backend="cpu")
     # When using MPI we make sure that only rank 0 prints to the console
     if mpi_amroot()
-        ext = splitext(filenamein)[end]
+        ext = splitext(parameterfile)[end]
         @assert (ext == ".toml") """
             input file format \"$ext\" not supported. Use TOML format
         """
     end
 
     # load parameters from toml file
-    parameters = construct_params_from_toml(filenamein; backend=backend)
+    parameters = construct_params_from_toml(parameterfile; backend=backend)
+    @assert !parameters.tempering_enabled "Tempering must not be enabled in build"
     multi_sim = (prod(parameters.numprocs_cart) == 1) && mpi_parallel()
     mpi_barrier()
 
@@ -21,13 +22,10 @@ function build_bias(filenamein::String; backend="cpu")
         MPI must be enabled only if numinstances > 1 or fields are distributed
         numinstances was: $(parameters.numinstances) but comm size was $(mpi_size())
         """
-        @assert parameters.kind_of_bias ∉ ("none", "parametric") """
-        bias has to be \"metad\" or \"opes\" in build, was $(parameters.kind_of_bias)
+        @assert length(parameters.biases) > 0 """
+        There has to be at least one bias when in build mode
         """
     end
-
-    rid = mpi_myrank()+1
-    @assert parameters.is_static[rid] == false "Bias $rid cannot be static in build"
 
     # set random seed if provided, otherwise generate one
     if parameters.randomseed != 0
@@ -126,7 +124,8 @@ function metabuild!(
     bias = univ.bias
     comm = mpi_comm()
     starting_Q = parameters.starting_Q
-    therm_cv = Vector{Float64}(undef, parameters.numtherm)
+    num_cv = length(bias)
+    therm_cv = Matrix{Float64}(undef, num_cv, parameters.numtherm)
     adaptive_σ = is_adaptive(bias)
 
     @level1("- Thermalization:")
@@ -146,22 +145,28 @@ function metabuild!(
                 )
             end
 
-            if adaptive_σ
-                recalc_CV!(U, bias)
-                therm_cv[itrj] = U.CV
+            if any(adaptive_σ)
+                recalc_cv!(U, bias)
+
+                for icv in 1:num_cv
+                    therm_cv[icv, itrj] = U.CV[icv]
+                end
             end
+
             @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")
         end
     end
 
     @level1("- Thermalization elapsed time:\t$(runtime_therm) [s]\n")
-    recalc_CV!(U, bias) # need to recalc cv since it was not updated during therm
+    recalc_cv!(U, bias) # need to recalc cv since it was not updated during therm
 
     mpi_barrier()
 
-    if adaptive_σ
-        std_cv = mpi_allgather(std(therm_cv)::Float64, comm)
-        set_σ₀!(bias, mean(std_cv))
+    for i in 1:num_cv
+        if adaptive_σ[i]
+            std_cv = mpi_allgather(std(view(therm_cv, i, :))::Float64, comm)
+            set_sigma0!(bias, mean(std_cv), i)
+        end
     end
 
     @level1("- Production:")
@@ -183,7 +188,7 @@ function metabuild!(
 
             @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")
             # all procs send their CVs to all other procs and update their copy of the bias
-            CVs = mpi_allgather(U.CV::Float64, comm)
+            CVs = mpi_allgather(tuple(U.CV...)::NTuple{num_cv,Float64}, comm)
             accepteds = mpi_allgather(accepted::Bool, comm)
             accepted_CVs = CVs[findall(accepteds)] # update only on those CVs that were accepted
 

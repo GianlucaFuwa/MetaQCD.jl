@@ -90,7 +90,7 @@ function apply_stout_smearing!(Uout, C, Q, U, ρ)
     return nothing
 end
 
-function stout_backprop!(Σ′, Σ, smearing)
+function stout_backprop!(Σ′, Σ, smearing, max_level=length(smearing))
     # Variable names might be misleading---the bare force Σ⁰ will be stored in Σ′, contrary
     # to the naming convention in [hep-lat/0311018]
     Usmeared = smearing.Usmeared_multi
@@ -98,7 +98,7 @@ function stout_backprop!(Σ′, Σ, smearing)
     Q = smearing.Q_multi
     Λ = smearing.Λ
 
-    for i in reverse(1:length(smearing))
+    for i in reverse(1:max_level)
         stout_recursion!(Σ, Σ′, Usmeared[i+1], Usmeared[i], C[i], Q[i], Λ, smearing.ρ)
         copy!(Σ′, Σ)
     end

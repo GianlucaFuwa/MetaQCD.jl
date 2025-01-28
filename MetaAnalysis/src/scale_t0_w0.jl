@@ -15,19 +15,27 @@ const W0 = Dict{Int64,uwreal}(
 
 fm⁻¹_to_GeV(x) = x / (1/0.197)
 
-function t0_scale(filename, Nf, error_est::AbstractErrorEstimator; save_filename="")
+function t0_scale(
+    filename, error_est; Nf=-1, save_filename="", Nt::Int64=-1,
+)
     dat = readdlm(filename, skipstart=1)
-    firstitrj = dat[1, 1]
-    flow_num = findfirst(x -> x!=firstitrj, view(dat, :, 1)) - 1
-    flow_stepsize = dat[2, 3] - dat[1, 3]
-    flow_times = range(flow_stepsize, flow_num * flow_stepsize; step=flow_stepsize)
-    len = size(dat, 1)
+    return t0_scale(dat, error_est; Nf=Nf, save_filename=save_filename, Nt=Nt)
+end
 
+function t0_scale(
+    data, error_est; Nf=-1, save_filename="", Nt::Int64=-1,
+)
+    @assert 0 <= Nf <= 4 "Make sure Nf is set!"
+    firstitrj = data[1, 1]
+    flow_num = findfirst(x -> x!=firstitrj, view(data, :, 1)) - 1
+    flow_stepsize = data[2, 3] - data[1, 3]
+    flow_times = range(flow_stepsize, flow_num * flow_stepsize; step=flow_stepsize)
+    len = size(data, 1)
     t²E = Vector{uwreal}(undef, flow_num)
 
     for (i, tf) in enumerate(flow_times)
         results = analyze(
-            dat[i:flow_num:len-flow_num, 4],
+            data[i:flow_num:len-flow_num, 4],
             error_est,
             save_filename=save_filename,
         )
@@ -65,6 +73,14 @@ function t0_scale(filename, Nf, error_est::AbstractErrorEstimator; save_filename
 
     t0_err = 0.5 * (abs(t0_val_left - t0_val) + abs(t0_val_right - t0_val))
     t0 = uwreal([t0_val, t0_err], "t0"); uwerr(t0)
+    a_t0 = SQRTT0[Nf] / sqrt(t0); uwerr(a_t0)
+    ainv_t0 = fm⁻¹_to_GeV(1/a_t0); uwerr(ainv_t0)
+    T_t0 = ainv_t0 * 1000 / Nt; uwerr(T_t0)
+
+    println("\nt₀ = $(phys_not(t0))")
+    println("a from t₀ = $(phys_not(a_t0)) fm")
+    println("a⁻¹ from t₀ = $(phys_not(ainv_t0)) GeV")
+    Nt > 0 ? println("T from t₀, given Nt=$Nt = $(phys_not(T_t0)) MeV\n") : println()
 
     w0_val = try
         sqrt(find_zero(t -> W(t) - 0.3, 2))
@@ -85,14 +101,18 @@ function t0_scale(filename, Nf, error_est::AbstractErrorEstimator; save_filename
 
     w0_err = 0.5 * (abs(w0_val_left - w0_val) + abs(w0_val_right - w0_val))
     w0 = uwreal([w0_val, w0_err], "w0"); uwerr(w0)
+    a_w0 = W0[Nf] / w0; uwerr(a_w0)
+    ainv_w0 = fm⁻¹_to_GeV(1/a_w0); uwerr(ainv_w0)
+    T_w0 = ainv_w0 * 1000 / Nt; uwerr(T_w0)
+
     if w0_val^2 > flow_times[end]
         @warn("w0^2 is bigger than tf_max, so probably not reliable")
     end
 
-    a_t0 = SQRTT0[Nf] / sqrt(t0); uwerr(a_t0)
-    ainv_t0 = fm⁻¹_to_GeV(1/a_t0); uwerr(ainv_t0)
-    a_w0 = W0[Nf] / w0; uwerr(a_w0)
-    ainv_w0 = fm⁻¹_to_GeV(1/a_w0); uwerr(ainv_w0)
+    println("w₀ = $(phys_not(w0))")
+    println("a from w₀ = $(phys_not(a_w0)) fm")
+    println("a⁻¹ from w₀ = $(phys_not(ainv_w0)) GeV")
+    Nt > 0 ? println("T from w₀, given Nt=$Nt = $(phys_not(T_w0)) MeV\n") : println()
 
     if save_filename != ""
         io = open(save_filename, "a")
@@ -105,12 +125,6 @@ function t0_scale(filename, Nf, error_est::AbstractErrorEstimator; save_filename
         # println("1/a: $(phys_not(ainv))")
     end
 
-    println("\nt₀ = $(phys_not(t0))")
-    println("a from t₀ = $(phys_not(a_t0)) fm")
-    println("a⁻¹ from t₀ = $(phys_not(ainv_t0)) GeV\n")
-    println("w₀ = $(phys_not(w0))")
-    println("a from w₀ = $(phys_not(a_w0)) fm")
-    println("a⁻¹ from w₀ = $(phys_not(ainv_w0)) GeV\n")
     return Dict(
         "flow times" => flow_times,
         "tf^2E" => t²E,

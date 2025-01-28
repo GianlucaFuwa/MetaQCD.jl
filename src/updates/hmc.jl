@@ -12,7 +12,7 @@ abstract type AbstractIntegrator end
         hmc_logging = true,
         fermion_action = QuenchedFermionAction,
         heavy_flavours = 0,
-        bias_enabled = false,
+        num_cv = 0,
         logdir = "",
     )
 
@@ -31,7 +31,7 @@ on the trajectories, unless `logdir = ""`
 - `fermion_action`: An `AbstratFermionAction` to initialize the appropriate fermion fields
 - `heavy_flavours`: The number of non-degenerate heavy flavours, again to initialize the
 right number of fermion fields
-- `bias_enabled`: If `true`, additional fields are initialized that are needed for Stout
+- `num_cv`: If bigger than 0, additional fields are initialized that are needed for Stout
 force recursion when using a bias.
 
 # Supported Integrators
@@ -113,7 +113,7 @@ function HMC(
     hmc_logging=true,
     fermion_action=QuenchedFermionAction,
     heavy_flavours=0,
-    bias_enabled=false,
+    num_cv=0,
     logdir="",
     instance=mpi_myrank(),
 )
@@ -133,7 +133,7 @@ function HMC(
     end
 
     has_smearing = smearing_gauge != NoSmearing() || smearing_fermion != NoSmearing()
-    force2 = (!has_smearing && !bias_enabled) ? nothing : Colorfield(U)
+    force2 = (!has_smearing && num_cv==0) ? nothing : Colorfield(U)
 
     if fermion_action <: StaggeredFermionAction
         ϕ = ntuple(_ -> Spinorfield(U; staggered=true), 1 + heavy_flavours)
@@ -151,7 +151,7 @@ function HMC(
         throw(AssertionError("Dynamical fermions \"$fermion_action\" not supported"))
     end
 
-    fieldstrength = bias_enabled ? Tensorfield(U) : nothing
+    fieldstrength = num_cv>0 ? Tensorfield(U) : nothing
 
     if hmc_logging && (logdir != "") && (!is_distributed(U) || mpi_amroot())
         # XXX: Probably want to swap this too in MPI PT-MetaD
@@ -183,7 +183,7 @@ function HMC(
                     printf(force_fp, "%-25s", "sup||F_Sf$i||")
                 end
 
-                if bias_enabled
+                if num_cv > 0
                     printf(force_fp, "%-25s", "avg||F_V||")
                     printf(force_fp, "%-25s", "sup||F_V||")
                 end
@@ -246,7 +246,7 @@ function update!(
 
     trP²_old = -calc_kinetic_energy(P)
     Sg_old = calc_gauge_action(U, smearing_gauge)
-    CV_old = calc_CV(U, bias)
+    CV_old = calc_cv(U, bias)
     V_old = bias(CV_old)
     sample_pseudofermions!(ϕ, fermion_action, U, smearing_fermion, shared_smearing)
     Sf_old = calc_fermion_action(fermion_action, U, ϕ, smearing_fermion, true) # INFO: fields are already smeared in sampling, so we dont have to here
@@ -255,7 +255,7 @@ function update!(
 
     trP²_new = -calc_kinetic_energy(P)
     Sg_new = calc_gauge_action(U, smearing_gauge)
-    CV_new = calc_CV(U, bias)
+    CV_new = calc_cv(U, bias)
     V_new = bias(CV_new)
     Sf_new = calc_fermion_action(fermion_action, U, ϕ, smearing_fermion, shared_smearing)
 
@@ -349,16 +349,21 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias)
     end
 
     if bias isa Bias
-        calc_dVdU_bare!(force, fieldstrength, U, temp_force, bias, shared_smearing)
+        for i in 1:length(bias)
+            is_smeared = shared_smearing || i>1
+            calc_dVdU_bare!(
+                force, (fieldstrength, staples), U, temp_force, bias, i, is_smeared
+            )
 
-        if !isnothing(fp)
-            norm2 = norm(force, Val(2))
-            normsup = norm(force, Val(Inf))
-            printf(fp, "%+-25.15E", norm2)
-            printf(fp, "%+-25.15E", normsup)
+            if !isnothing(fp)
+                norm2 = norm(force, Val(2))
+                normsup = norm(force, Val(Inf))
+                printf(fp, "%+-25.15E", norm2)
+                printf(fp, "%+-25.15E", normsup)
+            end
+
+            add!(P, force, ϵ)
         end
-
-        add!(P, force, ϵ)
     end
 
     if !isnothing(fp)

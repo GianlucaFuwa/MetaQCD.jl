@@ -41,9 +41,7 @@ that can be set:
 
 ## Dynamical Fermion Settings
 - `fermion_action`: Fermion action definition as a string (e.g, `fermion_action = "staggered"`)
-> Supported fermion actions: `"staggered"`, `"wilson"`,
-`"staggered_h1234"` (Hoelbling-type flavored mass term M12M34),
-`"staggered_h1342"` (Hoelbling-type flavored mass term M13M42)
+> Supported fermion actions: `"staggered"`, `"wilson"`, `"staggered_h1234"` (Hoelbling-type flavored mass term M12M34), `"staggered_h1342"` (Hoelbling-type flavored mass term M13M42)
 - `eo_precon`: Whether to use an even-odd preconditioned operator as a string (e.g, `eo_precon = true`)
 - `Nf`: Number of flavors per mass value as a vector of integers (e.g, `Nf = [2, 1, 1]` for 2+1+1 flavors)
 - `mass`: Masses in terms of lattice units as a vector of floats (e.g, `mass = [0.001, 0.028, 0.1]`)
@@ -64,7 +62,7 @@ Parameters in case RHMC is used:
 - `rhmc_prec_action`: Precision of the rational approximation of the fermion determinant as an integer (e.g, `rhmc_prec_action = 64`)
 - `rhmc_prec_md`: Precision of the rational approximation of the fermion force as an integer (e.g, `rhmc_prec_md = 42`)
 
-## HMC Settings (only when using (R)HMC as update algorithm)
+## HMC Settings
 - `hmc_integrator`: Type of integrator to be used in HMC as a string (e.g, `hmc_integrator = "omf4"`)
 > Supported HMC integrators: `"leapfrog"`, `"omf2"`, `"omf2slow"`, `"omf4"`, `"omf4slow"`
 - `hmc_trajectory`: Trajectory length to be used in HMC as a float (e.g, `hmc_trajectory = 1`)
@@ -76,7 +74,7 @@ Parameters in case RHMC is used:
 - `hmc_rhostout_fermion`: Smearing step size for the fermion action in the HMC as a float (e.g, `hmc_rhostout_fermion = 0.125`)
 - `hmc_logging`: Whether or not HMC data like accept-reject info or forces should be logged during the trajectory as boolean (e.g, `hmc_logging = true`)
 
-## Gradient Flow Settings (only when using measuring smeared observables)
+## Gradient Flow Settings
 - `flow_integrator`: Type of gradient flow integrator as a string (e.g, `flow_integrator = "rk3"`)
 > Supported gradient flow integrators: `"euler"`, `"rk2"`, `"rk3"`, `"rk3w7"`, `"cooling"` (uses cooling smearing instead)
 - `flow_num`: Number of flow trajectories to be peformed as a string (e.g, `flow_num = 100`)
@@ -98,8 +96,7 @@ of the two categories must be keyed by them with the subkey being the observale,
 ["Measurment Settings".measurements.Plaquette]
 measure_every = 1
 ```
-> Supported observables: `Plaquette`, `Polaykov_loop`, `Topological_charge`, `Energy_density`,
-`Gauge_action`, `Wilson_loop`, `Pion_correlator`
+> Supported observables: `Plaquette`, `Polaykov_loop`, `Topological_charge`, `Energy_density`, `Gauge_action`, `Wilson_loop`, `Pion_correlator`
 
 Each observable has the attribute `measure_every`, which specifies the interval between
 measurements of that observable, meaning that all observables can have their own intervals.
@@ -147,14 +144,41 @@ The last special observable is the `Pion_correlator`, which has the attributes:
 - `overwrite`: Whether the program should ignore overwrites or error when a file would be overwritten as a boolean (e.g., `overwrite = true`)
 
 ## Bias Settings (Only when using biased enhanced sampling)
-- `numinstances`: Number of instances in PT-MetaD or multiple walkers as an integer (e.g, `numinstances = 2`)
-- `kind_of_bias`: Type of bias as a string (e.g, `kind_of_bias = "metad"`)
-> Supported bias types: `"metad"`, `"opes"`, `"parametric"`
-- `kind_of_cv`: Definition of fieldstrength tensor for the topological charge as a string (e.g, `kind_of_cv = "clover"`)
-> Supported cv types: `"plaquette"`, `"clover"`
-- `numsmears_for_cv`: Number of smearing steps for the cv as an integer (e.g, `numsmears_for_cv = 4`)
+Biases are specified similarly to measurements. Note, that each bias/CV has to have the same smearing
+step size, meaning that only the number of smearing steps can be varied per bias.
+The general bias parameters are:
 - `rhostout_for_cv`: Smearing step size for the cv as a float (e.g, `rhostout_for_cv = 0.12`)
-- `is_static`: Whether the bias is static as a vector of booleans (one entry for each instance in PT-MetaD) (e.g, `is_static = [false]`)
+- `numinstances`: Number of instances in PT-MetaD or multiple walkers as an integer (e.g, `numinstances = 2`)
+- `starting_Q`: Topological sector each walker should start from when using multiple walkers as a vector of integers (e.g, `starting_Q = [-1, 0, 1]`)
+> Length of `starting_Q` has to be equal to the number of walkers/instances!
+- `tempering_enabled`: Whether PT-MetaD should be enabled as a boolean (e.g, `tempering_enabled = false`)
+- `swap_every`: Number of update steps between swap proposals in PT-MetaD (e.g, `swap_every = 1`)
+- `non_metadynamics_updates`: Number of update iterations the measurement stream should perform for every iteration the biased stream performs as an integer (e.g, `non_metadynamics_updates = 1`)
+- `measure_on_all`: Whether all instances should measure observables as a boolean (always true for multiple walkers) (e.g, `measure_on_all = false`)
+
+The individual biases/CVs themselves are specified like the observables in `measurements`,
+albeit with the subkey `biases` followed by any ID of your choice:
+```
+["Bias Settings"]
+rhostout_for_cv = 0.12
+...
+["Bias Settings".biases.1]
+kind_of_bias = "metad"
+...
+["Bias Settings".biases.2]
+kind_of_bias = "opes"
+...
+["Bias Settings".biases.2]
+kind_of_bias = "opesmt"
+...
+```
+Parameters that all bias types have, are:
+- `kind_of_bias`: Type of bias as a string (e.g, `kind_of_bias = "metad"`)
+> Supported bias types: `"metad"`, `"opes"`, `"opesmt"` (Multithermal OPES), `"parametric"`
+- `kind_of_cv`: Collective variable to be used as a string (e.g, `kind_of_cv = "topcharge_clover"`)
+> Supported cv types: `"topcharge_plaquette"`, `"topcharge_clover"`, `"multithermal"` (== gauge action, is default of `"opesmt"`)
+- `numsmears_for_cv`: Number of smearing steps for the cv as an integer (e.g, `numsmears_for_cv = 4`)
+- `static`: Whether the bias is static as a vector of booleans (one entry for each instance in PT-MetaD) (e.g, `static = [false]`)
 - `symmetric`: Whether the bias is symmetric as a boolean (e.g, `symmetric = true`)
 - `stride`: Number of production updates between bias updates a an integer (e.g, `stride = 10`)
 - `cvlims`: Limits on the cv as an ordered vector of floats (e.g, `cvlims = [-3, 3]`)
@@ -164,13 +188,12 @@ The last special observable is the `Pion_correlator`, which has the attributes:
 > Supported weight types: `"tiwari"`, `"balanced_exp"`, `"branduardi"` (see: doi:10.1021/acs.jctc.9b00867)
 - `usebiases`: Filenames of pre-build biases to be used as a vector of strings (one entry for each instance in PT-MetaD) (e.g, `usebiases = ["path_to_file"]`)
 - `write_bias_every`: Interval between writes of bias to file as an integer (e.g, `write_bias_every = 10`)
-- `starting_Q`: Topological sector each instance should start in, when using multiple walkers as a vector of integers (e.g, `starting_Q = [-1, 0, 1]`)
 
-Parameters in case a Metadynamics bias is used:
+Parameters in case a Metadynamics (`"metad"`) bias is used:
 - `bin_width`: Bin width of bias as a float (e.g, `bin_width = 0.01`)
 - `meta_weight`: Weight of Gaussians as a float (e.g, `meta_weight = 0.01`)
 
-Parameters in case an OPES bias is used:
+Parameters in case an OPES (`"opes"`) bias is used:
 - `explore`: Whether OPES-Explore should be used as a boolean (e.g, `explore = false`)
 - `barrier`: Approximate height of intersector barriers (should be slightly bigger than the actual height) as a float (e.g, `barrier = 10.0`)
 - `sigma0`: Starting kernel width as a float (e.g, `sigma0 = 0.1`)
@@ -178,8 +201,6 @@ Parameters in case an OPES bias is used:
 - `fixed_sigma`: Whether kernel width should be constant as a boolean (e.g, `fixed_sigma = false`)
 - `no_Z`: Whether normalization Z should not be adaptive as a boolean (e.g, `no_Z = false`)
 
-Parameters in case an parallel tempering is used:
-- `tempering_enabled`: Whether tempering is enabled as a boolean (not multiple walkers but PT-MetaD) (e.g, `tempering_enabled = true`)
-- `swap_every`: Intervals between tempering swap proposals as an integer (e.g, `swap_every = 1`)
-- `non_metadynamics_updates`: Number of update iterations the measurement stream should perform for every iteration the biased stream performs as an integer (e.g, `non_metadynamics_updates = 1`)
-- `measure_on_all`: Whether all instances should measure observables as a boolean (always true for multiple walkers) (e.g, `measure_on_all = false`)
+Parameters in case a OPES-Multithermal (`"opesmt"`) bias is used:
+- `beta_min_max`: Minimum and Maximum of beta range as a vector of floats (e.g, `beta_min_max = [6.0, 6.5]`)
+- `beta_num`: Number of betas the interval specified by `beta_min_max` should be divded by as an integer (e.g, `beta_num = 10`)

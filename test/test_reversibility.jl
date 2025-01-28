@@ -74,14 +74,14 @@ function reversibility_test(hmc::HMC{TI}, U, fermion, bias, str, to) where {TI}
     @timeit to "kinetic energy" trP²_old = -calc_kinetic_energy(hmc.P)
     @timeit to "fermion action" Sf_old =
         isnothing(hmc.ϕ) ? 0.0 : calc_fermion_action(fermion, U, hmc.ϕ)
-    @timeit to "CV" CV_old = isnothing(bias) ? 0.0 : calc_CV(U, bias)
+    @timeit to "CV" CV_old = isnothing(bias) ? 0.0 : calc_cv(U, bias)
     V_old = isnothing(bias) ? 0.0 : bias(CV_old)
     H_old = Sg_old + trP²_old + Sf_old + V_old
 
     @timeit to "evolve!" evolve!(hmc.integrator, U, hmc, fermion, bias)
     @timeit to "normalize!" MetaQCD.normalize!(U)
 
-    CV_mid = isnothing(bias) ? 0.0 : calc_CV(U, bias)
+    CV_mid = isnothing(bias) ? 0.0 : calc_cv(U, bias)
     V_mid = isnothing(bias) ? 0.0 : bias(CV_mid)
     H_mid = calc_gauge_action(U) - calc_kinetic_energy(hmc.P) + V_mid
     ΔH_mid = H_mid - H_old
@@ -94,7 +94,7 @@ function reversibility_test(hmc::HMC{TI}, U, fermion, bias, str, to) where {TI}
     @timeit to "kinetic energy" trP²_new = -calc_kinetic_energy(hmc.P)
     @timeit to "fermion action" Sf_new =
         isnothing(hmc.ϕ) ? 0.0 : calc_fermion_action(fermion, U, hmc.ϕ)
-    @timeit to "CV" CV_new = isnothing(bias) ? 0.0 : calc_CV(U, bias)
+    @timeit to "CV" CV_new = isnothing(bias) ? 0.0 : calc_cv(U, bias)
     V_new = isnothing(bias) ? 0.0 : bias(CV_new)
     H_new = Sg_new + trP²_new + Sf_new + V_new
 

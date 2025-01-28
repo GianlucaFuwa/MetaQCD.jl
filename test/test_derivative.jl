@@ -1,7 +1,7 @@
 using Random
 using MetaQCD
 using MetaQCD.Utils
-using MetaQCD.Updates: calc_dQdU_bare!
+using MetaQCD.Measurements: top_charge_deriv!
 using Test
 
 function test_derivative(backend=CPU; nprocs_cart=(1, 1, 1, 1), halo_width=1)
@@ -79,8 +79,8 @@ function test_derivative(backend=CPU; nprocs_cart=(1, 1, 1, 1), halo_width=1)
 
         calc_dSdU_bare!(dSdU, staples, U, nothing, NoSmearing())
         calc_dSdU_bare!(dSdU_smeared, staples, U, temp_force, smearing)
-        calc_dQdU_bare!(Clover(), dQdU, fieldstrength, U, nothing, NoSmearing())
-        calc_dQdU_bare!(Clover(), dQdU_smeared, fieldstrength, U, temp_force, smearing)
+        top_charge_deriv_bare!(Clover(), dQdU, fieldstrength, U, nothing, NoSmearing())
+        top_charge_deriv_bare!(Clover(), dQdU_smeared, fieldstrength, U, temp_force, smearing)
 
         dgaction_proj = real(multr(im * λ[group_direction], dSdU[μ, site]))
         dtopcharge_proj = real(multr(im * λ[group_direction], dQdU[μ, site]))
@@ -137,4 +137,17 @@ function test_derivative(backend=CPU; nprocs_cart=(1, 1, 1, 1), halo_width=1)
 
     mpi_barrier()
     return relerrors
+end
+
+function top_charge_deriv_bare!(kind_of_charge, dU, F, U, temp_force, smearing)
+    if isnothing(temp_force)
+        top_charge_deriv!(dU, F, U, kind_of_charge)
+    else
+        calc_smearedU!(smearing, U)
+        fully_smeared_U = smearing.Usmeared_multi[end]
+        top_charge_deriv!(dU, F, fully_smeared_U, kind_of_charge)
+        stout_backprop!(dU, temp_force, smearing)
+    end
+
+    return nothing
 end

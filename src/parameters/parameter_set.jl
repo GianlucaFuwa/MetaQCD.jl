@@ -31,37 +31,11 @@ struct ParameterSet
     eo_precon::Bool
 
     # bias parameters
-    kind_of_bias::String
-    kind_of_cv::String
-    numsmears_for_cv::Int64
     rhostout_for_cv::Float64
-    is_static::Union{Bool,Vector{Bool}}
-    symmetric::Bool
-    stride::Int64
-    cvlims::NTuple{2,Float64}
-    biasfactor::Float64
     kinds_of_weights::Vector{String}
-    usebiases::Vector{String}
-    write_bias_every::Int64
     starting_Q::Union{Nothing,Vector{Int64}}
-    # metadynamics specific parameters
-    bin_width::Float64
-    meta_weight::Float64
-    penalty_weight::Float64
-    # opes specific parameters
-    explore::Bool
-    barrier::Float64
-    sigma0::Float64
-    sigma_min::Float64
-    fixed_sigma::Bool
-    no_Z::Bool
-    opes_epsilon::Float64
-    threshold::Float64
-    cutoff::Float64
-    # for parametric
-    bias_Q::Float64
-    bias_A::Float64
-    bias_Z::Float64
+    usebiases::Vector{String}
+    biases::Vector{Dict}
 
     # tempering parameters
     tempering_enabled::Bool

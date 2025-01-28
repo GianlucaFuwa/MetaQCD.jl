@@ -1,6 +1,5 @@
 using MetaQCD
 using MetaQCD.Utils
-using MetaQCD.Updates: calc_dQdU_bare!
 # using Aqua
 using Random
 using Test

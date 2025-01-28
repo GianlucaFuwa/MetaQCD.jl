@@ -3,6 +3,7 @@ module BiasModule
 using DelimitedFiles
 using Polyester: @batch
 using Printf
+using StaticArrays
 using StaticTools: StaticString
 using Statistics
 using Unicode
@@ -10,17 +11,33 @@ using ..MetaIO
 using ..Parameters: ParameterSet
 using ..Utils
 
-import ..Fields: Gaugefield, Plaquette, Clover
-import ..Measurements: top_charge
+import ..Fields: Gaugefield, WilsonGaugeAction, Plaquette, Clover
+import ..Fields: SymanzikTreeGaugeAction, IwasakiGaugeAction, DBW2GaugeAction
+import ..Fields: calc_gauge_action, gauge_action_deriv!
+import ..Measurements: top_charge, top_charge_deriv!
 import ..Smearing: AbstractSmearing, NoSmearing, StoutSmearing, calc_smearedU!
 
 abstract type AbstractBias end
 
+struct CVinfo{F<:Function,dF<:Function,I}
+    cv_func::F
+    deriv_func::dF
+    cv_temp_ind::I
+end
+
 struct NoBias end
 (b::NoBias)(::Real) = 0.0
+(b::NoBias)(::Any) = 0.0
+
+# functions that have to be overloaded by each bias type
+get_ext(::AbstractBias) = ""
+is_adaptive(::AbstractBias) = false
+set_sigma0!(::AbstractBias) = nothing
+update!(::AbstractBias) = nothing
+write_to_file(::AbstractBias, args...) = nothing
 
 """
-    Bias{TopChargeType,Smearing,BiasType,Weights,FileType}
+    Bias{NumCV,BiasType,Smearing,Weights,BiasFile,DataFile}
     
 Container for bias potential and metadata.
 
@@ -33,18 +50,22 @@ of bias (`Metadynamics`, `OPES` or `Parametric` for now).
 The `instance` keyword is used in case of PT-MetaD and multiple walkers to assign the
 correct `usebias` to each stream.
 """
-struct Bias{TCV,TS,TB,TW,T1,T2}
-    kind_of_cv::TCV
-    smearing::TS
-    is_static::Bool
+struct Bias{N,TB,TS,TW,T1,T2}
+    cv_numsmears::Vector{Int64}
     bias::TB
+    smearing::TS
     kinds_of_weights::TW
     biasfile::T1
     datafile::T2
-    write_bias_every::Int64
+    function Bias(
+        cv_numsmears, bias::TB, smearing::TS, weights::TW, bfile::T1, dfile::T2
+    ) where {TB,TS,TW,T1,T2}
+        N = length(bias)
+        return new{N,TB,TS,TW,T1,T2}(cv_numsmears, bias, smearing, weights, bfile, dfile)
+    end
 end
 
-function Bias(p::ParameterSet, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false)
+function Bias(p, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false)
     inum = if dummy
         0
     elseif mpi_multi_sim
@@ -52,92 +73,100 @@ function Bias(p::ParameterSet, U; mpi_multi_sim=false, instance=mpi_myrank(), du
     else
         instance
     end
+
     @level1("- Constructing Bias instance $(inum)...")
-    kind_of_bias = Unicode.normalize(p.kind_of_bias; casefold=true)
-    TCV = get_cvtype_from_parameters(p)
-    numsmears = p.numsmears_for_cv
+
     rho = p.rhostout_for_cv
-    smearing = StoutSmearing(U; numlayers=maximum(numsmears), rho=rho)
-    is_static = dummy ? true : (inum==0 ? false : p.is_static[inum])
-    sstr = (is_static || kind_of_bias == "parametric") ? "static" : "dynamic"
-    @level1("|  Type: $(sstr) $(kind_of_bias)")
+    biases = p.biases
+    num_cv = length(biases)
+    (num_cv == 0) && return NoBias()
+    cv_numsmears = zeros(Int64, num_cv)
 
-    if kind_of_bias ∈ ["metad", "metadynamics"]
-        bias = Metadynamics(p; instance=instance, dummy=dummy)
-    elseif kind_of_bias == "opes"
-        bias = OPES(p; instance=instance, dummy=dummy)
-    elseif kind_of_bias == "parametric"
-        bias = Parametric(p; dummy=dummy)
+    bias = ntuple(num_cv) do i
+        @level1("|")
+        bias_parameters = bias_parameters_from_dict(biases[i])
+        name = bias_parameters.kind_of_cv
+        numsmears = bias_parameters.numsmears_for_cv
+        cv_numsmears[i] = numsmears
+        @level1("|  Bias $i: $(bias_parameters.name)")
+        @level1("|  CV$i: $(name) with $(numsmears)x$(rho) Stout smearing")
+        if biases[i]["kind_of_bias"] ∈ ["metad", "metadynamics"]
+            Metadynamics(
+                bias_parameters; instance=instance, dummy=dummy, mpi_multi_sim=mpi_multi_sim
+            )
+        elseif biases[i]["kind_of_bias"] == "opes"
+            OPES(
+                bias_parameters; instance=instance, dummy=dummy, mpi_multi_sim=mpi_multi_sim
+            )
+        elseif biases[i]["kind_of_bias"] == "opesmt"
+            OPESmultithermal(
+                bias_parameters, p.beta;
+                instance=instance, dummy=dummy, mpi_multi_sim=mpi_multi_sim
+            )
+        elseif biases[i]["kind_of_bias"] == "parametric"
+            Parametric(bias_parameters; dummy=dummy)
+        else
+            error("kind_of_bias $(p[i]["kind_of_bias"]) not supported. Try metad, opes, opesmt or parametric")
+        end
+    end
+
+    smearing = StoutSmearing(U; numlayers=maximum(cv_numsmears), rho=rho)
+
+    kinds_of_weights = if any(x -> !(x isa Metadynamics), bias)
+        ["branduardi"]
     else
-        error("kind_of_bias $(kind_of_bias) not supported. Try metad, opes or parametric")
+        p.kinds_of_weights
     end
 
-    for i in eachindex(p.numsmears_for_cv)
-        @level1 """
-        |  CV$(i): $(string(TCV)) with StoutSmearing(numlayers=$(numsmears[i]), rho=$(rho))
-        """
-    end
+    inum_str = lpad(inum, 3, "0")
+    biasfile = ntuple(num_cv) do i
+        ext = get_ext(bias[i])
 
-    if !(bias isa Parametric)
-        is_opes = bias isa OPES
-        kinds_of_weights = is_opes ? ["opes"] : p.kinds_of_weights
-        inum_str = lpad(inum, 3, "0")
-        ext = is_opes ? "opes" : "metad"
-        biasfile = if mpi_amroot()
-            dummy ? "" : joinpath(p.bias_dir, "stream_$(inum_str).$(ext)")
+        if mpi_amroot()
+            dummy ? "" : joinpath(p.bias_dir, "bias$(i)_$(inum_str)$(ext)")
         else
             ""
         end
-        _datafile = joinpath(p.measure_dir, "bias_data_$(inum_str).txt")
-        datafile = StaticString(_datafile)
-        # FIXME: For some reason this errors with MPI on the UNI's cluster
-        open(_datafile, "w") do fp
-            @printf(fp, "%-11s%-25s", "itrj", "cv")
-
-            for name in kinds_of_weights
-                @printf(fp, "%-25s", "weight_$(name)")
-            end
-
-            println(fp)
-        end
-    elseif bias isa Parametric
-        kinds_of_weights = ["branduardi"]
-        inum_str = lpad(inum, 3, "0")
-        biasfile = ""
-        _datafile = joinpath(p.measure_dir, "bias_data_$(inum_str).txt")
-        datafile = StaticString(_datafile)
-        open(_datafile, "w") do fp
-            @printf(fp, "%-11s%-25s%-25s", "itrj", "cv", "weight_branduardi")
-            println(fp)
-        end
-        @level1(
-            "|  @info: Parametric bias defaults to static and weight-type \"branduardi\""
-        )
     end
 
-    @level1("|  BIASFILE: $(biasfile)")
-    write_bias_every = p.write_bias_every
-    if write_bias_every <= p.stride
-        write_bias_every = p.stride
+    inum_str = lpad(inum, 3, "0")
+    _datafile = joinpath(p.measure_dir, "bias_data_$(inum_str).txt")
+    datafile = StaticString(_datafile)
+    # FIXME: For some reason this errors with MPI on the UNI's cluster
+    open(_datafile, "w") do fp
+        @printf(fp, "%-11s", "itrj")
+
+        for i in 1:num_cv
+            @printf(fp, "%-25s", "cv$i")
+        end
+
+        for name in kinds_of_weights
+            @printf(fp, "%-25s", "weight_$(name)")
+        end
+
+        println(fp)
     end
-    @level1("|  WRITE_BIAS_EVERY: $(dummy ? "" : write_bias_every)")
-    @assert write_bias_every >= 0
+
+    @level1("|  BIASFILE: $(string(biasfile))")
+    @level1("|  DATAFILE: $(string(datafile))")
 
     # write to file after construction to make sure nothing went wrong
-    mpi_amroot() && write_to_file(bias, biasfile)
+    if mpi_amroot()
+        for i in eachindex(bias)
+            write_to_file(bias[i], biasfile[i])
+        end
+    end
 
     !isnothing(p.starting_Q) && @level1("|  STARTING SECTOR: $(string(p.starting_Q))")
     @level1("-")
     @level1("")
     return Bias(
-        TCV(),
-        smearing,
-        is_static,
+        cv_numsmears,
         bias,
+        smearing,
         kinds_of_weights,
         biasfile,
         datafile,
-        write_bias_every,
     )
 end
 
@@ -156,81 +185,103 @@ function Base.show(io::IO, b::Bias)
     return nothing
 end
 
-(b::Bias)(cv) = b.bias(cv)
+Base.length(::Bias{N}) where {N} = N
+(b::Bias{N})(cv) where {N} = sum(b.bias[i](cv[i]) for i in 1:N)
 
-kind_of_cv(::NoBias) = nothing
-kind_of_cv(b::Bias) = b.kind_of_cv
 update_bias!(::NoBias, args...; kwargs...) = nothing
 update_bias!(::Nothing, args...; kwargs...) = nothing
-write_to_file(::AbstractBias, args...) = nothing
-is_adaptive(b::Bias) = is_adaptive(b.bias)
-set_σ₀!(b::Bias, val) = set_σ₀!(b.bias, val)
+is_adaptive(b::Bias{N}) where {N} = ntuple(i -> is_adaptive(b.bias[i]), Val(N))
+set_sigma0!(b::Bias, val, i) = set_sigma0!(b.bias[i], val)
 
+include("bias_parameters.jl")
 include("metadynamics.jl")
 include("opes.jl")
+include("opes_multithermal.jl")
 include("parametric.jl")
 
-function update_bias!(b::Bias, values, itrj, myinstance=mpi_myrank(); mpi_multi_sim=false)
-    (b.is_static || length(values) == 0) && return nothing
-    update!(b.bias, values, itrj)
+function update_bias!(
+    b::Bias{N}, values, itrj, myinstance=mpi_myrank(); mpi_multi_sim=false
+) where {N}
+    (length(values) == 0) && return nothing
 
-    if (b.write_bias_every != 0) && (itrj % b.write_bias_every == 0)
-        filename = if mpi_multi_sim
-            set_ext!(b.biasfile, myinstance)
-        else
-            b.biasfile
-        end
+    for (icv, bias) in enumerate(b.bias)
+        bias.static && continue 
+        values_i = ntuple(j -> values[j][icv], length(values))
+        update!(bias, values_i, itrj)
 
-        if (mpi_multi_sim || mpi_amroot()) && isfile(filename)
-            write_to_file(b.bias, filename)
+        if (bias.write_bias_every != 0) && (itrj % bias.write_bias_every == 0)
+            filename = if mpi_multi_sim
+                set_ext!(b.biasfile[icv], myinstance)
+            else
+                b.biasfile[icv]
+            end
+
+            if (mpi_multi_sim || mpi_amroot()) && isfile(filename)
+                write_to_file(bias, filename)
+            end
         end
     end
     
     return nothing
 end
 
-recalc_CV!(::Gaugefield, ::Nothing) = nothing
-recalc_CV!(::Gaugefield, ::NoBias) = nothing
+recalc_cv!(::Gaugefield, ::Nothing) = nothing
+recalc_cv!(::Gaugefield, ::NoBias) = nothing
 
-function recalc_CV!(U::Gaugefield, b::Bias)
-    CV_new = calc_CV(U, b)
+function recalc_cv!(U::Gaugefield, b::Bias{N}) where {N}
+    CV_new = calc_cv(U, b)
     U.CV = CV_new
     return nothing
 end
 
-function recalc_CV!(U::Vector{TG}, b::Vector{TB}) where {TG<:Gaugefield,TB<:Bias}
+function recalc_cv!(U::Vector{TG}, b::Vector{TB}) where {TG<:Gaugefield,TB<:Bias}
     for i in eachindex(U)
-        recalc_CV!(U[i], b[i])
+        recalc_cv!(U[i], b[i])
     end
+
     return nothing
 end
 
-calc_CV(U, ::Nothing, ::Bool=false) = U.CV
-calc_CV(U, ::NoBias, ::Bool=false) = U.CV
+calc_cv(U, ::Nothing, ::Bool=false) = U.CV
+calc_cv(U, ::Nothing, ::Int64, ::Bool=false) = U.CV
+calc_cv(U, ::NoBias, ::Bool=false) = U.CV
+calc_cv(U, ::NoBias, ::Int64, ::Bool=false) = U.CV
 
-function calc_CV(U, ::Bias{TCV,TS}, ::Bool=false) where {TCV,TS<:NoSmearing}
-    return top_charge(TCV(), U)
+function calc_cv(U, bias::AbstractBias)
+    return bias.cvinfo.cv_func(U)
 end
 
-function calc_CV(U, b::Bias{TCV}, is_smeared=false) where {TCV}
+function calc_cv(U, b::Bias{N,TB,TS}, ::Bool=false) where {N,TB,TS<:NoSmearing} # all CVs
+    return ntuple(i -> calc_cv(U, b.bias[i]), Val(N))
+end
+
+function calc_cv(U, b::Bias{N,TB,TS}, i::Int64, ::Bool=false) where {N,TB,TS<:NoSmearing} # 1 certain CV
+    return calc_cv(U, b.bias[i])
+end
+
+function calc_cv(U, b::Bias{N}, is_smeared::Bool=false) where {N} # all CVs smeared
     is_smeared || calc_smearedU!(b.smearing, U)
-    fully_smeared_U = b.smearing.Usmeared_multi[end]
-    CV_new = top_charge(TCV(), fully_smeared_U)
+    levels = b.cv_numsmears
+    CV_new = ntuple(Val(N)) do i
+        smeared_U = b.smearing.Usmeared_multi[levels[i]+1]
+        calc_cv(smeared_U, b.bias[i])
+    end
+
     return CV_new
 end
 
-∂V∂Q(b::NoBias, ::Real) = 0.0
-∂V∂Q(b::Bias, cv) = ∂V∂Q(b.bias, cv)
-
-function get_cvtype_from_parameters(p::ParameterSet)
-    if p.kind_of_cv == "plaquette"
-        return Plaquette
-    elseif p.kind_of_cv == "clover"
-        return Clover
-    else
-        error("kind of cv \"$(p.kind_of_cv)\" not supported")
-    end
+function calc_cv(U, b::Bias{N}, i::Int64, is_smeared::Bool=false) where {N} # 1 certain CV smeared
+    is_smeared || calc_smearedU!(b.smearing, U)
+    levels = b.cv_numsmears
+    smeared_U = b.smearing.Usmeared_multi[levels[i]+1]
+    return calc_cv(smeared_U, b.bias[i])
 end
+
+calc_cv_deriv!(dU, b::Bias, i, args...) = b.bias[i].cvinfo.deriv_func(dU, args...)
+
+∂V∂Q(b::NoBias, ::Any) = 0.0
+∂V∂Q(b::Bias, cv::Float64, i) = ∂V∂Q(b.bias[i], cv)
+∂V∂Q(b::Bias, cv, i) = ∂V∂Q(b.bias[i], cv[i])
 
 function in_bounds(cv, lb, ub)
     lb <= cv < ub && return true
@@ -243,31 +294,27 @@ include("weights.jl")
 # custom serialization, because saving and loading IOStreams doesn't work
 using JLD2
 
-struct BiasSerialization{TCV,TS,TB,TW}
-    kind_of_cv::TCV
-    smearing::TS
-    is_static::Bool
+struct BiasSerialization{N,TB,TS,TW,T1,T2}
+    cv_numsmears::Vector{Int64}
     bias::TB
+    smearing::TS
     kinds_of_weights::TW
-    biasfile::String
-    datafile::String
-    write_bias_every::Int64
+    biasfile::T1
+    datafile::T2
 end
 
-function JLD2.writeas(::Type{<:Bias{TCV,TS,TB,TW}}) where {TCV,TS,TB,TW}
-    return BiasSerialization{TCV,TS,TB,TW}
+function JLD2.writeas(::Type{<:Bias{CV,TS,TB,TW}}) where {CV,TS,TB,TW}
+    return BiasSerialization{CV,TS,TB,TW}
 end
 
 function Base.convert(::Type{<:BiasSerialization}, b::Bias)
     out = BiasSerialization(
-        b.kind_of_cv,
-        b.smearing,
-        b.is_static,
+        b.cv_numsmears,
         b.bias,
+        b.smearing,
         b.kinds_of_weights,
         b.biasfile,
         b.datafile,
-        b.write_bias_every,
     )
     return out
 end
@@ -275,14 +322,12 @@ end
 function Base.convert(::Type{<:Bias}, b::BiasSerialization)
     fp = open(b.datafile, "a")
     out = Bias(
-        b.kind_of_cv,
-        b.smearing,
-        b.is_static,
+        b.cv_numsmears,
         b.bias,
+        b.smearing,
         b.kinds_of_weights,
         b.biasfile,
         b.datafile,
-        b.write_bias_every,
         fp,
     )
     return out

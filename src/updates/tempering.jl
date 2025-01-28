@@ -9,7 +9,7 @@ function temper!( # INFO: When using MPI in tempering
     recalc=false,
 )
     itrj%swap_every != 0 && return nothing
-    recalc && recalc_CV!(U, bias)
+    recalc && recalc_cv!(U, bias)
     comm = mpi_comm()
     myrank = mpi_myrank()
     mpi_barrier()
@@ -64,7 +64,7 @@ function temper!( # INFO: When using MPI in tempering
         mpi_bcast!(instance_state, comm; root=rank_i)
         mpi_bcast!(numaccepts_temper, comm; root=rank_i)
         acc_pct = 100numaccepts_temper[i] / (itrj/swap_every)
-        @level1 "|  Acceptance [$i <-> $(i-1)]:\t$(acc_pct) %"
+        @level1 "|    Acceptance [$i <-> $(i-1)]:\t$(acc_pct) %"
     end
 
     return nothing
@@ -75,7 +75,7 @@ function temper!( # INFO: When not using MPI in tempering
 ) where {TG<:Gaugefield,TB<:Bias}
     itrj % swap_every != 0 && return nothing
     numinstances = length(U)
-    recalc && recalc_CV!(U[1], bias[1])
+    recalc && recalc_cv!(U[1], bias[1])
 
     for i in numinstances:-1:2
         U1 = U[i]
@@ -90,17 +90,17 @@ function temper!( # INFO: When not using MPI in tempering
         @level1("|  delta_V$(i) = $(ΔV1)\tdelta_V$(i-1) = $(ΔV2)")
 
         if rand() ≤ acc_prob
-            println("# swap accepted")
+            @level1 "|  Swap accepted"
             numaccepts_temper[i-1] += 1
             swap_U!(U1, U2)
             update_bias!(bias1, cv2, itrj)
             update_bias!(bias2, cv1, itrj)
         else
-            println("# swap rejected")
+            @level1 "|  Swap rejected"
         end
 
         acc_pct = 100numaccepts_temper[i-1] / (itrj/swap_every)
-        @level1 "|  Acceptance [$i <-> $(i-1)]:\t$(acc_pct) %"
+        @level1 "|    Acceptance [$i <-> $(i-1)]:\t$(acc_pct) %"
     end
 
     return nothing

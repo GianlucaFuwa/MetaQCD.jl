@@ -1,7 +1,3 @@
-function struct2dict(x::T) where {T}
-    return Dict{String,Any}(string(fn) => getfield(x, fn) for fn in fieldnames(T))
-end
-
 abstract type MeasurementParameters end
 
 Base.@kwdef mutable struct EnergyDensityParameters <: MeasurementParameters

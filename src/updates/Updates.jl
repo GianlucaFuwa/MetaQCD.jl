@@ -14,8 +14,11 @@ using ..RHMCParameters
 using ..Utils
 
 import KernelAbstractions as KA
-import ..BiasModule: Bias, NoBias, calc_CV, ∂V∂Q, recalc_CV!
-import ..BiasModule: kind_of_cv, update_bias!
+import ..BiasModule: Bias, NoBias, calc_cv, ∂V∂Q, recalc_cv!
+import ..BiasModule: update_bias!
+import ..DiracOperators: StaggeredFermionAction, StaggeredEOPreFermionAction
+import ..DiracOperators: StaggeredHoelblingFermionAction
+import ..DiracOperators: WilsonFermionAction, WilsonEOPreFermionAction, has_clover_term
 import ..DiracOperators: AbstractDiracOperator, QuenchedFermionAction, calc_fermion_action
 import ..DiracOperators: fermaction_from_str, sample_pseudofermions!
 import ..Fields: AbstractGaugeAction, Gaugefield, Colorfield, identity_gauges!, global_dims
@@ -24,6 +27,7 @@ import ..Fields: allindices, clear!, dims, normalize!, fieldstrength_eachsite!, 
 import ..Fields: check_dims, even_odd, gaussian_TA!, mul!, staple, staple_eachsite!
 import ..Fields: @groupreduce, @latmap, @latsum, gauge_action, is_distributed, update_halo!
 import ..Fields: AbstractField, Plaquette, Clover, Spinorfield, Tensorfield
+import ..Forces: calc_dSdU_bare!, calc_dSfdU_bare!, calc_dVdU_bare!
 import ..Parameters: ParameterSet
 import ..Smearing: AbstractSmearing, NoSmearing, StoutSmearing
 import ..Smearing: calc_smearedU!, get_layer, stout_backprop!
@@ -31,7 +35,6 @@ import ..Universe: Univ
 
 abstract type AbstractUpdate end
 
-include("../forces/forces.jl")
 include("./heatbath.jl")
 include("./hmc.jl")
 include("./metropolis.jl")
@@ -56,7 +59,7 @@ function Updatemethod(parameters::ParameterSet, U; instance=mpi_myrank())
         fermion_action=parameters.fermion_action,
         eo_precon=parameters.eo_precon,
         Nf=parameters.Nf,
-        kind_of_bias=parameters.kind_of_bias,
+        num_cv=length(parameters.biases),
         metro_ϵ=parameters.metro_epsilon,
         metro_numhits=parameters.metro_numhits,
         metro_target_acc=parameters.metro_target_acc,
@@ -86,7 +89,7 @@ function Updatemethod(
     fermion_action="none",
     eo_precon=false,
     Nf=0,
-    kind_of_bias="none",
+    num_cv=0,
     metro_ϵ=0.1,
     metro_numhits=1,
     metro_target_acc=0.5,
@@ -121,7 +124,7 @@ function Updatemethod(
             hmc_logging=hmc_logging,
             fermion_action=fermaction_from_str(lower_case(fermion_action), eo_precon),
             heavy_flavours=length(Nf) - 1,
-            bias_enabled=kind_of_bias != "none",
+            num_cv=num_cv,
             logdir=logdir,
             instance=instance,
         )

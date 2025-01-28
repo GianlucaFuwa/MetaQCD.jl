@@ -1,21 +1,21 @@
-function run_sim(filenamein::String; backend="cpu")
+function run_sim(parameterfile::String; backend="cpu")
     # When using MPI we make sure that only rank 0 prints to the console
     if mpi_amroot()
-        ext = splitext(filenamein)[end]
+        ext = splitext(parameterfile)[end]
         @assert (ext == ".toml") """
             input file format \"$ext\" not supported. Use TOML format
         """
     end
 
     # load parameters from toml file
-    parameters = construct_params_from_toml(filenamein; backend=backend)
+    parameters = construct_params_from_toml(parameterfile; backend=backend)
     multi_sim = (prod(parameters.numprocs_cart) == 1) && mpi_parallel()
     mpi_barrier()
 
     if parameters.tempering_enabled
         multi_sim && (@assert parameters.numinstances == mpi_size())
-        @assert parameters.kind_of_bias != "none" """
-        bias cannot be \"none\" in parallel tempering
+        @assert length(parameters.biases) > 0 """
+        There has to be at least one bias when using tempering
         """
     end
 
@@ -89,7 +89,7 @@ function run_sim!(univ, parameters, updatemethod, updatemethod_pt; mpi_multi_sim
                     hmc_logging=true,
                     fermion_action=faction_type,
                     heavy_flavours=length(parameters.Nf) - 1,
-                    bias_enabled=true,
+                    num_cv=length(univ.bias),
                     logdir=parameters.log_dir,
                     instance=mpi_myrank(),
                 )
@@ -122,7 +122,7 @@ function run_sim!(univ, parameters, updatemethod, updatemethod_pt; mpi_multi_sim
                     hmc_logging=true,
                     fermion_action=faction_type,
                     heavy_flavours=length(parameters.Nf) - 1,
-                    bias_enabled=true,
+                    num_cv=length(univ.bias[1]),
                     logdir=parameters.log_dir,
                     instance=1:parameters.numinstances-1,
                 )
@@ -144,7 +144,9 @@ function run_sim!(univ, parameters, updatemethod, updatemethod_pt; mpi_multi_sim
         gflow = construct_flow(U[1], parameters)
         measurements = Vector{MeasurementMethods}(undef, numinstances)
         measurements[1] = MeasurementMethods(
-            U[1], parameters.measure_dir, parameters.measurements;
+            U[1],
+            parameters.measure_dir,
+            parameters.measurements;
             additional_string="_000.txt",
         )
 
@@ -181,8 +183,12 @@ function run_sim!(univ, parameters, updatemethod, updatemethod_pt; mpi_multi_sim
                         additional_string = "_$(lpad(j-1, 3, "0")).txt"
                     )
                 else
-                    measure_dir = parameters.measure_dir
-                    _measurements_with_flow[i] = MeasurementMethods(U[i], measure_dir, Dict[])
+                    _measurements_with_flow[j] = MeasurementMethods(
+                        U[j],
+                        parameters.measure_dir,
+                        Dict[];
+                        flow=gflow[i],
+                    )
                 end
             end
 
@@ -288,7 +294,7 @@ function metaqcd!(
     end
 
     @level1("-- Thermalization elapsed time:\t$(runtime_therm) [s]\n")
-    recalc_CV!(U, bias) # need to recalc cv since it was not updated during therm
+    recalc_cv!(U, bias) # need to recalc cv since it was not updated during therm
 
     mpi_barrier()
 
@@ -379,9 +385,6 @@ function metaqcd_PT!(
     rank0_updates = parameters.non_metadynamics_updates
     measure_on_all = parameters.measure_on_all
 
-    # if stream 1 uses hmc then we have to recalc the CV before tempering
-    uses_hmc = updatemethod isa HMC
-
     @level1("- Thermalization:")
     _, runtime_therm = @timed begin
         for itrj in 1:(parameters.numtherm)
@@ -407,7 +410,7 @@ function metaqcd_PT!(
     end
 
     @level1("-- Thermalization elapsed time:\t$(runtime_therm) [s]\n")
-    recalc_CV!(U, bias) # need to recalc cv since it was not updated during therm
+    recalc_cv!(U, bias) # need to recalc cv since it was not updated during therm
 
     @level1("- Production:")
     _, runtime_prod = @timed begin
