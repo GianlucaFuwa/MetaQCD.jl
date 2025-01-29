@@ -245,7 +245,7 @@ function update!(o::OPES, cv_in, itrj)
         return nothing
     end
 
-    cv = cv_in[in_bounds.(cv_in, o.cvlims[1], o.cvlims[2])] # get all CVs that are within bounds
+    cv = cv_in[findall(in_bounds.(cv_in, o.cvlims[1], o.cvlims[2]))] # get all CVs that are within bounds
 
     (itrj % o.stride != 0 || length(cv) == 0) && return nothing
     o.old_KDEnorm = o.KDEnorm
