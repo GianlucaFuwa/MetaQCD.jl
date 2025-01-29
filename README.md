@@ -107,7 +107,7 @@ We include the ability to visualize your data. For that, you just have to pass t
 ] activate MetaAnalysis/
 ] instantiate
 using MetaAnalysis
-measurements = MetaMeasurements("my_ensemble")
+measurements = MetaMeasurements("/path/to/ensemble")
 timeseries(measurements, :my_observable)
 ```
 
