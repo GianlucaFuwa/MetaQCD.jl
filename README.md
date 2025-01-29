@@ -35,6 +35,7 @@ Then:
 1. Clone the latest release onto your machine.
 2. Open Julia in the directory which you cloned the repo into, with the project specific environment. This can either be done by starting Julia with the command line argument "--project" or by activating the environment within an opened Julia instance via the package manager:
 ``` julia
+using Pkg
 Pkg.activate(".")
 ```
 Or you can switch to package manager mode by typing "]" and then do

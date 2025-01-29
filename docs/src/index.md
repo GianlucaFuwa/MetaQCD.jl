@@ -2,6 +2,8 @@
 
 Inspired by the [LatticeQCD.jl](https://github.com/akio-tomiya/LatticeQCD.jl/tree/master) package by Akio Tomiya et al.
 
+For detailed information on how to use this package, see the [docs](https://gianlucafuwa.github.io/MetaQCD.jl/dev/).
+
 ## Features:
 - [x] Simulations of 4D-SU(3) Yang-Mills (Pure Gauge) theory
 - [x] Simulations of full lattice QCD with arbitrary number of flavours (Staggered, Wilson-Clover)
@@ -14,15 +16,16 @@ Inspired by the [LatticeQCD.jl](https://github.com/akio-tomiya/LatticeQCD.jl/tre
 - [x] Improved Topological charge definitions (clover, rectangle clover-improved)
 - [x] Wilson(-Clover) fermions
 - [x] Staggered fermions
+- [x] RHMC to simulate odd number of flavours
 - [x] Even-odd preconditioner for Wilson(-Clover)
 - [x] Even-odd preconditioner for Staggered
 - [ ] Mass-splitting preconditioner / Hasenbusch trick
-- [x] RHMC to simulate odd number of flavours
 - [ ] Full support for CUDA and ROCm backends
-- [x] Multi-node parallelism using MPI (experimental)
+- [ ] Multi-node parallelism using MPI (not working with even-odd preconditioned fermions yet)
 
 ## Installation:
-First make sure you have Julia version 1.9.x or 1.10.x installed. You can use [juliaup](https://github.com/JuliaLang/juliaup) for that or just install the release from the [Julia website](https://julialang.org/downloads/).
+First make sure you have Julia version **1.9.4** installed. You can use [juliaup](https://github.com/JuliaLang/juliaup) for that or just install the release from the [Julia website](https://julialang.org/downloads/oldreleases).
+> Versions above this work too, but all development and optimization is done on 1.9.4 up until now and for the foreseeable future.
 
 Then:
 
