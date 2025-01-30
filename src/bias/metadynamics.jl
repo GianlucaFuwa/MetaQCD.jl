@@ -202,12 +202,12 @@ function metad_from_file(p, usebias)
         bin_vals = range(cvlims[1], cvlims[2]; step=p.bin_width)
         values = zero(bin_vals)
         @level1("|  initialized as zeros")
-        return bin_vals, values
+        return collect(bin_vals), values
     else
         values, _ = readdlm(usebias, Float64; header=true)
         bin_vals = range(cvlims[1], cvlims[2]; step=p.bin_width)
         @assert length(values[:, 2]) == length(bin_vals) "your bias doesn't match parameters"
         @level1("|  initialized from \"$(usebias)\"")
-        return bin_vals, values[:, 2]
+        return collect(bin_vals), values[:, 2]
     end
 end

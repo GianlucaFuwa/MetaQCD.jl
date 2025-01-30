@@ -78,7 +78,6 @@ struct MetaBias{F}
         end
 
         ename = split(ensemblename, "/")[end]
-        @show ename
         return new{typeof(bias)}(bias, ename, ext)
     end
 end
@@ -252,36 +251,36 @@ mutable struct OPES
 end
 
 function OPES(filename::String)
-    state = Dict{String,Any}(
-        "explore" => false,
-        "counter" => 0,
-        "biasfactor" => Inf,
-        "sigma0" => 0.0,
-        "epsilon" => 0.0,
-        "sum_weights" => 0.0,
-        "sum_weights2" => 0.0,
-        "Z" => 1.0,
-        "threshold" => 1.0,
-        "cutoff" => 1.0,
-        "penalty" => 1.0,
+    state = Dict{Symbol,Any}(
+        :counter => 0,
+        :biasfactor => Inf,
+        :sigma0 => 0.0,
+        :epsilon => 0.0,
+        :sum_weights => 0.0,
+        :sum_weights2 => 0.0,
+        :KDEnorm => 0.0,
+        :Z => 1.0,
+        :threshold => 1.0,
+        :cutoff => 1.0,
+        :penalty => 1.0,
     )
 
     @assert isfile(filename) "file \"$(filename)\" doesn't exist"
     kernels, nker = opes_from_file!(state, filename)
     is_first_step = false
-    explore = state["explore"]
-    counter = Int64(state["counter"])
-    biasfactor = state["biasfactor"]
+    counter = Int64(state[:counter])
+    biasfactor = state[:biasfactor]
     bias_prefactor = 1 - 1 / biasfactor
-    σ₀ = state["sigma0"]
-    ϵ = state["epsilon"]
-    sum_weights = state["sum_weights"]
-    sum_weights² = state["sum_weights2"]
-    KDEnorm = state["KDEnorm"]
-    Z = state["Z"]
-    threshold = state["threshold"]
-    cutoff² = state["cutoff"]^2
-    penalty = state["penalty"]
+    σ₀ = state[:sigma0]
+    ϵ = state[:epsilon]
+    sum_weights = state[:sum_weights]
+    sum_weights² = state[:sum_weights2]
+    KDEnorm = state[:KDEnorm]
+    explore = KDEnorm == counter ? true : false
+    Z = state[:Z]
+    threshold = state[:threshold]
+    cutoff² = state[:cutoff]^2
+    penalty = state[:penalty]
 
     return OPES(
         is_first_step,
