@@ -161,7 +161,7 @@ function HMC(
             open(_logfile, "w") do fp
                 @printf(
                     fp,
-                    "%-25s%-25s%-25s%-25s%-25s\n",
+                    "%-25s%-25s%-25s%-25s%-25s%-25s\n",
                     "ΔP²", "ΔSg", "ΔSf", "ΔV", "ΔH", "Accepted"
                 )
             end
