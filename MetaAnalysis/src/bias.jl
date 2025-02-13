@@ -253,7 +253,7 @@ end
 function OPES(filename::String)
     @assert isfile(filename) "file \"$(filename)\" doesn't exist"
     state = Dict{Symbol,Any}()
-    state, kernels, nker = opes_from_file!(state, filename)
+    kernels, nker = opes_from_file!(state, filename)
     is_first_step = false
     counter = Int64(state[:counter])
     biasfactor = state[:biasfactor]
