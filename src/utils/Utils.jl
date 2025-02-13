@@ -12,6 +12,7 @@ using StaticArrays
 using StaticTools
 using PrecompileTools: PrecompileTools
 
+export METAQCD_VERSION
 export mpi_init, mpi_comm, mpi_size, mpi_parallel, mpi_myrank, mpi_amroot, mpi_barrier
 export mpi_cart_create, mpi_cart_coords, mpi_cart_shift, mpi_multirequest, mpi_send
 export mpi_isend, mpi_recv, mpi_irecv!, mpi_waitall, mpi_allreduce, mpi_allgather

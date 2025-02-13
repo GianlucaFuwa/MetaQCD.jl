@@ -54,9 +54,9 @@ function build_bias(parameterfile::String; backend="cpu")
 
     if parameters.load_checkpoint_fromfile
         univ_args..., updatemethod, _, _ = load_checkpoint(parameters.load_checkpoint_path)
-        univ = Univ(univ_args...)
+        univ = Univ(univ_args...; mpi_multi_sim=multi_sim, build=true)
     else
-        univ = Univ(parameters; mpi_multi_sim=multi_sim)
+        univ = Univ(parameters; mpi_multi_sim=multi_sim, build=true)
         updatemethod = nothing
     end
 
@@ -73,7 +73,7 @@ function build_bias!(univ, parameters, updatemethod; mpi_multi_sim=false)
 
     gflow = construct_flow(U, parameters)
 
-    additional_string = "_$(lpad(mpi_myrank(), 3, "0")).txt"
+    additional_string = "_$(lpad(mpi_myrank()+1, 3, "0")).txt"
 
     measurements = MeasurementMethods(
         U,

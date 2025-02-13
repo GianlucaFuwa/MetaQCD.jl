@@ -6,6 +6,7 @@ function test_gradflow(backend=CPU; nprocs_cart=(1, 1, 1, 1), halo_width=1)
     NZ = 4
     NT = 4
     U = Gaugefield{CPU,Float64,WilsonGaugeAction}(NX, NY, NZ, NT, 6.0, nprocs_cart, halo_width)
+    numflow = 7
 
     filename = if MetaQCD.Fields.is_distributed(U)
         pkgdir(MetaQCD, "test", "testconf_mpi")
@@ -22,14 +23,14 @@ function test_gradflow(backend=CPU; nprocs_cart=(1, 1, 1, 1), halo_width=1)
     mfac = 1 / (6 * U.NV * U.NC)
     plaq = plaquette_trace_sum(U) * mfac
 
-    g = GradientFlow(U; integrator="euler", numflow=3, steps=1, tf=0.12)
-    s = StoutSmearing(U; numlayers=3, rho=0.12)
+    g = GradientFlow(U; integrator="euler", numflow=numflow, steps=1, tf=0.12)
+    s = StoutSmearing(U; numlayers=numflow, rho=0.12)
 
     copy!(g.Uflow, U)
 
-    mpi_amroot() && println("0\tplaq: $plaq")
+    mpi_amroot() && println("0\tplaq: $plaq\n")
 
-    p_flow = zeros(3)
+    p_flow = zeros(numflow)
 
     for iflow in 1:g.numflow
         flow!(g)
@@ -38,9 +39,15 @@ function test_gradflow(backend=CPU; nprocs_cart=(1, 1, 1, 1), halo_width=1)
         p_flow[iflow] = plaq
     end
 
+    println()
     calc_smearedU!(s, U)
     p_stout = plaquette_trace_sum(s.Usmeared_multi[end]) * mfac
-    mpi_amroot() && println("3\tplaq (stout): $(p_stout)\n")
+
+    for i in eachindex(s.Usmeared_multi)
+        i == 1 && continue
+        p = plaquette_trace_sum(s.Usmeared_multi[i]) * mfac
+        mpi_amroot() && println("$(i-1)\tplaq (stout): $(p)")
+    end
 
     mpi_amroot() && (@test isapprox(p_stout, p_flow[end]))
     return isapprox(p_stout, p_flow[end])

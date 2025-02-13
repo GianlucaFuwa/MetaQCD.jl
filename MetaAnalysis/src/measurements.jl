@@ -47,7 +47,7 @@ struct MetaMeasurements
                 end
 
                 measurement_dict["hmc_data"] = measurement
-            elseif occursin("flowed", name_no_ext)
+            elseif any(occursin.(("flowed", "gflow", "cooling"), name_no_ext))
                 data, header = readdlm(dir * "/$(name)"; header=true)
                 unique_tflow = unique(data[:, 3])
                 unique_indices = Vector{Int64}[]
@@ -128,22 +128,12 @@ RecipesBase.@recipe function timeseries(
     end
 
     if occursin("bias_data", string(observable))
+        filter!(x -> !contains("cv", x), obs_keys)
         size --> (600, 200 * length(obs_keys))
-        cv = getproperty(m, observable)["cv"]
-        filter!(x -> x ≠ "cv", obs_keys)
         link := :x
-        layout := (length(obs_keys) + 1, 1)
+        layout := (length(obs_keys), 1)
         legend := false
         palette --> DEFAULT_COLORS
-
-        @series begin
-            xlabel --> ""
-            ylabel --> "cv"
-            yticks --> floor(minimum(cv)):ceil(maximum(cv))
-            subplot := 1
-            y = view(cv, irange)
-            x, y
-        end
 
         for (i, name) in enumerate(obs_keys)
             @series begin
@@ -151,7 +141,7 @@ RecipesBase.@recipe function timeseries(
                 xlabel --> xl
                 ylabel --> name
                 color --> DEFAULT_COLORS[i+1]
-                subplot := i + 1
+                subplot := i
                 y = view(getproperty(m, observable)[name], irange)
                 x, y
             end
@@ -168,28 +158,28 @@ RecipesBase.@recipe function timeseries(
             x, y
         end
         # end
-    elseif occursin("flowed", string(observable))
-        # size --> (600, 250 * length(obs_keys))
+    elseif any(occursin.(("flowed", "gflow", "cooling"), string(observable)))
         palette --> DEFAULT_COLORS
         xlabel --> "Monte Carlo Time"
-        ylabel --> first(split(obs_keys[1], " "))
         linewidth --> 2
         legend --> :outertopright
-        # layout := (length(obs_keys), 1)
+
+        sub_obs = unique!(first.(split.(obs_keys, " ")))
+        size --> (600, 250 * length(sub_obs))
+        layout := (length(sub_obs), 1)
         nlabel = last.(split.(obs_keys, " "))
         tf_digits = parse.(Float64, filter.(x -> isdigit(x) || x=='.', nlabel))
-        if tf === nothing 
-            iordered = sortperm(tf_digits)        
-        else
-            iordered = findall(x -> x==tf, tf_digits)
-        end
 
-        for (j, i) in enumerate(iordered)
-            @series begin
-                # subplot := j
-                label --> nlabel[i]
-                y = view(getproperty(m, observable)[obs_keys[i]], irange)
-                x, y
+        for tflow in sort(unique(tf_digits))
+            for (j, sub_ob) in enumerate(sub_obs)
+                @show j, sub_ob
+                @series begin
+                    # subplot := j
+                    ylabel --> sub_ob
+                    label --> "tf = $(tflow)"
+                    y = view(getproperty(m, observable)["$(sub_ob) (tf=$(tflow))"], irange)
+                    x, y
+                end
             end
         end
     else

@@ -15,13 +15,7 @@ const W0 = Dict{Int64,uwreal}(
 
 fm⁻¹_to_GeV(x) = x / (1/0.197)
 
-function t0_scale(
-    filename, error_est; Nf=-1, save_filename="", Nt::Int64=-1,
-)
-    dat = readdlm(filename, skipstart=1)
-    return t0_scale(dat, error_est; Nf=Nf, save_filename=save_filename, Nt=Nt)
-end
-
+# TODO: Determine error on t-function via bootstrap
 function t0_scale(
     data, error_est; Nf=-1, save_filename="", Nt::Int64=-1,
 )

@@ -39,7 +39,7 @@ struct Metadynamics{CV} <: AbstractBias
 end
 
 function Metadynamics(
-    p::MetadynamicsParameters; instance=1, dummy=false, mpi_multi_sim=false
+    p::MetadynamicsParameters; instance=1, dummy=false, mpi_multi_sim=false, build=false
 )
     inum = if dummy
         0
@@ -62,12 +62,12 @@ function Metadynamics(
     @level1("|  BIN_WIDTH: $(p.bin_width)")
     @assert p.bin_width > 0 "BIN_WIDTH must be > 0"
 
-    if dummy || instance==0
-        bin_vals, values = metad_from_file(p, "")
-    elseif instance > length(p.usebiases)
-        bin_vals, values = metad_from_file(p, "")
+    if (0 < instance <= length(p.usebiases) && !dummy)
+        bin_vals, values = metad_from_file(p, p.usebiases[instance+1])
+    elseif build && (length(p.usebiases) != 0)
+        bin_vals, values = metad_from_file(p, p.usebiases[1])
     else
-        bin_vals, values = metad_from_file(p, p.usebiases[instance])
+        bin_vals, values = metad_from_file(p, "")
     end
 
     @level1("|  META_WEIGHT: $(p.weight)")

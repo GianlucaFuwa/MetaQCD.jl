@@ -72,7 +72,7 @@ struct Univ{TG,TF,TB}
     end
 end
 
-function Univ(parameters::ParameterSet; mpi_multi_sim=false)
+function Univ(parameters::ParameterSet; mpi_multi_sim=false, build=false)
     if length(parameters.biases) != 0
         if parameters.tempering_enabled && !mpi_multi_sim
             numinstances = parameters.numinstances
@@ -98,7 +98,7 @@ function Univ(parameters::ParameterSet; mpi_multi_sim=false)
             numinstances = 1
             U = Gaugefield(parameters)
             fermion_action = init_fermion_actions(parameters, U)
-            bias = Bias(parameters, U; mpi_multi_sim=mpi_multi_sim)
+            bias = Bias(parameters, U; mpi_multi_sim=mpi_multi_sim, build=build)
         end
     else
         @assert parameters.tempering_enabled == false """

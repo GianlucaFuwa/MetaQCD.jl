@@ -65,11 +65,13 @@ struct Bias{N,TB,TS,TW,T1,T2}
     end
 end
 
-function Bias(p, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false)
+function Bias(p, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, build=false)
     inum = if dummy
         0
-    elseif mpi_multi_sim
+    elseif mpi_multi_sim && !build
         mpi_myrank()
+    elseif build
+        mpi_myrank() + 1
     else
         instance
     end
@@ -92,16 +94,18 @@ function Bias(p, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false)
         @level1("|  CV$i: $(name) with $(numsmears)x$(rho) Stout smearing")
         if biases[i]["kind_of_bias"] ∈ ["metad", "metadynamics"]
             Metadynamics(
-                bias_parameters; instance=instance, dummy=dummy, mpi_multi_sim=mpi_multi_sim
+                bias_parameters;
+                instance=instance, dummy=dummy, mpi_multi_sim=mpi_multi_sim, build=build
             )
         elseif biases[i]["kind_of_bias"] == "opes"
             OPES(
-                bias_parameters; instance=instance, dummy=dummy, mpi_multi_sim=mpi_multi_sim
+                bias_parameters;
+                instance=instance, dummy=dummy, mpi_multi_sim=mpi_multi_sim, build=build
             )
         elseif biases[i]["kind_of_bias"] == "opesmt"
             OPESmultithermal(
                 bias_parameters, p.beta;
-                instance=instance, dummy=dummy, mpi_multi_sim=mpi_multi_sim
+                instance=instance, dummy=dummy, mpi_multi_sim=mpi_multi_sim, build=build
             )
         elseif biases[i]["kind_of_bias"] == "parametric"
             Parametric(bias_parameters; dummy=dummy)

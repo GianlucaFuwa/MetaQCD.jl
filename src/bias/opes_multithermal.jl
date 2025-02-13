@@ -41,7 +41,8 @@ mutable struct OPESmultithermal{CV} <: AbstractBias
 end
 
 function OPESmultithermal(
-    p::OPESmultithermalParameters, beta0; instance=1, dummy=false, mpi_multi_sim=false
+    p::OPESmultithermalParameters, beta0;
+    instance=1, dummy=false, mpi_multi_sim=false, build=false
 )
     inum = if dummy
         0
@@ -68,8 +69,12 @@ function OPESmultithermal(
     sum_weights2 = zero(λ)
     current_weight = zero(λ)
 
-    if 0 < instance <= length(p.usebiases) && !dummy
-        usebias = p.usebiases[instance]
+    if (0 < instance <= length(p.usebiases) && !dummy)
+        usebias = p.usebiases[instance+1]
+        is_first_step = false
+        counter, rct, β, λ, ΔF = opesmt_from_file!(counter, rct, β, λ, ΔF, usebias)
+    elseif build && (length(p.usebiases) != 0)
+        usebias = p.usebiases[1]
         is_first_step = false
         counter, rct, β, λ, ΔF = opesmt_from_file!(counter, rct, β, λ, ΔF, usebias)
     end

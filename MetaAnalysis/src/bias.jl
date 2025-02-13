@@ -223,13 +223,13 @@ mutable struct OPES
     biasfactor::Float64
     bias_prefactor::Float64
 
-    σ₀::Float64
+    sigma0::Float64
     σ_min::Float64
     fixed_σ::Bool
 
-    ϵ::Float64
+    epsilon::Float64
     sum_weights::Float64
-    sum_weights²::Float64
+    sum_weights2::Float64
     current_bias::Float64
     current_weight::Float64
     no_Z::Bool
@@ -237,7 +237,7 @@ mutable struct OPES
     KDEnorm::Float64
 
     threshold::Float64
-    cutoff²::Float64
+    cutoff2::Float64
     penalty::Float64
 
     old_sum_weights::Float64
@@ -251,44 +251,31 @@ mutable struct OPES
 end
 
 function OPES(filename::String)
-    state = Dict{Symbol,Any}(
-        :counter => 0,
-        :biasfactor => Inf,
-        :sigma0 => 0.0,
-        :epsilon => 0.0,
-        :sum_weights => 0.0,
-        :sum_weights2 => 0.0,
-        :KDEnorm => 0.0,
-        :Z => 1.0,
-        :threshold => 1.0,
-        :cutoff => 1.0,
-        :penalty => 1.0,
-    )
-
     @assert isfile(filename) "file \"$(filename)\" doesn't exist"
-    kernels, nker = opes_from_file!(state, filename)
+    state = Dict{Symbol,Any}()
+    state, kernels, nker = opes_from_file!(state, filename)
     is_first_step = false
     counter = Int64(state[:counter])
     biasfactor = state[:biasfactor]
-    bias_prefactor = 1 - 1 / biasfactor
-    σ₀ = state[:sigma0]
-    ϵ = state[:epsilon]
+    sigma0 = state[:sigma0]
+    epsilon = state[:epsilon]
     sum_weights = state[:sum_weights]
-    sum_weights² = state[:sum_weights2]
+    sum_weights2 = state[:sum_weights2]
     KDEnorm = state[:KDEnorm]
     explore = KDEnorm == counter ? true : false
+    bias_prefactor = explore ? (biasfactor - 1) : (1 - 1 / biasfactor)
     Z = state[:Z]
     threshold = state[:threshold]
-    cutoff² = state[:cutoff]^2
+    cutoff2 = state[:cutoff2]
     penalty = state[:penalty]
 
     return OPES(
         is_first_step,
-        explore, true, counter, 1, (-5, 5),
+        explore, true, counter, 1, (-3, 3),
         biasfactor, bias_prefactor,
-        σ₀, 1e-6, false,
-        ϵ, sum_weights, sum_weights², 0.0, 0.0, false, Z, KDEnorm,
-        threshold, cutoff², penalty,
+        sigma0, 1e-6, false,
+        epsilon, sum_weights, sum_weights2, 0.0, 0.0, false, Z, KDEnorm,
+        threshold, cutoff2, penalty,
         sum_weights, Z, sum_weights,
         nker, kernels, 0, Vector{Kernel}(undef, 2),
     )
@@ -311,7 +298,7 @@ end
 
 function calculate!(o::OPES, cv)
     o.is_first_step && return nothing
-    cutoff² = o.cutoff²
+    cutoff² = o.cutoff2
     penalty = o.penalty
 
     prob = 0.0
@@ -322,14 +309,14 @@ function calculate!(o::OPES, cv)
     end
 
     prob /= o.KDEnorm
-    current_bias = o.bias_prefactor * log(prob / o.Z + o.ϵ)
+    current_bias = o.bias_prefactor * log(prob / o.Z + o.epsilon)
     o.current_weight = prob
     o.current_bias = current_bias
     return nothing
 end
 
 function ∂V∂Q(o::OPES, cv)
-    cutoff² = o.cutoff²
+    cutoff² = o.cutoff2
     penalty = o.penalty
     prob = 0.0
     deriv = 0.0
@@ -342,7 +329,7 @@ function ∂V∂Q(o::OPES, cv)
     prob /= o.KDEnorm
     deriv /= o.KDEnorm
     Z = o.Z
-    out = -o.bias_prefactor / (prob / Z + o.ϵ) * deriv / Z
+    out = -o.bias_prefactor / (prob / Z + o.epsilon) * deriv / Z
     return out
 end
 
@@ -368,9 +355,27 @@ function opes_from_file!(dict, usebias)
         # state is stored in header, which is always read as a string so we have to parse it
         kernel_data, state_data = readdlm(usebias; comments=true, header=true)
         state_parse = [parse(Float64, state_data[i]) for i in eachindex(state_data)]
+        len_vars = length(opes_state_vars)
+        @assert length(state_parse) ∈ (len_vars, len_vars-1)
 
-        for i in eachindex(opes_state_vars)
-            dict[opes_state_vars[i]] = state_parse[i]
+        if length(state_parse) == len_vars
+            for (i, state_var) in enumerate(opes_state_vars)
+                dict[state_var] = state_parse[i]
+            end
+        else # INFO: For old format (pre v1.1.1)
+            j = 1
+
+            for state_var in opes_state_vars
+                if state_var === :KDEnorm
+                    dict[:KDEnorm] = dict[:sum_weights]
+                elseif state_var === :cutoff2
+                    dict[:cutoff2] = state_parse[j]^2
+                    j += 1
+                else
+                    dict[state_var] = state_parse[j]
+                    j += 1
+                end
+            end
         end
 
         kernels = Vector{Kernel}(undef, size(kernel_data, 1))

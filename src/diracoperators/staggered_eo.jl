@@ -174,10 +174,8 @@ function LinearAlgebra.mul!(
     mass = T(D.parent.mass)
     bc = D.parent.boundary_condition
 
-    # ψₒ = Dₒₑϕₑ
-    mul_oe!(ψ_eo, U, ϕ_eo, bc, true, false)
-    # ψₑ = DₑₒDₒₑϕₑ
-    mul_eo!(ψ_eo, U, ψ_eo, bc, false, false)
+    mul_oe!(ψ_eo, U, ϕ_eo, bc, true, false) # ψₒ = Dₒₑϕₑ
+    mul_eo!(ψ_eo, U, ψ_eo, bc, false, false) # ψₑ = DₑₒDₒₑϕₑ
     axpby!(mass^2, ϕ_eo, -1, ψ_eo) # ψₑ = m²ϕₑ - DₑₒDₒₑϕₑ
     return nothing
 end

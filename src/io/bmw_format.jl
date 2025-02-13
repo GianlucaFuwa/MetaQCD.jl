@@ -58,7 +58,7 @@ function save_config(
         header_buf, "#BMW $(U.NX) $(U.NY) $(U.NZ) $(U.NT) $checksum_str\n"
     )
     bytes_written += write(
-        header_buf, "Generated with MetaQCD.jl 1.0.0 on Julia $(VERSION) @ $(Dates.now())\n"
+        header_buf, "Generated with MetaQCD.jl $(METAQCD_VERSION) on Julia $(VERSION) @ $(Dates.now())\n"
     )
     
     if parameters isa ParameterSet
@@ -72,8 +72,6 @@ function save_config(
             "boundary_condition_time: $(parameters.boundary_condition)\n",
             "wilson_clover_csw: $(parameters.csw)\n",
             "update_algorithm: $(parameters.update_method)\n",
-            "biaspotential: $(parameters.kind_of_bias)\n",
-            "cv_charge: $(parameters.kind_of_cv)\n",
             "ptmetad: $(parameters.tempering_enabled)\n",
             "gauge_smearing: $(parameters.hmc_numsmear_gauge)stout x $(parameters.hmc_rhostout_gauge)\n",
             "fermion_smearing: $(parameters.hmc_numsmear_fermion)stout x $(parameters.hmc_rhostout_fermion)\n",

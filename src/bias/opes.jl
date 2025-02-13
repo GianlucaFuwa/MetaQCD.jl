@@ -71,7 +71,7 @@ mutable struct OPES{CV} <: AbstractBias
     write_bias_every::Int64
 end
 
-function OPES(p::OPESParameters; instance=1, dummy=false, kwargs...)
+function OPES(p::OPESParameters; instance=1, dummy=false, build=false, kwargs...)
     cvinfo = get_cvinfo_from_parameters(p)
     static = p.static
     is_first_step = true
@@ -130,8 +130,9 @@ function OPES(p::OPESParameters; instance=1, dummy=false, kwargs...)
         :penalty => penalty,
     )
 
-    if 0 < instance <= length(p.usebiases) && !dummy
-        kernels, nker = opes_from_file!(state, p.usebiases[instance])
+    if (0 < instance <= length(p.usebiases) && !dummy) || (build && (length(p.usebiases) != 0))
+        idx = build ? 1 : instance+1
+        kernels, nker = opes_from_file!(state, p.usebiases[idx])
         is_first_step = false
         explore = state[:explore]
         counter = Int64(state[:counter])
