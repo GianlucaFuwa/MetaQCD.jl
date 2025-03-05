@@ -1,15 +1,11 @@
 ["Physical Settings"]
-L = [4, 4, 4, 4]
-beta = 1.25
+L = [20, 20, 20, 20]
+beta = 1.05
 gauge_action = "dbw2"
-numtherm = 10
-numsteps = 1
+numtherm = 25
+numsteps = 50000
 initial = "cold"
 update_method = "hmc"
-numheatbath = 1
-numorelax = 4
-eo = true
-or_algorithm = "subgroups"
 
 ["Bias Settings"]
 # general bias parameters

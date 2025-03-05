@@ -44,11 +44,11 @@ struct Bias{TCV,TS,TB,TW,T1,T2}
     write_bias_every::Int64
 end
 
-function Bias(p::ParameterSet, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false)
+function Bias(p::ParameterSet, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, build=false)
     inum = if dummy
         0
-    elseif mpi_multi_sim
-        mpi_myrank()
+    elseif mpi_multi_sim && build
+        mpi_myrank()+1
     else
         instance
     end
@@ -63,9 +63,9 @@ function Bias(p::ParameterSet, U; mpi_multi_sim=false, instance=mpi_myrank(), du
     @level1("|  Type: $(sstr) $(kind_of_bias)")
 
     if kind_of_bias ∈ ["metad", "metadynamics"]
-        bias = Metadynamics(p; instance=instance, dummy=dummy)
+        bias = Metadynamics(p; instance=inum, dummy=dummy)
     elseif kind_of_bias == "opes"
-        bias = OPES(p; instance=instance, dummy=dummy)
+        bias = OPES(p; instance=inum, dummy=dummy)
     elseif kind_of_bias == "parametric"
         bias = Parametric(p; dummy=dummy)
     else
@@ -125,6 +125,11 @@ function Bias(p::ParameterSet, U; mpi_multi_sim=false, instance=mpi_myrank(), du
 
     # write to file after construction to make sure nothing went wrong
     mpi_amroot() && write_to_file(bias, biasfile)
+    # check here, if all ranks have the same bias
+    if build
+        bval = mpi_allgather(bias(0.2)::Float64, mpi_comm())
+        @assert all(x -> x==bval[1], bval)
+    end
 
     !isnothing(p.starting_Q) && @level1("|  STARTING SECTOR: $(string(p.starting_Q))")
     @level1("-")

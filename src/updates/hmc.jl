@@ -161,8 +161,8 @@ function HMC(
             open(_logfile, "w") do fp
                 @printf(
                     fp,
-                    "%-25s%-25s%-25s%-25s%-25s\n",
-                    "ΔP²", "ΔSg", "ΔSf", "ΔV", "ΔH",
+                    "%-25s%-25s%-25s%-25s%-25s%-25s%-25s\n",
+                    "ΔP²", "ΔSg", "ΔSf", "ΔV", "ΔH", "S", "Accepted"
                 )
             end
         end
@@ -263,10 +263,11 @@ function update!(
     ΔSg = Sg_new - Sg_old
     ΔV = V_new - V_old
     ΔSf = Sf_new - Sf_old
+    S_new = Sg_new + V_new + Sf_new
 
     ΔH = ΔP² + ΔSg + ΔV + ΔSf
     accept = metro_test ? rand() ≤ exp(-ΔH) : true
-    print_hmc_data(hmc.logfile, ΔP², ΔSg, ΔSf, ΔV, ΔH)
+    print_hmc_data(hmc.logfile, ΔP², ΔSg, ΔSf, ΔV, ΔH, S_new, accept)
 
     if accept
         U.Sg = Sg_new
@@ -432,22 +433,26 @@ function calc_fermion_action(fermion_action, U, ϕ, smearing::StoutSmearing, is_
     return Sf
 end
 
-@inline function print_hmc_data(::Nothing, ΔP², ΔSg, ΔSf, ΔV, ΔH)
+@inline function print_hmc_data(::Nothing, ΔP², ΔSg, ΔSf, ΔV, ΔH, S, accept)
     @level2("delta_P²:\t$ΔP²")
     @level2("delta_Sg:\t$ΔSg")
     @level2("delta_Sf:\t$ΔSf")
     @level2("delta_V:\t$ΔV")
     @level2("delta_H:\t$ΔH")
+    @level2("S:\t$S")
+    @level2("Accepted:\t$(Int64(accept))")
     return nothing
 end
 
-@inline function print_hmc_data(logfile, ΔP², ΔSg, ΔSf, ΔV, ΔH)
+@inline function print_hmc_data(logfile, ΔP², ΔSg, ΔSf, ΔV, ΔH, S, accept)
     fp = fopen(logfile, "a")
     printf(fp, "%+-25.15E", ΔP²)
     printf(fp, "%+-25.15E", ΔSg)
     printf(fp, "%+-25.15E", ΔSf)
     printf(fp, "%+-25.15E", ΔV)
     printf(fp, "%+-25.15E", ΔH)
+    printf(fp, "%+-25.15E", S)
+    printf(fp, "%-25.1i", Int64(accept))
     newline(fp)
     fclose(fp)
     return nothing

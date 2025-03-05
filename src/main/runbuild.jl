@@ -28,6 +28,12 @@ function build_bias(filenamein::String; backend="cpu")
 
     rid = mpi_myrank()+1
     @assert parameters.is_static[rid] == false "Bias $rid cannot be static in build"
+    @assert length(parameters.usebiases) <= 1 "Only one prebuilt bias can be parsed in build"
+    if length(parameters.usebiases) == 1
+        for _ in 1:mpi_size()-1
+            push!(parameters.usebiases, parameters.usebiases[1])
+        end
+    end
 
     # set random seed if provided, otherwise generate one
     if parameters.randomseed != 0
@@ -184,6 +190,8 @@ function metabuild!(
             @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")
             # all procs send their CVs to all other procs and update their copy of the bias
             CVs = mpi_allgather(U.CV::Float64, comm)
+            bval = mpi_allgather(CVs[1]::Float64, mpi_comm())
+            @assert all(x -> x==bval[1], bval) "Biases are not properly synchronized"
             accepteds = mpi_allgather(accepted::Bool, comm)
             accepted_CVs = CVs[findall(accepteds)] # update only on those CVs that were accepted
 

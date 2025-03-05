@@ -1,5 +1,5 @@
-using Pkg
-Pkg.activate(@__DIR__(); io=devnull)
+#using Pkg
+#Pkg.activate(@__DIR__(); io=devnull)
 
 using MetaQCD.Utils
 using MetaQCD: @level1, build_bias, run_sim

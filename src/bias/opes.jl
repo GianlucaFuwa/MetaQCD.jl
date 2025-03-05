@@ -32,8 +32,8 @@ must be ordered \\
 mutable struct OPES <: AbstractBias
     is_first_step::Bool
 
-    symmetric::Bool
     explore::Bool
+    symmetric::Bool
     counter::Int64
     stride::Int64
     cvlims::NTuple{2,Float64}
@@ -69,8 +69,8 @@ mutable struct OPES <: AbstractBias
 end
 
 function OPES(;
-    symmetric=true,
     explore=false,
+    symmetric=true,
     stride=1,
     cvlims=(-6, 6),
     barrier=30,
@@ -115,8 +115,8 @@ function OPES(;
     kernels = Vector{Kernel}(undef, 0)
     nδker = 0
     δkernels = Vector{Kernel}(undef, 0)
-    @level1("|  SYMMETRIC: $(symmetric)")
     @level1("|  EXPLORE: $(explore)")
+    @level1("|  SYMMETRIC: $(symmetric)")
     @level1("|  NKER: $(nker)")
     @level1("|  COUNTER: $(counter)")
     @assert counter > 0 "COUNTER must be ≥0"
@@ -143,7 +143,7 @@ function OPES(;
     @assert cutoff > 0 "CUTOFF must be > 0"
     return OPES(
         is_first_step,
-        symmetric, explore, counter, stride, cvlims,
+        explore, symmetric, counter, stride, cvlims,
         biasfactor, bias_prefactor,
         σ₀, σ_min, fixed_σ,
         ϵ, sum_weights, sum_weights², current_bias, 0.0, no_Z, Z, KDEnorm,
@@ -156,8 +156,8 @@ end
 function OPES(p::ParameterSet; instance=1, dummy=false)
     is_first_step = true
 
-    symmetric = p.symmetric
     explore = p.explore
+    symmetric = p.symmetric
     counter = 1
     stride = p.stride
     cvlims = p.cvlims
@@ -199,8 +199,8 @@ function OPES(p::ParameterSet; instance=1, dummy=false)
     δkernels = Vector{Kernel}(undef, 0)
 
     state = Dict{String,Any}(
-        "symmetric" => symmetric,
         "explore" => explore,
+        "symmetric" => symmetric,
         "counter" => counter,
         "biasfactor" => biasfactor,
         "sigma0" => σ₀,
@@ -216,8 +216,8 @@ function OPES(p::ParameterSet; instance=1, dummy=false)
     if 0 < instance <= length(p.usebiases) && !dummy
         kernels, nker = opes_from_file!(state, p.usebiases[instance])
         is_first_step = false
-        symmetric = state["symmetric"]
         explore = state["explore"]
+        symmetric = state["symmetric"]
         counter = Int64(state["counter"])
         biasfactor = state["biasfactor"]
         bias_prefactor = 1 - 1 / biasfactor
@@ -231,8 +231,8 @@ function OPES(p::ParameterSet; instance=1, dummy=false)
         penalty = state["penalty"]
     end
 
-    @level1("|  SYMMETRIC: $(symmetric)")
     @level1("|  EXPLORE: $(explore)")
+    @level1("|  SYMMETRIC: $(symmetric)")
     @level1("|  NKER: $(nker)")
     @level1("|  COUNTER: $(counter)")
     @assert counter > 0 "COUNTER must be ≥0"
@@ -258,7 +258,7 @@ function OPES(p::ParameterSet; instance=1, dummy=false)
     @assert cutoff > 0 "CUTOFF must be > 0"
     return OPES(
         is_first_step,
-        symmetric, explore, counter, stride, cvlims,
+        explore, symmetric, counter, stride, cvlims,
         biasfactor, bias_prefactor,
         σ₀, σ_min, fixed_σ,
         ϵ, sum_weights, sum_weights², current_bias, 0.0, no_Z, Z, KDEnorm,
@@ -270,8 +270,8 @@ end
 
 function OPES(filename::String; cvlims=(-5, 5))
     state = Dict{String,Any}(
-        "symmetric" => true,
         "explore" => false,
+        "symmetric" => true,
         "counter" => 0,
         "biasfactor" => Inf,
         "sigma0" => 0.0,
@@ -286,8 +286,8 @@ function OPES(filename::String; cvlims=(-5, 5))
     @assert isfile(filename) "file \"$(filename)\" doesn't exist"
     kernels, nker = opes_from_file!(state, filename)
     is_first_step = false
-    symmetric = state["symmetric"]
     explore = state["explore"]
+    symmetric = state["symmetric"]
     counter = Int64(state["counter"])
     biasfactor = state["biasfactor"]
     bias_prefactor = 1 - 1 / biasfactor
@@ -301,7 +301,7 @@ function OPES(filename::String; cvlims=(-5, 5))
 
     return OPES(
         is_first_step,
-        symmetric, explore, counter, 1, cvlims,
+        explore, explore, counter, 1, cvlims,
         biasfactor, bias_prefactor,
         σ₀, 1e-6, false,
         ϵ, sum_weights, sum_weights^2, 0.0, 0.0, false, Z, sum_weights,
@@ -345,13 +345,20 @@ function update_opes!(o::OPES, cv, itrj)
     o.sum_weights += symm_factor * sum(height)
     o.sum_weights² += symm_factor^2 * sum(height .* height)
     neff = (1 + o.sum_weights)^2 / (1 + o.sum_weights²)
-    o.KDEnorm = o.sum_weights
+
+    if o.explore
+        o.KDEnorm = o.counter
+        height = [1 for _ in eachindex(cv)]
+    else
+        o.KDEnorm = o.sum_weights
+    end
 
     # if needed rescale sigma and height
     σ = o.σ₀
 
     if !o.fixed_σ
-        s_rescaling = (3neff / 4)^(-1 / 5)
+        sz = o.explore ? o.counter : neff
+        s_rescaling = (3sz / 4)^(-1 / 5)
         σ *= s_rescaling
         σ = max(σ, o.σ_min)
     end
@@ -421,8 +428,8 @@ function calculate!(o::OPES, cv)
     o.is_first_step && return nothing
     cutoff² = o.cutoff²
     penalty = o.penalty
-
     prob = 0.0
+
     for kernel in o.kernels
         prob += kernel(cv, cutoff², penalty)
         if prob > 1e10
@@ -430,8 +437,8 @@ function calculate!(o::OPES, cv)
                                   something probably went wrong"))
         end
     end
-    prob /= o.sum_weights
 
+    prob /= o.KDEnorm
     current_bias = o.bias_prefactor * log(prob / o.Z + o.ϵ)
     o.current_weight = prob
     o.current_bias = current_bias
@@ -441,16 +448,16 @@ end
 function ∂V∂Q(o::OPES, cv)
     cutoff² = o.cutoff²
     penalty = o.penalty
-
     prob = 0.0
     deriv = 0.0
+
     for kernel in o.kernels
         prob += kernel(cv, cutoff², penalty)
         deriv += derivative(kernel, cv, cutoff², penalty)
     end
-    prob /= o.sum_weights
-    deriv /= o.sum_weights
 
+    prob /= o.KDEnorm
+    deriv /= o.KDEnorm
     Z = o.Z
     out = -o.bias_prefactor / (prob / Z + o.ϵ) * deriv / Z
     return out
@@ -498,6 +505,7 @@ const state_vars = [
     "epsilon",
     "sum_weights",
     "sum_weights²",
+    "KDEnorm",
     "Z",
     "threshold",
     "cutoff",
@@ -514,8 +522,8 @@ function write_to_file(o::OPES, filename::String)
     [print(tmpio, "$(var)\t") for var in state_vars]
     println(tmpio, "")
     state_str =
-        "$(o.counter)\t$(o.biasfactor)\t$(o.σ₀)\t$(o.ϵ)\t$(o.sum_weights)" *
-        "\t$(o.sum_weights²)\t$(o.Z)\t$(o.threshold)\t$(√o.cutoff²)\t$(o.penalty)\n"
+    "$(o.counter)\t$(o.biasfactor)\t$(o.σ₀)\t$(o.ϵ)\t$(o.sum_weights)" *
+    "\t$(o.sum_weights²)\t$(o.KDEnorm)\t$(o.Z)\t$(o.threshold)\t$(√o.cutoff²)\t$(o.penalty)\n"
     println(tmpio, state_str)
     println(tmpio, kernel_header)
 
