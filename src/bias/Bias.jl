@@ -33,7 +33,7 @@ of bias (`Metadynamics`, `OPES` or `Parametric` for now).
 The `instance` keyword is used in case of PT-MetaD and multiple walkers to assign the
 correct `usebias` to each stream.
 """
-struct Bias{TCV,TS,TB,TW,T1,T2}
+mutable struct Bias{TCV,TS,TB,TW,T1,T2}
     kind_of_cv::TCV
     smearing::TS
     is_static::Bool
@@ -83,11 +83,7 @@ function Bias(p::ParameterSet, U; mpi_multi_sim=false, instance=mpi_myrank(), du
         kinds_of_weights = is_opes ? ["opes"] : p.kinds_of_weights
         inum_str = lpad(inum, 3, "0")
         ext = is_opes ? "opes" : "metad"
-        biasfile = if mpi_amroot()
-            dummy ? "" : joinpath(p.bias_dir, "stream_$(inum_str).$(ext)")
-        else
-            ""
-        end
+        biasfile = joinpath(p.bias_dir, "stream_$(inum_str).$(ext)")
         _datafile = joinpath(p.measure_dir, "bias_data_$(inum_str).txt")
         datafile = StaticString(_datafile)
         # FIXME: For some reason this errors with MPI on the UNI's cluster
@@ -120,11 +116,11 @@ function Bias(p::ParameterSet, U; mpi_multi_sim=false, instance=mpi_myrank(), du
     if write_bias_every <= p.stride
         write_bias_every = p.stride
     end
-    @level1("|  WRITE_BIAS_EVERY: $(dummy ? "" : write_bias_every)")
+    @level1("|  WRITE_BIAS_EVERY: $(write_bias_every)")
     @assert write_bias_every >= 0
 
     # write to file after construction to make sure nothing went wrong
-    mpi_amroot() && write_to_file(bias, biasfile)
+    write_to_file(bias, biasfile)
     # check here, if all ranks have the same bias
     if build
         bval = mpi_allgather(bias(0.2)::Float64, mpi_comm())
@@ -185,6 +181,7 @@ function update_bias!(b::Bias, values, itrj, myinstance=mpi_myrank(); mpi_multi_
         else
             b.biasfile
         end
+        @level1 "Updated bias in $(filename)"
 
         if (mpi_multi_sim || mpi_amroot()) && isfile(filename)
             write_to_file(b.bias, filename)

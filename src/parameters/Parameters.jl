@@ -188,9 +188,10 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
                     value_Params[i] = Tuple(value[String(pname_i)])
                 elseif String(pname_i) == "is_static"
                     val = value[String(pname_i)]
-                    if length(val) < mpi_size()
+                    if (length(val) < mpi_size()-1) && length(val)==1
                         value_Params[i] = fill(value[String(pname_i)], mpi_size())
                     else
+                        @assert length(val) == mpi_size()-1
                         value_Params[i] = val
                     end
                 elseif String(pname_i) == "cvlims"

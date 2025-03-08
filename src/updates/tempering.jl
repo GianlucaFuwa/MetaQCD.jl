@@ -23,42 +23,62 @@ function temper!( # INFO: When using MPI in tempering
 
         if myrank == rank_i || myrank == rank_i_min_1
             if myrank == rank_i
-                mpi_send(U.CV::Float64, comm; dest=rank_i_min_1::Int64, tag=rank_i) 
-                CV_j = mpi_recv(Float64, comm; source=rank_i_min_1::Int64, tag=rank_i_min_1)
-            else myrank == rank_i_min_1
-                CV_j = mpi_recv(Float64, comm; source=rank_i::Int64, tag=rank_i)
-                mpi_send(U.CV::Float64, comm; dest=rank_i::Int64, tag=rank_i_min_1) 
+                mpi_send(U.CV::Float64, comm; dest=rank_i_min_1::Int64, tag=1) 
+                CV_j = mpi_recv(Float64, comm; source=rank_i_min_1::Int64, tag=1)
+            elseif myrank == rank_i_min_1
+                CV_j = mpi_recv(Float64, comm; source=rank_i::Int64, tag=1)
+                mpi_send(U.CV::Float64, comm; dest=rank_i::Int64, tag=1) 
             end
 
             if myrank == rank_i
                 ΔV1 = bias(CV_j) - bias(U.CV)
-                ΔV2 = mpi_recv(Float64, comm; source=rank_i_min_1::Int64, tag=rank_i_min_1)
+                ΔV2 = mpi_recv(Float64, comm; source=rank_i_min_1::Int64, tag=2)
                 acc_prob = exp(-ΔV1 - ΔV2)
                 is_accepted = rand() ≤ acc_prob
-                mpi_send(is_accepted::Bool, comm; dest=rank_i_min_1::Int64, tag=101) 
-            else 
+                mpi_send(is_accepted::Bool, comm; dest=rank_i_min_1::Int64, tag=3) 
+            elseif myrank == rank_i_min_1
                 ΔV2 = bias(CV_j) - bias(U.CV)
-                mpi_send(ΔV2::Float64, comm; dest=rank_i::Int64, tag=rank_i_min_1) 
-                is_accepted = mpi_recv(Bool, comm; source=rank_i::Int64, tag=101)
+                mpi_send(ΔV2::Float64, comm; dest=rank_i::Int64, tag=2) 
+                is_accepted = mpi_recv(Bool, comm; source=rank_i::Int64, tag=3)
             end
 
             if is_accepted
                 if myrank == rank_i
+                    mpi_ssend(bias.bias, comm; dest=rank_i_min_1::Int64, tag=3)
+                    new_bias = mpi_srecv(comm; source=rank_i_min_1::Int64, tag=3)
+                    mpi_send(bias.is_static::Bool, comm; dest=rank_i_min_1::Int64, tag=4)
+                    new_static = mpi_recv(Bool, comm; source=rank_i_min_1::Int64, tag=4)
+
+                    bias.bias = new_bias
+                    bias.is_static = new_static
+
                     instance_state[rank_i+1] = i-1
                     instance_state[rank_i_min_1+1] = i
 
                     # Update the local instance variable
                     myinstance[] = i-1
                     numaccepts_temper[i] += 1
+                    @level1 "|  Old -> New Instance: $(i) -> $(i-1)"
                 elseif myrank == rank_i_min_1
+                    mpi_ssend(bias.bias, comm; dest=rank_i::Int64, tag=3)
+                    new_bias = mpi_srecv(comm; source=rank_i::Int64, tag=3)
+                    mpi_send(bias.is_static::Bool, comm; dest=rank_i::Int64, tag=4)
+                    new_static = mpi_recv(Bool, comm; source=rank_i::Int64, tag=4)
+
+                    bias.bias = new_bias
+                    bias.is_static = new_static
+
                     instance_state[rank_i_min_1+1] = i
                     instance_state[rank_i+1] = i-1
 
                     # Update the local instance variable
                     myinstance[] = i
+                    @level1 "|  Old/New: $(i-1) -> $(i)"
                 end
             end
         end
+
+        mpi_barrier()
 
         # Synchronize vectors across all processes
         mpi_bcast!(instance_state, comm; root=rank_i)
@@ -67,6 +87,7 @@ function temper!( # INFO: When using MPI in tempering
         @level1 "|  Acceptance [$i <-> $(i-1)]:\t$(acc_pct) %"
     end
 
+    @level1 "Max Bias $(myinstance[]): $(maximum(bias.bias.values))"
     return nothing
 end
 

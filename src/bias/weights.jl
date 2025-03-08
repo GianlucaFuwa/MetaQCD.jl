@@ -41,6 +41,7 @@ function calc_weights(
         else
             filename
         end
+        @level1 "$filename"
 
         fp = fopen(_filename, "a")
         printf(fp, "%-11i", itrj)

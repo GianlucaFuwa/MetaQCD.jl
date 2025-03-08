@@ -67,12 +67,20 @@ end
     return MPI.Send(args...; kwargs...)
 end
 
+@inline function mpi_ssend(args...; kwargs...)
+    return MPI.send(args...; kwargs...)
+end
+
 @inline function mpi_isend(args...; kwargs...)
     return MPI.Isend(args...; kwargs...)
 end
 
 @inline function mpi_recv(args...; kwargs...)
     return MPI.Recv(args...; kwargs...)
+end
+
+@inline function mpi_srecv(args...; kwargs...)
+    return MPI.recv(args...; kwargs...)
 end
 
 @inline function mpi_irecv!(args...; kwargs...)

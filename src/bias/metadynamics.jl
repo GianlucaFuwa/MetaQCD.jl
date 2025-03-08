@@ -43,6 +43,7 @@ function Metadynamics(;
     weight=0.01,
     penalty_weight=1000,
 )
+    @level1("|  SYMMETRIC: $(symmetric)")
     @level1("|  STRIDE: $(stride)")
     @assert stride > 0 "STRIDE must be >0"
     @level1("|  CVLIMS: $(string(cvlims))")
@@ -74,6 +75,7 @@ end
 function Metadynamics(p::ParameterSet; instance=1, dummy=false)
     symmetric = p.symmetric
     stride = p.stride
+    @level1("|  SYMMETRIC: $(symmetric)")
     @level1("|  STRIDE: $(stride)")
     @assert stride > 0 "STRIDE must be >0"
 
