@@ -119,6 +119,8 @@ Base.eachindex(m::Metadynamics) = eachindex(m.values)
 Base.lastindex(m::Metadynamics) = lastindex(m.values)
 is_adaptive(::Metadynamics) = false
 set_σ₀!(::Metadynamics, ::Any) = nothing
+get_ext(::Metadynamics) = ".metad"
+ext_length(::Metadynamics) = Val(5)
 
 function Base.setindex!(m::Metadynamics, v, i)
     return m.values[i] = v
@@ -192,7 +194,7 @@ end
 
 write_to_file(::Metadynamics, ::Nothing) = nothing
 
-function write_to_file(m::Metadynamics, filename::String)
+function write_to_file(m::Metadynamics, filename)
     filename == "" && return nothing
     (tmppath, tmpio) = mktemp() # open temporary file at arbitrary location in storage
     println(tmpio, "$(rpad("CV", 7))\t$(rpad("V(CV)", 7))")
@@ -202,7 +204,7 @@ function write_to_file(m::Metadynamics, filename::String)
     end
 
     close(tmpio)
-    mv(tmppath, filename; force=true) # replace bias file with temporary file
+    mv(tmppath, string(filename); force=true) # replace bias file with temporary file
     return nothing
 end
 

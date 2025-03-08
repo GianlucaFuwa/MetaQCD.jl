@@ -6,7 +6,7 @@ calc_weights(::Nothing, args...; kwargs...) = nothing
 calc_weights(::NoBias, args...; kwargs...) = nothing
 
 function calc_weights(b::Bias, cv, itrj, myinstance=mpi_myrank(); mpi_multi_sim=false)
-    calc_weights(b.datafile, b, cv, itrj)
+    calc_weights(b.datafile, b, cv, itrj, myinstance; mpi_multi_sim=mpi_multi_sim)
     return nothing
 end
 
@@ -36,14 +36,14 @@ function calc_weights(
             @level1("$itrj\t$cv\t$w # cv weight_$method")
         end
     else
-        _filename = if mpi_multi_sim
+        datafile = if mpi_multi_sim
             set_ext!(filename, myinstance)
         else
             filename
         end
-        @level1 "$filename"
+        @level1 "Data file $(myinstance): $(datafile)"
 
-        fp = fopen(_filename, "a")
+        fp = fopen(datafile, "a")
         printf(fp, "%-11i", itrj)
         printf(fp, "%+-25.15E", cv)
 

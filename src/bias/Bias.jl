@@ -83,7 +83,8 @@ function Bias(p::ParameterSet, U; mpi_multi_sim=false, instance=mpi_myrank(), du
         kinds_of_weights = is_opes ? ["opes"] : p.kinds_of_weights
         inum_str = lpad(inum, 3, "0")
         ext = is_opes ? "opes" : "metad"
-        biasfile = joinpath(p.bias_dir, "stream_$(inum_str).$(ext)")
+        _biasfile = joinpath(p.bias_dir, "bias_$(inum_str).$(ext)")
+        biasfile = StaticString(_biasfile)
         _datafile = joinpath(p.measure_dir, "bias_data_$(inum_str).txt")
         datafile = StaticString(_datafile)
         # FIXME: For some reason this errors with MPI on the UNI's cluster
@@ -99,7 +100,7 @@ function Bias(p::ParameterSet, U; mpi_multi_sim=false, instance=mpi_myrank(), du
     elseif bias isa Parametric
         kinds_of_weights = ["branduardi"]
         inum_str = lpad(inum, 3, "0")
-        biasfile = ""
+        biasfile = StaticString("")
         _datafile = joinpath(p.measure_dir, "bias_data_$(inum_str).txt")
         datafile = StaticString(_datafile)
         open(_datafile, "w") do fp
@@ -166,6 +167,16 @@ update_bias!(::Nothing, args...; kwargs...) = nothing
 write_to_file(::AbstractBias, args...) = nothing
 is_adaptive(b::Bias) = is_adaptive(b.bias)
 set_σ₀!(b::Bias, val) = set_σ₀!(b.bias, val)
+get_ext(::AbstractBias) = ""
+ext_length(::AbstractBias) = Val(0)
+
+@inline function get_biasfile(myinstance::Integer, ext)
+    return "bias_$(lpad(myinstance, 3, "0"))"
+end
+
+@inline function get_datafile(myinstance::Integer, ext)
+    return "bias_data_$(lpad(myinstance, 3, "0"))"
+end
 
 include("metadynamics.jl")
 include("opes.jl")
@@ -177,7 +188,7 @@ function update_bias!(b::Bias, values, itrj, myinstance=mpi_myrank(); mpi_multi_
 
     if (b.write_bias_every != 0) && (itrj % b.write_bias_every == 0)
         filename = if mpi_multi_sim
-            set_ext!(b.biasfile, myinstance)
+            set_ext!(b.biasfile, myinstance, ext_length(b.bias))
         else
             b.biasfile
         end

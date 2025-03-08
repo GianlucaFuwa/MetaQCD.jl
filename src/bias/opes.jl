@@ -321,6 +321,9 @@ function set_σ₀!(o::OPES, val)
     return nothing
 end
 
+get_ext(::OPES) = ".opes"
+ext_length(::OPES) = Val(5)
+
 update!(o::OPES, cv, itrj) = update_opes!(o, cv, itrj)
 
 function update_opes!(o::OPES, cv, itrj)
@@ -515,7 +518,7 @@ const kernel_header = "#$(rpad("height", 20))\t$(rpad("center", 20))\t$(rpad("si
 
 write_to_file(::OPES, ::Nothing) = nothing
 
-function write_to_file(o::OPES, filename::String)
+function write_to_file(o::OPES, filename)
     isnothing(filename) && return nothing
     (tmppath, tmpio) = mktemp()
     print(tmpio, "#")
@@ -536,7 +539,7 @@ function write_to_file(o::OPES, filename::String)
     end
 
     close(tmpio)
-    mv(tmppath, filename; force=true)
+    mv(tmppath, string(filename); force=true)
     return nothing
 end
 

@@ -78,6 +78,11 @@ lower_case(str) = Unicode.normalize(str; casefold=true)
     return filename
 end
 
+@inline function set_ext!(filename::StaticString{N}, myinstance::Integer, ::Val{len}) where {N,len}
+    filename[end-len-4:end-len-2] = lpad(myinstance, 3, "0")
+    return filename
+end
+
 const FLOAT_TYPE = Dict{String,DataType}(
     "float16" => Float16,
     "half" => Float16,

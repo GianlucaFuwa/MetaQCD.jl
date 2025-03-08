@@ -41,6 +41,7 @@ is_adaptive(::Parametric) = false
 set_σ₀!(::Parametric, ::Any) = nothing
 update!(::Parametric, cv, args...) = nothing
 clear!(::Parametric) = nothing
+get_ext(::Parametric) = ""
 
 function (p::Parametric)(cv)
     Q, A, Z = p.Q, p.A, p.Z
