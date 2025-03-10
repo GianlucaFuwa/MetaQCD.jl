@@ -60,8 +60,8 @@ function add_staggered_hoelbling_derivative!(
     dU::Colorfield{CPU,T,M}, U::Gaugefield{CPU,T,M}, X::TF, Y::TF, bc, term; coeff=1
 ) where {T,M,TF<:StaggeredSpinorfield{CPU,T,M}}
     check_dims(dU, U, X, Y)
-    fac1 = T(-0.5coeff)
-    fac2 = T(coeff)
+    fac1 = T(0.5coeff)
+    fac2 = T(-coeff)
     _μ, _ν, _ρ, _σ = term
 
     @batch for site in eachindex(dU)

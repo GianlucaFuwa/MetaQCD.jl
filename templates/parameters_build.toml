@@ -1,14 +1,15 @@
 ["Physical Settings"]
-L = [4, 4, 4, 4]
+L = [16, 16, 16, 16]
 beta = 1.25
 gauge_action = "dbw2"
-numtherm = 10
-numsteps = 10
+numtherm = 50
+numsteps = 1000
 initial = "cold"
 update_method = "HMC"
-numinstances = 2
 
 ["Bias Settings"]
+numinstances = 5
+starting_Q = [-2, -1, 0, 1, 2]
 kind_of_bias = "metad"
 kind_of_cv = "clover"
 numsmears_for_cv = 4
@@ -16,12 +17,12 @@ rhostout_for_cv = 0.12
 is_static = false
 symmetric = true
 stride = 1
-cvlims = [-5, 5]
-biasfactor = "Inf"
+cvlims = [-3, 3]
+biasfactor = inf
+penalty_weight = 100
 # metadynamics specific parameters
 bin_width = 0.01
-meta_weight = 0.02
-penalty_weight = 100
+meta_weight = 0.000001
 # opes specific parameters
 barrier = 40
 sigma0 = 0.1
@@ -32,36 +33,28 @@ hmc_steps = 5
 hmc_integrator = "OMF4"
 
 ["System Settings"]               
-# ensemble_dir = ""
+ensemble_dir = "/ultz/gialu/repos/MetaQCD-dirac/ensembles/pure_dbw2_beta1.25_16_16_4smear_quad"
 randomseed = 0
-verboselevel = 2
+verboselevel = 1
 overwrite = true
 
 ["Measurement Settings".measurements.Plaquette]
-measure_every = 1
-
-["Measurement Settings".measurements.Polyakov_loop]
-measure_every = 1
+measure_every = 10
 
 ["Measurement Settings".measurements.Topological_charge]
-measure_every = 1
-type = ["plaquette", "clover", "improved"]
-
-["Measurement Settings".measurements.Energy_density]
-measure_every = 1
+measure_every = 10
 type = ["clover"]
-
-["Measurement Settings".measurements.Gauge_action]
-measure_every = 1
-type = ["wilson"]
-
+    
 ["Gradient Flow Settings"]
 flow_integrator = "euler"
 flow_num = 30
 flow_steps = 1
 flow_tf = 0.12 # total flow time is flow_num * flow_tf
-flow_measure_every = 30
+flow_measure_every = 10
+
+    ["Gradient Flow Settings".measurements_with_flow.Plaquette]
+    measure_every = 10
 
     ["Gradient Flow Settings".measurements_with_flow.Topological_charge]
-    measure_every = 1
+    measure_every = 10
     type = ["clover"]

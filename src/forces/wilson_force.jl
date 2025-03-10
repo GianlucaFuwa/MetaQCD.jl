@@ -61,7 +61,7 @@ function add_wilson_derivative!(
     dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, X::TF, Y::TF, bc; coeff=1
 ) where {T,TF<:WilsonSpinorfield{CPU,T}}
     check_dims(dU, U, X, Y)
-    fac = T(0.5coeff)
+    fac = T(-0.5coeff)
 
     # If we write out the kernel and use @batch, the program crashes for some reason
     # Stems from "pload" from StrideArraysCore.jl but ONLY if we write it out AND overload

@@ -54,7 +54,7 @@ function add_staggered_eo_derivative!(
     check_dims(dU, U, X_eo, Y_eo)
     X = X_eo.parent
     Y = Y_eo.parent
-    fac = T(-0.5coeff)
+    fac = T(0.5coeff)
 
     @batch for site in eachindex(dU)
         add_staggered_eo_derivative_kernel!(dU, U, X, Y, site, bc, fac)

@@ -44,9 +44,10 @@ function build_bias(filenamein::String; backend="cpu")
         Random.seed!(seed)
     end
 
-    logpath = mpi_amroot() ? joinpath(parameters.log_dir, "logs.txt") : nothing
+    logpath = joinpath(parameters.log_dir, "logs_$(lpad(mpi_myrank(), 3, "0")).txt")
+    to_console = mpi_amroot() ? parameters.log_to_console : false
     set_global_logger!(
-        parameters.verboselevel, logpath; tc=parameters.log_to_console
+        parameters.verboselevel, logpath; tc=to_console
     )
 
     # print time and system info, because it looks cool I guess

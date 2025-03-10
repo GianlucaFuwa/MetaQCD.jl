@@ -100,14 +100,14 @@ function test_fderivative(
             Ufwd[μ, site] = expλ(group_direction, ΔH) * Ufwd[μ, site]
         end
         update_halo!(Ufwd)
-        action_new_fwd = calc_fermion_action(action, Ufwd, ψ)
+        action_new_fwd = -calc_fermion_action(action, Ufwd, ψ)
 
         Ubwd = deepcopy(U)
         if mpi_amroot()
             Ubwd[μ, site] = expλ(group_direction, -ΔH) * Ubwd[μ, site]
         end
         update_halo!(Ubwd)
-        action_new_bwd = calc_fermion_action(action, Ubwd, ψ)
+        action_new_bwd = -calc_fermion_action(action, Ubwd, ψ)
 
         # Smeared
         Ufwd = deepcopy(U)
@@ -116,7 +116,7 @@ function test_fderivative(
         end
         update_halo!(Ufwd)
         calc_smearedU!(smearing, Ufwd)
-        action_new_fwd_smeared = calc_fermion_action(
+        action_new_fwd_smeared = -calc_fermion_action(
             action, smearing.Usmeared_multi[end], ψ
         )
 
@@ -126,7 +126,7 @@ function test_fderivative(
         end
         update_halo!(Ubwd)
         calc_smearedU!(smearing, Ubwd)
-        action_new_bwd_smeared = calc_fermion_action(
+        action_new_bwd_smeared = -calc_fermion_action(
             action, smearing.Usmeared_multi[end], ψ
         )
 
