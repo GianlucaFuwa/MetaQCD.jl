@@ -265,6 +265,12 @@ function metaqcd!(
     numaccepts_temper = zeros(Int64, mpi_size()-1)
     instance_state = collect(0:mpi_size())
     swap_every = parameters.swap_every
+    # INFO: Log times per update in seconds
+    logtimepath = joinpath(parameters.log_dir, "timings_$(lpad(myinstance[], 3, "0")).txt")
+    fp = fopen(logtimepath, "w")
+    printf(fp, "%s", "time [s]")
+    newline(fp)
+    fclose(fp)
 
     # load in config and recalculate gauge action if given
     load_config!(U, parameters) && (U.Sg = calc_gauge_action(U))
@@ -283,7 +289,15 @@ function metaqcd!(
                     therm=true,
                     myinstance=myinstance[],
                 )
+
+                mpi_barrier()
             end
+
+            fp = fopen(logtimepath, "a")
+            printf(fp, "%-.10E", updatetime)
+            newline(fp)
+            fclose(fp)
+
             @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))\n-")
         end
     end
@@ -316,7 +330,13 @@ function metaqcd!(
                 end
 
                 numaccepts += accepted
+                mpi_barrier()
             end
+
+            fp = fopen(logtimepath, "a")
+            printf(fp, "%-.10E", updatetime)
+            newline(fp)
+            fclose(fp)
 
             print_acceptance_rates(numaccepts, itrj)
             @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")
@@ -334,6 +354,9 @@ function metaqcd!(
                 )
             end
 
+            for Sf in fermion_action
+                Sf.myinstance[] = myinstance[]
+            end
             save_config(config_saver, U, itrj, parameters)
             create_checkpoint(checkpointer, univ, updatemethod, nothing, itrj)
 

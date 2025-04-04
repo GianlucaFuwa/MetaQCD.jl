@@ -213,8 +213,9 @@ function OPES(p::ParameterSet; instance=1, dummy=false)
         "penalty" => penalty,
     )
 
-    if 0 < instance <= length(p.usebiases) && !dummy
-        kernels, nker = opes_from_file!(state, p.usebiases[instance])
+    if 0 <= instance <= length(p.usebiases) && !dummy
+        _instance = instance == 0 ? 1 : instance
+        kernels, nker = opes_from_file!(state, p.usebiases[_instance])
         is_first_step = false
         explore = state["explore"]
         symmetric = state["symmetric"]

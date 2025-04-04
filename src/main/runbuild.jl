@@ -29,11 +29,11 @@ function build_bias(filenamein::String; backend="cpu")
     rid = mpi_myrank()+1
     @assert parameters.is_static[rid] == false "Bias $rid cannot be static in build"
     @assert length(parameters.usebiases) <= 1 "Only one prebuilt bias can be parsed in build"
-    if length(parameters.usebiases) == 1
-        for _ in 1:mpi_size()-1
-            push!(parameters.usebiases, parameters.usebiases[1])
-        end
-    end
+    # if length(parameters.usebiases) == 1
+    #     for _ in 1:mpi_size()-1
+    #         push!(parameters.usebiases, parameters.usebiases[1])
+    #     end
+    # end
 
     # set random seed if provided, otherwise generate one
     if parameters.randomseed != 0
@@ -65,7 +65,7 @@ function build_bias(filenamein::String; backend="cpu")
         univ_args..., updatemethod, _, _ = load_checkpoint(parameters.load_checkpoint_path)
         univ = Univ(univ_args...)
     else
-        univ = Univ(parameters; mpi_multi_sim=multi_sim)
+        univ = Univ(parameters; mpi_multi_sim=multi_sim, build=true)
         updatemethod = nothing
     end
 
@@ -135,6 +135,16 @@ function metabuild!(
     starting_Q = parameters.starting_Q
     therm_cv = Vector{Float64}(undef, parameters.numtherm)
     adaptive_σ = is_adaptive(bias)
+    # INFO: Log times per update in seconds
+    if mpi_amroot(mpi_comm_instance())
+        logtimepath = joinpath(parameters.log_dir, "timings_$(lpad(MPI_INSTANCE[], 3, "0")).txt")
+        fp = fopen(logtimepath, "w")
+        printf(fp, "%s", "time [s]")
+        newline(fp)
+        fclose(fp)
+    else
+        logtimepath = nothing
+    end
 
     @level1("- Thermalization:")
     _, runtime_therm = @timed begin
@@ -151,6 +161,14 @@ function metabuild!(
                     metro_test=itrj>10, # So we dont get stuck at the beginning
                     therm=true,
                 )
+                mpi_barrier()
+            end
+
+            if mpi_amroot(mpi_comm_instance())
+                fp = fopen(logtimepath, "a")
+                printf(fp, "%-.10E", updatetime)
+                newline(fp)
+                fclose(fp)
             end
 
             if adaptive_σ
@@ -186,6 +204,14 @@ function metabuild!(
                     metro_test=true,
                 )
                 numaccepts += accepted
+                mpi_barrier()
+            end
+
+            if mpi_amroot(mpi_comm_instance())
+                fp = fopen(logtimepath, "a")
+                printf(fp, "%-.10E", updatetime)
+                newline(fp)
+                fclose(fp)
             end
 
             @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")

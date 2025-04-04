@@ -10,7 +10,18 @@ function calc_dSfdU!(
     bc = D.boundary_condition
 
     clear!(X) # initial guess is zero
-    solve_dirac!(X, DdagD, ϕ, Y, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp
+    iters, res = solve_dirac!(X, DdagD, ϕ, Y, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp
+
+    cg_datafile = fermion_action.cg_datafile
+    if isfile(cg_datafile)
+        set_ext!(cg_datafile, fermion_action.myinstance[])
+        fp = fopen(cg_datafile, "a")
+        printf(fp, "%-11i", iters)
+        printf(fp, "%+-25.15E", res)
+        newline(fp)
+        fclose(fp)
+    end
+
     LinearAlgebra.mul!(Y, D, X)
     add_staggered_derivative!(dU, U, X, Y, bc)
     return nothing
@@ -37,7 +48,17 @@ function calc_dSfdU!(
 
     shifts = get_β_inverse(rhmc)
     coeffs = get_α_inverse(rhmc)
-    solve_dirac_multishift!(Xs, shifts, DdagD, ϕ, temp1, temp2, Ys, cg_tol, cg_maxiters)
+    iters, res = solve_dirac_multishift!(Xs, shifts, DdagD, ϕ, temp1, temp2, Ys, cg_tol, cg_maxiters)
+
+    cg_datafile = fermion_action.cg_datafile
+    if isfile(cg_datafile)
+        set_ext!(cg_datafile, fermion_action.myinstance[])
+        fp = fopen(cg_datafile, "a")
+        printf(fp, "%-11i", iters)
+        printf(fp, "%+-25.15E", res)
+        newline(fp)
+        fclose(fp)
+    end
 
     for i in 1:n
         LinearAlgebra.mul!(Ys[i+1], D, Xs[i+1])
@@ -51,7 +72,7 @@ function add_staggered_derivative!(
     dU::Colorfield{CPU,T,M}, U::Gaugefield{CPU,T,M}, X::TF, Y::TF, bc; coeff=1
 ) where {T,M,TF<:StaggeredSpinorfield{CPU,T,M}}
     check_dims(dU, U, X, Y)
-    fac = T(0.5coeff)
+    fac = T(-0.5coeff)
 
     @batch for site in eachindex(dU)
         add_staggered_derivative_kernel!(dU, U, X, Y, site, bc, fac)

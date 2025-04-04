@@ -72,7 +72,7 @@ function Metadynamics(;
     )
 end
 
-function Metadynamics(p::ParameterSet; instance=1, dummy=false)
+function Metadynamics(p::ParameterSet; instance=1, dummy=false, build=false)
     symmetric = p.symmetric
     stride = p.stride
     @level1("|  SYMMETRIC: $(symmetric)")
@@ -85,10 +85,12 @@ function Metadynamics(p::ParameterSet; instance=1, dummy=false)
     @level1("|  BIN_WIDTH: $(p.bin_width)")
     @assert p.bin_width > 0 "BIN_WIDTH must be > 0"
 
-    if dummy || instance==0
+    if (dummy || instance==0) && !build
         bin_vals, values = metad_from_file(p, "")
-    elseif instance > length(p.usebiases)
+    elseif instance > length(p.usebiases) && !build
         bin_vals, values = metad_from_file(p, "")
+    elseif build && length(p.usebiases) == 1
+        bin_vals, values = metad_from_file(p, p.usebiases[1])
     else
         bin_vals, values = metad_from_file(p, p.usebiases[instance])
     end
@@ -137,19 +139,15 @@ end
 
 function update!(m::Metadynamics, cv, args...)
     for cvᵢ in cv
-        if in_bounds(cvᵢ, m.cvlims[1], m.cvlims[2])
-            for (idx, bin_val) in enumerate(m.bin_vals)
-                wt = exp(-m[idx] / m.biasfactor)
-                m[idx] += m.weight * wt * exp(-0.5(cvᵢ - bin_val)^2 / m.bin_width^2)
-            end
+        for (idx, bin_val) in enumerate(m.bin_vals)
+            wt = exp(-m[idx] / m.biasfactor)
+            m[idx] += m.weight * wt * exp(-0.5(cvᵢ - bin_val)^2 / m.bin_width^2)
         end
 
         if m.symmetric
-            if in_bounds(-cvᵢ, m.cvlims[1], m.cvlims[2])
-                for (idx, bin_val) in enumerate(m.bin_vals)
-                    wt = exp(-m[idx] / m.biasfactor)
-                    m[idx] += m.weight * wt * exp(-0.5(-cvᵢ - bin_val)^2 / m.bin_width^2)
-                end
+            for (idx, bin_val) in enumerate(m.bin_vals)
+                wt = exp(-m[idx] / m.biasfactor)
+                m[idx] += m.weight * wt * exp(-0.5(-cvᵢ - bin_val)^2 / m.bin_width^2)
             end
         end
     end

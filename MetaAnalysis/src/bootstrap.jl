@@ -73,7 +73,7 @@ function (b::Bootstrap)(x::Vector{<:Real}, weights=nothing)
         stdA = std(A)
     end
 
-    return meanA, stdA, b.τ
+    return meanA, stdA, τ
 end
 
 function bbootstrap_samplesize(b::Bootstrap, weights::Vector{<:Real})

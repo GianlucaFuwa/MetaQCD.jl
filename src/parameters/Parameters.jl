@@ -156,7 +156,7 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
         measure_dir_exists && config_dir_exists && bias_dir_exists
     )
         itimer == 50 && error("Rank $(mpi_myrank()) could not find all directories")
-        sleep(0.1)
+        sleep(1)
         ensemble_dir_exists = isdir(ensemble_dir)
         log_dir_exists = isdir(log_dir)
         measure_dir_exists = isdir(measure_dir)
@@ -188,7 +188,9 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
                     value_Params[i] = Tuple(value[String(pname_i)])
                 elseif String(pname_i) == "is_static"
                     val = value[String(pname_i)]
-                    if (length(val) < mpi_size()-1) && length(val)==1
+                    if mpi_size() == 1 && val isa Number
+                        value_Params[i] = fill(val, 1)
+                    elseif (length(val) < mpi_size()-1) && length(val)==1
                         value_Params[i] = fill(value[String(pname_i)], mpi_size())
                     else
                         @assert length(val) == mpi_size()-1

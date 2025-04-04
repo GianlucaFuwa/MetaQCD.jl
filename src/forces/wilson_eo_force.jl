@@ -79,7 +79,7 @@ function add_wilson_eo_derivative!(
     dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, X_eo::TF, Y_eo::TF, bc; coeff=1
 ) where {T,TF<:WilsonEOPreSpinorfield{CPU,T}}
     check_dims(dU, U, X_eo, Y_eo)
-    fac = T(-0.5coeff)
+    fac = T(0.5coeff)
     X = X_eo.parent
     Y = Y_eo.parent
 

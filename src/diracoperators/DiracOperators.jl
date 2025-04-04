@@ -14,8 +14,10 @@ using LinearAlgebra: checksquare
 using KernelAbstractions # With this we can write generic GPU kernels for ROC and CUDA
 using LinearAlgebra
 using Polyester
+using Printf
 using SparseArrays
 using StaticArrays
+using StaticTools: StaticString
 using ..MetaIO
 using ..RHMCParameters
 using ..Solvers
@@ -94,8 +96,7 @@ store the result in `ψ`.
 function solve_dirac!(
     ψ, D::T, ϕ, temp1, temp2, temp3, tol=1e-16, maxiters=1000
 ) where {T<:DdaggerD}
-    cg!(ψ, D, ϕ, temp1, temp2, temp3; tol=tol, maxiters=maxiters)
-    return nothing
+    return cg!(ψ, D, ϕ, temp1, temp2, temp3; tol=tol, maxiters=maxiters)
 end
 
 """
@@ -107,8 +108,7 @@ Hermitian Dirac operator and store each result in `ψs`.
 function solve_dirac_multishift!(
     ψs, shifts, D::T, ϕ, temp1, temp2, ps, tol=1e-16, maxiters=1000
 ) where {T<:DdaggerD}
-    mscg!(ψs, SVector(shifts), D, ϕ, temp1, temp2, ps; tol=tol, maxiters=maxiters)
-    return nothing
+    return mscg!(ψs, SVector(shifts), D, ϕ, temp1, temp2, ps; tol=tol, maxiters=maxiters)
 end
 
 """
@@ -125,7 +125,18 @@ function calc_fermion_action(fermion_action::AbstractFermionAction{false}, U, ϕ
     cg_maxiters = fermion_action.cg_maxiters_action
 
     clear!(ψ) # initial guess is zero
-    solve_dirac!(ψ, DdagD, ϕ, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
+    iters, res = solve_dirac!(ψ, DdagD, ϕ, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
+
+    cg_datafile = fermion_action.cg_datafile
+    if isfile(cg_datafile)
+        set_ext!(cg_datafile, fermion_action.myinstance[])
+        fp = fopen(cg_datafile, "a")
+        printf(fp, "%-11i", iters)
+        printf(fp, "%+-25.15E", res)
+        newline(fp)
+        fclose(fp)
+    end
+
     Sf = real(dot(ϕ, ψ))
     return Sf
 end
@@ -148,7 +159,18 @@ function calc_fermion_action(fermion_action::AbstractFermionAction{true}, U, ϕ)
     shifts = get_β_inverse(rhmc)
     coeffs = get_α_inverse(rhmc)
     α₀ = get_α0_inverse(rhmc)
-    solve_dirac_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
+    iters, res = solve_dirac_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
+
+    cg_datafile = fermion_action.cg_datafile
+    if isfile(cg_datafile)
+        set_ext!(cg_datafile, fermion_action.myinstance[])
+        fp = fopen(cg_datafile, "a")
+        printf(fp, "%-11i", iters)
+        printf(fp, "%+-25.15E", res)
+        newline(fp)
+        fclose(fp)
+    end
+
     ψ = ψs[1]
     clear!(ψ) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
 
@@ -321,6 +343,8 @@ function init_fermion_action(params, mass::Float64, Nf::Int64, U)
         error("Fermion action \"$(fermion_action)\" with eo_precon=$(eo_precon) not supported")
     end
 
+    cg_filepath = joinpath(params.log_dir, "cg_data_$(lpad(mpi_myrank(), 3, "0")).txt")
+
     action = ActionType(
         U, mass;
         bc_str=params.boundary_condition,
@@ -334,6 +358,7 @@ function init_fermion_action(params, mass::Float64, Nf::Int64, U)
         cg_tol_md=params.cg_tol_md,
         cg_maxiters_action=params.cg_maxiters_action,
         cg_maxiters_md=params.cg_maxiters_md,
+        cg_filepath=cg_filepath,
         r=params.wilson_r,
         csw=params.wilson_csw,
     ) 

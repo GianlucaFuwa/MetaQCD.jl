@@ -1,7 +1,5 @@
 module MetaQCD
 
-using Requires
-
 include("./utils/Utils.jl")
 include("./parameters/Parameters.jl")
 include("./fields/Fields.jl")

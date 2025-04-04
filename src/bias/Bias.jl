@@ -47,8 +47,8 @@ end
 function Bias(p::ParameterSet, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, build=false)
     inum = if dummy
         0
-    elseif mpi_multi_sim && build
-        mpi_myrank()+1
+    elseif mpi_multi_sim
+        mpi_myrank()
     else
         instance
     end
@@ -63,9 +63,9 @@ function Bias(p::ParameterSet, U; mpi_multi_sim=false, instance=mpi_myrank(), du
     @level1("|  Type: $(sstr) $(kind_of_bias)")
 
     if kind_of_bias ∈ ["metad", "metadynamics"]
-        bias = Metadynamics(p; instance=inum, dummy=dummy)
+        bias = Metadynamics(p; instance=inum, dummy=dummy, build=build)
     elseif kind_of_bias == "opes"
-        bias = OPES(p; instance=inum, dummy=dummy)
+        bias = OPES(p; instance=inum, dummy=dummy, build=build)
     elseif kind_of_bias == "parametric"
         bias = Parametric(p; dummy=dummy)
     else

@@ -262,8 +262,8 @@ function update!(
     ΔP² = trP²_new - trP²_old
     ΔSg = Sg_new - Sg_old
     ΔV = V_new - V_old
-    ΔSf = -Sf_new + Sf_old
-    S_new = Sg_new + V_new - Sf_new
+    ΔSf = Sf_new - Sf_old
+    S_new = Sg_new + V_new + Sf_new
 
     ΔH = ΔP² + ΔSg + ΔV + ΔSf
     accept = metro_test ? rand() ≤ exp(-ΔH) : true

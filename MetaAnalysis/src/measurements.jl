@@ -13,6 +13,7 @@ the same format.
 struct MetaMeasurements
     measurement_dict::Dict{String,Dict{String,Vector{Float64}}}
     observables::Vector{Symbol}
+    tau_int::Dict{String,Float64}
     ensemblename::String
     function MetaMeasurements(ensemblename::String)
         _dir = if isabspath(ensemblename)
@@ -35,11 +36,13 @@ struct MetaMeasurements
 
         filenames = readdir(dir)
         isfile(hmc_logfile) && push!(filenames, hmc_logfile)
+        tau_int = Dict{String,Float64}()
 
         for name in filenames
             name_no_ext = splitext(name)[1]
+            instance = name_no_ext[end-2:end]
             measurement = Dict{String,Vector{Float64}}()
-            if name == hmc_logfile
+            if contains(name, "hmc_acc_logs")
                 data, header = readdlm(hmc_logfile; header=true)
                 
                 for i in eachindex(header)
@@ -47,7 +50,7 @@ struct MetaMeasurements
                 end
 
                 measurement_dict["hmc_data"] = measurement
-            elseif occursin("flowed", name_no_ext)
+            elseif any(occursin.(("flowed", "gflow", "cooling"), name_no_ext))
                 data, header = readdlm(dir * "/$(name)"; header=true)
                 unique_tflow = unique(data[:, 3])
                 unique_indices = Vector{Int64}[]
@@ -62,6 +65,21 @@ struct MetaMeasurements
                         measurement[header[i]*" (tf=$(tflow))"] = data[
                             unique_indices[j], i
                         ]
+
+                        if header[i] != "itrj"
+                            if header[i] == "Q_clover"
+                                tau_int[header[i]*"_$(instance) (tf=$(tflow))"] = autoc_time_int(
+                                    data[unique_indices[j], i]
+                                )
+                                tau_int[header[i]*"^2_$(instance) (tf=$(tflow))"] = autoc_time_int(
+                                    data[unique_indices[j], i].^2
+                                )
+                            else
+                                tau_int[header[i]*"_$(instance) (tf=$(tflow))"] = autoc_time_int(
+                                    data[unique_indices[j], i]
+                                )
+                            end
+                        end
                     end
                 end
 
@@ -71,13 +89,18 @@ struct MetaMeasurements
 
                 for i in eachindex(header)
                     measurement[header[i]] = data[:, i]
+
+                    if header[i] != "itrj"
+                        tau_int[header[i]*"_$(instance)"] = autoc_time_int(data[:, i])
+                    end
                 end
 
                 measurement_dict[name_no_ext] = measurement
             end
         end
 
-        return new(measurement_dict, Symbol.(keys(measurement_dict)), ensemblename)
+        obs_sym = Symbol.(keys(measurement_dict))
+        return new(measurement_dict, obs_sym, tau_int, ensemblename)
     end
 end
 
@@ -88,6 +111,7 @@ function Base.getproperty(m::MetaMeasurements, s::Symbol)
     s == :ensemblename && return getfield(m, :ensemblename)
     s == :measurement_dict && return getfield(m, :measurement_dict)
     s == :observables && return getfield(m, :observables)
+    s == :tau_int && return getfield(m, :tau_int)
     valid_names = Symbol.(keys(m.measurement_dict))
     @assert s ∈ valid_names "Your MetaMeasurements don't contain the observable $s"
     return getfield(m, :measurement_dict)["$(s)"]
@@ -128,22 +152,12 @@ RecipesBase.@recipe function timeseries(
     end
 
     if occursin("bias_data", string(observable))
-        size --> (600, 200 * length(obs_keys))
-        cv = getproperty(m, observable)["cv"]
         filter!(x -> x ≠ "cv", obs_keys)
+        size --> (600, 200 * length(obs_keys))
         link := :x
         layout := (length(obs_keys) + 1, 1)
         legend := false
         palette --> DEFAULT_COLORS
-
-        @series begin
-            xlabel --> ""
-            ylabel --> "cv"
-            yticks --> floor(minimum(cv)):ceil(maximum(cv))
-            subplot := 1
-            y = view(cv, irange)
-            x, y
-        end
 
         for (i, name) in enumerate(obs_keys)
             @series begin
@@ -151,7 +165,7 @@ RecipesBase.@recipe function timeseries(
                 xlabel --> xl
                 ylabel --> name
                 color --> DEFAULT_COLORS[i+1]
-                subplot := i + 1
+                subplot := i
                 y = view(getproperty(m, observable)[name], irange)
                 x, y
             end
@@ -168,28 +182,27 @@ RecipesBase.@recipe function timeseries(
             x, y
         end
         # end
-    elseif occursin("flowed", string(observable))
-        # size --> (600, 250 * length(obs_keys))
+    elseif any(occursin.(("flowed", "gflow", "cooling"), string(observable)))
         palette --> DEFAULT_COLORS
         xlabel --> "Monte Carlo Time"
-        ylabel --> first(split(obs_keys[1], " "))
         linewidth --> 2
         legend --> :outertopright
-        # layout := (length(obs_keys), 1)
+
+        sub_obs = unique!(first.(split.(obs_keys, " ")))
+        size --> (600, 250 * length(sub_obs))
+        layout := (length(sub_obs), 1)
         nlabel = last.(split.(obs_keys, " "))
         tf_digits = parse.(Float64, filter.(x -> isdigit(x) || x=='.', nlabel))
-        if tf === nothing 
-            iordered = sortperm(tf_digits)        
-        else
-            iordered = findall(x -> x==tf, tf_digits)
-        end
 
-        for (j, i) in enumerate(iordered)
-            @series begin
-                # subplot := j
-                label --> nlabel[i]
-                y = view(getproperty(m, observable)[obs_keys[i]], irange)
-                x, y
+        for tflow in sort(unique(tf_digits))
+            (isnothing(tf) || tflow==tf) || continue
+            for sub_ob in sub_obs
+                @series begin
+                    ylabel --> sub_ob
+                    label --> "tf = $(tflow)"
+                    y = view(getproperty(m, observable)["$(sub_ob) (tf=$(tflow))"], irange)
+                    x, y
+                end
             end
         end
     else
