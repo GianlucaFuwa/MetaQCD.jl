@@ -88,7 +88,7 @@ struct EigenvaluesMeasurement{T,TA,TD} <: AbstractMeasurement
                 header *= @sprintf("%-25s%-25s", "eig_re_$(i)", "eig_im_$(i)")
             end
 
-            if !is_distributed(U) || mpi_amroot()
+            if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
                 open(path, "w") do fp
                     println(fp, header)
                 end
@@ -138,9 +138,7 @@ function EigenvaluesMeasurement(U, params::EigenvaluesParameters, filename, flow
     )
 end
 
-function measure(
-    m::EigenvaluesMeasurement{T}, U, myinstance, itrj, flow=nothing
-) where {T}
+function measure(m::EigenvaluesMeasurement{T}, U, itrj, flow=nothing) where {T}
     vals = m.vals
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
@@ -196,9 +194,9 @@ function measure(
         end
     end
 
-    if !is_distributed(U) || mpi_amroot()
+    if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
         if T !== Nothing
-            filename = set_ext!(m.filename, myinstance)
+            filename = set_ext!(m.filename)
             fp = fopen(filename, "a")
             @printf(fp, "%-11i", itrj)
 

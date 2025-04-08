@@ -35,6 +35,23 @@ Base.@kwdef mutable struct WilsonLoopParameters <: MeasurementParameters
     methodname::String = "wilson_loop"
 end
 
+Base.@kwdef mutable struct LogDetParameters <: MeasurementParameters
+    type::Vector{String} = ["staggered"]
+    Nf::Union{Int64,Vector{Int64}} = 2
+    mass::Union{Float64,Vector{Float64}} = 0.1
+    r::Float64 = 1.0
+    csw::Float64 = 0.0
+    eo_precon::Union{Bool,Vector{Bool}} = false
+    cg_tol::Float64 = 1e-16
+    cg_maxiters::Int64 = 1000
+    rhmc_order::Union{Int64,Vector{Int64}} = 15
+    rhmc_prec::Union{Int64,Vector{Int64}} = 64
+    rhmc_spectral_bound::Union{NTuple{2,Float64},Vector{NTuple{2,Float64}}} = (0.001, 6.0)
+    boundary_condition::String = "antiperiodic"
+    measure_every::Int64 = 10
+    methodname::String = "logdet"
+end
+
 Base.@kwdef mutable struct PionCorrelatorParameters <: MeasurementParameters
     dirac_type::String = "staggered"
     mass::Float64 = 0.1
@@ -79,6 +96,8 @@ function initialize_measurement_parameters(methodname)
         method = TopologicalChargeParameters()
     elseif Unicode.normalize(methodname; casefold=true) == "energy_density"
         method = EnergyDensityParameters()
+    elseif Unicode.normalize(methodname; casefold=true) == "logdet"
+        method = LogDetParameters()
     elseif Unicode.normalize(methodname; casefold=true) == "pion_correlator"
         method = PionCorrelatorParameters()
     elseif Unicode.normalize(methodname; casefold=true) == "eigenvalues"
@@ -97,8 +116,8 @@ function meas_parameters_from_dict(value_i::Dict)
     for (key_ii, value_ii) in value_i
         if haskey(method_dict, key_ii)
             if !isnothing(typeof(value_ii))
-                keytype = typeof(getfield(method, Symbol(key_ii)))
-                setfield!(method, Symbol(key_ii), keytype(value_ii))
+                keytype = fieldtype(typeof(method), Symbol(key_ii))
+                setfield!(method, Symbol(key_ii), convert(keytype, value_ii))
             end
         end
     end
@@ -128,6 +147,9 @@ function prepare_measurement(
     elseif T == EnergyDensityParameters
         filename_input = ifelse(filename == "", "energy_density.txt", filename)
         measurement = EnergyDensityMeasurement(U, meas_parameters, filename_input, flow)
+    elseif T == LogDetParameters
+        filename_input = ifelse(filename == "", "logdet.txt", filename)
+        measurement = LogDetMeasurement(U, meas_parameters, filename_input, flow)
     elseif T == PionCorrelatorParameters
         filename_input = ifelse(filename == "", "pion_correlator.txt", filename)
         measurement = PionCorrelatorMeasurement(U, meas_parameters, filename_input, flow)

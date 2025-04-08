@@ -102,5 +102,6 @@ Base.@kwdef mutable struct SystemParameters
 end
 
 Base.@kwdef mutable struct MeasurementParameters
-    measurement_method::Vector{Dict} = Dict[]
+    measurements::Vector{Dict} = Dict[]
+    measurements_with_flow::Vector{Dict} = Dict[]
 end

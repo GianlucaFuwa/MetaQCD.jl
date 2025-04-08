@@ -33,39 +33,39 @@ function test_measurements(backend=CPU; nprocs_cart=(1, 1, 1, 1), halo_width=2)
     end
 
     m_plaq = PlaquetteMeasurement(U)
-    plaq = measure(m_plaq, U, 1, 1)
+    plaq = measure(m_plaq, U)
 
     mpi_amroot() && println("==========")
 
     if nprocs_cart[4] == 1
         m_poly = PolyakovMeasurement(U)
-        poly =  measure(m_poly, U, 1, 1)
+        poly =  measure(m_poly, U)
 
         mpi_amroot() && println("==========")
     end
 
     if nprocs_cart == (1, 1, 1, 1)
         m_wilson = WilsonLoopMeasurement(U)
-        wilsonloop = measure(m_wilson, U, 1, 1)
+        wilsonloop = measure(m_wilson, U)
 
         mpi_amroot() && println("==========")
     end
 
     TC_methods  = ["plaquette", "clover", "improved"]
     m_topo = TopologicalChargeMeasurement(U, TC_methods=TC_methods)
-    topo = measure(m_topo, U, 1, 1)
+    topo = measure(m_topo, U)
 
     mpi_amroot() && println("==========")
 
     ED_methods  = ["plaquette", "clover", "improved"]
     m_ed = EnergyDensityMeasurement(U, ED_methods=ED_methods)
-    ed = measure(m_ed, U, 1, 1)
+    ed = measure(m_ed, U)
 
     mpi_amroot() && println("==========")
 
     GA_methods = ["wilson", "symanzik_tree", "iwasaki", "dbw2"]
     m_gaction = GaugeActionMeasurement(U, GA_methods=GA_methods)
-    gaction = measure(m_gaction, U, 1, 1)
+    gaction = measure(m_gaction, U)
 
     if mpi_amroot()
         @testset "Gauge observables" begin

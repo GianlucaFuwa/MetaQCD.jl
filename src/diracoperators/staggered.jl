@@ -52,7 +52,7 @@ function (D::StaggeredDiracOperator{B,T})(U::Gaugefield{B,T}) where {B,T}
     return StaggeredDiracOperator(D, U)
 end
 
-struct StaggeredFermionAction{R,Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction{R,Nf}
+struct StaggeredFermionAction{R,Nf,TD,CT,RI1,RI2,RT,T} <: AbstractFermionAction{R,Nf}
     D::TD
     cg_temps::CT
     rhmc_info_action::RI1
@@ -63,6 +63,7 @@ struct StaggeredFermionAction{R,Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction{R,
     cg_tol_md::Float64
     cg_maxiters_action::Int64
     cg_maxiters_md::Int64
+    cg_datafile::T
     function StaggeredFermionAction(
         f::AbstractField,
         mass;
@@ -77,6 +78,7 @@ struct StaggeredFermionAction{R,Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction{R,
         cg_tol_md=1e-12,
         cg_maxiters_action=1000,
         cg_maxiters_md=1000,
+        cg_filepath="",
         kwargs...,
     )
         D = StaggeredDiracOperator(f, mass; bc_str=bc_str)
@@ -116,11 +118,21 @@ struct StaggeredFermionAction{R,Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction{R,
             rhmc_temps2 = ntuple(_ -> Spinorfield(f; staggered=true), n_temps + 1)
         end
 
+        cg_datafile = StaticString(cg_filepath)
+
+        if cg_filepath != ""
+            open(cg_datafile, "w") do fp
+                @printf(fp, "%-11s%-25s", "iters", "res")
+                println(fp)
+            end
+        end
+
         CT = typeof(cg_temps)
         RI1 = typeof(rhmc_info_action)
         RI2 = typeof(rhmc_info_md)
         RT = typeof(rhmc_temps1)
-        return new{R,Nf,TD,CT,RI1,RI2,RT}(
+        T = typeof(cg_datafile)
+        return new{R,Nf,TD,CT,RI1,RI2,RT,T}(
             D,
             cg_temps,
             rhmc_info_action,
@@ -131,6 +143,7 @@ struct StaggeredFermionAction{R,Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction{R,
             cg_tol_md,
             cg_maxiters_action,
             cg_maxiters_md,
+            cg_datafile,
         )
     end
 end

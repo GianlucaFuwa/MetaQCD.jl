@@ -152,8 +152,9 @@ function HMC(
     end
 
     fieldstrength = num_cv>0 ? Tensorfield(U) : nothing
+    comm_instance = mpi_comm_instance()
 
-    if hmc_logging && (logdir != "") && (!is_distributed(U) || mpi_amroot())
+    if hmc_logging && (logdir != "") && (!is_distributed(U) || mpi_amroot(comm_instance))
         # XXX: Probably want to swap this too in MPI PT-MetaD
 
         for ii in instance
@@ -161,8 +162,8 @@ function HMC(
             open(_logfile, "w") do fp
                 @printf(
                     fp,
-                    "%-25s%-25s%-25s%-25s%-25s%-25s\n",
-                    "ΔP²", "ΔSg", "ΔSf", "ΔV", "ΔH", "Accepted"
+                    "%-25s%-25s%-25s%-25s%-25s%-25s%-25s\n",
+                    "ΔP²", "ΔSg", "ΔSf", "ΔV", "ΔH", "S", "Accepted"
                 )
             end
         end
@@ -218,15 +219,15 @@ function update!(
     bias::TB=NoBias(),
     metro_test::Bool=true,
     therm::Bool=false,
-    myinstance::Int64=mpi_myrank(),
+    instance=MPI_INSTANCE[],
 ) where {TI,TF,TB}
     if TF !== QuenchedFermionAction
         @assert TF <: Tuple "fermion_action must be nothing or a tuple of fermion actions"
         @assert !isnothing(hmc.ϕ) "fermion_action passed but not activated in HMC"
     end
 
-    set_ext!(hmc.logfile, myinstance)
-    set_ext!(hmc.forcefile, myinstance)
+    set_ext!(hmc.logfile, instance)
+    set_ext!(hmc.forcefile, instance)
 
     integrator = therm ? default_integrator(hmc.integrator) : hmc.integrator
 
@@ -265,8 +266,12 @@ function update!(
     ΔSf = Sf_new - Sf_old
 
     ΔH = ΔP² + ΔSg + ΔV + ΔSf
-    accept = metro_test ? rand() ≤ exp(-ΔH) : true
-    print_hmc_data(hmc.logfile, ΔP², ΔSg, ΔSf, ΔV, ΔH, accept)
+    S_new = Sg_new + V_new + Sf_new
+
+    accept_root = metro_test ? rand() ≤ exp(-ΔH) : true
+
+    accept = mpi_bcast_isbits(accept_root, mpi_comm_instance(); root=0)
+    print_hmc_data(hmc.logfile, ΔP², ΔSg, ΔSf, ΔV, ΔH, S_new, accept)
 
     if accept
         U.Sg = Sg_new
@@ -437,23 +442,25 @@ function calc_fermion_action(fermion_action, U, ϕ, smearing::StoutSmearing, is_
     return Sf
 end
 
-@inline function print_hmc_data(::Nothing, ΔP², ΔSg, ΔSf, ΔV, ΔH, accept)
+@inline function print_hmc_data(::Nothing, ΔP², ΔSg, ΔSf, ΔV, ΔH, S, accept)
     @level2("delta_P²:\t$ΔP²")
     @level2("delta_Sg:\t$ΔSg")
     @level2("delta_Sf:\t$ΔSf")
     @level2("delta_V:\t$ΔV")
     @level2("delta_H:\t$ΔH")
+    @level2("new_S:\t$S")
     @level2("Accepted:\t$(Int64(accept))")
     return nothing
 end
 
-@inline function print_hmc_data(logfile, ΔP², ΔSg, ΔSf, ΔV, ΔH, accept)
+@inline function print_hmc_data(logfile, ΔP², ΔSg, ΔSf, ΔV, ΔH, S, accept)
     fp = fopen(logfile, "a")
     printf(fp, "%+-25.15E", ΔP²)
     printf(fp, "%+-25.15E", ΔSg)
     printf(fp, "%+-25.15E", ΔSf)
     printf(fp, "%+-25.15E", ΔV)
     printf(fp, "%+-25.15E", ΔH)
+    printf(fp, "%+-25.15E", S)
     printf(fp, "%-25.1i", Int64(accept))
     newline(fp)
     fclose(fp)

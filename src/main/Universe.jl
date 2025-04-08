@@ -26,7 +26,6 @@ struct Univ{TG,TF,TB}
     U::TG
     fermion_action::TF
     bias::TB
-    myinstance::Base.RefValue{Int64}
     numinstances::Int64
     function Univ(
         U::Gaugefield{BACKEND,T,M,A,GA}, fermion_action::TF, bias::TB, numinstances
@@ -46,8 +45,7 @@ struct Univ{TG,TF,TB}
         end
 
         TG = typeof(U)
-        myinstance = Base.RefValue{Int64}(mpi_myrank())
-        return new{TG,TF,TB}(U, fermion_action, bias, myinstance, numinstances)
+        return new{TG,TF,TB}(U, fermion_action, bias, numinstances)
     end
 
     function Univ(
@@ -67,8 +65,7 @@ struct Univ{TG,TF,TB}
             @level1("|  FERMION ACTION: $(string(fermion_action...))-\n")
         end
 
-        myinstance = Base.RefValue{Int64}(mpi_myrank())
-        return new{Vector{TG},TF,Vector{TB}}(U, fermion_action, bias, myinstance, numinstances)
+        return new{Vector{TG},TF,Vector{TB}}(U, fermion_action, bias, numinstances)
     end
 end
 
@@ -81,7 +78,7 @@ function Univ(parameters::ParameterSet; mpi_multi_sim=false, build=false)
             bias₁ = Bias(parameters, U₁; dummy=true) # dummy bias for non-MetaD stream
 
             U = Vector{typeof(U₁)}(undef, numinstances)
-            bias = Vector{typeof(bias₁)}(undef, numinstances)
+            bias = Vector{Bias}(undef, numinstances) # XXX: Type unstable
             U[1] = U₁
             bias[1] = bias₁
 
@@ -93,7 +90,7 @@ function Univ(parameters::ParameterSet; mpi_multi_sim=false, build=false)
             numinstances = 1
             U = Gaugefield(parameters)
             fermion_action = init_fermion_actions(parameters, U)
-            bias = Bias(parameters, U; mpi_multi_sim=mpi_multi_sim, dummy=mpi_amroot())
+            bias = Bias(parameters, U; mpi_multi_sim=mpi_multi_sim, dummy=MPI_INSTANCE[]==0)
         else
             numinstances = 1
             U = Gaugefield(parameters)

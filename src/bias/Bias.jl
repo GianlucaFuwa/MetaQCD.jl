@@ -13,12 +13,15 @@ using ..Utils
 
 import ..Fields: Gaugefield, WilsonGaugeAction, Plaquette, Clover
 import ..Fields: SymanzikTreeGaugeAction, IwasakiGaugeAction, DBW2GaugeAction
-import ..Fields: calc_gauge_action, gauge_action_deriv!
+import ..Fields: calc_gauge_action, gauge_action_deriv!, is_distributed
 import ..Measurements: top_charge, top_charge_deriv!
 import ..Smearing: AbstractSmearing, NoSmearing, StoutSmearing, calc_smearedU!
 
 abstract type AbstractBias end
 
+# Convenience struct that contains the CV function and its derivative function
+# `cv_temp_ind` is there to tell the `deriv_func` which kind of temporary field it needs
+# for the calculation (e.g., a temporary `Tensorfield` or `Colorfield`)
 struct CVinfo{F<:Function,dF<:Function,I}
     cv_func::F
     deriv_func::dF
@@ -30,18 +33,19 @@ struct NoBias end
 (b::NoBias)(::Any) = 0.0
 
 # functions that have to be overloaded by each bias type
-get_ext(::AbstractBias) = ""
-is_adaptive(::AbstractBias) = false
-set_sigma0!(::AbstractBias) = nothing
-update!(::AbstractBias) = nothing
-write_to_file(::AbstractBias, args...) = nothing
+get_ext(::AbstractBias) = "" # Get file extension of the current bias
+is_adaptive(::AbstractBias) = false # Check if the starting bin width can be adaptively set (only for OPES)
+set_sigma0!(::AbstractBias) = nothing # Change the starting bin width of OPES bias
+update!(::AbstractBias) = nothing # update the bias
+write_to_file(::AbstractBias, args...) = nothing # write bias to file
+ext_length(::AbstractBias) = Val(0) # Determine length of file extension statically
 
 """
     Bias{NumCV,BiasType,Smearing,Weights,BiasFile,DataFile}
     
 Container for bias potential and metadata.
 
-    Bias(p::ParameterSet, U::Gaugefield; instance=0)
+    Bias(p::ParameterSet, U::Gaugefield; instance=0, dummy=false, build=false)
 
 Create a Bias that holds general parameters of bias enhanced sampling, like the kind of CV,
 its smearing and filenames relevant to the bias. Also holds the specific kind
@@ -49,8 +53,13 @@ of bias (`Metadynamics`, `OPES` or `Parametric` for now).
 
 The `instance` keyword is used in case of PT-MetaD and multiple walkers to assign the
 correct `usebias` to each stream.
+
+If `dummy=true` the bias is static and set to zero as for the measurement stream in PT-MetaD
+
+If `build=true` certain things are made more convenient for the building of the bias, like
+only the root rank printing its bias to file etc.
 """
-struct Bias{N,TB,TS,TW,T1,T2}
+mutable struct Bias{N,TB,TS,TW,T1,T2}
     cv_numsmears::Vector{Int64}
     bias::TB
     smearing::TS
@@ -68,10 +77,8 @@ end
 function Bias(p, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, build=false)
     inum = if dummy
         0
-    elseif mpi_multi_sim && !build
-        mpi_myrank()
-    elseif build
-        mpi_myrank() + 1
+    elseif mpi_multi_sim
+        MPI_INSTANCE[]
     else
         instance
     end
@@ -88,6 +95,13 @@ function Bias(p, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, bui
         @level1("|")
         bias_parameters = bias_parameters_from_dict(biases[i])
         name = bias_parameters.kind_of_cv
+
+        if name == "topcharge_plaquette"
+            is_distributed(U) && @assert(U.topology.halo_width>=1)
+        elseif name == "topcharge_clover"
+            is_distributed(U) && @assert(U.topology.halo_width>=2)
+        end
+
         numsmears = bias_parameters.numsmears_for_cv
         cv_numsmears[i] = numsmears
         @level1("|  Bias $i: $(bias_parameters.name)")
@@ -125,18 +139,24 @@ function Bias(p, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, bui
     inum_str = lpad(inum, 3, "0")
     biasfile = ntuple(num_cv) do i
         ext = get_ext(bias[i])
+        _name = joinpath(p.bias_dir, "bias$(i)_$(inum_str)$(ext)")
 
-        if mpi_amroot()
-            dummy ? "" : joinpath(p.bias_dir, "bias$(i)_$(inum_str)$(ext)")
+        # INFO: When using PT-MetaD, we want each instance to print its bias
+        # When using multiple walkers during build, we only need instance 0 to print
+        # since they are all the same anyway
+        _biasfile = if mpi_amroot(mpi_comm_instance()) && !dummy && !build
+            _name
+        elseif mpi_amroot(mpi_comm_instance()) && !dummy && build
+            mpi_amroot() ? _name : ""
         else
             ""
         end
+
+        StaticString(_biasfile)
     end
 
-    inum_str = lpad(inum, 3, "0")
     _datafile = joinpath(p.measure_dir, "bias_data_$(inum_str).txt")
     datafile = StaticString(_datafile)
-    # FIXME: For some reason this errors with MPI on the UNI's cluster
     open(_datafile, "w") do fp
         @printf(fp, "%-11s", "itrj")
 
@@ -155,7 +175,8 @@ function Bias(p, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, bui
     @level1("|  DATAFILE: $(string(datafile))")
 
     # write to file after construction to make sure nothing went wrong
-    if mpi_amroot()
+    if mpi_amroot(mpi_comm_instance())
+        @level1("AM HERE")
         for i in eachindex(bias)
             write_to_file(bias[i], biasfile[i])
         end
@@ -204,7 +225,7 @@ include("opes_multithermal.jl")
 include("parametric.jl")
 
 function update_bias!(
-    b::Bias{N}, values, itrj, myinstance=mpi_myrank(); mpi_multi_sim=false
+    b::Bias{N}, values, itrj; mpi_multi_sim=false
 ) where {N}
     (length(values) == 0) && return nothing
 
@@ -214,13 +235,17 @@ function update_bias!(
         update!(bias, values_i, itrj)
 
         if (bias.write_bias_every != 0) && (itrj % bias.write_bias_every == 0)
+            # INFO: When using parallel tempering with MPI, we only swap the bias
+            # potentials and the "names" of the instances, i.e., the number associated to
+            # the instances. Thus we have to change all filenames to conincide with the
+            # current instance
             filename = if mpi_multi_sim
-                set_ext!(b.biasfile[icv], myinstance)
+                set_ext!(b.biasfile[icv], ext_length(bias))
             else
                 b.biasfile[icv]
             end
 
-            if (mpi_multi_sim || mpi_amroot()) && isfile(filename)
+            if mpi_amroot(mpi_comm_instance())
                 write_to_file(bias, filename)
             end
         end

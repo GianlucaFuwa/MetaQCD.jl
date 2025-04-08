@@ -44,12 +44,19 @@ function Metadynamics(
     inum = if dummy
         0
     elseif mpi_multi_sim
-        mpi_myrank()
+        MPI_INSTANCE[]
     else
         instance
     end
+
     cvinfo = get_cvinfo_from_parameters(p)
-    static = dummy ? true : (inum==0 ? false : p.static[inum])
+    static = if dummy
+        true
+    elseif build
+        false
+    else
+        inum==0 ? false : p.static[inum]
+    end
     symmetric = p.symmetric
     stride = p.stride
     @level1("|  STATIC: $(static)")
@@ -108,6 +115,7 @@ Base.lastindex(m::Metadynamics) = lastindex(m.values)
 get_ext(::Metadynamics) = ".metad"
 is_adaptive(::Metadynamics) = false
 set_sigma0!(::Metadynamics, ::Any) = nothing
+ext_length(::Metadynamics) = Val(5)
 
 function Base.setindex!(m::Metadynamics, v, i)
     return m.values[i] = v
@@ -124,19 +132,15 @@ end
 
 function update!(m::Metadynamics, cv, args...)
     for cvᵢ in cv
-        if in_bounds(cvᵢ, m.cvlims[1], m.cvlims[2])
-            for (idx, bin_val) in enumerate(m.bin_vals)
-                wt = exp(-m[idx] / m.biasfactor)
-                m[idx] += m.weight * wt * exp(-0.5(cvᵢ - bin_val)^2 / m.bin_width^2)
-            end
+        for (idx, bin_val) in enumerate(m.bin_vals)
+            wt = exp(-m[idx] / m.biasfactor)
+            m[idx] += m.weight * wt * exp(-0.5(cvᵢ - bin_val)^2 / m.bin_width^2)
         end
 
         if m.symmetric
-            if in_bounds(-cvᵢ, m.cvlims[1], m.cvlims[2])
-                for (idx, bin_val) in enumerate(m.bin_vals)
-                    wt = exp(-m[idx] / m.biasfactor)
-                    m[idx] += m.weight * wt * exp(-0.5(-cvᵢ - bin_val)^2 / m.bin_width^2)
-                end
+            for (idx, bin_val) in enumerate(m.bin_vals)
+                wt = exp(-m[idx] / m.biasfactor)
+                m[idx] += m.weight * wt * exp(-0.5(-cvᵢ - bin_val)^2 / m.bin_width^2)
             end
         end
     end
@@ -181,7 +185,7 @@ end
 
 write_to_file(::Metadynamics, ::Nothing) = nothing
 
-function write_to_file(m::Metadynamics, filename::String)
+function write_to_file(m::Metadynamics, filename::AbstractString)
     filename == "" && return nothing
     (tmppath, tmpio) = mktemp() # open temporary file at arbitrary location in storage
     println(tmpio, "$(rpad("CV", 7))\t$(rpad("V(CV)", 7))")

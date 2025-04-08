@@ -39,13 +39,14 @@ end
 
 calc_gauge_action(U::Gaugefield{B,T,M,A,GA}) where {B,T,M,A,GA} = calc_gauge_action(GA(), U)
 
-function calc_gauge_action(::WilsonGaugeAction, U)
+function calc_gauge_action(::WilsonGaugeAction, U::Gaugefield)
     P = plaquette_trace_sum(U)
     Sg_wilson = U.β * (6 * U.NV - 1 / 3 * P)
     return Sg_wilson
 end
 
-function calc_gauge_action(::SymanzikTreeGaugeAction, U)
+function calc_gauge_action(::SymanzikTreeGaugeAction, U::Gaugefield)
+    is_distributed(U) && @assert(U.topology.halo_width>=2)
     P = plaquette_trace_sum(U)
     R = rect_trace_sum(U)
     Sg_plaq = 6 * U.NV - 1 / 3 * P
@@ -54,7 +55,8 @@ function calc_gauge_action(::SymanzikTreeGaugeAction, U)
     return Sg_symanzik
 end
 
-function calc_gauge_action(::SymanzikTadGaugeAction, U)
+function calc_gauge_action(::SymanzikTadGaugeAction, U::Gaugefield)
+    is_distributed(U) && @assert(U.topology.halo_width>=2)
     P = plaquette_trace_sum(U)
     R = rect_trace_sum(U)
     u0sq = sqrt(1 / (6 * U.NV * U.NC) * P)
@@ -64,7 +66,8 @@ function calc_gauge_action(::SymanzikTadGaugeAction, U)
     return Sg_symanzik
 end
 
-function calc_gauge_action(::IwasakiGaugeAction, U)
+function calc_gauge_action(::IwasakiGaugeAction, U::Gaugefield)
+    is_distributed(U) && @assert(U.topology.halo_width>=2)
     P = plaquette_trace_sum(U)
     R = rect_trace_sum(U)
     Sg_plaq = 6 * U.NV - 1 / 3 * P
@@ -73,7 +76,8 @@ function calc_gauge_action(::IwasakiGaugeAction, U)
     return Sg_iwasaki
 end
 
-function calc_gauge_action(::DBW2GaugeAction, U)
+function calc_gauge_action(::DBW2GaugeAction, U::Gaugefield)
+    is_distributed(U) && @assert(U.topology.halo_width>=2)
     P = plaquette_trace_sum(U)
     R = rect_trace_sum(U)
     Sg_plaq = 6 * U.NV - 1 / 3 * P
@@ -94,6 +98,23 @@ function plaquette_trace_sum(U::Gaugefield{CPU})
     end
 
     return distributed_reduce(P, +, U)
+end
+
+function plaquette_trace_eachsite(U::Gaugefield{CPU})
+    # Uout = similar(dims(U))
+    out = zeros(dims(U))
+
+    @batch for site in eachindex(U)
+        P = 0.0
+        for μ in 1:3
+            for ν in (μ+1):4
+                P += real(tr(plaquette(U, μ, ν, site)))
+            end
+        end
+        out[site] = P
+    end
+
+    return out
 end
 
 function rect_trace_sum(U::Gaugefield{CPU})

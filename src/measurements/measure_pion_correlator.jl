@@ -23,7 +23,7 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT} <: AbstractMeasurement
         @level1("|    Dirac Operator: $(dirac_type)")
         @level1("|    Mass: $(mass)")
         dirac_type == "wilson" && @level1("|    CSW: $(csw)")
-        @level1("|    Even-odd preconditioned: $(string(eo_precon))")
+        @level1("|    Even-odd Preconditioned: $(string(eo_precon))")
         @level1("|    CG Tolerance: $(cg_tol)")
         @level1("|    CG Max Iterations: $(cg_maxiters)")
         @level1("|    Boundary Condition: $(bc_str)")
@@ -68,7 +68,7 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT} <: AbstractMeasurement
                 header *= @sprintf("%-25s", "pion_corr_$(it)")
             end
 
-            if !is_distributed(U) || mpi_amroot()
+            if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
                 open(filename, "w") do fp
                     println(fp, header)
                 end
@@ -107,7 +107,6 @@ end
 function measure(
     m::PionCorrelatorMeasurement{T}, 
     U,
-    myinstance=mpi_myrank(),
     itrj=0,
     flow=nothing;
     mpi_multi_sim=false,
@@ -118,10 +117,10 @@ function measure(
     )
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
-    if !is_distributed(U) || mpi_amroot()
+    if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
         if T !== Nothing
             filename = if mpi_multi_sim
-                set_ext!(m.filename, myinstance)
+                set_ext!(m.filename)
             else
                 m.filename
             end
@@ -150,9 +149,9 @@ end
     pion_correlators_avg!(pion_corr, D, ψ, cg_temps, cg_tol, cg_maxiters)
 
 Calculate the pion correlators for a given configuration and store the result for each
-time slice in `pion_corr`. \\
+time slice in the vector `pion_corr`. \\
 We follow the procedure outlined in DOI: 10.1007/978-3-642-01850-3 (Gattringer) pages
-135-136 using point sources for each dirac and color index all starting from the origin
+135-136 using a point source for each dirac and color index from the origin
 """
 function pion_correlators_avg!(pion_corr, D, ψ, cg_temps, cg_tol, cg_maxiters)
     check_dims(D.U, ψ, cg_temps...)
@@ -160,7 +159,10 @@ function pion_correlators_avg!(pion_corr, D, ψ, cg_temps, cg_tol, cg_maxiters)
     my_NX, my_NY, my_NZ, my_NT = local_dims(ψ)
     halo_width = D.U.topology.halo_width
     @assert length(pion_corr) == NT
+
+    # Point source at origin
     source = SiteCoords(1, 1, 1, 1)
+    # Get temporary arrays for cg solver
     propagator, temps... = cg_temps
     pion_corr .= 0.0
 

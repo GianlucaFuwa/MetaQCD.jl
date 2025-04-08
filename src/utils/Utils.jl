@@ -12,10 +12,13 @@ using StaticArrays
 using StaticTools
 using PrecompileTools: PrecompileTools
 
-export METAQCD_VERSION
+export METAQCD_VERSION, to_vec
+export MPI_COMM_WORLD, MPI_COMM_INSTANCE, MPI_WORLD_SIZE, MPI_INSTANCE_SIZE, MPI_INSTANCE
+export MPI_NUMINSTANCES
+export mpi_comm_instance, mpi_comm_root, mpi_ssend, mpi_srecv
 export mpi_init, mpi_comm, mpi_size, mpi_parallel, mpi_myrank, mpi_amroot, mpi_barrier
 export mpi_cart_create, mpi_cart_coords, mpi_cart_shift, mpi_multirequest, mpi_send
-export mpi_isend, mpi_recv, mpi_irecv!, mpi_waitall, mpi_allreduce, mpi_allgather
+export mpi_isend, mpi_recv, mpi_irecv!, mpi_waitall, mpi_allreduce, mpi_allgather, mpi_split
 export mpi_bcast!, mpi_bcast_isbits, mpi_write_at, update_halo!
 export PauliMatrix, exp_iQ, exp_iQ_coeffs, exp_iQ_su3, get_B₁, get_B₂, get_Q, get_Q²
 export gen_SU3_matrix, is_special_unitary, is_traceless_antihermitian
@@ -70,11 +73,16 @@ lower_case(str) = Unicode.normalize(str; casefold=true)
 
 @inline _unwrap_val(::Val{B}) where {B} = B
 
-@inline set_ext!(::Nothing, ::Integer) = nothing
-@inline set_ext!(filename::String, ::Integer) = filename
+@inline set_ext!(::Nothing, args...) = nothing
+@inline set_ext!(filename::String, args...) = filename
 
-@inline function set_ext!(filename::StaticString{N}, myinstance::Integer) where {N}
-    filename[end-7:end-5] = lpad(myinstance, 3, "0")
+@inline function set_ext!(filename::StaticString{N}, ::Val{len}=Val(3)) where {N,len}
+    filename[end-len-4:end-len-2] = lpad(MPI_INSTANCE[], 3, "0")
+    return filename
+end
+
+@inline function set_ext!(filename::StaticString{N}, inst, ::Val{len}=Val(3)) where {N,len}
+    filename[end-len-4:end-len-2] = lpad(inst, 3, "0")
     return filename
 end
 
@@ -94,6 +102,14 @@ const i32 = Literal{Int32}
 function struct2dict(x::T) where {T}
     return Dict{String,Any}(string(fn) => getfield(x, fn) for fn in fieldnames(T))
 end
+
+@inline function to_vec(x::Vector, len::Int64)
+    @assert length(x) == len
+    return x
+end
+
+@inline to_vec(x::Number, len::Int64) = fill(x, len)
+@inline to_vec(x::Tuple, len::Int64) = fill(x, len)
 
 @inline eye2(::Type{T}) where {T<:AbstractFloat} = @SArray [
     one(Complex{T}) zero(Complex{T})

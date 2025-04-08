@@ -5,8 +5,8 @@ https://pubs.acs.org/doi/pdf/10.1021/acs.jctc.9b00867
 calc_weights(::Nothing, args...; kwargs...) = nothing
 calc_weights(::NoBias, args...; kwargs...) = nothing
 
-function calc_weights(b::Bias, cv, itrj, myinstance=mpi_myrank(); mpi_multi_sim=false)
-    calc_weights(b.datafile, b, cv, itrj)
+function calc_weights(b::Bias, cv, itrj; mpi_multi_sim=false)
+    calc_weights(b.datafile, b, cv, itrj; mpi_multi_sim=mpi_multi_sim)
     return nothing
 end
 
@@ -27,9 +27,10 @@ function calc_weights(datafiles, b::Vector{<:Bias}, cv, itrj)
 end
 
 function calc_weights(
-    datafile, b::Bias{TCV,TS,TB}, cv, itrj, myinstance=mpi_myrank();
-    mpi_multi_sim=false
+    datafile, b::Bias{TCV,TS,TB}, cv, itrj; mpi_multi_sim=false
 ) where {TCV,TS,TB}
+    mpi_amroot(mpi_comm_instance()) || return nothing
+    
     for method in b.kinds_of_weights
         w = 0.0
         
@@ -42,7 +43,7 @@ function calc_weights(
 
     if isfile(datafile)
         _filename = if mpi_multi_sim
-            set_ext!(datafile, myinstance)
+            set_ext!(datafile)
         else
             datafile
         end

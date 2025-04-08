@@ -47,12 +47,19 @@ function OPESmultithermal(
     inum = if dummy
         0
     elseif mpi_multi_sim
-        mpi_myrank()
+        MPI_INSTANCE[]
     else
         instance
     end
+
     cvinfo = get_cvinfo_from_parameters(p)
-    static = dummy ? true : (inum==0 ? false : p.static[inum])
+    static = if dummy
+        true
+    elseif build
+        false
+    else
+        inum==0 ? false : p.static[inum]
+    end
     is_first_step = true
     stride = p.stride
     counter = 1
@@ -101,6 +108,7 @@ end
 get_ext(::OPESmultithermal) = ".opesmt"
 is_adaptive(o::OPESmultithermal) = false
 set_sigma0!(::OPESmultithermal, ::Any) = nothing
+ext_length(::OPESmultithermal) = Val(6)
 
 function (o::OPESmultithermal)(cv)
     calculate!(o, cv)

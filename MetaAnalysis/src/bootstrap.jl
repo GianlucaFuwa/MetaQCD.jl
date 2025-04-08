@@ -16,13 +16,14 @@ function (b::Bootstrap)(x::Vector{<:Real}, weights=nothing)
         τ = autoc_time_int(x)
         B = round(Int64, 2τ, RoundNearestTiesAway)
     else
+        τ = b.τ
         B = Int64(2b.τ)
     end
 
     itvl = round(Int, N / B, RoundNearestTiesAway)
     A = zeros(eltype(x), b.nboot + 1)
 
-    if weights === nothing
+    if isnothing(weights)
         A[1] = b.func(x)
         xboot = Vector{Float64}(undef, itvl*B)
 
@@ -73,7 +74,7 @@ function (b::Bootstrap)(x::Vector{<:Real}, weights=nothing)
         stdA = std(A)
     end
 
-    return meanA, stdA, b.τ
+    return meanA, stdA, τ
 end
 
 function bbootstrap_samplesize(b::Bootstrap, weights::Vector{<:Real})

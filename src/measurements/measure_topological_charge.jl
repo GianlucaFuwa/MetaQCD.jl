@@ -38,7 +38,7 @@ struct TopologicalChargeMeasurement{T} <: AbstractMeasurement
                 header *= @sprintf("%-25s", "Q_$(method)")
             end
 
-            if !is_distributed(U) || mpi_amroot()
+            if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
                 open(filename, "w") do fp
                     println(fp, header)
                 end
@@ -66,7 +66,6 @@ end
 function measure(
     m::TopologicalChargeMeasurement{T},
     U,
-    myinstance=mpi_myrank(),
     itrj=0,
     flow=nothing;
     mpi_multi_sim=false,
@@ -79,7 +78,7 @@ function measure(
         TC_dict[method] = top_charge(U, method)
     end
 
-    if !is_distributed(U) || mpi_amroot()
+    if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
         for method in keys(TC_dict)
             Q = TC_dict[method]
 
@@ -92,7 +91,7 @@ function measure(
 
         if T !== Nothing
             filename = if mpi_multi_sim
-                set_ext!(m.filename, myinstance)
+                set_ext!(m.filename)
             else
                 m.filename
             end
@@ -143,6 +142,7 @@ function top_charge(::Plaquette, U::Gaugefield{CPU})
 end
 
 function top_charge(::Clover, U::Gaugefield{CPU,T}) where {T}
+    is_distributed(U) && @assert(U.topology.halo_width>=2)
     Q = 0.0
 
     @batch reduction = (+, Q) for site in eachindex(U)
@@ -153,6 +153,7 @@ function top_charge(::Clover, U::Gaugefield{CPU,T}) where {T}
 end
 
 function top_charge(::Improved, U::Gaugefield{CPU,T}) where {T}
+    is_distributed(U) && @assert(U.topology.halo_width>=3)
     c₀ = T(5/3)
     c₁ = T(-2/12)
     Q = 0.0

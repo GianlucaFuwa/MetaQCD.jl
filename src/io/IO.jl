@@ -100,12 +100,12 @@ struct Checkpointer{T}
 end
 
 function create_checkpoint(
-    cp::Checkpointer{T}, univ, updatemethod, updatemethod_pt, itrj
+    cp::Checkpointer{T}, univ, updatemethod, updatemethod_pt, itrj; instance=mpi_myrank()
 ) where {T}
     T ≡ Nothing && return nothing
 
     if itrj % cp.checkpoint_every == 0
-        filename = cp.checkpoint_dir * "/checkpoint_$(mpi_myrank()).jld2"
+        filename = cp.checkpoint_dir * "/checkpoint_$(instance).jld2"
         create_checkpoint(T(), univ, updatemethod, updatemethod_pt, itrj, filename)
         @level1("|")
         @level1("|  Checkpoint created in $(filename)")
@@ -115,10 +115,10 @@ function create_checkpoint(
     return nothing
 end
 
-function load_checkpoint(checkpoint_path)
+function load_checkpoint(checkpoint_path; instance=mpi_myrank())
     @level1("[ Checkpoint loaded from $(checkpoint_path)\n")
     if mpi_size() > 1
-        checkpoint_file = checkpoint_path * "_$(mpi_myrank()).jld2"
+        checkpoint_file = checkpoint_path * "_$(instance).jld2"
     else
         checkpoint_file = checkpoint_path * ".jld2"
     end

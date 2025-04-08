@@ -13,6 +13,7 @@ the same format.
 struct MetaMeasurements
     measurement_dict::Dict{String,Dict{String,Vector{Float64}}}
     observables::Vector{Symbol}
+    tau_int::Dict{String,NTuple{2,Float64}}
     ensemblename::String
     function MetaMeasurements(ensemblename::String)
         _dir = if isabspath(ensemblename)
@@ -35,11 +36,13 @@ struct MetaMeasurements
 
         filenames = readdir(dir)
         isfile(hmc_logfile) && push!(filenames, hmc_logfile)
+        tau_int = Dict{String,NTuple{2,Float64}}()
 
         for name in filenames
             name_no_ext = splitext(name)[1]
+            instance = name_no_ext[end-2:end]
             measurement = Dict{String,Vector{Float64}}()
-            if name == hmc_logfile
+            if contains(name, "hmc_acc_logs")
                 data, header = readdlm(hmc_logfile; header=true)
                 
                 for i in eachindex(header)
@@ -58,10 +61,20 @@ struct MetaMeasurements
                 end
 
                 for i in 4:length(header)
+                    head = header[i]
                     for (j, tflow) in enumerate(unique_tflow)
-                        measurement[header[i]*" (tf=$(tflow))"] = data[
-                            unique_indices[j], i
-                        ]
+                        ui = unique_indices[j]
+                        str = "_$(instance) (tf=$(tflow))"
+                        measurement[head * str] = data[ui, i]
+
+                        if header[i] != "itrj"
+                            if header[i] == "Q_clover"
+                                tau_int[head * str] = autoc_time_int(data[ui, i])
+                                tau_int[head * "^2" * str] = autoc_time_int(data[ui, i].^2)
+                            else
+                                tau_int[head * str] = autoc_time_int(data[ui, i])
+                            end
+                        end
                     end
                 end
 
@@ -71,13 +84,19 @@ struct MetaMeasurements
 
                 for i in eachindex(header)
                     measurement[header[i]] = data[:, i]
+
+                    if header[i] != "itrj"
+                        tau_int[header[i] * "_$(instance)"] = autoc_time_int(data[:, i])
+                    end
                 end
 
                 measurement_dict[name_no_ext] = measurement
             end
         end
 
-        return new(measurement_dict, Symbol.(keys(measurement_dict)), ensemblename)
+        obs_sym = Symbol.(keys(measurement_dict))
+        clear_wspace!()
+        return new(measurement_dict, obs_sym, tau_int, ensemblename)
     end
 end
 
@@ -88,12 +107,14 @@ function Base.getproperty(m::MetaMeasurements, s::Symbol)
     s == :ensemblename && return getfield(m, :ensemblename)
     s == :measurement_dict && return getfield(m, :measurement_dict)
     s == :observables && return getfield(m, :observables)
+    s == :tau_int && return getfield(m, :tau_int)
     valid_names = Symbol.(keys(m.measurement_dict))
     @assert s ∈ valid_names "Your MetaMeasurements don't contain the observable $s"
     return getfield(m, :measurement_dict)["$(s)"]
 end
 
 observables(m::MetaMeasurements) = m.observables
+auto_correlation(m::MetaMeasurements) = m.tau_int
 
 function Base.show(io::IO, m::MetaMeasurements)
     print(io, "MetaMeasurements(ensemble: \"$(m.ensemblename)\")")
@@ -171,8 +192,8 @@ RecipesBase.@recipe function timeseries(
         tf_digits = parse.(Float64, filter.(x -> isdigit(x) || x=='.', nlabel))
 
         for tflow in sort(unique(tf_digits))
+            (isnothing(tf) || tflow==tf) || continue
             for (j, sub_ob) in enumerate(sub_obs)
-                @show j, sub_ob
                 @series begin
                     # subplot := j
                     ylabel --> sub_ob

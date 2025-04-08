@@ -1,3 +1,10 @@
+set_instanton!(U::Gaugefield, ::Nothing) = nothing
+
+function set_instanton!(U::Gaugefield, Q::Vector{Int64})
+    set_instanton!(U, Q[MPI_MYINSTANCE[]+1])
+    return nothing
+end
+
 function set_instanton!(U::Gaugefield{CPU,T}, Q) where {T}
     NX, NY, NZ, NT = global_dims(U)
     xrange, yrange, zrange, trange = U.topology.bulk_sites.indices

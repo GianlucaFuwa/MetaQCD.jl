@@ -7,7 +7,7 @@ function cg!(x, A, b, Ap, r, p; tol=1e-12, maxiters=1000)
 
     if res < tol
         @level3 "|  CG: converged at iter 0 with res = $res"
-        return nothing
+        return 0, res
     end
 
     @level4 "|  CG: residual 0 = $res"
@@ -22,7 +22,7 @@ function cg!(x, A, b, Ap, r, p; tol=1e-12, maxiters=1000)
 
         if res_new < tol
             @level3 "|  CG: converged at iter $(iter) with res = $res_new"
-            return nothing
+            return iter, res_new
         end
 
         β = res_new / res
@@ -32,7 +32,7 @@ function cg!(x, A, b, Ap, r, p; tol=1e-12, maxiters=1000)
 
     # @level1 "|  CG: did not converge in $maxiters iterations"
     throw(AssertionError("CG did not converge in $maxiters iterations"))
-    return nothing
+    return maxiters, res
 end
 
 function mscg!(
@@ -60,7 +60,7 @@ function mscg!(
 
     if abs(res) < tol
         @level3 "|  MultishiftCG: converged at iter 0 with res = $(abs(res))"
-        return nothing
+        return 0, abs(res)
     end
 
     @level4 "|  MultishiftCG: residual 0 = $(abs(res))"
@@ -92,7 +92,7 @@ function mscg!(
 
         if res_max < tol
             @level3 "|  MultishiftCG: converged at iter $(iter) with max res = $res_max"
-            return nothing
+            return iter, res_max
         end
 
         axpby!(1, r, β, p[1])
@@ -107,7 +107,7 @@ function mscg!(
 
     # @level1 "|  CG: did not converge in $maxiters iterations"
     throw(AssertionError("MultishiftCG did not converge in $maxiters iterations"))
-    return nothing
+    return maxiters, res
 end
 
 function bicg!(x, A, b, Ap, r, p, Ap′, r′, p′; tol=1e-14, maxiters=1000)

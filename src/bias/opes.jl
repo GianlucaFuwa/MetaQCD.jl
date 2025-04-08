@@ -71,9 +71,23 @@ mutable struct OPES{CV} <: AbstractBias
     write_bias_every::Int64
 end
 
-function OPES(p::OPESParameters; instance=1, dummy=false, build=false, kwargs...)
+function OPES(p::OPESParameters; instance=1, dummy=false, build=false, mpi_multi_sim=false)
+    inum = if dummy
+        0
+    elseif mpi_multi_sim
+        MPI_INSTANCE[]
+    else
+        instance
+    end
+
     cvinfo = get_cvinfo_from_parameters(p)
-    static = p.static
+    static = if dummy
+        true
+    elseif build
+        false
+    else
+        inum==0 ? false : p.static[inum]
+    end
     is_first_step = true
 
     symmetric = p.symmetric
@@ -199,6 +213,7 @@ get_kernels(o::OPES) = o.kernels
 get_δkernels(o::OPES) = o.δkernels
 get_ext(::OPES) = ".opes"
 is_adaptive(o::OPES) = (o.sigma0 == 0)
+ext_length(::OPES) = Val(4)
 
 function set_sigma0!(o::OPES, val)
     o.sigma0 = val
@@ -240,13 +255,11 @@ function calculate!(o::OPES, cv)
     return nothing
 end
 
-function update!(o::OPES, cv_in, itrj)
+function update!(o::OPES, cv, itrj)
     if o.is_first_step
         o.is_first_step = false
         return nothing
     end
-
-    cv = cv_in[findall(in_bounds.(cv_in, o.cvlims[1], o.cvlims[2]))] # get all CVs that are within bounds
 
     (itrj % o.stride != 0 || length(cv) == 0) && return nothing
     o.old_KDEnorm = o.KDEnorm
@@ -393,7 +406,7 @@ const opes_state_vars = [
 
 write_to_file(::OPES, ::Nothing) = nothing
 
-function write_to_file(o::OPES, filename::String)
+function write_to_file(o::OPES, filename::AbstractString)
     filename=="" && return nothing
     (tmppath, tmpio) = mktemp()
     print(tmpio, "#")

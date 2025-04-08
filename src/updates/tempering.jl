@@ -10,40 +10,46 @@ function temper!( # INFO: When using MPI in tempering
 )
     itrj%swap_every != 0 && return nothing
     recalc && recalc_cv!(U, bias)
-    comm = mpi_comm()
-    myrank = mpi_myrank()
+    instance_comm = mpi_comm_instance()
+    root_comm = mpi_comm_root()
+    numinstances = MPI_NUMINSTANCES[]
+    myrank = mpi_myrank(root_comm)
     mpi_barrier()
     
     # Query `instance_state` to find out which rank has to temper with which
     # Convention: instance N <-> instance N-1, instance N-1 <-> instance N-2, etc.
-    for i in (mpi_size()-1):-1:1
+    for i in (numinstances-1):-1:1
         # Determine the ranks that have instances i and i-1
         rank_i = get_rank_from_instance(i, instance_state)
         rank_i_min_1 = get_rank_from_instance(i-1, instance_state)
 
-        if myrank == rank_i || myrank == rank_i_min_1
+        if (myrank == rank_i || myrank == rank_i_min_1) && mpi_amroot(instance_comm)
             if myrank == rank_i
-                mpi_send(U.CV::Float64, comm; dest=rank_i_min_1::Int64, tag=rank_i) 
-                CV_j = mpi_recv(Float64, comm; source=rank_i_min_1::Int64, tag=rank_i_min_1)
-            else myrank == rank_i_min_1
-                CV_j = mpi_recv(Float64, comm; source=rank_i::Int64, tag=rank_i)
-                mpi_send(U.CV::Float64, comm; dest=rank_i::Int64, tag=rank_i_min_1) 
+                mpi_send(U.CV::Vector{Float64}, root_comm; dest=rank_i_min_1::Int64, tag=rank_i) 
+                CV_j = mpi_recv(Vector{Float64}, root_comm; source=rank_i_min_1::Int64, tag=rank_i_min_1)
+            elseif myrank == rank_i_min_1
+                CV_j = mpi_recv(Vector{Float64}, root_comm; source=rank_i::Int64, tag=rank_i)
+                mpi_send(U.CV::Vector{Float64}, root_comm; dest=rank_i::Int64, tag=rank_i_min_1) 
             end
 
             if myrank == rank_i
                 ΔV1 = bias(CV_j) - bias(U.CV)
-                ΔV2 = mpi_recv(Float64, comm; source=rank_i_min_1::Int64, tag=rank_i_min_1)
+                ΔV2 = mpi_recv(Float64, root_comm; source=rank_i_min_1::Int64, tag=rank_i_min_1)
                 acc_prob = exp(-ΔV1 - ΔV2)
                 is_accepted = rand() ≤ acc_prob
-                mpi_send(is_accepted::Bool, comm; dest=rank_i_min_1::Int64, tag=101) 
-            else 
+                mpi_send(is_accepted::Bool, root_comm; dest=rank_i_min_1::Int64, tag=101) 
+            elseif myrank == rank_i_min_1 
                 ΔV2 = bias(CV_j) - bias(U.CV)
-                mpi_send(ΔV2::Float64, comm; dest=rank_i::Int64, tag=rank_i_min_1) 
-                is_accepted = mpi_recv(Bool, comm; source=rank_i::Int64, tag=101)
+                mpi_send(ΔV2::Float64, root_comm; dest=rank_i::Int64, tag=rank_i_min_1) 
+                is_accepted = mpi_recv(Bool, root_comm; source=rank_i::Int64, tag=101)
             end
 
             if is_accepted
                 if myrank == rank_i
+                    mpi_ssend(bias.bias, root_comm; dest=rank_i_min_1)
+                    new_bias = mpi_srecv(root_comm; source=rank_i_min_1)
+                    bias.bias = new_bias
+
                     instance_state[rank_i+1] = i-1
                     instance_state[rank_i_min_1+1] = i
 
@@ -51,18 +57,28 @@ function temper!( # INFO: When using MPI in tempering
                     myinstance[] = i-1
                     numaccepts_temper[i] += 1
                 elseif myrank == rank_i_min_1
+                    mpi_ssend(bias.bias, root_comm; dest=rank_i)
+                    new_bias = mpi_srecv(root_comm; source=rank_i)
+                    bias.bias = new_bias
+
                     instance_state[rank_i_min_1+1] = i
                     instance_state[rank_i+1] = i-1
 
                     # Update the local instance variable
-                    myinstance[] = i
+                    MPI_INSTANCE[] = i
                 end
             end
+
+            # Synchronize the roots of each instance
+            mpi_bcast!(instance_state, root_comm; root=rank_i)
+            mpi_bcast!(numaccepts_temper, root_comm; root=rank_i)
         end
 
-        # Synchronize vectors across all processes
-        mpi_bcast!(instance_state, comm; root=rank_i)
-        mpi_bcast!(numaccepts_temper, comm; root=rank_i)
+        # Synchronize ranks within instance
+        mpi_bcast!(instance_state, instance_comm; root=0)
+        mpi_bcast!(numaccepts_temper, instance_comm; root=0)
+        mpi_bcast!(bias.bias, instance_comm; root=0)
+
         acc_pct = 100numaccepts_temper[i] / (itrj/swap_every)
         @level1 "|    Acceptance [$i <-> $(i-1)]:\t$(acc_pct) %"
     end

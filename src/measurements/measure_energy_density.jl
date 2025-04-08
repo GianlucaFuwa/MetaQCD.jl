@@ -38,7 +38,7 @@ struct EnergyDensityMeasurement{T} <: AbstractMeasurement
                 header *= @sprintf("%-25s", "E_$(methodname)")
             end
 
-            if !is_distributed(U) || mpi_amroot()
+            if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
                 open(filename, "w") do fp
                     println(fp, header)
                 end
@@ -64,7 +64,6 @@ end
 function measure(
     m::EnergyDensityMeasurement{T},
     U,
-    myinstance=mpi_myrank(),
     itrj=0,
     flow=nothing;
     mpi_multi_sim=false,
@@ -77,7 +76,7 @@ function measure(
         ED_dict[method] = energy_density(U, method)
     end
 
-    if !is_distributed(U) || mpi_amroot()
+    if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
         for method in keys(ED_dict)
             E = ED_dict[method]
 
@@ -90,7 +89,7 @@ function measure(
 
         if T !== Nothing
             filename = if mpi_multi_sim
-                set_ext!(m.filename, myinstance)
+                set_ext!(m.filename)
             else
                 m.filename
             end
@@ -147,6 +146,7 @@ function energy_density(::Plaquette, U::Gaugefield{CPU})
 end
 
 function energy_density(::Clover, U::Gaugefield{CPU,T}) where {T}
+    is_distributed(U) && @assert(U.topology.halo_width>=2)
     fac = im * T(1/4)
     E = 0.0
 
@@ -164,6 +164,7 @@ function energy_density(::Clover, U::Gaugefield{CPU,T}) where {T}
 end
 
 function energy_density(::Improved, U::Gaugefield{CPU})
+    is_distributed(U) && @assert(U.topology.halo_width>=3)
     Eclover = energy_density(Clover(), U)
     Erect = energy_density_rect(U)
     return 5 / 3 * Eclover - 1 / 12 * Erect

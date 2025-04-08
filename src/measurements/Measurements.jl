@@ -22,6 +22,7 @@ import KernelAbstractions as KA
 import ..DiracOperators: Daggered, DdaggerD, StaggeredDiracOperator, WilsonDiracOperator
 import ..DiracOperators: StaggeredEOPreDiracOperator, even_odd, solve_dirac!
 import ..DiracOperators: ArnoldiWorkspaceMeta, get_eigenvalues, num_dirac
+import ..DiracOperators: calc_fermion_action, fermaction_from_str, sample_pseudofermions!
 import ..Fields: WilsonGaugeAction, SymanzikTreeGaugeAction, SymanzikTadGaugeAction, dims
 import ..Fields: IwasakiGaugeAction, DBW2GaugeAction, AbstractFieldstrength, Colorfield
 import ..Fields: Gaugefield, Spinorfield, Tensorfield, calc_gauge_action, check_dims 
@@ -56,6 +57,7 @@ include("measure_wilson_loop.jl")
 include("measure_topological_charge.jl")
 include("measure_energy_density.jl")
 include("measure_pion_correlator.jl")
+include("measure_logdet.jl")
 # include("measure_eigenvalues.jl")
 
 include("gpu_kernels/energydensity.jl")

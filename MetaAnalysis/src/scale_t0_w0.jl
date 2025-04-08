@@ -14,9 +14,139 @@ const W0 = Dict{Int64,uwreal}(
 )
 
 fm⁻¹_to_GeV(x) = x / (1/0.197)
+GeV_to_fm⁻¹(x) = x * (1/0.197)
 
-# TODO: Determine error on t-function via bootstrap
-function t0_scale(
+function t0_w0_scale(
+    ; filename="",
+    ensemblename="",
+    which=:t0,
+    error_est=Bootstrap(),
+    Nf=-1,
+    save_filename="",
+    Nt=-1
+)
+    @assert isfile(filename) ⊻ isdir(ensemblename)
+
+    if isfile(filename)
+        data = readdlm(filename; skipstart=1)
+    else
+        _filename = joinpath(ensemblename, "measurements/energy_density_gflow_000.txt")
+        @assert isfile(_filename)
+        data = readdlm(_filename; skipstart=1)
+    end
+
+    @assert 0 <= Nf <= 4 "Make sure Nf is set!"
+    firstitrj = data[1, 1]
+    flow_num = findfirst(x -> x!=firstitrj, view(data, :, 1)) - 1
+    flow_stepsize = data[2, 3] - data[1, 3]
+    flow_times = range(flow_stepsize, flow_num * flow_stepsize; step=flow_stepsize)
+    len = size(data, 1)
+
+    fun = if which == :t0
+        x -> t0_scale(x, error_est, flow_num, flow_times, len)
+    elseif which == :w0
+        x -> w0_scale(x, error_est, flow_num, flow_times, len)
+    else
+        error("which has to be either :t0 or :w0")
+    end
+
+    bboot = Bootstrap(func=fun)
+    mean_scale, std_scale, _ = bboot(data[:, 4])
+    scale = uwreal([mean_scale, std_scale], "scale"); uwerr(scale)
+
+    if which == :t0
+        a = SQRTT0[Nf] / sqrt(scale); uwerr(a)
+        ainv = fm⁻¹_to_GeV(1/a); uwerr(ainv)
+        T = ainv * 1000 / Nt; uwerr(T)
+
+        println("\nt₀ = $(phys_not(scale))")
+        println("a from t₀ = $(phys_not(a)) fm")
+        println("a⁻¹ from t₀ = $(phys_not(ainv)) GeV")
+        Nt > 0 ? println("T from t₀, given Nt=$Nt = $(phys_not(T)) MeV\n") : println()
+    else
+        a = W0[Nf] / scale; uwerr(a)
+        ainv = fm⁻¹_to_GeV(1/a); uwerr(ainv)
+        T = ainv * 1000 / Nt; uwerr(T)
+
+        println("w₀ = $(phys_not(scale))")
+        println("a from w₀ = $(phys_not(a)) fm")
+        println("a⁻¹ from w₀ = $(phys_not(ainv)) GeV")
+        Nt > 0 ? println("T from w₀, given Nt=$Nt = $(phys_not(T)) MeV\n") : println()
+    end
+
+    clear_wspace!()
+    return nothing
+end
+
+function t0_scale(data, error_est, flow_num, flow_times, len)
+    t²E = Vector{uwreal}(undef, flow_num)
+
+    for (i, tf) in enumerate(flow_times)
+        results = analyze(data[i:flow_num:len-flow_num], error_est)
+        E = uwreal([results["mean"], results["stderr"]], "$tf")
+        uwerr(E)
+        t²E[i] = tf^2 * E
+        uwerr(t²E[i])
+    end
+
+    errs = ADerrors.err.(t²E)
+    ℰ = Spline1D(flow_times, value.(t²E); w=1 ./ errs.^2, k=3, bc="extrapolate")
+
+    t0 = try
+        find_zero(t -> ℰ(t) - 0.3, (flow_times[1], flow_times[end]))
+    catch _
+        error("Could not find t0")
+    end
+
+    return t0
+end
+
+function w0_scale(data, error_est, flow_num, flow_times, len)
+    t²E = Vector{uwreal}(undef, flow_num)
+
+    for (i, tf) in enumerate(flow_times)
+        results = analyze(data[i:flow_num:len-flow_num], error_est)
+        E = uwreal([results["mean"], results["stderr"]], "$tf")
+        uwerr(E)
+        t²E[i] = tf^2 * E
+        uwerr(t²E[i])
+    end
+
+    errs = ADerrors.err.(t²E)
+    ℰ = Spline1D(flow_times, value.(t²E); w=1 ./ errs.^2, k=3, bc="extrapolate")
+    W(t) = t * Dierckx.derivative(ℰ, t)
+
+    w0 = try
+        sqrt(find_zero(t -> W(t) - 0.3, 2))
+    catch _
+        error("Could not find w0^2")
+    end
+
+    return w0
+end
+
+function t0_w0_scale_old(
+    ; filename="",
+    ensemblename="",
+    error_est=Bootstrap(),
+    Nf=-1,
+    save_filename="",
+    Nt=-1
+)
+    @assert isfile(filename) ⊻ isdir(ensemblename)
+
+    if isfile(filename)
+        data = readdlm(filename; skipstart=1)
+    else
+        _filename = joinpath(ensemblename, "measurements/energy_density_gflow_000.txt")
+        @assert isfile(_filename)
+        data = readdlm(_filename; skipstart=1)
+    end
+
+    return t0_w0_scale_old(data, error_est; Nf=Nf, save_filename=save_filename, Nt=Nt)
+end
+
+function t0_w0_scale_old(
     data, error_est; Nf=-1, save_filename="", Nt::Int64=-1,
 )
     @assert 0 <= Nf <= 4 "Make sure Nf is set!"
@@ -46,8 +176,10 @@ function t0_scale(
     ℰ_err = Spline1D(flow_times, errs; k=3, bc="extrapolate")
     W(t) = t * Dierckx.derivative(ℰ, t)
     W_err(t) = t * Dierckx.derivative(ℰ_err, t)
-    plt = plot(flow_times, t -> ℰ(t) - 0.3, ribbon=(t -> ℰ_err(t)))
-    display(plt)
+    plt = plot(flow_times, t -> ℰ(t) - 0.3, ribbon=(t -> ℰ_err(t)), legend=false)
+    # hline!([0], legend=false, ls=:dash, lc=:black)
+    xlabel!(L"t")
+    ylabel!(L"t^2 \langle E \;\rangle")
 
     t0_val = try
         find_zero(t -> ℰ(t) - 0.3, (flow_times[1], flow_times[end]))
@@ -64,6 +196,18 @@ function t0_scale(
     catch _
         error("Could not find t0, i.e., tf^2*E is not equal to 0.3 up to the maximum flow time")
     end
+
+    ribbon_xs, ribbon_ys = make_hribbon_shape(
+        range(ℰ(flow_times[1])-0.3, ℰ(flow_times[end])-0.3, 10),
+        fill(t0_val, 10),
+        (fill(abs(t0_val - t0_val_left), 10), fill(abs(t0_val - t0_val_right), 10))
+    )
+    plot!(
+        ribbon_xs, ribbon_ys, 
+        fill=true, linewidth=0, fillalpha=0.2, fillcolor=:black,
+    )
+    ylims!(ℰ(flow_times[1])-0.3, ℰ(flow_times[end])-0.3)
+    display(plt)
 
     t0_err = 0.5 * (abs(t0_val_left - t0_val) + abs(t0_val_right - t0_val))
     t0 = uwreal([t0_val, t0_err], "t0"); uwerr(t0)
@@ -125,4 +269,13 @@ function t0_scale(
         "T spline" => ℰ,
         "W spline" => x->W(x),
     )
+end
+
+function make_hribbon_shape(ys, values, ribbon)
+    # make the ribbon as a shape to fill in
+    rib_min = values .- ribbon[1] # the lower edge of the ribbon
+    rib_max = values .+ ribbon[2] # the upper edge of the ribbon
+    ys = [ys; [ys[end]; ys[end]]; reverse(ys); [ys[1]; ys[1]]]
+    xs = [rib_max; [rib_max[end],rib_min[end]]; reverse(rib_min); [rib_min[1]; rib_max[1]]]
+    return xs, ys
 end

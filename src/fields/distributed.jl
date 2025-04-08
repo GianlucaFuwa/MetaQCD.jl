@@ -34,7 +34,9 @@ struct FieldTopology
         @assert minimum(global_dims ./ numprocs_cart) >= halo_width """
         Halo must not be wider than the bulk
         """
-        comm_cart = mpi_cart_create(numprocs_cart; periodic=map(_->true, numprocs_cart))
+        comm_cart = mpi_cart_create(
+            mpi_comm_instance(), numprocs_cart; periodic=map(_->true, numprocs_cart)
+        )
 
         numprocs = prod(numprocs_cart)
         myrank_cart = numprocs == 1 ? (0, 0, 0, 0) : (mpi_cart_coords(comm_cart)...,)
@@ -172,6 +174,7 @@ Utils.update_halo!(::AbstractField) = nothing
 function Utils.update_halo!(u::AbstractMPIField)
     topology = u.topology
     comm_cart = topology.comm_cart
+    comm_instance = mpi_comm_instance()
     border_sites = topology.border_sites
     halo_sites = topology.halo_sites
     mpi_barrier(comm_cart)
@@ -181,7 +184,7 @@ function Utils.update_halo!(u::AbstractMPIField)
         prev_sites_from, next_sites_from = border_sites[dim]
         prev_sites_to, next_sites_to = halo_sites[dim]
 
-        if prev_neighbor == next_neighbor == mpi_myrank()
+        if prev_neighbor == next_neighbor == mpi_myrank(comm_instance)
             view(u, next_sites_to) .= view(u, prev_sites_from)
             view(u, prev_sites_to) .= view(u, next_sites_from)
         else

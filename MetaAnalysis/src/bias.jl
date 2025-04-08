@@ -41,12 +41,13 @@ struct MetaBias{F}
         file, ext = if from_ensemble
             @assert isdir(dir) "Directory \"$(dir)\" doesn't exist."
             filenames = readdir(dir)
-            streams = [occursin("stream_$(stream)", name) for name in filenames]
-            @assert(
-                sum(streams) == 1,
-                "There has to be exactly 1 file pertaining to stream $(stream) in the directory."
-            )
-            _file = dir * filenames[findfirst(x -> x == true, streams)]
+            fname = try
+                filenames[findfirst(x -> occursin("00$(stream)", x), filenames)]
+            catch _
+                filenames[findfirst(x -> occursin("00$(stream+1)", x), filenames)]
+            end
+
+            _file = dir * fname
             _ext = splitext(_file)[end]
             _file, _ext
         else

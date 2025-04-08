@@ -16,7 +16,7 @@ function MeasurementMethods(
     U, measurement_dir, measurement_methods::Vector{Dict};
     flow=NoSmearing(), additional_string="",
 )
-    fstr = flow_string(flow)
+    fstr = filter(x -> x=='_', flow_string(flow))
     @level1("- Preparing $(fstr) Measurements...")
     num_measurements = length(measurement_methods)
     # measurement_parameters_set = Vector{MeasurementParameters}(undef, num_measurements)
@@ -44,18 +44,16 @@ function calc_measurements(
 )
     if measure_on_all # if we measure on all streams in PT-MetaD
         for i in eachindex(m)
-            calc_measurements(m[i], U[i], itrj, i-1)
+            calc_measurements(m[i], U[i], itrj)
         end
     else
-        calc_measurements(m[1], U[1], itrj, 0)
+        calc_measurements(m[1], U[1], itrj)
     end
 
     return nothing
 end
 
-function calc_measurements(
-    m::MeasurementMethods, U, itrj, myinstance=mpi_myrank(); mpi_multi_sim=false
-)
+function calc_measurements(m::MeasurementMethods, U, itrj; mpi_multi_sim=false)
     # check if the current iteration has any measurements to be made to avoid work
     check_for_measurements(itrj, m.intervals) || return nothing
 
@@ -63,7 +61,7 @@ function calc_measurements(
         interval = m.intervals[i]
 
         if itrj%interval == 0
-            measure(m[i], U, myinstance, itrj, nothing; mpi_multi_sim=mpi_multi_sim)
+            measure(m[i], U, itrj, nothing; mpi_multi_sim=mpi_multi_sim)
         end
     end
 
@@ -77,31 +75,26 @@ function calc_measurements_flowed(
 )
     if measure_on_all # if we measure on all streams in PT-MetaD
         for i in eachindex(m)
-            calc_measurements_flowed(m[i], flow, U[i], itrj, i-1)
+            calc_measurements_flowed(m[i], flow, U[i], itrj)
         end
     else
-        calc_measurements_flowed(m[1], flow, U[1], itrj, 0)
+        calc_measurements_flowed(m[1], flow, U[1], itrj)
     end
 
     return nothing
 end
 
 
-function calc_measurements_flowed(
-    m::Tuple, flow::Tuple, U, itrj, myinstance=mpi_myrank(); mpi_multi_sim=false
-)
+function calc_measurements_flowed(m::Tuple, flow::Tuple, U, itrj; mpi_multi_sim=false)
     for i in eachindex(flow)
-        calc_measurements_flowed(
-            m[i], flow[i], U, itrj, myinstance; mpi_multi_sim=mpi_multi_sim
-        )
+        calc_measurements_flowed(m[i], flow[i], U, itrj; mpi_multi_sim=mpi_multi_sim)
     end
 
     return nothing
 end
 
 function calc_measurements_flowed(
-    m::MeasurementMethods, flow::AbstractSmearing, U, itrj, myinstance=mpi_myrank();
-    mpi_multi_sim=false
+    m::MeasurementMethods, flow::AbstractSmearing, U, itrj; mpi_multi_sim=false
 )
     # check if the current iteration has any measurements to be made to avoid work
     check_for_measurements(itrj, m.intervals) || return nothing
@@ -119,7 +112,7 @@ function calc_measurements_flowed(
 
                 if itrj%interval == 0
                     measure(
-                        m.measurements[i], Uflow, myinstance, itrj, (iflow, τ);
+                        m.measurements[i], Uflow, itrj, (iflow, τ);
                         mpi_multi_sim=mpi_multi_sim, fstr=flow_string(flow)
                     )
                 end

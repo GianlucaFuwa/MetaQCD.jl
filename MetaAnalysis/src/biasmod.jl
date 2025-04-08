@@ -1,19 +1,25 @@
 function modify_bias(
-    b; orders=[1], cvlims=b.bias.cvlims, L=80, savedir="", biasfactor=Inf, do_fit=false
+    b; orders=[1], cvlims=b.bias.cvlims, L=80, savedir="", biasfactor=Inf, do_fit=false, robust=true
 )
+    fac = isinf(biasfactor) ? 1.0 : (1 + biasfactor) / biasfactor
     x = cvlims[1]:0.01:cvlims[2]
     yn = b.bias.(x)
-    yt, ys = SingularSpectrumAnalysis.analyze(yn, L, robust=true)
+    yn .-= minimum(yn)
+    yn .*= fac
+    yt, ys = SingularSpectrumAnalysis.analyze(yn, L, robust=robust)
     y = zeros(length(yt))
-    fac = (1 + biasfactor) / biasfactor
 
-    for i in axes(ys, 2)
-        y .+= view(ys, :, i) * fac
+    for i in 1:size(ys, 2)
+        y .+= view(ys, :, i)
     end
     y .-= minimum(y)
 
     plt = plot(x, yn, label="Raw (γ=$(biasfactor))", linewidth=2)
     plot!(plt, x, y, label="SSA", linewidth=2)
+    plot!(plt, x, yt, label="Trend", linewidth=2)
+    # for i in axes(ys, 2)
+    #     plot!(plt, x, ys[:, i], label="$i", linewidth=2)
+    # end
 
     if savedir != ""
         bin_width = round(b.bias.bin_width, sigdigits=3)

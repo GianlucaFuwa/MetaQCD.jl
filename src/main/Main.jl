@@ -11,7 +11,6 @@ using ..Utils
 import ..BiasModule: NoBias, calc_weights, is_adaptive, recalc_cv!, update_bias!, set_sigma0!
 import ..DiracOperators: QuenchedFermionAction, fermaction_from_str
 import ..Fields: calc_gauge_action, is_distributed, normalize!
-import ..Measurements: MYEXT_str
 import ..Measurements: MeasurementMethods, calc_measurements, calc_measurements_flowed
 import ..Parameters: ParameterSet, construct_params_from_toml
 import ..Smearing: construct_flow
@@ -21,7 +20,7 @@ import ..Updates: set_instanton!
 
 export build_bias, run_sim
 
-const PACKAGE_VERSION = "1.0.0"
+const PACKAGE_VERSION = "1.1.2"
 
 function print_acceptance_rates(numaccepts, itrj)
     for (i, value) in enumerate(numaccepts)

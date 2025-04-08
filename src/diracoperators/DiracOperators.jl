@@ -14,8 +14,10 @@ using LinearAlgebra: checksquare
 using KernelAbstractions # With this we can write generic GPU kernels for ROC and CUDA
 using LinearAlgebra
 using Polyester
+using Printf
 using SparseArrays
 using StaticArrays
+using StaticTools
 using ..MetaIO
 using ..RHMCParameters
 using ..Solvers

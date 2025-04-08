@@ -3,6 +3,7 @@ module MetaAnalysis
 using ADerrors
 using DelimitedFiles
 using Dierckx
+using LaTeXStrings
 using LsqFit
 using Plots
 using Polyester
@@ -14,8 +15,8 @@ using SingularSpectrumAnalysis
 using Statistics
 
 export MetaMeasurements, MetaBias, eigenvalues, hadroncorrelator, timeseries, observables
-export Bootstrap, Jackknife, UWerr, analyze, modify_bias, plot
-export t0_scale
+export Bootstrap, Jackknife, UWerr, analyze, modify_bias, plot, auto_correlation
+export t0_scale, t0_w0_scale, t0_w0_scale_old
 
 abstract type AbstractErrorEstimator end
 

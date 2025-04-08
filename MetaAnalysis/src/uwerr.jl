@@ -19,3 +19,16 @@ function (u::UWerr)(x, weights=nothing)
     uwerr(obs, u.wpm)
     return value(obs), ADerrors.err(obs), ADerrors.taui(obs, u.id)
 end
+
+function clear_wspace!()
+    global ADerrors.wsg = ADerrors.wspace(
+        similar(Vector{ADerrors.fbd}, 0),
+        0,
+        similar(Vector{Int64}, 0),
+        Dict{Int64, Int64}(),
+        Dict{Int64, String}(), Dict{String, Int64}(),
+        Dict{Int64, Vector{String}}(),
+        Dict{Int64, Vector{Int64}}(),
+        -12345,
+    )
+end
