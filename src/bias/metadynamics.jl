@@ -85,11 +85,13 @@ function Metadynamics(p::ParameterSet; instance=1, dummy=false, build=false)
     @level1("|  BIN_WIDTH: $(p.bin_width)")
     @assert p.bin_width > 0 "BIN_WIDTH must be > 0"
 
-    if (dummy || instance==0) && !build
+    if (instance > length(p.usebiases) && !build) || dummy
         bin_vals, values = metad_from_file(p, "")
-    elseif instance > length(p.usebiases) && !build
+    elseif build && length(p.usebiases)>=1
+        bin_vals, values = metad_from_file(p, p.usebiases[1])
+    elseif build && length(p.usebiases)==0
         bin_vals, values = metad_from_file(p, "")
-    elseif build && length(p.usebiases) == 1
+    elseif !build && !dummy && instance==0
         bin_vals, values = metad_from_file(p, p.usebiases[1])
     else
         bin_vals, values = metad_from_file(p, p.usebiases[instance])

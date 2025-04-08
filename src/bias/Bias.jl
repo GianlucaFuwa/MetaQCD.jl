@@ -58,7 +58,15 @@ function Bias(p::ParameterSet, U; mpi_multi_sim=false, instance=mpi_myrank(), du
     numsmears = p.numsmears_for_cv
     rho = p.rhostout_for_cv
     smearing = StoutSmearing(U; numlayers=maximum(numsmears), rho=rho)
-    is_static = dummy ? true : (inum==0 ? false : p.is_static[inum])
+    is_static = if dummy
+        true
+    elseif build
+        false
+    elseif inum != 0
+        p.is_static[inum]
+    else
+        p.is_static[1]
+    end
     sstr = (is_static || kind_of_bias == "parametric") ? "static" : "dynamic"
     @level1("|  Type: $(sstr) $(kind_of_bias)")
 

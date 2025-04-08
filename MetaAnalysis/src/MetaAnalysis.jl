@@ -144,27 +144,49 @@ function phys_not(val::Int64, err::Int64)
     return val_str * err_str
 end
 
-function phys_not_cp(val::Float64, err::Float64)
-    # Calculate the exponent of the error
-    exp_err = floor(log10(err))
+function round_to_sigfigs(x::Float64, sigfigs::Int)
+    if x == 0
+        return 0.0
+    end
+    exponent = floor(Int, log10(abs(x)))
+    factor = 10.0^(sigfigs - 1 - exponent)
+    return round(x * factor) / factor
+end
 
-    # Shift the error to have 2 significant digits
-    err_shifted = exp_err > 1 ? round(err / 10^exp_err, sigdigits=2) : round(err, sigdigits=2)
-    num_nachkomma = length(strip(splitext("$err_shifted")[2], '.'))
+function physical_notation(value::Float64, uncertainty::Float64; sigfigs::Int=2)
+    if uncertainty == 0
+        return string(value)
+    elseif isnan(value) || isnan(uncertainty)
+        return "NaN"
+    elseif !isfinite(value) || !isfinite(uncertainty)
+        return "Inf"
+    end
 
-    # Format the value without trailing zeroes
-    val_str = strip(@sprintf("%.2f", round(val, digits=num_nachkomma)), '0')
-    val_str = strip(val_str, '.')
+    # 1. Round uncertainty to significant digits
+    unc_rounded = round_to_sigfigs(uncertainty, sigfigs)
 
-    # Format the error with trailing zeroes
-    err_str = @sprintf("%.2f", err_shifted)
-    err_str = rstrip(err_str, '.')
-    err_str = rstrip(err_str, '0')
-    err_str = rstrip(err_str, '.')
-    err_str = @sprintf("(%s)", err_str)
+    # 2. Determine decimal precision
+    exponent = floor(Int, log10(unc_rounded))
+    decimal_places = max(0, -exponent + sigfigs - 1)
 
-    # Return the formatted string
-    return val_str * err_str
+    # 3. Round value
+    val_rounded = round(value, digits=decimal_places)
+
+    # 4. Format value
+    fmt = Printf.Format("%.$(decimal_places)f")
+    val_str = Printf.format(fmt, val_rounded)
+
+    # 5. Decide how to show uncertainty
+    if isinteger(unc_rounded * 10^decimal_places)
+        # Integer-like uncertainty → use digits only
+        unc_digits = Int(round(unc_rounded * 10^decimal_places))
+        return "$(val_str)($(unc_digits))"
+    else
+        # Decimal-like uncertainty → format as-is
+        fmt = Printf.Format("%.$(decimal_places)f")
+        unc_str = Printf.format(fmt, unc_rounded)
+        return "$(val_str)($(unc_str))"
+    end
 end
 
 end

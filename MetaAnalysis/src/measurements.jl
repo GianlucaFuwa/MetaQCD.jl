@@ -13,7 +13,7 @@ the same format.
 struct MetaMeasurements
     measurement_dict::Dict{String,Dict{String,Vector{Float64}}}
     observables::Vector{Symbol}
-    tau_int::Dict{String,Float64}
+    tau_int::Dict{String,NTuple{2,Float64}}
     ensemblename::String
     function MetaMeasurements(ensemblename::String)
         _dir = if isabspath(ensemblename)
@@ -36,7 +36,7 @@ struct MetaMeasurements
 
         filenames = readdir(dir)
         isfile(hmc_logfile) && push!(filenames, hmc_logfile)
-        tau_int = Dict{String,Float64}()
+        tau_int = Dict{String,NTuple{2,Float64}}()
 
         for name in filenames
             name_no_ext = splitext(name)[1]
@@ -68,15 +68,30 @@ struct MetaMeasurements
 
                         if header[i] != "itrj"
                             if header[i] == "Q_clover"
-                                tau_int[header[i]*"_$(instance) (tf=$(tflow))"] = autoc_time_int(
-                                    data[unique_indices[j], i]
+                                # tau_int[header[i]*"_$(instance) (tf=$(tflow))"] = autoc_time_int(
+                                #     data[unique_indices[j], i]
+                                # )
+                                # tau_int[header[i]*"^2_$(instance) (tf=$(tflow))"] = autoc_time_int(
+                                #     data[unique_indices[j], i].^2
+                                # )
+                                _tmp = uwreal(data[unique_indices[j], i], "$(header[i]) $tflow")
+                                uwerr(_tmp)
+                                _tmp2 = uwreal(data[unique_indices[j], i].^2, "$(header[i])^2 $tflow")
+                                uwerr(_tmp2)
+                                tau_int[header[i]*"_$(instance) (tf=$(tflow))"] = (
+                                    taui(_tmp, "$(header[i]) $tflow"),
+                                    dtaui(_tmp, "$(header[i]) $tflow")
                                 )
-                                tau_int[header[i]*"^2_$(instance) (tf=$(tflow))"] = autoc_time_int(
-                                    data[unique_indices[j], i].^2
+                                tau_int[header[i]*"^2_$(instance) (tf=$(tflow))"] = (
+                                    taui(_tmp, "$(header[i]) $tflow"),
+                                    dtaui(_tmp, "$(header[i]) $tflow"),
                                 )
                             else
-                                tau_int[header[i]*"_$(instance) (tf=$(tflow))"] = autoc_time_int(
-                                    data[unique_indices[j], i]
+                                _tmp = uwreal(data[unique_indices[j], i], "$(header[i]) $tflow")
+                                uwerr(_tmp)
+                                tau_int[header[i]*"_$(instance) (tf=$(tflow))"] = (
+                                    taui(_tmp, "$(header[i]) $tflow"),
+                                    dtaui(_tmp, "$(header[i]) $tflow"),
                                 )
                             end
                         end
@@ -91,7 +106,12 @@ struct MetaMeasurements
                     measurement[header[i]] = data[:, i]
 
                     if header[i] != "itrj"
-                        tau_int[header[i]*"_$(instance)"] = autoc_time_int(data[:, i])
+                        _tmp = uwreal(data[:, i], "$(header[i])")
+                        uwerr(_tmp)
+                        tau_int[header[i]*"_$(instance)"] = (
+                            taui(_tmp, "$(header[i])"),
+                            dtaui(_tmp, "$(header[i])"),
+                        )
                     end
                 end
 
@@ -100,6 +120,7 @@ struct MetaMeasurements
         end
 
         obs_sym = Symbol.(keys(measurement_dict))
+        clear_wspace!()
         return new(measurement_dict, obs_sym, tau_int, ensemblename)
     end
 end
