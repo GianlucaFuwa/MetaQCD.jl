@@ -1,6 +1,6 @@
-function calc_dSfdU!(
-    dU, fermion_action::StaggeredHoelblingFermionAction{false,2}, U, ϕ::StaggeredSpinorfield
-)
+function calc_dSfdU!( # Force for unrooted Staggered-Hoelbling Action (Nf=2)
+    dU, fermion_action::FermionAction{false,2,TD}, U, ϕ::StaggeredSpinorfield,
+) where {TD<:StaggeredHoelblingDiracOperator}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
     cg_maxiters = fermion_action.cg_maxiters_md
@@ -22,9 +22,9 @@ function calc_dSfdU!(
     return nothing
 end
 
-function calc_dSfdU!(
-    dU, fermion_action::StaggeredHoelblingFermionAction{true,1}, U, ϕ::StaggeredSpinorfield
-)
+function calc_dSfdU!( # Force for single flavor Staggered-Hoelbling Action (Nf=2)
+    dU, fermion_action::FermionAction{true,1,TD}, U, ϕ::StaggeredSpinorfield,
+) where {TD<:StaggeredHoelblingDiracOperator}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
     cg_maxiters = fermion_action.cg_maxiters_md

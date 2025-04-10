@@ -19,7 +19,7 @@ export mpi_comm_instance, mpi_comm_root, mpi_ssend, mpi_srecv
 export mpi_init, mpi_comm, mpi_size, mpi_parallel, mpi_myrank, mpi_amroot, mpi_barrier
 export mpi_cart_create, mpi_cart_coords, mpi_cart_shift, mpi_multirequest, mpi_send
 export mpi_isend, mpi_recv, mpi_irecv!, mpi_waitall, mpi_allreduce, mpi_allgather, mpi_split
-export mpi_bcast!, mpi_bcast_isbits, mpi_write_at, update_halo!
+export mpi_bcast, mpi_bcast!, mpi_bcast_isbits, mpi_write_at, update_halo!
 export PauliMatrix, exp_iQ, exp_iQ_coeffs, exp_iQ_su3, get_B₁, get_B₂, get_Q, get_Q²
 export gen_SU3_matrix, is_special_unitary, is_traceless_antihermitian
 export kenney_laub, proj_onto_SU3, multr, cnorm2

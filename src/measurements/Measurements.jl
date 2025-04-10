@@ -12,7 +12,7 @@ using KernelAbstractions
 using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
 using Polyester
-using Printf: @sprintf
+using Printf: @printf, @sprintf
 using StaticTools: StaticString
 using Unicode
 using ..MetaIO
@@ -22,7 +22,7 @@ import KernelAbstractions as KA
 import ..DiracOperators: Daggered, DdaggerD, StaggeredDiracOperator, WilsonDiracOperator
 import ..DiracOperators: StaggeredEOPreDiracOperator, even_odd, solve_dirac!
 import ..DiracOperators: ArnoldiWorkspaceMeta, get_eigenvalues, num_dirac
-import ..DiracOperators: calc_fermion_action, fermaction_from_str, sample_pseudofermions!
+import ..DiracOperators: FermionAction, calc_fermion_action, sample_pseudofermions!
 import ..Fields: WilsonGaugeAction, SymanzikTreeGaugeAction, SymanzikTadGaugeAction, dims
 import ..Fields: IwasakiGaugeAction, DBW2GaugeAction, AbstractFieldstrength, Colorfield
 import ..Fields: Gaugefield, Spinorfield, Tensorfield, calc_gauge_action, check_dims 

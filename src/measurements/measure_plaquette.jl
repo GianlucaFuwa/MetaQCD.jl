@@ -37,7 +37,6 @@ function measure(
     m::PlaquetteMeasurement{T},
     U,
     itrj=0,
-    myinstance=MPI_INSTANCE[],
     flow=nothing;
     mpi_multi_sim=false,
     fstr="",

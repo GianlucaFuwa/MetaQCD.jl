@@ -13,11 +13,9 @@ using ..RHMCParameters
 using ..Utils
 
 import ..BiasModule: calc_cv, calc_cv_deriv!, ∂V∂Q
-import ..DiracOperators: StaggeredDiracOperator, StaggeredFermionAction
-import ..DiracOperators: StaggeredEOPreDiracOperator, StaggeredEOPreFermionAction
-import ..DiracOperators: StaggeredHoelblingDiracOperator, StaggeredHoelblingFermionAction
-import ..DiracOperators: WilsonDiracOperator, WilsonFermionAction, has_clover_term
-import ..DiracOperators: WilsonEOPreDiracOperator, WilsonEOPreFermionAction
+import ..DiracOperators: StaggeredDiracOperator, StaggeredEOPreDiracOperator
+import ..DiracOperators: StaggeredHoelblingDiracOperator, WilsonDiracOperator
+import ..DiracOperators: WilsonEOPreDiracOperator, FermionAction, has_clover_term
 import ..DiracOperators: Daggered, DdaggerD, Spinorfield, SpinorfieldEO, apply_bc
 import ..DiracOperators: staggered_η, staggered_ημν, solve_dirac!, solve_dirac_multishift!
 import ..DiracOperators: mul_oe!, mul_eo!, mul_oo_inv!, get_mass_term

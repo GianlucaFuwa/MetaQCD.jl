@@ -17,7 +17,7 @@ using Polyester
 using Printf
 using SparseArrays
 using StaticArrays
-using StaticTools
+using StaticTools: StaticString
 using ..MetaIO
 using ..RHMCParameters
 using ..Solvers
@@ -31,10 +31,12 @@ import ..Fields: @latmap, @latsum, Clover, Checkerboard2, Sequential, set_source
 import ..Fields: @groupreduce, fieldstrength_eachsite!, num_colors, num_dirac
 import ..Fields: PeriodicBC, AntiPeriodicBC, apply_bc, create_bc, distributed_reduce
 
-abstract type AbstractDiracOperator end
+abstract type AbstractDiracOperator{B,T} end
 abstract type AbstractFermionAction{R,Nf} end # R indicates whether the action uses rational approximation or not
 
-struct QuenchedFermionAction <: AbstractFermionAction{false,0} end
+struct QuenchedFermionAction <: AbstractFermionAction{false,0} 
+    QuenchedFermionAction(args...; kwargs...) = new()
+end
 
 # some aliases
 const StaggeredSpinorfield{B,T,M,A} = Spinorfield{B,T,M,A,1}
@@ -47,14 +49,18 @@ LinearAlgebra.checksquare(D::AbstractDiracOperator) = LinearAlgebra.checksquare(
 get_temp(D::AbstractDiracOperator) = D.temp
 @inline num_flavors(::AbstractFermionAction{R,Nf}) where {R,Nf} = Nf
 
+# To add gauge background to Dirac operator, apply it to a gaugefield
+add_gauge_background(::TD, ::TG) where {TD,TG} = error("cannot set background $TG to $TD")
+(D::AbstractDiracOperator)(U::Gaugefield) = add_gauge_background(D, U)
+
 """
     Daggered(D::AbstractDiracOperator)
 
 Wrap the Dirac operator `D` such that future functions know to treat it as `D†`
 """
-struct Daggered{T} <: AbstractDiracOperator
-    parent::T
-    Daggered(D::T) where {T<:AbstractDiracOperator} = new{T}(D)
+struct Daggered{TD,B,T} <: AbstractDiracOperator{B,T}
+    parent::TD
+    Daggered(D::TD) where {B,T,TD<:AbstractDiracOperator{B,T}} = new{TD,B,T}(D)
 end
 
 LinearAlgebra.adjoint(D::AbstractDiracOperator) = Daggered(D)
@@ -67,17 +73,18 @@ get_temp(D::Daggered) = D.parent.temp
 
 Wrap the Dirac operator `D` such that future functions know to treat it as `D†D`
 """
-struct DdaggerD{T} <: AbstractDiracOperator
-    parent::T
-    DdaggerD(D::T) where {T<:AbstractDiracOperator} = new{T}(D)
+struct DdaggerD{TD,B,T} <: AbstractDiracOperator{B,T}
+    parent::TD
+    DdaggerD(D::TD) where {B,T,TD<:AbstractDiracOperator{B,T}} = new{TD,B,T}(D)
 end
 
 LinearAlgebra.checksquare(D::DdaggerD) = LinearAlgebra.checksquare(D.parent)
 Base.eltype(D::DdaggerD) = eltype(D.parent)
 get_temp(D::DdaggerD) = D.parent.temp
 
-include("staggered.jl")
 include("staggered_eo.jl")
+include("action.jl")
+include("staggered.jl")
 include("staggered_hoelbling.jl")
 include("wilson.jl")
 include("wilson_eo.jl")
@@ -86,6 +93,50 @@ include("gpu_kernels/staggered_eo.jl")
 include("gpu_kernels/wilson.jl")
 include("gpu_kernels/wilson_eo.jl")
 include("arnoldi.jl")
+
+const DIRAC_OPERATORS = Dict(
+    "staggered" => StaggeredDiracOperator,
+    "staggered_eo" => StaggeredEOPreDiracOperator,
+    "staggered_h1234" => StaggeredHoelblingDiracOperator{1234},
+    "staggered_h1342" => StaggeredHoelblingDiracOperator{1342},
+    "wilson" => WilsonDiracOperator,
+    "wilson_eo" => WilsonEOPreDiracOperator,
+)
+
+@inline function default_Nf(type)
+    return if type == "staggered"
+        8
+    elseif type == "staggered_eo"
+        4
+    elseif type == "staggered_h1234"
+        2
+    elseif type == "staggered_h1342"
+        2
+    elseif type == "wilson"
+        2
+    elseif type == "wilson_eo"
+        2
+    else
+        error("Fermion action type $(type) not supported")
+    end
+end
+
+# need to be overloaded for all operators
+function default_Nf(::AbstractDiracOperator)
+    error("default_Nf not implemented for this type")
+    return nothing
+end
+
+function is_staggered(::AbstractDiracOperator)
+    error("is_staggered not implemented for this type")
+    return nothing
+end
+
+# needs to be overloaded for operators that can contain a  clover term
+function has_clover_term(::AbstractDiracOperator)
+    error("has_clover_term not implemented for this type")
+    return nothing
+end
 
 """
     solve_dirac!(ψ, D, ϕ, temp1, temp2, temp3, tol=1e-16, maxiters=1000)
@@ -96,8 +147,7 @@ store the result in `ψ`.
 function solve_dirac!(
     ψ, D::T, ϕ, temp1, temp2, temp3, tol=1e-16, maxiters=1000
 ) where {T<:DdaggerD}
-    cg!(ψ, D, ϕ, temp1, temp2, temp3; tol=tol, maxiters=maxiters)
-    return nothing
+    return cg!(ψ, D, ϕ, temp1, temp2, temp3; tol=tol, maxiters=maxiters)
 end
 
 """
@@ -109,110 +159,8 @@ Hermitian Dirac operator and store each result in `ψs`.
 function solve_dirac_multishift!(
     ψs, shifts, D::T, ϕ, temp1, temp2, ps, tol=1e-16, maxiters=1000
 ) where {T<:DdaggerD}
-    mscg!(ψs, SVector(shifts), D, ϕ, temp1, temp2, ps; tol=tol, maxiters=maxiters)
-    return nothing
+    return mscg!(ψs, SVector(shifts), D, ϕ, temp1, temp2, ps; tol=tol, maxiters=maxiters)
 end
-
-"""
-    calc_fermion_action(fermion_action, U, ϕ)
-
-Calculate the fermion action for the fermion field `ϕ` on the gauge background `U`using the
-fermion action `fermion_action`.
-"""
-function calc_fermion_action(fermion_action::AbstractFermionAction{false}, U, ϕ)
-    D = fermion_action.D(U)
-    DdagD = DdaggerD(D)
-    ψ, temp1, temp2, temp3 = fermion_action.cg_temps
-    cg_tol = fermion_action.cg_tol_action
-    cg_maxiters = fermion_action.cg_maxiters_action
-
-    clear!(ψ) # initial guess is zero
-    solve_dirac!(ψ, DdagD, ϕ, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
-    Sf = real(dot(ϕ, ψ))
-    return Sf
-end
-
-function calc_fermion_action(fermion_action::AbstractFermionAction{true}, U, ϕ)
-    cg_tol = fermion_action.cg_tol_action
-    cg_maxiters = fermion_action.cg_maxiters_action
-    rhmc = fermion_action.rhmc_info_action
-    n = get_n(rhmc)
-    D = fermion_action.D(U)
-    DdagD = DdaggerD(D)
-    ψs = fermion_action.rhmc_temps1[1:n+1]
-    ps = fermion_action.rhmc_temps2[1:n+1]
-    temp1, temp2 = fermion_action.cg_temps
-
-    for v in ψs
-        clear!(v)
-    end
-
-    shifts = get_β_inverse(rhmc)
-    coeffs = get_α_inverse(rhmc)
-    α₀ = get_α0_inverse(rhmc)
-    solve_dirac_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
-    ψ = ψs[1]
-    clear!(ψ) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
-
-    axpy!(α₀, ϕ, ψ)
-
-    for i in 1:n
-        axpy!(coeffs[i], ψs[i+1], ψ)
-    end
-
-    Sf = real(dot(ψ, ψ))
-    return Sf
-end
-
-calc_fermion_action(::QuenchedFermionAction, ::Gaugefield, ::Any) = 0.0
-
-"""
-    sample_pseudofermions!(ϕ, fermion_action, U)
-
-Sample pseudo fermions for an HMC update according to the probability density specified by
-`fermion_action`.
-"""
-function sample_pseudofermions!(ϕ, fermion_action::AbstractFermionAction{false}, U)
-    D = fermion_action.D(U)
-    temp = fermion_action.cg_temps[1]
-    gaussian_pseudofermions!(temp)
-    LinearAlgebra.mul!(ϕ, adjoint(D), temp)
-    return nothing
-end
-
-function sample_pseudofermions!(
-    ϕ, fermion_action::FA, U
-) where {FA<:Union{AbstractFermionAction{true},StaggeredEOPreSpinorfield{false,4}}}
-    cg_tol = fermion_action.cg_tol_action
-    cg_maxiters = fermion_action.cg_maxiters_action
-    rhmc = fermion_action.rhmc_info_action
-    n = get_n(rhmc)
-    D = fermion_action.D(U)
-    DdagD = DdaggerD(D)
-    ψs = fermion_action.rhmc_temps1[1:n+1]
-    ps = fermion_action.rhmc_temps2[1:n+1]
-    temp1, temp2 = fermion_action.cg_temps
-
-    for v in ψs
-        clear!(v)
-    end
-
-    shifts = get_β(rhmc)
-    coeffs = get_α(rhmc)
-    α₀ = get_α0(rhmc)
-    gaussian_pseudofermions!(ϕ) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
-    solve_dirac_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
-
-    mul!(ϕ, ϕ, α₀)
-
-    for i in 1:n
-        axpy!(coeffs[i], ψs[i+1], ϕ)
-    end
-
-    return nothing
-end
-
-sample_pseudofermions!(::AbstractField, ::QuenchedFermionAction, U) = nothing
 
 # So we don't print the entire array in the REPL...
 function Base.show(io::IO, ::MIME"text/plain", D::T) where {T<:AbstractDiracOperator}
@@ -293,135 +241,6 @@ function construct_diracmatrix(D, U)
     end
 
     return M
-end
-
-function fermaction_from_str(str, eo_precon::Bool)
-    if str == "wilson"
-        return eo_precon ? WilsonEOPreFermionAction : WilsonFermionAction
-    elseif str == "staggered"
-        return eo_precon ? StaggeredEOPreFermionAction : StaggeredFermionAction
-    elseif str == "staggered-h1234" && !eo_precon
-        return StaggeredHoelblingFermionAction{1234}
-    elseif str == "staggered-h1324" && !eo_precon
-        return StaggeredHoelblingFermionAction{1324}
-    elseif str == "staggered-h1342" && !eo_precon
-        return StaggeredHoelblingFermionAction{1342}
-    elseif str ∈ ("none", "quenched") || str === nothing
-        return QuenchedFermionAction
-    else
-        error("fermion action \"$(str)\" with eo_precon = $(eo_precon) not supported")
-    end
-end
-
-function init_fermion_action(params, mass::Float64, Nf::Int64, U)
-    fermion_action = params.fermion_action
-    eo_precon = params.eo_precon
-
-    ActionType = try
-        fermaction_from_str(fermion_action, eo_precon)
-    catch
-        error("Fermion action \"$(fermion_action)\" with eo_precon=$(eo_precon) not supported")
-    end
-
-    action = ActionType(
-        U, mass;
-        bc_str=params.boundary_condition,
-        Nf=Nf,
-        rhmc_spectral_bound=(params.rhmc_spectral_bound),
-        rhmc_order_md=params.rhmc_order_md,
-        rhmc_prec_md=params.rhmc_prec_md,
-        rhmc_order_action=params.rhmc_order_action,
-        rhmc_prec_action=params.rhmc_prec_action,
-        cg_tol_action=params.cg_tol_action,
-        cg_tol_md=params.cg_tol_md,
-        cg_maxiters_action=params.cg_maxiters_action,
-        cg_maxiters_md=params.cg_maxiters_md,
-        r=params.wilson_r,
-        csw=params.wilson_csw,
-    ) 
-    return action
-end
-
-function Base.show(io::IO, ::MIME"text/plain", S::AbstractFermionAction{R,Nf}) where {R,Nf}
-    name = nameof(typeof(S))
-    print(
-        io,
-        """
-        
-        |  $(name)(
-        |    Nf: $Nf
-        |    MASS: $(S.D.mass)
-        """
-    )
-
-    if S isa WilsonFermionAction || S isa WilsonEOPreFermionAction
-        print(
-            io,
-            """
-            |    KAPPA: $(S.D.κ)
-            |    CSW: $(S.D.csw)
-            """
-        )
-    end
-
-    print(
-        io,
-        """
-        |    BOUNDARY CONDITION (TIME): $(S.D.boundary_condition))
-        |    CG TOLERANCE (ACTION): $(S.cg_tol_action)
-        |    CG TOLERANCE (MD): $(S.cg_tol_md)
-        |    CG MAX ITERS (ACTION): $(S.cg_maxiters_action)
-        |    CG MAX ITERS (ACTION): $(S.cg_maxiters_md)
-        |    RHMC INFO (Action): $(S.rhmc_info_action)
-        |    RHMC INFO (MD): $(S.rhmc_info_md))
-        """
-    )
-    return nothing
-end
-
-function Base.show(io::IO, S::AbstractFermionAction{R,Nf}) where {R,Nf}
-    name = nameof(typeof(S))
-    print(
-        io,
-        """
-        
-        |  $(name)(
-        |    Nf: $Nf
-        |    MASS: $(S.D.mass)
-        """
-    )
-
-    if S isa WilsonFermionAction || S isa WilsonEOPreFermionAction
-        print(
-            io,
-            """
-            |    KAPPA: $(S.D.κ)
-            |    CSW: $(S.D.csw)
-            """
-        )
-    elseif S isa StaggeredHoelblingFermionAction
-        
-        print(
-            io,
-            """
-            |    MASS TERM: $(_unwrap_val.(get_mass_term(S.D)))
-            """
-        )
-    end
-
-    print(
-        io,
-        """
-        |    BOUNDARY CONDITION (TIME): $(S.D.boundary_condition))
-        |    CG TOLERANCE (ACTION) = $(S.cg_tol_action)
-        |    CG TOLERANCE (MD) = $(S.cg_tol_md)
-        |    CG MAX ITERS (ACTION) = $(S.cg_maxiters_action)
-        |    CG MAX ITERS (ACTION) = $(S.cg_maxiters_md)
-        |    RHMC INFO (Action): $(S.rhmc_info_action)
-        |    RHMC INFO (MD): $(S.rhmc_info_md))
-        """
-    )
-    return nothing
 end
 
 end

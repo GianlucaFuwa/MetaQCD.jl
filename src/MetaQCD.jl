@@ -32,9 +32,8 @@ import .BiasModule: Bias, Metadynamics, NoBias, OPES, Parametric, calc_cv, updat
 import .DiracOperators: AbstractDiracOperator, Daggered, DdaggerD, calc_fermion_action
 import .DiracOperators: StaggeredDiracOperator, StaggeredEOPreDiracOperator, even_odd
 import .DiracOperators: WilsonDiracOperator, WilsonEOPreDiracOperator, sample_pseudofermions!
-import .DiracOperators: StaggeredFermionAction, StaggeredEOPreFermionAction
-import .DiracOperators: StaggeredHoelblingDiracOperator, StaggeredHoelblingFermionAction
-import .DiracOperators: WilsonFermionAction, WilsonEOPreFermionAction, QuenchedFermionAction
+import .DiracOperators: StaggeredHoelblingDiracOperator, FermionAction
+import .DiracOperators: QuenchedFermionAction
 import .Fields: CPU, DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
 import .Fields: SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
 import .Fields: Expfield, Colorfield, Gaugefield
@@ -67,10 +66,8 @@ export Tensorfield, calc_kinetic_energy, gaussian_TA!
 export Spinorfield, Daggered, DdaggerD
 export StaggeredDiracOperator, StaggeredEOPreDiracOperator 
 export WilsonDiracOperator, WilsonEOPreDiracOperator, QuenchedFermionAction
+export StaggeredHoelblingDiracOperator, FermionAction
 export even_odd, sample_pseudofermions!
-export StaggeredFermionAction, StaggeredEOPreFermionAction
-export StaggeredHoelblingDiracOperator, StaggeredHoelblingFermionAction
-export WilsonFermionAction, WilsonEOPreFermionAction
 export calc_fermion_action, gaussian_pseudofermions!
 export measure, top_charge
 export EnergyDensityMeasurement, GaugeActionMeasurement, PlaquetteMeasurement

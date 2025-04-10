@@ -61,12 +61,12 @@ mpi_barrier()
     # staggered-hoelbling1234 derivative
     test_fderivative(
         backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
-        dirac="staggered-h1234", mass=0.01, single_flavor=true
+        dirac="staggered_h1234", mass=0.01, single_flavor=true
     )
     # staggered-hoelbling1342 derivative
     test_fderivative(
         backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
-        dirac="staggered-h1342", mass=0.01, single_flavor=true
+        dirac="staggered_h1342", mass=0.01, single_flavor=true
     )
     # wilson derivative
     test_fderivative(

@@ -22,7 +22,7 @@ A Wilson Dirac operator with gauge background is created by applying it to a `Ga
 - `C`: Boolean declaring whether the operator is clover improved or not
 - `BC`: Boundary Condition in time direction
 """
-struct WilsonDiracOperator{B,T,C,TF,TG,BC} <: AbstractDiracOperator
+struct WilsonDiracOperator{B,T,C,TF,TG,BC} <: AbstractDiracOperator{B,T}
     U::TG
     temp::TF # temp for storage of intermediate result for DdaggerD operator
     mass::Float64
@@ -30,6 +30,12 @@ struct WilsonDiracOperator{B,T,C,TF,TG,BC} <: AbstractDiracOperator
     r::Float64
     csw::Float64
     boundary_condition::BC # Only in time direction
+    function WilsonDiracOperator(
+        U::TG, temp::TF, mass, κ, r, csw, ::Val{C}, bc::BC
+    ) where {B,T,C,TG<:Gaugefield{B,T},TF<:WilsonSpinorfield{B,T},BC}
+        return new{B,T,C,TF,TG,BC}(U, temp, mass, κ, r, csw, bc)
+    end
+
     function WilsonDiracOperator(
         f::AbstractField{B,T}, mass; bc_str="antiperiodic", r=1, csw=0, kwargs...
     ) where {B,T}
@@ -44,126 +50,26 @@ struct WilsonDiracOperator{B,T,C,TF,TG,BC} <: AbstractDiracOperator
         BC = typeof(boundary_condition)
         return new{B,T,C,TF,TG,BC}(U, temp, mass, κ, r, csw, boundary_condition)
     end
-
-    function WilsonDiracOperator(
-        D::WilsonDiracOperator{B,T,C,TF}, U::Gaugefield{B,T}
-    ) where {B,T,C,TF}
-        check_dims(U, D.temp)
-        TG = typeof(U)
-        BC = typeof(D.boundary_condition)
-        return new{B,T,C,TF,TG,BC}(U, D.temp, D.mass, D.κ, D.r, D.csw, D.boundary_condition)
-    end
 end
 
-function (D::WilsonDiracOperator{B,T})(U::Gaugefield{B,T}) where {B,T}
-    return WilsonDiracOperator(D, U)
+function add_gauge_background(
+    D::WilsonDiracOperator{B,T,C,TF}, U::Gaugefield{B,T}
+) where {B,T,C,TF}
+    check_dims(U, D.temp)
+    bc = D.boundary_condition
+    return WilsonDiracOperator(U, D.temp, D.mass, D.κ, D.r, D.csw, Val(C), bc)
 end
 
+@inline default_Nf(::WilsonDiracOperator) = 2
+@inline is_staggered(::WilsonDiracOperator) = false
 @inline has_clover_term(::WilsonDiracOperator{B,T,C}) where {B,T,C} = C
 @inline has_clover_term(::Daggered{W}) where {B,T,C,W<:WilsonDiracOperator{B,T,C}} = C
 @inline has_clover_term(::DdaggerD{W}) where {B,T,C,W<:WilsonDiracOperator{B,T,C}} = C
 
-struct WilsonFermionAction{R,Nf,TD,CT,RI1,RI2,RT,TX} <: AbstractFermionAction{R,Nf}
-    D::TD
-    cg_temps::CT
-    rhmc_info_action::RI1
-    rhmc_info_md::RI2
-    rhmc_temps1::RT # this holds the results of multishift cg
-    rhmc_temps2::RT # this holds the basis vectors in multishift cg
-    Xμν::TX
-    cg_tol_action::Float64
-    cg_tol_md::Float64
-    cg_maxiters_action::Int64
-    cg_maxiters_md::Int64
-    function WilsonFermionAction(
-        f::AbstractField,
-        mass;
-        bc_str="antiperiodic",
-        r=1,
-        csw=0,
-        Nf=2,
-        rhmc_spectral_bound=(mass^2, 64.0),
-        rhmc_order_action=15,
-        rhmc_prec_action=42,
-        rhmc_order_md=10,
-        rhmc_prec_md=42,
-        cg_tol_action=1e-14,
-        cg_tol_md=1e-12,
-        cg_maxiters_action=1000,
-        cg_maxiters_md=1000,
-        kwargs...,
-    )
-        D = WilsonDiracOperator(f, mass; bc_str=bc_str, r=r, csw=csw)
-        TD = typeof(D)
-
-        if Nf == 2
-            R = false
-            rhmc_info_action = nothing
-            rhmc_info_md = nothing
-            rhmc_temps1 = nothing
-            rhmc_temps2 = nothing
-            cg_temps = ntuple(_ -> Spinorfield(f), 4)
-        else
-            @assert Nf == 1 """
-            Nf should be 1 or 2 (was $Nf). If you want Nf > 2, use multiple actions
-            """
-            R = true
-            rhmc_lambda_low = rhmc_spectral_bound[1]
-            rhmc_lambda_high = rhmc_spectral_bound[2]
-            cg_temps = ntuple(_ -> Spinorfield(f), 2)
-            power = Nf//4
-            rhmc_info_action = RHMCParams(
-                power;
-                n=rhmc_order_action,
-                precision=rhmc_prec_action,
-                lambda_low=rhmc_lambda_low,
-                lambda_high=rhmc_lambda_high,
-            )
-            power = Nf//2
-            rhmc_info_md = RHMCParams(
-                power;
-                n=rhmc_order_md,
-                precision=rhmc_prec_md,
-                lambda_low=rhmc_lambda_low,
-                lambda_high=rhmc_lambda_high,
-            )
-            n_temps = max(rhmc_order_md, rhmc_order_action)
-            rhmc_temps1 = ntuple(_ -> Spinorfield(f), n_temps + 1)
-            rhmc_temps2 = ntuple(_ -> Spinorfield(f), n_temps + 1)
-        end
-
-        if has_clover_term(D)
-            Xμν = Tensorfield(f)
-        else
-            Xμν = nothing
-        end
-
-        CT = typeof(cg_temps)
-        RI1 = typeof(rhmc_info_action)
-        RI2 = typeof(rhmc_info_md)
-        RT = typeof(rhmc_temps1)
-        TX = typeof(Xμν)
-        return new{R,Nf,TD,CT,RI1,RI2,RT,TX}(
-            D,
-            cg_temps,
-            rhmc_info_action,
-            rhmc_info_md,
-            rhmc_temps1,
-            rhmc_temps2,
-            Xμν,
-            cg_tol_action,
-            cg_tol_md,
-            cg_maxiters_action,
-            cg_maxiters_md,
-        )
-    end
-end
-
 function solve_dirac!(
-    ψ, D::T, ϕ, temp1, temp2, temp3, temp4, temp5; tol=1e-16, maxiters=1000
+    ψ, D::T, ϕ, temps...; tol=1e-16, maxiters=1000
 ) where {T<:WilsonDiracOperator}
-    bicg_stab!(ψ, D, ϕ, temp1, temp2, temp3, temp4, temp5; tol=tol, maxiters=maxiters)
-    return nothing
+    return bicg_stab!(ψ, D, ϕ, temps...; tol=tol, maxiters=maxiters)
 end
 
 # We overload LinearAlgebra.mul! instead of Gaugefields.mul! so we dont have to import

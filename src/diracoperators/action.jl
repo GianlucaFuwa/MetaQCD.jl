@@ -30,10 +30,12 @@ struct FermionAction{R,Nf,TD,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,Nf}
         kwargs...,
     )
         D = DIRAC_OPERATORS[type](f, mass; bc_str=bc_str, kwargs...)
+        eo_fun = contains(type, "eo") ? even_odd : identity
         TD = typeof(D)
 
         if Nf == default_Nf(D)
             if D isa StaggeredEOPreDiracOperator
+                cg_temps = ntuple(_ -> even_odd(Spinorfield(f; staggered=true)), 4)
                 power = Nf//2default_Nf(D)
                 rhmc_info_action = RHMCParams(
                     power;
@@ -51,6 +53,7 @@ struct FermionAction{R,Nf,TD,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,Nf}
                 )
                 rhmc_info_md = nothing
             else
+                cg_temps = ntuple(_ -> eo_fun(Spinorfield(f; staggered=is_staggered(D))), 4)
                 rhmc_info_action = nothing
                 rhmc_info_md = nothing
                 rhmc_temps1 = nothing
@@ -58,7 +61,6 @@ struct FermionAction{R,Nf,TD,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,Nf}
             end
 
             R = false
-            cg_temps = ntuple(_ -> Spinorfield(f; staggered=is_staggered(D)), 4)
         else
             @assert 1 <= Nf < default_Nf(D) """
             Nf should be between 1 or $(default_Nf(D)) for $(type) (was $Nf).
@@ -67,7 +69,7 @@ struct FermionAction{R,Nf,TD,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,Nf}
             R = true
             rhmc_lambda_low = rhmc_spectral_bound[1]
             rhmc_lambda_high = rhmc_spectral_bound[2]
-            cg_temps = ntuple(_ -> Spinorfield(f; staggered=is_staggered(D)), 2)
+            cg_temps = ntuple(_ -> eo_fun(Spinorfield(f; staggered=is_staggered(D))), 2)
             power = Nf//2default_Nf(D)
             rhmc_info_action = RHMCParams(
                 power;
@@ -86,10 +88,10 @@ struct FermionAction{R,Nf,TD,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,Nf}
             )
             n_temps = max(rhmc_order_md, rhmc_order_action)
             rhmc_temps1 = ntuple(
-                _ -> Spinorfield(f; staggered=is_staggered(D)), n_temps + 1
+                _ -> eo_fun(Spinorfield(f; staggered=is_staggered(D))), n_temps + 1
             )
             rhmc_temps2 = ntuple(
-                _ -> Spinorfield(f; staggered=is_staggered(D)), n_temps + 1
+                _ -> eo_fun(Spinorfield(f; staggered=is_staggered(D))), n_temps + 1
             )
         end
 
@@ -131,6 +133,157 @@ struct FermionAction{R,Nf,TD,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,Nf}
     end
 end
 
+function init_fermion_action(params, mass::Float64, Nf::Int64, U)
+    cg_filepath = if mpi_amroot(MPI_COMM_INSTANCE[]) && (params.log_dir != "")
+        joinpath(params.log_dir, "cg_data_$(lpad(MPI_INSTANCE[], 3, "0")).txt")
+    else
+        ""
+    end
+
+    action = FermionAction(
+        params.fermion_action, U, mass;
+        bc_str=params.boundary_condition,
+        Nf=Nf,
+        rhmc_spectral_bound=(params.rhmc_spectral_bound),
+        rhmc_order_md=params.rhmc_order_md,
+        rhmc_prec_md=params.rhmc_prec_md,
+        rhmc_order_action=params.rhmc_order_action,
+        rhmc_prec_action=params.rhmc_prec_action,
+        cg_tol_action=params.cg_tol_action,
+        cg_tol_md=params.cg_tol_md,
+        cg_maxiters_action=params.cg_maxiters_action,
+        cg_maxiters_md=params.cg_maxiters_md,
+        cg_filepath=cg_filepath,
+        r=params.wilson_r,
+        csw=params.wilson_csw,
+    ) 
+    return action
+end
+
+"""
+    calc_fermion_action(fermion_action, U, ϕ)
+
+Calculate the fermion action for the fermion field `ϕ` on the gauge background `U`using the
+fermion action `fermion_action`.
+"""
+function calc_fermion_action(fermion_action::AbstractFermionAction{false}, U, ϕ)
+    D = fermion_action.D(U)
+    DdagD = DdaggerD(D)
+    ψ, temp1, temp2, temp3 = fermion_action.cg_temps
+    cg_tol = fermion_action.cg_tol_action
+    cg_maxiters = fermion_action.cg_maxiters_action
+
+    clear!(ψ) # initial guess is zero
+    iters, res = solve_dirac!(ψ, DdagD, ϕ, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
+
+    cg_datafile = fermion_action.cg_datafile
+    if cg_datafile != ""
+        set_ext!(cg_datafile, MPI_INSTANCE[])
+        fp = fopen(cg_datafile, "a")
+        printf(fp, "%-11i", iters)
+        printf(fp, "%-25.15E", res)
+        newline(fp)
+        fclose(fp)
+    end
+
+    Sf = real(dot(ϕ, ψ))
+    return Sf
+end
+
+function calc_fermion_action(fermion_action::AbstractFermionAction{true}, U, ϕ)
+    cg_tol = fermion_action.cg_tol_action
+    cg_maxiters = fermion_action.cg_maxiters_action
+    rhmc = fermion_action.rhmc_info_action
+    n = get_n(rhmc)
+    D = fermion_action.D(U)
+    DdagD = DdaggerD(D)
+    ψs = fermion_action.rhmc_temps1[1:n+1]
+    ps = fermion_action.rhmc_temps2[1:n+1]
+    temp1, temp2 = fermion_action.cg_temps
+
+    for v in ψs
+        clear!(v)
+    end
+
+    shifts = get_β_inverse(rhmc)
+    coeffs = get_α_inverse(rhmc)
+    α₀ = get_α0_inverse(rhmc)
+    iters, res = solve_dirac_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
+
+    cg_datafile = fermion_action.cg_datafile
+    if cg_datafile != ""
+        set_ext!(cg_datafile, MPI_INSTANCE[])
+        fp = fopen(cg_datafile, "a")
+        printf(fp, "%-11i", iters)
+        printf(fp, "%-25.15E", res)
+        newline(fp)
+        fclose(fp)
+    end
+
+    ψ = ψs[1]
+    clear!(ψ) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
+
+    axpy!(α₀, ϕ, ψ)
+
+    for i in 1:n
+        axpy!(coeffs[i], ψs[i+1], ψ)
+    end
+
+    Sf = real(dot(ψ, ψ))
+    return Sf
+end
+
+calc_fermion_action(::QuenchedFermionAction, ::Gaugefield, ::Any) = 0.0
+
+"""
+    sample_pseudofermions!(ϕ, fermion_action, U)
+
+Sample pseudo fermions for an HMC update according to the probability density specified by
+`fermion_action`.
+"""
+function sample_pseudofermions!(ϕ, fermion_action::AbstractFermionAction{false}, U)
+    D = fermion_action.D(U)
+    temp = fermion_action.cg_temps[1]
+    gaussian_pseudofermions!(temp)
+    LinearAlgebra.mul!(ϕ, adjoint(D), temp)
+    return nothing
+end
+
+function sample_pseudofermions!(
+    ϕ, fermion_action::F, U
+) where {F<:Union{FermionAction{true},FermionAction{false,4,<:StaggeredEOPreDiracOperator}}}
+    cg_tol = fermion_action.cg_tol_action
+    cg_maxiters = fermion_action.cg_maxiters_action
+    rhmc = fermion_action.rhmc_info_action
+    n = get_n(rhmc)
+    D = fermion_action.D(U)
+    DdagD = DdaggerD(D)
+    ψs = fermion_action.rhmc_temps1[1:n+1]
+    ps = fermion_action.rhmc_temps2[1:n+1]
+    temp1, temp2 = fermion_action.cg_temps
+
+    for v in ψs
+        clear!(v)
+    end
+
+    shifts = get_β(rhmc)
+    coeffs = get_α(rhmc)
+    α₀ = get_α0(rhmc)
+    gaussian_pseudofermions!(ϕ) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
+    solve_dirac_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
+
+    mul!(ϕ, ϕ, α₀)
+
+    for i in 1:n
+        axpy!(coeffs[i], ψs[i+1], ϕ)
+    end
+
+    return nothing
+end
+
+sample_pseudofermions!(::AbstractField, ::QuenchedFermionAction, U) = nothing
+
+### I/O stuff
 function Base.show(io::IO, ::MIME"text/plain", S::QuenchedFermionAction)
     println(io, "| Quenched")
 end
@@ -214,7 +367,7 @@ function Base.show(io::IO, S::FermionAction{R,Nf,TD}) where {R,Nf,TD}
     print(
         io,
         """
-        |    BOUNDARY CONDITION (TIME): $(S.boundary_condition))
+        |    BOUNDARY CONDITION (TIME): $(D.boundary_condition))
         |    CG TOLERANCE (ACTION) = $(S.cg_tol_action)
         |    CG TOLERANCE (MD) = $(S.cg_tol_md)
         |    CG MAX ITERS (ACTION) = $(S.cg_maxiters_action)
@@ -225,4 +378,3 @@ function Base.show(io::IO, S::FermionAction{R,Nf,TD}) where {R,Nf,TD}
     )
     return nothing
 end
-

@@ -1,6 +1,6 @@
-function calc_dSfdU!(
-    dU, fermion_action::StaggeredFermionAction{false,8}, U, ϕ::StaggeredSpinorfield
-)
+function calc_dSfdU!( # force for unrooted staggered action
+    dU, fermion_action::FermionAction{false,8,TD}, U, ϕ::StaggeredSpinorfield,
+) where {TD<:StaggeredDiracOperator}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
     cg_maxiters = fermion_action.cg_maxiters_md
@@ -16,9 +16,9 @@ function calc_dSfdU!(
     return nothing
 end
 
-function calc_dSfdU!(
-    dU, fermion_action::StaggeredFermionAction{true,Nf}, U, ϕ::StaggeredSpinorfield
-) where {Nf}
+function calc_dSfdU!( # force for rooted staggered action
+    dU, fermion_action::FermionAction{true,Nf,TD}, U, ϕ::StaggeredSpinorfield
+) where {Nf,TD<:StaggeredDiracOperator}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
     cg_maxiters = fermion_action.cg_maxiters_md

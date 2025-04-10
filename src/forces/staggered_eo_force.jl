@@ -1,6 +1,6 @@
 function calc_dSfdU!(
-    dU, fermion_action::StaggeredEOPreFermionAction{false,4}, U, ϕ_eo::StaggeredEOPreSpinorfield
-)
+    dU, fermion_action::FermionAction{false,4,TD}, U, ϕ_eo::StaggeredEOPreSpinorfield,
+) where {TD<:StaggeredEOPreDiracOperator}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
     cg_maxiters = fermion_action.cg_maxiters_md
@@ -18,8 +18,8 @@ function calc_dSfdU!(
 end
 
 function calc_dSfdU!(
-    dU, fermion_action::StaggeredEOPreFermionAction{true,Nf}, U, ϕ_eo::StaggeredEOPreSpinorfield
-) where {Nf}
+    dU, fermion_action::FermionAction{true,Nf,TD}, U, ϕ_eo::StaggeredEOPreSpinorfield,
+) where {Nf,TD<:StaggeredEOPreDiracOperator}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
     cg_maxiters = fermion_action.cg_maxiters_md

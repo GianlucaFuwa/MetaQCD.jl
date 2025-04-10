@@ -1,10 +1,11 @@
-struct PionCorrelatorMeasurement{T,TD,TF,CT} <: AbstractMeasurement
+struct PionCorrelatorMeasurement{T,TD,TF,CT,T1} <: AbstractMeasurement
     dirac_operator::TD
     temp::TF # We need 1 temp fermion field for propagators
     cg_temps::CT # We need 4 temp fermions for cg / 7 for bicg(stab)
     pion_corr::Vector{Float64} # One value per time slice
     cg_tol::Float64
     cg_maxiters::Int64
+    cg_datafile::T1
     # mass_precon::Bool
     filename::T
     function PionCorrelatorMeasurement(
@@ -73,16 +74,35 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT} <: AbstractMeasurement
                     println(fp, header)
                 end
             end
+
+            cg_filepath = if mpi_amroot(MPI_COMM_INSTANCE[]) && (filename != "")
+                measdir = joinpath(splitpath(filename)[1:end-1])
+                _ext = "$(lpad(MPI_INSTANCE[], 3, "0")).txt"
+                joinpath(measdir, "pion_corr_cg_data_$(_ext)")
+            else
+                ""
+            end
+
+            cg_dataf = StaticString(cg_filepath)
+
+            if cg_filepath != ""
+                open(cg_datafile, "w") do fp
+                    @printf(fp, "%-11s%-25s", "iters", "res")
+                    println(fp)
+                end
+            end
         else
             rpath = nothing
+            cg_dataf = nothing
         end
 
         T = typeof(rpath)
+        T1 = typeof(cg_dataf)
         TD = typeof(dirac_operator)
         TF = typeof(temp)
         CT = typeof(cg_temps)
-        return new{T,TD,TF,CT}(
-            dirac_operator, temp, cg_temps, pion_corr, cg_tol, cg_maxiters, rpath
+        return new{T,TD,TF,CT,T1}(
+            dirac_operator, temp, cg_temps, pion_corr, cg_tol, cg_maxiters, cg_dataf, rpath
         )
     end
 end
@@ -112,8 +132,9 @@ function measure(
     mpi_multi_sim=false,
     kwargs...,
 ) where {T}
+    DU = m.dirac_operator(U)
     pion_correlators_avg!(
-        m.pion_corr, m.dirac_operator(U), m.temp, m.cg_temps, m.cg_tol, m.cg_maxiters
+        m.pion_corr, DU, m.temp, m.cg_temps, m.cg_tol, m.cg_maxiters, m.cg_datafile
     )
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
@@ -153,7 +174,7 @@ time slice in the vector `pion_corr`. \\
 We follow the procedure outlined in DOI: 10.1007/978-3-642-01850-3 (Gattringer) pages
 135-136 using a point source for each dirac and color index from the origin
 """
-function pion_correlators_avg!(pion_corr, D, ψ, cg_temps, cg_tol, cg_maxiters)
+function pion_correlators_avg!(pion_corr, D, ψ, cg_temps, cg_tol, cg_maxiters, cg_datafile)
     check_dims(D.U, ψ, cg_temps...)
     NX, NY, NZ, NT = global_dims(ψ)
     my_NX, my_NY, my_NZ, my_NT = local_dims(ψ)
@@ -170,7 +191,18 @@ function pion_correlators_avg!(pion_corr, D, ψ, cg_temps, cg_tol, cg_maxiters)
         for μ in 1:num_dirac(ψ)
             ones!(propagator)
             set_source!(ψ, source, a, μ)
-            solve_dirac!(propagator, D, ψ, temps...; tol=cg_tol, maxiters=cg_maxiters)
+            iters, res = solve_dirac!(
+                propagator, D, ψ, temps...; tol=cg_tol, maxiters=cg_maxiters
+            )
+
+            if cg_datafile != ""
+                set_ext!(cg_datafile, MPI_INSTANCE[])
+                fp = fopen(cg_datafile, "a")
+                printf(fp, "%-11i", iters)
+                printf(fp, "%-25.15E", res)
+                newline(fp)
+                fclose(fp)
+            end
 
             for it in 1+halo_width:my_NT+halo_width
                 cit = 0.0

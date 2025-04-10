@@ -3,7 +3,6 @@ function temper!( # INFO: When using MPI in tempering
     bias::Bias,
     numaccepts_temper,
     instance_state,
-    myinstance,
     swap_every,
     itrj;
     recalc=false,
@@ -25,40 +24,43 @@ function temper!( # INFO: When using MPI in tempering
 
         if (myrank == rank_i || myrank == rank_i_min_1) && mpi_amroot(instance_comm)
             if myrank == rank_i
-                mpi_send(U.CV::Vector{Float64}, root_comm; dest=rank_i_min_1::Int64, tag=rank_i) 
-                CV_j = mpi_recv(Vector{Float64}, root_comm; source=rank_i_min_1::Int64, tag=rank_i_min_1)
+                mpi_ssend(U.CV::Vector{Float64}, root_comm; dest=rank_i_min_1::Int64, tag=1) 
+                CV_j = mpi_srecv(root_comm; source=rank_i_min_1::Int64, tag=1)
             elseif myrank == rank_i_min_1
-                CV_j = mpi_recv(Vector{Float64}, root_comm; source=rank_i::Int64, tag=rank_i)
-                mpi_send(U.CV::Vector{Float64}, root_comm; dest=rank_i::Int64, tag=rank_i_min_1) 
+                CV_j = mpi_srecv(root_comm; source=rank_i::Int64, tag=1)
+                mpi_ssend(U.CV::Vector{Float64}, root_comm; dest=rank_i::Int64, tag=1) 
             end
 
             if myrank == rank_i
                 ΔV1 = bias(CV_j) - bias(U.CV)
-                ΔV2 = mpi_recv(Float64, root_comm; source=rank_i_min_1::Int64, tag=rank_i_min_1)
+                ΔV2 = mpi_recv(Float64, root_comm; source=rank_i_min_1::Int64, tag=2)
                 acc_prob = exp(-ΔV1 - ΔV2)
                 is_accepted = rand() ≤ acc_prob
-                mpi_send(is_accepted::Bool, root_comm; dest=rank_i_min_1::Int64, tag=101) 
+                mpi_send(is_accepted::Bool, root_comm; dest=rank_i_min_1::Int64, tag=3) 
             elseif myrank == rank_i_min_1 
                 ΔV2 = bias(CV_j) - bias(U.CV)
-                mpi_send(ΔV2::Float64, root_comm; dest=rank_i::Int64, tag=rank_i_min_1) 
-                is_accepted = mpi_recv(Bool, root_comm; source=rank_i::Int64, tag=101)
+                mpi_send(ΔV2::Float64, root_comm; dest=rank_i::Int64, tag=2) 
+                is_accepted = mpi_recv(Bool, root_comm; source=rank_i::Int64, tag=3)
             end
 
             if is_accepted
                 if myrank == rank_i
-                    mpi_ssend(bias.bias, root_comm; dest=rank_i_min_1)
-                    new_bias = mpi_srecv(root_comm; source=rank_i_min_1)
+                    mpi_ssend(bias.bias, root_comm; dest=rank_i_min_1, tag=3)
+                    new_bias = mpi_srecv(root_comm; source=rank_i_min_1, tag=3)
+
                     bias.bias = new_bias
 
                     instance_state[rank_i+1] = i-1
                     instance_state[rank_i_min_1+1] = i
 
                     # Update the local instance variable
-                    myinstance[] = i-1
+                    MPI_INSTANCE[] = i-1
                     numaccepts_temper[i] += 1
+                    @level1 "|  Old/New: $(i) -> $(i-1)"
                 elseif myrank == rank_i_min_1
-                    mpi_ssend(bias.bias, root_comm; dest=rank_i)
-                    new_bias = mpi_srecv(root_comm; source=rank_i)
+                    mpi_ssend(bias.bias, root_comm; dest=rank_i, tag=3)
+                    new_bias = mpi_srecv(root_comm; source=rank_i, tag=3)
+
                     bias.bias = new_bias
 
                     instance_state[rank_i_min_1+1] = i
@@ -66,6 +68,7 @@ function temper!( # INFO: When using MPI in tempering
 
                     # Update the local instance variable
                     MPI_INSTANCE[] = i
+                    @level1 "|  Old/New: $(i-1) -> $(i)"
                 end
             end
 
@@ -74,10 +77,13 @@ function temper!( # INFO: When using MPI in tempering
             mpi_bcast!(numaccepts_temper, root_comm; root=rank_i)
         end
 
+        mpi_barrier()
+
         # Synchronize ranks within instance
         mpi_bcast!(instance_state, instance_comm; root=0)
         mpi_bcast!(numaccepts_temper, instance_comm; root=0)
-        mpi_bcast!(bias.bias, instance_comm; root=0)
+
+        bias.bias = mpi_bcast(bias.bias, instance_comm; root=0)
 
         acc_pct = 100numaccepts_temper[i] / (itrj/swap_every)
         @level1 "|    Acceptance [$i <-> $(i-1)]:\t$(acc_pct) %"

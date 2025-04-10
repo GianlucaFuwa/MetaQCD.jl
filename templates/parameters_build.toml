@@ -1,51 +1,52 @@
 ["Physical Settings"]
-L = [12, 12, 12, 12]
-beta = 6.4
+L = [4, 4, 4, 4]
+beta = 5.7
 gauge_action = "wilson"
-numtherm = 50
-numsteps = 1000
+numtherm = 20
+numsteps = 20
 initial = "cold"
 update_method = "HMC"
-numinstances = 1
+numinstances = 8
+# numprocs_cart = [1, 1, 1, 2]
+# halo_width = 2
 
 ["Bias Settings"]
 rhostout_for_cv = 0.12 # rho is the same for all CVs
-# tempering_enabled = true
 swap_every = 1
 # starting_Q = [0]
 
-# ["Bias Settings".biases.1]
-# kind_of_bias = "opes"
-# kind_of_cv = "topcharge_clover"
-# numsmears_for_cv = 4
-# static = true
-# symmetric = true
-# stride = 1
-# cvlims = [-3.1, 3.1]
-# biasfactor = inf
-# penalty_weight = 100.0
-# # metadynamics specific parameters
-# bin_width = 0.02
-# meta_weight = 0.02
-# # opes specific parameters
-# barrier = 10.0
-# sigma_0 = 0.0
-
-["Bias Settings".biases.2]
-kind_of_bias = "opesmt"
-beta_min_max = [5.9, 6.4]
-beta_num = 100
-numsmears_for_cv = 0
+["Bias Settings".biases.1]
+kind_of_bias = "metad"
+kind_of_cv = "topcharge_clover"
+numsmears_for_cv = 4
 static = false
+symmetric = true
 stride = 1
+cvlims = [-2.0, 2.0]
+biasfactor = inf
+penalty_weight = 100.0
+# opes specific parameters
+barrier = 10.0
+sigma_0 = 0.0
+# metad specific parameters
+bin_width = 0.01
+meta_weight = 0.1
+
+# ["Bias Settings".biases.2]
+# kind_of_bias = "opesmt"
+# beta_min_max = [5.2, 5.7]
+# beta_num = 100
+# numsmears_for_cv = 0
+# static = false
+# stride = 1
 
 ["HMC Settings"]
 hmc_trajectory = 1
-hmc_steps = 5
+hmc_steps = 2
 hmc_integrator = "OMF4"
 
 ["System Settings"]               
-ensemble_dir = "test_actionbuild"
+ensemble_dir = "ensembles/strong_scaling_8walkers_2cores"
 randomseed = 0
 verboselevel = 2
 overwrite = true
@@ -55,26 +56,24 @@ flow_integrator = "euler"
 flow_num = 30
 flow_steps = 1
 flow_tf = 0.12 # total flow time is flow_num * flow_tf
-flow_measure_every = 30
+flow_measure_every = [1, 2, 5, 10, 20, 30]
 
 ["Measurement Settings".measurements.Plaquette]
-measure_every = 1
-
-["Measurement Settings".measurements.Polyakov_loop]
 measure_every = 10
 
-["Measurement Settings".measurements.Topological_charge]
-measure_every = 10
-type = ["clover"]
+# ["Measurement Settings".measurements.Topological_charge]
+# measure_every = 10
+# type = ["clover"]
+#
+# ["Measurement Settings".measurements_with_flow.Topological_charge]
+# measure_every = 100
+# type = ["clover"]
 
-["Measurement Settings".measurements.Energy_density]
-measure_every = 10
-type = ["clover"]
-
-["Measurement Settings".measurements.Gauge_action]
-measure_every = 10
-type = ["wilson"]
-
-["Measurement Settings".measurements_with_flow.Topological_charge]
-measure_every = 10
-type = ["clover"]
+# ["Measurement Settings".measurements_with_flow.Logdet]
+# measure_every = 10
+# type = ["staggered-h1234", "staggered-h1342"]
+# eo_precon = false
+# Nf = 2
+# mass = 0.0
+# rhmc_order = 15
+# rhmc_prec = 64

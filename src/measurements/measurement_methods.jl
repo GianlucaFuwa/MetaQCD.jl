@@ -16,13 +16,13 @@ function MeasurementMethods(
     U, measurement_dir, measurement_methods::Vector{Dict};
     flow=NoSmearing(), additional_string="",
 )
-    fstr = filter(x -> x=='_', flow_string(flow))
-    @level1("- Preparing $(fstr) Measurements...")
+    fstr = filter(x -> x!='_', flow_string(flow))
+    @level1("- Preparing$(fstr) Measurements...")
     num_measurements = length(measurement_methods)
     # measurement_parameters_set = Vector{MeasurementParameters}(undef, num_measurements)
     intervals = zeros(Int64, num_measurements)
 
-    add_string = fstr * additional_string
+    add_string = flow_string(flow) * additional_string
 
     measurements = ntuple(num_measurements) do i
         measurement_parameters = meas_parameters_from_dict(measurement_methods[i])

@@ -176,8 +176,8 @@ function Bias(p, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, bui
 
     # write to file after construction to make sure nothing went wrong
     if mpi_amroot(mpi_comm_instance())
-        @level1("AM HERE")
         for i in eachindex(bias)
+            @level1("$(biasfile[i])")
             write_to_file(bias[i], biasfile[i])
         end
     end

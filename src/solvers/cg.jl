@@ -124,7 +124,7 @@ function bicg!(x, A, b, Ap, r, p, Ap′, r′, p′; tol=1e-14, maxiters=1000)
 
     if res < tol
         @level3 "|  BiCG: converged at iter 0 with res = $res"
-        return nothing
+        return 0, res
     end
 
     @level4 "|  BiCG: residual 0 = $res"
@@ -142,7 +142,7 @@ function bicg!(x, A, b, Ap, r, p, Ap′, r′, p′; tol=1e-14, maxiters=1000)
 
         if res < tol
             @level3 "|  BiCG: converged at iter $(iter) with res = $res"
-            return nothing
+            return iter, res
         end
 
         β = ρ_new / ρ
@@ -153,7 +153,7 @@ function bicg!(x, A, b, Ap, r, p, Ap′, r′, p′; tol=1e-14, maxiters=1000)
 
     # @level1 "|  BiCG: did not converge in $maxiters iterations"
     throw(AssertionError("BiCG did not converge in $maxiters iterations"))
-    return nothing
+    return maxiters, res
 end
 
 function bicg_stab!(x, A, b, v, r, p, r₀, t; tol=1e-14, maxiters=1000)
@@ -165,7 +165,12 @@ function bicg_stab!(x, A, b, v, r, p, r₀, t; tol=1e-14, maxiters=1000)
     ρ = dot(r₀, r)
     res = abs(ρ)
     @level4 "|  BiCGStab: residual 0 = $res"
-    res < tol && return nothing
+
+    if res < tol
+        @level3 "|  BiCGStab: converged at iter 0 with res = $res"
+        return 0, res
+    end
+
     @assert isfinite(res) && isfinite(ρ) "BiCG: NaN or Inf encountered"
 
     for iter in 1:maxiters
@@ -178,7 +183,7 @@ function bicg_stab!(x, A, b, v, r, p, r₀, t; tol=1e-14, maxiters=1000)
 
         if res < tol
             @level3 "|  BiCGStab: converged at iter $(iter).5 with res = $res"
-            return nothing
+            return iter, res
         end
 
         @assert isfinite(res) && isfinite(α) """
@@ -193,7 +198,7 @@ function bicg_stab!(x, A, b, v, r, p, r₀, t; tol=1e-14, maxiters=1000)
 
         if res < tol
             @level3 "|  BiCGStab: converged at iter $(iter) with res = $res"
-            return nothing
+            return iter, res
         end
 
         @assert isfinite(res) && isfinite(ω) """
@@ -208,5 +213,5 @@ function bicg_stab!(x, A, b, v, r, p, r₀, t; tol=1e-14, maxiters=1000)
 
     # @level1 "|  BiCGStab: did not converge in $maxiters iterations"
     throw(AssertionError("BiCGStab did not converge in $maxiters iterations"))
-    return nothing
+    return maxiters, res
 end

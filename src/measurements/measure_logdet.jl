@@ -29,6 +29,14 @@ struct LogDetMeasurement{T,TD,TF} <: AbstractMeasurement
         rhmc_spectral_bound = to_vec(rhmc_spectral_bound, num_ops)
 
         fermion_action = ntuple(length(dirac_type)) do i
+            cg_filepath = if mpi_amroot(MPI_COMM_INSTANCE[]) && (filename != "")
+                measdir = joinpath(splitpath(filename)[1:end-1])
+                _ext = "$(lpad(MPI_INSTANCE[], 3, "0")).txt"
+                joinpath(measdir, "logdet_$(i)_cg_data_$(_ext)")
+            else
+                ""
+            end
+
             @level1("|    Dirac Operator: $(dirac_type[i])")
             @level1("|    Nf: $(Nf[i])")
             @level1("|    Mass: $(mass[i])")
@@ -36,13 +44,13 @@ struct LogDetMeasurement{T,TD,TF} <: AbstractMeasurement
             @level1("|    Even-Odd Preconditioned: $(string(eo_precon[i]))")
             @level1("|    CG Tolerance: $(cg_tol)")
             @level1("|    CG Max Iterations: $(cg_maxiters)")
+            @level1("|    CG Datafile: $(cg_filepath)")
             @level1("|    RHMC Order: $(rhmc_order[i])")
             @level1("|    RHMC Precisioin: $(rhmc_prec[i])")
             @level1("|    RHMC Spectral Bound: $(string(rhmc_spectral_bound[i]))")
-            ActionType = fermaction_from_str(dirac_type[i], eo_precon[i])
             LD_dict[dirac_type[i]] = 0.0
-            ActionType(
-                U, mass[i];
+            FermionAction(
+                dirac_type[i], U, mass[i];
                 bc_str=bc_str,
                 Nf=Nf[i],
                 rhmc_spectral_bound=(rhmc_spectral_bound[i]),
@@ -54,6 +62,7 @@ struct LogDetMeasurement{T,TD,TF} <: AbstractMeasurement
                 cg_tol_md=cg_tol,
                 cg_maxiters_action=cg_maxiters,
                 cg_maxiters_md=cg_maxiters,
+                cg_filepath=cg_filepath,
                 csw=csw,
             ) 
         end

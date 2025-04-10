@@ -134,6 +134,10 @@ end
     return MPI.Bcast!(buff, comm, root=root)
 end
 
+@inline function mpi_bcast(obj::T, comm; root=0) where {T}
+    return MPI.bcast(obj::T, comm, root=root)
+end
+
 @inline function mpi_bcast_isbits(obj::T, comm=mpi_comm(); root=0) where {T}
     return MPI.bcast(obj::T, comm, root=root)
 end

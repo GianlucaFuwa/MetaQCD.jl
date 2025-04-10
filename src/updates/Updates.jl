@@ -16,11 +16,8 @@ using ..Utils
 import KernelAbstractions as KA
 import ..BiasModule: Bias, NoBias, calc_cv, ∂V∂Q, recalc_cv!
 import ..BiasModule: update_bias!
-import ..DiracOperators: StaggeredFermionAction, StaggeredEOPreFermionAction
-import ..DiracOperators: StaggeredHoelblingFermionAction
-import ..DiracOperators: WilsonFermionAction, WilsonEOPreFermionAction, has_clover_term
-import ..DiracOperators: AbstractDiracOperator, QuenchedFermionAction, calc_fermion_action
-import ..DiracOperators: fermaction_from_str, sample_pseudofermions!
+import ..DiracOperators: AbstractDiracOperator, FermionAction, QuenchedFermionAction
+import ..DiracOperators: calc_fermion_action, has_clover_term, sample_pseudofermions!
 import ..Fields: AbstractGaugeAction, Gaugefield, Colorfield, identity_gauges!, global_dims
 import ..Fields: WilsonGaugeAction, add!, calc_gauge_action, calc_kinetic_energy
 import ..Fields: allindices, clear!, dims, normalize!, fieldstrength_eachsite!, float_type
@@ -57,7 +54,6 @@ function Updatemethod(parameters::ParameterSet, U; instance=mpi_myrank())
         parameters.update_method,
         logdir=parameters.log_dir,
         fermion_action=parameters.fermion_action,
-        eo_precon=parameters.eo_precon,
         Nf=parameters.Nf,
         num_cv=length(parameters.biases),
         metro_ϵ=parameters.metro_epsilon,
@@ -87,7 +83,6 @@ function Updatemethod(
     update_method;
     logdir="",
     fermion_action="none",
-    eo_precon=false,
     Nf=0,
     num_cv=0,
     metro_ϵ=0.1,
@@ -122,7 +117,7 @@ function Updatemethod(
             hmc_rhostout_gauge,
             hmc_rhostout_fermion;
             hmc_logging=hmc_logging,
-            fermion_action=fermaction_from_str(lower_case(fermion_action), eo_precon),
+            fermion_action=fermion_action,
             heavy_flavours=length(Nf) - 1,
             num_cv=num_cv,
             logdir=logdir,

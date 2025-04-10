@@ -87,9 +87,9 @@ function run_sim!(univ, parameters, updatemethod, updatemethod_pt; mpi_multi_sim
                 # TODO:
             elseif isnothing(updatemethod_pt) && !(MPI_INSTANCE[]==0)
                 faction_type = if univ.fermion_action == QuenchedFermionAction() 
-                    QuenchedFermionAction
+                    "quenched"
                 else
-                    typeof(univ.fermion_action[1])
+                    parameters.fermion_action
                 end
                 # all MetaD streams use HMC, so there is no need to initialize more than 1
                 hmc_integrator = parameters.hmc_integrator
@@ -124,9 +124,9 @@ function run_sim!(univ, parameters, updatemethod, updatemethod_pt; mpi_multi_sim
             if isnothing(updatemethod) && isnothing(updatemethod_pt)
                 updatemethod = Updatemethod(parameters, U[1])
                 faction_type = if univ.fermion_action == QuenchedFermionAction() 
-                    QuenchedFermionAction
+                    "quenched"
                 else
-                    typeof(univ.fermion_action[1])
+                    parameters.fermion_action
                 end
                 # all MetaD streams use HMC, so there is no need to initialize more than 1
                 hmc_integrator = parameters.hmc_integrator
@@ -241,6 +241,15 @@ function run_sim!(univ, parameters, updatemethod, updatemethod_pt; mpi_multi_sim
         parameters.ensemble_dir, parameters.save_checkpoint_every
     )
 
+    # INFO: Log times per update in seconds
+    timing_datafile = if mpi_amroot(mpi_comm_instance())
+        StaticString(
+            joinpath(parameters.log_dir, "timings_$(lpad(MPI_INSTANCE[], 3, "0")).txt")
+        )
+    else
+        nothing
+    end
+
     if parameters.tempering_enabled && !mpi_multi_sim
         metaqcd_PT!(
             parameters,
@@ -265,6 +274,7 @@ function run_sim!(univ, parameters, updatemethod, updatemethod_pt; mpi_multi_sim
             parity,
             config_saver,
             checkpointer,
+            timing_datafile,
             mpi_multi_sim,
         )
     end
@@ -282,25 +292,19 @@ function metaqcd!(
     parity,
     config_saver,
     checkpointer,
+    timing_datafile,
     mpi_multi_sim,
 )
     U = univ.U
     fermion_action = univ.fermion_action
     bias = univ.bias
-    myinstance = MPI_INSTANCE
     tempering_enabled = parameters.tempering_enabled
-    numaccepts_temper = zeros(Int64, univ.numinstances-1)
+    numaccepts_temper = zeros(Int64, MPI_NUMINSTANCES[]-1)
     instance_state = collect(0:univ.numinstances)
     swap_every = parameters.swap_every
-    # INFO: Log times per update in seconds
-    logtimepath = if mpi_amroot(mpi_comm_instance())
-        joinpath(parameters.log_dir, "timings_$(lpad(MPI_INSTANCE[], 3, "0")).txt")
-    else
-        nothing
-    end
 
-    if !isnothing(logtimepath)
-        fp = fopen(logtimepath, "w")
+    if !isnothing(timing_datafile)
+        fp = fopen(timing_datafile, "w")
         printf(fp, "%s", "time [s]")
         newline(fp)
         fclose(fp)
@@ -327,10 +331,12 @@ function metaqcd!(
             mpi_barrier()
 
             if mpi_amroot(mpi_comm_instance())
-                fp = fopen(logtimepath, "a")
-                printf(fp, "%-.10E", updatetime)
-                newline(fp)
-                fclose(fp)
+                if !isnothing(timing_datafile)
+                    fp = fopen(timing_datafile, "a")
+                    printf(fp, "%-.10E", updatetime)
+                    newline(fp)
+                    fclose(fp)
+                end
             end
 
             @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))\n-")
@@ -357,22 +363,20 @@ function metaqcd!(
                 )
                 rand() < 0.5 && update!(parity, U)
 
-                if accepted
-                    update_bias!(
-                        bias, U.CV, itrj, myinstance[]; mpi_multi_sim=mpi_multi_sim
-                    )
-                end
-
+                accepted && update_bias!(bias, U.CV, itrj; mpi_multi_sim=mpi_multi_sim)
                 numaccepts += accepted
             end
 
             mpi_barrier()
 
             if mpi_amroot(mpi_comm_instance())
-                fp = fopen(logtimepath, "a")
-                printf(fp, "%-.10E", updatetime)
-                newline(fp)
-                fclose(fp)
+                if !isnothing(timing_datafile)
+                    set_ext!(timing_datafile)
+                    fp = fopen(timing_datafile, "a")
+                    printf(fp, "%-.10E", updatetime)
+                    newline(fp)
+                    fclose(fp)
+                end
             end
 
             print_acceptance_rates(numaccepts, itrj)
@@ -384,10 +388,9 @@ function metaqcd!(
                     bias,
                     numaccepts_temper,
                     instance_state,
-                    myinstance,
                     swap_every,
                     itrj;
-                    recalc=(myinstance[]==0)
+                    recalc=(MPI_INSTANCE[]==0)
                 )
             end
 
@@ -495,7 +498,7 @@ function metaqcd_PT!(
                         metro_test=true,
                         instance=i-1,
                     )
-                    accepted == true && update_bias!(bias[i], U[i].CV, itrj)
+                    accepted && update_bias!(bias[i], U[i].CV, itrj)
                     numaccepts[i] += accepted
                 end
             end

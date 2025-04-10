@@ -9,8 +9,8 @@ function test_fderivative(
     nprocs_cart=(1, 1, 1, 1),
     halo_width=1,
     dirac="staggered",
-    mass=0.01,
     eoprec=false,
+    mass=0.01,
     single_flavor=false,
     csw=1.78
 )
@@ -57,8 +57,7 @@ function test_fderivative(
     end
 
     params = (
-        fermion_action=dirac,
-        eo_precon=eoprec,
+        fermion_action=dirac*ifelse(eoprec, "_eo", ""),
         boundary_condition="antiperiodic",
         rhmc_spectral_bound=spectral_bound,
         rhmc_order_md=15,
@@ -71,6 +70,7 @@ function test_fderivative(
         cg_maxiters_md=5000,
         wilson_r=1,
         wilson_csw=csw,
+        log_dir="",
     )
 
     action = MetaQCD.DiracOperators.init_fermion_action(params, mass, Nf, U)

@@ -6,9 +6,7 @@ using TOML: parsefile
 using ..MetaIO
 using ..Utils
 
-import ..DiracOperators: WilsonFermionAction, WilsonEOPreFermionAction
-import ..DiracOperators: StaggeredFermionAction, StaggeredEOPreFermionAction
-import ..DiracOperators: init_fermion_action, QuenchedFermionAction
+import ..DiracOperators: FermionAction, QuenchedFermionAction, init_fermion_action
 import ..Fields: Gaugefield, WilsonGaugeAction, IwasakiGaugeAction, DBW2GaugeAction
 import ..Fields: SymanzikTreeGaugeAction
 import ..BiasModule: Bias, NoBias

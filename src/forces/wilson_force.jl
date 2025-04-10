@@ -1,4 +1,6 @@
-function calc_dSfdU!(dU, fermion_action::WilsonFermionAction{false,2}, U, ϕ::WilsonSpinorfield)
+function calc_dSfdU!(
+    dU, fermion_action::FermionAction{false,2,TD}, U, ϕ::WilsonSpinorfield,
+) where {TD<:WilsonDiracOperator}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
     cg_maxiters = fermion_action.cg_maxiters_md
@@ -21,8 +23,8 @@ function calc_dSfdU!(dU, fermion_action::WilsonFermionAction{false,2}, U, ϕ::Wi
 end
 
 function calc_dSfdU!(
-    dU, fermion_action::WilsonFermionAction{true,Nf}, U, ϕ::WilsonSpinorfield
-) where {Nf}
+    dU, fermion_action::FermionAction{true,1,TD}, U, ϕ::WilsonSpinorfield,
+) where {TD<:WilsonDiracOperator}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
     cg_maxiters = fermion_action.cg_maxiters_md

@@ -25,11 +25,17 @@ A Wilson Dirac operator with gauge background is created by applying it to a `Ga
 - `TG`: Type of the underlying `Gaugefield`
 - `BC`: Boundary Condition in time direction
 """
-struct StaggeredEOPreDiracOperator{B,T,TF,TG,BC} <: AbstractDiracOperator
+struct StaggeredEOPreDiracOperator{B,T,TF,TG,BC} <: AbstractDiracOperator{B,T}
     U::TG
     temp::TF # temp for storage of intermediate result for DdaggerD operator
     mass::Float64
     boundary_condition::BC # Only in time direction
+    function StaggeredEOPreDiracOperator(
+        U::TG, temp::TF, mass, bc::BC
+    ) where {B,T,TG<:Gaugefield{B,T},TF<:StaggeredEOPreSpinorfield{B,T},BC}
+        return new{B,T,TF,TG,BC}(U, temp, mass, bc)
+    end
+
     function StaggeredEOPreDiracOperator(
         f::AbstractField{B,T}, mass; bc_str="antiperiodic", kwargs...
     ) where {B,T}
@@ -41,126 +47,23 @@ struct StaggeredEOPreDiracOperator{B,T,TF,TG,BC} <: AbstractDiracOperator
         BC = typeof(boundary_condition)
         return new{B,T,TF,TG,BC}(U, temp, mass, boundary_condition)
     end
-
-    function StaggeredEOPreDiracOperator(
-        D::StaggeredEOPreDiracOperator{B,T,TF}, U::Gaugefield{B,T}
-    ) where {B,T,TF}
-        check_dims(U, D.temp.parent)
-        TG = typeof(U)
-        BC = typeof(D.boundary_condition)
-        return new{B,T,TF,TG,BC}(U, D.temp, D.mass, D.boundary_condition)
-    end
 end
 
-function (D::StaggeredEOPreDiracOperator{B,T})(U::Gaugefield{B,T}) where {B,T}
-    return StaggeredEOPreDiracOperator(D, U)
+function add_gauge_background(
+    D::StaggeredEOPreDiracOperator{B,T,TF}, U::Gaugefield{B,T}
+) where {B,T,TF}
+    check_dims(U, D.temp.parent)
+    return StaggeredEOPreDiracOperator(U, D.temp, D.mass, D.boundary_condition)
 end
 
-struct StaggeredEOPreFermionAction{R,Nf,TD,CT,RI1,RI2,RT} <: AbstractFermionAction{R,Nf}
-    D::TD
-    cg_temps::CT
-    rhmc_info_action::RI1
-    rhmc_info_md::RI2
-    rhmc_temps1::RT # this holds the results of multishift cg
-    rhmc_temps2::RT # this holds the basis vectors in multishift cg
-    cg_tol_action::Float64
-    cg_tol_md::Float64
-    cg_maxiters_action::Int64
-    cg_maxiters_md::Int64
-    function StaggeredEOPreFermionAction(
-        f::AbstractField,
-        mass;
-        bc_str="antiperiodic",
-        Nf=4,
-        rhmc_spectral_bound=(mass^2, 6.0),
-        rhmc_order_action=15,
-        rhmc_prec_action=42,
-        rhmc_order_md=10,
-        rhmc_prec_md=42,
-        cg_tol_action=1e-14,
-        cg_tol_md=1e-12,
-        cg_maxiters_action=1000,
-        cg_maxiters_md=1000,
-        kwargs...,
-    )
-        D = StaggeredEOPreDiracOperator(f, mass; bc_str=bc_str)
-        TD = typeof(D)
-        rhmc_lambda_low = rhmc_spectral_bound[1]
-        rhmc_lambda_high = rhmc_spectral_bound[2]
-
-        if Nf == 4
-            R = false
-            cg_temps = ntuple(_ -> even_odd(Spinorfield(f; staggered=true)), 4)
-            power = Nf//8
-            rhmc_info_action = RHMCParams(
-                power;
-                n=rhmc_order_action,
-                precision=rhmc_prec_action,
-                lambda_low=rhmc_lambda_low,
-                lambda_high=rhmc_lambda_high,
-            )
-            n_temps = rhmc_order_action
-            rhmc_temps1 = ntuple(
-                _ -> even_odd(Spinorfield(f; staggered=true)), n_temps + 1
-            )
-            rhmc_temps2 = ntuple(
-                _ -> even_odd(Spinorfield(f; staggered=true)), n_temps + 1
-            )
-            rhmc_info_md = nothing
-        else
-            @assert 4 > Nf > 0 "Nf should be between 1 and 4 (was $Nf)"
-            R = true
-            cg_temps = ntuple(_ -> even_odd(Spinorfield(f; staggered=true)), 2)
-            power = Nf//8
-            rhmc_info_action = RHMCParams(
-                power;
-                n=rhmc_order_action,
-                precision=rhmc_prec_action,
-                lambda_low=rhmc_lambda_low,
-                lambda_high=rhmc_lambda_high,
-            )
-            power = Nf//4
-            rhmc_info_md = RHMCParams(
-                power;
-                n=rhmc_order_md,
-                precision=rhmc_prec_md,
-                lambda_low=rhmc_lambda_low,
-                lambda_high=rhmc_lambda_high,
-            )
-            n_temps = max(rhmc_order_md, rhmc_order_action)
-            rhmc_temps1 = ntuple(
-                _ -> even_odd(Spinorfield(f; staggered=true)), n_temps + 1
-            )
-            rhmc_temps2 = ntuple(
-                _ -> even_odd(Spinorfield(f; staggered=true)), n_temps + 1
-            )
-        end
-
-        CT = typeof(cg_temps)
-        RI1 = typeof(rhmc_info_action)
-        RI2 = typeof(rhmc_info_md)
-        RT = typeof(rhmc_temps1)
-        return new{R,Nf,TD,CT,RI1,RI2,RT}(
-            D,
-            cg_temps,
-            rhmc_info_action,
-            rhmc_info_md,
-            rhmc_temps1,
-            rhmc_temps2,
-            cg_tol_action,
-            cg_tol_md,
-            cg_maxiters_action,
-            cg_maxiters_md,
-        )
-    end
-end
+@inline default_Nf(::StaggeredEOPreDiracOperator) = 4
+@inline is_staggered(::StaggeredEOPreDiracOperator) = true
 
 function solve_dirac!(
     ψ_eo, D::T, ϕ_eo, temp1, temp2, temp3, temp4, temp5; tol=1e-14, maxiters=1000
 ) where {T<:StaggeredEOPreDiracOperator}
     error("Not implemented yet")
     # TODO: CGNE
-    return nothing
 end
 
 # We overload LinearAlgebra.mul! instead of Gaugefields.mul! so we dont have to import

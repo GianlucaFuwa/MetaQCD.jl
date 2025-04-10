@@ -41,7 +41,7 @@ function calc_weights(
         @level1("$itrj\t$(string(cv))\t$(w) # cv weight_$method")
     end
 
-    if isfile(datafile)
+    if datafile != ""
         _filename = if mpi_multi_sim
             set_ext!(datafile)
         else

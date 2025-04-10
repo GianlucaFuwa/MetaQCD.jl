@@ -1,9 +1,9 @@
 ["Physical Settings"]
 L = [12, 12, 12, 12]
-beta = 6.0
-gauge_action = "iwasaki"
-numtherm = 10
-numsteps = 5
+beta = 6.1912
+gauge_action = "wilson"
+numtherm = 20
+numsteps = 1000
 initial = "cold"
 update_method = "hmc"
 parity_update = false
@@ -12,29 +12,31 @@ parity_update = false
 hmc_trajectory = 1
 hmc_steps = 5
 hmc_integrator = "OMF4"
+hmc_friction = 0.0
+# hmc_rafriction = 0.001
 
 ["System Settings"]
 backend = "cpu"
 float_type = "double"         
-# ensemble_dir = ""
+ensemble_dir = "ensembles/test_ghmc_0.00"
 randomseed = 0
 verboselevel = 2
 overwrite = true
 
 ["Gradient Flow Settings"]
 flow_integrator = "euler"
-flow_num = 7
+flow_num = 30
 flow_steps = 1
 flow_tf = 0.12 # total flow time is flow_num * flow_tf
-flow_measure_every = 7
+flow_measure_every = 30
 
-["Measurement Settings".measurements.Energy_density]
-measure_every = 1
-type = ["plaquette", "clover", "improved"]
-
-["Measurement Settings".measurements.Gauge_action]
-measure_every = 1
-type = ["wilson", "symanzik_tree", "iwasaki", "dbw2"]
+# ["Measurement Settings".measurements.Energy_density]
+# measure_every = 1
+# type = ["plaquette", "clover", "improved"]
+#
+# ["Measurement Settings".measurements.Gauge_action]
+# measure_every = 1
+# type = ["wilson", "symanzik_tree", "iwasaki", "dbw2"]
 
 ["Measurement Settings".measurements.Plaquette]
 measure_every = 1
@@ -46,17 +48,17 @@ measure_every = 1
 measure_every = 1
 type = ["plaquette", "clover", "improved"]
 
-["Measurement Settings".measurements.Wilson_loop]
-measure_every = 1
-Rmax = 2
-Tmax = 2
+# ["Measurement Settings".measurements.Wilson_loop]
+# measure_every = 1
+# Rmax = 2
+# Tmax = 2
 
 ["Measurement Settings".measurements_with_flow.Topological_charge]
 measure_every = 10
 type = ["clover"]
 
-["Measurement Settings".measurements_with_flow.Wilson_loop]
-measure_every = 10
-Rmax = 2
-Tmax = 2
+# ["Measurement Settings".measurements_with_flow.Wilson_loop]
+# measure_every = 10
+# Rmax = 2
+# Tmax = 2
 

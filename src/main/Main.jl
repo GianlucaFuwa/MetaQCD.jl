@@ -5,11 +5,12 @@ using DelimitedFiles
 using InteractiveUtils
 using Random
 using Statistics
+using StaticTools: StaticString
 using ..MetaIO
 using ..Utils
 
 import ..BiasModule: NoBias, calc_weights, is_adaptive, recalc_cv!, update_bias!, set_sigma0!
-import ..DiracOperators: QuenchedFermionAction, fermaction_from_str
+import ..DiracOperators: QuenchedFermionAction
 import ..Fields: calc_gauge_action, is_distributed, normalize!
 import ..Measurements: MeasurementMethods, calc_measurements, calc_measurements_flowed
 import ..Parameters: ParameterSet, construct_params_from_toml
@@ -20,7 +21,7 @@ import ..Updates: set_instanton!
 
 export build_bias, run_sim
 
-const PACKAGE_VERSION = "1.1.2"
+const PACKAGE_VERSION = "1.2.0"
 
 function print_acceptance_rates(numaccepts, itrj)
     for (i, value) in enumerate(numaccepts)

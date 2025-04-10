@@ -25,7 +25,7 @@ A Wilson Dirac operator with gauge background is created by applying it to a `Ga
 - `C`: Boolean declaring whether the operator is clover improved or not
 - `BC`: Boundary Condition in time direction
 """
-struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO,BC} <: AbstractDiracOperator
+struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO,BC} <: AbstractDiracOperator{B,T}
     U::TG
     Fμν::TX
     temp::TF # temp for storage of intermediate result for DdaggerD operator
@@ -37,6 +37,14 @@ struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO,BC} <: AbstractDiracOperator
     csw::Float64
     boundary_condition::BC # Only in time direction
     function WilsonEOPreDiracOperator(
+        U::TG, Fμν::TX, temp::TF, D_diag::TO, D_oo_inv::TO, mass, κ, r, csw, ::Val{C}, bc::BC
+    ) where {B,T,C,TG<:Gaugefield{B,T},TX,TF<:WilsonEOPreSpinorfield{B,T},TO,BC}
+        return new{B,T,C,TF,TG,TX,TO,BC}(
+            U, Fμν, temp, D_diag, D_oo_inv, mass, κ, r, csw, bc
+        )
+    end
+
+    function WilsonEOPreDiracOperator(
         f::AbstractField{B,T}, mass; bc_str="antiperiodic", r=1, csw=0, kwargs...
     ) where {B,T}
         @assert r == 1 "Only r=1 in Wilson Dirac supported for now"
@@ -44,7 +52,7 @@ struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO,BC} <: AbstractDiracOperator
         U = nothing
         C = csw == 0 ? false : true
         Fμν = C ? Tensorfield(f) : nothing
-        temp = even_odd(Spinorfield(f))
+        temp = even_odd(Spinorfield(f)) # INFO: Wilson Dirac Op. is 1-hop, so halo_width=1 is enough
         D_diag = Paulifield(temp, csw)
         D_oo_inv = Paulifield(temp, csw; inverse=true)
         boundary_condition = create_bc(bc_str, f.topology)
@@ -58,141 +66,35 @@ struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO,BC} <: AbstractDiracOperator
             U, Fμν, temp, D_diag, D_oo_inv, mass, κ, r, csw, boundary_condition
         )
     end
-
-    function WilsonEOPreDiracOperator(
-        D::WilsonDiracOperator{B,T,C,TF}, U::Gaugefield{B,T}
-    ) where {B,T,C,TF}
-        check_dims(U, D.temp)
-        mass = D.mass
-        csw = D.csw
-        temp = even_odd(D.temp)
-        D_diag = Paulifield(temp, csw)
-        D_oo_inv = Paulifield(temp, csw; inverse=true)
-
-        Fμν = C ? Tensorfield(U) : nothing
-        calc_diag!(D_diag, D_oo_inv, Fμν, U, mass)
-
-        TF_new = typeof(temp)
-        TX = typeof(Fμν)
-        TG = typeof(U)
-        TO = typeof(D_diag)
-        BC = typeof(D.boundary_condition)
-        return new{B,T,C,TF_new,TG,TX,TO,BC}(
-            U, Fμν, temp, D_diag, D_oo_inv, mass, D.κ, D.r, csw, D.boundary_condition
-        )
-    end
-
-    function WilsonEOPreDiracOperator(
-        D::WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO}, U::Gaugefield{B,T}
-    ) where {B,T,C,TF,TG,TX,TO}
-        check_dims(U, D.temp.parent)
-        mass = D.mass
-        csw = D.csw
-        Fμν = D.Fμν
-        temp = D.temp
-        D_diag = D.D_diag
-        D_oo_inv = D.D_oo_inv
-
-        calc_diag!(D_diag, D_oo_inv, Fμν, U, mass)
-        BC = typeof(D.boundary_condition)
-        return new{B,T,C,TF,typeof(U),TX,TO,BC}(
-            U, Fμν, temp, D_diag, D_oo_inv, mass, D.κ, D.r, csw, D.boundary_condition
-        )
-    end
 end
 
-function (D::WilsonEOPreDiracOperator{B,T})(U::Gaugefield{B,T}) where {B,T}
-    return WilsonEOPreDiracOperator(D, U)
+function add_gauge_background(
+    D::WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO}, U::Gaugefield{B,T}
+) where {B,T,C,TF,TG,TX,TO}
+    check_dims(U, D.temp.parent)
+    mass = D.mass
+    csw = D.csw
+    Fμν = D.Fμν
+    temp = D.temp
+    D_diag = D.D_diag
+    D_oo_inv = D.D_oo_inv
+
+    calc_diag!(D_diag, D_oo_inv, Fμν, U, mass)
+    bc = D.boundary_condition
+    return WilsonEOPreDiracOperator(
+        U, Fμν, temp, D_diag, D_oo_inv, mass, D.κ, D.r, csw, Val(C), bc
+    )
 end
 
+@inline default_Nf(::WilsonEOPreDiracOperator) = 2
+@inline is_staggered(::WilsonEOPreDiracOperator) = false
 @inline has_clover_term(::WilsonEOPreDiracOperator{B,T,C}) where {B,T,C} = C
 @inline has_clover_term(::Daggered{W}) where {B,T,C,W<:WilsonEOPreDiracOperator{B,T,C}} = C
 @inline has_clover_term(::DdaggerD{W}) where {B,T,C,W<:WilsonEOPreDiracOperator{B,T,C}} = C
 
-struct WilsonEOPreFermionAction{R,Nf,C,TD,CT,TX,RI1,RI2,RT} <: AbstractFermionAction{R,Nf}
-    D::TD
-    cg_temps::CT
-    Xμν::TX
-    rhmc_info_action::RI1
-    rhmc_info_md::RI2
-    rhmc_temps1::RT # this holds the results of multishift cg
-    rhmc_temps2::RT # this holds the basis vectors in multishift cg
-    cg_tol_action::Float64
-    cg_tol_md::Float64
-    cg_maxiters_action::Int64
-    cg_maxiters_md::Int64
-    function WilsonEOPreFermionAction(
-        f::AbstractField{B,T},
-        mass;
-        bc_str="antiperiodic",
-        r=1,
-        csw=0,
-        Nf=2,
-        rhmc_order_md=10,
-        rhmc_prec_md=42,
-        rhmc_order_action=15,
-        rhmc_prec_action=42,
-        cg_tol_action=1e-14,
-        cg_tol_md=1e-12,
-        cg_maxiters_action=1000,
-        cg_maxiters_md=1000,
-        kwargs...,
-    ) where {B,T}
-        D = WilsonEOPreDiracOperator(f, mass; bc_str=bc_str, r=r, csw=csw)
-        TD = typeof(D)
-
-        if Nf == 2
-            R = false
-            rhmc_info_md = nothing
-            rhmc_info_action = nothing
-            rhmc_temps1 = nothing
-            rhmc_temps2 = nothing
-            cg_temps = ntuple(_ -> even_odd(Spinorfield(f)), 4)
-        else
-            @assert Nf == 1 """
-            Nf should be 1 or 2 (was $Nf). If you want Nf > 2, use multiple actions
-            """
-            R = true
-            cg_temps = ntuple(_ -> even_odd(Spinorfield(f)), 2)
-            power = Nf//4
-            rhmc_info_action = RHMCParams(
-                power; n=rhmc_order_action, precision=rhmc_prec_action
-            )
-            power = Nf//2
-            rhmc_info_md = RHMCParams(
-                power; n=rhmc_order_md, precision=rhmc_prec_md
-            )
-            n_temps = max(rhmc_order_md, rhmc_order_action)
-            rhmc_temps1 = ntuple(_ -> even_odd(Spinorfield(f)), n_temps + 1)
-            rhmc_temps2 = ntuple(_ -> even_odd(Spinorfield(f)), n_temps + 1)
-        end
-
-        C = csw != 0 ? true : false
-        Xμν = C ? Tensorfield(f) : nothing
-        CT = typeof(cg_temps)
-        TX = typeof(Xμν)
-        RI1 = typeof(rhmc_info_action)
-        RI2 = typeof(rhmc_info_md)
-        RT = typeof(rhmc_temps1)
-        return new{R,Nf,C,TD,CT,TX,RI1,RI2,RT}(
-            D,
-            cg_temps,
-            Xμν,
-            rhmc_info_action,
-            rhmc_info_md,
-            rhmc_temps1,
-            rhmc_temps2,
-            cg_tol_action,
-            cg_tol_md,
-            cg_maxiters_action,
-            cg_maxiters_md,
-        )
-    end
-end
-
 # INFO: Need to explicitly define fermion action here, because of the small determinant
 function calc_fermion_action(
-    fermion_action::WilsonEOPreFermionAction{false,2},
+    fermion_action::FermionAction{true,2,WilsonEOPreDiracOperator},
     U::Gaugefield,
     ϕ_eo::WilsonEOPreSpinorfield,
 )
@@ -203,13 +105,24 @@ function calc_fermion_action(
     cg_maxiters = fermion_action.cg_maxiters_action
 
     clear!(ψ_eo) # initial guess is zero
-    solve_dirac!(ψ_eo, DdagD, ϕ_eo, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
+    iters, res = solve_dirac!(ψ_eo, DdagD, ϕ_eo, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
+
+    cg_datafile = fermion_action.cg_datafile
+    if cg_datafile != ""
+        set_ext!(cg_datafile, MPI_INSTANCE[])
+        fp = fopen(cg_datafile, "a")
+        printf(fp, "%-11i", iters)
+        printf(fp, "%-25.15E", res)
+        newline(fp)
+        fclose(fp)
+    end
+
     Sf = real(dot(ϕ_eo, ψ_eo)) - 2trlog(D.D_diag, D.mass)
     return Sf
 end
 
 function calc_fermion_action(
-    fermion_action::WilsonEOPreFermionAction{true,1},
+    fermion_action::FermionAction{true,1,WilsonEOPreDiracOperator},
     U::Gaugefield,
     ϕ_eo::WilsonEOPreSpinorfield,
 )
@@ -230,7 +143,18 @@ function calc_fermion_action(
     shifts = get_β_inverse(rhmc)
     coeffs = get_α_inverse(rhmc)
     α₀ = get_α0_inverse(rhmc)
-    solve_dirac_multishift!(ψs, shifts, DdagD, ϕ_eo, temp1, temp2, ps, cg_tol, cg_maxiters)
+    iters, res = solve_dirac_multishift!(ψs, shifts, DdagD, ϕ_eo, temp1, temp2, ps, cg_tol, cg_maxiters)
+
+    cg_datafile = fermion_action.cg_datafile
+    if cg_datafile != ""
+        set_ext!(cg_datafile, MPI_INSTANCE[])
+        fp = fopen(cg_datafile, "a")
+        printf(fp, "%-11i", iters)
+        printf(fp, "%-25.15E", res)
+        newline(fp)
+        fclose(fp)
+    end
+
     ψ_eo = ψs[1]
     clear!(ψ_eo) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
 
@@ -245,10 +169,9 @@ function calc_fermion_action(
 end
 
 function solve_dirac!(
-    ψ_eo, D::T, ϕ_eo, temp1, temp2, temp3, temp4, temp5; tol=1e-14, maxiters=1000
+    ψ_eo, D::T, ϕ_eo, temps...; tol=1e-14, maxiters=1000
 ) where {T<:WilsonEOPreDiracOperator}
-    bicg_stab!(ψ_eo, D, ϕ_eo, temp1, temp2, temp3, temp4, temp5; tol=tol, maxiters=maxiters)
-    return nothing
+    return bicg_stab!(ψ_eo, D, ϕ_eo, temps...; tol=tol, maxiters=maxiters)
 end
 
 # We overload LinearAlgebra.mul! instead of Gaugefields.mul! so we dont have to import

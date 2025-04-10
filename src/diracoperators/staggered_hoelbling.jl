@@ -25,7 +25,7 @@ A Wilson Dirac operator with gauge background is created by applying it to a `Ga
 - `TG`: Type of the underlying `Gaugefield`
 - `BC`: Boundary Condition in time direction
 """
-struct StaggeredHoelblingDiracOperator{MT,B,T,TF,TG,BC} <: AbstractDiracOperator
+struct StaggeredHoelblingDiracOperator{MT,B,T,TF,TG,BC} <: AbstractDiracOperator{B,T}
     U::TG
     temp::TF # temp for storage of intermediate result for DdaggerD operator
     mass::Float64
@@ -33,7 +33,13 @@ struct StaggeredHoelblingDiracOperator{MT,B,T,TF,TG,BC} <: AbstractDiracOperator
     c2::Float64
     boundary_condition::BC # Only in time direction
     function StaggeredHoelblingDiracOperator{MT}(
-        f::AbstractField{B,T}, mass; bc_str="antiperiodic", c1=1.0, c2=1.0, kwargs...
+        U::TG, temp::TF, mass, c1, c2, bc::BC
+    ) where {B,T,MT,TG<:Gaugefield{B,T},TF<:StaggeredSpinorfield{B,T},BC}
+        return new{MT,B,T,TF,TG,BC}(U, temp, mass, c1, c2, bc)
+    end
+
+    function StaggeredHoelblingDiracOperator{MT}(
+        f::AbstractField{B,T}, mass; bc_str="antiperiodic", kwargs...
     ) where {MT,B,T}
         @assert MT ∈ (1234, 1324, 1342) "Mass term $(MT) not supported"
         U = nothing
@@ -42,16 +48,19 @@ struct StaggeredHoelblingDiracOperator{MT,B,T,TF,TG,BC} <: AbstractDiracOperator
         TF = typeof(temp)
         boundary_condition = create_bc(bc_str, f.topology)
         BC = typeof(boundary_condition)
-        return new{MT,B,T,TF,TG,BC}(U, temp, mass, c1, c2, boundary_condition)
-    end
-
-    function StaggeredHoelblingDiracOperator(
-        D::StaggeredHoelblingDiracOperator{MT,B,T,TF,TG,BC}, U::Gaugefield{B,T}
-    ) where {MT,B,T,TF,TG,BC}
-        TG_new = typeof(U)
-        return new{MT,B,T,TF,TG_new,BC}(U, D.temp, D.mass, D.c1, D.c2, D.boundary_condition)
+        return new{MT,B,T,TF,TG,BC}(U, temp, mass, 1.0, 1.0, boundary_condition)
     end
 end
+
+function add_gauge_background(
+    D::StaggeredHoelblingDiracOperator{MT,B,T,TF,TG,BC}, U::Gaugefield{B,T}
+) where {MT,B,T,TF,TG,BC}
+    bc = D.boundary_condition
+    return StaggeredHoelblingDiracOperator{MT}(U, D.temp, D.mass, D.c1, D.c2, bc)
+end
+
+@inline default_Nf(::StaggeredHoelblingDiracOperator) = 2
+@inline is_staggered(::StaggeredHoelblingDiracOperator) = true
 
 @inline function get_mass_term(::Val{MT}) where {MT}
     return if MT == 1234
@@ -67,110 +76,10 @@ end
     return get_mass_term(Val(MT))
 end
 
-function (D::StaggeredHoelblingDiracOperator{MT,B,T})(U::Gaugefield{B,T}) where {MT,B,T}
-    return StaggeredHoelblingDiracOperator(D, U)
-end
-
-struct StaggeredHoelblingFermionAction{R,Nf,TD,CT,RI1,RI2,RT} <:
-    AbstractFermionAction{R,Nf}
-    D::TD
-    cg_temps::CT
-    rhmc_info_action::RI1
-    rhmc_info_md::RI2
-    rhmc_temps1::RT # this holds the results of multishift cg
-    rhmc_temps2::RT # this holds the basis vectors in multishift cg
-    # X̃::TX # Used for force calculation
-    # Ỹ::TX # Used for force calculation
-    cg_tol_action::Float64
-    cg_tol_md::Float64
-    cg_maxiters_action::Int64
-    cg_maxiters_md::Int64
-    function StaggeredHoelblingFermionAction{MT}( # INFO: MT: Mass Term
-        f::AbstractField,
-        mass;
-        c1=1.0,
-        c2=1.0,
-        bc_str="antiperiodic",
-        Nf=2,
-        rhmc_spectral_bound=(mass^2, 6.0),
-        rhmc_order_md=10,
-        rhmc_prec_md=42,
-        rhmc_order_action=15,
-        rhmc_prec_action=42,
-        cg_tol_action=1e-14,
-        cg_tol_md=1e-12,
-        cg_maxiters_action=1000,
-        cg_maxiters_md=1000,
-        kwargs...,
-    ) where {MT}
-        D = StaggeredHoelblingDiracOperator{MT}(f, mass; c1=c1, c2=c2, bc_str=bc_str)
-        TD = typeof(D)
-
-        if Nf == 2
-            R = false
-            rhmc_info_action = nothing
-            rhmc_info_md = nothing
-            rhmc_temps1 = nothing
-            rhmc_temps2 = nothing
-            cg_temps = ntuple(_ -> Spinorfield(f; staggered=true), 4)
-        else
-            @assert Nf == 1 """
-            Nf should be 1 or 2 (was $Nf). If you want Nf > 2, use multiple actions
-            """
-            R = true
-            rhmc_lambda_low = rhmc_spectral_bound[1]
-            rhmc_lambda_high = rhmc_spectral_bound[2]
-            cg_temps = ntuple(_ -> Spinorfield(f; staggered=true), 2)
-            power = Nf//4
-            rhmc_info_action = RHMCParams(
-                power;
-                n=rhmc_order_action,
-                precision=rhmc_prec_action,
-                lambda_low=rhmc_lambda_low,
-                lambda_high=rhmc_lambda_high,
-            )
-            power = Nf//2
-            rhmc_info_md = RHMCParams(
-                power;
-                n=rhmc_order_md,
-                precision=rhmc_prec_md,
-                lambda_low=rhmc_lambda_low,
-                lambda_high=rhmc_lambda_high,
-            )
-            n_temps = max(rhmc_order_md, rhmc_order_action)
-            rhmc_temps1 = ntuple(_ -> Spinorfield(f; staggered=true), n_temps + 1)
-            rhmc_temps2 = ntuple(_ -> Spinorfield(f; staggered=true), n_temps + 1)
-        end
-
-        # X̃ = Spinorfield(f; staggered=true)
-        # Ỹ = Spinorfield(f; staggered=true)
-        CT = typeof(cg_temps)
-        RI1 = typeof(rhmc_info_action)
-        RI2 = typeof(rhmc_info_md)
-        RT = typeof(rhmc_temps1)
-        # TX = typeof(X̃)
-        return new{R,Nf,TD,CT,RI1,RI2,RT}(
-            D,
-            cg_temps,
-            rhmc_info_action,
-            rhmc_info_md,
-            rhmc_temps1,
-            rhmc_temps2,
-            # X̃,
-            # Ỹ,
-            cg_tol_action,
-            cg_tol_md,
-            cg_maxiters_action,
-            cg_maxiters_md,
-        )
-    end
-end
-
 function solve_dirac!(
-    ψ, D::T, ϕ, temp1, temp2, temp3, temp4, temp5; tol=1e-14, maxiters=1000
+    ψ, D::T, ϕ, temps...; tol=1e-14, maxiters=1000
 ) where {T<:StaggeredHoelblingDiracOperator}
-    bicg_stab!(ψ, D, ϕ, temp1, temp2, temp3, temp4, temp5; tol=tol, maxiters=maxiters)
-    return nothing
+    return bicg_stab!(ψ, D, ϕ, temps...; tol=tol, maxiters=maxiters)
 end
 
 # We overload LinearAlgebra.mul! instead of Gaugefields.mul! so we dont have to import

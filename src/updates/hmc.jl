@@ -111,7 +111,7 @@ function HMC(
     ρ_stout_gauge=0.0,
     ρ_stout_fermion=0.0;
     hmc_logging=true,
-    fermion_action=QuenchedFermionAction,
+    fermion_action="quenched",
     heavy_flavours=0,
     num_cv=0,
     logdir="",
@@ -135,17 +135,17 @@ function HMC(
     has_smearing = smearing_gauge != NoSmearing() || smearing_fermion != NoSmearing()
     force2 = (!has_smearing && num_cv==0) ? nothing : Colorfield(U)
 
-    if fermion_action <: StaggeredFermionAction
+    if fermion_action == "staggered"
         ϕ = ntuple(_ -> Spinorfield(U; staggered=true), 1 + heavy_flavours)
-    elseif fermion_action <: StaggeredEOPreFermionAction
+    elseif fermion_action == "staggered_eo"
         ϕ = ntuple(_ -> even_odd(Spinorfield(U; staggered=true)), 1 + heavy_flavours)
-    elseif fermion_action <: StaggeredHoelblingFermionAction
+    elseif fermion_action ∈ ["staggered_h1234", "staggered_1342"]
         ϕ = ntuple(_ -> Spinorfield(U; staggered=true), 1 + heavy_flavours)
-    elseif fermion_action <: WilsonFermionAction
+    elseif fermion_action == "wilson"
         ϕ = ntuple(_ -> Spinorfield(U), 1 + heavy_flavours)
-    elseif fermion_action <: WilsonEOPreFermionAction
+    elseif fermion_action == "wilson_eo"
         ϕ = ntuple(_ -> even_odd(Spinorfield(U)), 1 + heavy_flavours)
-    elseif fermion_action <: QuenchedFermionAction
+    elseif fermion_action ∈ ["quenched", "none"]
         ϕ = nothing
     else
         throw(AssertionError("Dynamical fermions \"$fermion_action\" not supported"))
