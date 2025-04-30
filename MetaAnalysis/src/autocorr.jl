@@ -29,10 +29,9 @@ function autoc_time_int(x::Vector{<:Real})
     return τ
 end
 
-# function autoc_time_int(x::Vector{<:Real}, ::Any)
-#     id = rand(Int64)
-#     x_uw = uwreal(x, "#$id#")
-#     uwerr(x_uw)
-#     @show ADerrors.window(x_uw, "#$id#")
-#     return taui(x_uw, "#$id#")
-# end
+function autoc_time_int_uw(x::Vector{<:Real})
+    id = rand(Int64)
+    x_uw = uwreal(x, "#$id#")
+    uwerr(x_uw)
+    return taui(x_uw, "#$id#"), dtaui(x_uw, "#$id#")
+end

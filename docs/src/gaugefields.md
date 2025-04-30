@@ -1,6 +1,6 @@
-# Creating Fields on the lattice
+# Implementation of Gauge and Spinor fields
 
-You can create a 4-dimensional SU(3) gauge field by specifying the backend, floating point
+We create a 4-dimensional SU(3) gauge field by specifying the backend, floating point
 precision, gauge action, dimensions and coupling parameter beta:
 ```julia
 backend = CPU
@@ -16,12 +16,13 @@ and set the initial conditions with `identity_gauges!(U)` (cold) or
 `Gaugefield`s, `Colorfield`s and `Expfield`s are structs that contain a main Array `U`,
 which is a 5-dimensional array of statically sized 3x3 complex matrices, i.e., `SMatrix`
 objects from `StaticArrays.jl` (where arrays are stored as Tuples under the hood).
+`Colorfield`s are really just `Gaugefield`s without the added information of the gauge
+action and `Expfield`s don't just store 3x3 complex matrices but all the information
+required for the "Q" matrices of the Stout algorithm and Stout recursion.
 
 The fact that the elements are statically sized immutable arrays means that, for one, there
 are no allocations when performing linear algebra operations with them and secondly that we
-always just override the matrices in the arrays instead of mutating them. This
-yields enormous benefits in terms of less headaches during development and lets us define
-custom linear algebra routines for SMatrices and SVectors.
+always just override the matrices in the arrays instead of mutating them.
 
 The different backends are handled by `Kernelabstractions.jl`.
 
@@ -34,9 +35,8 @@ components at the same time, which should be more efficient.
 
 When using even-odd preconditioned dirac operators, the fermion fields get wrapped in a
 struct called `EvenOdd` such that we can overload all functions on that type. Our convention
-is to define the fields on the even sites. While we haven't tested whether the following is
-actually more performant, we map all even sites to the first half of the array to have
-contiguous memory accesses. The function `eo_site` does exactly this mapping.
+is to define the fields on the even sites. We map all even sites to the first half of the
+array to have contiguous memory accesses. The function `eo_site` does exactly this mapping.
 
 `Spinorfield`s are created in the same way as `Gaugefield`s with the gauge action type
 parameter being replaced by the number of Dirac indices. For `Spinorfield`s we have the

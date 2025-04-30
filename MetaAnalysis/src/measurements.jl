@@ -69,10 +69,10 @@ struct MetaMeasurements
 
                         if header[i] != "itrj"
                             if header[i] == "Q_clover"
-                                tau_int[head * str] = autoc_time_int(data[ui, i])
-                                tau_int[head * "^2" * str] = autoc_time_int(data[ui, i].^2)
+                                tau_int[head * str] = autoc_time_int_uw(data[ui, i])
+                                tau_int[head * "^2" * str] = autoc_time_int_uw(data[ui, i].^2)
                             else
-                                tau_int[head * str] = autoc_time_int(data[ui, i])
+                                tau_int[head * str] = autoc_time_int_uw(data[ui, i])
                             end
                         end
                     end
@@ -86,7 +86,7 @@ struct MetaMeasurements
                     measurement[header[i]] = data[:, i]
 
                     if header[i] != "itrj"
-                        tau_int[header[i] * "_$(instance)"] = autoc_time_int(data[:, i])
+                        tau_int[header[i] * "_$(instance)"] = autoc_time_int_uw(data[:, i])
                     end
                 end
 

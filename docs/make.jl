@@ -17,7 +17,7 @@ makedocs(
         "MetaQCD.jl: Metadynamics in Lattice QCD" => "index.md",
         "Quick Start" => "usage.md",
         "Creating a Parameter File" => "parameter_file.md",
-        "Creating Gaugefields" => "gaugefields.md",
+        "Implementation of Gauge and Spinor fields" => "gaugefields.md",
         "Updating a Gaugefield" => "updates.md",
         "Dirac Operators" => "dirac.md",
         # "Fermion Actions" => "fermion_actions.md",

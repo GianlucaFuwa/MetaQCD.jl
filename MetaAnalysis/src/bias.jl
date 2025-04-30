@@ -17,70 +17,73 @@ struct MetaBias{F}
     bias::F
     ensemblename::String
     ext::String
-    function MetaBias(
-        ; filename=nothing, ensemblename::String="", which=nothing, stream=0
-    )
-        from_ensemble = ensemblename != ""
-        from_file = filename isa String
-        @assert from_file ⊻ from_ensemble """
-        One and only one of the filename or the ensemblename of the bias potential has to \
-        be given
+end
+
+function MetaBias(
+    ; filename=nothing, ensemblename::String="", which=nothing, stream=0
+)
+    from_ensemble = ensemblename != ""
+    from_file = filename isa String
+    @assert from_file ⊻ from_ensemble """
+    One and only one of the filename or the ensemblename of the bias potential has to \
+    be given
+    """
+    dir = if isabspath(ensemblename) && from_ensemble
+        joinpath(ensemblename, "biaspotentials/")
+    elseif from_ensemble
+        path = joinpath(splitpath(@__DIR__())[1:end-2]...) * "/ensembles/$(ensemblename)/biaspotentials/"
+        @assert ispath(path) """
+        Ensemble \"$(ensemblename)\" could not be found or doesn't exist.
         """
-        dir = if isabspath(ensemblename) && from_ensemble
-            joinpath(ensemblename, "biaspotentials/")
-        elseif from_ensemble
-            path = joinpath(splitpath(@__DIR__())[1:end-2]...) * "/ensembles/$(ensemblename)/biaspotentials/"
-            @assert ispath(path) """
-            Ensemble \"$(ensemblename)\" could not be found or doesn't exist.
-            """
-            path
-        else
-            ""
-        end
-
-        file, ext = if from_ensemble
-            @assert isdir(dir) "Directory \"$(dir)\" doesn't exist."
-            filenames = readdir(dir)
-            fname = try
-                filenames[findfirst(x -> occursin("00$(stream)", x), filenames)]
-            catch _
-                filenames[findfirst(x -> occursin("00$(stream+1)", x), filenames)]
-            end
-
-            _file = dir * fname
-            _ext = splitext(_file)[end]
-            _file, _ext
-        else
-            filename, splitext(filename)[end]
-        end
-
-        if ext == ".metad" || which == :metad
-            data = readdlm(file; skipstart=1)
-            cvlims = data[1, 1], data[end, 1]
-            bin_width = data[2, 1] - data[1, 1]
-            bin_vals = data[:, 1]
-            values = data[:, 2]
-            bias = Metadynamics(
-                true,
-                1,
-                cvlims,
-                Inf,
-                bin_width,
-                1.0,
-                100,
-                bin_vals,
-                values,
-            )
-        elseif ext == ".opes" || which == :opes
-            bias = OPES(file)
-        else
-            throw(AssertionError("File extension $ext not recognized.
-                                 Must be either .metad or .opes"))
-        end
-
-        ename = split(ensemblename, "/")[end]
-        return new{typeof(bias)}(bias, ename, ext)
+        path
+    else
+        ""
     end
+
+    file, ext = if from_ensemble
+        @assert isdir(dir) "Directory \"$(dir)\" doesn't exist."
+        filenames = readdir(dir)
+        fname = try
+            filenames[findfirst(x -> occursin("00$(stream)", x), filenames)]
+        catch _
+            filenames[findfirst(x -> occursin("00$(stream+1)", x), filenames)]
+        end
+
+        _file = dir * fname
+        _ext = splitext(_file)[end]
+        _file, _ext
+    else
+        filename, splitext(filename)[end]
+    end
+
+    if ext == ".metad" || which == :metad
+        data = readdlm(file; skipstart=1)
+        cvlims = data[1, 1], data[end, 1]
+        bin_width = data[2, 1] - data[1, 1]
+        bin_vals = data[:, 1]
+        values = data[:, 2]
+        bias = Metadynamics(
+            true,
+            1,
+            cvlims,
+            Inf,
+            bin_width,
+            1.0,
+            100,
+            bin_vals,
+            values,
+        )
+    elseif ext == ".opes" || which == :opes
+        bias = OPES(file)
+    else
+        throw(AssertionError("File extension $ext not recognized.
+                             Must be either .metad or .opes"))
+    end
+
+    ename = split(ensemblename, "/")[end]
+    mbias = MetaBias(bias, string(ename), ext)
+    display(plot(mbias))
+    return mbias
 end
 
 (m::MetaBias{F})(cv::Float64) where {F} = m.bias(cv)

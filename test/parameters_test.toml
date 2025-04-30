@@ -32,7 +32,7 @@ swap_every = 1
 non_metadynamics_updates = 1
 measure_on_all = true
 ["Bias Settings".biases.1]
-kind_of_bias = "parametric"
+kind_of_bias = "metad"
 kind_of_cv = "topcharge_clover"
 Q = 0.0
 A = 10.0
@@ -51,7 +51,7 @@ hmc_rhostout_fermion = 0.12
 
 ["System Settings"]
 float_type = "double"
-ensemble_dir = "/home/runner/work/MetaQCD.jl/MetaQCD.jl/nonmpi"
+ensemble_dir = "/home/runner/work/MetaQCD.jl/MetaQCD.jl/mpi"
 randomseed = 0
 overwrite = true
 verboselevel = 1
