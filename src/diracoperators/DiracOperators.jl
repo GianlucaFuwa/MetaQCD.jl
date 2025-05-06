@@ -73,9 +73,12 @@ get_temp(D::Daggered) = D.parent.temp
 
 Wrap the Dirac operator `D` such that future functions know to treat it as `D†D`
 """
-struct DdaggerD{TD,B,T} <: AbstractDiracOperator{B,T}
+struct DdaggerD{TD,B,T,M} <: AbstractDiracOperator{B,T}
     parent::TD
-    DdaggerD(D::TD) where {B,T,TD<:AbstractDiracOperator{B,T}} = new{TD,B,T}(D)
+    twisted_mass::M
+    function DdaggerD(D::TD, tmass::M=nothing) where {B,T,TD<:AbstractDiracOperator{B,T},M}
+        return new{TD,B,T,M}(D, tmass)
+    end
 end
 
 LinearAlgebra.checksquare(D::DdaggerD) = LinearAlgebra.checksquare(D.parent)

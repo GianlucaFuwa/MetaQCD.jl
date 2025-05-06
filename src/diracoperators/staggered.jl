@@ -68,17 +68,17 @@ end
 # The Gaugefields module into CG.jl, which also allows us to use the solvers for
 # for arbitrary arrays, not just fermion fields and dirac operators (good for testing)
 function LinearAlgebra.mul!(
-    ψ::TF, D::StaggeredDiracOperator{CPU,T,TF,TG}, ϕ::TF
+    ψ::TF, D::StaggeredDiracOperator{CPU,T,TF,TG}, ϕ::TF, twisted_mass=0.0
 ) where {T,TF,TG}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.U
-    mass = T(D.mass)
+    mass = Complex{T}(D.mass + im*twisted_mass)
     twisted_mass = T.(D.twisted_mass)
     bc = D.boundary_condition
     check_dims(ψ, ϕ, U)
 
     @batch for site in eachindex(ψ)
-        ψ[site] = staggered_kernel(U, ϕ, site, mass, twisted_mass, bc, T, false)
+        ψ[site] = staggered_kernel(U, ϕ, site, mass, bc, T, false)
     end
 
     update_halo!(ψ)
@@ -86,18 +86,17 @@ function LinearAlgebra.mul!(
 end
 
 function LinearAlgebra.mul!(
-    ψ::TMF, D::StaggeredDiracOperator{CPU,T,TF,TG}, ϕ::TMF
+    ψ::TMF, D::StaggeredDiracOperator{CPU,T,TF,TG}, ϕ::TMF, twisted_mass=0.0
 ) where {T,TMF<:MultiSpinorfield,TF,TG}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.U
-    mass = T(D.mass)
-    twisted_mass = T.(D.twisted_mass)
+    mass = Complex{T}(D.mass + im*twisted_mass)
     bc = D.boundary_condition
     check_dims(ψ, ϕ, U)
 
     @batch for site in eachindex(ψ)
         for is in 1:num_spinors(ψ)
-            ψ[is, site] = staggered_kernel(U, ϕ, site, mass, twisted_mass, bc, T, false)
+            ψ[is, site] = staggered_kernel(U, ϕ, site, mass, bc, T, false)
         end
     end
 
@@ -106,17 +105,16 @@ function LinearAlgebra.mul!(
 end
 
 function LinearAlgebra.mul!(
-    ψ::TF, D::Daggered{StaggeredDiracOperator{CPU,T,TF,TG,BC}}, ϕ::TF
+    ψ::TF, D::Daggered{StaggeredDiracOperator{CPU,T,TF,TG,BC}}, ϕ::TF, twisted_mass=0.0
 ) where {T,TF,TG,BC}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.parent.U
-    mass = T(D.parent.mass)
-    twisted_mass = T.(D.parent.twisted_mass)
+    mass = Complex{T}(D.parent.mass - im*twisted_mass)
     bc = D.parent.boundary_condition
     check_dims(ψ, ϕ, U)
 
     @batch for site in eachindex(ψ)
-        ψ[site] = staggered_kernel(U, ϕ, site, mass, twisted_mass, bc, T, true)
+        ψ[site] = staggered_kernel(U, ϕ, site, mass, bc, T, true)
     end
 
     update_halo!(ψ)
@@ -127,15 +125,15 @@ function LinearAlgebra.mul!(
     ψ::TF, D::DdaggerD{StaggeredDiracOperator{B,T,TF,TG,BC}}, ϕ::TF
 ) where {B,T,TF,TG,BC}
     temp = D.parent.temp
-    mul!(temp, D.parent, ϕ) # temp = Dϕ
-    mul!(ψ, adjoint(D.parent), temp) # ψ = D†Dϕ
+    mul!(temp, D.parent, ϕ, D.twisted_mass) # temp = Dϕ
+    mul!(ψ, adjoint(D.parent), D.twisted_mass) # ψ = D†Dϕ
     return nothing
 end
 
-function staggered_kernel(U, ϕ, site, mass, tmass, bc, ::Type{T}, dagg::Bool) where {T}
+function staggered_kernel(U, ϕ, site, mass, bc, ::Type{T}, dagg::Bool) where {T}
     sgn = dagg ? -1 : 1
     NX, NY, NZ, NT = dims(U)
-    ψₙ = 2(mass + sgn*im*tmass) * ϕ[site]
+    ψₙ = 2mass * ϕ[site]
     # Cant do a for loop here because Val(μ) cannot be known at compile time and is
     # therefore dynamically dispatched
     siteμ⁺ = move(site, 1, 1, NX)

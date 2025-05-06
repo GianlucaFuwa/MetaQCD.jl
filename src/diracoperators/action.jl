@@ -167,15 +167,27 @@ end
 Calculate the fermion action for the fermion field `ϕ` on the gauge background `U`using the
 fermion action `fermion_action`.
 """
-function calc_fermion_action(fermion_action::AbstractFermionAction{false,Nf,0}, U, ϕ) where {Nf}
+# TODO: fermion action for actions with 1 or 2 twisted masses
+# TM = 0: No Twisted mass S = (ϕ, (D†D)⁻¹, ϕ)
+# TM = 1: Twisted mass in Denominator S = (ϕ, (D†D + μ₀)⁻¹, ϕ)
+# TM = 2: Twisted mass in Numerator S = (ϕ, (D†D + μ₀)(D†D)⁻¹, ϕ)
+# TM = 3: Twisted mass in Numerator and Denominator S = (ϕ, (D†D + μ₀)(D†D + μ₁)⁻¹, ϕ)
+function calc_fermion_action(fermion_action::AbstractFermionAction{false,Nf,TM}, U, ϕ) where {Nf,TM}
+    twisted_mass = fermion_action.twisted_mass
     D = fermion_action.D(U)
-    DdagD = DdaggerD(D)
+    DdagD_inv = if TM ∈ (0, 2)
+        DdaggerD(D)
+    elseif TM == 1
+        DdaggerD(D, twisted_mass[1])
+    else
+        DdaggerD(D, twisted_mass[2])
+    end
     ψ, temp1, temp2, temp3 = fermion_action.cg_temps
     cg_tol = fermion_action.cg_tol_action
     cg_maxiters = fermion_action.cg_maxiters_action
 
     clear!(ψ) # initial guess is zero
-    iters, res = solve_dirac!(ψ, DdagD, ϕ, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
+    iters, res = solve_dirac!(ψ, DdagD_inv, ϕ, temp1, temp2, temp3, cg_tol, cg_maxiters)
 
     cg_datafile = fermion_action.cg_datafile
     if cg_datafile != ""
@@ -185,6 +197,11 @@ function calc_fermion_action(fermion_action::AbstractFermionAction{false,Nf,0}, 
         printf(fp, "%-25.15E", res)
         newline(fp)
         fclose(fp)
+    end
+
+    if TM ∈ (2, 3)
+        copy!(temp1, ψ)
+        mul!(ψ, DdaggerD(D, twisted_mass[1]), temp1)
     end
 
     Sf = real(dot(ϕ, ψ))
