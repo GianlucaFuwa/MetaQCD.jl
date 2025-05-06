@@ -1,6 +1,6 @@
 # Full Parameter list (= default):
 ```julia
-Base.@kwdef mutable struct PhysicalParameters
+@kwdef mutable struct PhysicalParameters
     # gauge parameters
     L::NTuple{4,Int64} = (4, 4, 4, 4)
     beta::Float64 = 5.7
@@ -23,7 +23,7 @@ Base.@kwdef mutable struct PhysicalParameters
     parity_update::Bool = false
 end
 
-Base.@kwdef mutable struct DynamicalFermionParameters
+@kwdef mutable struct DynamicalFermionParameters
     fermion_action::String = "none"
     Nf::Union{Int,Vector{Int}} = 0
     mass::Union{Float64,Vector{Float64}} = 0.0
@@ -43,7 +43,7 @@ Base.@kwdef mutable struct DynamicalFermionParameters
     eo_precon::Bool = false
 end
 
-Base.@kwdef mutable struct BiasParameters
+@kwdef mutable struct BiasParameters
     kind_of_bias::String = "none"
     kind_of_cv::String = "clover"
     numsmears_for_cv::Int64 = 4
@@ -83,7 +83,7 @@ Base.@kwdef mutable struct BiasParameters
     measure_on_all::Bool = false
 end
 
-Base.@kwdef mutable struct HMCParameters
+@kwdef mutable struct HMCParameters
     hmc_trajectory::Float64 = 1
     hmc_steps::Int64 = 10
     hmc_friction::Float64 = 0.0
@@ -96,7 +96,7 @@ Base.@kwdef mutable struct HMCParameters
     hmc_logging::Bool = true
 end
 
-Base.@kwdef mutable struct GradientFlowParameters
+@kwdef mutable struct GradientFlowParameters
     flow_integrator::String = "none"
     flow_num::Int64 = 0
     flow_tf::Float64 = 0.0
@@ -104,7 +104,7 @@ Base.@kwdef mutable struct GradientFlowParameters
     flow_measure_every::Union{Int64,Vector{Int64}} = 1
 end
 
-Base.@kwdef mutable struct SystemParameters
+@kwdef mutable struct SystemParameters
     backend::String = "cpu"
     float_type::String = "float64"
     ensemble_dir::String = ""
@@ -124,7 +124,7 @@ Base.@kwdef mutable struct SystemParameters
     overwrite::Bool = false
 end
 
-Base.@kwdef mutable struct MeasurementParameters
+@kwdef mutable struct MeasurementParameters
     measurement_method::Vector{Dict} = Dict[]
 end
 ```

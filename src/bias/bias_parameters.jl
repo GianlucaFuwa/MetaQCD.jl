@@ -40,7 +40,7 @@ function initialize_bias_parameters(kind_of_bias)
     return method
 end
 
-Base.@kwdef mutable struct MetadynamicsParameters <: BiasParameters
+@kwdef mutable struct MetadynamicsParameters <: BiasParameters
     name::String = "metadynamics"
     kind_of_cv::String = "topcharge_clover"
     usebiases::Vector{String} = String[]
@@ -56,7 +56,7 @@ Base.@kwdef mutable struct MetadynamicsParameters <: BiasParameters
     penalty_weight::Float64 = 100
 end
 
-Base.@kwdef mutable struct OPESParameters <: BiasParameters
+@kwdef mutable struct OPESParameters <: BiasParameters
     name::String = "opes"
     kind_of_cv::String = "topcharge_clover"
     usebiases::Vector{String} = String[]
@@ -79,7 +79,7 @@ Base.@kwdef mutable struct OPESParameters <: BiasParameters
     penalty_weight::Float64 = 100
 end
 
-Base.@kwdef mutable struct OPESmultithermalParameters <: BiasParameters
+@kwdef mutable struct OPESmultithermalParameters <: BiasParameters
     name::String = "opesmt"
     kind_of_cv::String = "multithermal"
     usebiases::Vector{String} = String[]
@@ -91,7 +91,7 @@ Base.@kwdef mutable struct OPESmultithermalParameters <: BiasParameters
     beta_num::Int64 = 2
 end
 
-Base.@kwdef mutable struct ParametricParameters <: BiasParameters
+@kwdef mutable struct ParametricParameters <: BiasParameters
     name::String = "parametric"
     kind_of_cv::String = "topcharge_clover"
     usebiases::Vector{String} = String[]

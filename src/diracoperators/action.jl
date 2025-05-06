@@ -156,7 +156,7 @@ function init_fermion_action(params, mass::Float64, Nf::Int64, U)
         cg_filepath=cg_filepath,
         r=params.wilson_r,
         csw=params.wilson_csw,
-    ) 
+    )
     return action
 end
 
@@ -294,7 +294,7 @@ function Base.show(io::IO, ::MIME"text/plain", S::FermionAction{R,Nf,TD}) where 
     print(
         io,
         """
-        
+
         |  $(name)(
         |    Nf: $Nf
         |    MASS: $(D.mass)
@@ -339,7 +339,7 @@ function Base.show(io::IO, S::FermionAction{R,Nf,TD}) where {R,Nf,TD}
     print(
         io,
         """
-        
+
         |  $(name)(
         |    Nf: $Nf
         |    MASS: $(D.mass)
@@ -355,7 +355,7 @@ function Base.show(io::IO, S::FermionAction{R,Nf,TD}) where {R,Nf,TD}
             """
         )
     elseif D isa StaggeredHoelblingDiracOperator
-        
+
         print(
             io,
             """

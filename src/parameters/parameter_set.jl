@@ -12,9 +12,8 @@ struct ParameterSet
     halo_width::Int64
 
     # dynamical fermion parameters
+    fermions::Vector{Dict}
     fermion_action::String
-    Nf::Union{Int,Vector{Int}}
-    mass::Union{Float64,Vector{Float64}}
     wilson_r::Float64
     wilson_csw::Float64
     boundary_condition::String
@@ -28,7 +27,6 @@ struct ParameterSet
     rhmc_order_md::Int64
     rhmc_prec_action::Int64
     rhmc_prec_md::Int64
-    eo_precon::Bool
 
     # bias parameters
     rhostout_for_cv::Float64
@@ -49,6 +47,7 @@ struct ParameterSet
     metro_epsilon::Float64
     metro_numhits::Int64
     metro_target_acc::Float64
+    hmc_levels::Vector{Dict}
     hmc_integrator::String
     hmc_trajectory::Float64
     hmc_friction::Float64

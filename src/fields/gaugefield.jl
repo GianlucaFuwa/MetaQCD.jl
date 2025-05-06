@@ -1,7 +1,4 @@
 """
-    Gaugefield{Backend,FloatType,IsDistributed,ArrayType,GaugeAction} <:
-    AbstractField{Backend,FloatType,IsDistributed,ArrayType}
-
 5-dimensional dense array of statically sized 3x3 matrices contatining associated meta-data.
 
     Gaugefield{Backend,FloatType,GaugeAction}(NX, NY, NZ, NT, β)
@@ -23,7 +20,7 @@ action `GaugeAction` or a zero-initialized copy of `U`
 `DBW2GaugeAction`
 """
 struct Gaugefield{Backend,FloatType,IsDistributed,ArrayType,GaugeAction} <:
-    AbstractField{Backend,FloatType,IsDistributed,ArrayType}
+       AbstractField{Backend,FloatType,IsDistributed,ArrayType}
     U::ArrayType # Actual field storing the gauge variables
     NX::Int64 # Number of lattice sites in the x-direction
     NY::Int64 # Number of lattice sites in the y-direction
@@ -31,7 +28,7 @@ struct Gaugefield{Backend,FloatType,IsDistributed,ArrayType,GaugeAction} <:
     NT::Int64 # Number of lattice sites in the t-direction
     NV::Int64 # Total number of lattice sites
     NC::Int64 # Number of colors
-    
+
     topology::FieldTopology # Info regarding MPI topology
 
     β::Float64 # Seems weird to have it here, but I couldnt be bothered passing it as an argument everywhere
@@ -66,7 +63,7 @@ struct Gaugefield{Backend,FloatType,IsDistributed,ArrayType,GaugeAction} <:
         NV = NX * NY * NZ * NT
         topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
         ldims = topology.local_dims
-        dims_in = ntuple(i -> ldims[i]+2halo_width, Val(4)) 
+        dims_in = ntuple(i -> ldims[i] + 2halo_width, Val(4))
         U = KA.zeros(Backend(), SU{3,9,FloatType}, 4, dims_in...)
         Sg = Base.RefValue{Float64}(0.0)
         CV = zeros(Float64, ncv)
@@ -88,7 +85,7 @@ function Gaugefield(
             u.NX, u.NY, u.NZ, u.NT, u.β, numprocs_cart, halo_width; ncv=ncv
         )
     else
-        Gaugefield{Backend,FloatType,GaugeAction}(u.NX, u.NY, u.NZ, u.NT, u.β, ncv=ncv)
+        Gaugefield{Backend,FloatType,GaugeAction}(u.NX, u.NY, u.NZ, u.NT, u.β; ncv=ncv)
     end
 
     return u_out
@@ -126,9 +123,6 @@ function Gaugefield(parameters)
 end
 
 """
-    Colorfield{Backend,FloatType,IsDistributed,ArrayType} <:
-    AbstractField{Backend,FloatType,IsDistributed,ArrayType}
-
 5-dimensional dense array of statically sized 3x3 matrices contatining associated meta-data.
 
     Colorfield{Backend,FloatType}(NX, NY, NZ, NT)
@@ -143,7 +137,7 @@ size `4 × NX × NY × NZ × NT` or a zero-initialized Colorfield of the same si
 `ROCBackend`
 """
 struct Colorfield{Backend,FloatType,IsDistributed,ArrayType} <:
-    AbstractField{Backend,FloatType,IsDistributed,ArrayType}
+       AbstractField{Backend,FloatType,IsDistributed,ArrayType}
     U::ArrayType # Actual field storing the gauge variables
     NX::Int64 # Number of lattice sites in the x-direction
     NY::Int64 # Number of lattice sites in the y-direction
@@ -151,7 +145,7 @@ struct Colorfield{Backend,FloatType,IsDistributed,ArrayType} <:
     NT::Int64 # Number of lattice sites in the t-direction
     NV::Int64 # Total number of lattice sites
     NC::Int64 # Number of colors
-    
+
     topology::FieldTopology # Info regarding MPI topology
     function Colorfield{Backend,FloatType}(NX, NY, NZ, NT) where {Backend,FloatType}
         U = KA.zeros(Backend(), SU{3,9,FloatType}, 4, NX, NY, NZ, NT)
@@ -172,7 +166,7 @@ struct Colorfield{Backend,FloatType,IsDistributed,ArrayType} <:
         NV = NX * NY * NZ * NT
         topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
         ldims = topology.local_dims
-        dims_in = ntuple(i -> ldims[i]+2halo_width, Val(4)) 
+        dims_in = ntuple(i -> ldims[i] + 2halo_width, Val(4))
         U = KA.zeros(Backend(), SU{3,9,FloatType}, 4, dims_in...)
         return new{Backend,FloatType,true,typeof(U)}(U, NX, NY, NZ, NT, NV, 3, topology)
     end
@@ -193,9 +187,6 @@ function Colorfield(
 end
 
 """
-    Expfield{Backend,FloatType,IsDistributed,ArrayType} <:
-    AbstractField{Backend,FloatType,IsDistributed,ArrayType}
-
 5-dimensional dense array of `exp_iQ_su3` objects contatining associated meta-data. The
 objects hold the `Q`-matrices and all the exponential parameters needed for stout-force
 recursion.
@@ -212,7 +203,7 @@ of size `4 × NX × NY × NZ × NT` or of the same size as `u`.
 `ROCBackend`
 """
 struct Expfield{Backend,FloatType,IsDistributed,ArrayType} <:
-    AbstractField{Backend,FloatType,IsDistributed,ArrayType}
+       AbstractField{Backend,FloatType,IsDistributed,ArrayType}
     U::ArrayType # Actual field storing the gauge variables
     NX::Int64 # Number of lattice sites in the x-direction
     NY::Int64 # Number of lattice sites in the y-direction
@@ -220,7 +211,7 @@ struct Expfield{Backend,FloatType,IsDistributed,ArrayType} <:
     NT::Int64 # Number of lattice sites in the t-direction
     NV::Int64 # Total number of lattice sites
     NC::Int64 # Number of colors
-    
+
     topology::FieldTopology # Info regarding MPI topology
     function Expfield{Backend,FloatType}(NX, NY, NZ, NT) where {Backend,FloatType}
         U = KA.zeros(Backend(), exp_iQ_su3{FloatType}, 4, NX, NY, NZ, NT)
@@ -241,7 +232,7 @@ struct Expfield{Backend,FloatType,IsDistributed,ArrayType} <:
         NV = NX * NY * NZ * NT
         topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
         ldims = topology.local_dims
-        dims_in = ntuple(i -> ldims[i]+2halo_width, Val(4)) 
+        dims_in = ntuple(i -> ldims[i] + 2halo_width, Val(4))
         U = KA.zeros(Backend(), exp_iQ_su3{FloatType}, 4, dims_in...)
         return new{Backend,FloatType,true,typeof(U)}(U, NX, NY, NZ, NT, NV, 3, topology)
     end

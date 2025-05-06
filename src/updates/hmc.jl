@@ -1,11 +1,29 @@
 abstract type AbstractIntegrator end
 
+@kwdef struct HMCLevel{TI,TFP}
+    integrator::TI
+    numsteps::Int64
+    Δτ::Float64
+    forcefile::TFP
+    function HMCLevel(
+        integrator::AbstractIntegrator,
+        trajectory,
+        steps,
+        hmc_logging=true,
+        logdir="",
+        instance=mpi_myrank(),
+    )
+        return new{TI,TFP}(integrator, numsteps, Δτ, forcefile)
+    end
+end
+
 """
     HMC(
         U,
+        levels,
         integrator,
+        integrator_levels,
         trajectory,
-        steps,
         friction = 0,
         numsmear = 0,
         ρ_stout = 0;
@@ -47,25 +65,22 @@ force recursion when using a bias.
 - `StaggeredFermionAction`
 - `StaggeredEOPreFermionAction`
 """
-struct HMC{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TFP1,TFP2} <: AbstractUpdate
-    integrator::TI
-    steps::Int64
-    Δτ::Float64
+struct HMC{TL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF} <: AbstractUpdate
+    levels::TL
     friction::Float64
 
     P::TT
-    P_old::PO # second momentum field for GHMC
+    P_old::TPO # second momentum field for GHMC
     U_old::TG
     ϕ::TF
     staples::TT
     force::TT
-    force2::F2 # second force field for smearing
-    fieldstrength::FS # fieldstrength fields for Bias
+    force2::TF2 # second force field for smearing
+    fieldstrength::TFS # fieldstrength fields for Bias
     smearing_gauge::TSG
     smearing_fermion::TSF
 
-    logfile::TFP1
-    forcefile::TFP2
+    logfile::TLF
     function HMC(
         integrator, steps, Δτ, friction, P, P_old, U_old, ϕ, staples, force, force2,
         fieldstrength, smearing_gauge, smearing_fermion, logfile, forcefile,
@@ -82,18 +97,17 @@ struct HMC{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TFP1,TFP2} <: AbstractUpdate
         !isnothing(logfile) && @level1("|  HMC LOGFILE: $(logfile)")
         !isnothing(forcefile) && @level1("|  HMC FORCEFILE: $(forcefile)")
         @level1("-\n")
-        TI = typeof(integrator)
+        TL = typeof(levels)
         TG = typeof(U_old)
         TT = typeof(staples)
         TF = typeof(ϕ)
         TSG = typeof(smearing_gauge)
         TSF = typeof(smearing_fermion)
-        PO = typeof(P_old)
-        F2 = typeof(force2)
-        FS = typeof(fieldstrength)
-        TFP1 = typeof(logfile)
-        TFP2 = typeof(forcefile)
-        return new{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TFP1,TFP2}(
+        TPO = typeof(P_old)
+        TF2 = typeof(force2)
+        TFS = typeof(fieldstrength)
+        TLF = typeof(logfile)
+        return new{TL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF}(
             integrator, steps, Δτ, friction, P, P_old, U_old, ϕ, staples, force, force2,
             fieldstrength, smearing_gauge, smearing_fermion, logfile, forcefile,
         )

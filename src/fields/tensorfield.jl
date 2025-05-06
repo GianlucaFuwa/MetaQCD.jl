@@ -5,9 +5,6 @@ struct Clover <: AbstractFieldstrength end
 struct Improved <: AbstractFieldstrength end
 
 """
-    Tensorfield{Backend,FloatType,IsDistributed,ArrayType} <:
-    AbstractField{Backend,FloatType,IsDistributed,ArrayType}
-
 6-dimensional dense array of statically sized 3x3 matrices contatining associated meta-data.
 
     Tensorfield{Backend,FloatType}(NX, NY, NZ, NT)
@@ -15,7 +12,7 @@ struct Improved <: AbstractFieldstrength end
     Tensorfield(u::AbstractField)
     Tensorfield(parameters::ParameterSet)
 
-Creates a Tensorfield on `Backend`, i.e. an array of 3-by-3 `FloatType`-precision matrices
+Creates a `Tensorfield` on `Backend`, i.e. an array of 3-by-3 `FloatType`-precision matrices
 of size `4 x 4 × NX × NY × NZ × NT` or a zero-initialized Tensorfield of the same size as
 `u`.
 # Supported backends
@@ -24,7 +21,7 @@ of size `4 x 4 × NX × NY × NZ × NT` or a zero-initialized Tensorfield of the
 `ROCBackend`
 """
 struct Tensorfield{Backend,FloatType,IsDistributed,ArrayType} <:
-    AbstractField{Backend,FloatType,IsDistributed,ArrayType}
+       AbstractField{Backend,FloatType,IsDistributed,ArrayType}
     U::ArrayType # Actual field storing the gauge variables
     NX::Int64 # Number of lattice sites in the x-direction
     NY::Int64 # Number of lattice sites in the y-direction
@@ -32,7 +29,7 @@ struct Tensorfield{Backend,FloatType,IsDistributed,ArrayType} <:
     NT::Int64 # Number of lattice sites in the t-direction
     NV::Int64 # Total number of lattice sites
     NC::Int64 # Number of colors
-    
+
     topology::FieldTopology # Info regarding MPI topology
     function Tensorfield{Backend,FloatType}(NX, NY, NZ, NT) where {Backend,FloatType}
         U = KA.zeros(Backend(), SU{3,9,FloatType}, 4, 4, NX, NY, NZ, NT)
@@ -53,7 +50,7 @@ struct Tensorfield{Backend,FloatType,IsDistributed,ArrayType} <:
         NV = NX * NY * NZ * NT
         topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
         ldims = topology.local_dims
-        dims_in = ntuple(i -> ldims[i]+2halo_width, Val(4)) 
+        dims_in = ntuple(i -> ldims[i] + 2halo_width, Val(4))
         U = KA.zeros(Backend(), SU{3,9,FloatType}, 4, 4, dims_in...)
         return new{Backend,FloatType,true,typeof(U)}(U, NX, NY, NZ, NT, NV, 3, topology)
     end

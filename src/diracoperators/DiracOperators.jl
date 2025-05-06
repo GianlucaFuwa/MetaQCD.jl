@@ -25,7 +25,7 @@ using ..Utils
 
 import KernelAbstractions as KA
 import ..Fields: AbstractField, FieldTopology, Gaugefield, Paulifield, Spinorfield
-import ..Fields: MultiSpinorfield, SpinorfieldEO, Tensorfield
+import ..Fields: MultiSpinorfield, SpinorfieldEO, Tensorfield, num_spinors
 import ..Fields: check_dims, clear!, clover_square, dims, even_odd, gaussian_pseudofermions!
 import ..Fields: @latmap, @latsum, Clover, Checkerboard2, Sequential, set_source!, volume
 import ..Fields: @groupreduce, fieldstrength_eachsite!, num_colors, num_dirac
@@ -34,7 +34,7 @@ import ..Fields: PeriodicBC, AntiPeriodicBC, apply_bc, create_bc, distributed_re
 abstract type AbstractDiracOperator{B,T} end
 abstract type AbstractFermionAction{R,Nf} end # R indicates whether the action uses rational approximation or not
 
-struct QuenchedFermionAction <: AbstractFermionAction{false,0} 
+struct QuenchedFermionAction <: AbstractFermionAction{false,0}
     QuenchedFermionAction(args...; kwargs...) = new()
 end
 
@@ -196,7 +196,7 @@ end
 function construct_diracmatrix(D, U)
     n = checksquare(D)
     Du = D(U)
-    M = spzeros(ComplexF64, n, n) 
+    M = spzeros(ComplexF64, n, n)
     temp1 = similar(get_temp(D))
     temp2 = similar(get_temp(D))
     ND = num_dirac(temp1)

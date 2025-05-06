@@ -3,6 +3,8 @@ Base.show(io::IO, int::AbstractIntegrator) = print(io, "$(typeof(int))")
 
 struct Leapfrog <: AbstractIntegrator end
 
+num_U_updates(::Leapfrog) = 1
+
 function evolve!(::Leapfrog, U, hmc::HMC, fermion_action, bias)
     updateP!(U, hmc, 0.5, fermion_action, bias)
 
@@ -20,6 +22,8 @@ struct LeapfrogRA <: AbstractIntegrator
     friction::Float64
     LeapfrogRA(friction) = new(friction)
 end
+
+num_U_updates(::LeapfrogRA) = 1
 
 Base.show(io::IO, ::MIME"text/plain", int::LeapfrogRA) =
     print(io, "$(typeof(int))(friction=$(int.friction))")
@@ -61,6 +65,8 @@ struct OMF2Slow <: AbstractIntegrator
     end
 end
 
+num_U_updates(::OMF2Slow) = 2
+
 function evolve!(O2S::OMF2Slow, U, hmc::HMC, fermion_action, bias)
     for _ in 1:hmc.steps
         updateP!(U, hmc, O2S.α, fermion_action, bias)
@@ -84,6 +90,8 @@ struct OMF2 <: AbstractIntegrator
         return new(α, β, γ)
     end
 end
+
+num_U_updates(::OMF2) = 2
 
 function evolve!(O2::OMF2, U, hmc::HMC, fermion_action, bias)
     updateP!(U, hmc, O2.α, fermion_action, bias)
@@ -119,6 +127,8 @@ struct OMF4Slow <: AbstractIntegrator
         return new(α, β, γ, δ, μ, ν)
     end
 end
+
+num_U_updates(::OMF4Slow) = 5
 
 function evolve!(O4S::OMF4Slow, U, hmc::HMC, fermion_action, bias)
     for _ in 1:hmc.steps
@@ -157,6 +167,8 @@ struct OMF4 <: AbstractIntegrator
         return new(α, β, γ, δ, μ, ν)
     end
 end
+
+num_U_updates(::OMF4) = 5
 
 function evolve!(O4::OMF4, U, hmc::HMC, fermion_action, bias)
     updateP!(U, hmc, O4.α, fermion_action, bias)
@@ -210,6 +222,8 @@ struct OMF4RA <: AbstractIntegrator
         return new(α, β, γ, δ, μ, ν, friction)
     end
 end
+
+num_U_updates(::OMF4RA) = 5
 
 function evolve!(O4::OMF4RA, U, hmc::HMC, fermion_action, bias)
     Δτ = hmc.Δτ

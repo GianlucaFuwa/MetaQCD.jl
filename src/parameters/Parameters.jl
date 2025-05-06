@@ -56,14 +56,16 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
     # generated_dirname = generate_dirname(parameters)
     # @show generated_dirname
 
-    physical = PhysicalParameters()
-    set_params_value!(value_Params, physical)
-    fermion = DynamicalFermionParameters()
+    ensemble = EnsembleParameters()
+    set_params_value!(value_Params, ensemble)
+    data = DataParameters()
+    set_params_value!(value_Params, data)
+    gauge = GaugeActionParameters()
+    set_params_value!(value_Params, gauge)
+    fermion = FermionActionParameters()
     set_params_value!(value_Params, fermion)
     bias = BiasParameters()
     set_params_value!(value_Params, bias)
-    system = SystemParameters()
-    set_params_value!(value_Params, system)
     hmc = HMCParameters()
     set_params_value!(value_Params, hmc)
     meas = MeasurementParameters()
@@ -72,14 +74,14 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
     set_params_value!(value_Params, gradientflow)
 
     overwrite = try
-        parameters["System Settings"]["overwrite"]
+        parameters["Data Settings"]["overwrite"]
     catch
         @warn "\"overwrite\" not specified in System Settings; default to true."
         true
     end
 
     ensemble_dir = try
-        parameters["System Settings"]["ensemble_dir"]
+        parameters["Data Settings"]["ensemble_dir"]
     catch
         tmp = if mpi_amroot()
             tmpp = "$(homedir())/data/MetaQCD/$(generated_dirname)"
@@ -338,21 +340,38 @@ function check_parameters(p::ParameterSet)
     return nothing
 end
 
-function construct_measurement_dicts(x)
-    meas_dicts = Dict[]
+function construct_fermion_dicts(x)
+    fermion_dicts = Dict[]
 
     for (method, method_dict) in x
         dictᵢ = Dict()
-        dictᵢ["observable"] = method
+        dictᵢ["fermion"] = method
 
         for (key, value) in method_dict
             dictᵢ[key] = value
         end
 
-        push!(meas_dicts, dictᵢ)
+        push!(fermion_dicts, dictᵢ)
     end
 
-    return meas_dicts
+    return fermion_dicts
+end
+
+function construct_level_dicts(x)
+    level_dicts = Dict[]
+
+    for (method, method_dict) in x
+        dictᵢ = Dict()
+        dictᵢ["level"] = parse(Int64, method)
+
+        for (key, value) in method_dict
+            dictᵢ[key] = value
+        end
+
+        push!(level_dicts, dictᵢ)
+    end
+
+    return level_dicts
 end
 
 function construct_bias_dicts(x)
@@ -370,6 +389,23 @@ function construct_bias_dicts(x)
     end
 
     return bias_dicts
+end
+
+function construct_measurement_dicts(x)
+    meas_dicts = Dict[]
+
+    for (method, method_dict) in x
+        dictᵢ = Dict()
+        dictᵢ["observable"] = method
+
+        for (key, value) in method_dict
+            dictᵢ[key] = value
+        end
+
+        push!(meas_dicts, dictᵢ)
+    end
+
+    return meas_dicts
 end
 
 @noinline function overwrite_detected(s::String)

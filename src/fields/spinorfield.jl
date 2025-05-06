@@ -1,4 +1,6 @@
 """
+4-dimensional dense array of statically sized NCxND Vectors contatining associated meta-data.
+
     Spinorfield{Backend,FloatType,NumDirac}(NX, NY, NZ, NT)
     Spinorfield(ψ::Spinorfield)
     Spinorfield(f::AbstractField; staggered=false)
@@ -12,7 +14,7 @@ If `staggered=true`, the number of Dirac degrees of freedom (NumDirac) is reduce
 `ROCBackend`
 """
 struct Spinorfield{Backend,FloatType,IsDistributed,ArrayType,NumDirac} <:
-    AbstractField{Backend,FloatType,IsDistributed,ArrayType}
+       AbstractField{Backend,FloatType,IsDistributed,ArrayType}
     U::ArrayType # Actual field storing the gauge variables
     NX::Int64 # Number of lattice sites in the x-direction
     NY::Int64 # Number of lattice sites in the y-direction
@@ -20,7 +22,7 @@ struct Spinorfield{Backend,FloatType,IsDistributed,ArrayType,NumDirac} <:
     NT::Int64 # Number of lattice sites in the t-direction
     NV::Int64 # Total number of lattice sites
     NC::Int64 # Number of colors
-    
+
     topology::FieldTopology # Info regarding MPI topology
     function Spinorfield{Backend,FloatType,NumDirac}(
         NX, NY, NZ, NT
@@ -45,7 +47,7 @@ struct Spinorfield{Backend,FloatType,IsDistributed,ArrayType,NumDirac} <:
         NV = NX * NY * NZ * NT
         topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
         ldims = topology.local_dims
-        dims_in = ntuple(i -> ldims[i]+2halo_width, Val(4)) 
+        dims_in = ntuple(i -> ldims[i] + 2halo_width, Val(4))
         U = KA.zeros(Backend(), SVector{3NumDirac,Complex{FloatType}}, dims_in...)
         return new{Backend,FloatType,true,typeof(U),NumDirac}(
             U, NX, NY, NZ, NT, NV, 3, topology
@@ -59,7 +61,9 @@ function Spinorfield(
     u_out = if IsDistributed
         numprocs_cart = f.topology.numprocs_cart
         halo_width = f.topology.halo_width
-        Spinorfield{Backend,FloatType,NumDirac}(f.NX, f.NY, f.NZ, f.NT, numprocs_cart, halo_width)
+        Spinorfield{Backend,FloatType,NumDirac}(
+            f.NX, f.NY, f.NZ, f.NT, numprocs_cart, halo_width
+        )
     else
         Spinorfield{Backend,FloatType,NumDirac}(f.NX, f.NY, f.NZ, f.NT)
     end
@@ -75,7 +79,9 @@ function Spinorfield(
     u_out = if IsDistributed
         numprocs_cart = u.topology.numprocs_cart
         halo_width = u.topology.halo_width
-        Spinorfield{Backend,FloatType,NumDirac}(u.NX, u.NY, u.NZ, u.NT, numprocs_cart, halo_width)
+        Spinorfield{Backend,FloatType,NumDirac}(
+            u.NX, u.NY, u.NZ, u.NT, numprocs_cart, halo_width
+        )
     else
         Spinorfield{Backend,FloatType,NumDirac}(u.NX, u.NY, u.NZ, u.NT)
     end
