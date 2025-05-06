@@ -1,6 +1,6 @@
 """
-    StaggeredDiracOperator(f::AbstractField, mass; bc_str="antiperiodic")
-    StaggeredDiracOperator(D::StaggeredDiracOperator, U::Gaugefield)
+    StaggeredTM1DiracOperator(f::AbstractField, mass; bc_str="antiperiodic")
+    StaggeredTM1DiracOperator(D::StaggeredDiracOperator, U::Gaugefield)
 
 Create a free Staggered Dirac Operator with mass `mass`.
 
@@ -22,20 +22,19 @@ A Wilson Dirac operator with gauge background is created by applying it to a `Ga
 - `TG`: Type of the underlying `Gaugefield`
 - `BC`: Boundary Condition in time direction
 """
-struct StaggeredDiracOperator{B,T,TF,TG,BC,TM} <: AbstractDiracOperator{B,T}
+struct StaggeredDiracOperator{B,T,TF,TG,BC} <: AbstractDiracOperator{B,T}
     U::TG
     temp::TF # temp for storage of intermediate result for DdaggerD operator
     mass::Float64
-    twisted_mass::TM
     boundary_condition::BC # Only in time direction
     function StaggeredDiracOperator(
-        U::TG, temp::TF, mass, twisted_mass::TM, bc::BC
-    ) where {B,T,TG<:Gaugefield{B,T},TF<:Spinorfield{B,T},BC,TM}
-        return new{B,T,TF,TG,BC}(U, temp, mass, twisted_mass, bc)
+        U::TG, temp::TF, mass, bc::BC
+    ) where {B,T,TG<:Gaugefield{B,T},TF<:Spinorfield{B,T},BC}
+        return new{B,T,TF,TG,BC}(U, temp, mass, bc)
     end
 
     function StaggeredDiracOperator(
-        f::AbstractField{B,T}, mass; twisted_mass=Tuple{}(), bc_str="antiperiodic", kwargs...
+        f::AbstractField{B,T}, mass; bc_str="antiperiodic", kwargs...
     ) where {B,T}
         U = nothing
         temp = Spinorfield(f; staggered=true)
@@ -43,8 +42,7 @@ struct StaggeredDiracOperator{B,T,TF,TG,BC,TM} <: AbstractDiracOperator{B,T}
         TF = typeof(temp)
         boundary_condition = create_bc(bc_str, f.topology)
         BC = typeof(boundary_condition)
-        TM = typeof(twisted_mass)
-        return new{B,T,TF,TG,BC,TM}(U, temp, mass, twisted_mass, boundary_condition)
+        return new{B,T,TF,TG,BC}(U, temp, mass, boundary_condition)
     end
 end
 
@@ -52,7 +50,7 @@ function add_gauge_background(
     D::StaggeredDiracOperator{B,T,TF}, U::Gaugefield{B,T}
 ) where {B,T,TF}
     check_dims(U, D.temp)
-    return StaggeredDiracOperator(U, D.temp, D.mass, D.twisted_mass, D.boundary_condition)
+    return StaggeredDiracOperator(U, D.temp, D.mass, D.boundary_condition)
 end
 
 @inline default_Nf(::StaggeredDiracOperator) = 8
@@ -73,12 +71,11 @@ function LinearAlgebra.mul!(
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.U
     mass = T(D.mass)
-    twisted_mass = T.(D.twisted_mass)
     bc = D.boundary_condition
     check_dims(ψ, ϕ, U)
 
     @batch for site in eachindex(ψ)
-        ψ[site] = staggered_kernel(U, ϕ, site, mass, twisted_mass, bc, T, false)
+        ψ[site] = staggered_kernel(U, ϕ, site, mass, bc, T, false)
     end
 
     update_halo!(ψ)
@@ -91,13 +88,12 @@ function LinearAlgebra.mul!(
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.U
     mass = T(D.mass)
-    twisted_mass = T.(D.twisted_mass)
     bc = D.boundary_condition
     check_dims(ψ, ϕ, U)
 
     @batch for site in eachindex(ψ)
         for is in 1:num_spinors(ψ)
-            ψ[is, site] = staggered_kernel(U, ϕ, site, mass, twisted_mass, bc, T, false)
+            ψ[is, site] = staggered_kernel(U, ϕ, site, mass, bc, T, false)
         end
     end
 
@@ -111,12 +107,11 @@ function LinearAlgebra.mul!(
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.parent.U
     mass = T(D.parent.mass)
-    twisted_mass = T.(D.parent.twisted_mass)
     bc = D.parent.boundary_condition
     check_dims(ψ, ϕ, U)
 
     @batch for site in eachindex(ψ)
-        ψ[site] = staggered_kernel(U, ϕ, site, mass, twisted_mass, bc, T, true)
+        ψ[site] = staggered_kernel(U, ϕ, site, mass, bc, T, true)
     end
 
     update_halo!(ψ)
@@ -132,10 +127,10 @@ function LinearAlgebra.mul!(
     return nothing
 end
 
-function staggered_kernel(U, ϕ, site, mass, tmass, bc, ::Type{T}, dagg::Bool) where {T}
+function staggered_kernel(U, ϕ, site, mass, bc, ::Type{T}, dagg::Bool) where {T}
     sgn = dagg ? -1 : 1
     NX, NY, NZ, NT = dims(U)
-    ψₙ = 2(mass + sgn*im*tmass) * ϕ[site]
+    ψₙ = 2mass * ϕ[site]
     # Cant do a for loop here because Val(μ) cannot be known at compile time and is
     # therefore dynamically dispatched
     siteμ⁺ = move(site, 1, 1, NX)

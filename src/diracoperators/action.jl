@@ -1,4 +1,4 @@
-struct FermionAction{R,Nf,TD,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,Nf}
+struct FermionAction{R,Nf,TD,TM,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,Nf}
     D::TD
     cg_temps::CT
     rhmc_info_action::RI1
@@ -15,6 +15,7 @@ struct FermionAction{R,Nf,TD,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,Nf}
         type,
         f::AbstractField,
         mass;
+        twisted_mass=Tuple{}(),
         bc_str="antiperiodic",
         Nf=default_Nf(type),
         rhmc_spectral_bound=(mass^2, 6.0),
@@ -116,7 +117,7 @@ struct FermionAction{R,Nf,TD,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,Nf}
         RT = typeof(rhmc_temps1)
         TX = typeof(Xμν)
         T = typeof(cg_datafile)
-        return new{R,Nf,TD,CT,RI1,RI2,RT,TX,T}(
+        return new{R,Nf,TD,TM,CT,RI1,RI2,RT,TX,T}(
             D,
             cg_temps,
             rhmc_info_action,
@@ -166,7 +167,7 @@ end
 Calculate the fermion action for the fermion field `ϕ` on the gauge background `U`using the
 fermion action `fermion_action`.
 """
-function calc_fermion_action(fermion_action::AbstractFermionAction{false}, U, ϕ)
+function calc_fermion_action(fermion_action::AbstractFermionAction{false,Nf,0}, U, ϕ) where {Nf}
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     ψ, temp1, temp2, temp3 = fermion_action.cg_temps
@@ -190,7 +191,7 @@ function calc_fermion_action(fermion_action::AbstractFermionAction{false}, U, ϕ
     return Sf
 end
 
-function calc_fermion_action(fermion_action::AbstractFermionAction{true}, U, ϕ)
+function calc_fermion_action(fermion_action::AbstractFermionAction{true,Nf,0}, U, ϕ) where {Nf}
     cg_tol = fermion_action.cg_tol_action
     cg_maxiters = fermion_action.cg_maxiters_action
     rhmc = fermion_action.rhmc_info_action
@@ -232,6 +233,14 @@ function calc_fermion_action(fermion_action::AbstractFermionAction{true}, U, ϕ)
     Sf = real(dot(ψ, ψ))
     return Sf
 end
+
+# TODO: fermion action for actions with 1 or 2 twisted masses
+# TM = 0: No Twisted mass
+# TM = 1: Only twisted mass in Numerator
+# TM = 2: Twisted mass in Denominator
+# TM = 3: Twisted mass in Numerator and Denominator
+# function calc_fermion_action(fermion_action::AbstractFermionAction{false,Nf,1}, U, ϕ) where {Nf}
+# end
 
 calc_fermion_action(::QuenchedFermionAction, ::Gaugefield, ::Any) = 0.0
 

@@ -324,7 +324,7 @@ function metaqcd!(
                     fermion_action=fermion_action,
                     bias=NoBias(),
                     metro_test=itrj>10, # So we dont get stuck at the beginning
-                    therm=true,
+                    therm=Val(true),
                 )
             end
 
@@ -455,7 +455,7 @@ function metaqcd_PT!(
                         fermion_action=fermion_action,
                         bias=NoBias(),
                         metro_test=false,
-                        therm=true,
+                        therm=Val(true),
                         instance=i-1,
                     )
                 end

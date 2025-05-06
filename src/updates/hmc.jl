@@ -1,9 +1,11 @@
 abstract type AbstractIntegrator end
 
-@kwdef struct HMCLevel{TI,TFP}
+struct HMCLevel{NC,TI,TFP}
+    numchildren::NC
     integrator::TI
     numsteps::Int64
     Δτ::Float64
+    forces::Vector{Int64} # which forces contribute to this level?
     forcefile::TFP
     function HMCLevel(
         integrator::AbstractIntegrator,
@@ -13,7 +15,7 @@ abstract type AbstractIntegrator end
         logdir="",
         instance=mpi_myrank(),
     )
-        return new{TI,TFP}(integrator, numsteps, Δτ, forcefile)
+        return new{NC,TI,TFP}(numchildren, integrator, numsteps, Δτ, forcefile)
     end
 end
 
@@ -67,6 +69,7 @@ force recursion when using a bias.
 """
 struct HMC{TL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF} <: AbstractUpdate
     levels::TL
+    current_level::Base.RefValue{Int64}
     friction::Float64
 
     P::TT
@@ -232,7 +235,7 @@ function update!(
     fermion_action::TF=QuenchedFermionAction(),
     bias::TB=NoBias(),
     metro_test::Bool=true,
-    therm::Bool=false,
+    therm::Val{Bool}=Val(false),
     instance=MPI_INSTANCE[],
 ) where {TI,TF,TB}
     if TF !== QuenchedFermionAction
@@ -241,9 +244,7 @@ function update!(
     end
 
     set_ext!(hmc.logfile, instance)
-    set_ext!(hmc.forcefile, instance)
-
-    integrator = therm ? default_integrator(hmc.integrator) : hmc.integrator
+    hmc.current_level[] = 0
 
     U_old = hmc.U_old
     P_old = hmc.P_old
@@ -266,7 +267,7 @@ function update!(
     sample_pseudofermions!(ϕ, fermion_action, U, smearing_fermion, shared_smearing)
     Sf_old = calc_fermion_action(fermion_action, U, ϕ, smearing_fermion, true) # INFO: fields are already smeared in sampling, so we dont have to here
 
-    evolve!(integrator, U, hmc, fermion_action, bias)
+    evolve!(U, hmc, fermion_action, bias, therm)
 
     trP²_new = -calc_kinetic_energy(P)
     Sg_new = calc_gauge_action(U, smearing_gauge)
@@ -305,23 +306,30 @@ function update!(
     return accept
 end
 
-function updateU!(U::Gaugefield{CPU,T}, hmc, fac) where {T}
-    ϵ = T(hmc.Δτ * fac)
-    P = hmc.P
-    check_dims(U, P)
+function updateU!(U::Gaugefield{CPU,T}, hmc, fermion_action, bias, fac, therm) where {T}
+    if hmc.levels[hmc.current_level].numchildren === Val(0)
+        ϵ = T(hmc.levels[hmc.current_level].Δτ * fac)
+        P = hmc.P
+        check_dims(U, P)
 
-    @batch for μsite in allindices(U)
-        U[μsite] = cmatmul_oo(exp_iQ(-im * ϵ * P[μsite]), U[μsite])
+        @batch for μsite in allindices(U)
+            U[μsite] = cmatmul_oo(exp_iQ(-im * ϵ * P[μsite]), U[μsite])
+        end
+
+        # INFO: don't need to do halo exchange here, since we iterate over all indices
+        # including halo regions
+        # We assume that U's and P's halos are already up-to-date before calling this
+        return nothing
+    else
+        hmc.current_level[] += 1
+        evolve!(U, hmc, fermion_action, bias, therm)
     end
-
-    # INFO: don't need to do halo exchange here, since we iterate over all indices
-    # including halo regions
-    # We assume that U's and P's halos are already up-to-date before calling this
-    return nothing
 end
 
 function updateP!(U, hmc::HMC, fac, fermion_action, bias)
-    ϵ = hmc.Δτ * fac
+    # TODO: only add forces in lvl.forces
+    lvl = hmc.levels[hmc.current_level]
+    ϵ = lvl.Δτ * fac
     P = hmc.P
     staples = hmc.staples
     force = hmc.force
@@ -337,7 +345,7 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias)
 
     fieldstrength = hmc.fieldstrength
 
-    fp = !isnothing(hmc.forcefile) ? fopen(hmc.forcefile, "a") : nothing
+    fp = !isnothing(lvl.forcefile) ? fopen(lvl.forcefile, "a") : nothing
 
     calc_dSdU_bare!(force, staples, U, temp_force, smearing_gauge)
 
@@ -485,25 +493,23 @@ end
 # custom serialization, because saving and loading IOStreams doesn't work
 using JLD2
 
-struct HMCSerialization{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TFP1,TFP2}
-    integrator::TI
-    steps::Int64
-    Δτ::Float64
+struct HMCSerialization{TL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF}
+    levels::TL
+    current_level::Base.RefValue{Int64}
     friction::Float64
 
     P::TT
-    P_old::PO # second momentum field for GHMC
+    P_old::TPO # second momentum field for GHMC
     U_old::TG
     ϕ::TF
     staples::TT
     force::TT
-    force2::F2 # second force field for smearing
-    fieldstrength::FS # fieldstrength fields for Bias
+    force2::TF2 # second force field for smearing
+    fieldstrength::TFS # fieldstrength fields for Bias
     smearing_gauge::TSG
     smearing_fermion::TSF
 
-    logfile::TFP1
-    forcefile::TFP2
+    logfile::TLF
 end
 
 function JLD2.writeas(
@@ -514,9 +520,8 @@ end
 
 function Base.convert(::Type{<:HMCSerialization}, hmc::HMC)
     out = HMCSerialization(
-        hmc.integrator,
-        hmc.steps,
-        hmc.Δτ,
+        hmc.levels,
+        hmc.current_level,
         hmc.friction,
         hmc.P,
         hmc.P_old,
@@ -529,16 +534,14 @@ function Base.convert(::Type{<:HMCSerialization}, hmc::HMC)
         hmc.smearing_gauge,
         hmc.smearing_fermion,
         hmc.logfile,
-        hmc.forcefile,
     )
     return out
 end
 
 function Base.convert(::Type{<:HMC}, hmc::HMCSerialization)
     out = HMC(
-        hmc.integrator,
-        hmc.steps,
-        hmc.Δτ,
+        hmc.levels,
+        hmc.current_level,
         hmc.friction,
         hmc.P,
         hmc.P_old,
@@ -551,7 +554,6 @@ function Base.convert(::Type{<:HMC}, hmc::HMCSerialization)
         hmc.smearing_gauge,
         hmc.smearing_fermion,
         hmc.logfile,
-        hmc.forcefile,
     )
     return out
 end

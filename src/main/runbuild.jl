@@ -179,7 +179,7 @@ function metabuild!(
                     fermion_action=fermion_action,
                     bias=NoBias(),
                     metro_test=itrj>10, # So we dont get stuck at the beginning
-                    therm=true,
+                    therm=Val(true),
                 )
 
                 mpi_barrier()
