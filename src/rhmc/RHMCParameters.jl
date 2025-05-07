@@ -58,6 +58,22 @@ struct RHMCParams{N}
             precision=precision,
         )
     end
+
+    # TODO: RationalFunctionApproximations for functions not strictly of type x^α
+    # function RHMCParams(
+    #     fun::Function; max_degree=20, lambda_low=0.0004, lambda_high=64,0, tol=1000*eps(Float64)
+    # )
+    #     num = numerator(power)
+    #     den = denominator(power)
+    #     return RHMCParams(
+    #         num,
+    #         den;
+    #         n=n,
+    #         lambda_low=lambda_low,
+    #         lambda_high=lambda_high,
+    #         precision=precision,
+    #     )
+    # end
 end
 
 function Base.show(io::IO, ::MIME"text/plain", rhmc::RHMCParams{N}) where {N}

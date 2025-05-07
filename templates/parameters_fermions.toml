@@ -26,12 +26,13 @@ log_to_console = true
 beta = 0.95
 gauge_action = "dbw2"
 
+# TODO: Try staggered preconditioning ala hep-lat/0610047 via this twisted mass formalism and RationalFunctionApproximation
 ["Fermion Action Settings"]
 fermion_action = "staggered"
-eo_precon = false
 wilson_csw = 1.0
-["Fermion Action Settings".fermions.light]
-Nf = 2
+twisted_mass = [0.01, 1.0]
+["Fermion Action Settings".fermions.1]
+exp = 2
 mass = 0.001
 hasenbush = true
 num_pseudoferm = 3
@@ -42,7 +43,19 @@ cg_maxiters_md = [1000, 2000, 5000]
 rhmc_spectral_bound = [[0.0004, 6.0], [0.0004, 6.0]]
 rhmc_prec_action = [64]
 rhmc_prec_md = [64]
-["Fermion Action Settings".fermions.strange]
+["Fermion Action Settings".fermions.2]
+Nf = 1
+mass = 0.03
+hasenbush = true
+num_pseudoferm = 2
+cg_tol_action = [1e-19]
+cg_tol_md = [1e-10]
+cg_maxiters_action = [5000]
+cg_maxiters_md = [5000]
+rhmc_spectral_bound = [[0.0004, 6.0]]
+rhmc_prec_action = [64]
+rhmc_prec_md = [64]
+["Fermion Action Settings".fermions.3]
 Nf = 1
 mass = 0.03
 hasenbush = true

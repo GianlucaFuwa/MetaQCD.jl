@@ -109,17 +109,12 @@ function Univ(parameters::ParameterSet; mpi_multi_sim=false, build=false)
 end
 
 function init_fermion_actions(parameters::ParameterSet, U)
-    fermion_action = parameters.fermion_action
-    Nf = parameters.Nf
-    mass = parameters.mass
-    @assert length(Nf) == length(mass) "Need same amount of masses as unique flavors"
+    fermions = parameters.fermions
 
-    if fermion_action ∈ ("none", "quenched")
+    if length(fermions) == 0
         fermion_actions = QuenchedFermionAction()
     else
-        fermion_actions = ntuple(
-            i -> init_fermion_action(parameters, mass[i], Nf[i], U), length(Nf),
-        )
+        fermion_actions = ntuple(i -> init_fermion_action(fermions[i], U), length(fermions))
     end
 
     return fermion_actions

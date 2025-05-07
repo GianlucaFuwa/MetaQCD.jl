@@ -11,11 +11,12 @@ struct FermionAction{R,Nf,TD,TM,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,N
     cg_maxiters_md::Int64
     cg_datafile::T
     Xμν::TX # Some actions need extra buffers/fields
+    twisted_mass::Vector{Float64}
     function FermionAction(
         type,
         f::AbstractField,
         mass;
-        twisted_mass=Tuple{}(),
+        twisted_mass=Float64[],
         bc_str="antiperiodic",
         Nf=default_Nf(type),
         rhmc_spectral_bound=(mass^2, 6.0),
@@ -111,6 +112,7 @@ struct FermionAction{R,Nf,TD,TM,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,N
             end
         end
 
+        TM = length(twisted_mass)
         CT = typeof(cg_temps)
         RI1 = typeof(rhmc_info_action)
         RI2 = typeof(rhmc_info_md)
@@ -130,33 +132,34 @@ struct FermionAction{R,Nf,TD,TM,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,N
             cg_maxiters_md,
             cg_datafile,
             Xμν,
+            twisted_mass,
         )
     end
 end
 
-function init_fermion_action(params, mass::Float64, Nf::Int64, U)
-    cg_filepath = if mpi_amroot(MPI_COMM_INSTANCE[]) && (params.log_dir != "")
-        joinpath(params.log_dir, "cg_data_$(lpad(MPI_INSTANCE[], 3, "0")).txt")
+function init_fermion_action(fermion::Dict, U)
+    cg_filepath = if mpi_amroot(MPI_COMM_INSTANCE[]) && (fermion.log_dir != "")
+        joinpath(fermion.log_dir, "cg_data_$(lpad(MPI_INSTANCE[], 3, "0")).txt")
     else
         ""
     end
 
     action = FermionAction(
-        params.fermion_action, U, mass;
-        bc_str=params.boundary_condition,
-        Nf=Nf,
-        rhmc_spectral_bound=(params.rhmc_spectral_bound),
-        rhmc_order_md=params.rhmc_order_md,
-        rhmc_prec_md=params.rhmc_prec_md,
-        rhmc_order_action=params.rhmc_order_action,
-        rhmc_prec_action=params.rhmc_prec_action,
-        cg_tol_action=params.cg_tol_action,
-        cg_tol_md=params.cg_tol_md,
-        cg_maxiters_action=params.cg_maxiters_action,
-        cg_maxiters_md=params.cg_maxiters_md,
+        fermion.fermion_action, U, fermion["mass"];
+        bc_str=fermion["boundary_condition"],
+        Nf=fermion["Nf"],
+        rhmc_spectral_bound=(fermion["rhmc_spectral_bound"]),
+        rhmc_order_md=fermion["rhmc_order_md"],
+        rhmc_prec_md=fermion["rhmc_prec_md"],
+        rhmc_order_action=fermion["rhmc_order_action"],
+        rhmc_prec_action=fermion["rhmc_prec_action"],
+        cg_tol_action=fermion["cg_tol_action"],
+        cg_tol_md=fermion["cg_tol_md"],
+        cg_maxiters_action=fermion["cg_maxiters_action"],
+        cg_maxiters_md=fermion["cg_maxiters_md"],
         cg_filepath=cg_filepath,
-        r=params.wilson_r,
-        csw=params.wilson_csw,
+        r=fermion["wilson_r"],
+        csw=fermion["wilson_csw"],
     )
     return action
 end
