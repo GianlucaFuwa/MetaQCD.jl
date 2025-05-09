@@ -1,4 +1,4 @@
-struct FermionAction{R,Nf,TD,TM,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,Nf}
+struct FermionAction{R,Nf,TD,TM,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,Nf,TM}
     D::TD
     cg_temps::CT
     rhmc_info_action::RI1
@@ -137,7 +137,7 @@ struct FermionAction{R,Nf,TD,TM,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,N
     end
 end
 
-function init_fermion_action(fermion::Dict, U)
+function init_fermion_action(fermion_action, fermion::Dict, U)
     cg_filepath = if mpi_amroot(MPI_COMM_INSTANCE[]) && (fermion.log_dir != "")
         joinpath(fermion.log_dir, "cg_data_$(lpad(MPI_INSTANCE[], 3, "0")).txt")
     else
@@ -145,7 +145,7 @@ function init_fermion_action(fermion::Dict, U)
     end
 
     action = FermionAction(
-        fermion.fermion_action, U, fermion["mass"];
+        fermion_action, U, fermion["mass"];
         bc_str=fermion["boundary_condition"],
         Nf=fermion["Nf"],
         rhmc_spectral_bound=(fermion["rhmc_spectral_bound"]),

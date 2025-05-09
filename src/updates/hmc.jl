@@ -513,9 +513,9 @@ struct HMCSerialization{TL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF}
 end
 
 function JLD2.writeas(
-    ::Type{<:HMC{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TFP1,TFP2}}
-) where {TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TFP1,TFP2}
-    return HMCSerialization{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TFP1,TFP2}
+    ::Type{<:HMC{TL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TFLS}}
+) where {TL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TFLS}
+    return HMCSerialization{TL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TFLS}
 end
 
 function Base.convert(::Type{<:HMCSerialization}, hmc::HMC)

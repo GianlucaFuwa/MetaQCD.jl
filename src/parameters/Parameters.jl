@@ -74,14 +74,14 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
     set_params_value!(value_Params, gradientflow)
 
     overwrite = try
-        parameters["Data Settings"]["overwrite"]
+        parameters["data"]["overwrite"]
     catch
-        @warn "\"overwrite\" not specified in System Settings; default to true."
+        @warn "\"overwrite\" not specified in 'data'; default to true."
         true
     end
 
     ensemble_dir = try
-        parameters["Data Settings"]["ensemble_dir"]
+        parameters["data"]["ensemble_dir"]
     catch
         tmp = if mpi_amroot()
             tmpp = "$(homedir())/data/MetaQCD/$(generated_dirname)"
@@ -249,7 +249,7 @@ function check_parameters(p::ParameterSet)
     end
 
     @assert lower_case(p.gauge_action) ∈ ["wilson", "iwasaki", "symanzik_tree", "dbw2"] """
-    gauge_action in [\"Physical Settings\"]: \"$(p.gauge_action)\" is not supported.
+    gauge_action in [\"gauge_action\"]: \"$(p.gauge_action)\" is not supported.
     Supported gactions are:
     Wilson
     Iwasaki
@@ -261,7 +261,7 @@ function check_parameters(p::ParameterSet)
         "none", "wilson", "staggered",
         "staggered-h1234", "staggered-h1324", "staggered-h1342"
     ] """
-    fermion_action in [\"Physical Settings\"]: \"$(p.fermion_action)\" is not supported.
+    fermion_action in [\"fermion_action\"]: \"$(p.fermion_action)\" is not supported.
     Supported gactions are:
     None
     Wilson
@@ -276,14 +276,14 @@ function check_parameters(p::ParameterSet)
     end
 
     @assert lower_case(p.initial) ∈ ["cold", "hot"] """
-    intial in [\"Physical Settings\"]: \"$(p.initial)\" is not supported.
+    intial in [\"ensemble\"]: \"$(p.initial)\" is not supported.
     Supported initial conditions are:
     cold
     hot
     """
 
     @assert lower_case(p.update_method) ∈ ["hmc", "metropolis", "heatbath"] """
-    update_method in [\"Physical Settings\"]: \"$(p.update_method)\" is not supported.
+    update_method in [\"ensemble\"]: \"$(p.update_method)\" is not supported.
     Supported methods are:
     HMC
     Metropolis
@@ -293,7 +293,7 @@ function check_parameters(p::ParameterSet)
     @assert lower_case(p.hmc_integrator) ∈ [
         "leapfrog", "omf2slow", "omf2", "omf4slow", "omf4", "leapfrogra", "omf4ra"
     ] """
-    hmc_integrator in [\"HMC Settings\"]: \"$(p.hmc_integrator)\" is not supported.
+    hmc_integrator in [\"hmc\"]: \"$(p.hmc_integrator)\" is not supported.
     Supported methods are:
     Leapfrog
     LeapfrogRA
@@ -306,7 +306,7 @@ function check_parameters(p::ParameterSet)
 
     for flow_int in p.flow_integrator
         @assert lower_case(flow_int) ∈ ["euler", "rk2", "rk3", "rk3w7", "cooling"] """
-        flow_integrator in [\"Gradient Flow Settings\"]: \"$(flow_int)\" is not supported.
+        flow_integrator in [\"gradient_flow\"]: \"$(flow_int)\" is not supported.
         Supported methods are:
         Euler
         RK2
@@ -317,7 +317,7 @@ function check_parameters(p::ParameterSet)
     end
 
     @assert lower_case(p.save_config_format) ∈ ["", "bmw", "bridge", "jld", "jld2"] """
-    save_config_format in [\"System Settings\"]: \"$(p.save_config_format)\" \
+    save_config_format in [\"data\"]: \"$(p.save_config_format)\" \
     is not supported.
     Supported methods are:
     Bridge
@@ -328,7 +328,7 @@ function check_parameters(p::ParameterSet)
     if p.load_config_fromfile
         @assert isfile(p.load_config_path) "Your load_config_path doesn't exist"
         @assert lower_case(p.load_config_format) ∈ ["bmw", "bridge", "jld", "jld2"] """
-        loadU_format in [\"System Settings\"]: \"$(p.load_config_format)\" \
+        loadU_format in [\"data\"]: \"$(p.load_config_format)\" \
         is not supported.
         Supported methods are:
         Bridge
@@ -411,48 +411,49 @@ end
 @noinline function overwrite_detected(s::String)
     mpi_amroot() && throw(AssertionError("""
                     The provided $s directory or file already exists
-                    and \"overwrite\" in [\"System Settings\"] is set to false.
+                    and \"overwrite\" in [\"data\"] is set to false.
                     """))
     return nothing
 end
 
 function generate_dirname(parameters)
     time_now = Dates.format(now(), "YYYY-mm-dd-HH_MM_SS_ss")
-    NX, NY, NZ, NT = parameters["Physical Settings"]["L"]
+    NX, NY, NZ, NT = parameters["ensemble"]["L"]
 
     gauge_str = try
-        parameters["Physical Settings"]["gauge_action"]
+        parameters["gauge_action"]["gauge_action"]
     catch _
         "wilson"
     end
     beta_str = try
-        parameters["Physical Settings"]["beta"]
+        parameters["gauge_action"]["beta"]
     catch
-        error("beta has to defined in [\"Physical Settings\"]")
+        error("beta has to defined in [\"gauge_action\"]")
     end
     fermion_str = try
-        parameters["Dynamical Fermion Settings"]["fermion_action"]
+        parameters["fermion_action"]["fermion_action"]
     catch _
         ""
     end
-    Nf_str = if fermion_str != ""
-        try
-            Nf = parameters["Dynamical Fermion Settings"]["Nf"]
-            str = "_Nf"
-            for i in eachindex(Nf)
-                i == length(Nf) && continue
-                str *= "$(Nf[i])+"
-            end
-            str *= "$(Nf[end])"
-        catch _
-            error("Nf has to be defined in [\"Dynamical Fermion Settings\"]")
-        end
-    else
-        ""
-    end
+    # FIXME:
+    # Nf_str = if fermion_str != ""
+    #     try
+    #         Nf = parameters["fermion_action"]["Nf"]
+    #         str = "_Nf"
+    #         for i in eachindex(Nf)
+    #             i == length(Nf) && continue
+    #             str *= "$(Nf[i])+"
+    #         end
+    #         str *= "$(Nf[end])"
+    #     catch _
+    #         error("Nf has to be defined in [\"Dynamical Fermion Settings\"]")
+    #     end
+    # else
+    #     ""
+    # end
     mass_str = if fermion_str != ""
         try
-            mass = parameters["Dynamical Fermion Settings"]["mass"]
+            mass = parameters["fermion_action"]["mass"]
             str = "_mass"
             for i in eachindex(mass)
                 i == length(mass) && continue
@@ -460,13 +461,15 @@ function generate_dirname(parameters)
             end
             str *= "$(mass[end])"
         catch _
-            error("mass has to be defined in [\"Dynamical Fermion Settings\"]")
+            error("mass has to be defined in [\"fermion_action\"]")
         end
     else
         ""
     end
 
-    dirname = "$(NX)x$(NY)x$(NZ)x$(NT)_$(gauge_str)_beta$(beta_str)_$(fermion_str)$(Nf_str)$(mass_str)"
+    # FIXME:
+    # dirname = "$(NX)x$(NY)x$(NZ)x$(NT)_$(gauge_str)_beta$(beta_str)_$(fermion_str)$(Nf_str)$(mass_str)"
+    dirname = "$(NX)x$(NY)x$(NZ)x$(NT)_$(gauge_str)_beta$(beta_str)_$(fermion_str)$(mass_str)"
     return dirname * "_$(time_now)"
 end
 

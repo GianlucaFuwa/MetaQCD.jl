@@ -34,7 +34,7 @@ import ..Fields: PeriodicBC, AntiPeriodicBC, apply_bc, create_bc, distributed_re
 abstract type AbstractDiracOperator{B,T} end
 abstract type AbstractFermionAction{R,Nf,TM} end # R indicates whether the action uses rational approximation or not, TM whether there are twisted masses or not
 
-struct QuenchedFermionAction <: AbstractFermionAction{false,0}
+struct QuenchedFermionAction <: AbstractFermionAction{false,0,0}
     QuenchedFermionAction(args...; kwargs...) = new()
 end
 

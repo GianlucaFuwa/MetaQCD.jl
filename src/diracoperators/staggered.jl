@@ -31,7 +31,7 @@ struct StaggeredDiracOperator{B,T,TF,TG,BC,TM} <: AbstractDiracOperator{B,T}
     function StaggeredDiracOperator(
         U::TG, temp::TF, mass, twisted_mass::TM, bc::BC
     ) where {B,T,TG<:Gaugefield{B,T},TF<:Spinorfield{B,T},BC,TM}
-        return new{B,T,TF,TG,BC}(U, temp, mass, twisted_mass, bc)
+        return new{B,T,TF,TG,BC,TM}(U, temp, mass, twisted_mass, bc)
     end
 
     function StaggeredDiracOperator(

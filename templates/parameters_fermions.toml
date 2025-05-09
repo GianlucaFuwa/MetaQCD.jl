@@ -1,4 +1,4 @@
-["Ensemble Settings"]
+[ensemble]
 L = [4, 4, 4, 4]
 numtherm = 20
 numsteps = 10
@@ -10,7 +10,7 @@ float_type = "double"
 # numprocs_cart = [1, 1, 1, 1]
 # halo_width = 1
 
-["Data Settings"]
+[data]
 # ensemble_dir = ""
 randomseed = 0
 overwrite = true
@@ -22,90 +22,74 @@ log_to_console = true
 # load_checkpoint_fromfile = true
 # load_checkpoint_path = ""
 
-["Gauge Action Settings"]
+[gauge_action]
 beta = 0.95
 gauge_action = "dbw2"
 
 # TODO: Try staggered preconditioning ala hep-lat/0610047 via this twisted mass formalism and RationalFunctionApproximation
-["Fermion Action Settings"]
+[fermion_action]
 fermion_action = "staggered"
 wilson_csw = 1.0
-twisted_mass = [0.01, 1.0]
-["Fermion Action Settings".fermions.1]
-exp = 2
-mass = 0.001
-hasenbush = true
-num_pseudoferm = 3
-cg_tol_action = [1e-19, 1e-19, 1e-19]
-cg_tol_md = [1e-8, 1e-9, 1e-10]
-cg_maxiters_action = [5000, 5000, 5000]
-cg_maxiters_md = [1000, 2000, 5000]
-rhmc_spectral_bound = [[0.0004, 6.0], [0.0004, 6.0]]
-rhmc_prec_action = [64]
-rhmc_prec_md = [64]
-["Fermion Action Settings".fermions.2]
-Nf = 1
-mass = 0.03
+# twisted_mass = [0.01, 1.0]
+[fermion_action.fermions.1]
+Nf = 2
+mass = [0.05, 0.005] # numerator mass and denominator mass
+# hasenbush = true
+# num_pseudoferm = 3
+cg_tol_action = [1e-19]
+cg_tol_md = [1e-8]
+cg_maxiters_action = [5000]
+cg_maxiters_md = [1000]
+rhmc_spectral_bound = [[0.000025, 6.0]]
+[fermion_action.fermions.2]
+Nf = 3
+mass = 0.05 # only denominator mass
 hasenbush = true
 num_pseudoferm = 2
 cg_tol_action = [1e-19]
 cg_tol_md = [1e-10]
 cg_maxiters_action = [5000]
 cg_maxiters_md = [5000]
-rhmc_spectral_bound = [[0.0004, 6.0]]
-rhmc_prec_action = [64]
-rhmc_prec_md = [64]
-["Fermion Action Settings".fermions.3]
-Nf = 1
-mass = 0.03
-hasenbush = true
-num_pseudoferm = 2
-cg_tol_action = [1e-19]
-cg_tol_md = [1e-10]
-cg_maxiters_action = [5000]
-cg_maxiters_md = [5000]
-rhmc_spectral_bound = [[0.0004, 6.0]]
-rhmc_prec_action = [64]
-rhmc_prec_md = [64]
+rhmc_spectral_bound = [[0.0025, 6.0]]
 
-["HMC Settings"]
+[hmc]
 hmc_trajectory = 1
 hmc_steps = 5
 hmc_integrator = "OMF4"
-hmc_numsmear_fermion = 4
-hmc_rhostout_fermion = 0.125
-hmc_levels = 3
+# hmc_numsmear_fermion = 4
+# hmc_rhostout_fermion = 0.125
+hmc_levels = 1
 
-["HMC Settings".levels.1]] # Gauge action - finest
-ids = ["strange_2", "light_3"]
+[hmc.levels.1] # Gauge action - finest
+ids = [0, 1, 2] # 0: gauge actio
 integrator = "OMF4"
 hmc_steps = 5
-["HMC Settings".levels.2] # PF action - largest masses
-ids = ["strange_1", "light_2"]
-integrator = "OMF4"
-hmc_steps = 5
-["HMC Settings".levels.3] # PF action - smallest masses
-ids = ["light_1"]
-integrator = "OMF2"
-hmc_steps = 5
+# [hmc.levels.2] # PF action - largest masses
+# ids = ["strange_1", "light_2"]
+# integrator = "OMF4"
+# hmc_steps = 5
+# [hmc.levels.3] # PF action - smallest masses
+# ids = ["light_1"]
+# integrator = "OMF2"
+# hmc_steps = 5
 
-["Gradient Flow Settings"]
+[gradient_flow]
 flow_integrator = "euler"
 flow_num = 7
 flow_steps = 1
 flow_tf = 0.12 # total flow time is flow_num * flow_tf
 flow_measure_every = 7
 
-["Measurement Settings".measurements.Plaquette]
+[measurements.Plaquette]
 measure_every = 10
 
-["Measurement Settings".measurements.Topological_charge]
+[measurements.Topological_charge]
 measure_every = 10
 kinds_of_topological_charge = ["plaquette", "clover"]
 
-["Measurement Settings".measurements_with_flow.Plaquette]
+[measurements_with_flow.Plaquette]
 measure_every = 10
 
-["Measurement Settings".measurements_with_flow.Topological_charge]
+[measurements_with_flow.Topological_charge]
 measure_every = 10
 kinds_of_topological_charge = ["plaquette", "clover"]
