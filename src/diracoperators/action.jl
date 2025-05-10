@@ -16,14 +16,15 @@ struct FermionAction{R,Nf,TD,TM,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,N
         type,
         f::AbstractField,
         mass;
+        precon="none",
         twisted_mass=Float64[],
         bc_str="antiperiodic",
         Nf=default_Nf(type),
-        rhmc_spectral_bound=(mass^2, 6.0),
+        rhmc_spectral_bound=(minimum(mass)^2, 6.0),
         rhmc_order_action=15,
-        rhmc_prec_action=42,
         rhmc_order_md=10,
-        rhmc_prec_md=42,
+        rhmc_tol_action=1e-3,
+        rhmc_tol_md=1e-3,
         cg_tol_action=1e-14,
         cg_tol_md=1e-12,
         cg_maxiters_action=1000,
@@ -31,9 +32,13 @@ struct FermionAction{R,Nf,TD,TM,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,N
         cg_filepath="",
         kwargs...,
     )
-        D = DIRAC_OPERATORS[type](f, mass; bc_str=bc_str, kwargs...)
+        D = DIRAC_OPERATORS[type](f, minimum(mass); bc_str=bc_str, kwargs...)
         eo_fun = contains(type, "eo") ? even_odd : identity
         TD = typeof(D)
+
+        # TODO: if precon == "heavy"
+        # ...
+        # if precon == "hasenbusch"
 
         if Nf == default_Nf(D)
             if D isa StaggeredEOPreDiracOperator
@@ -42,10 +47,14 @@ struct FermionAction{R,Nf,TD,TM,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,N
                 rhmc_info_action = RHMCParams(
                     power;
                     n=rhmc_order_action,
-                    precision=rhmc_prec_action,
                     lambda_low=rhmc_spectral_bound[1],
                     lambda_high=rhmc_spectral_bound[2],
                 )
+                @assert all(rhmc_info_action.maxerr .<= rhmc_tol_action) """
+                Rational approximation max. error for action is above given \"rhmc_tol_action\":
+                tol: $(rhmc_tol_action)
+                maxerr: $(rhmc_info_action.maxerr) (positive and negative power)
+                """
                 n_temps = rhmc_order_action
                 rhmc_temps1 = ntuple(
                     _ -> even_odd(Spinorfield(f; staggered=true)), n_temps + 1
@@ -72,22 +81,42 @@ struct FermionAction{R,Nf,TD,TM,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,N
             rhmc_lambda_low = rhmc_spectral_bound[1]
             rhmc_lambda_high = rhmc_spectral_bound[2]
             cg_temps = ntuple(_ -> eo_fun(Spinorfield(f; staggered=is_staggered(D))), 2)
+
+            fun = if precon == "heavy_2+1"
+                @assert length(mass) == 2
+                δm² = 4(maximum(mass)^2 - minimum(mass)^2)
+                x -> (x + δm²) / x
+            elseif precon == "none"
+                @assert mass isa Float64
+                x -> x
+            else
+                error("precon in fermion_action can only be \"heavy_2+1\" or \"none\"")
+            end
+
             power = Nf//2default_Nf(D)
             rhmc_info_action = RHMCParams(
-                power;
+                power, fun;
                 n=rhmc_order_action,
-                precision=rhmc_prec_action,
                 lambda_low=rhmc_lambda_low,
                 lambda_high=rhmc_lambda_high,
             )
+            @assert all(rhmc_info_action.maxerr .<= rhmc_tol_action) """
+            Rational approximation max. error for action is above given \"rhmc_tol_action\":
+            tol: $(rhmc_tol_action)
+            maxerr: $(rhmc_info_action.maxerr) (positive and negative power)
+                """
             power = Nf//default_Nf(D)
             rhmc_info_md = RHMCParams(
-                power;
+                power, fun;
                 n=rhmc_order_md,
-                precision=rhmc_prec_md,
                 lambda_low=rhmc_lambda_low,
                 lambda_high=rhmc_lambda_high,
             )
+            @assert all(rhmc_info_md.maxerr .<= rhmc_tol_md) """
+            Rational approximation max. error for md is above given \"rhmc_tol_md\":
+            tol: $(rhmc_tol_md)
+            maxerr: $(rhmc_info_md.maxerr) (positive and negative power)
+            """
             n_temps = max(rhmc_order_md, rhmc_order_action)
             rhmc_temps1 = ntuple(
                 _ -> eo_fun(Spinorfield(f; staggered=is_staggered(D))), n_temps + 1

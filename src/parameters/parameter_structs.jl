@@ -88,7 +88,6 @@ end
 
 @kwdef mutable struct HMCParameters
     hmc_trajectory::Float64 = 1
-    hmc_steps::Int64 = 10
     hmc_friction::Float64 = 0.0
     hmc_integrator::String = "Leapfrog"
     hmc_rafriction::Float64 = 1.0
@@ -97,7 +96,7 @@ end
     hmc_rhostout_gauge::Float64 = 0.0
     hmc_rhostout_fermion::Float64 = 0.0
     hmc_logging::Bool = true
-    levels::Vector{Dict} = Dict[]
+    hmc_levels::Vector{Dict} = Dict[]
 end
 
 @kwdef mutable struct GradientFlowParameters

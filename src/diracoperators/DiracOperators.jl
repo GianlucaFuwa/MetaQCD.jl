@@ -33,6 +33,8 @@ import ..Fields: PeriodicBC, AntiPeriodicBC, apply_bc, create_bc, distributed_re
 
 abstract type AbstractDiracOperator{B,T} end
 abstract type AbstractFermionAction{R,Nf,TM} end # R indicates whether the action uses rational approximation or not, TM whether there are twisted masses or not
+abstract type StaggeredTypeOperator end
+abstract type WilsonTypeOperator end
 
 struct QuenchedFermionAction <: AbstractFermionAction{false,0,0}
     QuenchedFermionAction(args...; kwargs...) = new()
@@ -96,6 +98,14 @@ include("gpu_kernels/staggered_eo.jl")
 include("gpu_kernels/wilson.jl")
 include("gpu_kernels/wilson_eo.jl")
 include("arnoldi.jl")
+
+# @inline function Base.isa(D, ::Type{StaggeredTypeOperator})
+#     return (D isa StaggeredDiracOperator || D isa StaggeredEOPreDiracOperator)
+# end
+#
+# @inline function Base.isa(D, ::Type{WilsonTypeOperator})
+#     return (D isa WilsonDiracOperator || D isa WilsonEOPreDiracOperator)
+# end
 
 const DIRAC_OPERATORS = Dict(
     "staggered" => StaggeredDiracOperator,

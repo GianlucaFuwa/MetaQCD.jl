@@ -30,6 +30,7 @@ gauge_action = "dbw2"
 [fermion_action]
 fermion_action = "staggered"
 wilson_csw = 1.0
+precon = "heavy" # only possible with two non-degenerate flavors
 # twisted_mass = [0.01, 1.0]
 [fermion_action.fermions.1]
 Nf = 2
@@ -60,16 +61,16 @@ hmc_integrator = "OMF4"
 # hmc_rhostout_fermion = 0.125
 hmc_levels = 1
 
-[hmc.levels.1] # Gauge action - finest
-ids = [0, 1, 2] # 0: gauge actio
+[[hmc.levels]] # Gauge action - finest
+forces = [0, 1, 2] # 0: bias, 1: gauge_action, k>1: fermion
 integrator = "OMF4"
 hmc_steps = 5
-# [hmc.levels.2] # PF action - largest masses
-# ids = ["strange_1", "light_2"]
+# [[hmc.levels]] # Gauge action - finest
+# forces = [1] # force 0: gauge and bias
 # integrator = "OMF4"
 # hmc_steps = 5
-# [hmc.levels.3] # PF action - smallest masses
-# ids = ["light_1"]
+# [[hmc.levels]] # PF action - largest masses
+# forces = [2, 3]
 # integrator = "OMF2"
 # hmc_steps = 5
 

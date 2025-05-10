@@ -283,7 +283,7 @@ function Base.show(io::IO, ::MIME"text/plain", int::OMF4RA)
 end
 Base.show(io::IO, int::OMF4RA) = print(io, "$(typeof(int))(friction=$(int.friction))")
 
-function integrator_from_str(str::String, friction)
+function integrator_from_str(str::String, friction=0.0)
     if str == "leapfrog" || str == "Leapfrog"
         return Leapfrog()
     elseif str == "leapfrogra" || str == "LeapfrogRA"

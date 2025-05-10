@@ -54,13 +54,12 @@ function Updatemethod(parameters::ParameterSet, U; instance=mpi_myrank())
         parameters.update_method,
         logdir=parameters.log_dir,
         fermion_action=parameters.fermion_action,
-        Nf=parameters.Nf,
+        num_fermions=parameters.num_fermions,
         num_cv=length(parameters.biases),
         metro_ϵ=parameters.metro_epsilon,
         metro_numhits=parameters.metro_numhits,
         metro_target_acc=parameters.metro_target_acc,
-        hmc_integrator=parameters.hmc_integrator,
-        hmc_steps=parameters.hmc_steps,
+        hmc_levels=parameters.hmc_levels,
         hmc_trajectory=parameters.hmc_trajectory,
         hmc_friction=parameters.hmc_friction,
         hmc_rafriction=parameters.hmc_rafriction,
@@ -83,13 +82,12 @@ function Updatemethod(
     update_method;
     logdir="",
     fermion_action="none",
-    Nf=0,
+    num_fermions=0,
     num_cv=0,
     metro_ϵ=0.1,
     metro_numhits=1,
     metro_target_acc=0.5,
-    hmc_integrator="leapfrog",
-    hmc_steps=10,
+    hmc_levels=DEFAULT_GAUGE_LEVEL,
     hmc_trajectory=1,
     hmc_friction=0,
     hmc_rafriction=0,
@@ -108,18 +106,18 @@ function Updatemethod(
     if lower_case(update_method) == "hmc"
         updatemethod = HMC(
             U,
-            integrator_from_str(hmc_integrator, hmc_rafriction),
+            hmc_levels,
             hmc_trajectory,
-            hmc_steps,
             hmc_friction,
             hmc_numsmear_gauge,
             hmc_numsmear_fermion,
             hmc_rhostout_gauge,
             hmc_rhostout_fermion;
+            rafriction=hmc_rafriction,
             hmc_logging=hmc_logging,
             fermion_action=fermion_action,
-            heavy_flavours=length(Nf) - 1,
-            num_cv=num_cv,
+            numfermions=num_fermions,
+            numcv=num_cv,
             logdir=logdir,
             instance=instance,
         )
@@ -135,6 +133,12 @@ function Updatemethod(
 
     return updatemethod
 end
+
+const DEFAULT_GAUGE_LEVEL = [Dict(
+    "integrator" => "Leapfrog",
+    "forces" => [1],
+    "numsteps" => 10,
+)]
 
 update!(::T, ::Any) where {T<:AbstractUpdate} = nothing
 update!(::Nothing, ::Any) = nothing

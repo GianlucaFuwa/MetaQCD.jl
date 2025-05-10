@@ -10,7 +10,7 @@ export RHMCParams
 export get_n, get_α, get_α0, get_β, get_α_inverse, get_α0_inverse, get_β_inverse
 
 """
-    RHMCParams(power::Rational; n=10, lambda_low=0.0004, lambda_high=64, precision=42)
+    RHMCParams(power::Rational, fun::Function; n=10, lambda_low=0.0004, lambda_high=64, tol=1e-6)
 
 Return an `RHMCParams` which is a container for the Remez coefficients calculated with
 the specified `power` on the interval `[lambda_low, lambda_high]` and the specified
@@ -59,7 +59,7 @@ struct RHMCParams{N}
         @assert num != 0 "numerator should not be zero!"
         @assert num * den != 1 "power should not be 1!"
         coeffs, coeffs_inverse, err, err_inverse = calc_coefficients(
-            y, z, n, lambda_low, lambda_high, fun
+            num, den, n, lambda_low, lambda_high, fun
         )
         maxerr = (err, err_inverse)
         return new{n}(coeffs, coeffs_inverse, lambda_low, lambda_high, maxerr, num, den)
@@ -85,7 +85,7 @@ end
 function Base.show(io::IO, ::MIME"text/plain", rhmc::RHMCParams{N}) where {N}
     print(
         io,
-        "ORDER: $N, SPECTRAL RANGE: [$(rhmc.lambda_low), $(rhmc.lambda_high)], PREC: $(rhmc.precision))"
+        "ORDER: $N, SPECTRAL RANGE: [$(rhmc.lambda_low), $(rhmc.lambda_high)], ERR: $(rhmc.maxerr))"
     )
     return nothing
 end
@@ -93,7 +93,7 @@ end
 function Base.show(io::IO, rhmc::RHMCParams{N}) where {N}
     print(
         io,
-        "ORDER: $N, SPECTRAL RANGE: [$(rhmc.lambda_low), $(rhmc.lambda_high)], PREC: $(rhmc.precision))"
+        "ORDER: $N, SPECTRAL RANGE: [$(rhmc.lambda_low), $(rhmc.lambda_high)], ERR: $(rhmc.maxerr))"
     )
     return nothing
 end
@@ -110,10 +110,10 @@ function calc_coefficients(y, z, n, lambda_low, lambda_high, fun::Function=x->x)
     @assert y > 0 && z > 0 "Inputs y and z need to be positive"
     f(x) = fun(x)^(y//z)
     g(x) = 1 / f(x)
-    r_p = approximate(f, interval(lambda_low, lambda_high, Float64); max_iter=n);
-    err_p = maximum(check(r_p)[2])
-    r_m = approximate(g, interval(lambda_low, lambda_high, Float64); max_iter=n);
-    err_m = maximum(check(r_m)[2])
+    r_p = approximate(f, interval(lambda_low, lambda_high, Float64); max_iter=n, tol=eps(Float64));
+    err_p = maximum([abs(r_p(x) - f(x)) for x in lambda_low:0.00001:lambda_high])
+    r_m = approximate(g, interval(lambda_low, lambda_high, Float64); max_iter=n, tol=eps(Float64));
+    err_m = maximum([abs(r_m(x) - g(x)) for x in lambda_low:0.00001:lambda_high])
     β_p = -Float64.(poles(r_p))
     β_m = -Float64.(poles(r_m))
 
