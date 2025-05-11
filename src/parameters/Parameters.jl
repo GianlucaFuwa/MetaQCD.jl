@@ -178,6 +178,12 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
                 elseif String(pname_i) == "measurements_with_flow"
                     valuedir = construct_measurement_dicts(value[String(pname_i)])
                     value_Params[i] = valuedir
+                elseif String(pname_i) == "fermions"
+                    valuedir = construct_fermion_dicts(value[String(pname_i)])
+                    value_Params[i] = valuedir
+                elseif String(pname_i) == "levels"
+                    valuedir = construct_level_dicts(value[String(pname_i)])
+                    value_Params[i] = valuedir
                 elseif String(pname_i) == "biases"
                     valuedir = construct_bias_dicts(value[String(pname_i)])
                     value_Params[i] = valuedir
@@ -290,19 +296,19 @@ function check_parameters(p::ParameterSet)
     Heatbath
     """
 
-    @assert lower_case(p.hmc_integrator) ∈ [
-        "leapfrog", "omf2slow", "omf2", "omf4slow", "omf4", "leapfrogra", "omf4ra"
-    ] """
-    hmc_integrator in [\"hmc\"]: \"$(p.hmc_integrator)\" is not supported.
-    Supported methods are:
-    Leapfrog
-    LeapfrogRA
-    OMF2Slow
-    OMF2
-    OMF4Slow
-    OMF4
-    OMF4RA
-    """
+    # @assert lower_case(p.hmc_integrator) ∈ [
+    #     "leapfrog", "omf2slow", "omf2", "omf4slow", "omf4", "leapfrogra", "omf4ra"
+    # ] """
+    # hmc_integrator in [\"hmc\"]: \"$(p.hmc_integrator)\" is not supported.
+    # Supported methods are:
+    # Leapfrog
+    # LeapfrogRA
+    # OMF2Slow
+    # OMF2
+    # OMF4Slow
+    # OMF4
+    # OMF4RA
+    # """
 
     for flow_int in p.flow_integrator
         @assert lower_case(flow_int) ∈ ["euler", "rk2", "rk3", "rk3w7", "cooling"] """
@@ -339,6 +345,11 @@ function check_parameters(p::ParameterSet)
 
     return nothing
 end
+
+const FERMION_DICT_PARAMS = [
+    "Nf", "mass", "cg_tol_action", "cg_tol_md", "cg_maxiters_action", "cg_maxiters_md",
+    "rhmc_order_action", "rhmc_order_md", "rhmc_spectral_bound", "hasenbusch", 
+]
 
 function construct_fermion_dicts(x)
     fermion_dicts = Dict[]

@@ -53,6 +53,7 @@ force recursion when using a bias.
 struct HMC{TL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF} <: AbstractUpdate
     levels::TL
     current_level::Base.RefValue{Int64}
+    numlevels::Int64
     friction::Float64
 
     P::TT
@@ -68,11 +69,14 @@ struct HMC{TL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF} <: AbstractUpdate
 
     logfile::TLF
     function HMC(
-        levels, current_level, friction, P, P_old, U_old, ϕ, staples, force, force2,
-        fieldstrength, smearing_gauge, smearing_fermion, logfile,
+        levels, current_level, numlevels, friction, P, P_old, U_old, ϕ, staples, force,
+        force2, fieldstrength, smearing_gauge, smearing_fermion, logfile,
     )
         @level1("- Constructing HMC...")
-        # TODO: Print HMCLevel
+        @level1("|  LEVELS:")
+        for lvl in reverse(levels)
+            @level1("$(lvl)")
+        end
         @level1("|  FRICTION: $(friction) $(ifelse(friction==0, "(default)", ""))")
         isnothing(fieldstrength) ? @level1("|  BIAS DISABLED") : @level1("|  BIAS ENABLED")
         @level1("|  GAUGE SMEARING: $(string(smearing_gauge))")
@@ -90,8 +94,8 @@ struct HMC{TL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF} <: AbstractUpdate
         TFS = typeof(fieldstrength)
         TLF = typeof(logfile)
         return new{TL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF}(
-            levels, current_level, friction, P, P_old, U_old, ϕ, staples, force, force2,
-            fieldstrength, smearing_gauge, smearing_fermion, logfile,
+            levels, current_level, numlevels, friction, P, P_old, U_old, ϕ, staples, force,
+            force2, fieldstrength, smearing_gauge, smearing_fermion, logfile,
         )
     end
 end
@@ -146,7 +150,7 @@ function HMC(
         )
     end
 
-    current_level = Base.RefValue{Int64}(0)
+    current_level = Base.RefValue{Int64}(numlevels)
 
     smearing_gauge = StoutSmearing(U; numlayers=numsmear_gauge, rho=ρ_stout_gauge)
     smearing_fermion = if fermion_action === QuenchedFermionAction
@@ -198,29 +202,29 @@ function HMC(
     end
 
     return HMC(
-        levels, current_level, friction, P, P_old, U_old, ϕ, staples, force, force2,
-        fieldstrength, smearing_gauge, smearing_fermion, logfile,
+        levels, current_level, numlevels, friction, P, P_old, U_old, ϕ, staples, force,
+        force2, fieldstrength, smearing_gauge, smearing_fermion, logfile,
     )
 end
 
 include("hmc_integrators.jl")
 
 function update!(
-    hmc::HMC{TI},
+    hmc::HMC,
     U;
     fermion_action::TF=QuenchedFermionAction(),
     bias::TB=NoBias(),
     metro_test::Bool=true,
-    therm::Val{Bool}=Val(false),
+    therm::Val{THERM}=Val(false),
     instance=MPI_INSTANCE[],
-) where {TI,TF,TB}
+) where {TF,TB,THERM}
     if TF !== QuenchedFermionAction
         @assert TF <: Tuple "fermion_action must be nothing or a tuple of fermion actions"
         @assert !isnothing(hmc.ϕ) "fermion_action passed but not activated in HMC"
     end
 
     set_ext!(hmc.logfile, instance)
-    hmc.current_level[] = 0
+    hmc.current_level[] = hmc.numlevels
 
     U_old = hmc.U_old
     P_old = hmc.P_old
@@ -230,7 +234,7 @@ function update!(
     # Check if bias and fermion smearing have same parameters
     shared_smearing = (bias == NoBias()) ? false : (bias.smearing == hmc.smearing_fermion)
     smearing_fermion = shared_smearing ? bias.smearing : hmc.smearing_fermion
-    friction = therm ? 0.0 : hmc.friction
+    friction = THERM ? 0.0 : hmc.friction
 
     copy!(U_old, U)
     gaussian_TA!(P, friction)
@@ -282,9 +286,9 @@ function update!(
     return accept
 end
 
-function updateU!(U::Gaugefield{CPU,T}, hmc, fermion_action, bias, fac, therm) where {T}
-    if hmc.levels[hmc.current_level].numchildren === Val(0)
-        ϵ = T(hmc.levels[hmc.current_level].Δτ * fac)
+function updateU!(U::Gaugefield{CPU,T}, hmc, fac, fermion_action, bias, therm) where {T}
+    if hmc.levels[hmc.current_level[]].numchildren === Val(0)
+        ϵ = T(hmc.levels[hmc.current_level[]].Δτ * fac)
         P = hmc.P
         check_dims(U, P)
 
@@ -297,14 +301,13 @@ function updateU!(U::Gaugefield{CPU,T}, hmc, fermion_action, bias, fac, therm) w
         # We assume that U's and P's halos are already up-to-date before calling this
         return nothing
     else
-        hmc.current_level[] += 1
+        hmc.current_level[] -= 1
         evolve!(U, hmc, fermion_action, bias, therm)
     end
 end
 
 function updateP!(U, hmc::HMC, fac, fermion_action, bias)
-    # TODO: only add forces in lvl.forces
-    lvl = hmc.levels[hmc.current_level]
+    lvl = hmc.levels[hmc.current_level[]]
     forces = lvl.forces
     ϵ = lvl.Δτ * fac
     P = hmc.P

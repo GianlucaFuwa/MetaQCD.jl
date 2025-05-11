@@ -6,7 +6,7 @@ struct HMCLevel{NC,TI,TFP}
     forces::Vector{Int64} # which forces contribute to this level?
     forcefile::TFP
     function HMCLevel(
-        integrator::AbstractIntegrator,
+        integrator::TI,
         numsteps,
         Δτ,
         forces;
@@ -15,7 +15,7 @@ struct HMCLevel{NC,TI,TFP}
         logdir="",
         instance=mpi_myrank(),
         distributed=false,
-    )
+    ) where {NC,TI<:AbstractIntegrator}
         comm_instance = mpi_comm_instance()
 
         if hmc_logging && (logdir != "") && (!distributed || mpi_amroot(comm_instance))
@@ -47,8 +47,40 @@ struct HMCLevel{NC,TI,TFP}
             ext = "$(lpad(instance[1], 3, "0")).txt"
             _forcefile = joinpath(logdir, "hmc_force_logs_$(ext)")
             forcefile = StaticString(_forcefile)
+        else
+            forcefile = nothing
         end
 
-        return new{NC,TI,TFP}(numchildren, integrator, numsteps, Δτ, forcefile)
+        TFP = typeof(forcefile)
+        return new{NC,TI,TFP}(integrator, numsteps, Δτ, numchildren, forces, forcefile)
     end
+end
+
+function Base.show(io::IO, ::MIME"text/plain", level::HMCLevel)
+    str = """
+        |  HMCLevel(
+        |    integrator: $(level.integrator)
+        |    numsteps: $(level.numsteps)
+        |    Δτ: $(level.Δτ)
+        |    numchildren: $(_unwrap_val(level.numchildren))
+        |    forces: $(level.forces)
+        |    forcefile: $(level.forcefile)
+        |  )
+        """
+    print(io, str)
+end
+
+function Base.show(io::IO, level::HMCLevel)
+    str = """
+        |  HMCLevel(
+        |    integrator: $(level.integrator)
+        |    numsteps: $(level.numsteps)
+        |    Δτ: $(level.Δτ)
+        |    numchildren: $(_unwrap_val(level.numchildren))
+        |    forces: $(level.forces)
+        |    forcefile: $(level.forcefile)
+        |  )
+        """
+    print(io, str)
+    return nothing
 end

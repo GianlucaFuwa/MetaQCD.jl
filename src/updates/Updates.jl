@@ -137,7 +137,7 @@ end
 const DEFAULT_GAUGE_LEVEL = [Dict(
     "integrator" => "Leapfrog",
     "forces" => [1],
-    "numsteps" => 10,
+    "numsteps" => 100,
 )]
 
 update!(::T, ::Any) where {T<:AbstractUpdate} = nothing

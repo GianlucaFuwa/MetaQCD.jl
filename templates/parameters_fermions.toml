@@ -35,12 +35,12 @@ precon = "heavy" # only possible with two non-degenerate flavors
 [fermion_action.fermions.1]
 Nf = 2
 mass = [0.05, 0.005] # numerator mass and denominator mass
-# hasenbush = true
-# num_pseudoferm = 3
 cg_tol_action = [1e-19]
 cg_tol_md = [1e-8]
 cg_maxiters_action = [5000]
 cg_maxiters_md = [1000]
+rhmc_order_action = 15
+rhmc_order_md = 10
 rhmc_spectral_bound = [[0.000025, 6.0]]
 [fermion_action.fermions.2]
 Nf = 3
@@ -50,7 +50,9 @@ num_pseudoferm = 2
 cg_tol_action = [1e-19]
 cg_tol_md = [1e-10]
 cg_maxiters_action = [5000]
-cg_maxiters_md = [5000]
+cg_maxiters_md = [1000]
+rhmc_order_action = 15
+rhmc_order_md = 10
 rhmc_spectral_bound = [[0.0025, 6.0]]
 
 [hmc]
@@ -61,15 +63,15 @@ hmc_integrator = "OMF4"
 # hmc_rhostout_fermion = 0.125
 hmc_levels = 1
 
-[[hmc.levels]] # Gauge action - finest
+[hmc.levels.1] # Gauge action - finest
 forces = [0, 1, 2] # 0: bias, 1: gauge_action, k>1: fermion
 integrator = "OMF4"
 hmc_steps = 5
-# [[hmc.levels]] # Gauge action - finest
+# [hmc.levels.2] # Gauge action - finest
 # forces = [1] # force 0: gauge and bias
 # integrator = "OMF4"
 # hmc_steps = 5
-# [[hmc.levels]] # PF action - largest masses
+# [hmc.levels.3] # PF action - largest masses
 # forces = [2, 3]
 # integrator = "OMF2"
 # hmc_steps = 5

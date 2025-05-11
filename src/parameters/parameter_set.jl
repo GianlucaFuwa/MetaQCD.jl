@@ -11,22 +11,13 @@ struct ParameterSet
     numprocs_cart::NTuple{4,Int64}
     halo_width::Int64
 
-    # dynamical fermion parameters
+    # fermion action parameters
     fermions::Vector{Dict}
     fermion_action::String
+    precon::String
     wilson_r::Float64
     wilson_csw::Float64
     boundary_condition::String
-    cg_tol_action::Float64
-    cg_tol_md::Float64
-    cg_maxiters_action::Int64
-    cg_maxiters_md::Int64
-    rhmc_spectral_bound::NTuple{2,Float64}
-    rhmc_recalc_spectral_bound::Bool
-    rhmc_order_action::Int64
-    rhmc_order_md::Int64
-    rhmc_prec_action::Int64
-    rhmc_prec_md::Int64
 
     # bias parameters
     rhostout_for_cv::Float64
@@ -47,12 +38,10 @@ struct ParameterSet
     metro_epsilon::Float64
     metro_numhits::Int64
     metro_target_acc::Float64
-    hmc_levels::Vector{Dict}
-    hmc_integrator::String
+    levels::Vector{Dict}
     hmc_trajectory::Float64
     hmc_friction::Float64
     hmc_rafriction::Float64
-    hmc_steps::Int64
     hmc_numsmear_gauge::Int64
     hmc_numsmear_fermion::Int64
     hmc_rhostout_gauge::Float64

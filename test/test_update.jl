@@ -1,6 +1,10 @@
+using MetaQCD
+using MetaQCD.Utils
+using Random
+
 function test_update(
     backend=CPU;
-    update_method="heatbath",
+    update_method="hmc",
     or_algorithm="subgroups",
     hmc_integrator="OMF4",
     hmc_numsmear_gauge=0,
@@ -20,26 +24,29 @@ function test_update(
         U = MetaQCD.to_backend(backend, U)
     end
 
-    kind_of_bias = "none"
     metro_ϵ = 0.2
     metro_numhits = 1
     metro_target_acc = 0.5
     hmc_trajectory = 1
     hmc_friction = 0
-    hmc_steps = 5
     hmc_rhostout_gauge = 0.12
     hb_maxit = 10
     numheatbath = 1
     numorelax = 4
 
+    levels = [Dict(
+        "integrator" => "OMF4",
+        "forces" => [1],
+        "numsteps" => 5,
+    )]
+
     updatemethod = Updatemethod(
         U,
         update_method;
+        hmc_levels=levels,
         metro_ϵ=metro_ϵ,
         metro_numhits=metro_numhits,
         metro_target_acc=metro_target_acc,
-        hmc_integrator=hmc_integrator,
-        hmc_steps=hmc_steps,
         hmc_trajectory=hmc_trajectory,
         hmc_friction=hmc_friction,
         hmc_numsmear_gauge=hmc_numsmear_gauge,
@@ -54,7 +61,7 @@ function test_update(
     mpi_amroot() && println("Starting action is: $(calc_gauge_action(U))")
 
     for _ in 1:10
-        _, runtime = @timed update!(updatemethod, U, metro_test=false)
+        _, runtime = @timed update!(updatemethod, U; metro_test=false)
         println("Elapsed time: $runtime [s]")
     end
 
@@ -62,7 +69,7 @@ function test_update(
     nsweeps = 10
 
     for _ in 1:nsweeps
-        value, runtime = @timed update!(updatemethod, U, metro_test=true)
+        value, runtime = @timed update!(updatemethod, U; metro_test=true)
         println("Elapsed time: $runtime [s]")
         numaccepts += value
     end
