@@ -10,7 +10,20 @@ function calc_dSfdU!(
     bc = D.boundary_condition
 
     clear!(X_eo) # initial guess is zero
-    solve_dirac!(X_eo, DdagD, ϕ_eo, Y_eo, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp
+    iters, res = solve_dirac!(X_eo, DdagD, ϕ_eo, Y_eo, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp
+
+    cg_datafile = fermion_action.cg_datafile
+
+    if cg_datafile != ""
+        set_ext!(cg_datafile, MPI_INSTANCE[])
+        fp = fopen(cg_datafile, "a")
+        printf(fp, "%-11i", iters)
+        printf(fp, "%-25.15E", res)
+        printf(fp, "%s", "# force")
+        newline(fp)
+        fclose(fp)
+    end
+
     clear!(Y_eo)
     mul_oe!(Y_eo, U, X_eo, bc, true, false)
     add_staggered_eo_derivative!(dU, U, X_eo, Y_eo, bc)
@@ -38,7 +51,19 @@ function calc_dSfdU!(
 
     shifts = get_β_inverse(rhmc)
     coeffs = get_α_inverse(rhmc)
-    solve_dirac_multishift!(Xs, shifts, DdagD, ϕ_eo, temp1, temp2, Ys, cg_tol, cg_maxiters)
+    iters, res = solve_dirac_multishift!(Xs, shifts, DdagD, ϕ_eo, temp1, temp2, Ys, cg_tol, cg_maxiters)
+
+    cg_datafile = fermion_action.cg_datafile
+
+    if cg_datafile != ""
+        set_ext!(cg_datafile, MPI_INSTANCE[])
+        fp = fopen(cg_datafile, "a")
+        printf(fp, "%-11i", iters)
+        printf(fp, "%-25.15E", res)
+        printf(fp, "%s", "# force")
+        newline(fp)
+        fclose(fp)
+    end
 
     for i in 1:n
         mul_oe!(Ys[i+1], U, Xs[i+1], bc, true, false)

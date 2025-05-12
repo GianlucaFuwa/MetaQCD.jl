@@ -1,9 +1,5 @@
 abstract type BiasParameters end
 
-function struct2dict(x::T) where {T}
-    return Dict{String,Any}(string(fn) => getfield(x, fn) for fn in fieldnames(T))
-end
-
 function bias_parameters_from_dict(value_i::Dict)
     kind_of_bias = value_i["kind_of_bias"]
     bias_params = initialize_bias_parameters(kind_of_bias)
@@ -13,7 +9,7 @@ function bias_parameters_from_dict(value_i::Dict)
         key_ii == "kind_of_bias" && continue
 
         if haskey(bias_dict, key_ii)
-            if !isnothing(typeof(value_ii))
+            if !isnothing(value_ii)
                 keytype = typeof(getfield(bias_params, Symbol(key_ii)))
                 setfield!(bias_params, Symbol(key_ii), keytype(value_ii))
             end

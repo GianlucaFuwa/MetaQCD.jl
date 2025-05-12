@@ -22,20 +22,19 @@ A Wilson Dirac operator with gauge background is created by applying it to a `Ga
 - `TG`: Type of the underlying `Gaugefield`
 - `BC`: Boundary Condition in time direction
 """
-struct StaggeredDiracOperator{B,T,TF,TG,BC,TM} <: AbstractDiracOperator{B,T}
+struct StaggeredDiracOperator{B,T,TF,TG,BC} <: AbstractDiracOperator{B,T}
     U::TG
     temp::TF # temp for storage of intermediate result for DdaggerD operator
     mass::Float64
-    twisted_mass::TM
     boundary_condition::BC # Only in time direction
     function StaggeredDiracOperator(
-        U::TG, temp::TF, mass, twisted_mass::TM, bc::BC
-    ) where {B,T,TG<:Gaugefield{B,T},TF<:Spinorfield{B,T},BC,TM}
-        return new{B,T,TF,TG,BC,TM}(U, temp, mass, twisted_mass, bc)
+        U::TG, temp::TF, mass, bc::BC
+    ) where {B,T,TG<:Gaugefield{B,T},TF<:Spinorfield{B,T},BC}
+        return new{B,T,TF,TG,BC}(U, temp, mass, bc)
     end
 
     function StaggeredDiracOperator(
-        f::AbstractField{B,T}, mass; twisted_mass=Tuple{}(), bc_str="antiperiodic", kwargs...
+        f::AbstractField{B,T}, mass; bc_str="antiperiodic", kwargs...
     ) where {B,T}
         U = nothing
         temp = Spinorfield(f; staggered=true)
@@ -43,8 +42,7 @@ struct StaggeredDiracOperator{B,T,TF,TG,BC,TM} <: AbstractDiracOperator{B,T}
         TF = typeof(temp)
         boundary_condition = create_bc(bc_str, f.topology)
         BC = typeof(boundary_condition)
-        TM = typeof(twisted_mass)
-        return new{B,T,TF,TG,BC,TM}(U, temp, mass, twisted_mass, boundary_condition)
+        return new{B,T,TF,TG,BC}(U, temp, mass, boundary_condition)
     end
 end
 
@@ -52,7 +50,7 @@ function add_gauge_background(
     D::StaggeredDiracOperator{B,T,TF}, U::Gaugefield{B,T}
 ) where {B,T,TF}
     check_dims(U, D.temp)
-    return StaggeredDiracOperator(U, D.temp, D.mass, D.twisted_mass, D.boundary_condition)
+    return StaggeredDiracOperator(U, D.temp, D.mass, D.boundary_condition)
 end
 
 @inline default_Nf(::StaggeredDiracOperator) = 8
@@ -68,12 +66,11 @@ end
 # The Gaugefields module into CG.jl, which also allows us to use the solvers for
 # for arbitrary arrays, not just fermion fields and dirac operators (good for testing)
 function LinearAlgebra.mul!(
-    ψ::TF, D::StaggeredDiracOperator{CPU,T,TF,TG}, ϕ::TF, twisted_mass=0.0
+    ψ::TF, D::StaggeredDiracOperator{CPU,T,TF,TG}, ϕ::TF
 ) where {T,TF,TG}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.U
-    mass = Complex{T}(D.mass + im*twisted_mass)
-    twisted_mass = T.(D.twisted_mass)
+    mass = T(D.mass)
     bc = D.boundary_condition
     check_dims(ψ, ϕ, U)
 
@@ -86,30 +83,11 @@ function LinearAlgebra.mul!(
 end
 
 function LinearAlgebra.mul!(
-    ψ::TMF, D::StaggeredDiracOperator{CPU,T,TF,TG}, ϕ::TMF, twisted_mass=0.0
-) where {T,TMF<:MultiSpinorfield,TF,TG}
-    @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
-    U = D.U
-    mass = Complex{T}(D.mass + im*twisted_mass)
-    bc = D.boundary_condition
-    check_dims(ψ, ϕ, U)
-
-    @batch for site in eachindex(ψ)
-        for is in 1:num_spinors(ψ)
-            ψ[is, site] = staggered_kernel(U, ϕ, site, mass, bc, T, false)
-        end
-    end
-
-    update_halo!(ψ) # TODO:
-    return nothing
-end
-
-function LinearAlgebra.mul!(
-    ψ::TF, D::Daggered{StaggeredDiracOperator{CPU,T,TF,TG,BC}}, ϕ::TF, twisted_mass=0.0
+    ψ::TF, D::Daggered{StaggeredDiracOperator{CPU,T,TF,TG,BC}}, ϕ::TF
 ) where {T,TF,TG,BC}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.parent.U
-    mass = Complex{T}(D.parent.mass - im*twisted_mass)
+    mass = T(D.parent.mass)
     bc = D.parent.boundary_condition
     check_dims(ψ, ϕ, U)
 
@@ -125,8 +103,8 @@ function LinearAlgebra.mul!(
     ψ::TF, D::DdaggerD{StaggeredDiracOperator{B,T,TF,TG,BC}}, ϕ::TF
 ) where {B,T,TF,TG,BC}
     temp = D.parent.temp
-    mul!(temp, D.parent, ϕ, D.twisted_mass) # temp = Dϕ
-    mul!(ψ, adjoint(D.parent), D.twisted_mass) # ψ = D†Dϕ
+    mul!(temp, D.parent, ϕ) # temp = Dϕ
+    mul!(ψ, adjoint(D.parent), temp) # ψ = D†Dϕ
     return nothing
 end
 

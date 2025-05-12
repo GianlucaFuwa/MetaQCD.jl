@@ -10,7 +10,19 @@ function calc_dSfdU!(
     bc = D.boundary_condition
 
     clear!(X_eo)
-    solve_dirac!(X_eo, DdagD, ϕ_eo, Y_eo, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp LinearAlgebra.mul!(Y, D, X) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
+    iters, res = solve_dirac!(X_eo, DdagD, ϕ_eo, Y_eo, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp LinearAlgebra.mul!(Y, D, X) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
+
+    cg_datafile = fermion_action.cg_datafile
+
+    if cg_datafile != ""
+        set_ext!(cg_datafile, MPI_INSTANCE[])
+        fp = fopen(cg_datafile, "a")
+        printf(fp, "%-11i", iters)
+        printf(fp, "%-25.15E", res)
+        printf(fp, "%s", "# force")
+        newline(fp)
+        fclose(fp)
+    end
 
     LinearAlgebra.mul!(Y_eo, D, X_eo)
     mul_oe!(X_eo, U, X_eo, bc, true, Val(1))
@@ -53,7 +65,19 @@ function calc_dSfdU!(
 
     shifts = get_β_inverse(rhmc)
     coeffs = get_α_inverse(rhmc)
-    solve_dirac_multishift!(Xs, shifts, DdagD, ϕ_eo, temp1, temp2, Ys, cg_tol, cg_maxiters)
+    iters, res = solve_dirac_multishift!(Xs, shifts, DdagD, ϕ_eo, temp1, temp2, Ys, cg_tol, cg_maxiters)
+
+    cg_datafile = fermion_action.cg_datafile
+
+    if cg_datafile != ""
+        set_ext!(cg_datafile, MPI_INSTANCE[])
+        fp = fopen(cg_datafile, "a")
+        printf(fp, "%-11i", iters)
+        printf(fp, "%-25.15E", res)
+        printf(fp, "%s", "# force")
+        newline(fp)
+        fclose(fp)
+    end
 
     for i in 1:n
         LinearAlgebra.mul!(Ys[i+1], D, Xs[i+1]) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!

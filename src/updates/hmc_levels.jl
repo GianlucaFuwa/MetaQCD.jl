@@ -17,11 +17,12 @@ struct HMCLevel{NC,TI,TFP}
         distributed=false,
     ) where {NC,TI<:AbstractIntegrator}
         comm_instance = mpi_comm_instance()
+        ilevel = _unwrap_val(numchildren) + 1
 
         if hmc_logging && (logdir != "") && (!distributed || mpi_amroot(comm_instance))
             for ii in instance
                 ext = "$(lpad(ii, 3, "0")).txt"
-                _forcefile = joinpath(logdir, "hmc_force_logs_$(ext)")
+                _forcefile = joinpath(logdir, "hmc_force_logs_level$(ilevel)_$(ext)")
                 force_fp = fopen(_forcefile, "w")
 
                 if 0 ∈ forces
@@ -83,4 +84,36 @@ function Base.show(io::IO, level::HMCLevel)
         """
     print(io, str)
     return nothing
+end
+
+function level_parameters_from_dict(value::Vector{Dict})
+    value_out = Vector{HMCLevelParameters}(undef, length(value))
+
+    for i in eachindex(value)
+        level_params = initialize_level_parameters()
+        level_dict = struct2dict(level_params)
+
+        for (key_ii, value_ii) in value[i]
+            if haskey(level_dict, key_ii)
+                if !isnothing(value_ii)
+                    keytype = typeof(getfield(level_params, Symbol(key_ii)))
+                    setfield!(level_params, Symbol(key_ii), keytype(value_ii))
+                end
+            end
+        end
+
+        value_out[i] = deepcopy(level_params)
+    end
+
+    return value_out
+end
+
+function initialize_level_parameters()
+    return HMCLevelParameters()
+end
+
+@kwdef mutable struct HMCLevelParameters
+    forces::Vector{Int64} = [1]
+    integrator::String = "Leapfrog"
+    numsteps::Int64 = 10
 end

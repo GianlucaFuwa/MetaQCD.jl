@@ -114,7 +114,9 @@ function init_fermion_actions(parameters::ParameterSet, U)
     if length(fermions) == 0
         fermion_actions = QuenchedFermionAction()
     else
-        fermion_actions = ntuple(i -> init_fermion_action(fermions[i], U), length(fermions))
+        fermion_actions = ntuple(length(fermions)) do i
+            init_fermion_action(parameters, U, i)
+        end
     end
 
     return fermion_actions

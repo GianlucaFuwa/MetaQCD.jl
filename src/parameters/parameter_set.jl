@@ -14,7 +14,6 @@ struct ParameterSet
     # fermion action parameters
     fermions::Vector{Dict}
     fermion_action::String
-    precon::String
     wilson_r::Float64
     wilson_csw::Float64
     boundary_condition::String

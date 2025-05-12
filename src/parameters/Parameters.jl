@@ -178,12 +178,12 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
                 elseif String(pname_i) == "measurements_with_flow"
                     valuedir = construct_measurement_dicts(value[String(pname_i)])
                     value_Params[i] = valuedir
-                elseif String(pname_i) == "fermions"
-                    valuedir = construct_fermion_dicts(value[String(pname_i)])
-                    value_Params[i] = valuedir
-                elseif String(pname_i) == "levels"
-                    valuedir = construct_level_dicts(value[String(pname_i)])
-                    value_Params[i] = valuedir
+                # elseif String(pname_i) == "fermions"
+                #     valuedir = construct_fermion_dicts(value[String(pname_i)])
+                #     value_Params[i] = valuedir
+                # elseif String(pname_i) == "levels"
+                #     valuedir = construct_level_dicts(value[String(pname_i)])
+                #     value_Params[i] = valuedir
                 elseif String(pname_i) == "biases"
                     valuedir = construct_bias_dicts(value[String(pname_i)])
                     value_Params[i] = valuedir
@@ -352,17 +352,16 @@ const FERMION_DICT_PARAMS = [
 ]
 
 function construct_fermion_dicts(x)
-    fermion_dicts = Dict[]
+    fermion_dicts = Vector{Dict}(undef, length(x))
 
     for (method, method_dict) in x
         dictᵢ = Dict()
-        dictᵢ["fermion"] = method
 
         for (key, value) in method_dict
             dictᵢ[key] = value
         end
 
-        push!(fermion_dicts, dictᵢ)
+        fermion_dicts[parse(Int64, method)] = dictᵢ
     end
 
     return fermion_dicts

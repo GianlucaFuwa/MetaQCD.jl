@@ -108,11 +108,13 @@ function calc_fermion_action(
     iters, res = solve_dirac!(ψ_eo, DdagD, ϕ_eo, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
 
     cg_datafile = fermion_action.cg_datafile
+
     if cg_datafile != ""
         set_ext!(cg_datafile, MPI_INSTANCE[])
         fp = fopen(cg_datafile, "a")
         printf(fp, "%-11i", iters)
         printf(fp, "%-25.15E", res)
+        printf(fp, "%s", "# action")
         newline(fp)
         fclose(fp)
     end
@@ -146,11 +148,13 @@ function calc_fermion_action(
     iters, res = solve_dirac_multishift!(ψs, shifts, DdagD, ϕ_eo, temp1, temp2, ps, cg_tol, cg_maxiters)
 
     cg_datafile = fermion_action.cg_datafile
+
     if cg_datafile != ""
         set_ext!(cg_datafile, MPI_INSTANCE[])
         fp = fopen(cg_datafile, "a")
         printf(fp, "%-11i", iters)
         printf(fp, "%-25.15E", res)
+        printf(fp, "%s", "# action")
         newline(fp)
         fclose(fp)
     end

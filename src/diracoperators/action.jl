@@ -1,4 +1,4 @@
-struct FermionAction{R,Nf,TD,TM,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,Nf,TM}
+struct FermionAction{R,Nf,TD,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,Nf}
     D::TD
     cg_temps::CT
     rhmc_info_action::RI1
@@ -11,13 +11,12 @@ struct FermionAction{R,Nf,TD,TM,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,N
     cg_maxiters_md::Int64
     cg_datafile::T
     Xμν::TX # Some actions need extra buffers/fields
-    twisted_mass::Vector{Float64}
     function FermionAction(
         type,
         f::AbstractField,
         mass;
         precon="none",
-        twisted_mass=Float64[],
+        # twisted_mass=Float64[],
         bc_str="antiperiodic",
         Nf=default_Nf(type),
         rhmc_spectral_bound=(minimum(mass)^2, 6.0),
@@ -36,17 +35,13 @@ struct FermionAction{R,Nf,TD,TM,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,N
         eo_fun = contains(type, "eo") ? even_odd : identity
         TD = typeof(D)
 
-        # TODO: if precon == "heavy"
-        # ...
-        # if precon == "hasenbusch"
-
         if Nf == default_Nf(D)
             if D isa StaggeredEOPreDiracOperator
                 cg_temps = ntuple(_ -> even_odd(Spinorfield(f; staggered=true)), 4)
                 power = Nf//2default_Nf(D)
                 rhmc_info_action = RHMCParams(
                     power;
-                    n=rhmc_order_action,
+                    n_max=rhmc_order_action,
                     lambda_low=rhmc_spectral_bound[1],
                     lambda_high=rhmc_spectral_bound[2],
                 )
@@ -82,7 +77,7 @@ struct FermionAction{R,Nf,TD,TM,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,N
             rhmc_lambda_high = rhmc_spectral_bound[2]
             cg_temps = ntuple(_ -> eo_fun(Spinorfield(f; staggered=is_staggered(D))), 2)
 
-            fun = if precon == "heavy_2+1"
+            fun = if precon == "heavy"
                 @assert length(mass) == 2
                 δm² = 4(maximum(mass)^2 - minimum(mass)^2)
                 x -> (x + δm²) / x
@@ -90,13 +85,13 @@ struct FermionAction{R,Nf,TD,TM,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,N
                 @assert mass isa Float64
                 x -> x
             else
-                error("precon in fermion_action can only be \"heavy_2+1\" or \"none\"")
+                error("precon in fermion_action can only be \"heavy\" or \"none\"")
             end
 
             power = Nf//2default_Nf(D)
             rhmc_info_action = RHMCParams(
                 power, fun;
-                n=rhmc_order_action,
+                n_max=rhmc_order_action,
                 lambda_low=rhmc_lambda_low,
                 lambda_high=rhmc_lambda_high,
             )
@@ -108,7 +103,7 @@ struct FermionAction{R,Nf,TD,TM,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,N
             power = Nf//default_Nf(D)
             rhmc_info_md = RHMCParams(
                 power, fun;
-                n=rhmc_order_md,
+                n_max=rhmc_order_md,
                 lambda_low=rhmc_lambda_low,
                 lambda_high=rhmc_lambda_high,
             )
@@ -141,14 +136,13 @@ struct FermionAction{R,Nf,TD,TM,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,N
             end
         end
 
-        TM = length(twisted_mass)
         CT = typeof(cg_temps)
         RI1 = typeof(rhmc_info_action)
         RI2 = typeof(rhmc_info_md)
         RT = typeof(rhmc_temps1)
         TX = typeof(Xμν)
         T = typeof(cg_datafile)
-        return new{R,Nf,TD,TM,CT,RI1,RI2,RT,TX,T}(
+        return new{R,Nf,TD,CT,RI1,RI2,RT,TX,T}(
             D,
             cg_temps,
             rhmc_info_action,
@@ -161,34 +155,33 @@ struct FermionAction{R,Nf,TD,TM,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,N
             cg_maxiters_md,
             cg_datafile,
             Xμν,
-            twisted_mass,
         )
     end
 end
 
-function init_fermion_action(fermion_action, fermion::Dict, U)
-    cg_filepath = if mpi_amroot(MPI_COMM_INSTANCE[]) && (fermion.log_dir != "")
-        joinpath(fermion.log_dir, "cg_data_$(lpad(MPI_INSTANCE[], 3, "0")).txt")
+function init_fermion_action(parameters, U, i)
+    fparams = fermion_parameters_from_dict(parameters.fermions[i])
+    cg_filepath = if mpi_amroot(MPI_COMM_INSTANCE[]) && (parameters.log_dir != "")
+        joinpath(parameters.log_dir, "cg_data_$(i)_$(lpad(MPI_INSTANCE[], 3, "0")).txt")
     else
         ""
     end
 
     action = FermionAction(
-        fermion_action, U, fermion["mass"];
-        bc_str=fermion["boundary_condition"],
-        Nf=fermion["Nf"],
-        rhmc_spectral_bound=(fermion["rhmc_spectral_bound"]),
-        rhmc_order_md=fermion["rhmc_order_md"],
-        rhmc_prec_md=fermion["rhmc_prec_md"],
-        rhmc_order_action=fermion["rhmc_order_action"],
-        rhmc_prec_action=fermion["rhmc_prec_action"],
-        cg_tol_action=fermion["cg_tol_action"],
-        cg_tol_md=fermion["cg_tol_md"],
-        cg_maxiters_action=fermion["cg_maxiters_action"],
-        cg_maxiters_md=fermion["cg_maxiters_md"],
+        parameters.fermion_action, U, fparams.mass;
+        bc_str=parameters.boundary_condition,
+        r=parameters.wilson_r,
+        csw=parameters.wilson_csw,
+        precon=fparams.precon,
+        Nf=fparams.Nf,
+        rhmc_spectral_bound=(fparams.rhmc_spectral_bound),
+        rhmc_order_md=fparams.rhmc_order_md,
+        rhmc_order_action=fparams.rhmc_order_action,
+        cg_tol_action=fparams.cg_tol_action,
+        cg_tol_md=fparams.cg_tol_md,
+        cg_maxiters_action=fparams.cg_maxiters_action,
+        cg_maxiters_md=fparams.cg_maxiters_md,
         cg_filepath=cg_filepath,
-        r=fermion["wilson_r"],
-        csw=fermion["wilson_csw"],
     )
     return action
 end
@@ -204,43 +197,33 @@ fermion action `fermion_action`.
 # TM = 1: Twisted mass in Denominator S = (ϕ, (D†D + μ₀)⁻¹, ϕ)
 # TM = 2: Twisted mass in Numerator S = (ϕ, (D†D + μ₀)(D†D)⁻¹, ϕ)
 # TM = 3: Twisted mass in Numerator and Denominator S = (ϕ, (D†D + μ₀)(D†D + μ₁)⁻¹, ϕ)
-function calc_fermion_action(fermion_action::AbstractFermionAction{false,Nf,TM}, U, ϕ) where {Nf,TM}
-    twisted_mass = fermion_action.twisted_mass
+function calc_fermion_action(fermion_action::AbstractFermionAction{false,Nf}, U, ϕ) where {Nf}
     D = fermion_action.D(U)
-    DdagD_inv = if TM ∈ (0, 2)
-        DdaggerD(D)
-    elseif TM == 1
-        DdaggerD(D, twisted_mass[1])
-    else
-        DdaggerD(D, twisted_mass[2])
-    end
+    DdagD = DdaggerD(D)
     ψ, temp1, temp2, temp3 = fermion_action.cg_temps
     cg_tol = fermion_action.cg_tol_action
     cg_maxiters = fermion_action.cg_maxiters_action
 
     clear!(ψ) # initial guess is zero
-    iters, res = solve_dirac!(ψ, DdagD_inv, ϕ, temp1, temp2, temp3, cg_tol, cg_maxiters)
+    iters, res = solve_dirac!(ψ, DdagD, ϕ, temp1, temp2, temp3, cg_tol, cg_maxiters)
 
     cg_datafile = fermion_action.cg_datafile
+
     if cg_datafile != ""
         set_ext!(cg_datafile, MPI_INSTANCE[])
         fp = fopen(cg_datafile, "a")
         printf(fp, "%-11i", iters)
         printf(fp, "%-25.15E", res)
+        printf(fp, "%s", "action")
         newline(fp)
         fclose(fp)
-    end
-
-    if TM ∈ (2, 3)
-        copy!(temp1, ψ)
-        mul!(ψ, DdaggerD(D, twisted_mass[1]), temp1)
     end
 
     Sf = real(dot(ϕ, ψ))
     return Sf
 end
 
-function calc_fermion_action(fermion_action::AbstractFermionAction{true,Nf,0}, U, ϕ) where {Nf}
+function calc_fermion_action(fermion_action::AbstractFermionAction{true,Nf}, U, ϕ) where {Nf}
     cg_tol = fermion_action.cg_tol_action
     cg_maxiters = fermion_action.cg_maxiters_action
     rhmc = fermion_action.rhmc_info_action
@@ -266,6 +249,7 @@ function calc_fermion_action(fermion_action::AbstractFermionAction{true,Nf,0}, U
         fp = fopen(cg_datafile, "a")
         printf(fp, "%-11i", iters)
         printf(fp, "%-25.15E", res)
+        printf(fp, "%s", "# action")
         newline(fp)
         fclose(fp)
     end

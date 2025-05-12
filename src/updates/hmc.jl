@@ -125,21 +125,23 @@ function HMC(
     force = Colorfield(U)
 
     numlevels = length(hmc_levels)
+    level_params = level_parameters_from_dict(hmc_levels)
+
     levels = ntuple(numlevels) do i
-        lvl = hmc_levels[i]
-        forces = lvl["forces"]
+        lvl = level_params[i]
+        forces = lvl.forces
         numchildren = Val(i - 1)
-        Δτ = if i == length(hmc_levels)
-            trajectory / lvl["numsteps"]
+        Δτ = if i == length(level_params)
+            trajectory / lvl.numsteps
         else
-            N = [num_U_updates(l["integrator"])*l["numsteps"] for l in hmc_levels[i+1:end]]
+            N = [num_U_updates(l.integrator)*l.numsteps for l in level_params[i+1:end]]
             trajectory / prod(N)
         end
         
         numcv > 0 && (@assert 0 ∉ forces "bias force cannot be in hmc level without bias")
         HMCLevel(
-            integrator_from_str(lvl["integrator"], rafriction),
-            lvl["numsteps"],
+            integrator_from_str(lvl.integrator, rafriction),
+            lvl.numsteps,
             Δτ,
             forces;
             numchildren=numchildren,
@@ -316,11 +318,12 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias)
     ϕ = hmc.ϕ
     temp_force = hmc.force2
     smearing_gauge = hmc.smearing_gauge
-    smearing_fermion = if bias == NoBias() || isnothing(bias)
-        hmc.smearing_fermion
+    if bias == NoBias() || isnothing(bias)
+        shared_smearing = false
+        smearing_fermion = hmc.smearing_fermion
     else
         shared_smearing = (bias.smearing == hmc.smearing_fermion)
-        shared_smearing ? bias.smearing : hmc.smearing_fermion
+        smearing_fermion = shared_smearing ? bias.smearing : hmc.smearing_fermion
     end
 
     fieldstrength = hmc.fieldstrength

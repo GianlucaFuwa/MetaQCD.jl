@@ -32,11 +32,11 @@ import ..Fields: @groupreduce, fieldstrength_eachsite!, num_colors, num_dirac
 import ..Fields: PeriodicBC, AntiPeriodicBC, apply_bc, create_bc, distributed_reduce
 
 abstract type AbstractDiracOperator{B,T} end
-abstract type AbstractFermionAction{R,Nf,TM} end # R indicates whether the action uses rational approximation or not, TM whether there are twisted masses or not
+abstract type AbstractFermionAction{R,Nf} end # R indicates whether the action uses rational approximation or not, TM whether there are twisted masses or not
 abstract type StaggeredTypeOperator end
 abstract type WilsonTypeOperator end
 
-struct QuenchedFermionAction <: AbstractFermionAction{false,0,0}
+struct QuenchedFermionAction <: AbstractFermionAction{false,0}
     QuenchedFermionAction(args...; kwargs...) = new()
 end
 
@@ -75,11 +75,11 @@ get_temp(D::Daggered) = D.parent.temp
 
 Wrap the Dirac operator `D` such that future functions know to treat it as `D†D`
 """
-struct DdaggerD{TD,B,T,M} <: AbstractDiracOperator{B,T}
+struct DdaggerD{TD,B,T} <: AbstractDiracOperator{B,T}
     parent::TD
-    twisted_mass::M
-    function DdaggerD(D::TD, tmass::M=nothing) where {B,T,TD<:AbstractDiracOperator{B,T},M}
-        return new{TD,B,T,M}(D, tmass)
+    twisted_mass::Float64
+    function DdaggerD(D::TD, tmass=0.0) where {B,T,TD<:AbstractDiracOperator{B,T}}
+        return new{TD,B,T}(D, tmass)
     end
 end
 
@@ -87,6 +87,7 @@ LinearAlgebra.checksquare(D::DdaggerD) = LinearAlgebra.checksquare(D.parent)
 Base.eltype(D::DdaggerD) = eltype(D.parent)
 get_temp(D::DdaggerD) = D.parent.temp
 
+include("fermion_parameters.jl")
 include("staggered_eo.jl")
 include("action.jl")
 include("staggered.jl")
@@ -177,13 +178,19 @@ end
 
 # So we don't print the entire array in the REPL...
 function Base.show(io::IO, ::MIME"text/plain", D::T) where {T<:AbstractDiracOperator}
-    print(io, "$(typeof(D))", "(;")
+    println(io, "$(nameof(typeof(D)))", "(;")
 
     for fieldname in fieldnames(T)
-        if fieldname ∈ (:U, :temp, :D_diag, :D_oo_inv, :Fμν)
+        if fieldname ∈ (:temp, :D_diag, :D_oo_inv, :Fμν)
             continue
+        elseif fieldname == :U
+            if isnothing(D.U)
+                println(io, "\tno gauge background", ",")
+            else
+                println(io, "\thas gauge background", ",")
+            end
         else
-            print(io, " ", fieldname, " = ", getfield(D, fieldname), ",")
+            println(io, "\t", fieldname, " = ", getfield(D, fieldname), ",")
         end
     end
 
@@ -192,11 +199,17 @@ function Base.show(io::IO, ::MIME"text/plain", D::T) where {T<:AbstractDiracOper
 end
 
 function Base.show(io::IO, D::T) where {T<:AbstractDiracOperator}
-    print(io, "$(typeof(D))", "(;")
+    print(io, "$(nameof(typeof(D)))", "(;")
 
     for fieldname in fieldnames(T)
-        if fieldname ∈ (:U, :temp)
+        if fieldname ∈ (:temp, :D_diag, :D_oo_inv, :Fμν)
             continue
+        elseif fieldname == :U
+            if isnothing(D.U)
+                println(io, "\tno gauge background", ",")
+            else
+                println(io, "\thas gauge background", ",")
+            end
         else
             print(io, " ", fieldname, " = ", getfield(D, fieldname), ",")
         end

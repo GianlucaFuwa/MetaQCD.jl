@@ -56,24 +56,20 @@ function test_fderivative(
         (mass^2, 64.0), (single_flavor ? 1 : 2)
     end
 
-    params = (
-        fermion_action=dirac*ifelse(eoprec, "_eo", ""),
-        boundary_condition="antiperiodic",
+    action = MetaQCD.DiracOperators.FermionAction(
+        dirac*ifelse(eoprec, "_eo", ""),
+        U,
+        mass,
+        bc_str="antiperiodic",
         rhmc_spectral_bound=spectral_bound,
         rhmc_order_md=15,
-        rhmc_prec_md=64,
         rhmc_order_action=15,
-        rhmc_prec_action=64,
         cg_tol_action=1e-16,
         cg_tol_md=1e-16,
         cg_maxiters_action=5000,
         cg_maxiters_md=5000,
-        wilson_r=1,
         wilson_csw=csw,
-        log_dir="",
     )
-
-    action = MetaQCD.DiracOperators.init_fermion_action(params, mass, Nf, U)
     mpi_amroot() && (@show action)
 
     sample_pseudofermions!(ψ, action, U)

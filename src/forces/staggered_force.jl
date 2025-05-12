@@ -10,7 +10,20 @@ function calc_dSfdU!( # force for unrooted staggered action
     bc = D.boundary_condition
 
     clear!(X) # initial guess is zero
-    solve_dirac!(X, DdagD, ϕ, Y, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp
+    iters, res = solve_dirac!(X, DdagD, ϕ, Y, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp
+
+    cg_datafile = fermion_action.cg_datafile
+
+    if cg_datafile != ""
+        set_ext!(cg_datafile, MPI_INSTANCE[])
+        fp = fopen(cg_datafile, "a")
+        printf(fp, "%-11i", iters)
+        printf(fp, "%-25.15E", res)
+        printf(fp, "%s", "# force")
+        newline(fp)
+        fclose(fp)
+    end
+
     LinearAlgebra.mul!(Y, D, X)
     add_staggered_derivative!(dU, U, X, Y, bc)
     return nothing
@@ -37,7 +50,19 @@ function calc_dSfdU!( # force for rooted staggered action
 
     shifts = get_β_inverse(rhmc)
     coeffs = get_α_inverse(rhmc)
-    solve_dirac_multishift!(Xs, shifts, DdagD, ϕ, temp1, temp2, Ys, cg_tol, cg_maxiters)
+    iters, res = solve_dirac_multishift!(Xs, shifts, DdagD, ϕ, temp1, temp2, Ys, cg_tol, cg_maxiters)
+
+    cg_datafile = fermion_action.cg_datafile
+
+    if cg_datafile != ""
+        set_ext!(cg_datafile, MPI_INSTANCE[])
+        fp = fopen(cg_datafile, "a")
+        printf(fp, "%-11i", iters)
+        printf(fp, "%-25.15E", res)
+        printf(fp, "%s", "# force")
+        newline(fp)
+        fclose(fp)
+    end
 
     for i in 1:n
         LinearAlgebra.mul!(Ys[i+1], D, Xs[i+1])
