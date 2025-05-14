@@ -46,7 +46,7 @@ struct HMCLevel{NC,TI,TFP}
             end
 
             ext = "$(lpad(instance[1], 3, "0")).txt"
-            _forcefile = joinpath(logdir, "hmc_force_logs_$(ext)")
+            _forcefile = joinpath(logdir, "hmc_force_logs_level$(ilevel)_$(ext)")
             forcefile = StaticString(_forcefile)
         else
             forcefile = nothing

@@ -152,6 +152,30 @@ function HMC(
         )
     end
 
+    allforces = collect(Iterators.flatten([lvl.forces for lvl in levels]))
+    fail = false
+
+    if 1 ∉ allforces
+        @error("Gauge force not included in any level")
+        fail = true
+    end
+
+    if numcv > 0
+        if 0 ∉ allforces
+            @error("Bias force not included in any level")
+            fail = true
+        end
+    end
+
+    for ipf in 1:numfermions
+        if ipf+1 ∉ allforces
+            @error("Fermion force $(ipf) (i.e., force $(ipf+1)) not included in any level")
+            fail = true
+        end
+    end
+
+    fail && error("Forces missing")
+
     current_level = Base.RefValue{Int64}(numlevels)
 
     smearing_gauge = StoutSmearing(U; numlayers=numsmear_gauge, rho=ρ_stout_gauge)
@@ -226,6 +250,9 @@ function update!(
     end
 
     set_ext!(hmc.logfile, instance)
+    for lvl in hmc.levels
+        set_ext!(lvl.forcefile, instance)
+    end
     hmc.current_level[] = hmc.numlevels
 
     U_old = hmc.U_old
@@ -371,7 +398,7 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias)
 
             is_smeared = (shared_smearing && 0 ∈ forces) || iforce>1
             calc_dSfdU_bare!(
-                force, fermion_action[i-1], U, ϕ[i-1], temp_force, smearing_fermion, is_smeared
+                force, fermion_action[iforce], U, ϕ[iforce], temp_force, smearing_fermion, is_smeared
             )
 
             if !isnothing(fp)
