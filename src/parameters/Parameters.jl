@@ -170,21 +170,17 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
     mpi_barrier()
 
     for (i, pname_i) in enumerate(pnames)
-        for (_, value) in parameters
+        for (dname, value) in parameters
+            if dname == "measurements" && pname_i == :measurements
+                valuedir = construct_measurement_dicts(value)
+                value_Params[i] = valuedir
+            elseif dname == "measurements_with_flow" && pname_i == :measurements_with_flow
+                valuedir = construct_measurement_dicts(value)
+                value_Params[i] = valuedir
+            end
+
             if haskey(value, String(pname_i))
-                if String(pname_i) == "measurements"
-                    valuedir = construct_measurement_dicts(value[String(pname_i)])
-                    value_Params[i] = valuedir
-                elseif String(pname_i) == "measurements_with_flow"
-                    valuedir = construct_measurement_dicts(value[String(pname_i)])
-                    value_Params[i] = valuedir
-                # elseif String(pname_i) == "fermions"
-                #     valuedir = construct_fermion_dicts(value[String(pname_i)])
-                #     value_Params[i] = valuedir
-                # elseif String(pname_i) == "levels"
-                #     valuedir = construct_level_dicts(value[String(pname_i)])
-                #     value_Params[i] = valuedir
-                elseif String(pname_i) == "biases"
+                if String(pname_i) == "biases"
                     valuedir = construct_bias_dicts(value[String(pname_i)])
                     value_Params[i] = valuedir
                 elseif String(pname_i) == "L"

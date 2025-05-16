@@ -1,60 +1,63 @@
-["Physical Settings"]
-L = [12, 12, 12, 12]
-beta = 6.0
-gauge_action = "wilson"
-numtherm = 20
-numsteps = 5
+[data]
+float_type = "double"
+ensemble_dir = "/home/gialu/data/MetaQCD/test_heatbath"
+randomseed = 0
+overwrite = true
+verboselevel = 1
+log_to_console = true
+
+[ensemble]
+L = [4, 4, 4, 4]
+numtherm = 10
+numsteps = 10
 initial = "cold"
 update_method = "heatbath"
-hb_maxit = 10
+or_algorithm = "subgroups"
 numheatbath = 1
-or_algorithm = "kenney-laub"
 numorelax = 4
 
-["System Settings"]
-backend = "cpu"
-float_type = "double"               
-# ensemble_dir = ""
-randomseed = 0
-verboselevel = 2
-overwrite = true
+[gauge_action]
+beta = 6.0
+gauge_action = "wilson"
 
-["Gradient Flow Settings"]
+[gradient_flow]
 flow_integrator = "euler"
 flow_num = 7
 flow_steps = 1
 flow_tf = 0.12 # total flow time is flow_num * flow_tf
 flow_measure_every = 7
 
-["Measurement Settings".measurements.Energy_density]
+kmeasurements.Plaquette]
+measure_every = 10
+
+[measurements.Topological_charge]
+measure_every = 10
+type = ["plaquette", "clover"]
+
+[measurements.Energy_density]
 measure_every = 1
 type = ["plaquette", "clover", "improved"]
 
-["Measurement Settings".measurements.Gauge_action]
+[measurements.Gauge_action]
 measure_every = 1
 type = ["wilson", "symanzik_tree", "iwasaki", "dbw2"]
 
-["Measurement Settings".measurements.Plaquette]
+[measurements.Polyakov_loop]
 measure_every = 1
 
-["Measurement Settings".measurements.Polyakov_loop]
-measure_every = 1
-
-["Measurement Settings".measurements.Topological_charge]
-measure_every = 1
-type = ["plaquette", "clover", "improved"]
-
-["Measurement Settings".measurements.Wilson_loop]
+[measurements.Wilson_loop]
 measure_every = 1
 Rmax = 2
 Tmax = 2
 
-["Measurement Settings".measurements_with_flow.Topological_charge]
+[measurements_with_flow.Plaquette]
 measure_every = 10
-type = ["clover"]
 
-["Measurement Settings".measurements_with_flow.Wilson_loop]
+[measurements_with_flow.Topological_charge]
+measure_every = 10
+type = ["plaquette", "clover"]
+
+[measurements_with_flow.Wilson_loop]
 measure_every = 10
 Rmax = 2
 Tmax = 2
-

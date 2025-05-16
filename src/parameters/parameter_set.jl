@@ -20,7 +20,7 @@ struct ParameterSet
 
     # bias parameters
     rhostout_for_cv::Float64
-    kinds_of_weights::Vector{String}
+    weight_type::Vector{String}
     starting_Q::Union{Nothing,Vector{Int64}}
     usebiases::Vector{String}
     biases::Vector{Dict}

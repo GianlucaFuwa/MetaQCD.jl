@@ -1,25 +1,23 @@
+<!-- TODO: -->
 # Creating a Parameter File
 
 In order to run a simulation, a parameter file in the .toml format has to given as an input.
-The parameters in MetaQCD.jl are divided into the categories: ["Physical Settings"](#physical-settings),
-["Dynamical Fermion Settings"](#dynamical-fermion-settings), ["HMC Settings"](#hmc-settings),
-["Gradient Flow Settings"](#gradient-flow-settings), ["Measurement Settings"](#measurement-settings),
-["System Settings"](#system-settings) and ["Bias Settings"](#bias-settings). In a parameter file,
+The parameters in MetaQCD.jl are divided into the categories:
+[data](#system-settings), [ensemble](#ensemble-settings),
+[gauge_action](#gauge-settings), [fermion_action](#fermion-settings), [hmc](#hmc-settings),
+[gradient_flow](#gradient-flow-settings), [measurements](#measurement-settings)
+and [bias](#bias-settings). In a parameter file,
 these categories should be used as keys for each class of parameters, e.g.:
 ```
-["Physical Settings"]
-L = [12, 12, 12, 12]
+[gauge_action]
 beta = 6.0
-...
+gauge_action = "wilson"
 ```
 
 The default values for all of these are listed [here](./parameters.md#full-parameter-list-(=-default):).
 
-## Physical Settings
+## ensemble
 - `L`: Lattice volume as a vector of integers (e.g., `L = [4, 4, 4, 4]`)
-- `beta`: Gauge action beta parameter / coupling as a float (e.g., `beta = 6.0`)
-- `gauge_action`: Type of gauge action as a string (e.g., `gauge_action = "wilson"`)
-> Supported gauge actions: `"wilson"`, `"symanzik_tree"` (Lüscher-Weisz), `"iwasaki"`, `"dbw2"`
 
 - `numtherm`: Number of thermalization updates as an integer (e.g., `numtherm = 100`)
 - `numsteps`: Number of production updates as an integer (e.g., `numsteps = 100`)
@@ -39,15 +37,19 @@ that can be set:
 - `or_algorithm`: Overrelaxation algorithm as a string (e.g, `or_algorithm = "subgroups"`)
 > Supported overrelaxation algorithms: `"subgroups"` (Cabibbo-Marinari embedding), `"kenney-laub"`
 
-## Dynamical Fermion Settings
+## gauge_action
+- `beta`: Gauge action beta parameter / coupling as a float (e.g., `beta = 6.0`)
+- `gauge_action`: Type of gauge action as a string (e.g., `gauge_action = "wilson"`)
+> Supported gauge actions: `"wilson"`, `"symanzik_tree"` (Lüscher-Weisz), `"iwasaki"`, `"dbw2"`
+
+## fermion_action
 - `fermion_action`: Fermion action definition as a string (e.g, `fermion_action = "staggered"`)
-> Supported fermion actions: `"staggered"`, `"wilson"`, `"staggered_h1234"` (Hoelbling-type flavored mass term M12M34), `"staggered_h1342"` (Hoelbling-type flavored mass term M13M42)
-- `eo_precon`: Whether to use an even-odd preconditioned operator as a string (e.g, `eo_precon = true`)
+> Supported fermion actions: `"staggered"`, `"staggered_eo"`, `"wilson"`, `"wilson_eo"`, `"staggered_h1234"` (Hoelbling-type flavored mass term M12M34), `"staggered_h1342"` (Hoelbling-type flavored mass term M13M42)
+- `csw`: Wilson-Clover improvement factor as a flow (e.g, `csw = 1.0`)
+- `boundary_condition`: Boundary condition in time-direction as a string (e.g, `boundary_condition = "antiperiodic"`)
 - `Nf`: Number of flavors per mass value as a vector of integers (e.g, `Nf = [2, 1, 1]` for 2+1+1 flavors)
 - `mass`: Masses in terms of lattice units as a vector of floats (e.g, `mass = [0.001, 0.028, 0.1]`)
 > Make sure `Nf` and `mass` have the same length!
-- `csw`: Wilson-Clover improvement factor as a flow (e.g, `csw = 1.0`)
-- `boundary_condition`: Boundary condition in time-direction as a string (e.g, `boundary_condition = "antiperiodic"`)
 
 Parameters for the solver:
 - `cg_tol_action`: CG tolerance for the calculation of the fermion determinant as a float (e.g, `cg_tol_action = 1e-12`)
@@ -62,11 +64,8 @@ Parameters in case RHMC is used:
 - `rhmc_prec_action`: Precision of the rational approximation of the fermion determinant as an integer (e.g, `rhmc_prec_action = 64`)
 - `rhmc_prec_md`: Precision of the rational approximation of the fermion force as an integer (e.g, `rhmc_prec_md = 42`)
 
-## HMC Settings
-- `hmc_integrator`: Type of integrator to be used in HMC as a string (e.g, `hmc_integrator = "omf4"`)
-> Supported HMC integrators: `"leapfrog"`, `"omf2"`, `"omf2slow"`, `"omf4"`, `"omf4slow"`
+## hmc
 - `hmc_trajectory`: Trajectory length to be used in HMC as a float (e.g, `hmc_trajectory = 1`)
-- `hmc_steps`: Number of integration steps per trajectory to be used in HMC as an integer (e.g, `hmc_steps = 10`)
 - `hmc_rafriction`: Friction parameter for generalized HMC as a float (e.g, `hmc_steps = 10`)
 - `hmc_numsmear_gauge`: Number of smearing steps for the gauge action in the HMC as an integer (e.g, `hmc_numsmear_gauge = 3`)
 - `hmc_numsmear_fermion`: Number of smearing steps for the fermion action in the HMC as an integer (e.g, `hmc_numsmear_fermion = 4`)
@@ -74,7 +73,11 @@ Parameters in case RHMC is used:
 - `hmc_rhostout_fermion`: Smearing step size for the fermion action in the HMC as a float (e.g, `hmc_rhostout_fermion = 0.125`)
 - `hmc_logging`: Whether or not HMC data like accept-reject info or forces should be logged during the trajectory as boolean (e.g, `hmc_logging = true`)
 
-## Gradient Flow Settings
+- `hmc_integrator`: Type of integrator to be used in HMC as a string (e.g, `hmc_integrator = "omf4"`)
+> Supported HMC integrators: `"leapfrog"`, `"omf2"`, `"omf2slow"`, `"omf4"`, `"omf4slow"`
+- `hmc_steps`: Number of integration steps per trajectory to be used in HMC as an integer (e.g, `hmc_steps = 10`)
+
+## gradient_flow
 - `flow_integrator`: Type of gradient flow integrator as a string (e.g, `flow_integrator = "rk3"`)
 > Supported gradient flow integrators: `"euler"`, `"rk2"`, `"rk3"`, `"rk3w7"`, `"cooling"` (uses cooling smearing instead)
 - `flow_num`: Number of flow trajectories to be peformed as a string (e.g, `flow_num = 100`)
@@ -85,7 +88,7 @@ If this is an integer, let's say 3, then observables are measured at every multi
 If this is a vector of integers, then observables are measured at all the multiples of `tf` listed in the vector. (e.g, `flow_measure_every = [1, 2, 5, 10]`)
 > Flowed configs CANNOT be written to file, only measurements on them are!
 
-## Measurement Settings
+## measurements
 The way measurements/observables are specified is quite different from the other parameters.
 
 Firstly, there are two types of measurements: `measurements` and `measurements_with_flow`.
@@ -93,7 +96,7 @@ As the name suggests, the latter are measurements done on flowed configs, where 
 parameters are given in the "Gradient Flow Settings". Again, measurements pertaining to one
 of the two categories must be keyed by them with the subkey being the observale, e.g:
 ```
-["Measurment Settings".measurements.Plaquette]
+[measurements.Plaquette]
 measure_every = 1
 ```
 > Supported observables: `Plaquette`, `Polaykov_loop`, `Topological_charge`, `Energy_density`, `Gauge_action`, `Wilson_loop`, `Pion_correlator`

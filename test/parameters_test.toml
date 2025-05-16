@@ -1,38 +1,45 @@
-["Physical Settings"]
+[data]
+float_type = "double"
+ensemble_dir = "/home/runner/work/MetaQCD.jl/MetaQCD.jl/nonmpi"
+randomseed = 0
+overwrite = true
+verboselevel = 1
+log_to_console = true
+
+[ensemble]
 L = [4, 4, 4, 4]
-beta = 6.0
-gauge_action = "wilson"
 numtherm = 10
 numsteps = 10
 initial = "cold"
 update_method = "hmc"
-parity_update = true
-
-["Dynamical Fermion Settings"]
-fermion_action = "staggered"
-eo_precon = false
-Nf = [2]
-mass = [0.02]
-wilson_csw = 1.0
-cg_tol_action = 1e-16
-cg_tol_md = 1e-16
-cg_maxiters_action = 5000
-cg_maxiters_md = 5000
-rhmc_spectral_bound = [0.0001, 6.0]
-rhmc_prec_action = 64
-rhmc_prec_md = 64
-
-["Bias Settings"]
-rhostout_for_cv = 0.12
-kinds_of_weights = ["branduardi"]
-# tempering specific parameters
 tempering_enabled = true
 numinstances = 2
 swap_every = 1
 non_metadynamics_updates = 1
 measure_on_all = true
-["Bias Settings".biases.1]
-kind_of_bias = "metad"
+
+[gauge_action]
+beta = 1.25
+gauge_action = "dbw2"
+
+[fermion_action]
+fermion_action = "staggered"
+[[fermion_action.fermions]]
+Nf = 2
+mass = 0.01 # numerator mass and denominator mass
+cg_tol_action = 1e-19
+cg_tol_md = 1e-10
+cg_maxiters_action = 5000
+cg_maxiters_md = 1000
+rhmc_order_action = 15
+rhmc_order_md = 10
+rhmc_spectral_bound = [0.0001, 6.0]
+
+[bias]
+rhostout_for_cv = 0.12
+kinds_of_weights = ["branduardi"]
+[[bias.biases]]
+kind_of_bias = "parametric"
 kind_of_cv = "topcharge_clover"
 Q = 0.0
 A = 10.0
@@ -40,42 +47,33 @@ Z = 1.15
 numsmears_for_cv = 4
 cvlims = [-3.0, 3.0]
 penalty_weight = 100.0
-static = true
+static = [true
 
-["HMC Settings"]
+[hmc]
 hmc_trajectory = 1
-hmc_steps = 5
-hmc_integrator = "OMF4"
-hmc_numsmear_fermion = 0
-hmc_rhostout_fermion = 0.12
 
-["System Settings"]
-float_type = "double"
-ensemble_dir = "/home/runner/work/MetaQCD.jl/MetaQCD.jl/mpi"
-randomseed = 0
-overwrite = true
-verboselevel = 1
-log_to_console = true
-save_config_format = "bridge"
-save_config_every = 10
+[[hmc.levels]]
+forces = [1]
+integrator = "OMF4"
+numsteps = 5
 
-["Gradient Flow Settings"]
+[gradient_flow]
 flow_integrator = "euler"
 flow_num = 7
 flow_steps = 1
 flow_tf = 0.12 # total flow time is flow_num * flow_tf
 flow_measure_every = 7
 
-["Measurement Settings".measurements.Plaquette]
-measure_every = 1
+[measurements.Plaquette]
+measure_every = 10
 
-["Measurement Settings".measurements.Topological_charge]
-measure_every = 1
-kinds_of_topological_charge = ["plaquette", "clover"]
+[measurements.Topological_charge]
+measure_every = 10
+type = ["plaquette", "clover"]
 
-["Measurement Settings".measurements_with_flow.Plaquette]
-measure_every = 1
+[measurements_with_flow.Plaquette]
+measure_every = 10
 
-["Measurement Settings".measurements_with_flow.Topological_charge]
-measure_every = 1
-kinds_of_topological_charge = ["plaquette", "clover"]
+[measurements_with_flow.Topological_charge]
+measure_every = 10
+type = ["plaquette", "clover"]

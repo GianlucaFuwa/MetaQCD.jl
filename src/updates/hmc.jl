@@ -431,7 +431,7 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level)
         if !isnothing(fp)
             norm2 = norm(force, Val(2))
             normsup = norm(force, Val(Inf))
-            printf(fp, "%-25.15E", norm2)
+            printf(fp, "%-25.15E", norm2) # FIXME: bugs out sometimes
             printf(fp, "%-25.15E", normsup)
         end
 
