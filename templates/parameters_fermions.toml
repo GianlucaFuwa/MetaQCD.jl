@@ -11,7 +11,7 @@ float_type = "double"
 # halo_width = 1
 
 [data]
-ensemble_dir = "/data/MetaQCD/test_fermions"
+ensemble_dir = "/home/gialu/data/MetaQCD/test_fermions"
 randomseed = 0
 overwrite = true
 # save_checkpoint_every = 10
@@ -23,8 +23,8 @@ log_to_console = true
 # load_checkpoint_path = ""
 
 [gauge_action]
-beta = 0.95
-gauge_action = "dbw2"
+beta = 6.0
+gauge_action = "wilson"
 
 # TODO: Try staggered preconditioning ala hep-lat/0610047 via this twisted mass formalism and RationalFunctionApproximation
 [fermion_action]
@@ -33,7 +33,7 @@ wilson_csw = 1.0
 num_fermions = 2
 # twisted_mass = [0.01, 1.0]
 [[fermion_action.fermions]]
-precon = "heavy" # FIXME:
+precon = "heavy"
 Nf = 2
 mass = [0.05, 0.005] # numerator mass and denominator mass
 cg_tol_action = 1e-19
@@ -44,10 +44,36 @@ rhmc_order_action = 15
 rhmc_order_md = 10
 rhmc_spectral_bound = [0.000025, 6.0]
 [[fermion_action.fermions]]
-precon = "none" # FIXME:
-Nf = 3
+precon = "none"
+Nf = 1
 mass = 0.05 # only denominator mass
-hasenbush = true
+hasenbush = false
+num_pseudoferm = 2
+cg_tol_action = 1e-19
+cg_tol_md = 1e-10
+cg_maxiters_action = 5000
+cg_maxiters_md = 1000
+rhmc_order_action = 15
+rhmc_order_md = 10
+rhmc_spectral_bound = [0.0025, 6.0]
+[[fermion_action.fermions]]
+precon = "none"
+Nf = 1
+mass = 0.05 # only denominator mass
+hasenbush = false
+num_pseudoferm = 2
+cg_tol_action = 1e-19
+cg_tol_md = 1e-10
+cg_maxiters_action = 5000
+cg_maxiters_md = 1000
+rhmc_order_action = 15
+rhmc_order_md = 10
+rhmc_spectral_bound = [0.0025, 6.0]
+[[fermion_action.fermions]]
+precon = "none"
+Nf = 1
+mass = 0.05 # only denominator mass
+hasenbush = false
 num_pseudoferm = 2
 cg_tol_action = 1e-19
 cg_tol_md = 1e-10
@@ -62,16 +88,12 @@ hmc_trajectory = 1
 # hmc_numsmear_fermion = 4
 # hmc_rhostout_fermion = 0.125
 
-# [[hmc.levels]] # Gauge action - finest
-# forces = [1, 2, 3] # 0: bias, 1: gauge_action, k>1: fermion
-# integrator = "OMF4"
-# numsteps = 5
 [[hmc.levels]] # Gauge action - finest
-forces = [1, 3] # force 1: gauge action
+forces = [1] # force 1: gauge action
 integrator = "OMF4"
-numsteps = 2
+numsteps = 1
 [[hmc.levels]] # PF action - largest masses
-forces = [2]
+forces = [2, 3, 4, 5]
 integrator = "OMF4"
 numsteps = 5
 

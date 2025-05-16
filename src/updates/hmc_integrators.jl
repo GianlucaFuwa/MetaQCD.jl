@@ -1,60 +1,65 @@
 Base.show(io::IO, ::MIME"text/plain", int::AbstractIntegrator) = print(io, "$(typeof(int))")
 Base.show(io::IO, int::AbstractIntegrator) = print(io, "$(typeof(int))")
 
-# TODO: level as input
-function evolve!(U, hmc::HMC, fermion_action, bias, level=1, therm=Val(false))
+function evolve!(U, hmc::HMC, fermion_action, bias, therm=Val(false), level=1)
+    @assert level >= 1 && level <= _unwrap_val(hmc.numlevels) """
+    Invalid level: $level (must be between 1 and $(_unwrap_val(hmc.numlevels)))
+    """
+
     integrator = if therm == Val(true)
         default_integrator(hmc.levels[level].integrator)
     else
         hmc.levels[level].integrator
     end
 
-    evolve!(integrator, U, hmc, level, fermion_action, bias, therm)
+    evolve!(integrator, U, hmc, fermion_action, bias, therm, level)
     return nothing
 end
 
 struct Leapfrog <: AbstractIntegrator end
 
-function evolve!(::Leapfrog, U, hmc::HMC, level, fermion_action, bias, therm)
-    updateP!(U, hmc, 0.5, fermion_action, bias)
+function evolve!(::Leapfrog, U, hmc::HMC, fermion_action, bias, therm, level)
+    updateP!(U, hmc, 0.5, fermion_action, bias, level)
 
     for _ in 1:hmc.levels[level].numsteps-1
-        updateU!(U, hmc, 1.0, fermion_action, bias, therm)
-        updateP!(U, hmc, 1.0, fermion_action, bias)
+        updateU!(U, hmc, 1.0, fermion_action, bias, therm, level)
+        updateP!(U, hmc, 1.0, fermion_action, bias, level)
     end
 
-    updateU!(U, hmc, 1.0, fermion_action, bias, therm)
-    updateP!(U, hmc, 0.5, fermion_action, bias)
+    updateU!(U, hmc, 1.0, fermion_action, bias, therm, level)
+    updateP!(U, hmc, 0.5, fermion_action, bias, level)
     return nothing
 end
 
-struct LeapfrogRA <: AbstractIntegrator 
+struct LeapfrogRA <: AbstractIntegrator
     friction::Float64
     LeapfrogRA(friction) = new(friction)
 end
 
-Base.show(io::IO, ::MIME"text/plain", int::LeapfrogRA) =
-    print(io, "$(typeof(int))(friction=$(int.friction))")
+function Base.show(io::IO, ::MIME"text/plain", int::LeapfrogRA)
+    return print(io, "$(typeof(int))(friction=$(int.friction))")
+end
+
 Base.show(io::IO, int::LeapfrogRA) = print(io, "$(typeof(int))(friction=$(int.friction))")
 
-function evolve!(L::LeapfrogRA, U, hmc::HMC, fermion_action, bias, therm)
-    Δτ = hmc.levels[hmc.current_level[]].Δτ
+function evolve!(L::LeapfrogRA, U, hmc::HMC, fermion_action, bias, therm, level)
+    Δτ = hmc.levels[level].Δτ
 
     # Repell
-    for _ in 1:div(hmc.levels[hmc.current_level[]].numsteps, 2)
+    for _ in 1:div(hmc.levels[level].numsteps, 2)
         mul!(hmc.P, exp(0.5Δτ * L.friction))
-        updateP!(U, hmc, 0.5, fermion_action, bias)
-        updateU!(U, hmc, 1.0, fermion_action, bias, therm)
-        updateP!(U, hmc, 0.5, fermion_action, bias)
+        updateP!(U, hmc, 0.5, fermion_action, bias, level)
+        updateU!(U, hmc, 1.0, fermion_action, bias, therm, level)
+        updateP!(U, hmc, 0.5, fermion_action, bias, level)
         mul!(hmc.P, exp(0.5Δτ * L.friction))
     end
 
     # Attract
-    for _ in 1:div(hmc.levels[hmc.current_level[]].numsteps, 2)
+    for _ in 1:div(hmc.levels[level].numsteps, 2)
         mul!(hmc.P, exp(-0.5Δτ * L.friction))
-        updateP!(U, hmc, 0.5, fermion_action, bias)
-        updateU!(U, hmc, 1.0, fermion_action, bias, therm)
-        updateP!(U, hmc, 0.5, fermion_action, bias)
+        updateP!(U, hmc, 0.5, fermion_action, bias, level)
+        updateU!(U, hmc, 1.0, fermion_action, bias, therm, level)
+        updateP!(U, hmc, 0.5, fermion_action, bias, level)
         mul!(hmc.P, exp(-0.5Δτ * L.friction))
     end
 
@@ -73,13 +78,13 @@ struct OMF2Slow <: AbstractIntegrator
     end
 end
 
-function evolve!(O2S::OMF2Slow, U, hmc::HMC, fermion_action, bias, therm)
-    for _ in 1:hmc.levels[hmc.current_level[]].numsteps
-        updateP!(U, hmc, O2S.α, fermion_action, bias)
-        updateU!(U, hmc, O2S.β, fermion_action, bias, therm)
-        updateP!(U, hmc, O2S.γ, fermion_action, bias)
-        updateU!(U, hmc, O2S.β, fermion_action, bias, therm)
-        updateP!(U, hmc, O2S.α, fermion_action, bias)
+function evolve!(O2S::OMF2Slow, U, hmc::HMC, fermion_action, bias, therm, level)
+    for _ in 1:hmc.levels[level].numsteps
+        updateP!(U, hmc, O2S.α, fermion_action, bias, level)
+        updateU!(U, hmc, O2S.β, fermion_action, bias, therm, level)
+        updateP!(U, hmc, O2S.γ, fermion_action, bias, level)
+        updateU!(U, hmc, O2S.β, fermion_action, bias, therm, level)
+        updateP!(U, hmc, O2S.α, fermion_action, bias, level)
     end
 
     return nothing
@@ -97,20 +102,20 @@ struct OMF2 <: AbstractIntegrator
     end
 end
 
-function evolve!(O2::OMF2, U, hmc::HMC, fermion_action, bias, therm)
-    updateP!(U, hmc, O2.α, fermion_action, bias)
-    updateU!(U, hmc, O2.β, fermion_action, bias, therm)
-    updateP!(U, hmc, O2.γ, fermion_action, bias)
-    updateU!(U, hmc, O2.β, fermion_action, bias, therm)
+function evolve!(O2::OMF2, U, hmc::HMC, fermion_action, bias, therm, level)
+    updateP!(U, hmc, O2.α, fermion_action, bias, level)
+    updateU!(U, hmc, O2.β, fermion_action, bias, therm, level)
+    updateP!(U, hmc, O2.γ, fermion_action, bias, level)
+    updateU!(U, hmc, O2.β, fermion_action, bias, therm, level)
 
-    for _ in 1:hmc.levels[hmc.current_level[]].numsteps-1
-        updateP!(U, hmc, 2 * O2.α, fermion_action, bias)
-        updateU!(U, hmc, O2.β, fermion_action, bias, therm)
-        updateP!(U, hmc, O2.γ, fermion_action, bias)
-        updateU!(U, hmc, O2.β, fermion_action, bias, therm)
+    for _ in 1:hmc.levels[level].numsteps-1
+        updateP!(U, hmc, 2 * O2.α, fermion_action, bias, level)
+        updateU!(U, hmc, O2.β, fermion_action, bias, therm, level)
+        updateP!(U, hmc, O2.γ, fermion_action, bias, level)
+        updateU!(U, hmc, O2.β, fermion_action, bias, therm, level)
     end
 
-    updateP!(U, hmc, O2.α, fermion_action, bias)
+    updateP!(U, hmc, O2.α, fermion_action, bias, level)
     return nothing
 end
 
@@ -132,21 +137,21 @@ struct OMF4Slow <: AbstractIntegrator
     end
 end
 
-function evolve!(O4S::OMF4Slow, U, hmc::HMC, fermion_action, bias, therm)
-    for _ in 1:hmc.levels[hmc.current_level[]].numsteps
-        updateP!(U, hmc, O4S.α, fermion_action, bias)
-        updateU!(U, hmc, O4S.β, fermion_action, bias, therm)
-        updateP!(U, hmc, O4S.γ, fermion_action, bias)
-        updateU!(U, hmc, O4S.δ, fermion_action, bias, therm)
+function evolve!(O4S::OMF4Slow, U, hmc::HMC, fermion_action, bias, therm, level)
+    for _ in 1:hmc.levels[level].numsteps
+        updateP!(U, hmc, O4S.α, fermion_action, bias, level)
+        updateU!(U, hmc, O4S.β, fermion_action, bias, therm, level)
+        updateP!(U, hmc, O4S.γ, fermion_action, bias, level)
+        updateU!(U, hmc, O4S.δ, fermion_action, bias, therm, level)
 
-        updateP!(U, hmc, O4S.μ, fermion_action, bias)
-        updateU!(U, hmc, O4S.ν, fermion_action, bias, therm)
-        updateP!(U, hmc, O4S.μ, fermion_action, bias)
+        updateP!(U, hmc, O4S.μ, fermion_action, bias, level)
+        updateU!(U, hmc, O4S.ν, fermion_action, bias, therm, level)
+        updateP!(U, hmc, O4S.μ, fermion_action, bias, level)
 
-        updateU!(U, hmc, O4S.δ, fermion_action, bias, therm)
-        updateP!(U, hmc, O4S.γ, fermion_action, bias)
-        updateU!(U, hmc, O4S.β, fermion_action, bias, therm)
-        updateP!(U, hmc, O4S.α, fermion_action, bias)
+        updateU!(U, hmc, O4S.δ, fermion_action, bias, therm, level)
+        updateP!(U, hmc, O4S.γ, fermion_action, bias, level)
+        updateU!(U, hmc, O4S.β, fermion_action, bias, therm, level)
+        updateP!(U, hmc, O4S.α, fermion_action, bias, level)
     end
 
     return nothing
@@ -170,36 +175,36 @@ struct OMF4 <: AbstractIntegrator
     end
 end
 
-function evolve!(O4::OMF4, U, hmc::HMC, fermion_action, bias, therm)
-    updateP!(U, hmc, O4.α, fermion_action, bias)
-    updateU!(U, hmc, O4.β, fermion_action, bias, therm)
-    updateP!(U, hmc, O4.γ, fermion_action, bias)
-    updateU!(U, hmc, O4.δ, fermion_action, bias, therm)
+function evolve!(O4::OMF4, U, hmc::HMC, fermion_action, bias, therm, level)
+    updateP!(U, hmc, O4.α, fermion_action, bias, level)
+    updateU!(U, hmc, O4.β, fermion_action, bias, therm, level)
+    updateP!(U, hmc, O4.γ, fermion_action, bias, level)
+    updateU!(U, hmc, O4.δ, fermion_action, bias, therm, level)
 
-    updateP!(U, hmc, O4.μ, fermion_action, bias)
-    updateU!(U, hmc, O4.ν, fermion_action, bias, therm)
-    updateP!(U, hmc, O4.μ, fermion_action, bias)
+    updateP!(U, hmc, O4.μ, fermion_action, bias, level)
+    updateU!(U, hmc, O4.ν, fermion_action, bias, therm, level)
+    updateP!(U, hmc, O4.μ, fermion_action, bias, level)
 
-    updateU!(U, hmc, O4.δ, fermion_action, bias, therm)
-    updateP!(U, hmc, O4.γ, fermion_action, bias)
-    updateU!(U, hmc, O4.β, fermion_action, bias, therm)
+    updateU!(U, hmc, O4.δ, fermion_action, bias, therm, level)
+    updateP!(U, hmc, O4.γ, fermion_action, bias, level)
+    updateU!(U, hmc, O4.β, fermion_action, bias, therm, level)
 
-    for _ in 1:hmc.levels[hmc.current_level[]].numsteps-1
-        updateP!(U, hmc, 2 * O4.α, fermion_action, bias)
-        updateU!(U, hmc, O4.β, fermion_action, bias, therm)
-        updateP!(U, hmc, O4.γ, fermion_action, bias)
-        updateU!(U, hmc, O4.δ, fermion_action, bias, therm)
+    for _ in 1:hmc.levels[level].numsteps-1
+        updateP!(U, hmc, 2 * O4.α, fermion_action, bias, level)
+        updateU!(U, hmc, O4.β, fermion_action, bias, therm, level)
+        updateP!(U, hmc, O4.γ, fermion_action, bias, level)
+        updateU!(U, hmc, O4.δ, fermion_action, bias, therm, level)
 
-        updateP!(U, hmc, O4.μ, fermion_action, bias)
-        updateU!(U, hmc, O4.ν, fermion_action, bias, therm)
-        updateP!(U, hmc, O4.μ, fermion_action, bias)
+        updateP!(U, hmc, O4.μ, fermion_action, bias, level)
+        updateU!(U, hmc, O4.ν, fermion_action, bias, therm, level)
+        updateP!(U, hmc, O4.μ, fermion_action, bias, level)
 
-        updateU!(U, hmc, O4.δ, fermion_action, bias, therm)
-        updateP!(U, hmc, O4.γ, fermion_action, bias)
-        updateU!(U, hmc, O4.β, fermion_action, bias, therm)
+        updateU!(U, hmc, O4.δ, fermion_action, bias, therm, level)
+        updateP!(U, hmc, O4.γ, fermion_action, bias, level)
+        updateU!(U, hmc, O4.β, fermion_action, bias, therm, level)
     end
 
-    updateP!(U, hmc, O4.α, fermion_action, bias)
+    updateP!(U, hmc, O4.α, fermion_action, bias, level)
     return nothing
 end
 
@@ -223,42 +228,42 @@ struct OMF4RA <: AbstractIntegrator
     end
 end
 
-function evolve!(O4::OMF4RA, U, hmc::HMC, fermion_action, bias, therm)
-    Δτ = hmc.levels[hmc.current_level[]].Δτ
+function evolve!(O4::OMF4RA, U, hmc::HMC, fermion_action, bias, therm, level)
+    Δτ = hmc.levels[level].Δτ
 
-    for _ in 1:div(hmc.levels[hmc.current_level[]].numsteps, 2)
+    for _ in 1:div(hmc.levels[level].numsteps, 2)
         mul!(hmc.P, exp(Δτ * O4.friction))
-        updateP!(U, hmc, O4.α, fermion_action, bias)
-        updateU!(U, hmc, O4.β, fermion_action, bias, therm)
-        updateP!(U, hmc, O4.γ, fermion_action, bias)
-        updateU!(U, hmc, O4.δ, fermion_action, bias, therm)
+        updateP!(U, hmc, O4.α, fermion_action, bias, level)
+        updateU!(U, hmc, O4.β, fermion_action, bias, therm, level)
+        updateP!(U, hmc, O4.γ, fermion_action, bias, level)
+        updateU!(U, hmc, O4.δ, fermion_action, bias, therm, level)
 
-        updateP!(U, hmc, O4.μ, fermion_action, bias)
-        updateU!(U, hmc, O4.ν, fermion_action, bias, therm)
-        updateP!(U, hmc, O4.μ, fermion_action, bias)
+        updateP!(U, hmc, O4.μ, fermion_action, bias, level)
+        updateU!(U, hmc, O4.ν, fermion_action, bias, therm, level)
+        updateP!(U, hmc, O4.μ, fermion_action, bias, level)
 
-        updateU!(U, hmc, O4.δ, fermion_action, bias, therm)
-        updateP!(U, hmc, O4.γ, fermion_action, bias)
-        updateU!(U, hmc, O4.β, fermion_action, bias, therm)
-        updateP!(U, hmc, O4.α, fermion_action, bias)
+        updateU!(U, hmc, O4.δ, fermion_action, bias, therm, level)
+        updateP!(U, hmc, O4.γ, fermion_action, bias, level)
+        updateU!(U, hmc, O4.β, fermion_action, bias, therm, level)
+        updateP!(U, hmc, O4.α, fermion_action, bias, level)
         mul!(hmc.P, exp(Δτ * O4.friction))
     end
 
-    for _ in 1:div(hmc.levels[hmc.current_level[]].numsteps, 2)
+    for _ in 1:div(hmc.levels[level].numsteps, 2)
         mul!(hmc.P, exp(-Δτ * O4.friction))
-        updateP!(U, hmc, O4.α, fermion_action, bias)
-        updateU!(U, hmc, O4.β, fermion_action, bias, therm)
-        updateP!(U, hmc, O4.γ, fermion_action, bias)
-        updateU!(U, hmc, O4.δ, fermion_action, bias, therm)
+        updateP!(U, hmc, O4.α, fermion_action, bias, level)
+        updateU!(U, hmc, O4.β, fermion_action, bias, therm, level)
+        updateP!(U, hmc, O4.γ, fermion_action, bias, level)
+        updateU!(U, hmc, O4.δ, fermion_action, bias, therm, level)
 
-        updateP!(U, hmc, O4.μ, fermion_action, bias)
-        updateU!(U, hmc, O4.ν, fermion_action, bias, therm)
-        updateP!(U, hmc, O4.μ, fermion_action, bias)
+        updateP!(U, hmc, O4.μ, fermion_action, bias, level)
+        updateU!(U, hmc, O4.ν, fermion_action, bias, therm, level)
+        updateP!(U, hmc, O4.μ, fermion_action, bias, level)
 
-        updateU!(U, hmc, O4.δ, fermion_action, bias, therm)
-        updateP!(U, hmc, O4.γ, fermion_action, bias)
-        updateU!(U, hmc, O4.β, fermion_action, bias, therm)
-        updateP!(U, hmc, O4.α, fermion_action, bias)
+        updateU!(U, hmc, O4.δ, fermion_action, bias, therm, level)
+        updateP!(U, hmc, O4.γ, fermion_action, bias, level)
+        updateU!(U, hmc, O4.β, fermion_action, bias, therm, level)
+        updateP!(U, hmc, O4.α, fermion_action, bias, level)
         mul!(hmc.P, exp(-Δτ * O4.friction))
     end
 
@@ -266,7 +271,7 @@ function evolve!(O4::OMF4RA, U, hmc::HMC, fermion_action, bias, therm)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", int::OMF4RA)
-    print(io, "$(typeof(int))(friction=$(int.friction))")
+    return print(io, "$(typeof(int))(friction=$(int.friction))")
 end
 Base.show(io::IO, int::OMF4RA) = print(io, "$(typeof(int))(friction=$(int.friction))")
 
@@ -294,7 +299,7 @@ function num_U_updates(str::String)
     if lower_case(str) ∈ ("leapfrog", "leapfrogra")
         return 1
     elseif lower_case(str) ∈ ("omf2", "omf2slow")
-        return 2 
+        return 2
     elseif lower_case(str) ∈ ("omf4", "omf4slow", "omf4ra")
         return 5
     else

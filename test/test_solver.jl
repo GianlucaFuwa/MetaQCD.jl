@@ -58,6 +58,7 @@ function test_solver(
         dirac*ifelse(eoprec, "_eo", ""),
         U,
         mass,
+        Nf=Nf,
         bc_str="antiperiodic",
         rhmc_spectral_bound=spectral_bound,
         rhmc_order_action=15,
@@ -65,6 +66,7 @@ function test_solver(
         cg_maxiters_action=1000,
         wilson_csw=csw,
     )
+    @show action
 
     sample_pseudofermions!(ψ, action, U)
     calc_fermion_action(action, U, ψ)
