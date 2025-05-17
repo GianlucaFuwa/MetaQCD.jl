@@ -55,9 +55,9 @@ function test_solver(
     end
 
     action = MetaQCD.DiracOperators.FermionAction(
-        dirac*ifelse(eoprec, "_eo", ""),
+        dirac * ifelse(eoprec, "_eo", ""),
         U,
-        mass,
+        mass;
         Nf=Nf,
         bc_str="antiperiodic",
         rhmc_spectral_bound=spectral_bound,

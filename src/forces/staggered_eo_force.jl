@@ -1,5 +1,5 @@
 function calc_dSfdU!(
-    dU, fermion_action::FermionAction{false,4,TD}, U, ϕ_eo::StaggeredEOPreSpinorfield,
+    dU, fermion_action::FermionAction{false,4,TD}, U, ϕ_eo::StaggeredEOPreSpinorfield
 ) where {TD<:StaggeredEOPreDiracOperator}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
@@ -31,13 +31,13 @@ function calc_dSfdU!(
 end
 
 function calc_dSfdU!(
-    dU, fermion_action::FermionAction{true,Nf,TD}, U, ϕ_eo::StaggeredEOPreSpinorfield,
+    dU, fermion_action::FermionAction{true,Nf,TD}, U, ϕ_eo::StaggeredEOPreSpinorfield
 ) where {Nf,TD<:StaggeredEOPreDiracOperator}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
     cg_maxiters = fermion_action.cg_maxiters_md
     rhmc = fermion_action.rhmc_info_md
-    n = get_n(rhmc)
+    n = get_n_inverse(rhmc)
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     bc = D.boundary_condition
@@ -51,7 +51,9 @@ function calc_dSfdU!(
 
     shifts = get_β_inverse(rhmc)
     coeffs = get_α_inverse(rhmc)
-    iters, res = solve_dirac_multishift!(Xs, shifts, DdagD, ϕ_eo, temp1, temp2, Ys, cg_tol, cg_maxiters)
+    iters, res = solve_dirac_multishift!(
+        Xs, shifts, DdagD, ϕ_eo, temp1, temp2, Ys, cg_tol, cg_maxiters
+    )
 
     cg_datafile = fermion_action.cg_datafile
 
@@ -91,7 +93,7 @@ end
 
 function add_staggered_eo_derivative_kernel!(dU, U, X, Y, site, bc, fac)
     # sites that begin with a "_" are meant for indexing into the even-odd preconn'ed
-    # fermion field 
+    # fermion field
     NX, NY, NZ, NT = dims(U)
     NV = NX * NY * NZ * NT
     _site = eo_site(site, NX, NY, NZ, NT, NV)

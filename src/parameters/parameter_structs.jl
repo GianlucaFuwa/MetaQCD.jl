@@ -57,7 +57,7 @@ end
 
 @kwdef mutable struct BiasParameters
     rhostout_for_cv::Float64 = 0.12
-    kinds_of_weights::Vector{String} = ["tiwari"]
+    weight_type::Vector{String} = ["tiwari"]
     starting_Q::Union{Nothing,Vector{Int64}} = nothing
     usebiases::Vector{String} = [""]
     biases::Vector{Dict} = Dict[]

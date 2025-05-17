@@ -13,7 +13,7 @@ log_to_console = true
 [ensemble] # Headers are not necessary
 L = [4, 4, 4, 4]
 numtherm = 20
-numsteps = 10
+numsteps = 50
 initial = "cold"
 update_method = "hmc"
 parity_update = false
@@ -34,7 +34,7 @@ wilson_csw = 1.0
 [[fermion_action.fermions]]
 precon = "heavy"
 Nf = 2
-mass = [0.05, 0.005] # numerator mass and denominator mass
+mass = [0.05, 0.005]                  # numerator mass and denominator mass
 cg_tol_action = 1e-19
 cg_tol_md = 1e-8
 cg_maxiters_action = 5000
@@ -45,7 +45,7 @@ rhmc_spectral_bound = [0.000025, 6.0]
 [[fermion_action.fermions]]
 precon = "none"
 Nf = 1
-mass = 0.05 # only denominator mass
+mass = 0.05                         # only denominator mass
 hasenbush = false
 num_pseudoferm = 2
 cg_tol_action = 1e-19
@@ -58,7 +58,7 @@ rhmc_spectral_bound = [0.0025, 6.0]
 [[fermion_action.fermions]]
 precon = "none"
 Nf = 1
-mass = 0.05 # only denominator mass
+mass = 0.05                         # only denominator mass
 hasenbush = false
 num_pseudoferm = 2
 cg_tol_action = 1e-19
@@ -71,7 +71,7 @@ rhmc_spectral_bound = [0.0025, 6.0]
 [[fermion_action.fermions]]
 precon = "none"
 Nf = 1
-mass = 0.05 # only denominator mass
+mass = 0.05                         # only denominator mass
 hasenbush = false
 num_pseudoferm = 2
 cg_tol_action = 1e-19
@@ -87,7 +87,7 @@ hmc_trajectory = 1
 # hmc_numsmear_fermion = 4
 # hmc_rhostout_fermion = 0.125
 [[hmc.levels]] # Gauge action - finest
-forces = [1] # force 1: gauge action
+forces = [1]        # force 1: gauge action
 integrator = "OMF4"
 numsteps = 1
 [[hmc.levels]] # PF action - largest masses
@@ -99,7 +99,7 @@ numsteps = 5
 flow_integrator = "euler"
 flow_num = 7
 flow_steps = 1
-flow_tf = 0.12 # total flow time is flow_num * flow_tf
+flow_tf = 0.12            # total flow time is flow_num * flow_tf
 flow_measure_every = 7
 
 [measurements.Plaquette]

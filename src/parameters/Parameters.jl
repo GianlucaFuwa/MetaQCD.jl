@@ -260,14 +260,16 @@ function check_parameters(p::ParameterSet)
     """
 
     @assert lower_case(p.fermion_action) ∈ [
-        "none", "wilson", "staggered",
+        "none", "wilson", "wilson_eo", "staggered", "staggered_eo",
         "staggered-h1234", "staggered-h1324", "staggered-h1342"
     ] """
     fermion_action in [\"fermion_action\"]: \"$(p.fermion_action)\" is not supported.
     Supported gactions are:
     None
     Wilson
+    Wilson_EO
     Staggered
+    Staggered_EO
     Staggered-H1234
     Staggered-H1324
     Staggered-H1342

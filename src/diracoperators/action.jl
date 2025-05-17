@@ -50,7 +50,7 @@ struct FermionAction{R,Nf,TD,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,Nf}
                 tol: $(rhmc_tol_action)
                 maxerr: $(rhmc_info_action.maxerr) (positive and negative power)
                 """
-                n_temps = rhmc_order_action
+                n_temps = max(get_n(rhmc_info_action), get_n_inverse(rhmc_info_action))
                 rhmc_temps1 = ntuple(
                     _ -> even_odd(Spinorfield(f; staggered=true)), n_temps + 1
                 )
@@ -90,7 +90,8 @@ struct FermionAction{R,Nf,TD,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,Nf}
 
             power = Nf//2default_Nf(D)
             rhmc_info_action = RHMCParams(
-                power, fun;
+                power,
+                fun;
                 n_max=rhmc_order_action,
                 lambda_low=rhmc_lambda_low,
                 lambda_high=rhmc_lambda_high,
@@ -102,7 +103,8 @@ struct FermionAction{R,Nf,TD,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,Nf}
                 """
             power = Nf//default_Nf(D)
             rhmc_info_md = RHMCParams(
-                power, fun;
+                power,
+                fun;
                 n_max=rhmc_order_md,
                 lambda_low=rhmc_lambda_low,
                 lambda_high=rhmc_lambda_high,
@@ -112,7 +114,9 @@ struct FermionAction{R,Nf,TD,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,Nf}
             tol: $(rhmc_tol_md)
             maxerr: $(rhmc_info_md.maxerr) (positive and negative power)
             """
-            n_temps = max(rhmc_order_md, rhmc_order_action)
+            n_temps_action = max(get_n(rhmc_info_action), get_n_inverse(rhmc_info_action))
+            n_temps_md = max(get_n(rhmc_info_action), get_n_inverse(rhmc_info_action))
+            n_temps = max(n_temps_action, n_temps_md)
             rhmc_temps1 = ntuple(
                 _ -> eo_fun(Spinorfield(f; staggered=is_staggered(D))), n_temps + 1
             )
@@ -168,7 +172,9 @@ function init_fermion_action(parameters, U, i)
     end
 
     action = FermionAction(
-        parameters.fermion_action, U, fparams.mass;
+        parameters.fermion_action,
+        U,
+        fparams.mass;
         bc_str=parameters.boundary_condition,
         r=parameters.wilson_r,
         csw=parameters.wilson_csw,
@@ -197,7 +203,9 @@ fermion action `fermion_action`.
 # TM = 1: Twisted mass in Denominator S = (ϕ, (D†D + μ₀)⁻¹, ϕ)
 # TM = 2: Twisted mass in Numerator S = (ϕ, (D†D + μ₀)(D†D)⁻¹, ϕ)
 # TM = 3: Twisted mass in Numerator and Denominator S = (ϕ, (D†D + μ₀)(D†D + μ₁)⁻¹, ϕ)
-function calc_fermion_action(fermion_action::AbstractFermionAction{false,Nf}, U, ϕ) where {Nf}
+function calc_fermion_action(
+    fermion_action::AbstractFermionAction{false,Nf}, U, ϕ
+) where {Nf}
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     ψ, temp1, temp2, temp3 = fermion_action.cg_temps
@@ -223,11 +231,13 @@ function calc_fermion_action(fermion_action::AbstractFermionAction{false,Nf}, U,
     return Sf
 end
 
-function calc_fermion_action(fermion_action::AbstractFermionAction{true,Nf}, U, ϕ) where {Nf}
+function calc_fermion_action(
+    fermion_action::AbstractFermionAction{true,Nf}, U, ϕ
+) where {Nf}
     cg_tol = fermion_action.cg_tol_action
     cg_maxiters = fermion_action.cg_maxiters_action
     rhmc = fermion_action.rhmc_info_action
-    n = get_n(rhmc)
+    n = get_n_inverse(rhmc)
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     ψs = fermion_action.rhmc_temps1[1:n+1]
@@ -241,7 +251,9 @@ function calc_fermion_action(fermion_action::AbstractFermionAction{true,Nf}, U, 
     shifts = get_β_inverse(rhmc)
     coeffs = get_α_inverse(rhmc)
     α₀ = get_α0_inverse(rhmc)
-    iters, res = solve_dirac_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
+    iters, res = solve_dirac_multishift!(
+        ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters
+    )
 
     cg_datafile = fermion_action.cg_datafile
     if cg_datafile != ""
@@ -327,12 +339,12 @@ sample_pseudofermions!(::AbstractField, ::QuenchedFermionAction, U) = nothing
 
 ### I/O stuff
 function Base.show(io::IO, ::MIME"text/plain", S::QuenchedFermionAction)
-    println(io, "| Quenched")
+    return println(io, "| Quenched")
 end
 
 function Base.show(io::IO, ::MIME"text/plain", S::FermionAction{R,Nf,TD}) where {R,Nf,TD}
     D = S.D
-    name = chop(string(nameof(TD)), tail=length("DiracOperator")) * "FermionAction"
+    name = chop(string(nameof(TD)); tail=length("DiracOperator")) * "FermionAction"
     print(
         io,
         """
@@ -340,7 +352,7 @@ function Base.show(io::IO, ::MIME"text/plain", S::FermionAction{R,Nf,TD}) where 
         |  $(name)(
         |    Nf: $Nf
         |    MASS: $(D.mass)
-        """
+        """,
     )
 
     if D isa WilsonDiracOperator || D isa WilsonEOPreDiracOperator
@@ -349,14 +361,14 @@ function Base.show(io::IO, ::MIME"text/plain", S::FermionAction{R,Nf,TD}) where 
             """
             |    KAPPA: $(D.κ)
             |    CSW: $(D.csw)
-            """
+            """,
         )
     elseif D isa StaggeredHoelblingDiracOperator
         print(
             io,
             """
             |    MASS TERM: $(_unwrap_val.(get_mass_term(D)))
-            """
+            """,
         )
     end
 
@@ -370,14 +382,14 @@ function Base.show(io::IO, ::MIME"text/plain", S::FermionAction{R,Nf,TD}) where 
         |    CG MAX ITERS (ACTION): $(S.cg_maxiters_md)
         |    RHMC INFO (Action): $(S.rhmc_info_action)
         |    RHMC INFO (MD): $(S.rhmc_info_md))
-        """
+        """,
     )
     return nothing
 end
 
 function Base.show(io::IO, S::FermionAction{R,Nf,TD}) where {R,Nf,TD}
     D = S.D
-    name = chop(string(nameof(TD)), tail=length("DiracOperator")) * "FermionAction"
+    name = chop(string(nameof(TD)); tail=length("DiracOperator")) * "FermionAction"
     print(
         io,
         """
@@ -385,7 +397,7 @@ function Base.show(io::IO, S::FermionAction{R,Nf,TD}) where {R,Nf,TD}
         |  $(name)(
         |    Nf: $Nf
         |    MASS: $(D.mass)
-        """
+        """,
     )
 
     if D isa WilsonDiracOperator || D isa WilsonEOPreDiracOperator
@@ -394,15 +406,14 @@ function Base.show(io::IO, S::FermionAction{R,Nf,TD}) where {R,Nf,TD}
             """
             |    KAPPA: $(D.κ)
             |    CSW: $(D.csw)
-            """
+            """,
         )
     elseif D isa StaggeredHoelblingDiracOperator
-
         print(
             io,
             """
             |    MASS TERM: $(_unwrap_val.(get_mass_term(D)))
-            """
+            """,
         )
     end
 
@@ -416,7 +427,7 @@ function Base.show(io::IO, S::FermionAction{R,Nf,TD}) where {R,Nf,TD}
         |    CG MAX ITERS (ACTION) = $(S.cg_maxiters_md)
         |    RHMC INFO (Action): $(S.rhmc_info_action)
         |    RHMC INFO (MD): $(S.rhmc_info_md))
-        """
+        """,
     )
     return nothing
 end

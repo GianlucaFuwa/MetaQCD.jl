@@ -1,5 +1,5 @@
-function calc_dSfdU!( # force for unrooted staggered action
-    dU, fermion_action::FermionAction{false,8,TD}, U, ϕ::StaggeredSpinorfield,
+function calc_dSfdU!(
+    dU, fermion_action::FermionAction{false,8,TD}, U, ϕ::StaggeredSpinorfield
 ) where {TD<:StaggeredDiracOperator}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
@@ -29,14 +29,14 @@ function calc_dSfdU!( # force for unrooted staggered action
     return nothing
 end
 
-function calc_dSfdU!( # force for rooted staggered action
+function calc_dSfdU!(
     dU, fermion_action::FermionAction{true,Nf,TD}, U, ϕ::StaggeredSpinorfield
 ) where {Nf,TD<:StaggeredDiracOperator}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
     cg_maxiters = fermion_action.cg_maxiters_md
     rhmc = fermion_action.rhmc_info_md
-    n = get_n(rhmc)
+    n = get_n_inverse(rhmc)
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     bc = D.boundary_condition
@@ -50,7 +50,9 @@ function calc_dSfdU!( # force for rooted staggered action
 
     shifts = get_β_inverse(rhmc)
     coeffs = get_α_inverse(rhmc)
-    iters, res = solve_dirac_multishift!(Xs, shifts, DdagD, ϕ, temp1, temp2, Ys, cg_tol, cg_maxiters)
+    iters, res = solve_dirac_multishift!(
+        Xs, shifts, DdagD, ϕ, temp1, temp2, Ys, cg_tol, cg_maxiters
+    )
 
     cg_datafile = fermion_action.cg_datafile
 

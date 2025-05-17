@@ -1,5 +1,5 @@
 function calc_dSfdU!(
-    dU, fermion_action::FermionAction{false,2,TD}, U, ϕ_eo::WilsonEOPreSpinorfield,
+    dU, fermion_action::FermionAction{false,2,TD}, U, ϕ_eo::WilsonEOPreSpinorfield
 ) where {TD<:WilsonEOPreDiracOperator}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
@@ -37,20 +37,20 @@ function calc_dSfdU!(
         calc_Xμν_eo_eachsite!(Xμν, X_eo, Y_eo)
         add_clover_derivative!(dU, U, Xμν, -D.csw)
         calc_small_Xμν_eachsite!(Xμν, D_oo_inv)
-        add_clover_derivative!(dU, U, Xμν, -2D.csw) 
+        add_clover_derivative!(dU, U, Xμν, -2D.csw)
     end
 
     return nothing
 end
 
 function calc_dSfdU!(
-    dU, fermion_action::FermionAction{true,1,TD}, U, ϕ_eo::WilsonEOPreSpinorfield,
+    dU, fermion_action::FermionAction{true,1,TD}, U, ϕ_eo::WilsonEOPreSpinorfield
 ) where {TD<:WilsonEOPreDiracOperator}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
     cg_maxiters = fermion_action.cg_maxiters_md
     rhmc = fermion_action.rhmc_info_md
-    n = get_n(rhmc)
+    n = get_n_inverse(rhmc)
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     D_oo_inv = D.D_oo_inv
@@ -65,7 +65,9 @@ function calc_dSfdU!(
 
     shifts = get_β_inverse(rhmc)
     coeffs = get_α_inverse(rhmc)
-    iters, res = solve_dirac_multishift!(Xs, shifts, DdagD, ϕ_eo, temp1, temp2, Ys, cg_tol, cg_maxiters)
+    iters, res = solve_dirac_multishift!(
+        Xs, shifts, DdagD, ϕ_eo, temp1, temp2, Ys, cg_tol, cg_maxiters
+    )
 
     cg_datafile = fermion_action.cg_datafile
 
@@ -92,7 +94,7 @@ function calc_dSfdU!(
             calc_Xμν_eo_eachsite!(Xμν, Xs[i+1], Ys[i+1])
             add_clover_derivative!(dU, U, Xμν, -D.csw; coeff=coeffs[i])
             calc_small_Xμν_eachsite!(Xμν, D_oo_inv)
-            add_clover_derivative!(dU, U, Xμν, -2D.csw; coeff=coeffs[i]) 
+            add_clover_derivative!(dU, U, Xμν, -2D.csw; coeff=coeffs[i])
         end
     end
 
@@ -121,7 +123,7 @@ end
 
 function add_wilson_eo_derivative_kernel!(dU, U, X_eo, Y_eo, site, bc, fac)
     # sites that begin with a "_" are meant for indexing into the even-odd preconn'ed
-    # fermion field 
+    # fermion field
     NX, NY, NZ, NT = dims(U)
     NV = NX * NY * NZ * NT
     _site = eo_site(site, NX, NY, NZ, NT, NV)

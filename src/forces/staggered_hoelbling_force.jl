@@ -1,5 +1,8 @@
 function calc_dSfdU!( # Force for unrooted Staggered-Hoelbling Action (Nf=2)
-    dU, fermion_action::FermionAction{false,2,TD}, U, ϕ::StaggeredSpinorfield,
+    dU,
+    fermion_action::FermionAction{false,2,TD},
+    U,
+    ϕ::StaggeredSpinorfield,
 ) where {TD<:StaggeredHoelblingDiracOperator}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
@@ -36,13 +39,16 @@ function calc_dSfdU!( # Force for unrooted Staggered-Hoelbling Action (Nf=2)
 end
 
 function calc_dSfdU!( # Force for single flavor Staggered-Hoelbling Action (Nf=2)
-    dU, fermion_action::FermionAction{true,1,TD}, U, ϕ::StaggeredSpinorfield,
+    dU,
+    fermion_action::FermionAction{true,1,TD},
+    U,
+    ϕ::StaggeredSpinorfield,
 ) where {TD<:StaggeredHoelblingDiracOperator}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
     cg_maxiters = fermion_action.cg_maxiters_md
     rhmc = fermion_action.rhmc_info_md
-    n = get_n(rhmc)
+    n = get_n_inverse(rhmc)
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     term = get_mass_term(D)
@@ -57,7 +63,9 @@ function calc_dSfdU!( # Force for single flavor Staggered-Hoelbling Action (Nf=2
 
     shifts = get_β_inverse(rhmc)
     coeffs = get_α_inverse(rhmc)
-    iters, res = solve_dirac_multishift!(Xs, shifts, DdagD, ϕ, temp1, temp2, Ys, cg_tol, cg_maxiters)
+    iters, res = solve_dirac_multishift!(
+        Xs, shifts, DdagD, ϕ, temp1, temp2, Ys, cg_tol, cg_maxiters
+    )
 
     cg_datafile = fermion_action.cg_datafile
 
@@ -122,21 +130,19 @@ function Y∇MμνX(X, Y, U, ::Val{μ}, ::Val{ν}, site, bc, ::Type{T}) where {�
     siteμ⁺ν⁻ = move(siteμ⁺, ν, -1, Nν)
 
     # Start
-    η1 = im * T(1/8 * staggered_ημν(Val(μ), Val(ν), site, Val(true)))
-    η2 = im * T(1/8 * staggered_ημν(Val(μ), Val(ν), siteν⁺, Val(true)))
-    η3 = im * T(1/8 * staggered_ημν(Val(μ), Val(ν), siteν⁻, Val(true)))
+    η1 = im * T(1 / 8 * staggered_ημν(Val(μ), Val(ν), site, Val(true)))
+    η2 = im * T(1 / 8 * staggered_ημν(Val(μ), Val(ν), siteν⁺, Val(true)))
+    η3 = im * T(1 / 8 * staggered_ημν(Val(μ), Val(ν), siteν⁻, Val(true)))
     Y1 = η1 * Y[site]
     Y2 = η2 * apply_bc(Y[siteν⁺], bc, site, Val(1), Nν, Val(ν))
     Y3 = η3 * apply_bc(Y[siteν⁻], bc, site, Val(-1), Nν, Val(ν))
-    
+
     # Stop
     X1 = apply_bc(
-        apply_bc(X[siteμ⁺ν⁺], bc, site, Val(1), Nμ, Val(μ)),
-        bc, site, Val(1), Nν, Val(ν)
+        apply_bc(X[siteμ⁺ν⁺], bc, site, Val(1), Nμ, Val(μ)), bc, site, Val(1), Nν, Val(ν)
     )
     X2 = apply_bc(
-        apply_bc(X[siteμ⁺ν⁻], bc, site, Val(1), Nμ, Val(μ)),
-        bc, site, Val(-1), Nν, Val(ν)
+        apply_bc(X[siteμ⁺ν⁻], bc, site, Val(1), Nμ, Val(μ)), bc, site, Val(-1), Nν, Val(ν)
     )
     X3 = apply_bc(X[siteμ⁺], bc, site, Val(1), Nμ, Val(μ))
 

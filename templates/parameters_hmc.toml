@@ -4,12 +4,12 @@ ensemble_dir = "/home/gialu/data/MetaQCD/test_hmc"
 randomseed = 0
 overwrite = true
 verboselevel = 1
-log_to_console = true
+log_to_console = false
 
 [ensemble]
 L = [4, 4, 4, 4]
-numtherm = 10
-numsteps = 10
+numtherm = 1
+numsteps = 1
 initial = "cold"
 update_method = "hmc"
 metro_numhits = 10
@@ -36,7 +36,7 @@ flow_steps = 1
 flow_tf = 0.12 # total flow time is flow_num * flow_tf
 flow_measure_every = 7
 
-kmeasurements.Plaquette]
+[measurements.Plaquette]
 measure_every = 10
 
 [measurements.Topological_charge]

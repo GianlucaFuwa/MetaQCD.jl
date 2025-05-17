@@ -1,7 +1,7 @@
 name = "MetaQCD"
 uuid = "31f46e0f-f1ce-4e94-be20-2bb7f09e036f"
+version = "2.0.0"
 authors = ["GianlucaFuwa <gianlucafuwa@gmail.com> and contributors"]
-version = "1.0.0"
 
 [deps]
 Accessors = "7d9f7c33-5ae7-4f3b-8dc6-eff91059b697"
@@ -51,7 +51,7 @@ KernelAbstractions = "0.9"
 LoopVectorization = "0.12.170"
 MPI = "0.20"
 Polyester = "0.7.14"
-RationalFunctionApproximation = "0.1.4"
+RationalFunctionApproximation = "0.2.1"
 Requires = "1.3"
 StaticArrays = "1.6"
 TimerOutputs = "0.5"

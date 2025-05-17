@@ -71,11 +71,13 @@ function run_sim(parameterfile::String; backend="cpu")
         updatemethod = updatemethod_pt = nothing
     end
 
-    run_sim!(univ, parameters, updatemethod, updatemethod_pt; mpi_multi_sim=multi_sim)
+    run_sim!(univ, parameters, updatemethod, updatemethod_pt, multi_sim)
     return nothing
 end
 
-function run_sim!(univ, parameters, updatemethod, updatemethod_pt; mpi_multi_sim=false)
+function run_sim!(
+    univ::Univ, parameters::ParameterSet, updatemethod, updatemethod_pt, mpi_multi_sim=false
+)
     U = univ.U
 
     # initialize update method, measurements, and bias
@@ -283,17 +285,17 @@ function run_sim!(univ, parameters, updatemethod, updatemethod_pt; mpi_multi_sim
 end
 
 function metaqcd!(
-    parameters,
-    univ,
+    parameters::ParameterSet,
+    univ::Univ,
     updatemethod,
     gflow,
-    measurements,
+    measurements::MeasurementMethods,
     measurements_with_flow,
     parity,
-    config_saver,
-    checkpointer,
+    config_saver::ConfigSaver,
+    checkpointer::Checkpointer,
     timing_datafile,
-    mpi_multi_sim,
+    mpi_multi_sim::Bool,
 )
     U = univ.U
     fermion_action = univ.fermion_action
@@ -421,8 +423,8 @@ function metaqcd!(
 end
 
 function metaqcd_PT!(
-    parameters,
-    univ,
+    parameters::ParameterSet,
+    univ::Univ,
     updatemethod,
     updatemethod_pt,
     gflow,

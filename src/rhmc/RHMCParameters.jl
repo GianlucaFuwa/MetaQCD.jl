@@ -7,7 +7,8 @@ using RationalFunctionApproximation
 import ..AlgRemez: AlgRemezCoeffs, calc_coefficients
 
 export RHMCParams
-export get_n, get_α, get_α0, get_β, get_α_inverse, get_α0_inverse, get_β_inverse
+export get_n, get_n_inverse, get_α, get_α0, get_β, get_α_inverse
+export get_α0_inverse, get_β_inverse
 
 """
     RHMCParams(power::Rational, fun::Function; n=10, lambda_low=0.0004, lambda_high=64, tol=1e-6)
@@ -25,7 +26,7 @@ struct RHMCParams{N1,N2}
     y::Int64
     z::Int64
     function RHMCParams(
-        power, fun=x->x; n_max=10, lambda_low=0.0004, lambda_high=64, tol=1000eps(Float64)
+        power, fun=x -> x; n_max=10, lambda_low=0.0004, lambda_high=64, tol=1000eps(Float64)
     )
         num = numerator(power)
         den = denominator(power)
@@ -35,9 +36,7 @@ struct RHMCParams{N1,N2}
 
         # suppress warnings from RationalFunctionApproximation.jl here
         coeffs, coeffs_inv, err, err_inv, n, n_inv = redirect_stderr(devnull) do
-            calc_coefficients(
-                num, den, n_max, lambda_low, lambda_high, fun; tol=tol
-            )
+            calc_coefficients(num, den, n_max, lambda_low, lambda_high, fun; tol=tol)
         end
         maxerr = (err, err_inv)
         return new{n,n_inv}(coeffs, coeffs_inv, lambda_low, lambda_high, maxerr, num, den)
@@ -49,7 +48,7 @@ function Base.show(io::IO, ::MIME"text/plain", rhmc::RHMCParams{N1,N2}) where {N
         io,
         "Order: $(N1), $(N2) (inverse), ",
         "Range: [$(rhmc.lambda_low), $(rhmc.lambda_high)], ",
-        "Maxerr: $(rhmc.maxerr[1]), $(rhmc.maxerr[2]) (inverse)"
+        "Maxerr: $(rhmc.maxerr[1]), $(rhmc.maxerr[2]) (inverse)",
     )
     return nothing
 end
@@ -59,7 +58,7 @@ function Base.show(io::IO, rhmc::RHMCParams{N1,N2}) where {N1,N2}
         io,
         "Order: $(N1), $(N2) (inverse), ",
         "Range: [$(rhmc.lambda_low), $(rhmc.lambda_high)], ",
-        "Maxerr: $(rhmc.maxerr[1]), $(rhmc.maxerr[2]) (inverse)"
+        "Maxerr: $(rhmc.maxerr[1]), $(rhmc.maxerr[2]) (inverse)",
     )
     return nothing
 end
@@ -74,18 +73,26 @@ get_α0_inverse(x::RHMCParams) = x.coeffs_inverse.α0
 get_β_inverse(x::RHMCParams) = x.coeffs_inverse.β
 
 function calc_coefficients(
-    y, z, n_max, lambda_low, lambda_high, fun::Function=x->x; tol=1000*eps(Float64)
+    y, z, n_max, lambda_low, lambda_high, fun::Function=x -> x; tol=1000 * eps(Float64)
 )
     @assert y > 0 && z > 0 "Inputs y and z need to be positive"
     f(x) = fun(x)^(y//z)
     g(x) = 1 / f(x)
     itvl = interval(lambda_low, lambda_high, Float64)
 
-    r_p = approximate(f, itvl; max_iter=n_max, tol=tol)
+    r_p = if VERSION < v"1.11"
+        approximate(f, itvl; max_degree=n_max, tol=tol)
+    else
+        approximate(f, itvl; max_iter=n_max, tol=tol)
+    end
     err_p = maximum([abs(r_p(x) - f(x)) for x in lambda_low:0.00001:lambda_high])
     n_p = degree(r_p)
 
-    r_m = approximate(g, itvl; max_iter=n_max, tol=tol)
+    r_m = if VERSION < v"1.11"
+        approximate(g, itvl; max_degree=n_max, tol=tol)
+    else
+        approximate(g, itvl; max_iter=n_max, tol=tol)
+    end
     err_m = maximum([abs(r_m(x) - g(x)) for x in lambda_low:0.00001:lambda_high])
     n_m = degree(r_m)
 
@@ -93,9 +100,9 @@ function calc_coefficients(
     β_m = -Float64.(poles(r_m))
 
     # Sample xs — log-space for better small-x resolution
-    xs_p = exp10.(range(log10(lambda_low), log10(lambda_high), length=100))
+    xs_p = exp10.(range(log10(lambda_low), log10(lambda_high); length=100))
     xs_p = filter(x -> all(abs(x + b) > 1e-10 for b in β_p), xs_p)
-    xs_m = exp10.(range(log10(lambda_low), log10(lambda_high), length=100))
+    xs_m = exp10.(range(log10(lambda_low), log10(lambda_high); length=100))
     xs_m = filter(x -> all(abs(x + b) > 1e-10 for b in β_m), xs_m)
 
     # Evaluate r at sample points
@@ -119,7 +126,7 @@ function calc_coefficients(
     α0_m = coeffs_m[1]
     α_m = coeffs_m[2:end]
     acoeffs_m = AlgRemezCoeffs(α0_m, tuple(α_m...), tuple(β_m...), n_m)
-    return acoeffs_p, acoeffs_m, err_p, err_m, n_m, n_p
+    return acoeffs_p, acoeffs_m, err_p, err_m, n_p, n_m
 end
 
 @inline function interval(a, b, ::Type{T}=Float64) where {T}

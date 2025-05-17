@@ -83,4 +83,6 @@ export NoSmearing, StoutSmearing, calc_smearedU!, GradientFlow, flow!, stout_bac
 export Updatemethod, update!
 export Univ
 
+include("utils/precompile.jl")
+
 end

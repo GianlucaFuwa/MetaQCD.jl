@@ -1,5 +1,5 @@
 function calc_dSfdU!(
-    dU, fermion_action::FermionAction{false,2,TD}, U, ϕ::WilsonSpinorfield,
+    dU, fermion_action::FermionAction{false,2,TD}, U, ϕ::WilsonSpinorfield
 ) where {TD<:WilsonDiracOperator}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
@@ -36,13 +36,13 @@ function calc_dSfdU!(
 end
 
 function calc_dSfdU!(
-    dU, fermion_action::FermionAction{true,1,TD}, U, ϕ::WilsonSpinorfield,
+    dU, fermion_action::FermionAction{true,1,TD}, U, ϕ::WilsonSpinorfield
 ) where {TD<:WilsonDiracOperator}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
     cg_maxiters = fermion_action.cg_maxiters_md
     rhmc = fermion_action.rhmc_info_md
-    n = get_n(rhmc)
+    n = get_n_inverse(rhmc)
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     bc = D.boundary_condition
@@ -56,7 +56,9 @@ function calc_dSfdU!(
 
     shifts = get_β_inverse(rhmc)
     coeffs = get_α_inverse(rhmc)
-    iters, res = solve_dirac_multishift!(Xs, shifts, DdagD, ϕ, temp1, temp2, Ys, cg_tol, cg_maxiters)
+    iters, res = solve_dirac_multishift!(
+        Xs, shifts, DdagD, ϕ, temp1, temp2, Ys, cg_tol, cg_maxiters
+    )
 
     cg_datafile = fermion_action.cg_datafile
 
@@ -73,7 +75,7 @@ function calc_dSfdU!(
     for i in 1:n
         LinearAlgebra.mul!(Ys[i+1], D, Xs[i+1]) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
         add_wilson_derivative!(dU, U, Xs[i+1], Ys[i+1], bc; coeff=coeffs[i])
-        
+
         if has_clover_term(D)
             Xμν = fermion_action.Xμν
             calc_Xμν_wilson_eachsite!(Xμν, Xs[i+1], Ys[i+1])
@@ -245,5 +247,5 @@ function Xμν∇Fμν(Xμν, U, μ, ν, site, ::Type{T}) where {T}
         cmatmul_dodo(U[ν, siteμ⁺ν⁻], Xμν[μ, ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻]) -
         cmatmul_oddo(Xμν[μ, ν, siteμ⁺], U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻])
 
-    return im * T(1/8) * component
+    return im * T(1 / 8) * component
 end

@@ -18,7 +18,6 @@ The default values for all of these are listed [here](./parameters.md#full-param
 
 ## ensemble
 - `L`: Lattice volume as a vector of integers (e.g., `L = [4, 4, 4, 4]`)
-
 - `numtherm`: Number of thermalization updates as an integer (e.g., `numtherm = 100`)
 - `numsteps`: Number of production updates as an integer (e.g., `numsteps = 100`)
 - `initial`: Initial condition of the gauge field(s) as a string (e.g., `initial = "cold"`)
@@ -43,13 +42,18 @@ that can be set:
 > Supported gauge actions: `"wilson"`, `"symanzik_tree"` (Lüscher-Weisz), `"iwasaki"`, `"dbw2"`
 
 ## fermion_action
+For the (pseudo)fermion actions there are some general parameters, but apart from them, each action and its parameters has to be defined seperately by creating the array `[[fermion_action.fermions]]`.
+The general parameters are:
 - `fermion_action`: Fermion action definition as a string (e.g, `fermion_action = "staggered"`)
 > Supported fermion actions: `"staggered"`, `"staggered_eo"`, `"wilson"`, `"wilson_eo"`, `"staggered_h1234"` (Hoelbling-type flavored mass term M12M34), `"staggered_h1342"` (Hoelbling-type flavored mass term M13M42)
 - `csw`: Wilson-Clover improvement factor as a flow (e.g, `csw = 1.0`)
 - `boundary_condition`: Boundary condition in time-direction as a string (e.g, `boundary_condition = "antiperiodic"`)
-- `Nf`: Number of flavors per mass value as a vector of integers (e.g, `Nf = [2, 1, 1]` for 2+1+1 flavors)
-- `mass`: Masses in terms of lattice units as a vector of floats (e.g, `mass = [0.001, 0.028, 0.1]`)
-> Make sure `Nf` and `mass` have the same length!
+
+The individual action parameters under `[[fermion_action.fermions]]` are:
+- `precon`: What preconditioner (apart from the even-odd preconditioner that is specified in `fermion_action` itself) to use as a string.
+> Supported preconditioners (for now): `"none"`, `"heavy"` (When this option is chosen, two masses need to be supplied and the heavier operator becomes the preconditioner)
+- `Nf`: Number of flavors as an integer (e.g, `Nf = 2`)
+- `mass`: Masses in terms of lattice units as a vector of floats (e.g, `mass = 0.001` or `mass = [0.001, 0.01]` when `precon = "heavy"`)
 
 Parameters for the solver:
 - `cg_tol_action`: CG tolerance for the calculation of the fermion determinant as a float (e.g, `cg_tol_action = 1e-12`)
@@ -59,12 +63,14 @@ Parameters for the solver:
 
 Parameters in case RHMC is used:
 - `rhmc_spectral_bound`: Spectral bound for the rational approximation as a vector of floats (e.g, `rhmc_spectral_bound = [0.0, 64.0]`)
-- `rhmc_order_action`: Order of the rational approximation of the fermion determinant as an integer (e.g, `rhmc_order_action = 15`)
-- `rhmc_order_md`: Order of the rational approximation of the fermion force as an integer (e.g, `rhmc_order_md = 10`)
+- `rhmc_order_action`: Maximum order of the rational approximation of the fermion determinant as an integer (e.g, `rhmc_order_action = 15`)
+- `rhmc_order_md`: Maximum order of the rational approximation of the fermion force as an integer (e.g, `rhmc_order_md = 10`)
 - `rhmc_prec_action`: Precision of the rational approximation of the fermion determinant as an integer (e.g, `rhmc_prec_action = 64`)
 - `rhmc_prec_md`: Precision of the rational approximation of the fermion force as an integer (e.g, `rhmc_prec_md = 42`)
 
 ## hmc
+Just like with the fermion actions, there are some general HMC settings and then each individual integrator level for needs to be defined on its own under `[[hmc.levels]]`.
+The general parameters are:
 - `hmc_trajectory`: Trajectory length to be used in HMC as a float (e.g, `hmc_trajectory = 1`)
 - `hmc_rafriction`: Friction parameter for generalized HMC as a float (e.g, `hmc_steps = 10`)
 - `hmc_numsmear_gauge`: Number of smearing steps for the gauge action in the HMC as an integer (e.g, `hmc_numsmear_gauge = 3`)
@@ -73,9 +79,12 @@ Parameters in case RHMC is used:
 - `hmc_rhostout_fermion`: Smearing step size for the fermion action in the HMC as a float (e.g, `hmc_rhostout_fermion = 0.125`)
 - `hmc_logging`: Whether or not HMC data like accept-reject info or forces should be logged during the trajectory as boolean (e.g, `hmc_logging = true`)
 
-- `hmc_integrator`: Type of integrator to be used in HMC as a string (e.g, `hmc_integrator = "omf4"`)
+For each level, one has to define the following:
+- `integrator`: Type of integrator to be used in HMC as a string (e.g, `integrator = "omf4"`)
 > Supported HMC integrators: `"leapfrog"`, `"omf2"`, `"omf2slow"`, `"omf4"`, `"omf4slow"`
-- `hmc_steps`: Number of integration steps per trajectory to be used in HMC as an integer (e.g, `hmc_steps = 10`)
+- `numsteps`: Number of integration steps per trajectory to be used in HMC as an integer (e.g, `numsteps = 10`)
+- `forces`: Which forces to be evaluated at the current level as a vector of integers (e.g., `forces = [1, 2, 3]` for the gauge force and the first two fermion forces)
+> Level 0 corresponds to the bias force, Level 1 to the gauge force and each level above that to the fermion forces in the order that they were defined in `[[fermion_action.fermions]]`
 
 ## gradient_flow
 - `flow_integrator`: Type of gradient flow integrator as a string (e.g, `flow_integrator = "rk3"`)
@@ -89,11 +98,11 @@ If this is a vector of integers, then observables are measured at all the multip
 > Flowed configs CANNOT be written to file, only measurements on them are!
 
 ## measurements
-The way measurements/observables are specified is quite different from the other parameters.
+The way measurements/observables are specified is a little different from the other parameters.
 
 Firstly, there are two types of measurements: `measurements` and `measurements_with_flow`.
 As the name suggests, the latter are measurements done on flowed configs, where the flow
-parameters are given in the "Gradient Flow Settings". Again, measurements pertaining to one
+parameters are given in the gradient_flow. Again, measurements pertaining to one
 of the two categories must be keyed by them with the subkey being the observale, e.g:
 ```
 [measurements.Plaquette]
@@ -110,13 +119,13 @@ Other observables, such as the `Topological_charge` or `Energy_density` have the
 
 The observable `Gauge_action` also has the attribute `type`, again a vector of strings, that
 contains the gauge action definitions to be measured. The supported gauge actions here, are the same
-as in [Physical Settings](#physical-settings).
+as in [gauge_action](#gauge-settings).
 
 `Wilson_loop` is another special observable in that it has the integer-valued attributes `Rmax` and `Tmax`,
 which specify the maximum width and length of the wilson loops to be measured.
 
 The last special observable is the `Pion_correlator`, which has the attributes:
-- `dirac_type`: 
+- `dirac_type`:
 - `eo_precon`: Whether to use an even-odd preconditioned operator as a string (e.g, `eo_precon = true`)
 - `mass`: Masses in terms of lattice units as a float (e.g, `mass = 0.001`)
 - `csw`: Wilson-Clover improvement factor as a flow (e.g, `csw = 1.0`)
@@ -124,7 +133,7 @@ The last special observable is the `Pion_correlator`, which has the attributes:
 - `cg_tol`: CG tolerance for the inversion of the operator as a float (e.g, `cg_tol = 1e-12`)
 - `cg_maxiters`: Maximum amount of CG iterations for the inversion of the operator as an integer (e.g, `cg_maxiters = 1000`)
 
-## System Settings
+## data
 - `float_type`: The precision to be used for all gauge and spinor fields (global sums are always done in double precision) as a string (e.g, `float_type = "float32"`)
 - `ensemble_dir`: Path to the ensemble generated by the simulation, that contains log files, measurement files, saved configs and biaspotentials as a string (e.g, `ensemble_dir = "/path/to/ensemble"`)
 - `log_to_console`: Whether logs should be printed to console (they are always printed to file anyway) as a boolean (e.g, `print_to_console = false`)
