@@ -58,14 +58,7 @@ struct HMCLevel{NC,TI,TF,TFP}
 
         TF = typeof(forces)
         TFP = typeof(forcefile)
-        return new{NC,TI,TF,TFP}(
-            integrator,
-            numsteps,
-            Δτ,
-            numchildren,
-            forces,
-            forcefile,
-        )
+        return new{NC,TI,TF,TFP}(integrator, numsteps, Δτ, numchildren, forces, forcefile)
     end
 end
 
@@ -98,7 +91,7 @@ function Base.show(io::IO, level::HMCLevel)
     return nothing
 end
 
-function level_parameters_from_dict(value::Vector{Dict})
+function level_parameters_from_dict(value::Vector{Dict{String,Any}})
     value_out = Vector{HMCLevelParameters}(undef, length(value))
 
     # Dictionary to track which forces are assigned to which levels
@@ -122,7 +115,7 @@ function level_parameters_from_dict(value::Vector{Dict})
             if haskey(force_dict, force)
                 error(
                     "Force $(force) is assigned to both level $(force_dict[force]) and ",
-                    "level $(i)"
+                    "level $(i)",
                 )
             else
                 force_dict[force] = i

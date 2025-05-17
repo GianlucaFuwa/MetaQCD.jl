@@ -9,9 +9,9 @@ function calc_dSfdU!(
     DdagD = DdaggerD(D)
 
     clear!(X)
-    solve_dirac!(X, DdagD, ϕ, Y, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp LinearAlgebra.mul!(Y, D, X) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
+    iters, res = solve_dirac!(X, DdagD, ϕ, Y, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp LinearAlgebra.mul!(Y, D, X) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
 
-    iters, res = cg_datafile = fermion_action.cg_datafile
+    cg_datafile = fermion_action.cg_datafile
 
     if cg_datafile != ""
         set_ext!(cg_datafile, MPI_INSTANCE[])

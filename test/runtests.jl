@@ -35,7 +35,7 @@ end
 
 mpi_barrier()
 
-@testset verbose=true "CPU Tests" begin
+@testset verbose = true "CPU Tests" begin
     backend = CPU
     halo_width = 1
     nprocs_cart = (1, 1, 1, mpi_size())
@@ -55,43 +55,82 @@ mpi_barrier()
     test_derivative(backend; nprocs_cart=nprocs_cart, halo_width=halo_width)
     # staggered derivative
     test_fderivative(
-        backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
-        dirac="staggered", mass=0.01, single_flavor=true
+        backend;
+        nprocs_cart=nprocs_cart,
+        halo_width=halo_width,
+        dirac="staggered",
+        mass=0.01,
+        single_flavor=true,
     )
     # staggered-hoelbling1234 derivative
     test_fderivative(
-        backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
-        dirac="staggered_h1234", mass=0.01, single_flavor=true
+        backend;
+        nprocs_cart=nprocs_cart,
+        halo_width=halo_width,
+        dirac="staggered_h1234",
+        mass=0.01,
+        single_flavor=true,
     )
     # staggered-hoelbling1342 derivative
     test_fderivative(
-        backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
-        dirac="staggered_h1342", mass=0.01, single_flavor=true
+        backend;
+        nprocs_cart=nprocs_cart,
+        halo_width=halo_width,
+        dirac="staggered_h1342",
+        mass=0.01,
+        single_flavor=true,
     )
     # wilson derivative
     test_fderivative(
-        backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
-        dirac="wilson", mass=0.01, single_flavor=true, csw=0
+        backend;
+        nprocs_cart=nprocs_cart,
+        halo_width=halo_width,
+        dirac="wilson",
+        mass=0.01,
+        single_flavor=true,
+        csw=0,
     )
     # wilson-clover derivative
     test_fderivative(
-        backend; nprocs_cart=nprocs_cart, halo_width=2, # INFO: Halo width has to be 2 here
-        dirac="wilson", mass=0.01, single_flavor=true, csw=1.78
+        backend;
+        nprocs_cart=nprocs_cart,
+        halo_width=2, # INFO: Halo width has to be 2 here
+        dirac="wilson",
+        mass=0.01,
+        single_flavor=true,
+        csw=1.78,
     )
     # staggered eo-pre derivative
     test_fderivative(
-        backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
-        dirac="staggered", mass=0.01, single_flavor=true, eoprec=true
+        backend;
+        nprocs_cart=nprocs_cart,
+        halo_width=halo_width,
+        dirac="staggered",
+        mass=0.01,
+        single_flavor=true,
+        eoprec=true,
     )
     # wilson eo-pre derivative
     test_fderivative(
-        backend; nprocs_cart=nprocs_cart, halo_width=halo_width,
-        dirac="wilson", mass=0.01, single_flavor=false, eoprec=true, csw=0
+        backend;
+        nprocs_cart=nprocs_cart,
+        halo_width=halo_width,
+        dirac="wilson",
+        mass=0.01,
+        single_flavor=false,
+        eoprec=true,
+        csw=0,
     )
     # wilson-clover eo-pre derivative
     test_fderivative(
-        backend; nprocs_cart=nprocs_cart, halo_width=2, # INFO: Halo width has to be 2 here
-        dirac="wilson", mass=0.01, single_flavor=false, eoprec=true, csw=1.78
+        backend;
+        nprocs_cart=nprocs_cart,
+        halo_width=2, # INFO: Halo width has to be 2 here
+        dirac="wilson",
+        mass=0.01,
+        single_flavor=false,
+        eoprec=true,
+        csw=1.78,
     )
     test_gradflow(backend; nprocs_cart=nprocs_cart, halo_width=halo_width)
 
@@ -103,7 +142,7 @@ mpi_barrier()
     test_update(backend; update_method="hmc", hmc_integrator="Leapfrog")
     test_update(backend; update_method="hmc", hmc_integrator="OMF2")
     test_update(backend; update_method="hmc", hmc_integrator="OMF4")
-    
+
     # Run a short simulation as final test (doesnt work on github actions)
     if mpi_size() == 1 # INFO: Local updates only without distributed fields
         run_sim("parameters_test.toml")

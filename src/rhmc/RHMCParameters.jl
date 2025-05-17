@@ -80,19 +80,11 @@ function calc_coefficients(
     g(x) = 1 / f(x)
     itvl = interval(lambda_low, lambda_high, Float64)
 
-    r_p = if VERSION < v"1.11"
-        approximate(f, itvl; max_degree=n_max, tol=tol)
-    else
-        approximate(f, itvl; max_iter=n_max, tol=tol)
-    end
+    r_p = approximate(f, itvl; max_iter=n_max, tol=tol)
     err_p = maximum([abs(r_p(x) - f(x)) for x in lambda_low:0.00001:lambda_high])
     n_p = degree(r_p)
 
-    r_m = if VERSION < v"1.11"
-        approximate(g, itvl; max_degree=n_max, tol=tol)
-    else
-        approximate(g, itvl; max_iter=n_max, tol=tol)
-    end
+    r_m = approximate(g, itvl; max_iter=n_max, tol=tol)
     err_m = maximum([abs(r_m(x) - g(x)) for x in lambda_low:0.00001:lambda_high])
     n_m = degree(r_m)
 
