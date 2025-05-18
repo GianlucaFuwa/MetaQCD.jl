@@ -17,7 +17,7 @@ function run_sim(parameterfile::String; backend="cpu")
         true
     else
         @assert mpi_size() == num_dist """
-        MPI comm size must be = prod(numprocs_cart) when not using multiple simulation streams or = numinstances*prod(numprocs_cart) when doing so 
+        MPI comm size must be = prod(numprocs_cart) when not using multiple simulation streams or = numinstances*prod(numprocs_cart) when doing so
         """
         false
     end
@@ -88,28 +88,26 @@ function run_sim!(
             elseif !isnothing(updatemethod) && MPI_INSTANCE[]==0
                 # TODO:
             elseif isnothing(updatemethod_pt) && !(MPI_INSTANCE[]==0)
-                faction_type = if univ.fermion_action == QuenchedFermionAction() 
+                faction_type = if univ.fermion_action == QuenchedFermionAction()
                     "quenched"
                 else
                     parameters.fermion_action
                 end
                 # all MetaD streams use HMC, so there is no need to initialize more than 1
-                hmc_integrator = parameters.hmc_integrator
-                hmc_rafriction = parameters.hmc_rafriction
                 updatemethod = HMC(
                     U,
-                    integrator_from_str(hmc_integrator, hmc_rafriction),
+                    parameters.levels,
                     parameters.hmc_trajectory,
-                    parameters.hmc_steps,
                     parameters.hmc_friction,
                     parameters.hmc_numsmear_gauge,
                     parameters.hmc_numsmear_fermion,
                     parameters.hmc_rhostout_gauge,
                     parameters.hmc_rhostout_fermion;
+                    rafriction=parameters.hmc_rafriction,
                     hmc_logging=true,
                     fermion_action=faction_type,
-                    heavy_flavours=length(parameters.Nf) - 1,
-                    num_cv=length(univ.bias),
+                    numfermions=length(parameters.fermions),
+                    numcv=length(parameters.biases),
                     logdir=parameters.log_dir,
                     instance=MPI_INSTANCE[],
                 )
@@ -125,28 +123,26 @@ function run_sim!(
         else
             if isnothing(updatemethod) && isnothing(updatemethod_pt)
                 updatemethod = Updatemethod(parameters, U[1])
-                faction_type = if univ.fermion_action == QuenchedFermionAction() 
+                faction_type = if univ.fermion_action == QuenchedFermionAction()
                     "quenched"
                 else
                     parameters.fermion_action
                 end
                 # all MetaD streams use HMC, so there is no need to initialize more than 1
-                hmc_integrator = parameters.hmc_integrator
-                hmc_rafriction = parameters.hmc_rafriction
                 updatemethod_pt = HMC(
                     U[1],
-                    integrator_from_str(hmc_integrator, hmc_rafriction),
+                    parameters.levels,
                     parameters.hmc_trajectory,
-                    parameters.hmc_steps,
                     parameters.hmc_friction,
                     parameters.hmc_numsmear_gauge,
                     parameters.hmc_numsmear_fermion,
                     parameters.hmc_rhostout_gauge,
                     parameters.hmc_rhostout_fermion;
+                    rafriction=parameters.hmc_rafriction,
                     hmc_logging=true,
                     fermion_action=faction_type,
-                    heavy_flavours=length(parameters.Nf) - 1,
-                    num_cv=length(univ.bias[1]),
+                    numfermions=length(parameters.fermions),
+                    numcv=length(parameters.biases),
                     logdir=parameters.log_dir,
                     instance=1:parameters.numinstances-1,
                 )

@@ -22,7 +22,6 @@ struct ParameterSet
     rhostout_for_cv::Float64
     weight_type::Vector{String}
     starting_Q::Union{Nothing,Vector{Int64}}
-    usebiases::Vector{String}
     biases::Vector{Dict}
 
     # tempering parameters

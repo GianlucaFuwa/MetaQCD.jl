@@ -135,7 +135,7 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
     if !isdir(bias_dir) && mpi_amroot()
         mkpath(bias_dir)
     end
-    
+
     posl = findfirst(x -> String(x) == "log_dir", pnames)
     posm = findfirst(x -> String(x) == "measure_dir", pnames)
     poss = findfirst(x -> String(x) == "save_config_dir", pnames)
@@ -180,10 +180,7 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
             end
 
             if haskey(value, String(pname_i))
-                if String(pname_i) == "biases"
-                    valuedir = construct_bias_dicts(value[String(pname_i)])
-                    value_Params[i] = valuedir
-                elseif String(pname_i) == "L"
+                if String(pname_i) == "L"
                     value_Params[i] = Tuple(value[String(pname_i)])
                 elseif String(pname_i) == "flow_integrator"
                     if value[String(pname_i)] isa String
@@ -241,7 +238,7 @@ function check_parameters(p::ParameterSet)
         @assert lower_case(p.update_method) == "hmc" """
         Field decomposition not supported for local update algorithms
         """
-        
+
         if p.gauge_action != "wilson"
             @assert p.halo_width >= 2 """
             Halo width must be >= 2, when using field decomposition with improved \
@@ -346,7 +343,7 @@ end
 
 const FERMION_DICT_PARAMS = [
     "Nf", "mass", "cg_tol_action", "cg_tol_md", "cg_maxiters_action", "cg_maxiters_md",
-    "rhmc_order_action", "rhmc_order_md", "rhmc_spectral_bound", "hasenbusch", 
+    "rhmc_order_action", "rhmc_order_md", "rhmc_spectral_bound", "hasenbusch",
 ]
 
 function construct_fermion_dicts(x)
@@ -386,6 +383,7 @@ function construct_bias_dicts(x)
     bias_dicts = Dict[]
 
     for (method, method_dict) in x
+        @show method, method_dict
         dictᵢ = Dict()
         dictᵢ["bias"] = method
 

@@ -91,7 +91,7 @@ function Base.show(io::IO, level::HMCLevel)
     return nothing
 end
 
-function level_parameters_from_dict(value::Vector{Dict{String,Any}})
+function level_parameters_from_dict(value::Vector)
     value_out = Vector{HMCLevelParameters}(undef, length(value))
 
     # Dictionary to track which forces are assigned to which levels

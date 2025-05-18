@@ -8,7 +8,8 @@ log_to_console = true
 
 [ensemble]
 L = [4, 4, 4, 4]
-numtherm = 10 numsteps = 10
+numtherm = 10
+numsteps = 10
 initial = "cold"
 update_method = "hmc"
 numprocs_cart = [1, 1, 1, 2]
@@ -27,7 +28,7 @@ gauge_action = "dbw2"
 fermion_action = "staggered"
 [[fermion_action.fermions]]
 Nf = 2
-mass = 0.01 # numerator mass and denominator mass
+mass = 0.01                         # numerator mass and denominator mass
 cg_tol_action = 1e-19
 cg_tol_md = 1e-10
 cg_maxiters_action = 5000
@@ -40,15 +41,16 @@ rhmc_spectral_bound = [0.0001, 6.0]
 rhostout_for_cv = 0.12
 kinds_of_weights = ["branduardi"]
 [[bias.biases]]
-kind_of_bias = "parametric"
+type = "metad"
 kind_of_cv = "topcharge_clover"
-Q = 0.0
-A = 10.0
-Z = 1.15
 numsmears_for_cv = 4
 cvlims = [-3.0, 3.0]
+stride = 1
+biasfactor = inf
+bin_width = 0.02
+weight = 0.02
 penalty_weight = 100.0
-static = true
+static = [false, false]
 
 [hmc]
 hmc_trajectory = 1
@@ -62,7 +64,7 @@ numsteps = 5
 flow_integrator = "euler"
 flow_num = 7
 flow_steps = 1
-flow_tf = 0.12 # total flow time is flow_num * flow_tf
+flow_tf = 0.12            # total flow time is flow_num * flow_tf
 flow_measure_every = 7
 
 [measurements.Plaquette]

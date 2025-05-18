@@ -5,50 +5,52 @@ include("hmc_levels.jl")
 """
     HMC(
         U,
-        levels,
-        integrator,
-        integrator_levels,
+        hmc_levels,
         trajectory,
-        friction = 0,
-        numsmear = 0,
-        ρ_stout = 0;
-        hmc_logging = true,
-        fermion_action = QuenchedFermionAction,
-        numfermions = 0,
-        numcv = 0,
-        logdir = "",
+        friction=0.0,
+        numsmear_gauge=0,
+        numsmear_fermion=0,
+        rho_stout_gauge=0.0,
+        rho_stout_fermion=0.0;
+        rafriction=0.0,
+        hmc_logging=true,
+        fermion_action="quenched",
+        numfermions=0,
+        numcv=0,
+        logdir="",
+        instance=mpi_myrank(),
     )
 
 Create an `HMC` object, that can be used as an update algorithm.
 
 # Arguments
 - `U`: The gauge field on which the update is performed.
-<!-- TODO: Levels -->
+- `levels`: A vector of `Dict`s that define the levels of the hmc integration scheme.
+To see what parameters are needed see the file "./hmc_levels".
 - `trajectory`: The length of the HMC trajectory.
 - `steps`: The number of integrator steps within the trajectory.
 - `friction`: Friction factor in the GHMC algorithm. Has to be in the range [0, 1].
-- `numsmear`: Number of Stout smearing steps applied to the gauge action.
-- `ρ_stout`: Step length of the Stout smearing applied to the gauge action.
+- `numsmear_gauge`: Number of Stout smearing steps applied to the gauge action.
+- `numsmear_fermion`: Number of Stout smearing steps applied to the fermion action.
+- `rho_stout_gauge`: Step length of the Stout smearing applied to the gauge action.
+- `rho_stout_fermion`: Step length of the Stout smearing applied to the fermion action.
+- `rafriction`: Friction parameter for the repell-attract HMC.
 - `hmc_logging`: If true, creates a logfile in `logdir` containing information
 on the trajectories, unless `logdir = ""`
-- `fermion_action`: An `AbstratFermionAction` to initialize the appropriate fermion fields
+- `fermion_action`: An String that identifies the fermion action type to initialize the appropriate fermion fields
 - `numfermions`: The number of non-degenerate heavy flavours, again to initialize the
 right number of fermion fields
 - `numcv`: If bigger than 0, additional fields are initialized that are needed for Stout
 force recursion when using a bias.
-
-# Supported Integrators
-- `Leapfrog`
-- `OMF2`
-- `OMF2Slow`
-- `OMF4`
-- `OMF4Slow`
+- `logdir`: Directory that hmc data should be written into.
+- `instance`: Integer identifier of current instance (for parallel tempering and multiple walkers).
 
 # Supported Fermion Actions
-- `WilsonFermionAction`
-- `WilsonEOPreFermionAction`
-- `StaggeredFermionAction`
-- `StaggeredEOPreFermionAction`
+- `quenched`
+- `staggered`
+- `staggered_eo`
+- `wilson`
+- `wilson_eo`
 """
 struct HMC{TL,NL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF} <: AbstractUpdate
     levels::TL
@@ -131,8 +133,8 @@ function HMC(
     friction=0.0,
     numsmear_gauge=0,
     numsmear_fermion=0,
-    ρ_stout_gauge=0.0,
-    ρ_stout_fermion=0.0;
+    rho_stout_gauge=0.0,
+    rho_stout_fermion=0.0;
     rafriction=0.0,
     hmc_logging=true,
     fermion_action="quenched",
@@ -167,7 +169,7 @@ function HMC(
             trajectory / Nᵢ
         end
 
-        numcv > 0 &&
+        numcv == 0 &&
             (@assert 0 ∉ forces "bias force cannot be in hmc level without bias")
         HMCLevel(
             integrator_from_str(lvl.integrator, rafriction),
@@ -204,13 +206,20 @@ function HMC(
         end
     end
 
+    for iforce in allforces
+        if _unwrap_val(iforce) > numfermions+1
+            @error("Force $(iforce) doesn't have a matching action. You probably don't have enough fermion actions.")
+            fail = true
+        end
+    end
+
     fail && error("Forces missing")
 
-    smearing_gauge = StoutSmearing(U; numlayers=numsmear_gauge, rho=ρ_stout_gauge)
-    smearing_fermion = if fermion_action === QuenchedFermionAction
+    smearing_gauge = StoutSmearing(U; numlayers=numsmear_gauge, rho=rho_stout_gauge)
+    smearing_fermion = if fermion_action == "quenched"
         NoSmearing()
     else
-        StoutSmearing(U; numlayers=numsmear_fermion, rho=ρ_stout_fermion)
+        StoutSmearing(U; numlayers=numsmear_fermion, rho=rho_stout_fermion)
     end
 
     has_smearing = smearing_gauge != NoSmearing() || smearing_fermion != NoSmearing()

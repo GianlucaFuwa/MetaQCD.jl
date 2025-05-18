@@ -1,46 +1,52 @@
 abstract type BiasParameters end
 
-function bias_parameters_from_dict(value_i::Dict)
-    kind_of_bias = value_i["kind_of_bias"]
-    bias_params = initialize_bias_parameters(kind_of_bias)
+function bias_parameters_from_dict(input::Dict, instance=mpi_rank())
+    type = input["type"]
+    bias_params = initialize_bias_parameters(type)
     bias_dict = struct2dict(bias_params)
 
-    for (key_ii, value_ii) in value_i
-        key_ii == "kind_of_bias" && continue
+    for (key_i, value_i) in input
+        key_i == "type" && continue
 
-        if haskey(bias_dict, key_ii)
-            if !isnothing(value_ii)
-                keytype = typeof(getfield(bias_params, Symbol(key_ii)))
-                setfield!(bias_params, Symbol(key_ii), keytype(value_ii))
+        if haskey(bias_dict, key_i)
+            if !isnothing(value_i)
+                if key_i == "static"
+                    setfield!(bias_params, :static, Bool(value_i[instance+1]))
+                elseif key_i == "load_bias"
+                    setfield!(bias_params, :load_bias, String[value_i...])
+                else
+                    keytype = typeof(getfield(bias_params, Symbol(key_i)))
+                    setfield!(bias_params, Symbol(key_i), keytype(value_i))
+                end
             end
         end
     end
 
-    value_out = deepcopy(bias_params)
-    return value_out
+    out = deepcopy(bias_params)
+    return out
 end
 
-function initialize_bias_parameters(kind_of_bias)
-    if Unicode.normalize(kind_of_bias; casefold=true) ∈ ("metad", "metadynamics")
+function initialize_bias_parameters(type)
+    if Unicode.normalize(type; casefold=true) ∈ ("metad", "metadynamics")
         method = MetadynamicsParameters()
-    elseif Unicode.normalize(kind_of_bias; casefold=true) == "opes"
+    elseif Unicode.normalize(type; casefold=true) == "opes"
         method = OPESParameters()
-    elseif Unicode.normalize(kind_of_bias; casefold=true) == "opesmt"
+    elseif Unicode.normalize(type; casefold=true) == "opesmt"
         method = OPESmultithermalParameters()
-    elseif Unicode.normalize(kind_of_bias; casefold=true) == "parametric"
+    elseif Unicode.normalize(type; casefold=true) == "parametric"
         method = ParametricParameters()
     else
-        error("$(kind_of_bias) is not implemented")
+        error("$(type) is not implemented")
     end
 
     return method
 end
 
 @kwdef mutable struct MetadynamicsParameters <: BiasParameters
-    name::String = "metadynamics"
+    type::String = "metadynamics"
     kind_of_cv::String = "topcharge_clover"
-    usebiases::Vector{String} = String[]
-    static::Bool = false
+    load_bias::Vector{String} = String[]
+    static::Bool = true
     numsmears_for_cv::Int64 = 4
     symmetric::Bool = false
     stride::Int64 = 1
@@ -53,10 +59,10 @@ end
 end
 
 @kwdef mutable struct OPESParameters <: BiasParameters
-    name::String = "opes"
+    type::String = "opes"
     kind_of_cv::String = "topcharge_clover"
-    usebiases::Vector{String} = String[]
-    static::Bool = false
+    load_bias::Vector{String} = String[]
+    static::Bool = true
     numsmears_for_cv::Int64 = 4
     stride::Int64 = 1
     write_bias_every::Int64 = stride
@@ -68,19 +74,19 @@ end
     sigma_0::Float64 = 0.02
     sigma_min::Float64 = 1e-4
     fixed_sigma::Bool = false
-    adaptive_Z::Bool = false 
-    epsilon::Float64 = 0.0 
+    adaptive_Z::Bool = false
+    epsilon::Float64 = 0.0
     threshold::Float64 = 1.0
     cutoff::Float64 = 0.0
     penalty_weight::Float64 = 100
 end
 
 @kwdef mutable struct OPESmultithermalParameters <: BiasParameters
-    name::String = "opesmt"
+    type::String = "opesmt"
     kind_of_cv::String = "multithermal"
-    usebiases::Vector{String} = String[]
+    load_bias::Vector{String} = String[]
+    static::Bool = true
     numsmears_for_cv::Int64 = 0
-    static::Bool = false
     stride::Int64 = 1
     write_bias_every::Int64 = stride
     beta_min_max::Vector{Float64} = []
@@ -88,9 +94,9 @@ end
 end
 
 @kwdef mutable struct ParametricParameters <: BiasParameters
-    name::String = "parametric"
+    type::String = "parametric"
     kind_of_cv::String = "topcharge_clover"
-    usebiases::Vector{String} = String[]
+    load_bias::Vector{String} = String[]
     static::Bool = true
     numsmears_for_cv::Int64 = 4
     cvlims::Vector{Float64} = [-3.0, 3.0]
@@ -106,7 +112,7 @@ function get_cvinfo_from_parameters(p::BiasParameters)
     elseif p.kind_of_cv == "topcharge_clover"
         U -> top_charge(Clover(), U)
     elseif p.kind_of_cv == "multithermal"
-        @assert p.name == "opesmt" "Multithermal CV only works with opesmt"
+        @assert p.type == "opesmt" "Multithermal CV only works with opesmt"
         U -> calc_gauge_action(U)
     else
         error("kind_of_cv \"$(p.kind_of_cv)\" not supported (see docs for supported CVs)")

@@ -42,7 +42,7 @@ ext_length(::AbstractBias) = Val(0) # Determine length of file extension statica
 
 """
     Bias{NumCV,BiasType,Smearing,Weights,BiasFile,DataFile}
-    
+
 Container for bias potential and metadata.
 
     Bias(p::ParameterSet, U::Gaugefield; instance=0, dummy=false, build=false)
@@ -93,7 +93,7 @@ function Bias(p, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, bui
 
     bias = ntuple(num_cv) do i
         @level1("|")
-        bias_parameters = bias_parameters_from_dict(biases[i])
+        bias_parameters = bias_parameters_from_dict(biases[i], instance)
         name = bias_parameters.kind_of_cv
 
         if name == "topcharge_plaquette"
@@ -104,27 +104,27 @@ function Bias(p, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, bui
 
         numsmears = bias_parameters.numsmears_for_cv
         cv_numsmears[i] = numsmears
-        @level1("|  Bias $i: $(bias_parameters.name)")
+        @level1("|  Bias $i: $(bias_parameters.type)")
         @level1("|  CV$i: $(name) with $(numsmears)x$(rho) Stout smearing")
-        if biases[i]["kind_of_bias"] ∈ ["metad", "metadynamics"]
+        if biases[i]["type"] ∈ ["metad", "metadynamics"]
             Metadynamics(
                 bias_parameters;
                 instance=instance, dummy=dummy, mpi_multi_sim=mpi_multi_sim, build=build
             )
-        elseif biases[i]["kind_of_bias"] == "opes"
+        elseif biases[i]["type"] == "opes"
             OPES(
                 bias_parameters;
                 instance=instance, dummy=dummy, mpi_multi_sim=mpi_multi_sim, build=build
             )
-        elseif biases[i]["kind_of_bias"] == "opesmt"
+        elseif biases[i]["type"] == "opesmt"
             OPESmultithermal(
                 bias_parameters, p.beta;
                 instance=instance, dummy=dummy, mpi_multi_sim=mpi_multi_sim, build=build
             )
-        elseif biases[i]["kind_of_bias"] == "parametric"
+        elseif biases[i]["type"] == "parametric"
             Parametric(bias_parameters; dummy=dummy)
         else
-            error("kind_of_bias $(p[i]["kind_of_bias"]) not supported. Try metad, opes, opesmt or parametric")
+            error("type $(p[i]["type"]) not supported. Try metad, opes, opesmt or parametric")
         end
     end
 
@@ -133,7 +133,7 @@ function Bias(p, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, bui
     kinds_of_weights = if any(x -> !(x isa Metadynamics), bias)
         ["branduardi"]
     else
-        p.kinds_of_weights
+        p.weight_type
     end
 
     inum_str = lpad(inum, 3, "0")
@@ -230,7 +230,7 @@ function update_bias!(
     (length(values) == 0) && return nothing
 
     for (icv, bias) in enumerate(b.bias)
-        bias.static && continue 
+        bias.static && continue
         values_i = ntuple(j -> values[j][icv], length(values))
         update!(bias, values_i, itrj)
 
@@ -250,7 +250,7 @@ function update_bias!(
             end
         end
     end
-    
+
     return nothing
 end
 
