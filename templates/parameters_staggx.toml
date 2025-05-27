@@ -1,0 +1,77 @@
+["Physical Settings"]
+L = [12, 12, 12, 12]
+beta = 1.07
+gauge_action = "dbw2"
+numtherm = 50
+numsteps = 100000
+initial = "cold"
+update_method = "hmc"
+
+["Bias Settings"]
+numinstances = 6
+# general bias parameters
+kind_of_bias = "metad"
+kind_of_cv = "clover"
+numsmears_for_cv = 4
+rhostout_for_cv = 0.12
+is_static = false
+symmetric = true
+stride = 1
+cvlims = [-3, 3]
+biasfactor = 5
+penalty_weight = 100
+# metadynamics specific parameters
+bin_width = 0.02
+meta_weight = 0.05
+# opes specific parameters
+explore = true
+barrier = 7
+sigma0 = 0.0
+# usebiases = ["/ultz/gialu/repos/MetaQCD-dirac/biaspotentials/stagg_mass0.04_dbw2_beta0.95_12_12_build_metad_4smear_long_ssa.metad"]
+
+["Dynamical Fermion Settings"]
+fermion_action = "staggered"
+eo_precon = false
+Nf = [2]
+mass = [0.1]
+cg_tol_action = 1e-19
+cg_tol_md = 1e-10
+cg_maxiters_action = 5000
+cg_maxiters_md = 5000
+rhmc_spectral_bound = [0.0004, 6.0]
+rhmc_prec_action = 64
+rhmc_prec_md = 64
+
+["HMC Settings"]
+hmc_trajectory = 1
+hmc_steps = 5
+hmc_integrator = "OMF4"
+hmc_numsmear_fermion = 4
+hmc_rhostout_fermion = 0.125
+
+["System Settings"]
+ensemble_dir = "/ultz/gialu/repos/MetaQCD-dirac/ensembles/stagg_mass0.1_dbw2_beta1.07_12_12_build_metad_4smear"
+randomseed = 0
+verboselevel = 1
+overwrite = true
+
+["Measurement Settings".measurements.Plaquette]
+measure_every = 10
+
+["Measurement Settings".measurements.Topological_charge]
+measure_every = 10
+type = ["clover"]
+    
+["Gradient Flow Settings"]
+flow_integrator = "Euler"
+flow_num = 30
+flow_steps = 1
+flow_tf = 0.12 # total flow time is flow_num * flow_tf
+flow_measure_every = 30
+
+    ["Gradient Flow Settings".measurements_with_flow.Plaquette]
+    measure_every = 10
+
+    ["Gradient Flow Settings".measurements_with_flow.Topological_charge]
+    measure_every = 10
+    type = ["clover"]

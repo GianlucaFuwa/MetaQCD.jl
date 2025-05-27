@@ -1,0 +1,55 @@
+["Physical Settings"]
+L = [12, 12, 12, 32]
+beta = 5.3
+gauge_action = "wilson"
+numtherm = 50
+numsteps = 100000
+initial = "cold"
+update_method = "hmc"
+
+["Dynamical Fermion Settings"]
+fermion_action = "staggered"
+eo_precon = false
+Nf = [2]
+mass = [0.20]
+cg_tol_action = 1e-21
+cg_tol_md = 1e-12
+cg_maxiters_action = 5000
+cg_maxiters_md = 5000
+rhmc_spectral_bound = [0.00001, 6.0]
+rhmc_prec_action = 64
+rhmc_prec_md = 64
+
+["HMC Settings"]
+hmc_trajectory = 1
+hmc_steps = 5
+hmc_integrator = "OMF4"
+
+["System Settings"]
+ensemble_dir = "/ultz/gialu/repos/MetaQCD-dirac/ensembles/stagg2_mass0.2_wilson_beta5.3_ns12_nt32_2"
+randomseed = 0
+verboselevel = 1
+overwrite = true
+to_console = false
+
+["Measurement Settings".measurements.Plaquette]
+measure_every = 10
+
+["Measurement Settings".measurements.Topological_charge]
+measure_every = 10
+type = ["clover"]
+    
+["Gradient Flow Settings"]
+flow_integrator = "euler"
+flow_num = 30
+flow_steps = 1
+flow_tf = 0.12 # total flow time is flow_num * flow_tf
+flow_measure_every = 10
+
+    ["Gradient Flow Settings".measurements_with_flow.Plaquette]
+    measure_every = 10
+
+    ["Gradient Flow Settings".measurements_with_flow.Topological_charge]
+    measure_every = 10
+    type = ["clover"]
+

@@ -1,0 +1,71 @@
+["Physical Settings"]
+L = [16, 16, 16, 16]
+beta = 0.95
+gauge_action = "dbw2"
+numtherm = 50
+numsteps = 10000
+initial = "cold"
+update_method = "hmc"
+
+["Dynamical Fermion Settings"]
+fermion_action = "staggered"
+eo_precon = false
+Nf = [2]
+mass = [0.04]
+cg_tol_action = 1e-19
+cg_tol_md = 1e-10
+cg_maxiters_action = 5000
+cg_maxiters_md = 5000
+rhmc_spectral_bound = [0.0004, 6.0]
+rhmc_prec_action = 64
+rhmc_prec_md = 64
+
+["HMC Settings"]
+hmc_trajectory = 1
+hmc_steps = 5
+hmc_integrator = "OMF4"
+hmc_numsmear_fermion = 4
+hmc_rhostout_fermion = 0.125
+
+["System Settings"]
+ensemble_dir = "/ultz/gialu/repos/MetaQCD-dirac/ensembles/stagg_mass0.04_dbw2_beta0.95_16_16_scale"
+randomseed = 0
+verboselevel = 1
+overwrite = true
+
+["Measurement Settings".measurements.Plaquette]
+measure_every = 100
+
+["Measurement Settings".measurements.Topological_charge]
+measure_every = 100
+type = ["clover"]
+
+["Measurement Settings".measurements.Energy_density]
+measure_every = 100
+type = ["clover"]
+    
+["Measurement Settings".measurements.Pion_correlator]
+measure_every = 100
+dirac_type = "staggered"
+mass = 0.04
+csw = 1.0
+cg_tol = 1e-16
+cg_maxiters = 5000
+    
+["Gradient Flow Settings"]
+flow_integrator = "RK3"
+flow_num = 60
+flow_steps = 10
+flow_tf = 0.25 # total flow time is flow_num * flow_tf
+flow_measure_every = 1
+
+    ["Gradient Flow Settings".measurements_with_flow.Plaquette]
+    measure_every = 100
+
+    ["Gradient Flow Settings".measurements_with_flow.Topological_charge]
+    measure_every = 100
+    type = ["clover"]
+
+    ["Gradient Flow Settings".measurements_with_flow.Energy_density]
+    measure_every = 100
+    type = ["clover"]
