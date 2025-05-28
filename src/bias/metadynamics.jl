@@ -20,7 +20,7 @@ must be ordered \\
 `weight::Float64 = 0.01` - (Starting) Height of added Gaussians; must be positive \\
 `penalty_weight::Float64 = 1000` - Penalty when cv is outside of `cvlims`; must be positive \\
 """
-struct Metadynamics <: AbstractBias
+mutable struct Metadynamics <: AbstractBias # TODO: make mutable and change way biases are tempered
     symmetric::Bool
     stride::Int64
     cvlims::NTuple{2,Float64}
@@ -221,4 +221,35 @@ function metad_from_file(p::ParameterSet, usebias)
         @level1("|  initialized from \"$(usebias)\"")
         return bin_vals, values[:, 2]
     end
+end
+
+function create_buffer(m::Metadynamics)
+    len = 8 + length(m.bin_vals) + length(m.values)
+    return Vector{Float64}(undef, len)
+end
+
+function pack!(buf, m::Metadynamics)
+    buf[1] = Float64(m.symmetric)
+    buf[2] = Float64(m.stride)
+    buf[3:4] .= m.cvlims
+    buf[5] = m.biasfactor
+    buf[6] = m.bin_width
+    buf[7] = m.weight
+    buf[8] = m.penalty_weight
+    buf[9:8+length(m.bin_vals)] .= m.bin_vals
+    buf[9+length(m.bin_vals):end] .= m.values
+    return nothing
+end
+
+function unpack!(m::Metadynamics, buf)
+    m.symmetric = round(Bool, buf[1])
+    m.stride = round(Int64, buf[2])
+    m.cvlims = (buf[3], buf[4])
+    m.biasfactor = buf[5]
+    m.bin_width = buf[6]
+    m.weight = buf[7]
+    m.penalty_weight = buf[8]
+    m.bin_vals .= buf[9:8+length(m.bin_vals)]
+    m.values .= view(buf, 9+length(m.bin_vals):length(buf))
+    return nothing
 end

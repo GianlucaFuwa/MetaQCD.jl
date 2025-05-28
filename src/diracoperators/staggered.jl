@@ -119,10 +119,15 @@ struct StaggeredFermionAction{R,Nf,TD,CT,RI1,RI2,RT,T} <: AbstractFermionAction{
             rhmc_temps2 = ntuple(_ -> Spinorfield(f; staggered=true), n_temps + 1)
         end
 
-        cg_datafile = StaticString(cg_filepath)
-        open(cg_datafile, "w") do fp
-            @printf(fp, "%-11s%-25s", "iters", "res")
-            println(fp)
+        cg_datafile = if cg_filepath == ""
+            nothing
+        else
+            _cg_datafile = StaticString(cg_filepath)
+            open(_cg_datafile, "w") do fp
+                @printf(fp, "%-11s%-25s", "iters", "res")
+                println(fp)
+            end
+            _cg_datafile
         end
 
         CT = typeof(cg_temps)

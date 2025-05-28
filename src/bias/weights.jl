@@ -30,7 +30,7 @@ function calc_weights(
     filename, b::Bias{TCV,TS,TB}, cv, itrj, myinstance=mpi_myrank();
     mpi_multi_sim=false
 ) where {TCV,TS,TB}
-    if isnothing(filename) || !isfile(filename)
+    if isnothing(filename)
         for method in b.kinds_of_weights
             w = calc_weight(b.bias, cv, method)
             @level1("$itrj\t$cv\t$w # cv weight_$method")

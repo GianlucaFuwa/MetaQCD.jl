@@ -79,12 +79,20 @@ end
     return MPI.Recv(args...; kwargs...)
 end
 
+@inline function mpi_recv!(args...; kwargs...)
+    return MPI.Recv!(args...; kwargs...)
+end
+
 @inline function mpi_srecv(args...; kwargs...)
     return MPI.recv(args...; kwargs...)
 end
 
 @inline function mpi_irecv!(args...; kwargs...)
     return MPI.Irecv!(args...; kwargs...)
+end
+
+@inline function mpi_sendrecv!(args...; kwargs...)
+    return MPI.Sendrecv!(args...; kwargs...)
 end
 
 @inline function mpi_waitall(args...)
@@ -109,4 +117,8 @@ end
 
 @inline function mpi_write_at(fp, offset, data)
     return MPI.File.write_at(fp, offset, data)
+end
+
+@inline function mpi_buffer(args...)
+    return MPI.Buffer(args...)
 end

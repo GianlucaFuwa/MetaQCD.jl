@@ -15,7 +15,7 @@ using ..Utils
 
 import KernelAbstractions as KA
 import ..BiasModule: Bias, NoBias, calc_CV, ∂V∂Q, recalc_CV!
-import ..BiasModule: kind_of_cv, update_bias!
+import ..BiasModule: kind_of_cv, update_bias!, pack!, unpack!
 import ..DiracOperators: AbstractDiracOperator, QuenchedFermionAction, calc_fermion_action
 import ..DiracOperators: fermaction_from_str, sample_pseudofermions!
 import ..Fields: AbstractGaugeAction, Gaugefield, Colorfield, identity_gauges!, global_dims

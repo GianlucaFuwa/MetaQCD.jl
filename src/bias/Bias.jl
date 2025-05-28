@@ -42,6 +42,7 @@ mutable struct Bias{TCV,TS,TB,TW,T1,T2}
     biasfile::T1
     datafile::T2
     write_bias_every::Int64
+    buffer::Vector{Float64}
 end
 
 function Bias(p::ParameterSet, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, build=false)
@@ -80,6 +81,8 @@ function Bias(p::ParameterSet, U; mpi_multi_sim=false, instance=mpi_myrank(), du
         error("kind_of_bias $(kind_of_bias) not supported. Try metad, opes or parametric")
     end
 
+    buffer = create_buffer(bias)
+
     for i in eachindex(p.numsmears_for_cv)
         @level1 """
         |  CV$(i): $(string(TCV)) with StoutSmearing(numlayers=$(numsmears[i]), rho=$(rho))
@@ -93,27 +96,42 @@ function Bias(p::ParameterSet, U; mpi_multi_sim=false, instance=mpi_myrank(), du
         ext = is_opes ? "opes" : "metad"
         _biasfile = joinpath(p.bias_dir, "bias_$(inum_str).$(ext)")
         biasfile = StaticString(_biasfile)
-        _datafile = joinpath(p.measure_dir, "bias_data_$(inum_str).txt")
-        datafile = StaticString(_datafile)
+        _datafile = if p.measure_dir == ""
+            nothing
+        else
+            joinpath(p.measure_dir, "bias_data_$(inum_str).txt")
+        end
+
+        datafile = isnothing(_datafile) ? nothing : StaticString(_datafile)
         # FIXME: For some reason this errors with MPI on the UNI's cluster
-        open(_datafile, "w") do fp
-            @printf(fp, "%-11s%-25s", "itrj", "cv")
+        if !isnothing(_datafile)
+            open(_datafile, "w") do fp
+                @printf(fp, "%-11s%-25s", "itrj", "cv")
 
-            for name in kinds_of_weights
-                @printf(fp, "%-25s", "weight_$(name)")
+                for name in kinds_of_weights
+                    @printf(fp, "%-25s", "weight_$(name)")
+                end
+
+                println(fp)
             end
-
-            println(fp)
         end
     elseif bias isa Parametric
         kinds_of_weights = ["branduardi"]
         inum_str = lpad(inum, 3, "0")
         biasfile = StaticString("")
-        _datafile = joinpath(p.measure_dir, "bias_data_$(inum_str).txt")
-        datafile = StaticString(_datafile)
-        open(_datafile, "w") do fp
-            @printf(fp, "%-11s%-25s%-25s", "itrj", "cv", "weight_branduardi")
-            println(fp)
+        _datafile = if p.measure_dir == ""
+            nothing
+        else
+            joinpath(p.measure_dir, "bias_data_$(inum_str).txt")
+        end
+
+        datafile = isnothing(_datafile) ? nothing : StaticString(_datafile)
+
+        if !isnothing(_datafile)
+            open(_datafile, "w") do fp
+                @printf(fp, "%-11s%-25s%-25s", "itrj", "cv", "weight_branduardi")
+                println(fp)
+            end
         end
         @level1(
             "|  @info: Parametric bias defaults to static and weight-type \"branduardi\""
@@ -148,6 +166,7 @@ function Bias(p::ParameterSet, U; mpi_multi_sim=false, instance=mpi_myrank(), du
         biasfile,
         datafile,
         write_bias_every,
+        buffer,
     )
 end
 
@@ -273,6 +292,7 @@ struct BiasSerialization{TCV,TS,TB,TW}
     biasfile::String
     datafile::String
     write_bias_every::Int64
+    buffer::Vector{Float64}
 end
 
 function JLD2.writeas(::Type{<:Bias{TCV,TS,TB,TW}}) where {TCV,TS,TB,TW}
@@ -289,6 +309,7 @@ function Base.convert(::Type{<:BiasSerialization}, b::Bias)
         b.biasfile,
         b.datafile,
         b.write_bias_every,
+        b.buffer,
     )
     return out
 end
@@ -304,6 +325,7 @@ function Base.convert(::Type{<:Bias}, b::BiasSerialization)
         b.biasfile,
         b.datafile,
         b.write_bias_every,
+        b.buffer,
         fp,
     )
     return out

@@ -1,13 +1,13 @@
-function temper!( # INFO: When using MPI in tempering
+function temper!(
     U::Gaugefield,
-    bias::Bias,
+    bias::Bias{TCV,TS,TB},
     numaccepts_temper,
     instance_state,
     myinstance,
     swap_every,
     itrj;
     recalc=false,
-)
+) where {TCV,TS,TB}
     itrj%swap_every != 0 && return nothing
     recalc && recalc_CV!(U, bias)
     comm = mpi_comm()
@@ -44,13 +44,16 @@ function temper!( # INFO: When using MPI in tempering
 
             if is_accepted
                 if myrank == rank_i
-                    mpi_ssend(bias.bias, comm; dest=rank_i_min_1::Int64, tag=3)
-                    new_bias = mpi_srecv(comm; source=rank_i_min_1::Int64, tag=3)
-                    mpi_send(bias.is_static::Bool, comm; dest=rank_i_min_1::Int64, tag=4)
-                    new_static = mpi_recv(Bool, comm; source=rank_i_min_1::Int64, tag=4)
+                    # transfer biases
+                    buf = bias.buffer
+                    pack!(buf, bias.bias)
+                    mpi_send(mpi_buffer(buf), comm; dest=rank_i_min_1::Int64, tag=3)
+                    mpi_recv!(buf, comm; source=rank_i_min_1::Int64, tag=3)
+                    unpack!(bias.bias, buf)
 
-                    bias.bias = new_bias
-                    bias.is_static = new_static
+                    mpi_send(Int64(bias.is_static)::Int64, comm; dest=rank_i_min_1::Int64, tag=4)
+                    new_static = mpi_recv(Int64, comm; source=rank_i_min_1::Int64, tag=4)
+                    bias.is_static = Bool(new_static)
 
                     instance_state[rank_i+1] = i-1
                     instance_state[rank_i_min_1+1] = i
@@ -60,13 +63,16 @@ function temper!( # INFO: When using MPI in tempering
                     numaccepts_temper[i] += 1
                     @level1 "|  Old -> New Instance: $(i) -> $(i-1)"
                 elseif myrank == rank_i_min_1
-                    mpi_ssend(bias.bias, comm; dest=rank_i::Int64, tag=3)
-                    new_bias = mpi_srecv(comm; source=rank_i::Int64, tag=3)
-                    mpi_send(bias.is_static::Bool, comm; dest=rank_i::Int64, tag=4)
-                    new_static = mpi_recv(Bool, comm; source=rank_i::Int64, tag=4)
+                    # transfer biases
+                    buf = bias.buffer
+                    pack!(buf, bias.bias)
+                    mpi_send(mpi_buffer(buf), comm; dest=rank_i::Int64, tag=3)
+                    mpi_recv!(buf, comm; source=rank_i::Int64, tag=3)
+                    unpack!(bias.bias, buf)
 
-                    bias.bias = new_bias
-                    bias.is_static = new_static
+                    mpi_send(Int64(bias.is_static)::Int64, comm; dest=rank_i::Int64, tag=4)
+                    new_static = mpi_recv(Int64, comm; source=rank_i::Int64, tag=4)
+                    bias.is_static = Bool(new_static)
 
                     instance_state[rank_i_min_1+1] = i
                     instance_state[rank_i+1] = i-1

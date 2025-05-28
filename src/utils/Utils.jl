@@ -15,7 +15,7 @@ using PrecompileTools: PrecompileTools
 export mpi_init, mpi_comm, mpi_size, mpi_parallel, mpi_myrank, mpi_amroot, mpi_barrier
 export mpi_cart_create, mpi_cart_coords, mpi_cart_shift, mpi_multirequest, mpi_send
 export mpi_isend, mpi_recv, mpi_irecv!, mpi_waitall, mpi_allreduce, mpi_allgather
-export mpi_ssend, mpi_srecv
+export mpi_ssend, mpi_srecv, mpi_buffer, mpi_recv!
 export mpi_bcast!, mpi_bcast_isbits, mpi_write_at, update_halo!
 export PauliMatrix, exp_iQ, exp_iQ_coeffs, exp_iQ_su3, get_B₁, get_B₂, get_Q, get_Q²
 export gen_SU3_matrix, is_special_unitary, is_traceless_antihermitian
@@ -73,13 +73,13 @@ lower_case(str) = Unicode.normalize(str; casefold=true)
 @inline set_ext!(::Nothing, ::Integer) = nothing
 @inline set_ext!(filename::String, ::Integer) = filename
 
-@inline function set_ext!(filename::StaticString{N}, myinstance::Integer) where {N}
-    filename[end-7:end-5] = lpad(myinstance, 3, "0")
+@inline function set_ext!(filename::StaticString{N}, myinstance) where {N}
+    filename[end-5:end-5] = StaticString((UInt8('0' + myinstance),0x00))
     return filename
 end
 
 @inline function set_ext!(filename::StaticString{N}, myinstance::Integer, ::Val{len}) where {N,len}
-    filename[end-len-4:end-len-2] = lpad(myinstance, 3, "0")
+    filename[end-len-2:end-len-2] = StaticString((UInt8('0' + myinstance),0x00))
     return filename
 end
 

@@ -298,7 +298,7 @@ function metaqcd!(
             newline(fp)
             fclose(fp)
 
-            @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))\n-")
+            @level1("|  Elapsed time:\t$(updatetime) [s]\n-")
         end
     end
 
@@ -339,7 +339,7 @@ function metaqcd!(
             fclose(fp)
 
             print_acceptance_rates(numaccepts, itrj)
-            @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")
+            @level1("|  Elapsed time:\t$(updatetime) [s] @")
 
             if tempering_enabled
                 temper!(
@@ -426,7 +426,7 @@ function metaqcd_PT!(
                     )
                 end
             end
-            @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")
+            @level1("|  Elapsed time:\t$(updatetime) [s]")
         end
     end
 
@@ -470,7 +470,7 @@ function metaqcd_PT!(
             end
 
             print_acceptance_rates(numaccepts, itrj)
-            @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")
+            @level1("|  Elapsed time:\t$(updatetime) [s] @")
 
             temper!(U, bias, numaccepts_temper, swap_every, itrj; recalc=true)
 

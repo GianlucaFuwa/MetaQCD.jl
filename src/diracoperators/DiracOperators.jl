@@ -128,7 +128,7 @@ function calc_fermion_action(fermion_action::AbstractFermionAction{false}, U, ϕ
     iters, res = solve_dirac!(ψ, DdagD, ϕ, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
 
     cg_datafile = fermion_action.cg_datafile
-    if isfile(cg_datafile)
+    if !isnothing(cg_datafile)
         set_ext!(cg_datafile, fermion_action.myinstance[])
         fp = fopen(cg_datafile, "a")
         printf(fp, "%-11i", iters)
@@ -162,7 +162,7 @@ function calc_fermion_action(fermion_action::AbstractFermionAction{true}, U, ϕ)
     iters, res = solve_dirac_multishift!(ψs, shifts, DdagD, ϕ, temp1, temp2, ps, cg_tol, cg_maxiters)
 
     cg_datafile = fermion_action.cg_datafile
-    if isfile(cg_datafile)
+    if !isnothing(cg_datafile)
         set_ext!(cg_datafile, fermion_action.myinstance[])
         fp = fopen(cg_datafile, "a")
         printf(fp, "%-11i", iters)

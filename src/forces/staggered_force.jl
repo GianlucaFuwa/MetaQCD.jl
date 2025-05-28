@@ -13,7 +13,7 @@ function calc_dSfdU!(
     iters, res = solve_dirac!(X, DdagD, ϕ, Y, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp
 
     cg_datafile = fermion_action.cg_datafile
-    if isfile(cg_datafile)
+    if !isnothing(cg_datafile)
         set_ext!(cg_datafile, fermion_action.myinstance[])
         fp = fopen(cg_datafile, "a")
         printf(fp, "%-11i", iters)
@@ -51,7 +51,7 @@ function calc_dSfdU!(
     iters, res = solve_dirac_multishift!(Xs, shifts, DdagD, ϕ, temp1, temp2, Ys, cg_tol, cg_maxiters)
 
     cg_datafile = fermion_action.cg_datafile
-    if isfile(cg_datafile)
+    if !isnothing(cg_datafile)
         set_ext!(cg_datafile, fermion_action.myinstance[])
         fp = fopen(cg_datafile, "a")
         printf(fp, "%-11i", iters)
