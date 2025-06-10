@@ -1,6 +1,7 @@
 module Universe
 
 using Dates
+using LinearAlgebra
 using Unicode
 using TOML: parsefile
 using ..MetaIO

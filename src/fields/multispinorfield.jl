@@ -59,7 +59,7 @@ function MultiSpinorfield(
 ) where {Backend,FloatType,IsDistributed,ArrayType,NumDirac}
     u_out = if IsDistributed
         numprocs_cart = f.topology.numprocs_cart
-        halo_width = f.topology.halo_width
+        halo_width = maximum(f.topology.halo_width)
         MultiSpinorfield{Backend,FloatType,NumDirac}(
             f.NX, f.NY, f.NZ, f.NT, f.NS, numprocs_cart, halo_width
         )
@@ -77,7 +77,7 @@ function MultiSpinorfield(
 
     u_out = if IsDistributed
         numprocs_cart = u.topology.numprocs_cart
-        halo_width = u.topology.halo_width
+        halo_width = maximum(u.topology.halo_width)
         MultiSpinorfield{Backend,FloatType,NumDirac}(
             u.NX, u.NY, u.NZ, u.NT, NS, numprocs_cart, halo_width
         )

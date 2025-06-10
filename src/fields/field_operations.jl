@@ -1,7 +1,5 @@
 function Base.copy!(a::AbstractField{CPU,T}, b::AbstractField{CPU,T}) where {T}
-    check_dims(a, b)
-
-    @batch for μsite in allindices(a)
+    @batch for μsite in allindices(a, b)
         a[μsite] = b[μsite]
     end
 
@@ -27,7 +25,6 @@ function random_gauges!(u::Gaugefield{CPU,T}) where {T}
     end
 
     u.Sg = calc_gauge_action(u)
-    update_halo!(u)
     return nothing
 end
 
@@ -73,10 +70,9 @@ function LinearAlgebra.norm(u::AbstractField{CPU}, ::Val{Inf}) # FIXME: max of 2
 end
 
 function add!(a::AbstractField{CPU,T}, b::AbstractField{CPU}, fac) where {T}
-    check_dims(a, b)
     fac = T(fac)
 
-    @batch for μsite in allindices(a)
+    @batch for μsite in allindices(a, b)
         a[μsite] += fac * b[μsite]
     end
 
@@ -94,9 +90,7 @@ function mul!(a::AbstractField{CPU,T}, α::Number) where {T}
 end
 
 function leftmul!(a::AbstractField{CPU}, b::AbstractField{CPU})
-    check_dims(a, b)
-
-    @batch for μsite in allindices(a)
+    @batch for μsite in allindices(a, b)
         a[μsite] = cmatmul_oo(b[μsite], a[μsite])
     end
 
@@ -104,9 +98,7 @@ function leftmul!(a::AbstractField{CPU}, b::AbstractField{CPU})
 end
 
 function leftmul_dagg!(a::AbstractField{CPU}, b::AbstractField{CPU})
-    check_dims(a, b)
-
-    @batch for μsite in allindices(a)
+    @batch for μsite in allindices(a, b)
         a[μsite] = cmatmul_do(b[μsite], a[μsite])
     end
 
@@ -114,9 +106,7 @@ function leftmul_dagg!(a::AbstractField{CPU}, b::AbstractField{CPU})
 end
 
 function rightmul!(a::AbstractField{CPU}, b::AbstractField{CPU})
-    check_dims(a, b)
-
-    @batch for μsite in allindices(a)
+    @batch for μsite in allindices(a, b)
         a[μsite] = cmatmul_oo(a[μsite], b[μsite])
     end
 
@@ -124,9 +114,7 @@ function rightmul!(a::AbstractField{CPU}, b::AbstractField{CPU})
 end
 
 function rightmul_dagg!(a::AbstractField{CPU,T}, b::AbstractField{CPU,T}) where {T}
-    check_dims(a, b)
-
-    @batch for μsite in allindices(a)
+    @batch for μsite in allindices(a, b)
         a[μsite] = cmatmul_od(a[μsite], b[μsite])
     end
 

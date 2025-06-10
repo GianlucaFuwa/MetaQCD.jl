@@ -1,3 +1,4 @@
+# FIXME:
 function mul_oe!(
     ψ_eo::TF, U::Gaugefield{B,T}, ϕ_eo::TF, bc, into_odd, ::Val{dagg}; fac=1
 ) where {B,T,TF<:WilsonEOPreSpinorfield{B,T},dagg}

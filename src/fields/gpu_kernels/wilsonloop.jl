@@ -1,11 +1,12 @@
 function wilsonloop(U::Gaugefield{B,T}, Lμ, Lν) where {B<:GPU,T}
-    return @latsum(Sequential(), Val(1), Float64, wilsonloop_kernel!, U, Lμ, Lν, T)
+    return @latsum(Sequential(), Val(1), Float64, wilsonloop_gpu!, U, Lμ, Lν, T, eachindex(U))
 end
 
-@kernel function wilsonloop_kernel!(out, @Const(U), Lμ, Lν, ::Type{T}) where {T}
+@kernel cpu=false function wilsonloop_gpu!(out, @Const(U), Lμ, Lν, ::Type{T}, bulk) where {T}
     # workgroup index, that we use to pass the reduced value to global "out"
-    bi = @index(Group, Linear)
-    site = @index(Global, Cartesian)
+    iblock = @index(Group, Linear)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
 
     wl = 0.0
     @unroll for μ in (1i32):(3i32)
@@ -18,6 +19,6 @@ end
 
     ti = @index(Local)
     if ti == 1
-        @inbounds out[bi] = out_group
+        @inbounds out[iblock] = out_group
     end
 end

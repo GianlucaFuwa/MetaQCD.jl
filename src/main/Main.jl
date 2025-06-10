@@ -3,11 +3,13 @@ module Main
 using Dates
 using DelimitedFiles
 using InteractiveUtils
+using LinearAlgebra
 using Random
 using Statistics
 using StaticTools: StaticString
 using ..MetaIO
 using ..Utils
+using ..Fields: BACKENDS
 
 import ..BiasModule: NoBias, calc_weights, is_adaptive, recalc_cv!, update_bias!, set_sigma0!
 import ..DiracOperators: QuenchedFermionAction

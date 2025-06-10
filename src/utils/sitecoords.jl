@@ -12,20 +12,33 @@ const SiteCoords = CartesianIndex{4}
     return SiteCoords(ix, iy, iz, it)
 end
 
+@inline function linear_to_cartesian(
+    i::T, NX::T, NY::T, NZ::T, origin::SiteCoords
+) where {T<:Integer}
+    i -= 1
+    t = fld(i, NX * NY * NZ)
+    i -= t * NX * NY * NZ
+    z = fld(i, NX * NY)
+    i -= z * NX * NY
+    y = fld(i, NX)
+    x = i % NX
+    return SiteCoords(x, y, z, t) + origin
+end
+
 @inline function cartesian_to_linear(
     site::SiteCoords, NX::T, NY::T, NZ::T
 ) where {T<:Integer}
     ix, iy, iz, it = site.I
-    i = ix + NX * (iy - 1) + NX * NY * (iz - 1) + NX * NY * NZ * (it - 1)
+    i = ix + NX * (iy - 1 + NY * (iz - 1 + NZ * (it - 1)))
     return i
 end
 
 @inline function cartesian_to_linear(
-    site::SiteCoords, NX::T, NY::T, NZ::T, start::SiteCoords
+    site::SiteCoords, NX::T, NY::T, NZ::T, origin::SiteCoords
 ) where {T<:Integer}
     ix, iy, iz, it = site.I
-    sx, sy, sz, st = start.I
-    i = (ix-sx+1) + NX * (iy - sy) + NX * NY * (iz - sz) + NX * NY * NZ * (it - st)
+    sx, sy, sz, st = origin.I
+    i = (ix-sx+1) + NX * (iy - sy + NY * (iz - sz + NZ * (it - st)))
     return i
 end
 
@@ -50,7 +63,18 @@ end
 Move a site `s` in the direction `μ` by `steps` steps with periodic boundary conditions.
 The maximum extent of the lattice in the direction `μ` is `lim`.
 """
-@inline move(s::SiteCoords, μ, steps, lim) = @set s[μ] = mod1(s[μ] + steps, lim)
+@inline function move(s::SiteCoords, μ, steps, lim::Integer)
+    return @set s[μ] = mod1(s[μ] + steps, lim)
+end
+
+@inline function move(s::SiteCoords, μ, steps, r::AbstractUnitRange)
+    iold = s[μ]
+    len = length(r)
+    offset = first(r)
+    inew = r[mod1(iold - offset + 1 + steps, len)]
+    return @set s[μ] = inew
+end
+
 Base.iseven(s::SiteCoords) = iseven(sum(s.I))
 Base.isodd(s::SiteCoords) = isodd(sum(s.I))
 
@@ -68,4 +92,24 @@ end
     i_new = i + offset
     i_new = i_new > nvhalf ? i_new - nvhalf : i_new + nvhalf
     return linear_to_cartesian(i_new, NX, NY, NZ)
+end
+
+@inline function eo_site(site, origin, NX::T, NY::T, NZ::T, ::T, NV::T) where {T<:Integer}
+    i = cartesian_to_linear(site, NX, NY, NZ, origin)
+    # halo sites are not mapped
+    1 <= i <= NV || return site
+    offset = iseven(site) ? -fld(i, 2) : div(NV, 2) - fld(i, 2)
+    i_new = i + offset
+    return linear_to_cartesian(i_new, NX, NY, NZ, origin)
+end
+
+@inline function eo_site_switch(site, origin, NX::T, NY::T, NZ::T, ::T, NV::T) where {T<:Integer}
+    nvhalf = div(NV, 2)
+    i = cartesian_to_linear(site, NX, NY, NZ, origin)
+    # halo sites are not mapped
+    1 <= i <= NV || return site
+    offset = iseven(site) ? -fld(i, 2) : nvhalf - fld(i, 2)
+    i_new = i + offset
+    i_new = i_new > nvhalf ? i_new - nvhalf : i_new + nvhalf
+    return linear_to_cartesian(i_new, NX, NY, NZ, origin)
 end

@@ -1,6 +1,7 @@
 module Parameters
 
 using Dates
+using LinearAlgebra
 using Unicode
 using TOML
 using ..Utils
@@ -41,14 +42,14 @@ function save_parameters(fp, parameters) # XXX: We already create a copy of the 
     return nothing
 end
 
-function construct_params_from_toml(filename::String; backend="cpu")
+function construct_params_from_toml(filename::String)
     parameters = TOML.parsefile(filename)
     inputfile = isabspath(filename) ? filename : joinpath(pwd(), filename)
     mpi_amroot() && println("inputfile: ", inputfile * "\n")
-    return construct_params_from_toml(parameters, inputfile; backend=backend)
+    return construct_params_from_toml(parameters, inputfile)
 end
 
-function construct_params_from_toml(parameters, inputfile; backend="cpu")
+function construct_params_from_toml(parameters, inputfile)
     pnames = fieldnames(ParameterSet)
     numparams = length(pnames)
     value_Params = Vector{Any}(undef, numparams)
@@ -203,8 +204,6 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
                     end
                 elseif String(pname_i) == "numprocs_cart"
                     value_Params[i] = Tuple(value[String(pname_i)])
-                elseif String(pname_i) == "backend"
-                    value_Params[i] = backend
                 else
                     value_Params[i] = value[String(pname_i)]
                 end

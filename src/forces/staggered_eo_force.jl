@@ -78,48 +78,40 @@ end
 function add_staggered_eo_derivative!(
     dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, X_eo::TF, Y_eo::TF, bc; coeff=1
 ) where {T,TF<:StaggeredEOPreSpinorfield{CPU,T}}
-    check_dims(dU, U, X_eo, Y_eo)
     X = X_eo.parent
     Y = Y_eo.parent
     fac = T(-0.5coeff)
+    loc_dims = dU.topology.local_dims
+    loc_dims_padded = dU.topology.local_dims_padded
+    origin = dU.topology.bulk_sites[1]
 
-    @batch for site in eachindex(dU)
-        add_staggered_eo_derivative_kernel!(dU, U, X, Y, site, bc, fac)
+    @batch for site in eachindex(dU, U, X, Y)
+        add_staggered_eo_derivative_kernel!(
+            dU, U, X, Y, site, origin, loc_dims, loc_dims_padded, bc, fac
+        )
     end
 
-    update_halo!(dU)
     return nothing
 end
 
-function add_staggered_eo_derivative_kernel!(dU, U, X, Y, site, bc, fac)
+function add_staggered_eo_derivative_kernel!(
+    dU, U, X, Y, site, origin, local_dims, local_dims_padded, bc, fac
+)
     # sites that begin with a "_" are meant for indexing into the even-odd preconn'ed
     # fermion field
-    NX, NY, NZ, NT = dims(U)
-    NV = NX * NY * NZ * NT
-    _site = eo_site(site, NX, NY, NZ, NT, NV)
+    nx, ny, nz, nt = local_dims
+    nv = prod(local_dims)
+    NT = local_dims_padded[4]
+    _site = eo_site(site, origin, nx, ny, nz, nt, nv)
 
-    _siteμ⁺ = eo_site(move(site, 1, 1, NX), NX, NY, NZ, NT, NV)
-    η = staggered_η(Val(1), site)
-    B = ckron(X[_siteμ⁺], Y[_site])
-    C = ckron(Y[_siteμ⁺], X[_site])
-    dU[1, site] += (fac * η) * traceless_antihermitian(cmatmul_oo(U[1, site], B - C))
-
-    _siteμ⁺ = eo_site(move(site, 2, 1, NY), NX, NY, NZ, NT, NV)
-    η = staggered_η(Val(2), site)
-    B = ckron(X[_siteμ⁺], Y[_site])
-    C = ckron(Y[_siteμ⁺], X[_site])
-    dU[2, site] += (fac * η) * traceless_antihermitian(cmatmul_oo(U[2, site], B - C))
-
-    _siteμ⁺ = eo_site(move(site, 3, 1, NZ), NX, NY, NZ, NT, NV)
-    η = staggered_η(Val(3), site)
-    B = ckron(X[_siteμ⁺], Y[_site])
-    C = ckron(Y[_siteμ⁺], X[_site])
-    dU[3, site] += (fac * η) * traceless_antihermitian(cmatmul_oo(U[3, site], B - C))
-
-    _siteμ⁺ = eo_site(move(site, 4, 1, NT), NX, NY, NZ, NT, NV)
-    η = staggered_η(Val(4), site)
-    B = ckron(apply_bc(X[_siteμ⁺], bc, site, Val(1), NT), Y[_site])
-    C = ckron(apply_bc(Y[_siteμ⁺], bc, site, Val(1), NT), X[_site])
-    dU[4, site] += (fac * η) * traceless_antihermitian(cmatmul_oo(U[4, site], B - C))
+    # use @nexprs here to statically generate the loop
+    # this makes it so Val(i) is well defined at each iteration and no type-instabilities arise
+    @nexprs 4 i -> (
+        _siteμ⁺ = eo_site(move(site, i, 1, local_dims_padded[i]), origin, nx, ny, nz, nt, nv);
+        η = staggered_η(Val(i), site);
+        B = ckron(apply_bc(X[_siteμ⁺], bc, site, Val(1), NT, Val(i)), Y[_site]);
+        C = ckron(apply_bc(Y[_siteμ⁺], bc, site, Val(1), NT, Val(i)), X[_site]);
+        dU[i, site] += (fac * η) * traceless_antihermitian(cmatmul_oo(U[i, site], B - C))
+    )
     return nothing
 end

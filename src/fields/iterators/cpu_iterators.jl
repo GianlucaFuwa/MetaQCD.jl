@@ -1,15 +1,15 @@
 """
-	@latmap(itr::AbstractIterator, C, kernel, U, GA, fac)
+	@cpulatmap(itr::AbstractIterator, C, kernel, U, GA, fac)
 Apply update algorithm `kernel` on each element in `U` following the pattern specified by
 `itr` `C` times.
 """
-macro latmap(itr, C, f!, U, GA, fac)
+macro cpulatmap(itr, C, f!, U, GA, fac)
     quote
-        $__latmap($(esc(itr)), $(esc(C)), $(esc(f!)), $(esc(U)), $(esc(GA)), $(esc(fac)))
+        $__cpulatmap($(esc(itr)), $(esc(C)), $(esc(f!)), $(esc(U)), $(esc(GA)), $(esc(fac)))
     end
 end
 
-function __latmap(::Sequential, ::Val{C}, f!::F, U::AbstractField{CPU}, GA, fac) where {F,C}
+function __cpulatmap(::Sequential, ::Val{C}, f!::F, U::AbstractField{CPU}, GA, fac) where {F,C}
     C == 0 && return nothing
 
     for _ in 1:C
@@ -24,7 +24,7 @@ function __latmap(::Sequential, ::Val{C}, f!::F, U::AbstractField{CPU}, GA, fac)
     return nothing
 end
 
-function __latmap(
+function __cpulatmap(
     ::Checkerboard2, ::Val{C}, f!::F, U::AbstractField{CPU}, GA, fac
 ) where {F,C}
     C == 0 && return nothing
@@ -46,7 +46,7 @@ function __latmap(
     return nothing
 end
 
-function __latmap(
+function __cpulatmap(
     ::Checkerboard4, ::Val{C}, f!::F, U::AbstractField{CPU}, GA, fac
 ) where {F,C}
     C == 0 && return nothing
@@ -67,17 +67,17 @@ function __latmap(
 end
 
 """
-	@latsum(itr::AbstractIterator, kernel, U, GA, fac)
+	@cpulatsum(itr::AbstractIterator, kernel, U, GA, fac)
 Sum update algorithm `kernel` on each element in `U` following the pattern specified by
 `itr` `C` times.
 """
-macro latsum(itr, C, f!, U, GA, fac)
+macro cpulatsum(itr, C, f!, U, GA, fac)
     quote
-        $__latsum($(esc(itr)), $(esc(C)), $(esc(f!)), $(esc(U)), $(esc(GA)), $(esc(fac)))
+        $__cpulatsum($(esc(itr)), $(esc(C)), $(esc(f!)), $(esc(U)), $(esc(GA)), $(esc(fac)))
     end
 end
 
-function __latsum(::Sequential, ::Val{C}, f!::F, U::AbstractField{CPU}, GA, fac) where {C,F}
+function __cpulatsum(::Sequential, ::Val{C}, f!::F, U::AbstractField{CPU}, GA, fac) where {C,F}
     C == 0 && return 0.0
     out = 0.0
 
@@ -93,7 +93,7 @@ function __latsum(::Sequential, ::Val{C}, f!::F, U::AbstractField{CPU}, GA, fac)
     return distributed_reduce(out, +, U)
 end
 
-function __latsum(
+function __cpulatsum(
     ::Checkerboard2, ::Val{C}, f!::F, U::AbstractField{CPU,T,false}, GA, fac
 ) where {C,F,T}
     C == 0 && return 0.0
@@ -116,7 +116,7 @@ function __latsum(
     return out
 end
 
-function __latsum(
+function __cpulatsum(
     ::Checkerboard4, ::Val{C}, f!::F, U::AbstractField{CPU,T,false}, GA, fac
 ) where {C,F,T}
     C == 0 && return 0.0

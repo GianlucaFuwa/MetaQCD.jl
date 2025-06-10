@@ -104,7 +104,6 @@ end
 function add_wilson_eo_derivative!(
     dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, X_eo::TF, Y_eo::TF, bc; coeff=1
 ) where {T,TF<:WilsonEOPreSpinorfield{CPU,T}}
-    check_dims(dU, U, X_eo, Y_eo)
     fac = T(0.5coeff)
     X = X_eo.parent
     Y = Y_eo.parent
@@ -114,7 +113,7 @@ function add_wilson_eo_derivative!(
     # "object_and_preserve" (cant reproduce in MWE yet)
     # is fine, because writing it like this makes the GPU port easier
 
-    @batch for site in eachindex(dU)
+    @batch for site in eachindex(dU, U, X, Y)
         add_wilson_eo_derivative_kernel!(dU, U, X, Y, site, bc, fac)
     end
 
@@ -213,9 +212,7 @@ end
 function calc_small_Xμν_eachsite!(
     Xμν::Tensorfield{CPU,T}, D_oo_inv::Paulifield{CPU,T,M,true}
 ) where {T,M}
-    check_dims(Xμν, D_oo_inv)
-
-    for site in eachindex(Xμν)
+    for site in eachindex(Xμν, D_oo_inv)
         calc_small_Xμν_kernel!(Xμν, D_oo_inv, site, T)
     end
 

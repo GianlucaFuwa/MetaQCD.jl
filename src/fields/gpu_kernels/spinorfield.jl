@@ -1,32 +1,34 @@
 const AnySpinorfield{B,T,M,A,ND} = Union{Spinorfield{B,T,M,A,ND},SpinorfieldEO{B,T,M,A,ND}}
 
 function clear!(ϕ::AnySpinorfield{B}) where {B<:GPU}
-    @latmap(Sequential(), Val(1), clear_fermion_kernel!, ϕ)
+    @latmap(Sequential(), Val(1), clear_fermion_gpu!, ϕ, eachindex(ϕ))
 end
 
-@kernel function clear_fermion_kernel!(ϕ)
-    site = @index(Global, Cartesian)
+@kernel cpu=false function clear_fermion_gpu!(ϕ, bulk)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
     @inbounds ϕ[site] = zero(ϕ[site])
 end
 
 function Base.copy!(a::TF, b::TF) where {TF<:AnySpinorfield{<:GPU}}
-    check_dims(a, b)
-    @latmap(Sequential(), Val(1), copy_fermion_kernel!, a, b)
+    @latmap(Sequential(), Val(1), copy_fermion_gpu!, a, b, eachindex(a, b))
     return nothing
 end
 
-@kernel function copy_fermion_kernel!(a, @Const(b))
-    site = @index(Global, Cartesian)
+@kernel cpu=false function copy_fermion_gpu!(a, @Const(b), bulk)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
     @inbounds a[site] = b[site]
 end
 
 function ones!(ϕ::AnySpinorfield{B}) where {B<:GPU}
-    @latmap(Sequential(), Val(1), ones_fermion_kernel!, ϕ)
+    @latmap(Sequential(), Val(1), ones_fermion_gpu!, ϕ)
     return nothing
 end
 
-@kernel function ones_fermion_kernel!(ϕ)
-    site = @index(Global, Cartesian)
+@kernel cpu=false function ones_fermion_gpu!(ϕ, bulk)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
     @inbounds ϕ[site] = fill(1, ϕ[site])
 end
 
@@ -34,12 +36,13 @@ function set_source!(ϕ::AnySpinorfield{B,T}, site, a, μ) where {B<:GPU,T}
     NC = num_colors(ϕ)
     ND = num_dirac(ϕ)
     @assert μ ∈ 1:ND && a ∈ 1:NC
-    @latmap(Sequential(), Val(1), set_source_kernel!, ϕ, site, a, μ, NC, ND, T)
+    @latmap(Sequential(), Val(1), set_source_gpu!, ϕ, site, a, μ, NC, ND, T, eachindex(ϕ))
     return nothing
 end
 
-@kernel function set_source_kernel!(ϕ, site, a, μ, NC, ND, ::Type{T}) where {T}
-    gsite = @index(Global, Cartesian)
+@kernel cpu=false function set_source_gpu!(ϕ, site, a, μ, NC, ND, ::Type{T}, bulk) where {T}
+    iglobal = @index(Global, Cartesian)
+    gsite = bulk[iglobal]
     if gsite == site
         vec_index = (μ - 1) * NC + a
         tup = ntuple(i -> i == vec_index ? one(Complex{T}) : zero(Complex{T}), Val(3ND))
@@ -50,66 +53,66 @@ end
 end
 
 function gaussian_pseudofermions!(ϕ::AnySpinorfield{B,T,M,A,ND}) where {B<:GPU,T,M,A,ND}
-    @latmap(Sequential(), Val(1), gaussian_pseudofermions_kernel!, ϕ, Val(3ND), T)
+    @latmap(Sequential(), Val(1), gaussian_pseudofermions_gpu!, ϕ, Val(3ND), T, eachindex(ϕ))
     return nothing
 end
 
-@kernel function gaussian_pseudofermions_kernel!(ϕ, ::Val{L}, ::Type{T}) where {L,T}
-    site = @index(Global, Cartesian)
-    @inbounds ϕ[site] = @SVector randn(Complex{T}, L) # σ = 0.5
+@kernel cpu=false function gaussian_pseudofermions_gpu!(ϕ, ::Val{L}, ::Type{T}, bulk) where {L,T}
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
+    @inbounds ϕ[site] = randn(SVector{L,Complex{T}}) # σ = 0.5
 end
 
 function LinearAlgebra.mul!(ψ::TF, ϕ::TF, α) where {T,TF<:AnySpinorfield{<:GPU,T}}
-    @latmap(Sequential(), Val(1), scalar_mul_kernel!, ψ, ϕ, T(α))
+    @latmap(Sequential(), Val(1), scalar_mul_gpu!, ψ, ϕ, T(α), eachindex(ψ, ϕ))
     return nothing
 end
 
-@kernel function scalar_mul_kernel!(ψ, ϕ, α)
-    site = @index(Global, Cartesian)
+@kernel cpu=false function scalar_mul_gpu!(ψ, ϕ, α, bulk)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
     @inbounds ψ[site] = α * ϕ[site]
 end
 
 function LinearAlgebra.axpy!(α, ψ::TF, ϕ::TF) where {T,TF<:AnySpinorfield{<:GPU,T}}
-    check_dims(ψ, ϕ)
     α = Complex{T}(α)
-    @latmap(Sequential(), Val(1), axpy_kernel!, ϕ, ψ, α)
+    @latmap(Sequential(), Val(1), axpy_gpu!, ϕ, ψ, α, eachindex(ϕ, ψ))
     return nothing
 end
 
-@kernel function axpy_kernel!(ϕ, @Const(ψ), α)
-    site = @index(Global, Cartesian)
+@kernel cpu=false function axpy_gpu!(ϕ, @Const(ψ), α, bulk)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
     @inbounds ϕ[site] += α * ψ[site]
 end
 
 function LinearAlgebra.axpby!(α, ψ::TF, β, ϕ::TF) where {T,TF<:AnySpinorfield{<:GPU,T}}
-    check_dims(ψ, ϕ)
     α = Complex{T}(α)
     β = Complex{T}(β)
-    @latmap(Sequential(), Val(1), axpby_kernel!, ϕ, ψ, α, β)
+    @latmap(Sequential(), Val(1), axpby_gpu!, ϕ, ψ, α, β, eachindex(ψ, ϕ))
     return nothing
 end
 
-@kernel function axpby_kernel!(ϕ, @Const(ψ), α, β)
-    site = @index(Global, Cartesian)
+@kernel cpu=false function axpby_gpu!(ϕ, @Const(ψ), α, β, bulk)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
     @inbounds ϕ[site] = α * ψ[site] + β * ϕ[site]
 end
 
 function LinearAlgebra.dot(ϕ::TF, ψ::TF) where {TF<:AnySpinorfield{<:GPU}}
-    check_dims(ψ, ϕ)
-    return @latsum(Sequential(), Val(1), ComplexF64, dot_kernel, ϕ, ψ)
+    return @latsum(Sequential(), Val(1), ComplexF64, dot_gpu, ϕ, ψ, eachindex(ϕ, ψ))
 end
 
-@kernel function dot_kernel(out, @Const(ϕ), @Const(ψ))
-    bi = @index(Group, Linear)
-    site = @index(Global, Cartesian)
+@kernel cpu=false function dot_gpu(out, ϕ, ψ, bulk)
+    iblock = @index(Group, Linear)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
 
-    resₙ = 0.0 + 0.0im
-    resₙ += cdot(ϕ[site], ψ[site])
-
-    out_group = @groupreduce(+, resₙ, 0.0)
+    resₙ = dot(ϕ[site], ψ[site])
+    out_group = @groupreduce(+, resₙ, 0.0 + 0.0im)
 
     ti = @index(Local)
     if ti == 1
-        @inbounds out[bi] = out_group
+        @inbounds out[iblock] = out_group
     end
 end

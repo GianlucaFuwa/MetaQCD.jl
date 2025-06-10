@@ -1,7 +1,8 @@
+# FIXME:
 function update!(
     hb::Heatbath{MAXIT,ITR,TOR,NHB,NOR}, U::Gaugefield{B,T,A,GA}; kwargs...
 ) where {MAXIT,ITR,NHB,TOR,NOR,B<:GPU,T,A,GA}
-    @assert ITR!=Sequential
+    @assert ITR != Sequential
     ALG = eltype(TOR())
     fac_hb = T(U.NC/U.β)
     fac_or = T(-U.β/U.NC)

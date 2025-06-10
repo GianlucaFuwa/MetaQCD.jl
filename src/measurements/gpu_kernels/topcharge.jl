@@ -1,47 +1,54 @@
 function top_charge(::Plaquette, U::Gaugefield{B,T}) where {B<:GPU,T}
-    return @latsum(Sequential(), Val(1), Float64, top_charge_plaq_kernel!, U) / 4π^2
+    bulk = eachindex(U)
+    return @latsum(Sequential(), Val(1), Float64, top_charge_plaq_kernel!, U, bulk) / 4π^2
 end
 
 function top_charge(::Clover, U::Gaugefield{B,T}) where {B<:GPU,T}
-    return @latsum(Sequential(), Val(1), Float64, top_charge_clov_kernel!, U, T) / 4π^2
+    bulk = eachindex(U)
+    return @latsum(Sequential(), Val(1), Float64, top_charge_clov_kernel!, U, T, bulk) / 4π^2
 end
 
 function top_charge(::Improved, U::Gaugefield{B,T}) where {B<:GPU,T}
-    return @latsum(Sequential(), Val(1), Float64, top_charge_imp_kernel!, U, T) / 4π^2
+    bulk = eachindex(U)
+    return @latsum(Sequential(), Val(1), Float64, top_charge_imp_kernel!, U, T, bulk) / 4π^2
 end
 
-@kernel function top_charge_plaq_kernel!(out, @Const(U))
+@kernel function top_charge_plaq_kernel!(out, @Const(U), bulk)
     # workgroup index, that we use to pass the reduced value to global "out"
-    bi = @index(Group, Linear)
-    site = @index(Global, Cartesian)
+    iblock = @index(Group, Linear)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
 
     tc = top_charge_density_plaq(U, site)
     out_group = @groupreduce(+, tc, 0.0)
 
     ti = @index(Local)
     if ti == 1
-        @inbounds out[bi] = out_group
+        @inbounds out[iblock] = out_group
     end
 end
 
-@kernel function top_charge_clov_kernel!(out, @Const(U), ::Type{T}) where {T}
+@kernel function top_charge_clov_kernel!(out, @Const(U), ::Type{T}, bulk) where {T}
     # workgroup index, that we use to pass the reduced value to global "out"
-    bi = @index(Group, Linear)
-    site = @index(Global, Cartesian)
+    iblock = @index(Group, Linear)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
 
-    tc = top_charge_density_clover(U, site, T)
+    # tc = top_charge_density_clover(U, site, T)
+    tc = Float64(iblock)
     out_group = @groupreduce(+, tc, 0.0)
 
     ti = @index(Local)
     if ti == 1
-        @inbounds out[bi] = out_group
+        @inbounds out[iblock] = out_group
     end
 end
 
-@kernel function top_charge_imp_kernel!(out, @Const(U), ::Type{T}) where {T}
+@kernel function top_charge_imp_kernel!(out, @Const(U), ::Type{T}, bulk) where {T}
     # workgroup index, that we use to pass the reduced value to global "out"
-    bi = @index(Group, Linear)
-    site = @index(Global, Cartesian)
+    iblock = @index(Group, Linear)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
     c₀ = T(5 / 3)
     c₁ = T(-2 / 12)
 
@@ -50,22 +57,23 @@ end
 
     ti = @index(Local)
     if ti == 1
-        @inbounds out[bi] = out_group
+        @inbounds out[iblock] = out_group
     end
 end
 
 function top_charge_deriv!(
     kind_of_charge, dU::Colorfield{B,T}, F::Tensorfield{B,T}, U::Gaugefield{B,T}, fac=1.0,
 ) where {B<:GPU,T}
-    check_dims(dU, U, F)
     fac = convert(T, fac / 4π^2)
+    bulk = eachindex(dU, U, F)
     fieldstrength_eachsite!(kind_of_charge, F, U)
-    @latmap(Sequential(), Val(1), top_charge_deriv_kernel!, dU, F, U, kind_of_charge, fac)
+    @latmap(Sequential(), Val(1), top_charge_deriv_kernel!, dU, F, U, kind_of_charge, fac, bulk)
     return nothing
 end
 
-@kernel function top_charge_deriv_kernel!(dU, @Const(F), @Const(U), kind_of_charge, fac)
-    site = @index(Global, Cartesian)
+@kernel function top_charge_deriv_kernel!(dU, @Const(F), @Const(U), kind_of_charge, fac, bulk)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
 
     @inbounds begin
         tmp1 = cmatmul_oo(

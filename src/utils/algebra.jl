@@ -48,7 +48,7 @@
     Generate a random Matrix X ∈ SU(3) with precision `T`. \\
     """
     @inline function rand_SU3(::Type{T}) where {T}
-        out = @SMatrix rand(Complex{T}, 3, 3)
+        out = rand(SMatrix{3,3,Complex{T},9})
         out = proj_onto_SU3(out)
         return out
     end

@@ -19,9 +19,11 @@ action `GaugeAction` or a zero-initialized copy of `U`
 `IwasakiGaugeAction` \\
 `DBW2GaugeAction`
 """
-struct Gaugefield{Backend,FloatType,IsDistributed,ArrayType,GaugeAction} <:
+struct Gaugefield{Backend,FloatType,IsDistributed,ArrayType,GaugeAction,BufferType} <:
        AbstractField{Backend,FloatType,IsDistributed,ArrayType}
     U::ArrayType # Actual field storing the gauge variables
+    send_buf::BufferType
+    recv_buf::BufferType
     NX::Int64 # Number of lattice sites in the x-direction
     NY::Int64 # Number of lattice sites in the y-direction
     NZ::Int64 # Number of lattice sites in the z-direction
@@ -34,43 +36,75 @@ struct Gaugefield{Backend,FloatType,IsDistributed,ArrayType,GaugeAction} <:
     β::Float64 # Seems weird to have it here, but I couldnt be bothered passing it as an argument everywhere
     Sg::Base.RefValue{Float64} # Current Gauge action, used to safe work
     CV::Vector{Float64} # Current collective variable, used to safe work
-    function Gaugefield{Backend,FloatType,GaugeAction}(
-        NX, NY, NZ, NT, β; ncv=1
-    ) where {Backend,FloatType,GaugeAction}
-        U = KA.zeros(Backend(), SU{3,9,FloatType}, 4, NX, NY, NZ, NT)
-        NV = NX * NY * NZ * NT
-        numprocs_cart = (1, 1, 1, 1)
-        halo_width = 0
-        topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
-        Sg = Base.RefValue{Float64}(0.0)
-        CV = zeros(Float64, ncv)
-        return new{Backend,FloatType,false,typeof(U),GaugeAction}(
-            U, NX, NY, NZ, NT, NV, 3, topology, β, Sg, CV
-        )
-    end
-
-    function Gaugefield{Backend,FloatType,GaugeAction}(
-        NX, NY, NZ, NT, β, numprocs_cart, halo_width; ncv=1
-    ) where {Backend,FloatType,GaugeAction}
-        if prod(numprocs_cart) == 1
-            return Gaugefield{Backend,FloatType,GaugeAction}(NX, NY, NZ, NT, β)
+    function Gaugefield{B,T,M,AT,GA,BT}(
+        U::AT, send_buf::BT, recv_buf::BT, NX, NY, NZ, NT, NV, NC, topology, β, Sg, CV
+    ) where {B,T,M,AT,GA,BT}
+        # some sanity checks
+        @assert get_backend(U) isa Backend
+        if BT !== Nothing
+            @assert eltype(U) == eltype(send_buf) == eltype(recv_buf)
         end
-
-        @assert halo_width >= stencil_size(GaugeAction) """
-        halo_width must be >= 2 when using improved gauge actions
-        """
-
-        NV = NX * NY * NZ * NT
-        topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
-        ldims = topology.local_dims
-        dims_in = ntuple(i -> ldims[i] + 2halo_width, Val(4))
-        U = KA.zeros(Backend(), SU{3,9,FloatType}, 4, dims_in...)
-        Sg = Base.RefValue{Float64}(0.0)
-        CV = zeros(Float64, ncv)
-        return new{Backend,FloatType,true,typeof(U),GaugeAction}(
-            U, NX, NY, NZ, NT, NV, 3, topology, β, Sg, CV
+        @assert eltype(eltype(U)) === Complex{T}
+        return new{B,T,M,AT,GA,BT}(
+            U, send_buf, recv_buf, NX, NY, NZ, NT, NV, NC, topology, β, Sg, CV
         )
     end
+end
+
+function Gaugefield{Backend,FloatType,GaugeAction}(
+    NX, NY, NZ, NT, β; ncv=1
+) where {Backend,FloatType,GaugeAction}
+    U = KA.zeros(Backend(), SU{3,9,FloatType}, 4, NX, NY, NZ, NT)
+    send_buf = recv_buf = nothing
+    NV = NX * NY * NZ * NT
+    numprocs_cart = (1, 1, 1, 1)
+    halo_width = 0
+    topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
+    Sg = Base.RefValue{Float64}(0.0)
+    CV = zeros(Float64, ncv)
+    return Gaugefield{Backend,FloatType,false,typeof(U),GaugeAction,Nothing}(
+        U, send_buf, recv_buf, NX, NY, NZ, NT, NV, 3, topology, β, Sg, CV
+    )
+end
+
+function Gaugefield{Backend,FloatType,GaugeAction}(
+    NX, NY, NZ, NT, β, numprocs_cart, halo_width; ncv=1
+) where {Backend,FloatType,GaugeAction}
+    if prod(numprocs_cart) == 1
+        return Gaugefield{Backend,FloatType,GaugeAction}(NX, NY, NZ, NT, β)
+    end
+
+    @assert halo_width >= stencil_size(GaugeAction) """
+    halo_width must be >= 2 when using improved gauge actions
+    """
+
+    NV = NX * NY * NZ * NT
+    topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
+    ldims = topology.local_dims_padded
+
+    halo_width = topology.halo_width
+    origin = OffsetArrays.Origin((1, topology.bulk_sites[1].I .- halo_width...)...)
+    U = OffsetArray(KA.zeros(Backend(), SU{3,9,FloatType}, 4, ldims...), origin)
+
+    buf_length = 4maximum(sz for sz in topology.halo_sizes)
+    send_buf = KA.zeros(Backend(), SU{3,9,FloatType}, buf_length)
+    recv_buf = KA.zeros(Backend(), SU{3,9,FloatType}, buf_length)
+
+    for irank in 0:mpi_size()-1
+        if mpi_myrank() == irank
+            @show topology.bulk_sites
+            @show shrink_bulk(topology.bulk_sites, 1)
+            @show topology.border_sites[2]
+            println()
+        end
+        mpi_barrier()
+    end
+
+    Sg = Base.RefValue{Float64}(0.0)
+    CV = zeros(Float64, ncv)
+    return Gaugefield{Backend,FloatType,true,typeof(U),GaugeAction,typeof(send_buf)}(
+        U, send_buf, recv_buf, NX, NY, NZ, NT, NV, 3, topology, β, Sg, CV
+    )
 end
 
 function Gaugefield(
@@ -80,7 +114,7 @@ function Gaugefield(
 
     u_out = if IsDistributed
         numprocs_cart = u.topology.numprocs_cart
-        halo_width = u.topology.halo_width
+        halo_width = maximum(u.topology.halo_width)
         Gaugefield{Backend,FloatType,GaugeAction}(
             u.NX, u.NY, u.NZ, u.NT, u.β, numprocs_cart, halo_width; ncv=ncv
         )
@@ -120,136 +154,6 @@ function Gaugefield(parameters)
     end
 
     return U
-end
-
-"""
-5-dimensional dense array of statically sized 3x3 matrices contatining associated meta-data.
-
-    Colorfield{Backend,FloatType}(NX, NY, NZ, NT)
-    Colorfield{Backend,FloatType}(NX, NY, NZ, NT, numprocs_cart, halo_width)
-    Colorfield(u::AbstractField)
-
-Creates a Colorfield on `Backend`, i.e. an array of 3-by-3 `FloatType`-precision matrices of
-size `4 × NX × NY × NZ × NT` or a zero-initialized Colorfield of the same size as `u`
-# Supported backends
-`CPU` \\
-`CUDABackend` \\
-`ROCBackend`
-"""
-struct Colorfield{Backend,FloatType,IsDistributed,ArrayType} <:
-       AbstractField{Backend,FloatType,IsDistributed,ArrayType}
-    U::ArrayType # Actual field storing the gauge variables
-    NX::Int64 # Number of lattice sites in the x-direction
-    NY::Int64 # Number of lattice sites in the y-direction
-    NZ::Int64 # Number of lattice sites in the z-direction
-    NT::Int64 # Number of lattice sites in the t-direction
-    NV::Int64 # Total number of lattice sites
-    NC::Int64 # Number of colors
-
-    topology::FieldTopology # Info regarding MPI topology
-    function Colorfield{Backend,FloatType}(NX, NY, NZ, NT) where {Backend,FloatType}
-        U = KA.zeros(Backend(), SU{3,9,FloatType}, 4, NX, NY, NZ, NT)
-        NV = NX * NY * NZ * NT
-        numprocs_cart = (1, 1, 1, 1)
-        halo_width = 0
-        topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
-        return new{Backend,FloatType,false,typeof(U)}(U, NX, NY, NZ, NT, NV, 3, topology)
-    end
-
-    function Colorfield{Backend,FloatType}(
-        NX, NY, NZ, NT, numprocs_cart, halo_width
-    ) where {Backend,FloatType}
-        if prod(numprocs_cart) == 1
-            return Colorfield{Backend,FloatType}(NX, NY, NZ, NT)
-        end
-
-        NV = NX * NY * NZ * NT
-        topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
-        ldims = topology.local_dims
-        dims_in = ntuple(i -> ldims[i] + 2halo_width, Val(4))
-        U = KA.zeros(Backend(), SU{3,9,FloatType}, 4, dims_in...)
-        return new{Backend,FloatType,true,typeof(U)}(U, NX, NY, NZ, NT, NV, 3, topology)
-    end
-end
-
-function Colorfield(
-    u::AbstractField{Backend,FloatType,IsDistributed}
-) where {Backend,FloatType,IsDistributed}
-    u_out = if IsDistributed
-        numprocs_cart = u.topology.numprocs_cart
-        halo_width = u.topology.halo_width
-        Colorfield{Backend,FloatType}(u.NX, u.NY, u.NZ, u.NT, numprocs_cart, halo_width)
-    else
-        Colorfield{Backend,FloatType}(u.NX, u.NY, u.NZ, u.NT)
-    end
-
-    return u_out
-end
-
-"""
-5-dimensional dense array of `exp_iQ_su3` objects contatining associated meta-data. The
-objects hold the `Q`-matrices and all the exponential parameters needed for stout-force
-recursion.
-
-    Expfield{Backend,FloatType}(NX, NY, NZ, NT)
-    Expfield{Backend,FloatType}(NX, NY, NZ, NT, numprocs_cart, halo_width)
-    Expfield(u::AbstractField)
-
-Creates a Expfield on `Backend`, i.e. an array of `FloatType`-precison `exp_iQ_su3` objects
-of size `4 × NX × NY × NZ × NT` or of the same size as `u`.
-# Supported backends
-`CPU` \\
-`CUDABackend` \\
-`ROCBackend`
-"""
-struct Expfield{Backend,FloatType,IsDistributed,ArrayType} <:
-       AbstractField{Backend,FloatType,IsDistributed,ArrayType}
-    U::ArrayType # Actual field storing the gauge variables
-    NX::Int64 # Number of lattice sites in the x-direction
-    NY::Int64 # Number of lattice sites in the y-direction
-    NZ::Int64 # Number of lattice sites in the z-direction
-    NT::Int64 # Number of lattice sites in the t-direction
-    NV::Int64 # Total number of lattice sites
-    NC::Int64 # Number of colors
-
-    topology::FieldTopology # Info regarding MPI topology
-    function Expfield{Backend,FloatType}(NX, NY, NZ, NT) where {Backend,FloatType}
-        U = KA.zeros(Backend(), exp_iQ_su3{FloatType}, 4, NX, NY, NZ, NT)
-        NV = NX * NY * NZ * NT
-        numprocs_cart = (1, 1, 1, 1)
-        halo_width = 0
-        topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
-        return new{Backend,FloatType,false,typeof(U)}(U, NX, NY, NZ, NT, NV, 3, topology)
-    end
-
-    function Expfield{Backend,FloatType}(
-        NX, NY, NZ, NT, numprocs_cart, halo_width
-    ) where {Backend,FloatType}
-        if prod(numprocs_cart) == 1
-            return Expfield{Backend,FloatType}(NX, NY, NZ, NT)
-        end
-
-        NV = NX * NY * NZ * NT
-        topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
-        ldims = topology.local_dims
-        dims_in = ntuple(i -> ldims[i] + 2halo_width, Val(4))
-        U = KA.zeros(Backend(), exp_iQ_su3{FloatType}, 4, dims_in...)
-        return new{Backend,FloatType,true,typeof(U)}(U, NX, NY, NZ, NT, NV, 3, topology)
-    end
-end
-
-function Expfield(
-    u::AbstractField{Backend,FloatType,IsDistributed}
-) where {Backend,FloatType,IsDistributed}
-    u_out = if IsDistributed
-        numprocs_cart = u.topology.numprocs_cart
-        halo_width = u.topology.halo_width
-        Expfield{Backend,FloatType}(u.NX, u.NY, u.NZ, u.NT, numprocs_cart, halo_width)
-    else
-        Expfield{Backend,FloatType}(u.NX, u.NY, u.NZ, u.NT)
-    end
-
-    return u_out
 end
 
 @inline function gauge_action(

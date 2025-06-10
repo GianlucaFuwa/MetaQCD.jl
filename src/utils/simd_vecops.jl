@@ -437,6 +437,7 @@ Return the complex dot product of `a` and `b`
 end
 
 @inline function cdot(ac::MVector{N,Complex{T}}, bc::MVector{N,Complex{T}}) where {T,N}
+    # XXX: causes problems on GPUs
     a = reinterpret(reshape, T, ac)
     b = reinterpret(reshape, T, bc)
     r = zero(T)
@@ -1069,21 +1070,21 @@ Return the matrix-vector product of the block diagonal matrix containing `A₊` 
     return vcat(x₊, x₋)  
 end
 
-PrecompileTools.@compile_workload begin
-    for T in (Float32, Float64)
-        A = @SMatrix rand(Complex{T}, 3, 3)
-        v = @SVector rand(Complex{T}, 3)
-        v1 = @SVector rand(Complex{T}, 12)
-        cmvmul(A, v)
-        cvmmul(v, A)
-        ckron(v, v)
-        cmvmul_spin_proj(A, v1, Val(-1))
-        cmvmul_spin_proj(A, v1, Val(-2))
-        cmvmul_spin_proj(A, v1, Val(-3))
-        cmvmul_spin_proj(A, v1, Val(-4))
-        cmvmul_spin_proj(A, v1, Val(1))
-        cmvmul_spin_proj(A, v1, Val(2))
-        cmvmul_spin_proj(A, v1, Val(3))
-        cmvmul_spin_proj(A, v1, Val(4))
-    end
-end
+# PrecompileTools.@compile_workload begin
+#     for T in (Float32, Float64)
+#         A = @SMatrix rand(Complex{T}, 3, 3)
+#         v = @SVector rand(Complex{T}, 3)
+#         v1 = @SVector rand(Complex{T}, 12)
+#         cmvmul(A, v)
+#         cvmmul(v, A)
+#         ckron(v, v)
+#         cmvmul_spin_proj(A, v1, Val(-1))
+#         cmvmul_spin_proj(A, v1, Val(-2))
+#         cmvmul_spin_proj(A, v1, Val(-3))
+#         cmvmul_spin_proj(A, v1, Val(-4))
+#         cmvmul_spin_proj(A, v1, Val(1))
+#         cmvmul_spin_proj(A, v1, Val(2))
+#         cmvmul_spin_proj(A, v1, Val(3))
+#         cmvmul_spin_proj(A, v1, Val(4))
+#     end
+# end

@@ -92,12 +92,11 @@ end
 function add_staggered_hoelbling_derivative!(
     dU::Colorfield{CPU,T,M}, U::Gaugefield{CPU,T,M}, X::TF, Y::TF, bc, term; coeff=1
 ) where {T,M,TF<:StaggeredSpinorfield{CPU,T,M}}
-    check_dims(dU, U, X, Y)
     fac1 = T(-0.5coeff)
     fac2 = T(coeff)
     _μ, _ν, _ρ, _σ = term
 
-    @batch for site in eachindex(dU)
+    @batch for site in eachindex(dU, U, X, Y)
         add_staggered_derivative_kernel!(dU, U, X, Y, site, bc, fac1)
         add_hoelbling_derivative_kernel!(dU, _μ, _ν, U, X, Y, site, bc, fac2)
         add_hoelbling_derivative_kernel!(dU, _ρ, _σ, U, X, Y, site, bc, fac2)

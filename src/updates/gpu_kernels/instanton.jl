@@ -1,3 +1,4 @@
+# FIXME:
 function set_instanton!(U::Gaugefield{B,T}, Q) where {B<:GPU,T}
     NX, NY, NZ, NT = global_dims(U)
     nx, ny, nz, nt = local_dims(U)

@@ -46,7 +46,6 @@ function calc_gauge_action(::WilsonGaugeAction, U::Gaugefield)
 end
 
 function calc_gauge_action(::SymanzikTreeGaugeAction, U::Gaugefield)
-    is_distributed(U) && @assert(U.topology.halo_width>=2)
     P = plaquette_trace_sum(U)
     R = rect_trace_sum(U)
     Sg_plaq = 6 * U.NV - 1 / 3 * P
@@ -56,7 +55,6 @@ function calc_gauge_action(::SymanzikTreeGaugeAction, U::Gaugefield)
 end
 
 function calc_gauge_action(::SymanzikTadGaugeAction, U::Gaugefield)
-    is_distributed(U) && @assert(U.topology.halo_width>=2)
     P = plaquette_trace_sum(U)
     R = rect_trace_sum(U)
     u0sq = sqrt(1 / (6 * U.NV * U.NC) * P)
@@ -67,7 +65,6 @@ function calc_gauge_action(::SymanzikTadGaugeAction, U::Gaugefield)
 end
 
 function calc_gauge_action(::IwasakiGaugeAction, U::Gaugefield)
-    is_distributed(U) && @assert(U.topology.halo_width>=2)
     P = plaquette_trace_sum(U)
     R = rect_trace_sum(U)
     Sg_plaq = 6 * U.NV - 1 / 3 * P
@@ -77,7 +74,6 @@ function calc_gauge_action(::IwasakiGaugeAction, U::Gaugefield)
 end
 
 function calc_gauge_action(::DBW2GaugeAction, U::Gaugefield)
-    is_distributed(U) && @assert(U.topology.halo_width>=2)
     P = plaquette_trace_sum(U)
     R = rect_trace_sum(U)
     Sg_plaq = 6 * U.NV - 1 / 3 * P
@@ -87,12 +83,14 @@ function calc_gauge_action(::DBW2GaugeAction, U::Gaugefield)
 end
 
 function plaquette_trace_sum(U::Gaugefield{CPU})
-    P = 0.0
+    @hide_communication U 1 begin
+        P = 0.0
 
-    @batch reduction = (+, P) for site in eachindex(U)
-        for μ in 1:3
-            for ν in (μ+1):4
-                P += real(tr(plaquette(U, μ, ν, site)))
+        @batch reduction = (+, P) for site in eachindex(U)
+            for μ in 1:3
+                for ν in (μ+1):4
+                    P += real(tr(plaquette(U, μ, ν, site)))
+                end
             end
         end
     end
@@ -104,20 +102,23 @@ function plaquette_trace_eachsite(U::Gaugefield{CPU})
     # Uout = similar(dims(U))
     out = zeros(dims(U))
 
-    @batch for site in eachindex(U)
-        P = 0.0
-        for μ in 1:3
-            for ν in (μ+1):4
-                P += real(tr(plaquette(U, μ, ν, site)))
+    # @hide_communication U 1 begin
+        @batch for site in eachindex(U)
+            P = 0.0
+            for μ in 1:3
+                for ν in (μ+1):4
+                    P += real(tr(plaquette(U, μ, ν, site)))
+                end
             end
+            out[site] = P
         end
-        out[site] = P
-    end
+    # end
 
     return out
 end
 
 function rect_trace_sum(U::Gaugefield{CPU})
+    is_distributed(U) && @assert(maximum(U.topology.halo_width)>=2)
     R = 0.0
 
     @batch reduction = (+, R) for site in eachindex(U)
@@ -132,21 +133,21 @@ function rect_trace_sum(U::Gaugefield{CPU})
 end
 
 function plaquette(U, μ, ν, site)
-    Nμ = dims(U)[μ]
-    Nν = dims(U)[ν]
-    siteμ⁺ = move(site, μ, 1i32, Nμ)
-    siteν⁺ = move(site, ν, 1i32, Nν)
+    Nμ = dimrange(U, μ)
+    Nν = dimrange(U, ν)
+    siteμ⁺ = move(site, μ, 1, Nμ)
+    siteν⁺ = move(site, ν, 1, Nν)
     plaq = cmatmul_oodd(U[μ, site], U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site])
     return plaq
 end
 
 function rect_2x1(U, μ, ν, site)
-    Nμ = dims(U)[μ]
-    Nν = dims(U)[ν]
-    siteμ⁺ = move(site, μ, 1i32, Nμ)
-    siteμ²⁺ = move(siteμ⁺, μ, 1i32, Nμ)
-    siteμ⁺ν⁺ = move(siteμ⁺, ν, 1i32, Nν)
-    siteν⁺ = move(site, ν, 1i32, Nν)
+    Nμ = dimrange(U, μ)
+    Nν = dimrange(U, ν)
+    siteμ⁺ = move(site, μ, 1, Nμ)
+    siteμ²⁺ = move(siteμ⁺, μ, 1, Nμ)
+    siteμ⁺ν⁺ = move(siteμ⁺, ν, 1, Nν)
+    siteν⁺ = move(site, ν, 1, Nν)
     plaq = cmatmul_oo(
         cmatmul_oood(U[μ, site], U[μ, siteμ⁺], U[ν, siteμ²⁺], U[μ, siteμ⁺ν⁺]),
         cmatmul_dd(U[μ, siteν⁺], U[ν, site]),
@@ -155,12 +156,12 @@ function rect_2x1(U, μ, ν, site)
 end
 
 function rect_1x2(U, μ, ν, site)
-    Nμ = dims(U)[μ]
-    Nν = dims(U)[ν]
-    siteμ⁺ = move(site, μ, 1i32, Nμ)
-    siteμ⁺ν⁺ = move(siteμ⁺, ν, 1i32, Nν)
-    siteν⁺ = move(site, ν, 1i32, Nν)
-    siteν²⁺ = move(siteν⁺, ν, 1i32, Nν)
+    Nμ = dimrange(U, μ)
+    Nν = dimrange(U, ν)
+    siteμ⁺ = move(site, μ, 1, Nμ)
+    siteμ⁺ν⁺ = move(siteμ⁺, ν, 1, Nν)
+    siteν⁺ = move(site, ν, 1, Nν)
+    siteν²⁺ = move(siteν⁺, ν, 1, Nν)
     plaq = cmatmul_oo(
         cmatmul_oood(U[μ, site], U[ν, siteμ⁺], U[ν, siteμ⁺ν⁺], U[μ, siteν²⁺]),
         cmatmul_dd(U[ν, siteν⁺], U[ν, site]),
@@ -169,14 +170,14 @@ function rect_1x2(U, μ, ν, site)
 end
 
 function plaquette_2x2(U, μ, ν, site)
-    Nμ = dims(U)[μ]
-    Nν = dims(U)[ν]
-    siteμ⁺ = move(site, μ, 1i32, Nμ)
-    siteμ²⁺ = move(siteμ⁺, μ, 1i32, Nμ)
-    siteμ²⁺ν⁺ = move(siteμ²⁺, ν, 1i32, Nν)
-    siteν⁺ = move(site, ν, 1i32, Nν)
-    siteν²⁺ = move(siteν⁺, ν, 1i32, Nν)
-    siteμ⁺ν²⁺ = move(siteν²⁺, μ, 1i32, Nμ)
+    Nμ = dimrange(U, μ)
+    Nν = dimrange(U, ν)
+    siteμ⁺ = move(site, μ, 1, Nμ)
+    siteμ²⁺ = move(siteμ⁺, μ, 1, Nμ)
+    siteμ²⁺ν⁺ = move(siteμ²⁺, ν, 1, Nν)
+    siteν⁺ = move(site, ν, 1, Nν)
+    siteν²⁺ = move(siteν⁺, ν, 1, Nν)
+    siteμ⁺ν²⁺ = move(siteν²⁺, μ, 1, Nμ)
     plaq = cmatmul_oo(
         cmatmul_oooo(U[μ, site], U[μ, siteμ⁺], U[ν, siteμ²⁺], U[ν, siteμ²⁺ν⁺]),
         cmatmul_dddd(U[μ, siteμ⁺ν²⁺], U[μ, siteν²⁺], U[ν, siteν⁺], U[ν, site]),
@@ -187,11 +188,10 @@ end
 function gauge_action_deriv!(
     dU::Colorfield{CPU,T}, staples::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, fac=1
 ) where {T}
-    check_dims(dU, staples, U)
     mβover6 = T(-U.β*fac / 6)
     gaction = gauge_action(U)()
 
-    @batch for site in eachindex(U)
+    @batch for site in eachindex(dU, staples, U)
         for μ in 1:4
             A = staple(gaction, U, μ, site)
             staples[μ, site] = A

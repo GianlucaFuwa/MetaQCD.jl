@@ -204,12 +204,12 @@ function pion_correlators_avg!(pion_corr, D, ψ, cg_temps, cg_tol, cg_maxiters, 
                 fclose(fp)
             end
 
-            for it in 1+halo_width:my_NT+halo_width
+            for it in 1+halo_width[4]:my_NT+halo_width[4]
                 cit = 0.0
 
-                @batch reduction = (+, cit) for iz in 1+halo_width:my_NZ+halo_width
-                    for iy in 1+halo_width:my_NY+halo_width
-                        for ix in 1+halo_width:my_NX+halo_width
+                @batch reduction = (+, cit) for iz in 1+halo_width[3]:my_NZ+halo_width[3]
+                    for iy in 1+halo_width[2]:my_NY+halo_width[2]
+                        for ix in 1+halo_width[1]:my_NX+halo_width[1]
                             cit += real(
                                 cdot(propagator[ix, iy, iz, it], propagator[ix, iy, iz, it])
                             )

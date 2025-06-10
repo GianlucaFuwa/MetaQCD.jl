@@ -1,15 +1,16 @@
 function add_wilson_derivative!(
     dU::Colorfield{B,T}, U::Gaugefield{B,T}, X::TF, Y::TF, bc; coeff=1
 ) where {B<:GPU,T,TF<:WilsonSpinorfield{B,T}}
-    check_dims(dU, U, X, Y)
     fac = T(0.5coeff)
-    @latmap(Sequential(), Val(1), add_wilson_derivative_gpu_kernel!, dU, U, X, Y, bc, fac)
+    bulk = eachindex(dU, U, X, Y)
+    @latmap(Sequential(), Val(1), add_wilson_derivative_gpu!, dU, U, X, Y, bc, fac, bulk)
 end
 
-@kernel function add_wilson_derivative_gpu_kernel!(
-    dU, @Const(U), @Const(X), @Const(Y), bc, fac
+@kernel cpu=false function add_wilson_derivative_gpu!(
+    dU, @Const(U), @Const(X), @Const(Y), bc, fac, bulk
 )
-    site = @index(Global, Cartesian)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
 
     @inbounds begin
         add_wilson_derivative_kernel!(dU, U, X, Y, site, bc, fac)
@@ -19,15 +20,16 @@ end
 function add_clover_derivative!(
     dU::Colorfield{B,T}, U::Gaugefield{B,T}, Xμν::Tensorfield{B,T}, csw; coeff=1
 ) where {B<:GPU,T}
-    check_dims(dU, U, Xμν)
     fac = T(csw * coeff / 2)
-    @latmap(Sequential(), Val(1), add_clover_derivative_gpu_kernel!, dU, U, Xμν, fac, T)
+    bulk = eachindex(dU, U, X, Y)
+    @latmap(Sequential(), Val(1), add_clover_derivative_gpu!, dU, U, Xμν, fac, T, bulk)
 end
 
-@kernel function add_clover_derivative_gpu_kernel!(
-    dU, @Const(U), @Const(Xμν), fac, ::Type{T}
+@kernel cpu=false function add_clover_derivative_gpu!(
+    dU, @Const(U), @Const(Xμν), fac, ::Type{T}, bulk
 ) where {T}
-    site = @index(Global, Cartesian)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
 
     @inbounds begin
         add_clover_derivative_kernel!(dU, U, Xμν, site, fac, T)
@@ -37,12 +39,13 @@ end
 function calc_Xμν_wilson_eachsite!(
     Xμν::Tensorfield{B,T}, X::TF, Y::TF
 ) where {B<:GPU,T,TF<:WilsonSpinorfield{B,T}}
-    check_dims(Xμν, X, Y)
-    @latmap(Sequential(), Val(1), calc_Xμν_wilson_gpu_kernel!, dU, U, Xμν, fac, T)
+    bulk = eachindex(dU, U, X, Y)
+    @latmap(Sequential(), Val(1), calc_Xμν_wilson_gpu!, dU, U, Xμν, fac, T, bulk)
 end
 
-@kernel function calc_Xμν_wilson_gpu_kernel!(Xμν, @Const(X), @Const(Y))
-    site = @index(Global, Cartesian)
+@kernel cpu=false function calc_Xμν_wilson_gpu!(Xμν, @Const(X), @Const(Y), bulk)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
 
     @inbounds begin
         calc_Xμν_wilson_kernel!(Xμν, X, Y, site)

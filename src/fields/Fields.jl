@@ -3,6 +3,8 @@ module Fields
 using KernelAbstractions # With this we can write generic GPU kernels for ROC and CUDA
 using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
+using MacroTools
+using OffsetArrays
 using Polyester # Used for the @batch macro, which enables multi threading
 using Random
 using StaticArrays # Used for the SU3 matrices
@@ -31,25 +33,31 @@ const AbstractMPIField{Backend,FloatType,ArrayType} =
     return IsDistributed
 end
 
-include("distributed.jl") # utility functions for MPI-distributed fields
+@inline is_evenodd(::AbstractField) = false # is only true for SpinorfieldEO
+
+# utility functions for MPI-distributed fields
+include("distributed/topology.jl")
+include("distributed/halo_update.jl")
 
 include("boundaries.jl") # boundary conditions in time direction for spinors
 include("gaugefield.jl") # Gaugefield, Colorfield and Expfield structs defined here
+include("colorfield.jl")
+include("expfield.jl")
 include("algebrafield.jl") # For now just a placeholder in case I want to implement more efficient storage of su(3) algebra elements
 include("spinorfield.jl") # Spinorfield structs defined here 
 include("spinorfield_eo.jl") # Spinorfield for even-odd precon
 include("multispinorfield.jl") # MultiSpinorfield structs defined here 
 include("paulifield.jl") # For now just a placeholder in case I want to implement more efficient storage of su(3) algebra elements
 include("tensorfield.jl") # Tensorfield struct and fieldstrength methods defined here
-include("iterators.jl") # Sequential and Checkerboard iterators defined here 
-include("gpu_iterators.jl") # GPU version of the above
+include("iterators/cpu_iterators.jl") # Sequential and Checkerboard iterators defined here 
+include("iterators/gpu_iterators.jl") # GPU version of the above
 include("gpu_kernels/utils.jl")
 
 include("action.jl") # Gauge action methods
 include("field_operations.jl") # General operations on fields, like adding, copying etc.
-include("clover.jl") # Definition of clover operator
-include("staple.jl") # Definition of staple operator
-include("wilsonloop.jl") # Definition of arbitrary side length Wilson loops
+include("stencils/clover.jl") # Definition of clover operator
+include("stencils/staple.jl") # Definition of staple operator
+include("stencils/wilsonloop.jl") # Definition of arbitrary side length Wilson loops
 
 include("gpu_kernels/action.jl") # GPU versions of the above:
 include("gpu_kernels/algebrafield.jl")
@@ -64,6 +72,7 @@ Base.similar(u::Colorfield) = Colorfield(u)
 Base.similar(u::Expfield) = Expfield(u)
 
 Base.view(u::AbstractField, I::CartesianIndices{4}) = view(u.U, 1:4, I.indices...)
+Base.view(u::AbstractField, I::Vector{CartesianIndex{4}}) = view(u.U, 1:4, I)
 
 """
     to_backend(Backend_out, u::AbstractField{Backend_in,FloatType})
@@ -74,7 +83,9 @@ Ports the AbstractField u to the backend `Backend_out`, maintaining all elements
 `CUDABackend` \\
 `ROCBackend`
 """
-function to_backend(::Type{Bout}, u::AbstractField{M,Bin,T}) where {M,Bout,Bin,T}
+function to_backend(
+    ::Type{Bout}, u::AbstractField{Bin,Tin,M}, ::Type{Tout}=Tin
+) where {M,Bout,Tout,Bin,Tin}
     @assert M === false "Switching backends not yet supported with MPI parallelization" # FIXME
 
     if Bout === Bin
@@ -84,24 +95,31 @@ function to_backend(::Type{Bout}, u::AbstractField{M,Bin,T}) where {M,Bout,Bin,T
     end
 
     A = array_type(Bout)
+    new_eltype = convert(Tout, eltype(u.U))
     sizeU = global_dims(u)
-    Uout = A(u.U)
+    Uout = A{new_eltype}(u.U)
+    bufs = if isnothing(u.send_buf)
+        nothing, nothing
+    else
+        A{new_eltype}(u.send_buf), A(u.recv_buf)
+    end
+    Fieldtype = eval(nameof(typeof(u)))
 
     if u isa Gaugefield
         GA = gauge_action(u)
         Sg = Base.RefValue{Float64}(u.Sg)
-        CV = Base.RefValue{Float64}(u.CV)
-        return Gaugefield{M,Bout,T,typeof(Uout),GA}(Uout, sizeU..., u.NV, 3, u.β, Sg, CV)
-    elseif u isa Expfield
-        return Expfield{M,Bout,T,typeof(Uout)}(Uout, sizeU..., u.NV, 3)
-    elseif u isa Colorfield
-        return Colorfield{M,Bout,T,typeof(Uout)}(Uout, sizeU..., u.NV, 3)
-    elseif u isa Tensorfield
-        return Tensorfield{M,Bout,T,typeof(Uout)}(Uout, sizeU..., u.NV, 3)
+        CV = deepcopy(u.CV)
+        return Gaugefield{Bout,Tout,M,typeof(Uout),GA,typeof(bufs[1])}(
+            Uout, bufs..., sizeU..., u.NV, 3, u.topology, u.β, Sg, CV
+        )
     elseif u isa Spinorfield
-        return Spinorfield{M,Bout,T,typeof(Uout),u.ND}(Uout, sizeU..., u.NV, 3)
+        return Spinorfield{Bout,Tout,M,typeof(Uout),u.ND,typeof(bufs[1])}(
+            Uout, bufs..., sizeU..., u.NV, 3, u.topology
+        )
     else
-        throw(ArgumentError("Unsupported field type"))
+        return Fieldtype{Bout,Tout,M,typeof(Uout),typeof(bufs[1])}(
+            Uout, bufs..., sizeU..., u.NV, 3, u.topology
+        )
     end
 end
 
@@ -122,6 +140,8 @@ KA.get_backend(u::AbstractField) = get_backend(u.U)
 # can use it, and once for Abstractfields for any other case
 @inline dims(u) = NTuple{4,Int64}((size(u, 2), size(u, 3), size(u, 4), size(u, 5)))
 @inline dims(u::AbstractField) = dims(u.U)
+@inline dimrange(u, μ) = axes(u, μ+1)
+@inline dimrange(u::AbstractField, μ) = axes(u.U, μ+1)
 @inline global_dims(u::AbstractField) = u.topology.global_dims
 @inline local_dims(u::AbstractField) = u.topology.local_dims
 @inline local_ranges(u::AbstractField) = u.topology.local_ranges
@@ -145,6 +165,16 @@ Check if all fields have the same dimensions. Throw an `AssertionError` otherwis
     return q
 end
 
+@inline function Base.eachindex(u::AbstractField, fields...)
+    check_dims(u, fields...)
+    return eachindex(u)
+end
+
+@inline function Base.eachindex(arg::Union{Symbol,Bool}, u::AbstractField, fields...)
+    check_dims(u, fields...)
+    return eachindex(arg, u)
+end
+
 @inline Base.eachindex(u::AbstractField) = CartesianIndices((u.NX, u.NY, u.NZ, u.NT))
 @inline Base.eachindex(::IndexLinear, u::AbstractField) = Base.OneTo(u.NV)
 # For MPI parallelized fields:
@@ -152,11 +182,23 @@ end
 Base.eachindex(::IndexLinear, u::AbstractMPIField) =
     error("MPI parallelized field can not be iterated over linearly")
 
+@inline function Base.eachindex(parity::Symbol, u::AbstractField)
+    return u.topology.bulk_sites_eo[parity]
+end
+
 @inline function Base.eachindex(even::Bool, u::AbstractField)
     NX, NY, NZ, NT = global_dims(u)
     @assert iseven(NT)
     last_range = even ? (1:div(NT, 2)) : (div(NT, 2)+1:NT)
     return CartesianIndices((NX, NY, NZ, last_range))
+end
+
+@inline function Base.eachindex(even::Bool, u::AbstractMPIField)
+    hw = u.topology.halo_width
+    NT = global_dims(u)[4]
+    @assert iseven(NT)
+    irange = even ? (1+hw:div(NT, 2)) : (div(NT, 2)+1:NT-hw)
+    return u.topology.bulk_sites[irange]
 end
 
 @inline allindices(u::AbstractField) = eachindex(IndexCartesian(), u.U) # all indices including halo regions

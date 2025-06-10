@@ -21,7 +21,7 @@ must be ordered \\
 `weight::Float64 = 0.01` - (Starting) Height of added Gaussians; must be positive \\
 `penalty_weight::Float64 = 1000` - Penalty when cv is outside of `cvlims`; must be positive \\
 """
-struct Metadynamics{CV} <: AbstractBias
+mutable struct Metadynamics{CV} <: AbstractBias
     cvinfo::CV
     static::Bool
     symmetric::Bool
@@ -214,4 +214,22 @@ function metad_from_file(p, filename)
         @level1("|  initialized from \"$(filename)\"")
         return collect(bin_vals), values[:, 2]
     end
+end
+
+function create_buffer(m::Metadynamics)
+    # for Metadynamics, only need to communicate static, write_bias_every and values
+    # all others are the same between ranks
+    return Vector{Float64}(undef, 2+length(m.values))
+end
+
+function pack_buffer!(buf, m::Metadynamics)
+    buf[1] = Float64(m.static)
+    buf[2] = Float64(m.write_bias_every)
+    buf[3:end] .= m.values
+end
+
+function unpack_buffer!(m::Metadynamics, buf)
+    m.static = round(Bool, buf[1])
+    m.write_bias_every = round(Int64, buf[2])
+    m.values .= view(buf, 3:length(buf))
 end

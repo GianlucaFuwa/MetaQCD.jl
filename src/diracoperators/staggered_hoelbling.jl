@@ -93,9 +93,8 @@ function LinearAlgebra.mul!(
     mass = T(D.mass)
     term = get_mass_term(D)
     bc = D.boundary_condition
-    check_dims(ψ, ϕ, U)
 
-    @batch for site in eachindex(ψ)
+    @batch for site in eachindex(ψ, ϕ, U)
         ψ[site] = staggered_hoelbling_kernel(U, ϕ, site, mass, bc, term, T, false)
     end
 
@@ -111,9 +110,8 @@ function LinearAlgebra.mul!(
     mass = T(D.parent.mass)
     term = get_mass_term(D.parent)
     bc = D.parent.boundary_condition
-    check_dims(ψ, ϕ, U)
 
-    @batch for site in eachindex(ψ)
+    @batch for site in eachindex(ψ, ϕ, U)
         ψ[site] = staggered_hoelbling_kernel(U, ϕ, site, mass, bc, term, T, true)
     end
 

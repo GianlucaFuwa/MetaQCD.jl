@@ -51,13 +51,21 @@ function test_measurements(backend=CPU; nprocs_cart=(1, 1, 1, 1), halo_width=2)
         mpi_amroot() && println("==========")
     end
 
-    TC_methods  = ["plaquette", "clover", "improved"]
+    TC_methods  = if mpi_size() > 1
+        ["plaquette", "clover"]
+    else
+        ["plaquette", "clover", "improved"]
+    end
     m_topo = TopologicalChargeMeasurement(U, TC_methods=TC_methods)
     topo = measure(m_topo, U)
 
     mpi_amroot() && println("==========")
 
-    ED_methods  = ["plaquette", "clover", "improved"]
+    ED_methods  = if mpi_size() > 1
+        ["plaquette", "clover"]
+    else
+        ["plaquette", "clover", "improved"]
+    end
     m_ed = EnergyDensityMeasurement(U, ED_methods=ED_methods)
     ed = measure(m_ed, U)
 

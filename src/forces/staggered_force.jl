@@ -77,10 +77,9 @@ end
 function add_staggered_derivative!(
     dU::Colorfield{CPU,T,M}, U::Gaugefield{CPU,T,M}, X::TF, Y::TF, bc; coeff=1
 ) where {T,M,TF<:StaggeredSpinorfield{CPU,T,M}}
-    check_dims(dU, U, X, Y)
     fac = T(-0.5coeff)
 
-    @batch for site in eachindex(dU)
+    @batch for site in eachindex(dU, U, X, Y)
         add_staggered_derivative_kernel!(dU, U, X, Y, site, bc, fac)
     end
 
@@ -90,28 +89,15 @@ end
 
 function add_staggered_derivative_kernel!(dU, U, X, Y, site, bc, fac)
     NX, NY, NZ, NT = dims(U)
-    siteμ⁺ = move(site, 1, 1, NX)
-    η = staggered_η(Val(1), site)
-    B = ckron(X[siteμ⁺], Y[site])
-    C = ckron(Y[siteμ⁺], X[site])
-    dU[1, site] += (fac * η) * traceless_antihermitian(cmatmul_oo(U[1, site], B - C))
 
-    siteμ⁺ = move(site, 2, 1, NY)
-    η = staggered_η(Val(2), site)
-    B = ckron(X[siteμ⁺], Y[site])
-    C = ckron(Y[siteμ⁺], X[site])
-    dU[2, site] += (fac * η) * traceless_antihermitian(cmatmul_oo(U[2, site], B - C))
-
-    siteμ⁺ = move(site, 3, 1, NZ)
-    η = staggered_η(Val(3), site)
-    B = ckron(X[siteμ⁺], Y[site])
-    C = ckron(Y[siteμ⁺], X[site])
-    dU[3, site] += (fac * η) * traceless_antihermitian(cmatmul_oo(U[3, site], B - C))
-
-    siteμ⁺ = move(site, 4, 1, NT)
-    η = staggered_η(Val(4), site)
-    B = ckron(apply_bc(X[siteμ⁺], bc, site, Val(1), NT), Y[site])
-    C = ckron(apply_bc(Y[siteμ⁺], bc, site, Val(1), NT), X[site])
-    dU[4, site] += (fac * η) * traceless_antihermitian(cmatmul_oo(U[4, site], B - C))
+    # use @nexprs here to statically generate the loop
+    # this makes it so Val(i) is well defined at each iteration and no type-instabilities arise
+    @nexprs 4 i -> (
+        siteμ⁺ = move(site, i, 1, (NX, NY, NZ, NT)[i]);
+        η = staggered_η(Val(i), site);
+        B = ckron(apply_bc(X[siteμ⁺], bc, site, Val(1), NT, Val(i)), Y[site]);
+        C = ckron(apply_bc(Y[siteμ⁺], bc, site, Val(1), NT, Val(i)), X[site]);
+        dU[i, site] += (fac * η) * traceless_antihermitian(cmatmul_oo(U[i, site], B - C))
+    )
     return nothing
 end

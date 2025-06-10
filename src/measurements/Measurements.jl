@@ -30,6 +30,7 @@ import ..Fields: Plaquette, Clover, Improved, fieldstrength_eachsite!, gauge_act
 import ..Fields: clover_square, global_dims, local_dims, float_type, plaquette, wilsonloop
 import ..Fields: @groupreduce, @latmap, @latsum, CPU, ones!, set_source!, clover_rect
 import ..Fields: clear!, distributed_reduce, is_distributed, plaquette_trace_sum, wilsonloop
+import ..Fields: update_halo!
 import ..Smearing: AbstractSmearing, Cooling, GradientFlow, NoSmearing, StoutSmearing
 import ..Smearing: calc_smearedU!, flow!
 

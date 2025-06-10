@@ -64,7 +64,7 @@ function create_filetype(U, ::Type{T}) where {T}
     # 18 entries in matrix * 4 directions per site
     global_dims = (4, topology.global_dims...)
     local_dims = (4, topology.local_dims...)
-    local_ranges = (1:4, topology.local_ranges...) 
+    local_ranges = (1:4, topology.local_ranges.indices...) 
     offsets = map(r -> (first(r) - 1), local_ranges)
     oldtype = Utils.MPI.Datatype(T)
     ftype = Utils.MPI.Types.create_subarray(global_dims, local_dims, offsets, oldtype)

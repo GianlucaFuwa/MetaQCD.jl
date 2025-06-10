@@ -89,14 +89,13 @@ end
 function add_wilson_derivative!(
     dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, X::TF, Y::TF, bc; coeff=1
 ) where {T,TF<:WilsonSpinorfield{CPU,T}}
-    check_dims(dU, U, X, Y)
     fac = T(0.5coeff)
 
     # If we write out the kernel and use @batch, the program crashes for some reason
     # Stems from "pload" from StrideArraysCore.jl but ONLY if we write it out AND overload
     # "object_and_preserve" (cant reproduce in MWE yet)
     # is fine, because writing it like this makes the GPU port easier
-    @batch for site in eachindex(dU)
+    @batch for site in eachindex(dU, U, X, Y)
         add_wilson_derivative_kernel!(dU, U, X, Y, site, bc, fac)
     end
 
@@ -131,10 +130,9 @@ end
 function add_clover_derivative!(
     dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, Xμν::Tensorfield{CPU,T}, csw; coeff=1
 ) where {T}
-    check_dims(dU, U, Xμν)
     fac = T(csw * coeff / 2)
 
-    @batch for site in eachindex(dU)
+    @batch for site in eachindex(dU, U, Xμν)
         add_clover_derivative_kernel!(dU, U, Xμν, site, fac, T)
     end
 
@@ -172,9 +170,7 @@ end
 function calc_Xμν_wilson_eachsite!(
     Xμν::Tensorfield{CPU,T}, X::TF, Y::TF
 ) where {T,TF<:WilsonSpinorfield}
-    check_dims(Xμν, X, Y)
-
-    @batch for site in eachindex(Xμν)
+    @batch for site in eachindex(Xμν, X, Y)
         calc_Xμν_wilson_kernel!(Xμν, X, Y, site)
     end
 

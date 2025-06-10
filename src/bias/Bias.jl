@@ -1,6 +1,7 @@
 module BiasModule
 
 using DelimitedFiles
+using LinearAlgebra
 using Polyester: @batch
 using Printf
 using StaticArrays
@@ -59,18 +60,19 @@ If `dummy=true` the bias is static and set to zero as for the measurement stream
 If `build=true` certain things are made more convenient for the building of the bias, like
 only the root rank printing its bias to file etc.
 """
-mutable struct Bias{N,TB,TS,TW,T1,T2}
+mutable struct Bias{N,TB,TS,TW,T1,T2,T3}
     cv_numsmears::Vector{Int64}
     bias::TB
     smearing::TS
     kinds_of_weights::TW
     biasfile::T1
     datafile::T2
+    buffers::T3
     function Bias(
-        cv_numsmears, bias::TB, smearing::TS, weights::TW, bfile::T1, dfile::T2
-    ) where {TB,TS,TW,T1,T2}
+        cv_numsmears, bias::TB, smearing::TS, weights::TW, bfile::T1, dfile::T2, buffers::T3
+    ) where {TB,TS,TW,T1,T2,T3}
         N = length(bias)
-        return new{N,TB,TS,TW,T1,T2}(cv_numsmears, bias, smearing, weights, bfile, dfile)
+        return new{N,TB,TS,TW,T1,T2,T3}(cv_numsmears, bias, smearing, weights, bfile, dfile)
     end
 end
 
@@ -96,10 +98,8 @@ function Bias(p, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, bui
         bias_parameters = bias_parameters_from_dict(biases[i], instance)
         name = bias_parameters.kind_of_cv
 
-        if name == "topcharge_plaquette"
-            is_distributed(U) && @assert(U.topology.halo_width>=1)
-        elseif name == "topcharge_clover"
-            is_distributed(U) && @assert(U.topology.halo_width>=2)
+        if name == "topcharge_clover"
+            is_distributed(U) && @assert(maximum(U.topology.halo_width)>=2)
         end
 
         numsmears = bias_parameters.numsmears_for_cv
@@ -126,6 +126,10 @@ function Bias(p, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, bui
         else
             error("type $(p[i]["type"]) not supported. Try metad, opes, opesmt or parametric")
         end
+    end
+
+    buffers = ntuple(length(bias)) do i
+        create_buffer(bias[i])
     end
 
     smearing = StoutSmearing(U; numlayers=maximum(cv_numsmears), rho=rho)
@@ -192,6 +196,7 @@ function Bias(p, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, bui
         kinds_of_weights,
         biasfile,
         datafile,
+        buffers,
     )
 end
 

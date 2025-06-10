@@ -68,6 +68,7 @@ struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO,BC} <: AbstractDiracOperator{B
     end
 end
 
+# FIXME:
 function add_gauge_background(
     D::WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO}, U::Gaugefield{B,T}
 ) where {B,T,C,TF,TG,TX,TO}
@@ -230,21 +231,24 @@ function mul_oe!(
     check_dims(ψ_eo, ϕ_eo, U)
     ψ = ψ_eo.parent
     ϕ = ϕ_eo.parent
-    fdims = dims(ψ)
-    NV = ψ.NV
+    loc_dims = ψ.topology.local_dims
+    loc_dims_padded = ψ.topology.local_dims_padded
+    nv = prod(loc_dims)
+    origin = ψ.topology.bulk_sites[1]
 
-    @batch for site in eachindex(ψ)
-        isodd(site) || continue
+    @batch for site in eachindex(:odd, ψ)
         _site = if into_odd
-            eo_site(site, fdims..., NV)
+            eo_site(site, origin, loc_dims..., nv)
         else
-            eo_site_switch(site, fdims..., NV)
+            eo_site_switch(site, origin, loc_dims..., nv)
         end
 
-        ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, bc, T, Val(dagg))
+        ψ[_site] = fac * wilson_eo_kernel(
+            U, ϕ, site, origin, loc_dims, loc_dims_padded, bc, T, Val(dagg)
+        )
     end
 
-    update_halo!(ψ_eo)
+    update_halo_eo!(ψ)
     return nothing
 end
 
@@ -254,58 +258,47 @@ function mul_eo!(
     check_dims(ψ_eo, ϕ_eo, U)
     ψ = ψ_eo.parent
     ϕ = ϕ_eo.parent
-    fdims = dims(ψ)
-    NV = ψ.NV
+    loc_dims = ψ.topology.local_dims
+    loc_dims_padded = ψ.topology.local_dims_padded
+    nv = prod(loc_dims)
+    origin = ψ.topology.bulk_sites[1]
 
-    @batch for site in eachindex(ψ)
-        iseven(site) || continue
+    @batch for site in eachindex(:even, ψ)
         _site = if into_odd
-            eo_site_switch(site, fdims..., NV)
+            eo_site_switch(site, origin, loc_dims..., nv)
         else
-            eo_site(site, fdims..., NV)
+            eo_site(site, origin, loc_dims..., nv)
         end
 
-        ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, bc, T, Val(dagg))
+        ψ[_site] = fac * wilson_eo_kernel(
+            U, ϕ, site, origin, loc_dims, loc_dims_padded, bc, T, Val(dagg)
+        )
     end
 
-    update_halo!(ψ_eo)
+    update_halo_eo!(ψ)
     return nothing
 end
 
-function wilson_eo_kernel(U, ϕ, site, bc, ::Type{T}, ::Val{dagg}) where {T,dagg}
+function wilson_eo_kernel(
+    U, ϕ, site, origin, local_dims, local_dims_padded, bc, ::Type{T}, ::Val{dagg}
+) where {T,dagg}
     # sites that begin with a "_" are meant for indexing into the even-odd preconn'ed
     # fermion field 
-    NX, NY, NZ, NT = dims(U)
-    NV = NX * NY * NZ * NT
+    nx, ny, nz, nt = local_dims
+    nv = prod(local_dims)
+    NT = local_dims_padded[4]
     ψₙ = zero(ϕ[site])
-    # Cant do a for loop here because Val(μ) cannot be known at compile time and is 
-    # therefore dynamically dispatched
-    _siteμ⁺ = eo_site(move(site, 1, 1, NX), NX, NY, NZ, NT, NV)
-    siteμ⁻ = move(site, 1, -1, NX)
-    _siteμ⁻ = eo_site(siteμ⁻, NX, NY, NZ, NT, NV)
-    ψₙ += cmvmul_spin_proj(U[1, site], ϕ[_siteμ⁺], Val(-1dagg), Val(false))
-    ψₙ += cmvmul_spin_proj(U[1, siteμ⁻], ϕ[_siteμ⁻], Val(1dagg), Val(true))
 
-    _siteμ⁺ = eo_site(move(site, 2, 1, NY), NX, NY, NZ, NT, NV)
-    siteμ⁻ = move(site, 2, -1, NY)
-    _siteμ⁻ = eo_site(siteμ⁻, NX, NY, NZ, NT, NV)
-    ψₙ += cmvmul_spin_proj(U[2, site], ϕ[_siteμ⁺], Val(-2dagg), Val(false))
-    ψₙ += cmvmul_spin_proj(U[2, siteμ⁻], ϕ[_siteμ⁻], Val(2dagg), Val(true))
-
-    _siteμ⁺ = eo_site(move(site, 3, 1, NZ), NX, NY, NZ, NT, NV)
-    siteμ⁻ = move(site, 3, -1, NZ)
-    _siteμ⁻ = eo_site(siteμ⁻, NX, NY, NZ, NT, NV)
-    ψₙ += cmvmul_spin_proj(U[3, site], ϕ[_siteμ⁺], Val(-3dagg), Val(false))
-    ψₙ += cmvmul_spin_proj(U[3, siteμ⁻], ϕ[_siteμ⁻], Val(3dagg), Val(true))
-
-    _siteμ⁺ = eo_site(move(site, 4, 1, NT), NX, NY, NZ, NT, NV)
-    siteμ⁻ = move(site, 4, -1, NT)
-    _siteμ⁻ = eo_site(siteμ⁻, NX, NY, NZ, NT, NV)
-    ψₙ += cmvmul_spin_proj(
-        U[4, site], apply_bc(ϕ[_siteμ⁺], bc, site, Val(1), NT), Val(-4dagg), Val(false)
-    )
-    ψₙ += cmvmul_spin_proj(
-        U[4, siteμ⁻], apply_bc(ϕ[_siteμ⁻], bc, site, Val(-1), NT), Val(4dagg), Val(true)
+    # use @nexprs here to statically generate the loop
+    # this makes it so Val(i) is well defined at each iteration and no type-instabilities arise
+    @nexprs 4 i -> (
+        _siteμ⁺ = eo_site(move(site, i, 1, local_dims_padded[i]), origin, nx, ny, nz, nt, nv);
+        siteμ⁻ = move(site, i, -1, local_dims_padded[i]);
+        _siteμ⁻ = eo_site(siteμ⁻, origin, nx, ny, nz, nt, nv);
+        ϕ⁺ = apply_bc(ϕ[_siteμ⁺], bc, site, Val(1), NT, Val(i));
+        ϕ⁻ = apply_bc(ϕ[_siteμ⁻], bc, site, Val(-1), NT, Val(i));
+        ψₙ += cmvmul_spin_proj(U[i, site], ϕ⁺, Val(-i*dagg), Val(false));
+        ψₙ += cmvmul_spin_proj(U[i, siteμ⁻], ϕ⁻, Val(i*dagg), Val(true))
     )
     return T(0.5) * ψₙ
 end
@@ -427,7 +420,7 @@ function axmy!(
     ψ = ψ_eo.parent
     even = true
 
-    @batch for _site in eachindex(even, ϕ)
+    @batch for _site in allindices(even, ϕ)
         ϕ[_site] = cmvmul_block(D_diag[_site], ψ[_site]) - ϕ[_site]
     end
 

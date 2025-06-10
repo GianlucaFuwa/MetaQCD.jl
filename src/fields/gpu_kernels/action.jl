@@ -1,14 +1,14 @@
 function plaquette_trace_sum(U::Gaugefield{B}) where {B}
     return @latsum(
-        Sequential(), Val(1), Float64, plaquette_trace_sum_kernel!, U, eachindex(U)
+        Sequential(), Val(1), Float64, plaquette_trace_sum_gpu!, U, eachindex(U)
     )
 end
 
-@kernel function plaquette_trace_sum_kernel!(out, @Const(U), bulk_sites)
+@kernel cpu=false function plaquette_trace_sum_gpu!(out, @Const(U), bulk)
     # workgroup index, that we use to pass the reduced value to global "out"
-    bi = @index(Group, Linear)
-    site_raw = @index(Global, Cartesian)
-    site = bulk_sites[site_raw]
+    iblock = @index(Group, Linear)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
 
     pₙ = 0.0
     @unroll for μ in (1i32):(3i32)
@@ -21,21 +21,21 @@ end
 
     ti = @index(Local)
     if ti == 1
-        @inbounds out[bi] = out_group
+        @inbounds out[iblock] = out_group
     end
 end
 
 function rect_trace_sum(U::Gaugefield{B}) where {B}
     return @latsum(
-        Sequential(), Val(1), Float64, rect_trace_sum_kernel!, U, eachindex(U)
+        Sequential(), Val(1), Float64, rect_trace_sum_gpu!, U, eachindex(U)
     )
 end
 
-@kernel function rect_trace_sum_kernel!(out, @Const(U), bulk_sites)
+@kernel cpu=false function rect_trace_sum_gpu!(out, @Const(U), bulk)
     # workgroup index, that we use to pass the reduced value to global "out"
-    bi = @index(Group, Linear)
-    site_raw = @index(Global, Cartesian)
-    site = bulk_sites[site_raw]
+    iblock = @index(Group, Linear)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
 
     r = 0.0
     @unroll for μ in (1i32):(3i32)
@@ -48,22 +48,23 @@ end
 
     ti = @index(Local)
     if ti == 1
-        @inbounds out[bi] = out_group
+        @inbounds out[iblock] = out_group
     end
 end
 
 function gauge_action_deriv!(
     dU::Colorfield{B,T}, staples::Colorfield{B,T}, U::Gaugefield{B,T}
 ) where {B<:GPU,T}
-    check_dims(dU, U, staples)
     fac = convert(T, -U.β / 6)
     gaction = gauge_action(U)()
-    @latmap(Sequential(), Val(1), gauge_action_deriv_kernel!, dU, staples, U, gaction, fac)
+    bulk = eachindex(dU, U, staples)
+    @latmap(Sequential(), Val(1), gauge_action_deriv_gpu!, dU, staples, U, gaction, fac, bulk)
     return nothing
 end
 
-@kernel function gauge_action_deriv_kernel!(dU, staples, @Const(U), gaction, fac)
-    site = @index(Global, Cartesian)
+@kernel cpu=false function gauge_action_deriv_gpu!(dU, staples, @Const(U), gaction, fac, bulk)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
 
     @inbounds begin
         @unroll for μ in (1i32):(4i32)

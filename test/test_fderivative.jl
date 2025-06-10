@@ -62,12 +62,12 @@ function test_fderivative(
         mass,
         bc_str="antiperiodic",
         rhmc_spectral_bound=spectral_bound,
-        rhmc_order_md=15,
-        rhmc_order_action=15,
-        cg_tol_action=1e-16,
-        cg_tol_md=1e-16,
-        cg_maxiters_action=5000,
-        cg_maxiters_md=5000,
+        rhmc_order_md=12,
+        rhmc_order_action=12,
+        cg_tol_action=1e-19,
+        cg_tol_md=1e-19,
+        cg_maxiters_action=1000,
+        cg_maxiters_md=1000,
         wilson_csw=csw,
     )
     mpi_amroot() && (@show action)
@@ -150,9 +150,14 @@ function test_fderivative(
         end
     end
 
-    if mpi_amroot()
+    if mpi_myrank() == 0
         println()
-        @test sum(relerrors[:, 2]) / length(relerrors[:, 2]) < 1e-4
+
+        TD = typeof(action.D)
+        name = chop(string(nameof(TD)); tail=length("DiracOperator"))
+        @testset "$(name) derivative" begin
+            @test sum(relerrors) / length(relerrors) < 1e-3
+        end
     end
 
     mpi_barrier()

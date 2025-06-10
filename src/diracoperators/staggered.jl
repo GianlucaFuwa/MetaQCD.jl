@@ -72,9 +72,8 @@ function LinearAlgebra.mul!(
     U = D.U
     mass = T(D.mass)
     bc = D.boundary_condition
-    check_dims(ψ, ϕ, U)
 
-    @batch for site in eachindex(ψ)
+    @batch for site in eachindex(ψ, ϕ, U)
         ψ[site] = staggered_kernel(U, ϕ, site, mass, bc, T, false)
     end
 
@@ -89,9 +88,8 @@ function LinearAlgebra.mul!(
     U = D.parent.U
     mass = T(D.parent.mass)
     bc = D.parent.boundary_condition
-    check_dims(ψ, ϕ, U)
 
-    @batch for site in eachindex(ψ)
+    @batch for site in eachindex(ψ, ϕ, U)
         ψ[site] = staggered_kernel(U, ϕ, site, mass, bc, T, true)
     end
 
@@ -112,31 +110,16 @@ function staggered_kernel(U, ϕ, site, mass, bc, ::Type{T}, dagg::Bool) where {T
     sgn = dagg ? -1 : 1
     NX, NY, NZ, NT = dims(U)
     ψₙ = 2mass * ϕ[site]
-    # Cant do a for loop here because Val(μ) cannot be known at compile time and is
-    # therefore dynamically dispatched
-    siteμ⁺ = move(site, 1, 1, NX)
-    siteμ⁻ = move(site, 1, -1, NX)
-    η = sgn * staggered_η(Val(1), site)
-    ψₙ += η * cmvmul(U[1, site], ϕ[siteμ⁺])
-    ψₙ -= η * cmvmul_d(U[1, siteμ⁻], ϕ[siteμ⁻])
 
-    siteμ⁺ = move(site, 2, 1, NY)
-    siteμ⁻ = move(site, 2, -1, NY)
-    η = sgn * staggered_η(Val(2), site)
-    ψₙ += η * cmvmul(U[2, site], ϕ[siteμ⁺])
-    ψₙ -= η * cmvmul_d(U[2, siteμ⁻], ϕ[siteμ⁻])
-
-    siteμ⁺ = move(site, 3, 1, NZ)
-    siteμ⁻ = move(site, 3, -1, NZ)
-    η = sgn * staggered_η(Val(3), site)
-    ψₙ += η * cmvmul(U[3, site], ϕ[siteμ⁺])
-    ψₙ -= η * cmvmul_d(U[3, siteμ⁻], ϕ[siteμ⁻])
-
-    siteμ⁺ = move(site, 4, 1, NT)
-    siteμ⁻ = move(site, 4, -1, NT)
-    η = sgn * staggered_η(Val(4), site)
-    ψₙ += η * cmvmul(U[4, site], apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT))
-    ψₙ -= η * cmvmul_d(U[4, siteμ⁻], apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT))
+    # use @nexprs here to statically generate the loop
+    # this makes it so Val(i) is well defined at each iteration and no type-instabilities arise
+    @nexprs 4 i -> (
+        siteμ⁺ = move(site, i, 1, (NX, NY, NZ, NT)[i]);
+        siteμ⁻ = move(site, i, -1, (NX, NY, NZ, NT)[i]);
+        η = sgn * staggered_η(Val(i), site);
+        ψₙ += η * cmvmul(U[i, site], apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(i)));
+        ψₙ -= η * cmvmul_d(U[i, siteμ⁻], apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(i)))
+    )
     return T(0.5) * ψₙ
 end
 

@@ -15,15 +15,15 @@ using ..Utils
 
 import KernelAbstractions as KA
 import ..BiasModule: Bias, NoBias, calc_cv, ∂V∂Q, recalc_cv!
-import ..BiasModule: update_bias!
+import ..BiasModule: update_bias!, pack_buffer!, unpack_buffer!
 import ..DiracOperators: AbstractDiracOperator, FermionAction, QuenchedFermionAction
 import ..DiracOperators: calc_fermion_action, has_clover_term, sample_pseudofermions!
 import ..Fields: AbstractGaugeAction, Gaugefield, Colorfield, identity_gauges!, global_dims
-import ..Fields: WilsonGaugeAction, add!, calc_gauge_action, calc_kinetic_energy
+import ..Fields: WilsonGaugeAction, add!, calc_gauge_action, calc_kinetic_energy, update_halo!
 import ..Fields: allindices, clear!, dims, normalize!, fieldstrength_eachsite!, float_type
 import ..Fields: check_dims, even_odd, gaussian_TA!, mul!, staple, staple_eachsite!
-import ..Fields: @groupreduce, @latmap, @latsum, gauge_action, is_distributed, update_halo!
-import ..Fields: AbstractField, Plaquette, Clover, Spinorfield, Tensorfield
+import ..Fields: @groupreduce, @latmap, @latsum, @cpulatmap, @cpulatsum, gauge_action
+import ..Fields: AbstractField, Plaquette, Clover, Spinorfield, Tensorfield, is_distributed
 import ..Forces: calc_dSdU_bare!, calc_dSfdU_bare!, calc_dVdU_bare!
 import ..Parameters: ParameterSet
 import ..Smearing: AbstractSmearing, NoSmearing, StoutSmearing

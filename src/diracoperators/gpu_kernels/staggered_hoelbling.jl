@@ -1,31 +1,36 @@
 function LinearAlgebra.mul!(
     ψ::TF, D::StaggeredHoelblingDiracOperator{MT,B,T,TF,TG}, ϕ::TF
-) where {B<:GPU,T,TF,TG}
+) where {MT,B<:GPU,T,TF,TG}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.U
     mass = T(D.mass)
+    term = get_mass_term(D)
     bc = D.boundary_condition
-    check_dims(ψ, ϕ, U)
-    @latmap(Sequential(), Val(1), staggered_kernel!, ψ, U, ϕ, mass, bc, T, false)
+    bulk = eachindex(ψ, ϕ, U)
+    @latmap(
+        Sequential(), Val(1), staggered_hoelbling_gpu!, ψ, U, ϕ, mass, bc, term, T, false, bulk
+    )
 end
 
 function LinearAlgebra.mul!(
     ψ::TF, D::Daggered{StaggeredDiracOperator{MT,B,T,TF,TG}}, ϕ::TF
-) where {B<:GPU,T,TF,TG}
+) where {MT,B<:GPU,T,TF,TG}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.parent.U
-    check_dims(ψ, ϕ, U)
     mass = T(D.parent.mass)
+    term = get_mass_term(D.parent)
     bc = D.parent.boundary_condition
+    bulk = eachindex(ψ, ϕ, U)
     @latmap(
-        Sequential(), Val(1), staggered_hoelbling_kernel!, ψ, U, ϕ, mass, bc, term, T, true
+        Sequential(), Val(1), staggered_hoelbling_gpu!, ψ, U, ϕ, mass, bc, term, T, true, bulk
     )
 end
 
-@kernel function staggered_hoelbling_kernel!(
-    ψ, @Const(U), @Const(ϕ), mass, bc, term, ::Type{T}, dagg
+@kernel cpu=false function staggered_hoelbling_gpu!(
+    ψ, @Const(U), @Const(ϕ), mass, bc, term, ::Type{T}, dagg, bulk
 ) where {T}
-    site = @index(Global, Cartesian)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
     @inbounds ψ[site] = staggered_hoelbling_kernel(U, ϕ, site, mass, bc, term, T, dagg)
 end
 

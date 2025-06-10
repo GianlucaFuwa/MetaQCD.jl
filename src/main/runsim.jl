@@ -1,4 +1,4 @@
-function run_sim(parameterfile::String; backend="cpu")
+function run_sim(parameterfile::String)
     # When using MPI we make sure that only rank 0 prints to the console
     if mpi_amroot()
         ext = splitext(parameterfile)[end]
@@ -8,7 +8,17 @@ function run_sim(parameterfile::String; backend="cpu")
     end
 
     # load parameters from toml file
-    parameters = construct_params_from_toml(parameterfile; backend=backend)
+    parameters = construct_params_from_toml(parameterfile)
+    if parameters.backend == "cuda"
+        @assert "cuda" in keys(BACKENDS) """
+        In order to use the CUDA Backend, CUDA.jl has to be loaded
+        """
+    elseif parameters.backend ∈ ("rocm", "roc", "amdgpu")
+        @assert "rocm" in keys(BACKENDS) """
+        In order to use the ROCM Backend, AMDGPU.jl has to be loaded
+        """
+    end
+
     num_instances = parameters.numinstances
     num_dist = prod(parameters.numprocs_cart)
 

@@ -1,5 +1,5 @@
 # Explicit precompilation including running code
-using PrecompileTools: @setup_workload, @compile_workload
+# using PrecompileTools: @setup_workload, @compile_workload
 
 # @setup_workload begin
 #     # Setup code can go here

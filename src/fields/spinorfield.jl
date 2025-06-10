@@ -13,9 +13,11 @@ If `staggered=true`, the number of Dirac degrees of freedom (NumDirac) is reduce
 `CUDABackend` \\
 `ROCBackend`
 """
-struct Spinorfield{Backend,FloatType,IsDistributed,ArrayType,NumDirac} <:
+struct Spinorfield{Backend,FloatType,IsDistributed,ArrayType,NumDirac,BufferType} <:
        AbstractField{Backend,FloatType,IsDistributed,ArrayType}
     U::ArrayType # Actual field storing the gauge variables
+    send_buf::BufferType
+    recv_buf::BufferType
     NX::Int64 # Number of lattice sites in the x-direction
     NY::Int64 # Number of lattice sites in the y-direction
     NZ::Int64 # Number of lattice sites in the z-direction
@@ -28,12 +30,13 @@ struct Spinorfield{Backend,FloatType,IsDistributed,ArrayType,NumDirac} <:
         NX, NY, NZ, NT
     ) where {Backend,FloatType,NumDirac}
         U = KA.zeros(Backend(), SVector{3NumDirac,Complex{FloatType}}, NX, NY, NZ, NT)
+        send_buf = recv_buf = nothing
         NV = NX * NY * NZ * NT
         numprocs_cart = (1, 1, 1, 1)
         halo_width = 0
         topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
-        return new{Backend,FloatType,false,typeof(U),NumDirac}(
-            U, NX, NY, NZ, NT, NV, 3, topology
+        return new{Backend,FloatType,false,typeof(U),NumDirac,Nothing}(
+            U, send_buf, recv_buf, NX, NY, NZ, NT, NV, 3, topology
         )
     end
 
@@ -46,11 +49,17 @@ struct Spinorfield{Backend,FloatType,IsDistributed,ArrayType,NumDirac} <:
 
         NV = NX * NY * NZ * NT
         topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
-        ldims = topology.local_dims
-        dims_in = ntuple(i -> ldims[i] + 2halo_width, Val(4))
-        U = KA.zeros(Backend(), SVector{3NumDirac,Complex{FloatType}}, dims_in...)
-        return new{Backend,FloatType,true,typeof(U),NumDirac}(
-            U, NX, NY, NZ, NT, NV, 3, topology
+        ldims = topology.local_dims_padded
+        eltype = SVector{3NumDirac,Complex{FloatType}}
+
+        eff_halo_width = halo_width .* topology.is_partitioned
+        origin = OffsetArrays.Origin((topology.bulk_sites[1].I .- eff_halo_width...)...)
+        U = OffsetArray(KA.zeros(Backend(), eltype, ldims...), origin)
+        buf_length = maximum(sz for sz in topology.halo_sizes)
+        send_buf = KA.zeros(Backend(), eltype, buf_length)
+        recv_buf = KA.zeros(Backend(), eltype, buf_length)
+        return new{Backend,FloatType,true,typeof(U),NumDirac,typeof(send_buf)}(
+            U, recv_buf, send_buf, NX, NY, NZ, NT, NV, 3, topology
         )
     end
 end
@@ -60,7 +69,7 @@ function Spinorfield(
 ) where {Backend,FloatType,IsDistributed,ArrayType,NumDirac}
     u_out = if IsDistributed
         numprocs_cart = f.topology.numprocs_cart
-        halo_width = f.topology.halo_width
+        halo_width = maximum(f.topology.halo_width)
         Spinorfield{Backend,FloatType,NumDirac}(
             f.NX, f.NY, f.NZ, f.NT, numprocs_cart, halo_width
         )
@@ -78,7 +87,7 @@ function Spinorfield(
 
     u_out = if IsDistributed
         numprocs_cart = u.topology.numprocs_cart
-        halo_width = u.topology.halo_width
+        halo_width = maximum(u.topology.halo_width)
         Spinorfield{Backend,FloatType,NumDirac}(
             u.NX, u.NY, u.NZ, u.NT, numprocs_cart, halo_width
         )
@@ -112,6 +121,7 @@ Base.@propagate_inbounds Base.setindex!(f::Spinorfield, v, site::SiteCoords) =
     setindex!(f.U, v, site)
 
 Base.view(f::Spinorfield, I::CartesianIndices{4}) = view(f.U, I.indices...)
+Base.view(f::Spinorfield, I::Vector{CartesianIndex{4}}) = view(f.U, I)
 
 function clear!(ϕ::Spinorfield{CPU,T}) where {T}
     @batch for site in allindices(ϕ)
@@ -124,9 +134,7 @@ function clear!(ϕ::Spinorfield{CPU,T}) where {T}
 end
 
 function Base.copy!(ϕ::T, ψ::T) where {T<:Spinorfield{CPU}}
-    check_dims(ψ, ϕ)
-
-    @batch for site in allindices(ϕ)
+    @batch for site in allindices(ϕ, ψ)
         ϕ[site] = ψ[site]
     end
 
@@ -175,11 +183,10 @@ function LinearAlgebra.mul!(ψ::TF, ϕ::TF, α) where {T,TF<:Spinorfield{CPU,T}}
 end
 
 function LinearAlgebra.axpy!(α, ψ::TF, ϕ::TF) where {T,TF<:Spinorfield{CPU,T}}
-    check_dims(ψ, ϕ)
     α = Complex{T}(α)
 
     # I'm pretty sure iterating over all indices is fine here
-    @batch for site in allindices(ϕ)
+    @batch for site in allindices(ψ, ϕ)
         ϕ[site] += α * ψ[site]
     end
 
@@ -187,12 +194,11 @@ function LinearAlgebra.axpy!(α, ψ::TF, ϕ::TF) where {T,TF<:Spinorfield{CPU,T}
 end
 
 function LinearAlgebra.axpby!(α, ψ::TF, β, ϕ::TF) where {T,TF<:Spinorfield{CPU,T}}
-    check_dims(ψ, ϕ)
     α = Complex{T}(α)
     β = Complex{T}(β)
 
     # I'm pretty sure iterating over all indices is fine here
-    @batch for site in allindices(ϕ)
+    @batch for site in allindices(ϕ, ψ)
         ϕ[site] = α * ψ[site] + β * ϕ[site]
     end
 
@@ -202,10 +208,9 @@ end
 LinearAlgebra.norm(ϕ::Spinorfield) = sqrt(real(dot(ϕ, ϕ)))
 
 function LinearAlgebra.dot(ϕ::T, ψ::T) where {T<:Spinorfield{CPU}}
-    check_dims(ψ, ϕ)
     res = 0.0 + 0.0im # res is always double precision, even if T is single precision
 
-    @batch reduction = (+, res) for site in eachindex(ϕ)
+    @batch reduction = (+, res) for site in eachindex(ϕ, ψ)
         res += cdot(ϕ[site], ψ[site])
     end
 

@@ -22,6 +22,7 @@ using .MetaIO
 using .Utils
 using .Main
 using .Solvers
+using LinearAlgebra
 using Unicode
 
 export BMWFormat, BridgeFormat, JLD2Format, load_config!, save_config
@@ -37,7 +38,7 @@ import .DiracOperators: QuenchedFermionAction
 import .Fields: CPU, DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
 import .Fields: SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
 import .Fields: Expfield, Colorfield, Gaugefield
-import .Fields: calc_gauge_action, fieldstrength_eachsite!, identity_gauges!
+import .Fields: calc_gauge_action, fieldstrength_eachsite!, identity_gauges!, to_backend
 import .Fields: normalize!, plaquette, plaquette_trace_sum, random_gauges!
 import .Fields: staple, staple_eachsite!, wilsonloop, to_backend
 import .Fields: Tensorfield, calc_kinetic_energy, gaussian_TA!
@@ -59,7 +60,7 @@ export Bias, Metadynamics, NoBias, OPES, Parametric, calc_cv, update_bias!
 export CPU, DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
 export SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
 export Expfield, Colorfield, Gaugefield
-export calc_gauge_action, fieldstrength_eachsite!, identity_gauges!
+export calc_gauge_action, fieldstrength_eachsite!, identity_gauges!, to_backend
 export normalize!, plaquette, plaquette_trace_sum, random_gauges!
 export staple, staple_eachsite!, wilsonloop
 export Tensorfield, calc_kinetic_energy, gaussian_TA!
@@ -83,6 +84,6 @@ export NoSmearing, StoutSmearing, calc_smearedU!, GradientFlow, flow!, stout_bac
 export Updatemethod, update!
 export Univ
 
-include("utils/precompile.jl")
+# include("utils/precompile.jl")
 
 end

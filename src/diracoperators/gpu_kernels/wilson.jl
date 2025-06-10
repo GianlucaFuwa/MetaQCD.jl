@@ -3,15 +3,15 @@ function LinearAlgebra.mul!(
 ) where {B<:GPU,T,C,TF,TG,BC}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.U
-    check_dims(ψ, ϕ, U)
     mass_term = T(8 + 2 * D.mass)
     csw = D.csw
     bc = D.boundary_condition
-    @latmap(Sequential(), Val(1), wilson_kernel!, ψ, U, ϕ, mass_term, bc, T, Val(1))
+    bulk = eachindex(ψ, ϕ, U)
+    @latmap(Sequential(), Val(1), wilson_gpu!, ψ, U, ϕ, mass_term, bc, T, Val(1), bulk)
 
     if has_clover_term(D)
         fac = T(-csw / 2)
-        @latmap(Sequential(), Val(1), add_clover_kernel!, ψ, U, ϕ, fac, T)
+        @latmap(Sequential(), Val(1), add_clover_gpu!, ψ, U, ϕ, fac, T, bulk)
     end
 end
 
@@ -20,26 +20,30 @@ function LinearAlgebra.mul!(
 ) where {B<:GPU,T,C,TF,TG,BC}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.parent.U
-    check_dims(ψ, ϕ, U)
     mass_term = T(8 + 2 * D.parent.mass)
     csw = D.parent.csw
     bc = D.parent.boundary_condition
-    @latmap(Sequential(), Val(1), wilson_kernel!, ψ, U, ϕ, mass_term, bc, T, Val(-1))
+    bulk = eachindex(ψ, ϕ, U)
+    @latmap(Sequential(), Val(1), wilson_gpu!, ψ, U, ϕ, mass_term, bc, T, Val(-1), bulk)
 
     if has_clover_term(D)
         fac = T(-csw / 2)
-        @latmap(Sequential(), Val(1), add_clover_kernel!, ψ, U, ϕ, fac, T)
+        @latmap(Sequential(), Val(1), add_clover_gpu!, ψ, U, ϕ, fac, T, bulk)
     end
 end
 
-@kernel function wilson_kernel!(
+@kernel cpu=false function wilson_gpu!(
     ψ, @Const(U), @Const(ϕ), mass_term, bc, ::Type{T}, ::Val{dagg}
 ) where {T,dagg}
-    site = @index(Global, Cartesian)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
     @inbounds ψ[site] = wilson_kernel(U, ϕ, site, mass_term, bc, T, Val(dagg))
 end
 
-@kernel function add_clover_kernel!(ψ, @Const(U), @Const(ϕ), fac, ::Type{T}) where {T}
-    site = @index(Global, Cartesian)
+@kernel cpu=false function add_clover_gpu!(
+    ψ, @Const(U), @Const(ϕ), fac, ::Type{T}, bulk
+) where {T}
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
     @inbounds ψ[site] += clover_kernel(U, ϕ, site, fac, T)
 end

@@ -6,15 +6,18 @@ function polyakov_traced(U::Gaugefield{B,T,false}) where {B<:GPU,T}
     out = KA.zeros(B(), ComplexF64, numblocks)
 
     kernel! = polyakov_traced_kernel!(B(), workgroupsize)
-    kernel!(out, U.U, NT; ndrange=ndrange)
+    kernel!(out, U.U, Int32(NT), eachindex(U); ndrange=ndrange)
     synchronize(B())
     return sum(out) / (NX * NY * NZ)
 end
 
-@kernel function polyakov_traced_kernel!(out, @Const(U), @Const(NT))
+@kernel function polyakov_traced_kernel!(out, @Const(U), NT, bulk)
     # workgroup index, that we use to pass the reduced value to global "out"
-    bi = @index(Group, Linear)
-    ix, iy, iz = @index(Global, NTuple)
+    iblock = @index(Group, Linear)
+    # TODO:
+    iglobal = @index(Global, NTuple)
+    site = bulk[iglobal..., 1]
+    ix, iy, iz = site.I[1:3]
 
     polymat = U[4, ix, iy, iz, 1]
     @unroll for it in 2:NT
@@ -26,6 +29,6 @@ end
 
     ti = @index(Local)
     if ti == 1
-        @inbounds out[bi] = out_group
+        @inbounds out[iblock] = out_group
     end
 end

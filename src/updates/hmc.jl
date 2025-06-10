@@ -376,9 +376,8 @@ function updateU!(
     if level == 1
         ϵ = T(hmc.levels[level].Δτ * fac)
         P = hmc.P
-        check_dims(U, P)
 
-        @batch for μsite in allindices(U)
+        @batch for μsite in eachindex(U, P)
             U[μsite] = cmatmul_oo(exp_iQ(-im * ϵ * P[μsite]), U[μsite])
         end
 

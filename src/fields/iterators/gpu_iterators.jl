@@ -26,7 +26,7 @@ function __latmap(
 end
 
 function __latmap(
-    ::Sequential, ::Val{COUNT}, f!::F, ϕ_eo::SpinorfieldEO{B}, args...
+    ::Sequential, f!::F, ϕ_eo::SpinorfieldEO{B}, args...; c::Val{COUNT}=Val(1)
 ) where {COUNT,F,B<:GPU}
     COUNT == 0 && return nothing
     # KernelAbstractions requires an ndrange (indices we iterate over) and a 
@@ -45,58 +45,6 @@ function __latmap(
 
     return nothing
 end
-
-# function __latmap(
-#     ::Checkerboard2, ::Val{COUNT}, f!::F, U::AbstractField{B}, args...
-# ) where {COUNT,F,B<:GPU}
-#     COUNT == 0 && return nothing
-#     NX, NY, NZ, NT = local_dims(U)
-#     @assert(
-#         mod.((NX, NY, NZ, NT), 2) == (0, 0, 0, 0),
-#         "CB2 only works for side lengths that are multiples of 2"
-#     )
-#     ndrange = (NY, NZ, NT)
-#     workgroupsize = ntuple(i -> min(ndrange[i], 4), Val(3))
-#     kernel! = f!(B(), workgroupsize)
-#     raw_args = get_raws(args...)
-#
-#     for _ in 1:COUNT
-#         for μ in 1:4
-#             for pass in 1:2
-#                 kernel!(U.U, μ, pass, raw_args...; ndrange=ndrange)
-#                 KA.synchronize(B())
-#             end
-#         end
-#     end
-#
-#     return nothing
-# end
-#
-# function __latmap(
-#     ::Checkerboard4, ::Val{COUNT}, f!::F, U::AbstractField{B}, args...
-# ) where {COUNT,F,B<:GPU}
-#     COUNT == 0 && return nothing
-#     NX, NY, NZ, NT = local_dims(U)
-#     @assert(
-#         mod.((NX, NY, NZ, NT), 4) == (0, 0, 0, 0),
-#         "CB4 only works for side lengths that are multiples of 4"
-#     )
-#     ndrange = (NY, NZ, NT)
-#     workgroupsize = ntuple(i -> min(ndrange[i], 4), Val(3))
-#     kernel! = f!(B(), workgroupsize)
-#     raw_args = get_raws(args...)
-#
-#     for _ in 1:COUNT
-#         for μ in 1:4
-#             for pass in 1:4
-#                 kernel!(U.U, μ, pass, raw_args...; ndrange=ndrange)
-#                 KA.synchronize(B())
-#             end
-#         end
-#     end
-#
-#     return nothing
-# end
 
 macro latsum(itr, C, f!, U, args...)
     quote

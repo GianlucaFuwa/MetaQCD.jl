@@ -17,8 +17,8 @@ struct StoutSmearing{TG,TT,TC} <: AbstractSmearing
         if numlayers == 0 || rho == 0
             return NoSmearing()
         else
-            C₁ = Colorfield(U)
-            Q₁ = Expfield(U)
+            C₁ = Colorfield(U; nohalo=true)
+            Q₁ = Expfield(U; nohalo=true)
             Usmeared_multi = Vector{TG}(undef, numlayers + 1)
             C_multi = Vector{typeof(C₁)}(undef, numlayers)
             Q_multi = Vector{typeof(Q₁)}(undef, numlayers)
@@ -76,11 +76,9 @@ function apply_smearing!(smearing, Uin)
 end
 
 function apply_stout_smearing!(Uout, C, Q, U, ρ)
-    check_dims(Uout, C, Q, U)
-
-    @batch for site in eachindex(U)
+    @batch for site in eachindex(Uout, C, Q, U)
         for μ in 1:4
-            Qμ = calc_stout_Q!(Q, C, U, site, μ, ρ)
+            Qμ = calc_stout_Q_kernel!(Q, C, U, site, μ, ρ)
             Uout[μ, site] = cmatmul_oo(exp_iQ(Qμ), U[μ, site])
         end
     end
@@ -111,52 +109,12 @@ Stout-Force recursion \\
 See [hep-lat/0311018] by Morningstar & Peardon
 """
 function stout_recursion!(Σ, Σ′, U′, U, C, Q, Λ, ρ)
-    check_dims(Σ, Σ′, U′, U, C, Q, Λ)
-
     leftmul_dagg!(Σ′, U′)
     calc_stout_Λ!(Λ, Σ′, Q, U)
-    dimsΣ′ = dims(Σ′)
 
-    @batch for site in eachindex(Σ)
+    @batch for site in eachindex(Σ, Σ′, U′, U, C, Q, Λ)
         for μ in 1:4
-            Nμ = dimsΣ′[μ]
-            siteμ⁺ = move(site, μ, 1, Nμ)
-            force_sum = zero3(float_type(U))
-
-            for ν in 1:4
-                if ν == μ
-                    continue
-                end
-
-                Nν = dimsΣ′[ν]
-                siteν⁺ = move(site, ν, 1, Nν)
-                siteν⁻ = move(site, ν, -1, Nν)
-                siteμ⁺ν⁻ = move(siteμ⁺, ν, -1, Nν)
-
-                # bring reused matrices up to cache (can also precalculate some products)
-                # Uνsiteμ⁺ = U[ν,siteμ⁺]
-                # Uμsiteμ⁺ = U[μ,siteν⁺]
-                # Uνsite = U[ν,site]
-                # Uνsiteμ⁺ν⁻ = U[ν,siteμ⁺ν⁻]
-                # Uμsiteν⁻ = U[μ,siteν⁻]
-                # Uνsiteν⁻ = U[ν,siteν⁻]
-
-                force_sum +=
-                    cmatmul_oddo(U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site], Λ[ν, site]) +
-                    cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], Λ[μ, siteν⁻], U[ν, siteν⁻]) +
-                    cmatmul_dodo(U[ν, siteμ⁺ν⁻], Λ[ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻]) -
-                    cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], Λ[ν, siteν⁻], U[ν, siteν⁻]) -
-                    cmatmul_oodd(Λ[ν, siteμ⁺], U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site]) +
-                    cmatmul_odod(U[ν, siteμ⁺], U[μ, siteν⁺], Λ[μ, siteν⁺], U[ν, site])
-            end
-
-            link = U[μ, site]
-            expiQ_mat = exp_iQ(Q[μ, site])
-            Σ[μ, site] = traceless_antihermitian(
-                cmatmul_ooo(link, Σ′[μ, site], expiQ_mat) +
-                im * cmatmul_odo(link, C[μ, site], Λ[μ, site]) -
-                im * ρ * cmatmul_oo(link, force_sum),
-            )
+            stout_recursion_kernel!(Σ, Σ′, U, C, Q, Λ, site, μ, ρ)
         end
     end
 
@@ -165,26 +123,9 @@ function stout_recursion!(Σ, Σ′, U′, U, C, Q, Λ, ρ)
 end
 
 function calc_stout_Λ!(Λ, Σ′, Q, U)
-    check_dims(Λ, Σ′, Q, U)
-
-    @batch for site in eachindex(Λ)
+    @batch for site in eachindex(Λ, Σ′, Q, U)
         for μ in 1:4
-            q = Q[μ, site]
-            Qₘ = get_Q(q)
-            Q² = get_Q²(q)
-            UΣ′ = cmatmul_oo(U[μ, site], Σ′[μ, site])
-
-            B₁ = get_B₁(q)
-            B₂ = get_B₂(q)
-
-            Γ =
-                multr(B₁, UΣ′) * Qₘ +
-                multr(B₂, UΣ′) * Q² +
-                q.f₁ * UΣ′ +
-                q.f₂ * cmatmul_oo(Qₘ, UΣ′) +
-                q.f₂ * cmatmul_oo(UΣ′, Qₘ)
-
-            Λ[μ, site] = traceless_hermitian(Γ)
+            calc_stout_Λ_kernel!(Λ, Σ′, Q, U, site, μ)
         end
     end
 
@@ -192,7 +133,67 @@ function calc_stout_Λ!(Λ, Σ′, Q, U)
     return nothing
 end
 
-function calc_stout_Q!(Q, C, U, site, μ, ρ)
+function stout_recursion_kernel!(Σ, Σ′, U, C, Q, Λ, site, μ, ρ)
+    Nμ = dims(Σ′)[μ]
+    siteμ⁺ = move(site, μ, 1i32, Nμ)
+    force_sum = zero3(float_type(U))
+
+    for ν in 1i32:4i32
+        if ν == μ
+            continue
+        end
+
+        Nν = dims(Σ′)[ν]
+        siteν⁺ = move(site, ν, 1i32, Nν)
+        siteν⁻ = move(site, ν, -1i32, Nν)
+        siteμ⁺ν⁻ = move(siteμ⁺, ν, -1i32, Nν)
+
+        # bring reused matrices up to cache (can also precalculate some products)
+        # Uνsiteμ⁺ = U[ν,siteμ⁺]
+        # Uμsiteμ⁺ = U[μ,siteν⁺]
+        # Uνsite = U[ν,site]
+        # Uνsiteμ⁺ν⁻ = U[ν,siteμ⁺ν⁻]
+        # Uμsiteν⁻ = U[μ,siteν⁻]
+        # Uνsiteν⁻ = U[ν,siteν⁻]
+
+        force_sum +=
+        cmatmul_oddo(U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site], Λ[ν, site]) +
+        cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], Λ[μ, siteν⁻], U[ν, siteν⁻]) +
+        cmatmul_dodo(U[ν, siteμ⁺ν⁻], Λ[ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻]) -
+        cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], Λ[ν, siteν⁻], U[ν, siteν⁻]) -
+        cmatmul_oodd(Λ[ν, siteμ⁺], U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site]) +
+        cmatmul_odod(U[ν, siteμ⁺], U[μ, siteν⁺], Λ[μ, siteν⁺], U[ν, site])
+    end
+
+    link = U[μ, site]
+    expiQ_mat = exp_iQ(Q[μ, site])
+    Σ[μ, site] = traceless_antihermitian(
+        cmatmul_ooo(link, Σ′[μ, site], expiQ_mat) +
+        im * cmatmul_odo(link, C[μ, site], Λ[μ, site]) -
+        im * ρ * cmatmul_oo(link, force_sum),
+    )
+end
+
+function calc_stout_Λ_kernel!(Λ, Σ′, Q, U, site, μ)
+    q = Q[μ, site]
+    Qₘ = get_Q(q)
+    Q² = get_Q²(q)
+    UΣ′ = cmatmul_oo(U[μ, site], Σ′[μ, site])
+
+    B₁ = get_B₁(q)
+    B₂ = get_B₂(q)
+
+    Γ =
+        multr(B₁, UΣ′) * Qₘ +
+        multr(B₂, UΣ′) * Q² +
+        q.f₁ * UΣ′ +
+        q.f₂ * cmatmul_oo(Qₘ, UΣ′) +
+        q.f₂ * cmatmul_oo(UΣ′, Qₘ)
+
+    Λ[μ, site] = traceless_hermitian(Γ)
+end
+
+function calc_stout_Q_kernel!(Q, C, U, site, μ, ρ)
     Cμ = ρ * staple(WilsonGaugeAction(), U, μ, site)
     C[μ, site] = Cμ
 

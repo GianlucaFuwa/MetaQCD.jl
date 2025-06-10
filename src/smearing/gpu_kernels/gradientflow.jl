@@ -1,11 +1,11 @@
 function updateU!(U::Gaugefield{B,T}, Z::Colorfield{B,T}, ϵ) where {B<:GPU,T}
-    @assert dims(Z) == dims(U)
-    @latmap(Sequential(), Val(1), updateU_gf_kernel!, U, Z, T(ϵ))
+    @latmap(Sequential(), Val(1), updateU_gf_gpu!, U, Z, T(ϵ), eachindex(Z, U))
     return nothing
 end
 
-@kernel function updateU_gf_kernel!(U, @Const(Z), ϵ)
-    site = @index(Global, Cartesian)
+@kernel cpu=false function updateU_gf_gpu!(U, @Const(Z), ϵ, bulk)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
 
     @unroll for μ in 1i32:4i32
         @inbounds U[μ, site] = cmatmul_oo(exp_iQ(-im * ϵ * Z[μ, site]), U[μ, site])
@@ -13,13 +13,13 @@ end
 end
 
 function calcZ!(Z::Colorfield{B,T}, U::Gaugefield{B,T}, ϵ) where {B<:GPU,T}
-    @assert dims(Z) == dims(U)
-    @latmap(Sequential(), Val(1), calcZ_kernel!, Z, U, T(ϵ))
+    @latmap(Sequential(), Val(1), calcZ_gpu!, Z, U, T(ϵ), eachindex(Z, U))
     return nothing
 end
 
-@kernel function calcZ_kernel!(Z, @Const(U), ϵ)
-    site = @index(Global, Cartesian)
+@kernel cpu=false function calcZ_gpu!(Z, @Const(U), ϵ, bulk)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
 
     @unroll for μ in 1i32:4i32
         A = staple(WilsonGaugeAction(), U, μ, site)
@@ -28,14 +28,14 @@ end
     end
 end
 
-function updateZ!(Z::Colorfield{B,T}, U::Gaugefield{B,T}, ϵ_old, ϵ_new) where {B<:GPU,T}
-    @assert dims(Z) == dims(U)
-    @latmap(Sequential(), Val(1), updateZ_kernel!, Z, U, T(ϵ_old), T(ϵ_new))
+function updateZ!(Z::Colorfield{B,T}, U::Gaugefield{B,T}, ϵ_old, ϵ_new, bulk) where {B<:GPU,T}
+    @latmap(Sequential(), Val(1), updateZ_gpu!, Z, U, T(ϵ_old), T(ϵ_new), eachindex(Z, U))
     return nothing
 end
 
-@kernel function updateZ_kernel!(Z, @Const(U), ϵ_old, ϵ_new)
-    site = @index(Global, Cartesian)
+@kernel cpu=false function updateZ_gpu!(Z, @Const(U), ϵ_old, ϵ_new, bulk)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
 
     @unroll for μ in 1i32:4i32
         A = staple(WilsonGaugeAction(), U, μ, site)

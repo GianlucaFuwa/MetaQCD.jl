@@ -5,8 +5,8 @@ function LinearAlgebra.mul!(
     U = D.U
     mass = T(D.mass)
     bc = D.boundary_condition
-    check_dims(ψ, ϕ, U)
-    @latmap(Sequential(), Val(1), staggered_kernel!, ψ, U, ϕ, mass, bc, T, false)
+    bulk = eachindex(ψ, ϕ, U)
+    @latmap(Sequential(), Val(1), staggered_gpu!, ψ, U, ϕ, mass, bc, T, false, bulk)
 end
 
 function LinearAlgebra.mul!(
@@ -14,15 +14,16 @@ function LinearAlgebra.mul!(
 ) where {B<:GPU,T,TF,TG,BC}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.parent.U
-    check_dims(ψ, ϕ, U)
     mass = T(D.parent.mass)
     bc = D.parent.boundary_condition
-    @latmap(Sequential(), Val(1), staggered_kernel!, ψ, U, ϕ, mass, bc, T, true)
+    bulk = eachindex(ψ, ϕ, U)
+    @latmap(Sequential(), Val(1), staggered_gpu!, ψ, U, ϕ, mass, bc, T, true, bulk)
 end
 
-@kernel function staggered_kernel!(
-    ψ, @Const(U), @Const(ϕ), mass, bc, ::Type{T}, dagg
+@kernel cpu=false function staggered_gpu!(
+    ψ, @Const(U), @Const(ϕ), mass, bc, ::Type{T}, dagg, bulk
 ) where {T}
-    site = @index(Global, Cartesian)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
     @inbounds ψ[site] = staggered_kernel(U, ϕ, site, mass, bc, T, dagg)
 end

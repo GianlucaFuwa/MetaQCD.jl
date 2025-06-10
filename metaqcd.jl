@@ -43,7 +43,7 @@ if backend != "cpu"
 
     if backend == "cuda"
         using CUDA
-    elseif backend ∈ ("rocm", "amd")
+    elseif backend ∈ ("roc", "rocm", "amd", "amdgpu")
         using AMDGPU
     else
         throw(ArgumentError(
@@ -67,9 +67,9 @@ mpi_parallel() && @level1("[ $(mpi_size()) MPI processes are being used")
 
 if mode == "sim"
     @assert mpi_size() < 10 "At max 9 MPI processes can be used in parallel tempering for now"
-    run_sim(parameterfile; backend=backend)
+    run_sim(parameterfile)
 elseif mode == "build"
-    build_bias(parameterfile; backend=backend)
+    build_bias(parameterfile)
 else
     throw(ArgumentError(
         """

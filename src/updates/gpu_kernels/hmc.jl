@@ -1,15 +1,21 @@
-function updateU!(U::Gaugefield{B,T}, hmc::HMC, fac) where {B<:GPU,T}
-    ϵ = T(hmc.Δτ * fac)
-    P = hmc.P
-    @assert dims(U) == dims(P)
-    @latmap(Sequential(), Val(1), updateU_kernel!, U, P, ϵ)
+function updateU!(
+    U::Gaugefield{B,T}, hmc::HMC, fac, fermion_action, bias, therm, level
+) where {B<:GPU,T}
+    if level == 1
+        ϵ = T(hmc.levels[level].Δτ * fac)
+        P = hmc.P
+        @latmap(Sequential(), Val(1), updateU_gpu!, U, P, ϵ, eachindex(U, P))
+    else
+        evolve!(U, hmc, fermion_action, bias, therm, level-1)
+    end
     return nothing
 end
 
-@kernel function updateU_kernel!(U, @Const(P), ϵ)
-    site = @index(Global, Cartesian)
+@kernel cpu=false function updateU_gpu!(U, @Const(P), ϵ, bulk)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
 
-    @unroll for μ in 1:4
-        @inbounds U[μ,site] = cmatmul_oo(exp_iQ(-im*ϵ*P[μ,site]), U[μ,site])
+    @unroll for μ in 1i32:4i32
+        @inbounds U[μ,site] = cmatmul_oo(exp(ϵ*P[μ,site]), U[μ,site])
     end
 end

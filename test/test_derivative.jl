@@ -34,7 +34,8 @@ function test_derivative(backend=CPU; nprocs_cart=(1, 1, 1, 1), halo_width=1)
     dQdU = Colorfield(U)
     dQdU_smeared = Colorfield(U)
 
-    site = SiteCoords(2, 3, 3, 3)
+    coord = (2, 3, 1, 2) .+ U.topology.halo_width
+    site = SiteCoords(coord...)
     μ = 3
     ΔH = 0.00001
 

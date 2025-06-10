@@ -10,6 +10,7 @@ adjoint and Hermitian (D†D convention) counterpart, which are used to make the
 """
 module DiracOperators
 
+using Base.Cartesian: @nexprs
 using LinearAlgebra: checksquare
 using KernelAbstractions # With this we can write generic GPU kernels for ROC and CUDA
 using LinearAlgebra
@@ -28,8 +29,9 @@ import ..Fields: AbstractField, FieldTopology, Gaugefield, Paulifield, Spinorfie
 import ..Fields: MultiSpinorfield, SpinorfieldEO, Tensorfield, num_spinors
 import ..Fields: check_dims, clear!, clover_square, dims, even_odd, gaussian_pseudofermions!
 import ..Fields: @latmap, @latsum, Clover, Checkerboard2, Sequential, set_source!, volume
-import ..Fields: @groupreduce, fieldstrength_eachsite!, num_colors, num_dirac
+import ..Fields: @groupreduce, fieldstrength_eachsite!, num_colors, num_dirac, update_halo_eo!
 import ..Fields: PeriodicBC, AntiPeriodicBC, apply_bc, create_bc, distributed_reduce
+import ..Fields: update_halo!
 
 abstract type AbstractDiracOperator{B,T} end
 abstract type AbstractFermionAction{R,Nf} end # R indicates whether the action uses rational approximation or not, TM whether there are twisted masses or not
@@ -95,6 +97,7 @@ include("staggered_hoelbling.jl")
 include("wilson.jl")
 include("wilson_eo.jl")
 include("gpu_kernels/staggered.jl")
+include("gpu_kernels/staggered_hoelbling.jl")
 include("gpu_kernels/staggered_eo.jl")
 include("gpu_kernels/wilson.jl")
 include("gpu_kernels/wilson_eo.jl")

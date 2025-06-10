@@ -146,7 +146,6 @@ function energy_density(::Plaquette, U::Gaugefield{CPU})
 end
 
 function energy_density(::Clover, U::Gaugefield{CPU,T}) where {T}
-    is_distributed(U) && @assert(U.topology.halo_width>=2)
     fac = im * T(1/4)
     E = 0.0
 
@@ -164,7 +163,7 @@ function energy_density(::Clover, U::Gaugefield{CPU,T}) where {T}
 end
 
 function energy_density(::Improved, U::Gaugefield{CPU})
-    is_distributed(U) && @assert(U.topology.halo_width>=3)
+    is_distributed(U) && @assert(maximum(U.topology.halo_width)>=2)
     Eclover = energy_density(Clover(), U)
     Erect = energy_density_rect(U)
     return 5 / 3 * Eclover - 1 / 12 * Erect

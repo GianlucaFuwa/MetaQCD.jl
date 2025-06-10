@@ -142,7 +142,6 @@ function top_charge(::Plaquette, U::Gaugefield{CPU})
 end
 
 function top_charge(::Clover, U::Gaugefield{CPU,T}) where {T}
-    is_distributed(U) && @assert(U.topology.halo_width>=2)
     Q = 0.0
 
     @batch reduction = (+, Q) for site in eachindex(U)
@@ -153,7 +152,7 @@ function top_charge(::Clover, U::Gaugefield{CPU,T}) where {T}
 end
 
 function top_charge(::Improved, U::Gaugefield{CPU,T}) where {T}
-    is_distributed(U) && @assert(U.topology.halo_width>=3)
+    is_distributed(U) && @assert(maximum(U.topology.halo_width)>=2)
     c₀ = T(5/3)
     c₁ = T(-2/12)
     Q = 0.0
@@ -227,12 +226,11 @@ function top_charge_density_rect(U, site, ::Type{T}) where {T}
 end
 
 function top_charge_deriv!(dU, F, U, kind_of_charge, fac=1.0)
-    check_dims(dU, F, U)
     c = float_type(U)(fac / 4π^2)
 
     fieldstrength_eachsite!(kind_of_charge, F, U)
 
-    @batch for site in eachindex(U)
+    @batch for site in eachindex(dU, F, U)
         tmp1 = cmatmul_oo(
             U[1, site],
             (

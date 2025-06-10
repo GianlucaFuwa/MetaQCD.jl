@@ -1,19 +1,26 @@
 function energy_density(::Plaquette, U::Gaugefield{B}) where {B<:GPU}
-    return @latsum(Sequential(), Val(1), Float64, energy_density_plaq_kernel!, U) / U.NV
+    bulk = eachindex(U)
+    E = @latsum(Sequential(), Val(1), Float64, energy_density_plaq_kernel!, U, bulk)
+    return E / U.NV
 end
 
 function energy_density(::Clover, U::Gaugefield{B,T}) where {B<:GPU,T}
-    return @latsum(Sequential(), Val(1), Float64, energy_density_clov_kernel!, U, T) / U.NV
+    bulk = eachindex(U)
+    E = @latsum(Sequential(), Val(1), Float64, energy_density_clov_kernel!, U, T, bulk)
+    return E / U.NV
 end
 
 function energy_density(::Improved, U::Gaugefield{B,T}) where {B<:GPU,T}
-    return @latsum(Sequential(), Val(1), Float64, energy_density_imp_kernel!, U, T) / U.NV
+    bulk = eachindex(U)
+    E =  @latsum(Sequential(), Val(1), Float64, energy_density_imp_kernel!, U, T, bulk)
+    return E / U.NV
 end
 
 @kernel function energy_density_plaq_kernel!(out, @Const(U))
     # workgroup index, that we use to pass the reduced value to global "out"
-    bi = @index(Group, Linear)
-    site = @index(Global, Cartesian)
+    iblock = @index(Group, Linear)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
 
     e = 0.0
     @inbounds for μ in (1i32):(4i32)
@@ -31,14 +38,15 @@ end
 
     ti = @index(Local)
     if ti == 1
-        @inbounds out[bi] = out_group
+        @inbounds out[iblock] = out_group
     end
 end
 
 @kernel function energy_density_clov_kernel!(out, @Const(U), ::Type{T}) where {T}
     # workgroup index, that we use to pass the reduced value to global "out"
-    bi = @index(Group, Linear)
-    site = @index(Global, Cartesian)
+    iblock = @index(Group, Linear)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
     fac = im * T(1/4)
 
     e = 0.0
@@ -57,14 +65,15 @@ end
 
     ti = @index(Local)
     if ti == 1
-        @inbounds out[bi] = out_group
+        @inbounds out[iblock] = out_group
     end
 end
 
 @kernel function energy_density_imp_kernel!(out, @Const(U), ::Type{T}) where {T}
     # workgroup index, that we use to pass the reduced value to global "out"
-    bi = @index(Group, Linear)
-    site = @index(Global, Cartesian)
+    iblock = @index(Group, Linear)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
     fac1 = im * T(1/4)
     fac2 = im * T(1/8)
 
@@ -88,6 +97,6 @@ end
 
     ti = @index(Local)
     if ti == 1
-        @inbounds out[bi] = out_group
+        @inbounds out[iblock] = out_group
     end
 end

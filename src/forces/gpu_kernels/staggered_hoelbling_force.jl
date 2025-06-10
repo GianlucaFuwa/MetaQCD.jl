@@ -1,19 +1,20 @@
 function add_staggered_hoelbling_derivative!(
     dU::Colorfield{B,T}, U::Gaugefield{B,T}, X::TF, Y::TF, bc, term; coeff=1
 ) where {B<:GPU,T,TF<:StaggeredSpinorfield{B,T}}
-    check_dims(dU, U, X, Y)
     fac1 = T(-0.5coeff)
     fac2 = T(coeff)
+    bulk = eachindex(dU, U, X, Y)
     @latmap(
-        Sequential(), Val(1), add_staggered_h_derivative_gpu_kernel!, dU, U, X, Y, bc, term,
-        fac1, fac2
+        Sequential(), Val(1), add_staggered_h_derivative_gpu!, dU, U, X, Y, bc, term,
+        fac1, fac2, bulk
     )
 end
 
-@kernel function add_staggered_h_derivative_gpu_kernel!(
-    dU, @Const(U), @Const(X), @Const(Y), bc, term, fac1, fac2
+@kernel cpu=false function add_staggered_h_derivative_gpu!(
+    dU, @Const(U), @Const(X), @Const(Y), bc, term, fac1, fac2, bulk
 )
-    site = @index(Global, Cartesian)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
     _μ, _ν, _ρ, _σ = term
 
     @inbounds begin

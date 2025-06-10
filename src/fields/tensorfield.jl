@@ -20,9 +20,11 @@ of size `4 x 4 × NX × NY × NZ × NT` or a zero-initialized Tensorfield of the
 `CUDABackend` \\
 `ROCBackend`
 """
-struct Tensorfield{Backend,FloatType,IsDistributed,ArrayType} <:
+struct Tensorfield{Backend,FloatType,IsDistributed,ArrayType,BufferType} <:
        AbstractField{Backend,FloatType,IsDistributed,ArrayType}
     U::ArrayType # Actual field storing the gauge variables
+    send_buf::BufferType
+    recv_buf::BufferType
     NX::Int64 # Number of lattice sites in the x-direction
     NY::Int64 # Number of lattice sites in the y-direction
     NZ::Int64 # Number of lattice sites in the z-direction
@@ -33,11 +35,14 @@ struct Tensorfield{Backend,FloatType,IsDistributed,ArrayType} <:
     topology::FieldTopology # Info regarding MPI topology
     function Tensorfield{Backend,FloatType}(NX, NY, NZ, NT) where {Backend,FloatType}
         U = KA.zeros(Backend(), SU{3,9,FloatType}, 4, 4, NX, NY, NZ, NT)
+        send_buf = recv_buf = nothing
         NV = NX * NY * NZ * NT
         numprocs_cart = (1, 1, 1, 1)
         halo_width = 0
         topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
-        return new{Backend,FloatType,false,typeof(U)}(U, NX, NY, NZ, NT, NV, 3, topology)
+        return new{Backend,FloatType,false,typeof(U),Nothing}(
+            U, send_buf, recv_buf, NX, NY, NZ, NT, NV, 3, topology
+        )
     end
 
     function Tensorfield{Backend,FloatType}(
@@ -49,10 +54,20 @@ struct Tensorfield{Backend,FloatType,IsDistributed,ArrayType} <:
 
         NV = NX * NY * NZ * NT
         topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
-        ldims = topology.local_dims
-        dims_in = ntuple(i -> ldims[i] + 2halo_width, Val(4))
-        U = KA.zeros(Backend(), SU{3,9,FloatType}, 4, 4, dims_in...)
-        return new{Backend,FloatType,true,typeof(U)}(U, NX, NY, NZ, NT, NV, 3, topology)
+        ldims = topology.local_dims_padded
+
+        halo_width = topology.halo_width
+        origin = OffsetArrays.Origin((1, 1, topology.bulk_sites[1].I .- halo_width...)...)
+        U = OffsetArray(
+            KA.zeros(Backend(), SU{3,9,FloatType}, 4, 4, ldims...), origin
+        )
+
+        buf_length = 16maximum(sz for sz in topology.halo_sizes)
+        send_buf = KA.zeros(Backend(), SU{3,9,FloatType}, buf_length)
+        recv_buf = KA.zeros(Backend(), SU{3,9,FloatType}, buf_length)
+        return new{Backend,FloatType,false,typeof(U),BufferType}(
+            U, send_buf, recv_buf, NX, NY, NZ, NT, NV, 3, topology
+        )
     end
 end
 
@@ -61,7 +76,7 @@ function Tensorfield(
 ) where {Backend,FloatType,IsDistributed,ArrayType}
     u_out = if IsDistributed
         numprocs_cart = u.topology.numprocs_cart
-        halo_width = u.topology.halo_width
+        halo_width = maximum(u.topology.halo_width)
         Tensorfield{Backend,FloatType}(u.NX, u.NY, u.NZ, u.NT, numprocs_cart, halo_width)
     else
         Tensorfield{Backend,FloatType}(u.NX, u.NY, u.NZ, u.NT)
@@ -97,10 +112,9 @@ end
 function fieldstrength_eachsite!(
     ::Plaquette, F::Tensorfield{CPU,T}, U::Gaugefield{CPU,T}
 ) where {T}
-    check_dims(F, U)
     fac = Complex{T}(im)
 
-    @batch for site in eachindex(U)
+    @batch for site in eachindex(U, F)
         C12 = plaquette(U, 1, 2, site)
         F[1, 2, site] = fac * (C12 - C12')
         C13 = plaquette(U, 1, 3, site)
@@ -115,17 +129,15 @@ function fieldstrength_eachsite!(
         F[3, 4, site] = fac * (C34 - C34')
     end
 
-    update_halo!(F)
     return nothing
 end
 
 function fieldstrength_eachsite!(
     ::Clover, F::Tensorfield{CPU,T}, U::Gaugefield{CPU,T}
 ) where {T}
-    check_dims(F, U)
     fac = Complex{T}(im / 8)
 
-    @batch for site in eachindex(U)
+    @batch for site in eachindex(U, F)
         C12 = clover_square(U, 1, 2, site, 1)
         F[1, 2, site] = fac * (C12 - C12')
         C13 = clover_square(U, 1, 3, site, 1)
@@ -140,6 +152,5 @@ function fieldstrength_eachsite!(
         F[3, 4, site] = fac * (C34 - C34')
     end
 
-    update_halo!(F)
     return nothing
 end
