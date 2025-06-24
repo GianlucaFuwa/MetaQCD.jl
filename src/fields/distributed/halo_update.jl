@@ -1,28 +1,34 @@
 """
-    start_halo_update!(fields...)
+    start_halo_update!(fields...; do_edges)
 
 Start the update of halos or buffers of MPI-parallelized fields and return the Requests.
+If `do_edges = Val(true)` edges and corners are also transferred via an extended face
+propagation scheme. This means that after every dimension the requests have to be
+completed and communication cannot be hidden behind computation.
 """
 start_halo_update!(args...) = nothing
 
-function start_halo_update!(fields::Vararg{AbstractMPIField,N}) where N
+function start_halo_update!(
+    fields::Vararg{AbstractMPIField,N}; do_edges::Val{DO_EDGES}=Val(true)
+) where {N,DO_EDGES}
     requests = ntuple(Val(N)) do i
-        start_halo_update!(fields[i])
+        start_halo_update!(fields[i], do_edges)
     end
 
     return requests
 end
 
-function start_halo_update!(u::AbstractMPIField)
+function start_halo_update!(u::AbstractMPIField, ::Val{do_edges}) where {do_edges}
     topology = u.topology
     comm_cart = topology.comm_cart
     comm_instance = mpi_comm_instance()
-    border_sites = topology.border_sites
     halo_sites = topology.halo_sites
+    border_sites = topology.border_sites
 
     requests = Utils.MPI.Request[]
 
     for dim in 1:4
+        dim_requests = Utils.MPI.Request[]
         prev_neighbor, next_neighbor = mpi_cart_shift(comm_cart, dim-1, 1)
         prev_sites_from, next_sites_from = border_sites[dim]
         prev_sites_to, next_sites_to = halo_sites[dim]
@@ -31,27 +37,30 @@ function start_halo_update!(u::AbstractMPIField)
             copyto!(u, u, next_sites_to, prev_sites_from)
             copyto!(u, u, prev_sites_to, next_sites_from)
         else
-            # Use references of the links themselves as buffers
             # INFO: Here, `view` is defined such that it automatically references all four
             # directions `μ`, and we don't have to include it as an argument
-            #
-            # fill_sendbufs!(u, prev_sites_from, next_sites_from)
-            # send_buf_prev = u.send_buf[1]
-            # send_buf_next = u.send_buf[2]
-            # recv_buf_prev = u.recv_buf[1]
-            # recv_buf_next = u.recv_buf[2]
-            send_buf_prev = view(u, prev_sites_from)
-            send_buf_next = view(u, next_sites_from)
-            recv_buf_prev = view(u, prev_sites_to)
-            recv_buf_next = view(u, next_sites_to)
+            send_buf_prev = create_sendbuf!(u, prev_sites_from, dim, 1)
+            send_buf_next = create_sendbuf!(u, next_sites_from, dim, 2)
+            recv_buf_prev = u.halos[2(dim-1) + 1].parent # INFO: MPI.Buffer not overloaded for OffsetArrays
+            recv_buf_next = u.halos[2(dim-1) + 2].parent
 
             push!(
-                requests,
+                dim_requests,
                 mpi_irecv!(recv_buf_prev, comm_cart; source=prev_neighbor, tag=1),
                 mpi_isend(send_buf_next, comm_cart; dest=next_neighbor, tag=1),
                 mpi_irecv!(recv_buf_next, comm_cart; source=next_neighbor, tag=2),
                 mpi_isend(send_buf_prev, comm_cart; dest=prev_neighbor, tag=2)
             )
+        end
+
+        # If we care about edges and corners we have to wait here, because then the
+        # elements exchanged in the next dimension depend on the previous ones
+        # otherwise we dont wait, because the faces are always correctly exchanged
+        if do_edges
+            finalize_halo_update!(dim_requests)
+            mpi_barrier()
+        else
+            push!(requests, dim_requests...)
         end
     end
 
@@ -65,14 +74,14 @@ Wait on all started halo updates in `reqs` to finish.
 """
 finalize_halo_update!(args...) = nothing
 
-function finalize_halo_update!(#= u::Vararg{AbstractMPIField,N}, =#reqs::Vararg{Vector{Utils.MPI.Request},N}) where N
+function finalize_halo_update!(reqs::Vararg{Vector{Utils.MPI.Request},N}) where N
     for i in 1:N
         finalize_halo_update!(reqs[i])
     end
     return nothing
 end
 
-function finalize_halo_update!(#= u::AbstractMPIField,  =#reqs::Vector{Utils.MPI.Request})
+function finalize_halo_update!(reqs::Vector{Utils.MPI.Request})
     mpi_waitall(reqs)
     return nothing
 end
@@ -81,12 +90,12 @@ end
     update_halo!(fields...)
 
 Perform a complete halo exchange. Use this function when communication cannot be hidden.
+(E.g., when edges and corners need to be exchanges)
 """
 update_halo!(args...) = nothing
 
 function update_halo!(fields::Vararg{AbstractMPIField,N}) where N
-    reqs = start_halo_update!(fields...)
-    finalize_halo_update!(reqs...)
+    start_halo_update!(fields...; do_edges=Val(true))
     return nothing
 end
 
@@ -178,7 +187,6 @@ proc_offset(u::AbstractField) = 0
 end
 
 function find_batch_loop(ex)
-    @show ex.args[2].args
     idcs = findall(s->contains(string(s), string("@batch")), ex.args[2].args)
     @assert length(idcs) == 1 "No @batch loop found, couldn't hide communication"
     idx = idcs[1]
@@ -186,16 +194,4 @@ function find_batch_loop(ex)
     loop = ex.args[2].args[idx]
     rawloop = loop.args[end]
     return loop, rawloop, idx
-end
-
-function Base.copyto!(a, b, arange, brange)
-    @assert length(arange) == length(brange) "send buffer and recv buffer arent of same size"
-
-    @batch for i in eachindex(arange)
-        ia = arange[i]
-        ib = brange[i]
-        a[ia] = b[ib]
-    end
-
-    return nothing
 end

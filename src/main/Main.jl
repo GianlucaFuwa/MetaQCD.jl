@@ -11,7 +11,8 @@ using ..MetaIO
 using ..Utils
 using ..Fields: BACKENDS
 
-import ..BiasModule: NoBias, calc_weights, is_adaptive, recalc_cv!, update_bias!, set_sigma0!
+import ..BiasModule: Bias, NoBias, calc_weights, is_adaptive, recalc_cv!, update_bias!
+import ..BiasModule: set_cv!, set_sigma0!
 import ..DiracOperators: QuenchedFermionAction
 import ..Fields: calc_gauge_action, is_distributed, normalize!
 import ..Measurements: MeasurementMethods, calc_measurements, calc_measurements_flowed

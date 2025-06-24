@@ -1,14 +1,17 @@
 function polyakov_traced(U::Gaugefield{B,T,false}) where {B<:GPU,T}
-    NX, NY, NZ, NT = global_dims(U)
-    ndrange = (NX, NY, NZ)
+    @assert U.topology.numprocs_cart[4] == 1 """
+    for polyakov loop, the field cannot be partitioned in the t-dimension
+    """
+    nx, ny, nz, NT = get_local_dims(U)
+    ndrange = (nx, ny, nz)
     workgroupsize = (4, 4, 4)
     numblocks = cld(prod(ndrange), prod(workgroupsize))
     out = KA.zeros(B(), ComplexF64, numblocks)
 
-    kernel! = polyakov_traced_kernel!(B(), workgroupsize)
-    kernel!(out, U.U, Int32(NT), eachindex(U); ndrange=ndrange)
+    kernel! = polyakov_traced_kernel!(B(), workgroupsize, ndrange)
+    kernel!(out, U, Int32(NT), eachindex(U); ndrange=ndrange)
     synchronize(B())
-    return sum(out) / (NX * NY * NZ)
+    return sum(out) / prod(size(U)[1:3])
 end
 
 @kernel function polyakov_traced_kernel!(out, @Const(U), NT, bulk)
@@ -27,8 +30,8 @@ end
 
     out_group = @groupreduce(+, p, 0.0 + 0.0im)
 
-    ti = @index(Local)
-    if ti == 1
+    ithread = @index(Local)
+    if ithread == 1
         @inbounds out[iblock] = out_group
     end
 end

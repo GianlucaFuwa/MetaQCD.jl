@@ -23,14 +23,14 @@ import ..DiracOperators: Daggered, DdaggerD, StaggeredDiracOperator, WilsonDirac
 import ..DiracOperators: StaggeredEOPreDiracOperator, even_odd, solve_dirac!
 import ..DiracOperators: ArnoldiWorkspaceMeta, get_eigenvalues, num_dirac
 import ..DiracOperators: FermionAction, calc_fermion_action, sample_pseudofermions!
-import ..Fields: WilsonGaugeAction, SymanzikTreeGaugeAction, SymanzikTadGaugeAction, dims
+import ..Fields: WilsonGaugeAction, SymanzikTreeGaugeAction, SymanzikTadGaugeAction
 import ..Fields: IwasakiGaugeAction, DBW2GaugeAction, AbstractFieldstrength, Colorfield
 import ..Fields: Gaugefield, Spinorfield, Tensorfield, calc_gauge_action, check_dims 
 import ..Fields: Plaquette, Clover, Improved, fieldstrength_eachsite!, gauge_action, staple
-import ..Fields: clover_square, global_dims, local_dims, float_type, plaquette, wilsonloop
+import ..Fields: clover_square, float_type, plaquette, wilsonloop
 import ..Fields: @groupreduce, @latmap, @latsum, CPU, ones!, set_source!, clover_rect
-import ..Fields: clear!, distributed_reduce, is_distributed, plaquette_trace_sum, wilsonloop
-import ..Fields: update_halo!
+import ..Fields: clear!, distributed_reduce, is_distributed, plaquette_trace_sum
+import ..Fields: update_halo!, get_local_dims, get_global_dims, get_global_volume
 import ..Smearing: AbstractSmearing, Cooling, GradientFlow, NoSmearing, StoutSmearing
 import ..Smearing: calc_smearedU!, flow!
 

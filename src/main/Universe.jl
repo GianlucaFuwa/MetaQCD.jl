@@ -9,7 +9,7 @@ using ..Utils
 
 import ..DiracOperators: FermionAction, QuenchedFermionAction, init_fermion_action
 import ..Fields: Gaugefield, WilsonGaugeAction, IwasakiGaugeAction, DBW2GaugeAction
-import ..Fields: SymanzikTreeGaugeAction
+import ..Fields: SymanzikTreeGaugeAction, get_global_dims
 import ..BiasModule: Bias, NoBias
 import ..Parameters: ParameterSet
 
@@ -29,11 +29,12 @@ struct Univ{TG,TF,TB}
     function Univ(
         U::Gaugefield{BACKEND,T,M,A,GA}, fermion_action::TF, bias::TB, numinstances
     ) where {BACKEND,T,M,A,GA,TF,TB}
+        NX, NY, NZ, NT = size(U)
         @level1("- Constructing Universe...")
         @level1("|  NUM INSTANCES: $(numinstances)")
         @level1("|  BACKEND: $(string(BACKEND))")
         @level1("|  FP PREC: $(string(T))")
-        @level1("|  L: $(U.NX)x$(U.NY)x$(U.NZ)x$(U.NT)")
+        @level1("|  L: $(NX)x$(NY)x$(NZ)x$(NT)")
         @level1("|  GAUGE ACTION: $(string(GA))")
         @level1("|  BETA: $(U.β)")
 
@@ -50,11 +51,12 @@ struct Univ{TG,TF,TB}
     function Univ(
         U::Vector{TG}, fermion_action::TF, bias::Vector{TB}, numinstances
     ) where {B,T,M,A,GA,TG<:Gaugefield{B,T,M,A,GA},TF,TB}
+        NX, NY, NZ, NT = size(U[1])
         @level1("- Constructing Universe...")
         @level1("|  NUM INSTANCES: $(numinstances)")
         @level1("|  BACKEND: $(string(B))")
         @level1("|  FP PREC: $(string(T))")
-        @level1("|  L: $(U[1].NX)x$(U[1].NY)x$(U[1].NZ)x$(U[1].NT)")
+        @level1("|  L: $(NX)x$(NY)x$(NZ)x$(NT)")
         @level1("|  GAUGE ACTION: $(string(GA))")
         @level1("|  BETA: $(U[1].β)")
 

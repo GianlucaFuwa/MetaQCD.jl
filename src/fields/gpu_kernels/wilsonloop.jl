@@ -1,5 +1,6 @@
 function wilsonloop(U::Gaugefield{B,T}, Lμ, Lν) where {B<:GPU,T}
-    return @latsum(Sequential(), Val(1), Float64, wilsonloop_gpu!, U, Lμ, Lν, T, eachindex(U))
+    update_halo!(U)
+    return @latsum(eachindex(U), Float64, wilsonloop_gpu!, U, Lμ, Lν, T)
 end
 
 @kernel cpu=false function wilsonloop_gpu!(out, @Const(U), Lμ, Lν, ::Type{T}, bulk) where {T}
@@ -17,8 +18,8 @@ end
 
     out_group = @groupreduce(+, wl, T(0.0))
 
-    ti = @index(Local)
-    if ti == 1
+    ithread = @index(Local)
+    if ithread == 1
         @inbounds out[iblock] = out_group
     end
 end

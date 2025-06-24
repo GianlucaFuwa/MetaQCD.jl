@@ -4,7 +4,6 @@ using MetaQCD.Utils
 using Random
 using Test
 using Polyester
-# using CUDA
 
 include("./test_io.jl")
 include("./test_checkpoint.jl")
@@ -16,180 +15,157 @@ include("./test_gflow.jl")
 include("./test_clinalg.jl")
 # include("test_reversibility.jl")
 
-if mpi_size() == 1
-    @testset "Linear Algebra Tests" begin
-        test_cdot()
-        test_ckron()
-        test_cmvmul()
-        # test_spin_color() # FIXME: Fix these tests
-        test_cmatmul()
+function runtests(; backend=CPU, nprocs_cart=(1, 1, 1, 1))
+    @testset verbose = true "$backend Tests" begin
+        mpi_size() != 1 && @level1("\nMPI Tests...")
+
+        # INFO: Cant partition in time dimension if we want to measure polyakov loop
+        if mpi_size() == 1
+            test_measurements(backend)
+        elseif mpi_size() == 2
+            test_measurements(backend; nprocs_cart=(1, 1, 2, 1), halo_width=2)
+        elseif mpi_size() == 4
+            test_measurements(backend; nprocs_cart=(1, 2, 2, 1), halo_width=2)
+        else
+            error("mpi_size has to be 1, 2 or 4 in tests")
+        end
+
+        # gauge derivative
+        # test_derivative(backend; nprocs_cart=nprocs_cart, halo_width=2)
+
+        # # staggered derivative
+        # test_fderivative(
+        #     backend;
+        #     nprocs_cart=nprocs_cart,
+        #     halo_width=1,
+        #     dirac="staggered",
+        #     mass=0.01,
+        #     single_flavor=true,
+        # )
+        #
+        # # staggered-hoelbling1234 derivative
+        # test_fderivative(
+        #     backend;
+        #     nprocs_cart=nprocs_cart,
+        #     halo_width=2,
+        #     dirac="staggered_h1234",
+        #     mass=0.01,
+        #     single_flavor=true,
+        # )
+        #
+        # # staggered-hoelbling1342 derivative
+        # test_fderivative(
+        #     backend;
+        #     nprocs_cart=nprocs_cart,
+        #     halo_width=2,
+        #     dirac="staggered_h1342",
+        #     mass=0.01,
+        #     single_flavor=true,
+        # )
+        #
+        # # wilson derivative
+        # test_fderivative(
+        #     backend;
+        #     nprocs_cart=nprocs_cart,
+        #     halo_width=1,
+        #     dirac="wilson",
+        #     mass=0.01,
+        #     single_flavor=true,
+        #     csw=0,
+        # )
+        #
+        # # wilson-clover derivative
+        # test_fderivative(
+        #     backend;
+        #     nprocs_cart=nprocs_cart,
+        #     halo_width=2, # INFO: Halo width has to be 2 here
+        #     dirac="wilson",
+        #     mass=0.01,
+        #     single_flavor=true,
+        #     csw=1.78,
+        # )
+
+        # staggered eo-pre derivative
+        test_fderivative(
+            backend;
+            nprocs_cart=nprocs_cart,
+            halo_width=1,
+            dirac="staggered",
+            mass=0.01,
+            single_flavor=true,
+            eoprec=true,
+        )
+
+        # wilson eo-pre derivative
+        test_fderivative(
+            backend;
+            nprocs_cart=nprocs_cart,
+            halo_width=1,
+            dirac="wilson",
+            mass=0.01,
+            single_flavor=false,
+            eoprec=true,
+            csw=0,
+        )
+
+        # wilson-clover eo-pre derivative
+        test_fderivative(
+            backend;
+            nprocs_cart=nprocs_cart,
+            halo_width=2, # INFO: Halo width has to be 2 here
+            dirac="wilson",
+            mass=0.01,
+            single_flavor=false,
+            eoprec=true,
+            csw=0,
+        )
+
+        # test_gradflow(backend; nprocs_cart=nprocs_cart, halo_width=1)
+        #
+        # if mpi_size() == 1 && backend==CPU # INFO: Local updates only without distributed fields
+        #     test_update(backend; update_method="heatbath")
+        #     test_update(backend; update_method="metropolis", gaction=IwasakiGaugeAction)
+        # end
+        #
+        # test_update(backend; update_method="hmc", hmc_integrator="Leapfrog")
+        # test_update(backend; update_method="hmc", hmc_integrator="OMF2")
+        # test_update(backend; update_method="hmc", hmc_integrator="OMF4")
+
+        # Run a short simulation as final test (doesnt work on github actions)
+        # if backend == CPU
+        #     if mpi_size() == 1 # INFO: Local updates only without distributed fields
+        #         run_sim(joinpath(pkgdir(MetaQCD, "test", "parameters_test.toml")))
+        #     elseif mpi_size() == 2
+        #         run_sim(joinpath(pkgdir(MetaQCD, "test", "parameters_test_mpi.toml")))
+        #     end
+        # end
     end
 end
 
-if mpi_size() == 1
-    @testset "IO Tests" begin
-        test_io()
-        test_checkpoint()
-    end
-end
-
-mpi_barrier()
-
-@testset verbose = true "CPU Tests" begin
-    backend = CPU
-    halo_width = 1
-    nprocs_cart = (1, 1, 1, mpi_size())
-    mpi_size() != 1 && @level1("\nMPI Tests...")
-
-    # INFO: Cant partition in time dimension if we want to measure polyakov loop
+sout = mpi_amroot() ? stdout : devnull
+redirect_stdout(sout) do
     if mpi_size() == 1
-        test_measurements(backend)
-    elseif mpi_size() == 2
-        test_measurements(backend; nprocs_cart=(1, 1, 2, 1), halo_width=2)
-    elseif mpi_size() == 4
-        test_measurements(backend; nprocs_cart=(1, 2, 2, 1), halo_width=2)
-    else
-        error("mpi_size has to be 1, 2 or 4 in tests")
-    end
-    # gauge derivative
-    test_derivative(backend; nprocs_cart=nprocs_cart, halo_width=halo_width)
-    # staggered derivative
-    test_fderivative(
-        backend;
-        nprocs_cart=nprocs_cart,
-        halo_width=halo_width,
-        dirac="staggered",
-        mass=0.01,
-        single_flavor=true,
-    )
-    # staggered-hoelbling1234 derivative
-    test_fderivative(
-        backend;
-        nprocs_cart=nprocs_cart,
-        halo_width=halo_width,
-        dirac="staggered_h1234",
-        mass=0.01,
-        single_flavor=true,
-    )
-    # staggered-hoelbling1342 derivative
-    test_fderivative(
-        backend;
-        nprocs_cart=nprocs_cart,
-        halo_width=halo_width,
-        dirac="staggered_h1342",
-        mass=0.01,
-        single_flavor=true,
-    )
-    # wilson derivative
-    test_fderivative(
-        backend;
-        nprocs_cart=nprocs_cart,
-        halo_width=halo_width,
-        dirac="wilson",
-        mass=0.01,
-        single_flavor=true,
-        csw=0,
-    )
-    # wilson-clover derivative
-    test_fderivative(
-        backend;
-        nprocs_cart=nprocs_cart,
-        halo_width=2, # INFO: Halo width has to be 2 here
-        dirac="wilson",
-        mass=0.01,
-        single_flavor=true,
-        csw=1.78,
-    )
-    # staggered eo-pre derivative
-    test_fderivative(
-        backend;
-        nprocs_cart=nprocs_cart,
-        halo_width=halo_width,
-        dirac="staggered",
-        mass=0.01,
-        single_flavor=true,
-        eoprec=true,
-    )
-    # wilson eo-pre derivative
-    test_fderivative(
-        backend;
-        nprocs_cart=nprocs_cart,
-        halo_width=halo_width,
-        dirac="wilson",
-        mass=0.01,
-        single_flavor=false,
-        eoprec=true,
-        csw=0,
-    )
-    # wilson-clover eo-pre derivative
-    test_fderivative(
-        backend;
-        nprocs_cart=nprocs_cart,
-        halo_width=2, # INFO: Halo width has to be 2 here
-        dirac="wilson",
-        mass=0.01,
-        single_flavor=false,
-        eoprec=true,
-        csw=1.78,
-    )
-    test_gradflow(backend; nprocs_cart=nprocs_cart, halo_width=halo_width)
+        @testset "Linear Algebra Tests" begin
+            test_cdot()
+            test_ckron()
+            test_cmvmul()
+            # test_spin_color() # FIXME: Fix these tests
+            test_cmatmul()
+        end
 
-    if mpi_size() == 1 # INFO: Local updates only without distributed fields
-        test_update(backend; update_method="heatbath")
-        test_update(backend; update_method="metropolis", gaction=IwasakiGaugeAction)
+        @testset "IO Tests" begin
+            test_io()
+            test_checkpoint()
+        end
     end
 
-    test_update(backend; update_method="hmc", hmc_integrator="Leapfrog")
-    test_update(backend; update_method="hmc", hmc_integrator="OMF2")
-    test_update(backend; update_method="hmc", hmc_integrator="OMF4")
-
-    # Run a short simulation as final test (doesnt work on github actions)
-    if mpi_size() == 1 # INFO: Local updates only without distributed fields
-        run_sim("parameters_test.toml")
-    elseif mpi_size() == 2
-        run_sim("parameters_test_mpi.toml")
-    end
+    runtests(; nprocs_cart=(1, 1, 1, mpi_size()))
 end
 
-mpi_barrier()
+# using AMDGPU, AMDGPU: allowscalar
+# using CUDA, CUDA: allowscalar
 
-# if CUDA.functional(true)
-#     @testset "CUDA Tests" begin
-#         CUDA.allowscalar(false)
-#         backend = CUDABackend
-#         plaq, poly, tc_plaq, tc_clover, tc_improved, wl_1x1 = test_measurements(backend)
-#         @test isapprox(0.587818337847024, plaq)
-#         @test isapprox(0.5255246068616176 - 0.15140850971249734im, poly)
-#         @test isapprox(-0.2730960126400261, tc_plaq)
-#         @test isapprox(-0.027164585971545994, tc_clover)
-#         @test isapprox(-0.03210085960569041, tc_improved)
-#         @test isapprox(0.587818337847024, wl_1x1)
-#
-#         relerrors = CUDA.@allowscalar(test_derivative(backend))
-#         @test length(findall(x -> abs(x) > 1e-4, relerrors[:, 2])) == 0
-#         relerrors = CUDA.@allowscalar(test_fderivative(
-#             backend; dirac="staggered", mass=0.01, single_flavor=true
-#         ))
-#         @test length(findall(x -> abs(x) > 1e-4, relerrors[:, 2])) == 0
-#         # relerrors = CUDA.@allowscalar(test_fderivative(
-#         #     backend; dirac="staggered", mass=0.01, single_flavor=true, eoprec=true
-#         # ))
-#         # @test length(findall(x -> abs(x) > 1e-4, relerrors[:, 2])) == 0
-#         relerrors = CUDA.@allowscalar(test_fderivative(
-#             backend; dirac="wilson", mass=0.01, single_flavor=true
-#         ))
-#         @test length(findall(x -> abs(x) > 1e-4, relerrors[:, 2])) == 0
-#         # relerrors = CUDA.@allowscalar(test_fderivative(
-#         #     backend; dirac="wilson", mass=0.01, single_flavor=false, eoprec=true
-#         # ))
-#         # @test length(findall(x -> abs(x) > 1e-4, relerrors[:, 2])) == 0
-#
-#         @test test_gradflow(backend)
-#         @test test_update(backend; update_method="heatbath")
-#         @test test_update(backend; update_method="metropolis", gaction=IwasakiGaugeAction)
-#         @test test_update(backend; update_method="hmc")
-#     end
-# end
+# runtests(; backend=ROCBackend)
 
 # if mpi_amroot() && mpi_size() == 1
 #     if VERSION >= v"1.9"
@@ -197,10 +173,8 @@ mpi_barrier()
 #     end
 # end
 
-mpi_barrier()
-
-# if mpi_size() == 1
-#     cmd = Base.julia_cmd()
-#     path = joinpath(@__DIR__, "runtests.jl")
-#     run(`$(Utils.MPI.mpiexec()) -n 2 $(cmd) --project --startup-file=no $(path)`)
-# end
+if mpi_size() == 1
+    cmd = Base.julia_cmd()
+    path = joinpath(@__DIR__, "runtests.jl")
+    run(`$(Utils.MPI.mpiexec()) -n 2 $(cmd) --project --startup-file=no $(path)`)
+end

@@ -1,16 +1,16 @@
 function top_charge(::Plaquette, U::Gaugefield{B,T}) where {B<:GPU,T}
     bulk = eachindex(U)
-    return @latsum(Sequential(), Val(1), Float64, top_charge_plaq_kernel!, U, bulk) / 4π^2
+    return @latsum(bulk, Float64, top_charge_plaq_kernel!, U) / 4π^2
 end
 
 function top_charge(::Clover, U::Gaugefield{B,T}) where {B<:GPU,T}
     bulk = eachindex(U)
-    return @latsum(Sequential(), Val(1), Float64, top_charge_clov_kernel!, U, T, bulk) / 4π^2
+    return @latsum(bulk, Float64, top_charge_clov_kernel!, U, T) / 4π^2
 end
 
 function top_charge(::Improved, U::Gaugefield{B,T}) where {B<:GPU,T}
     bulk = eachindex(U)
-    return @latsum(Sequential(), Val(1), Float64, top_charge_imp_kernel!, U, T, bulk) / 4π^2
+    return @latsum(bulk, Float64, top_charge_imp_kernel!, U, T) / 4π^2
 end
 
 @kernel function top_charge_plaq_kernel!(out, @Const(U), bulk)
@@ -22,8 +22,8 @@ end
     tc = top_charge_density_plaq(U, site)
     out_group = @groupreduce(+, tc, 0.0)
 
-    ti = @index(Local)
-    if ti == 1
+    ithread = @index(Local)
+    if ithread == 1
         @inbounds out[iblock] = out_group
     end
 end
@@ -34,12 +34,11 @@ end
     iglobal = @index(Global, Cartesian)
     site = bulk[iglobal]
 
-    # tc = top_charge_density_clover(U, site, T)
-    tc = Float64(iblock)
+    tc = top_charge_density_clover(U, site, T)
     out_group = @groupreduce(+, tc, 0.0)
 
-    ti = @index(Local)
-    if ti == 1
+    ithread = @index(Local)
+    if ithread == 1
         @inbounds out[iblock] = out_group
     end
 end
@@ -55,8 +54,8 @@ end
     tc = top_charge_density_imp(U, site, c₀, c₁, T)
     out_group = @groupreduce(+, tc, 0.0)
 
-    ti = @index(Local)
-    if ti == 1
+    ithread = @index(Local)
+    if ithread == 1
         @inbounds out[iblock] = out_group
     end
 end
@@ -67,7 +66,7 @@ function top_charge_deriv!(
     fac = convert(T, fac / 4π^2)
     bulk = eachindex(dU, U, F)
     fieldstrength_eachsite!(kind_of_charge, F, U)
-    @latmap(Sequential(), Val(1), top_charge_deriv_kernel!, dU, F, U, kind_of_charge, fac, bulk)
+    @latmap(bulk, top_charge_deriv_kernel!, dU, F, U, kind_of_charge, fac)
     return nothing
 end
 

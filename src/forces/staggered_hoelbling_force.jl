@@ -95,6 +95,7 @@ function add_staggered_hoelbling_derivative!(
     fac1 = T(-0.5coeff)
     fac2 = T(coeff)
     _μ, _ν, _ρ, _σ = term
+    update_halo!(U, X, Y)
 
     @batch for site in eachindex(dU, U, X, Y)
         add_staggered_derivative_kernel!(dU, U, X, Y, site, bc, fac1)
@@ -102,7 +103,6 @@ function add_staggered_hoelbling_derivative!(
         add_hoelbling_derivative_kernel!(dU, _ρ, _σ, U, X, Y, site, bc, fac2)
     end
 
-    update_halo!(dU)
     return nothing
 end
 
@@ -120,8 +120,9 @@ function add_hoelbling_derivative_kernel!(
 end
 
 function Y∇MμνX(X, Y, U, ::Val{μ}, ::Val{ν}, site, bc, ::Type{T}) where {μ,ν,T}
-    Nμ = dims(U)[μ]
-    Nν = dims(U)[ν]
+    NT = size(U, 4)
+    Nμ = axes(U, μ)
+    Nν = axes(U, ν)
     siteμ⁺ = move(site, μ, 1, Nμ)
     siteν⁻ = move(site, ν, -1, Nν)
     siteν⁺ = move(site, ν, 1, Nν)
@@ -133,17 +134,17 @@ function Y∇MμνX(X, Y, U, ::Val{μ}, ::Val{ν}, site, bc, ::Type{T}) where {�
     η2 = im * T(1 / 8 * staggered_ημν(Val(μ), Val(ν), siteν⁺, Val(true)))
     η3 = im * T(1 / 8 * staggered_ημν(Val(μ), Val(ν), siteν⁻, Val(true)))
     Y1 = η1 * Y[site]
-    Y2 = η2 * apply_bc(Y[siteν⁺], bc, site, Val(1), Nν, Val(ν))
-    Y3 = η3 * apply_bc(Y[siteν⁻], bc, site, Val(-1), Nν, Val(ν))
+    Y2 = η2 * apply_bc(Y[siteν⁺], bc, site, Val(1), NT, Val(ν))
+    Y3 = η3 * apply_bc(Y[siteν⁻], bc, site, Val(-1), NT, Val(ν))
 
     # Stop
     X1 = apply_bc(
-        apply_bc(X[siteμ⁺ν⁺], bc, site, Val(1), Nμ, Val(μ)), bc, site, Val(1), Nν, Val(ν)
+        apply_bc(X[siteμ⁺ν⁺], bc, site, Val(1), NT, Val(μ)), bc, site, Val(1), NT, Val(ν)
     )
     X2 = apply_bc(
-        apply_bc(X[siteμ⁺ν⁻], bc, site, Val(1), Nμ, Val(μ)), bc, site, Val(-1), Nν, Val(ν)
+        apply_bc(X[siteμ⁺ν⁻], bc, site, Val(1), NT, Val(μ)), bc, site, Val(-1), NT, Val(ν)
     )
-    X3 = apply_bc(X[siteμ⁺], bc, site, Val(1), Nμ, Val(μ))
+    X3 = apply_bc(X[siteμ⁺], bc, site, Val(1), NT, Val(μ))
 
     out =
         cmatmul_oo(U[ν, siteμ⁺], ckron(X1, Y1)) + # site -> siteμ+ -> siteμ+ν+

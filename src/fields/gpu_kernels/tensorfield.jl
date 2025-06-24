@@ -1,7 +1,8 @@
 function fieldstrength_eachsite!(
     ::Plaquette, F::Tensorfield{B,T}, U::Gaugefield{B,T}
 ) where {B<:GPU,T}
-    @latmap(Sequential(), Val(1), fieldstrength_eachsite_plaq_gpu!, F, U, eachindex(F, U))
+    update_halo!(U)
+    @latmap(eachindex(F, U), fieldstrength_eachsite_plaq_gpu!, F, U)
     return nothing
 end
 
@@ -28,7 +29,8 @@ end
 function fieldstrength_eachsite!(
     ::Clover, F::Tensorfield{B,T}, U::Gaugefield{B,T}
 ) where {B<:GPU,T}
-    @latmap(Sequential(), Val(1), fieldstrength_eachsite_clover_gpu!, F, U, T, eachindex(F, U))
+    update_halo!(U)
+    @latmap(eachindex(F, U), fieldstrength_eachsite_clover_gpu!, F, U, T)
     return nothing
 end
 

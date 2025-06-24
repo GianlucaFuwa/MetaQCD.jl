@@ -1,5 +1,9 @@
 module Utils
 
+# INFO:
+# - Cannot use functions that contain reinterpret of SArrays, e.g., multr in GPU kernels
+# - Cannot use @SMatrix or @SVector in GPU kernels
+
 using Accessors: @set
 using LinearAlgebra
 using LoopVectorization
@@ -27,8 +31,8 @@ export make_submatrix_12, make_submatrix_13, make_submatrix_23
 export embed_into_SU3_12, embed_into_SU3_13, embed_into_SU3_23
 export antihermitian, hermitian, traceless_antihermitian, traceless_hermitian, materialize_TA
 export zero2, zero3, zerov3, eye2, eye3, onev3, gaussian_TA_mat, rand_SU3
-export SiteCoords, eo_site, eo_site_switch, move
-export cartesian_to_linear, linear_to_cartesian, set_ext!, switch_sides
+export SiteCoords, move, get_halo_index, map_to_half, map_to_half_switch, map_from_half
+export cartesian_to_linear, linear_to_cartesian, set_ext!, switch_sides, halo_to_full
 export Sequential, Checkerboard2, Checkerboard4, EvenSites, OddSites
 export λ, expλ, γ1, γ2, γ3, γ4, γ5, σ12, σ13, σ14, σ23, σ24, σ34
 export cmatmul_oo, cmatmul_dd, cmatmul_do, cmatmul_od
@@ -123,46 +127,15 @@ end
 @inline to_vec(x::Number, len::Int64) = fill(x, len)
 @inline to_vec(x::Tuple, len::Int64) = fill(x, len)
 
-@inline eye2(::Type{T}) where {T<:AbstractFloat} = @SArray [
-    one(Complex{T}) zero(Complex{T})
-    zero(Complex{T}) one(Complex{T})
-]
-
-@inline eye3(::Type{T}) where {T<:AbstractFloat} = @SArray [
-    one(Complex{T}) zero(Complex{T}) zero(Complex{T})
-    zero(Complex{T}) one(Complex{T}) zero(Complex{T})
-    zero(Complex{T}) zero(Complex{T}) one(Complex{T})
-]
-
-@inline eye4(::Type{T}) where {T<:AbstractFloat} = @SArray [
-    one(Complex{T}) zero(Complex{T}) zero(Complex{T}) zero(Complex{T})
-    zero(Complex{T}) one(Complex{T}) zero(Complex{T}) zero(Complex{T})
-    zero(Complex{T}) zero(Complex{T}) one(Complex{T}) zero(Complex{T})
-    zero(Complex{T}) zero(Complex{T}) zero(Complex{T}) one(Complex{T})
-]
-
-@inline zero2(::Type{T}) where {T<:AbstractFloat} = @SArray [
-    zero(Complex{T}) zero(Complex{T})
-    zero(Complex{T}) zero(Complex{T})
-]
-
-@inline zero3(::Type{T}) where {T<:AbstractFloat} = @SArray [
-    zero(Complex{T}) zero(Complex{T}) zero(Complex{T})
-    zero(Complex{T}) zero(Complex{T}) zero(Complex{T})
-    zero(Complex{T}) zero(Complex{T}) zero(Complex{T})
-]
-
-@inline zerov3(::Type{T}) where {T<:AbstractFloat} = @SVector [
-    zero(Complex{T})
-    zero(Complex{T})
-    zero(Complex{T})
-]
-
-@inline onev3(::Type{T}) where {T<:AbstractFloat} = @SVector [
-    one(Complex{T})
-    one(Complex{T})
-    one(Complex{T})
-]
+@inline eye2(::Type{T}) where {T<:AbstractFloat} = one(SMatrix{2,2,Complex{T},4})
+@inline eye3(::Type{T}) where {T<:AbstractFloat} = one(SMatrix{3,3,Complex{T},9})
+@inline eye4(::Type{T}) where {T<:AbstractFloat} = one(SMatrix{4,4,Complex{T},16})
+@inline zero2(::Type{T}) where {T<:AbstractFloat} = zero(SMatrix{2,2,Complex{T},4})
+@inline zero3(::Type{T}) where {T<:AbstractFloat} = zero(SMatrix{3,3,Complex{T},9})
+@inline zerov3(::Type{T}) where {T<:AbstractFloat} = zero(SVector{3,Complex{T}})
+@inline onev3(::Type{T}) where {T<:AbstractFloat} = SVector{3,Complex{T}}(
+    (Complex{T}(1.0),Complex{T}(1.0),Complex{T}(1.0))
+)
 
 const SU{N,N²,T} = SMatrix{N,N,Complex{T},N²}
 
@@ -184,6 +157,7 @@ Base.zero(::Type{PauliMatrix{N,N²,T}}) where {N,N²,T} =
     PauliMatrix(UniformScaling(zero(T)), Val(N))
 Base.one(::Type{PauliMatrix{N,N²,T}}) where {N,N²,T} =
     PauliMatrix(UniformScaling(one(T)), Val(N))
+Base.eltype(::Type{PauliMatrix{N,N²,T}}) where {N,N²,T} = Complex{T}
 
 function Base.rand(::Type{PauliMatrix{N,N²,T}}) where {N,N²,T}
     upper = hermitian(@SMatrix(rand(Complex{T}, N, N)))
@@ -196,22 +170,23 @@ end
 
 Calculate the trace of the product of two complex NxN matrices `A` and `B` of precision `T`.
 """
-@inline function multr(A::SU{N,N²,T}, B::SU{N,N²,T}) where {N,N²,T}
-    # XXX: causes problems on GPUs
-    # for some reason we have to convert A and B to MArrays, otherwise we get a dynamic
-    # function invocation for reinterpret(...) on CUDA
-    a = reinterpret(reshape, T, MMatrix(A))
-    b = reinterpret(reshape, T, MMatrix(B))
-    re = zero(T)
-    im = zero(T)
-
-    @turbo for i in Base.Slice(static(1):static(N)), j in Base.Slice(static(1):static(N))
-        re += a[1, i, j] * b[1, j, i] - a[2, i, j] * b[2, j, i]
-        im += a[1, i, j] * b[2, j, i] + a[2, i, j] * b[1, j, i]
-    end
-
-    return Complex{T}(re, im)
-end
+@inline multr(A, B) = tr(cmatmul_oo(A, B))
+# XXX: causes problems on GPUs
+# @inline function multr(A::SU{N,N²,T}, B::SU{N,N²,T}) where {N,N²,T}
+#     # for some reason we have to convert A and B to MArrays, otherwise we get a dynamic
+#     # function invocation for reinterpret(...) on CUDA
+#     a = reinterpret(reshape, T, MMatrix(A))
+#     b = reinterpret(reshape, T, MMatrix(B))
+#     re = zero(T)
+#     im = zero(T)
+#
+#     @turbo for i in Base.Slice(static(1):static(N)), j in Base.Slice(static(1):static(N))
+#         re += a[1, i, j] * b[1, j, i] - a[2, i, j] * b[2, j, i]
+#         im += a[1, i, j] * b[2, j, i] + a[2, i, j] * b[1, j, i]
+#     end
+#
+#     return Complex{T}(re, im)
+# end
 
 """
     cnorm2(A::SMatrix{N,N,Complex{T},N²}) where {N,N²,T}
@@ -239,7 +214,7 @@ Calculate the inverse of the complex matrix `M`.
 @inline cinv(M::SMatrix{2,2,Complex{T},4}) where {T} = inv(M)
 @inline cinv(M::SMatrix{3,3,Complex{T},9}) where {T} = inv(M)
 @inline cinv(M::SMatrix{4,4,Complex{T},16}) where {T} = inv(M)
-# StaticArrays has speical implementations for small sizes
+# StaticArrays has special implementations for small sizes
 @inline function cinv(M::SMatrix{N,N,Complex{T},N²}) where {N,N²,T}
     Q, R = qr(M)
     S = inv_upper_tri(R)

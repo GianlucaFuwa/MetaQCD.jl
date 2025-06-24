@@ -1,7 +1,7 @@
 const AnySpinorfield{B,T,M,A,ND} = Union{Spinorfield{B,T,M,A,ND},SpinorfieldEO{B,T,M,A,ND}}
 
 function clear!(ϕ::AnySpinorfield{B}) where {B<:GPU}
-    @latmap(Sequential(), Val(1), clear_fermion_gpu!, ϕ, eachindex(ϕ))
+    @latmap(eachindex(ϕ), clear_fermion_gpu!, ϕ)
 end
 
 @kernel cpu=false function clear_fermion_gpu!(ϕ, bulk)
@@ -11,7 +11,7 @@ end
 end
 
 function Base.copy!(a::TF, b::TF) where {TF<:AnySpinorfield{<:GPU}}
-    @latmap(Sequential(), Val(1), copy_fermion_gpu!, a, b, eachindex(a, b))
+    @latmap(eachindex(a, b), copy_fermion_gpu!, a, b)
     return nothing
 end
 
@@ -22,7 +22,7 @@ end
 end
 
 function ones!(ϕ::AnySpinorfield{B}) where {B<:GPU}
-    @latmap(Sequential(), Val(1), ones_fermion_gpu!, ϕ)
+    @latmap(eachindex(ϕ), ones_fermion_gpu!, ϕ)
     return nothing
 end
 
@@ -36,7 +36,7 @@ function set_source!(ϕ::AnySpinorfield{B,T}, site, a, μ) where {B<:GPU,T}
     NC = num_colors(ϕ)
     ND = num_dirac(ϕ)
     @assert μ ∈ 1:ND && a ∈ 1:NC
-    @latmap(Sequential(), Val(1), set_source_gpu!, ϕ, site, a, μ, NC, ND, T, eachindex(ϕ))
+    @latmap(eachindex(ϕ), set_source_gpu!, ϕ, site, a, μ, NC, ND, T)
     return nothing
 end
 
@@ -53,7 +53,7 @@ end
 end
 
 function gaussian_pseudofermions!(ϕ::AnySpinorfield{B,T,M,A,ND}) where {B<:GPU,T,M,A,ND}
-    @latmap(Sequential(), Val(1), gaussian_pseudofermions_gpu!, ϕ, Val(3ND), T, eachindex(ϕ))
+    @latmap(eachindex(ϕ), gaussian_pseudofermions_gpu!, ϕ, Val(3ND), T)
     return nothing
 end
 
@@ -64,7 +64,7 @@ end
 end
 
 function LinearAlgebra.mul!(ψ::TF, ϕ::TF, α) where {T,TF<:AnySpinorfield{<:GPU,T}}
-    @latmap(Sequential(), Val(1), scalar_mul_gpu!, ψ, ϕ, T(α), eachindex(ψ, ϕ))
+    @latmap(eachindex(ψ, ϕ), scalar_mul_gpu!, ψ, ϕ, T(α))
     return nothing
 end
 
@@ -76,7 +76,7 @@ end
 
 function LinearAlgebra.axpy!(α, ψ::TF, ϕ::TF) where {T,TF<:AnySpinorfield{<:GPU,T}}
     α = Complex{T}(α)
-    @latmap(Sequential(), Val(1), axpy_gpu!, ϕ, ψ, α, eachindex(ϕ, ψ))
+    @latmap(eachindex(ϕ, ψ), axpy_gpu!, ϕ, ψ, α)
     return nothing
 end
 
@@ -89,7 +89,7 @@ end
 function LinearAlgebra.axpby!(α, ψ::TF, β, ϕ::TF) where {T,TF<:AnySpinorfield{<:GPU,T}}
     α = Complex{T}(α)
     β = Complex{T}(β)
-    @latmap(Sequential(), Val(1), axpby_gpu!, ϕ, ψ, α, β, eachindex(ψ, ϕ))
+    @latmap(eachindex(ψ, ϕ), axpby_gpu!, ϕ, ψ, α, β)
     return nothing
 end
 
@@ -100,7 +100,7 @@ end
 end
 
 function LinearAlgebra.dot(ϕ::TF, ψ::TF) where {TF<:AnySpinorfield{<:GPU}}
-    return @latsum(Sequential(), Val(1), ComplexF64, dot_gpu, ϕ, ψ, eachindex(ϕ, ψ))
+    return @latsum(eachindex(ϕ, ψ), ComplexF64, dot_gpu, ϕ, ψ)
 end
 
 @kernel cpu=false function dot_gpu(out, ϕ, ψ, bulk)
@@ -111,8 +111,8 @@ end
     resₙ = dot(ϕ[site], ψ[site])
     out_group = @groupreduce(+, resₙ, 0.0 + 0.0im)
 
-    ti = @index(Local)
-    if ti == 1
+    ithread = @index(Local)
+    if ithread == 1
         @inbounds out[iblock] = out_group
     end
 end

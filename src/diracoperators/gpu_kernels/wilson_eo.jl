@@ -1,33 +1,25 @@
-# FIXME:
 function mul_oe!(
     ψ_eo::TF, U::Gaugefield{B,T}, ϕ_eo::TF, bc, into_odd, ::Val{dagg}; fac=1
 ) where {B,T,TF<:WilsonEOPreSpinorfield{B,T},dagg}
-    check_dims(ψ_eo, ϕ_eo, U)
     ψ = ψ_eo.parent
     ϕ = ϕ_eo.parent
-    fdims = dims(ψ)
-    NV = ψ.NV
-
-    @latmap(
-        Sequential(), Val(1), wilson_eo_kernel!, ψ, U, ϕ, bc, fdims, NV, fac, T, Val(dagg)
-    )
-    update_halo!(ψ_eo)
+    odd_half = false
+    bulk = eachindex(ψ)
+    itr = eachindex(odd_half, ψ, ϕ, U)
+    # TODO: can hide
+    update_halo!(U, ϕ)
+    @latmap(itr, wilson_oe_gpu!, ψ, U, ϕ, bc, into_odd, fac, T, Val(dagg), bulk)
     return nothing
 end
 
-@kernel function wilson_eo_kernel!(
-    ψ, @Const(U), @Const(ϕ), bc, fdims, NV, fac, ::Type{T}, ::Val{dagg}
+@kernel function wilson_oe_gpu!(
+    ψ, @Const(U), @Const(ϕ), bc, into_odd, fac, ::Type{T}, ::Val{dagg}, bulk, itr
 ) where {T,dagg}
-    site = @index(Global, Cartesian)
-    _site = if into_odd
-        eo_site(site, fdims..., NV)
-    else
-        eo_site_switch(site, fdims..., NV)
-    end
-
-    if iseven(site)
-        @inbounds ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, bc, T, Val(dagg))
-    end
+    iglobal = @index(Global, Cartesian)
+    o_site = bulk[iglobal]
+    site = map_from_half(o_site, bulk)
+    _site = into_odd ? o_site : switch_sides(o_site, bulk)
+    @inbounds ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, bc, T, Val(dagg), bulk)
 end
 
 function mul_eo!(
@@ -36,125 +28,115 @@ function mul_eo!(
     check_dims(ψ_eo, ϕ_eo, U)
     ψ = ψ_eo.parent
     ϕ = ϕ_eo.parent
-    fdims = dims(ψ)
-    NV = ψ.NV
-
-    @latmap(
-        Sequential(), Val(1), wilson_oe_kernel!, ψ, U, ϕ, bc, fdims, NV, fac, T, Val(dagg)
-    )
-    update_halo!(ψ_eo)
+    even_half = true
+    bulk = eachindex(ψ)
+    itr = eachindex(even_half, ψ, ϕ, U)
+    # TODO: can hide
+    update_halo!(U, ϕ)
+    @latmap(itr, wilson_eo_gpu!, ψ, U, ϕ, bc, into_odd, fac, T, Val(dagg), bulk)
     return nothing
 end
 
-@kernel function wilson_oe_kernel!(
-    ψ, @Const(U), @Const(ϕ), bc, fdims, NV, fac, ::Type{T}, ::Val{dagg}
+@kernel function wilson_eo_gpu!(
+    ψ, @Const(U), @Const(ϕ), bc, into_odd, fac, ::Type{T}, ::Val{dagg}, bulk, itr
 ) where {T,dagg}
-    site = @index(Global, Cartesian)
-    _site = if into_odd
-        eo_site_switch(site, fdims..., NV)
-    else
-        eo_site(site, fdims..., NV)
-    end
-
-    if iseven(site)
-        @inbounds ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, bc, T, Val(dagg))
-    end
+    iglobal = @index(Global, Cartesian)
+    e_site = bulk[iglobal]
+    site = map_from_half(e_site, bulk)
+    _site = into_odd ? switch_sides(e_site, bulk) : e_site
+    @inbounds ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, bc, T, Val(dagg), bulk)
 end
 
 function calc_diag!(
     D_diag::TW, D_oo_inv::TW, ::Nothing, U::Gaugefield{B,T}, mass
-) where {B,T,M,TW<:Paulifield{B,T,M,false}}
-    check_dims(D_diag, D_oo_inv, U)
+) where {B<:GPU,T,M,TW<:Paulifield{B,T,M,false}}
     mass_term = Complex{T}(4 + mass)
-    fdims = dims(U)
-    NV = U.NV
-
-    @latmap(Sequential(), Val(1), calc_diag_kernel!, D_diag, D_oo_inv, mass_term, fdims, NV)
+    bulk = eachindex(D_diag, D_oo_inv, U)
+    @latmap(bulk, calc_diag_gpu!, D_diag, D_oo_inv, mass_term)
     return nothing
 end
 
-@kernel function calc_diag_kernel!(
-    D_diag, D_oo_inv, mass_term, fdims, NV, ::Type{T}
-) where {T}
-    site = @index(Global, Cartesian)
-    calc_diag_kernel!(D_diag, D_oo_inv, mass_term, site, fdims, NV, T)
+@kernel function calc_diag_gpu!(D_diag, D_oo_inv, mass_term, ::Type{T}, bulk) where {T}
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
+    calc_diag_kernel!(D_diag, D_oo_inv, mass_term, site, T, bulk)
 end
 
 function calc_diag!(
-    D_diag::TW, D_oo_inv::TW, Fμν::Tensorfield{B,T,M}, U::Gaugefield{B,T,M}, mass
+    D_diag::TW, D_oo_inv::TW, Fμν::Tensorfield{B,T}, U::Gaugefield{B,T}, mass
 ) where {B,T,M,TW<:Paulifield{B,T,M,true}}
-    check_dims(D_diag, D_oo_inv, U)
     mass_term = Complex{T}(4 + mass)
-    fdims = dims(U)
-    NV = U.NV
     fac = Complex{T}(D_diag.csw / 2)
+    bulk = eachindex(D_diag, D_oo_inv, Fμν, U)
+    # TODO: can hide
+    update_halo!(U)
 
-    @latmap(
-        Sequential(), Val(1), calc_diag_kernel!, D_diag, D_oo_inv, mass_term, fdims, NV, fac, T
-    )
+    fieldstrength_eachsite!(Clover(), Fμν, U)
+
+    @latmap(bulk, calc_diag_csw_gpu!, D_diag, D_oo_inv, Fμν, mass_term, fac, T)
     return nothing
 end
 
-@kernel function calc_diag_kernel!(
-    D_diag, D_oo_inv, @Const(Fμν), mass_term, fdims, NV, fac, ::Type{T}
+@kernel function calc_diag_csw_gpu!(
+    D_diag, D_oo_inv, @Const(Fμν), mass_term, fac, ::Type{T}, bulk
 ) where {T}
-    site = @index(Global, Cartesian)
-    calc_diag_kernel!(D_diag, D_oo_inv, Fμν, mass_term, site, fdims, NV, fac, T)
+    iglobal = @index(Global, Cartesian)
+    site = bulk[iglobal]
+    calc_diag_csw_kernel!(D_diag, D_oo_inv, Fμν, mass_term, site, fac, T, bulk)
 end
 
 function mul_oo_inv!(
-    ϕ_eo::WilsonEOPreSpinorfield{B,T,M}, D_oo_inv::Paulifield{B,T,M}
-) where {B,T,M}
-    check_dims(ϕ_eo, D_oo_inv)
+    ϕ_eo::WilsonEOPreSpinorfield{B,T}, D_oo_inv::Paulifield{B,T}
+) where {B,T}
     ϕ = ϕ_eo.parent
-    fdims = dims(U)
-    NV = U.NV
-
-    @latmap(EvenSites(), Val(1), mul_oo_inv_kernel!, ϕ, D_oo_inv, fdims, NV)
+    even_half = true
+    bulk = eachindex(ϕ)
+    itr = eachindex(even_half, ϕ, D_oo_inv)
+    @latmap(itr, mul_oo_inv_gpu!, ϕ, D_oo_inv, bulk)
     return nothing
 end
 
-@kernel function mul_oo_inv_kernel!(ϕ, D_oo_inv, fdims, NV)
-    _site = @index(Global, Cartesian)
-    o_site = switch_sides(_site, fdims..., NV)
-    ϕ[o_site] = cmvmul_block(D_oo_inv[_site], ϕ[o_site])
+@kernel function mul_oo_inv_gpu!(ϕ, D_oo_inv, bulk, itr)
+    iglobal = @index(Global, Cartesian)
+    e_site = itr[iglobal]
+    o_site = switch_sides(e_site, bulk)
+    ϕ[o_site] = cmvmul_block(D_oo_inv[e_site], ϕ[o_site])
 end
 
-function axmy!(
-    D_diag::Paulifield{B,T,M}, ψ_eo::TF, ϕ_eo::TF
-) where {B,T,M,TF<:WilsonEOPreSpinorfield{B,T,M}} # even on even is the default
-    check_dims(ϕ_eo, ψ_eo)
+function axmy!(D_diag::Paulifield{B,T}, ψ_eo::TF, ϕ_eo::TF) where {B,T,TF}
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent
-
-    @latmap(EvenSites(), Val(1), axmy_kernel!, D_diag, ψ, ϕ)
+    even_sites = true
+    itr = eachindex(even_sites, ϕ, ψ)
+    @latmap(itr, axmy_gpu!, D_diag, ψ, ϕ)
     return nothing
 end
 
-@kernel function axmy_kernel!(@Const(D_diag), ψ, ϕ)
-    _site = @index(Global, Cartesian)
-    ϕ[_site] = cmvmul_block(D_diag[_site], ψ[_site]) - ϕ[_site]
+@kernel function axmy_gpu!(@Const(D_diag), @Const(ψ), ϕ, itr)
+    iglobal = @index(Global, Cartesian)
+    e_site = itr[iglobal]
+    ϕ[e_site] = cmvmul_block(D_diag[e_site], ψ[e_site]) - ϕ[e_site]
 end
 
 function trlog(D_diag::Paulifield{B,T,M,true}, ::Any) where {B,T,M} # With clover term
-    fdims = dims(D_diag)
-    NV = D_diag.NV
-    return @latsum(EvenSites(), Val(1), Float64, trlog_kernel, D_diag, fdims, NV)
+    odd_half = false
+    itr = eachindex(odd_half, D_diag)
+    return @latsum(itr, Float64, trlog_kernel, D_diag)
 end
 
-@kernel function trlog_kernel(out, @Const(D_diag), fdims, NV)
-    bi = @index(Group, Linear)
-    _site = @index(Global, Cartesian)
-    o_site = switch_sides(_site, fdims..., NV)
+@kernel function trlog_kernel(out, @Const(D_diag), itr)
+    iblock = @index(Group, Linear)
+    iglobal = @index(Global, Cartesian)
+    o_site = itr[iglobal]
 
-    resₙ = 0.0
+    d = 0.0
     p = D_diag[o_site]
-    resₙ += log(real(det(p.upper)) * real(det(p.lower)))
+    d += log(real(det(p.upper)) * real(det(p.lower)))
 
-    out_group = @groupreduce(+, resₙ, 0.0)
+    out_group = @groupreduce(+, d, 0.0)
 
-    ti = @index(Local)
-    if ti == 1
-        @inbounds out[bi] = out_group
+    ithread = @index(Local)
+    if ithread == 1
+        @inbounds out[iblock] = out_group
     end
 end

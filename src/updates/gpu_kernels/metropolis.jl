@@ -1,7 +1,7 @@
 function update!(
     metro::Metropolis{ITR,NH,TOR,NOR}, U::Gaugefield{B,T,A,GA}; kwargs...
 ) where {ITR,NH,TOR,NOR,B<:GPU,T,A,GA}
-    fac = T(-U.β/U.NC)
+    fac = T(-U.β/3)
     ϵ = T(metro.ϵ[])
     hits = _unwrap_val(NH())
     ALG = eltype(TOR())
@@ -12,17 +12,16 @@ function update!(
     numaccepts_metro = @latsum(ITR(), Val(1), Float64, metro_kernel!, U, GA(), ϵ, fac, hits)
     numaccepts_or = @latsum(ITR(), NOR(), Float64, or_kernel!, U, ALG(), GA(), fac)
 
-    numaccepts_metro /= 4U.NV*hits
+    numaccepts_metro /= 4length(U)*hits
     @level2("|  Metro acceptance: $(numaccepts_metro)")
     adjust_ϵ!(metro, numaccepts_metro)
-    U.Sg = calc_gauge_action(U)
-    numaccepts = (NOR≡Val{0}) ? 1.0 : numaccepts_or / (4U.NV*_unwrap_val(NOR()))
+    numaccepts = (NOR≡Val{0}) ? 1.0 : numaccepts_or / (4length(U)*_unwrap_val(NOR()))
     return numaccepts
 end
 
 @kernel function metropolis_C2_kernel!(out, U, μ, pass, GA, ϵ, fac, numhits)
     # workgroup index, that we use to pass the reduced value to global "out"
-    bi = @index(Group, Linear)
+    iblock = @index(Group, Linear)
     iy, iz, it = @index(Global, NTuple)
     numaccepts = 0i32
 
@@ -47,15 +46,15 @@ end
 
     out_group = @groupreduce(+, numaccepts, 0i32)
 
-    ti = @index(Local)
-    if ti == 1
-        @inbounds out[bi] += out_group
+    ithread = @index(Local)
+    if ithread == 1
+        @inbounds out[iblock] += out_group
     end
 end
 
 @kernel function metropolis_C4_kernel!(out, U, μ, pass, GA, ϵ, fac, numhits)
     # workgroup index, that we use to pass the reduced value to global "out"
-    bi = @index(Group, Linear)
+    iblock = @index(Group, Linear)
     iy, iz, it = @index(Global, NTuple)
     numaccepts = 0i32
 
@@ -82,8 +81,8 @@ end
 
     out_group = @groupreduce(+, numaccepts, 0i32)
 
-    ti = @index(Local)
-    if ti == 1
-        @inbounds out[bi] += out_group
+    ithread = @index(Local)
+    if ithread == 1
+        @inbounds out[iblock] += out_group
     end
 end

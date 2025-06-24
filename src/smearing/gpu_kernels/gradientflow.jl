@@ -1,5 +1,5 @@
 function updateU!(U::Gaugefield{B,T}, Z::Colorfield{B,T}, ϵ) where {B<:GPU,T}
-    @latmap(Sequential(), Val(1), updateU_gf_gpu!, U, Z, T(ϵ), eachindex(Z, U))
+    @latmap(eachindex(Z, U), updateU_gf_gpu!, U, Z, T(ϵ))
     return nothing
 end
 
@@ -8,12 +8,14 @@ end
     site = bulk[iglobal]
 
     @unroll for μ in 1i32:4i32
-        @inbounds U[μ, site] = cmatmul_oo(exp_iQ(-im * ϵ * Z[μ, site]), U[μ, site])
+        @inbounds U[μ, site] = cmatmul_oo(exp(ϵ*Z[μ,site]), U[μ, site])
     end
 end
 
 function calcZ!(Z::Colorfield{B,T}, U::Gaugefield{B,T}, ϵ) where {B<:GPU,T}
-    @latmap(Sequential(), Val(1), calcZ_gpu!, Z, U, T(ϵ), eachindex(Z, U))
+    # TODO: can hide
+    update_halo!(U)
+    @latmap(eachindex(Z, U), calcZ_gpu!, Z, U, T(ϵ))
     return nothing
 end
 
@@ -29,7 +31,9 @@ end
 end
 
 function updateZ!(Z::Colorfield{B,T}, U::Gaugefield{B,T}, ϵ_old, ϵ_new, bulk) where {B<:GPU,T}
-    @latmap(Sequential(), Val(1), updateZ_gpu!, Z, U, T(ϵ_old), T(ϵ_new), eachindex(Z, U))
+    # TODO: can hide
+    update_halo!(U)
+    @latmap(eachindex(Z, U), updateZ_gpu!, Z, U, T(ϵ_old), T(ϵ_new))
     return nothing
 end
 

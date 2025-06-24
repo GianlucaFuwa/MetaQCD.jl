@@ -28,7 +28,7 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT,T1} <: AbstractMeasurement
         @level1("|    CG Tolerance: $(cg_tol)")
         @level1("|    CG Max Iterations: $(cg_maxiters)")
         @level1("|    Boundary Condition: $(bc_str)")
-        NT = local_dims(U)[end]
+        NT = get_local_dims(U)[end]
         pion_corr = zeros(Float64, NT)
 
         if dirac_type == "staggered"
@@ -176,8 +176,8 @@ We follow the procedure outlined in DOI: 10.1007/978-3-642-01850-3 (Gattringer) 
 """
 function pion_correlators_avg!(pion_corr, D, ψ, cg_temps, cg_tol, cg_maxiters, cg_datafile)
     check_dims(D.U, ψ, cg_temps...)
-    NX, NY, NZ, NT = global_dims(ψ)
-    my_NX, my_NY, my_NZ, my_NT = local_dims(ψ)
+    NX, NY, NZ, NT = size(ψ)
+    my_NX, my_NY, my_NZ, my_NT = get_local_dims(ψ)
     halo_width = D.U.topology.halo_width
     @assert length(pion_corr) == NT
 
@@ -187,7 +187,7 @@ function pion_correlators_avg!(pion_corr, D, ψ, cg_temps, cg_tol, cg_maxiters, 
     propagator, temps... = cg_temps
     pion_corr .= 0.0
 
-    for a in 1:ψ.NC
+    for a in 1:3
         for μ in 1:num_dirac(ψ)
             ones!(propagator)
             set_source!(ψ, source, a, μ)

@@ -24,28 +24,28 @@ function temper!( # INFO: When using MPI in tempering
 
         if (myrank == rank_i || myrank == rank_i_min_1) && mpi_amroot(comm_instance)
             if myrank == rank_i
-                mpi_send(mpi_buffer(U.CV), comm_shared; dest=rank_i_min_1::Int64, tag=1) 
+                mpi_send(mpi_buffer(bias.CV), comm_shared; dest=rank_i_min_1::Int64, tag=1) 
                 CV_j = mpi_recv(comm_shared; source=rank_i_min_1::Int64, tag=1)
             elseif myrank == rank_i_min_1
                 CV_j = mpi_recv(comm_shared; source=rank_i::Int64, tag=1)
-                mpi_send(mpi_buffer(U.CV), comm_shared; dest=rank_i::Int64, tag=1) 
+                mpi_send(mpi_buffer(bias.CV), comm_shared; dest=rank_i::Int64, tag=1) 
             end
 
             if myrank == rank_i
-                ΔV1 = bias(CV_j) - bias(U.CV)
+                ΔV1 = bias(CV_j) - bias(bias.CV)
                 ΔV2 = mpi_recv(Float64, comm_shared; source=rank_i_min_1::Int64, tag=2)
                 acc_prob = exp(-ΔV1 - ΔV2)
                 is_accepted = rand() ≤ acc_prob
                 mpi_send(is_accepted::Bool, comm_shared; dest=rank_i_min_1::Int64, tag=3) 
             elseif myrank == rank_i_min_1 
-                ΔV2 = bias(CV_j) - bias(U.CV)
+                ΔV2 = bias(CV_j) - bias(bias.CV)
                 mpi_send(ΔV2::Float64, comm_shared; dest=rank_i::Int64, tag=2) 
                 is_accepted = mpi_recv(Bool, comm_shared; source=rank_i::Int64, tag=3)
             end
 
             if is_accepted
                 if myrank == rank_i
-                    for icv in eachindex(U.CV)
+                    for icv in eachindex(bias.CV)
                         buf = bias.buffers[icv]
                         pack_buffer!(buf, bias.bias[icv])
                         mpi_send(mpi_buffer(buf), comm_shared; dest=rank_i_min_1, tag=100+icv)
@@ -61,7 +61,7 @@ function temper!( # INFO: When using MPI in tempering
                     numaccepts_temper[i] += 1
                     @level1 "|  Old/New: $(i) -> $(i-1)"
                 elseif myrank == rank_i_min_1
-                    for icv in eachindex(U.CV)
+                    for icv in eachindex(bias.CV)
                         buf = bias.buffers[icv]
                         pack_buffer!(buf, bias.bias[icv])
                         mpi_send(mpi_buffer(buf), comm_shared; dest=rank_i, tag=100+icv)
@@ -108,8 +108,8 @@ function temper!( # INFO: When not using MPI in tempering
         U2 = U[i-1]
         bias1 = bias[i]
         bias2 = bias[i-1]
-        cv1 = U1.CV
-        cv2 = U2.CV
+        cv1 = bias1.CV
+        cv2 = bias2.CV
         ΔV1 = bias1(cv2) - bias1(cv1)
         ΔV2 = bias2(cv1) - bias2(cv2)
         acc_prob = exp(-ΔV1 - ΔV2)
@@ -118,7 +118,7 @@ function temper!( # INFO: When not using MPI in tempering
         if rand() ≤ acc_prob
             @level1 "|  Swap accepted"
             numaccepts_temper[i-1] += 1
-            swap_U!(U1, U2)
+            swap_U!(U1, U2, bias1, bias2)
             update_bias!(bias1, cv2, itrj)
             update_bias!(bias2, cv1, itrj)
         else
@@ -132,14 +132,10 @@ function temper!( # INFO: When not using MPI in tempering
     return nothing
 end
 
-function swap_U!(a, b)
-    a_Sg_tmp = deepcopy(a.Sg)
-    a_CV_tmp = deepcopy(a.CV)
-
-    a.Sg = b.Sg
-    a.CV = b.CV
-    b.Sg = a_Sg_tmp
-    b.CV = a_CV_tmp
+function swap_U!(a, b, biasa, biasb)
+    a_CV_tmp = deepcopy(biasa.CV)
+    biasa.CV = biasb.CV
+    biasb.CV = a_CV_tmp
 
     @batch for site in eachindex(a, b)
         for μ in 1:4

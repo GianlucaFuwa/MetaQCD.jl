@@ -17,7 +17,9 @@ function test_update(
     mpi_amroot() && println("Update algorithm tests")
     MetaQCD.MetaIO.set_global_logger!(1, nothing; tc=true)
     NX = NY = NZ = NT = 4
-    U = Gaugefield{CPU,Float64,gaction}(NX, NY, NZ, NT, 6.0, nprocs_cart, halo_width)
+    U = Gaugefield{CPU,Float64,gaction}(
+        NX, NY, NZ, NT, 6.0, numprocs_cart=nprocs_cart, halo_width=halo_width
+    )
     random_gauges!(U)
 
     if backend !== CPU
@@ -75,15 +77,12 @@ function test_update(
     end
 
     if update_method != "hmc"
-        Sg_final_unsmeared = U.Sg
-        println("Final Gauge Action is: ", Sg_final_unsmeared)
+        println("Final Gauge Action is: ", calc_gauge_action(U))
     else
         if typeof(updatemethod.smearing_gauge) == NoSmearing
-            Sg_final_unsmeared = U.Sg
-            mpi_amroot() && println("Final Gauge Action is: ", Sg_final_unsmeared)
+            mpi_amroot() && println("Final Gauge Action is: ", calc_gauge_action(U))
         else
-            Sg_final_unsmeared = U.Sg
-            mpi_amroot() && println("Final Gauge Action is: ", Sg_final_unsmeared)
+            mpi_amroot() && println("Final Gauge Action is: ", calc_gauge_action(U))
             calc_smearedU!(updatemethod.smearing_gauge, U)
             fully_smeared_U = updatemethod.smearing_gauge.Usmeared_multi[end]
             Sg_final_smeared = calc_gauge_action(fully_smeared_U)

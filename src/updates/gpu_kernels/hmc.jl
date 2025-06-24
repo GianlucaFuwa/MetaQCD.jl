@@ -4,7 +4,7 @@ function updateU!(
     if level == 1
         ϵ = T(hmc.levels[level].Δτ * fac)
         P = hmc.P
-        @latmap(Sequential(), Val(1), updateU_gpu!, U, P, ϵ, eachindex(U, P))
+        @latmap(eachindex(U, P), updateU_gpu!, U, P, ϵ)
     else
         evolve!(U, hmc, fermion_action, bias, therm, level-1)
     end
@@ -16,6 +16,6 @@ end
     site = bulk[iglobal]
 
     @unroll for μ in 1i32:4i32
-        @inbounds U[μ,site] = cmatmul_oo(exp(ϵ*P[μ,site]), U[μ,site])
+        @inbounds U[μ,site] = cmatmul_oo(exp_iQ(-im * ϵ * P[μsite]), U[μsite])
     end
 end

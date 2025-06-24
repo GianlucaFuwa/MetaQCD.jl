@@ -78,26 +78,28 @@ function add_staggered_derivative!(
     dU::Colorfield{CPU,T,M}, U::Gaugefield{CPU,T,M}, X::TF, Y::TF, bc; coeff=1
 ) where {T,M,TF<:StaggeredSpinorfield{CPU,T,M}}
     fac = T(-0.5coeff)
+    # TODO: can hide
+    update_halo!(U, X, Y)
 
     @batch for site in eachindex(dU, U, X, Y)
         add_staggered_derivative_kernel!(dU, U, X, Y, site, bc, fac)
     end
 
-    update_halo!(dU)
     return nothing
 end
 
 function add_staggered_derivative_kernel!(dU, U, X, Y, site, bc, fac)
-    NX, NY, NZ, NT = dims(U)
+    NT = size(U, 4)
 
     # use @nexprs here to statically generate the loop
-    # this makes it so Val(i) is well defined at each iteration and no type-instabilities arise
-    @nexprs 4 i -> (
-        siteμ⁺ = move(site, i, 1, (NX, NY, NZ, NT)[i]);
-        η = staggered_η(Val(i), site);
-        B = ckron(apply_bc(X[siteμ⁺], bc, site, Val(1), NT, Val(i)), Y[site]);
-        C = ckron(apply_bc(Y[siteμ⁺], bc, site, Val(1), NT, Val(i)), X[site]);
-        dU[i, site] += (fac * η) * traceless_antihermitian(cmatmul_oo(U[i, site], B - C))
+    # this makes it so Val(μ) is well defined at each iteration and no type-instabilities arise
+    @nexprs 4 μ -> (
+        Nμ = axes(U, μ);
+        siteμ⁺ = move(site, μ, 1, Nμ);
+        η = staggered_η(Val(μ), site);
+        B = ckron(apply_bc(X[siteμ⁺], bc, site, Val(1), NT, Val(μ)), Y[site]);
+        C = ckron(apply_bc(Y[siteμ⁺], bc, site, Val(1), NT, Val(μ)), X[site]);
+        dU[μ, site] += (fac * η) * traceless_antihermitian(cmatmul_oo(U[μ, site], B - C))
     )
     return nothing
 end

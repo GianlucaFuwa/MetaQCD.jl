@@ -1,6 +1,6 @@
 @kernel function overrelaxation_C2_kernel!(out, U, μ, pass, ALG, GA, fac)
     # workgroup index, that we use to pass the reduced value to global "out"
-    bi = @index(Group, Linear)
+    iblock = @index(Group, Linear)
     iy, iz, it = @index(Global, NTuple)
     numaccepts = 0i32
 
@@ -11,7 +11,7 @@
         new_link = overrelaxation_SU3(ALG, old_link, A_adj)
 
         ΔSg = fac * real(multr(new_link - old_link, A_adj))
-        accept = (rand(Float32) < exp(-ΔSg))
+        accept = (rand(Float64) < exp(-ΔSg))
 
         if accept
             @inbounds U[μ,site] = new_link
@@ -21,15 +21,15 @@
 
     out_group = @groupreduce(+, numaccepts, 0i32)
 
-    ti = @index(Local)
-    if ti == 1
-        @inbounds out[bi] += out_group
+    ithread = @index(Local)
+    if ithread == 1
+        @inbounds out[iblock] += out_group
     end
 end
 
 @kernel function overrelaxation_C4_kernel!(out, U, μ, pass, ALG, GA, fac)
     # workgroup index, that we use to pass the reduced value to global "out"
-    bi = @index(Group, Linear)
+    iblock = @index(Group, Linear)
     iy, iz, it = @index(Global, NTuple)
     numaccepts = 0i32
 
@@ -53,8 +53,8 @@ end
 
     out_group = @groupreduce(+, numaccepts, 0i32)
 
-    ti = @index(Local)
-    if ti == 1
-        @inbounds out[bi] += out_group
+    ithread = @index(Local)
+    if ithread == 1
+        @inbounds out[iblock] += out_group
     end
 end

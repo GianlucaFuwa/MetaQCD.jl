@@ -12,9 +12,7 @@ struct BothBoundaries <: AbstractBoundaryMode end
 abstract type AbstractBoundaryCondition end
 
 struct PeriodicBC <: AbstractBoundaryCondition end
-struct AntiPeriodicBC{T<:AbstractBoundaryMode} <: AbstractBoundaryCondition
-    halo_width::Int64
-end
+struct AntiPeriodicBC{T<:AbstractBoundaryMode} <: AbstractBoundaryCondition end
 
 const BOUNDARY_CONDITIONS = Dict(
     "periodic" => PeriodicBC,
@@ -46,7 +44,7 @@ const BOUNDARY_CONDITIONS = Dict(
         end
     end
 
-    return AntiPeriodicBC{bc_mode}(topology.halo_width[4])
+    return AntiPeriodicBC{bc_mode}()
 end
 
 """
@@ -64,7 +62,7 @@ is the maximum time extent.
 end
 
 @generated function apply_bc(
-    el, bc::AntiPeriodicBC{T}, site::SiteCoords, ::Val{dir}, NT, ::Val{dim}=Val(4)
+    el, ::AntiPeriodicBC{T}, site::SiteCoords, ::Val{dir}, NT, ::Val{dim}=Val(4)
 ) where {T,dir,dim}
     # NT is full width of the array, i.e., including halo
     q = quote
@@ -79,13 +77,13 @@ end
             if T === NegBoundary
                 push!(q.args, :(return el))
             else
-                push!(q.args, :(return (it == NT-bc.halo_width ? -1 : 1) * el))
+                push!(q.args, :(return (it == NT ? -1 : 1) * el))
             end
         elseif dir == -1
             if T === PosBoundary
                 push!(q.args, :(return el))
             else
-                push!(q.args, :(return (it == 1+bc.halo_width ? -1 : 1) * el))
+                push!(q.args, :(return (it == 1 ? -1 : 1) * el))
             end
         else
             throw(ArgumentError("dir must be either Val(-1) or Val(1) in apply_bc"))

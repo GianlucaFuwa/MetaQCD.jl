@@ -6,7 +6,7 @@ function set_instanton!(U::Gaugefield, Q::Vector{Int64})
 end
 
 function set_instanton!(U::Gaugefield{CPU,T}, Q) where {T}
-    NX, NY, NZ, NT = global_dims(U)
+    NX, NY, NZ, NT = size(U)
     xrange, yrange, zrange, trange = U.topology.bulk_sites.indices
     identity_gauges!(U)
 

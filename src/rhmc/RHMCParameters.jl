@@ -4,11 +4,39 @@ module RHMCParameters
 using LinearAlgebra
 using RationalFunctionApproximation
 
-import ..AlgRemez: AlgRemezCoeffs, calc_coefficients
+# import ..AlgRemez: AlgRemezCoeffs, calc_coefficients
 
 export RHMCParams
 export get_n, get_n_inverse, get_α, get_α0, get_β, get_α_inverse
 export get_α0_inverse, get_β_inverse
+
+struct AlgRemezCoeffs{N}
+    α0::Float64
+    α::NTuple{N,Float64}
+    β::NTuple{N,Float64}
+    n::Int64
+end
+
+function Base.display(x::AlgRemezCoeffs)
+    println("""
+        f(x) = α0 + sum_i^n α[i]/(x + β[i])
+    """)
+    println("Order: $(x.n)")
+    println("α0: $(x.α0)")
+    println("α: $(x.α)")
+    return println("β: $(x.β)")
+end
+
+function fittedfunction(coeff::AlgRemezCoeffs)
+    function func(x)
+        value = coeff.α0
+        for i in 1:coeff.n
+            value += coeff.α[i] / (x + coeff.β[i])
+        end
+        return value
+    end
+    return x -> func(x)
+end
 
 """
     RHMCParams(power::Rational, fun::Function; n=10, lambda_low=0.0004, lambda_high=64, tol=1e-6)

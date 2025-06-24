@@ -28,7 +28,7 @@ function __cpulatmap(
     ::Checkerboard2, ::Val{C}, f!::F, U::AbstractField{CPU}, GA, fac
 ) where {F,C}
     C == 0 && return nothing
-    NX, NY, NZ, NT = local_dims(U)
+    NX, NY, NZ, NT = get_local_dims(U)
 
     for _ in 1:C
         for μ in 1:4
@@ -97,7 +97,7 @@ function __cpulatsum(
     ::Checkerboard2, ::Val{C}, f!::F, U::AbstractField{CPU,T,false}, GA, fac
 ) where {C,F,T}
     C == 0 && return 0.0
-    NX, NY, NZ, NT = global_dims(U)
+    NX, NY, NZ, NT = size(U)
     out = 0.0
 
     for _ in 1:C

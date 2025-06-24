@@ -23,7 +23,7 @@ struct GradientFlow{TI,TG,TT} <: AbstractSmearing
         (numflow == 0 || tf == 0) && (return NoSmearing())
 
         @level1("- Constructing Gradient Flow...")
-        Z = Colorfield(U; nohalo=true)
+        Z = Colorfield(U; no_halo=true)
         Uflow = similar(U)
 
         integrator = Unicode.normalize(integrator; casefold=true)
@@ -77,12 +77,13 @@ function updateU!(U::Gaugefield{CPU,T}, Z::Colorfield{CPU,T}, ϵ) where {T}
         end
     end
 
-    update_halo!(U)
     return nothing
 end
 
 function calcZ!(Z::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, ϵ) where {T}
     ϵ = T(ϵ)
+    # TODO: can hide
+    update_halo!(U)
 
     @batch for site in eachindex(U)
         for μ in 1:4
@@ -98,6 +99,8 @@ end
 function updateZ!(Z::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, ϵ_old, ϵ_new) where {T}
     ϵ_old = T(ϵ_old)
     ϵ_new = T(ϵ_new)
+    # TODO: can hide
+    update_halo!(U)
 
     @batch for site in eachindex(U)
         for μ in 1:4

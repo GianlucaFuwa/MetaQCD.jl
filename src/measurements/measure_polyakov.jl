@@ -84,9 +84,10 @@ function measure(
 end
 
 function polyakov_traced(U::Gaugefield{CPU})
-    # TODO:
-    @assert U.topology.numprocs_cart[4] == 1 "Field cannot be decomposed in time direction for polykov loop calculation"
-    NX, NY, NZ, NT = global_dims(U)
+    @assert U.topology.numprocs_cart[4] == 1 """
+    for polyakov loop, the field cannot be partitioned in the t-dimension
+    """
+    NX, NY, NZ, NT = size(U)
     xrange, yrange, zrange, _ = U.topology.bulk_sites.indices
     halo_width = U.topology.halo_width
     P = 0.0 + 0.0im
@@ -94,10 +95,10 @@ function polyakov_traced(U::Gaugefield{CPU})
     @batch reduction = (+, P) for iz in zrange
         for iy in yrange
             for ix in xrange
-                polymat = U[4, ix, iy, iz, 1+halo_width]
+                polymat = U[4, ix, iy, iz, 1]
 
-                for it in 1+halo_width:(NT+halo_width-1)
-                    polymat = cmatmul_oo(polymat, U[4, ix, iy, iz, 1+it])
+                for it in 2:NT
+                    polymat = cmatmul_oo(polymat, U[4, ix, iy, iz, it])
                 end
 
                 P += tr(polymat)

@@ -7,11 +7,13 @@ function LinearAlgebra.mul!(
     csw = D.csw
     bc = D.boundary_condition
     bulk = eachindex(ψ, ϕ, U)
-    @latmap(Sequential(), Val(1), wilson_gpu!, ψ, U, ϕ, mass_term, bc, T, Val(1), bulk)
+    # TODO: can hide
+    update_halo!(U, ϕ)
+    @latmap(bulk, wilson_gpu!, ψ, U, ϕ, mass_term, bc, T, Val(1))
 
     if has_clover_term(D)
         fac = T(-csw / 2)
-        @latmap(Sequential(), Val(1), add_clover_gpu!, ψ, U, ϕ, fac, T, bulk)
+        @latmap(bulk, add_clover_gpu!, ψ, U, ϕ, fac, T)
     end
 end
 
@@ -24,16 +26,18 @@ function LinearAlgebra.mul!(
     csw = D.parent.csw
     bc = D.parent.boundary_condition
     bulk = eachindex(ψ, ϕ, U)
-    @latmap(Sequential(), Val(1), wilson_gpu!, ψ, U, ϕ, mass_term, bc, T, Val(-1), bulk)
+    # TODO: can hide
+    update_halo!(U, ϕ)
+    @latmap(bulk, wilson_gpu!, ψ, U, ϕ, mass_term, bc, T, Val(-1))
 
     if has_clover_term(D)
         fac = T(-csw / 2)
-        @latmap(Sequential(), Val(1), add_clover_gpu!, ψ, U, ϕ, fac, T, bulk)
+        @latmap(bulk, add_clover_gpu!, ψ, U, ϕ, fac, T)
     end
 end
 
 @kernel cpu=false function wilson_gpu!(
-    ψ, @Const(U), @Const(ϕ), mass_term, bc, ::Type{T}, ::Val{dagg}
+    ψ, @Const(U), @Const(ϕ), mass_term, bc, ::Type{T}, ::Val{dagg}, bulk
 ) where {T,dagg}
     iglobal = @index(Global, Cartesian)
     site = bulk[iglobal]

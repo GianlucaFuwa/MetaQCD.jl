@@ -1,5 +1,6 @@
 module Fields
 
+using Base.Meta: quot
 using KernelAbstractions # With this we can write generic GPU kernels for ROC and CUDA
 using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
@@ -10,8 +11,9 @@ using Random
 using StaticArrays # Used for the SU3 matrices
 using ..Utils # Contains utility functions, such as projections and the exponential map
 
+import Adapt: adapt_structure
 import KernelAbstractions as KA # With this we can write generic GPU kernels for ROC and CUDA
-import StrideArraysCore: object_and_preserve # This is used to convert the AbstractField to a PtrArray in the @batch loop
+import StrideArraysCore: PtrArray, object_and_preserve # This is used to convert the AbstractField to a PtrArray in the @batch loop
 
 # When CUDA.jl or AMDGPU.jl are loaded, their backends are appended to this Dict
 const BACKENDS = Dict{String,Type{<:KA.Backend}}("cpu" => CPU)
@@ -39,6 +41,7 @@ end
 include("distributed/topology.jl")
 include("distributed/halo_update.jl")
 
+include("constructor.jl")
 include("boundaries.jl") # boundary conditions in time direction for spinors
 include("gaugefield.jl") # Gaugefield, Colorfield and Expfield structs defined here
 include("colorfield.jl")
@@ -52,9 +55,11 @@ include("tensorfield.jl") # Tensorfield struct and fieldstrength methods defined
 include("iterators/cpu_iterators.jl") # Sequential and Checkerboard iterators defined here 
 include("iterators/gpu_iterators.jl") # GPU version of the above
 include("gpu_kernels/utils.jl")
+include("adapt.jl")
 
 include("action.jl") # Gauge action methods
 include("field_operations.jl") # General operations on fields, like adding, copying etc.
+include("stencils/plaquette.jl") # Definition of clover operator
 include("stencils/clover.jl") # Definition of clover operator
 include("stencils/staple.jl") # Definition of staple operator
 include("stencils/wilsonloop.jl") # Definition of arbitrary side length Wilson loops
@@ -67,12 +72,22 @@ include("gpu_kernels/spinorfield.jl")
 include("gpu_kernels/tensorfield.jl")
 include("gpu_kernels/wilsonloop.jl")
 
+# XXX: Not sure why these are here, but whatever
 Base.similar(u::Gaugefield) = Gaugefield(u)
 Base.similar(u::Colorfield) = Colorfield(u)
 Base.similar(u::Expfield) = Expfield(u)
+Base.similar(u::Tensorfield) = Tensorfield(u)
+Base.similar(u::Spinorfield) = Spinorfield(u)
+Base.similar(u::MultiSpinorfield) = MultiSpinorfield(u)
 
-Base.view(u::AbstractField, I::CartesianIndices{4}) = view(u.U, 1:4, I.indices...)
-Base.view(u::AbstractField, I::Vector{CartesianIndex{4}}) = view(u.U, 1:4, I)
+# Base.view(u::AbstractField, I::CartesianIndices{4}) = view(u.U, 1:4, I.indices...)
+# Base.view(u::AbstractField, I::Vector{CartesianIndex{4}}) = view(u.U, 1:4, I)
+# Base.view(u::Tensorfield, I::CartesianIndices{4}) = view(u.U, 1:4, 1:4, I.indices...)
+# Base.view(u::Tensorfield, I::Vector{CartesianIndex{4}}) = view(u.U, 1:4, 1:4, I)
+# Base.view(f::Spinorfield, I::CartesianIndices{4}) = view(f.U, I.indices...)
+# Base.view(f::Spinorfield, I::Vector{CartesianIndex{4}}) = view(f.U, I)
+# Base.view(f::MultiSpinorfield, s, I::CartesianIndices{4}) = view(f.U, s, I.indices...)
+# Base.view(f::MultiSpinorfield, s, I::Vector{CartesianIndex{4}}) = view(f.U, s, I)
 
 """
     to_backend(Backend_out, u::AbstractField{Backend_in,FloatType})
@@ -94,32 +109,36 @@ function to_backend(
         return u_out
     end
 
+    Fieldtype = eval(nameof(typeof(u)))
     A = array_type(Bout)
     new_eltype = convert(Tout, eltype(u.U))
-    sizeU = global_dims(u)
     Uout = A{new_eltype}(u.U)
-    bufs = if isnothing(u.send_buf)
-        nothing, nothing
+    sendbuf = isnothing(u.sendbuf) ? nothing : A{new_eltype}(u.sendbuf)
+    halos = if isnothing(u.halos)
+        nothing
     else
-        A{new_eltype}(u.send_buf), A(u.recv_buf)
+        ntuple(Val(8)) do i
+            OffsetArray(
+                KA.zeros(Bout(), new_eltype, size(u.halos[i])),
+                eachindex(u.halos[i])...
+            )
+        end
     end
-    Fieldtype = eval(nameof(typeof(u)))
 
     if u isa Gaugefield
         GA = gauge_action(u)
-        Sg = Base.RefValue{Float64}(u.Sg)
-        CV = deepcopy(u.CV)
-        return Gaugefield{Bout,Tout,M,typeof(Uout),GA,typeof(bufs[1])}(
-            Uout, bufs..., sizeU..., u.NV, 3, u.topology, u.β, Sg, CV
-        )
+        return Gaugefield{Bout,Tout,M,GA}(Uout, sendbuf, halos, u.topology, u.β)
     elseif u isa Spinorfield
-        return Spinorfield{Bout,Tout,M,typeof(Uout),u.ND,typeof(bufs[1])}(
-            Uout, bufs..., sizeU..., u.NV, 3, u.topology
-        )
+        ND = num_dirac(u)
+        return Spinorfield{Bout,Tout,M,ND}(Uout, sendbuf, halos, u.topology)
+    elseif u isa MultiSpinorfield
+        ND = num_dirac(u)
+        return MultiSpinorfield{Bout,Tout,M,ND}(Uout, sendbuf, halos, u.topology, u.numspinors)
+    elseif u isa Paulifield
+        C = has_clover_term(u)
+        return Paulifield{Bout,Tout,M,C}(Uout, sendbuf, halos, u.topology, u.csw)
     else
-        return Fieldtype{Bout,Tout,M,typeof(Uout),typeof(bufs[1])}(
-            Uout, bufs..., sizeU..., u.NV, 3, u.topology
-        )
+        return Fieldtype{Bout,Tout,M}(Uout, sendbuf, halos, u.topology)
     end
 end
 
@@ -129,42 +148,25 @@ Base.elsize(u::AbstractField) = Base.elsize(u.U)
 Base.parent(u::AbstractField) = u.U
 Base.pointer(u::AbstractField) = pointer(u.U)
 Base.strides(u::AbstractField) = strides(u.U)
-# This converts u to a PtrArray pointing to the entries of u.U, meaning that we cant
-# access any of the fields of u within the @batch loop
-@inline object_and_preserve(u::AbstractField) = object_and_preserve(u.U)
-float_type(::AbstractArray{SMatrix{3,3,Complex{T},9},5}) where {T} = T
-float_type(::AbstractField{B,T}) where {B,T} = T
+
+# Some useful functions that share geometry information about the fields
 KA.get_backend(u::AbstractField) = get_backend(u.U)
+KA.get_backend(u::OffsetArray) = get_backend(u.parent)
+Base.length(u::AbstractField) = u.topology.global_volume
+Base.size(u::AbstractField) = u.topology.global_dims
+Base.size(u::AbstractField, μ) = u.topology.global_dims[μ]
+Base.axes(u::AbstractField) = u.topology.bulk_sites_padded.indices
+Base.axes(u::AbstractField, μ::Integer) = u.topology.bulk_sites_padded.indices[μ]
+# Base.axes(u::AbstractField, μ::Integer) = u.topology.bulk_sites.indices[μ]
+@inline float_type(::AbstractField{B,T}) where {B,T} = T
+@inline num_colors(u::AbstractField) = 3
+@inline get_local_dims(u::AbstractField) = u.topology.local_dims
+@inline get_local_volume(u::AbstractField) = u.topology.local_volume
+@inline get_global_volume(u::AbstractField) = u.topology.global_volume
+@inline get_halo_width(u::AbstractField) = u.topology.halo_width
+@inline get_numprocs_cart(u::AbstractField) = u.topology.numprocs_cart
 
-# define dims() function twice --- once for generic arrays, such that GPUs and @batch
-# can use it, and once for Abstractfields for any other case
-@inline dims(u) = NTuple{4,Int64}((size(u, 2), size(u, 3), size(u, 4), size(u, 5)))
-@inline dims(u::AbstractField) = dims(u.U)
-@inline dimrange(u, μ) = axes(u, μ+1)
-@inline dimrange(u::AbstractField, μ) = axes(u.U, μ+1)
-@inline global_dims(u::AbstractField) = u.topology.global_dims
-@inline local_dims(u::AbstractField) = u.topology.local_dims
-@inline local_ranges(u::AbstractField) = u.topology.local_ranges
-Base.ndims(u::AbstractField) = 4
-Base.size(u::AbstractField) = NTuple{5,Int64}((4, u.NX, u.NY, u.NZ, u.NT))
-
-"""
-    check_dims(x1, rest...)
-
-Check if all fields have the same dimensions. Throw an `AssertionError` otherwise.
-"""
-@generated function check_dims(x1, rest::Vararg{Any,N}) where {N}
-    q_inner = Expr(:comparison, :(global_dims(x1)))
-
-    for i in 1:N
-        push!(q_inner.args, :(==))
-        push!(q_inner.args, :(global_dims(rest[$i])))
-    end
-
-    q = Expr(:macrocall, Symbol("@assert"), :(), q_inner)
-    return q
-end
-
+# Field iterators / lattice sites
 @inline function Base.eachindex(u::AbstractField, fields...)
     check_dims(u, fields...)
     return eachindex(u)
@@ -175,41 +177,48 @@ end
     return eachindex(arg, u)
 end
 
-@inline Base.eachindex(u::AbstractField) = CartesianIndices((u.NX, u.NY, u.NZ, u.NT))
-@inline Base.eachindex(::IndexLinear, u::AbstractField) = Base.OneTo(u.NV)
-# For MPI parallelized fields:
-@inline Base.eachindex(u::AbstractMPIField) = u.topology.bulk_sites
-Base.eachindex(::IndexLinear, u::AbstractMPIField) =
-    error("MPI parallelized field can not be iterated over linearly")
+@inline Base.eachindex(u::AbstractField) = u.topology.bulk_sites
+@inline Base.eachindex(::IndexLinear, u::AbstractField) = Base.OneTo(u.topology.local_volume)
 
 @inline function Base.eachindex(parity::Symbol, u::AbstractField)
     return u.topology.bulk_sites_eo[parity]
 end
 
-@inline function Base.eachindex(even::Bool, u::AbstractField)
-    NX, NY, NZ, NT = global_dims(u)
-    @assert iseven(NT)
-    last_range = even ? (1:div(NT, 2)) : (div(NT, 2)+1:NT)
-    return CartesianIndices((NX, NY, NZ, last_range))
+@inline function Base.eachindex(even_half::Bool, u::AbstractField)
+    bulk_s..., bulk_t = u.topology.bulk_sites.indices
+    nt = length(bulk_t)
+    t_start = first(bulk_t)
+    t_stop = last(bulk_t)
+    @assert iseven(nt) "length in time dimension needs to be even for even-odd precon"
+    nt2 = nt ÷ 2
+    last_range = even_half ? (t_start:t_start+nt2-1) : (t_start+nt2:t_stop)
+    return CartesianIndices((bulk_s..., last_range))
 end
 
-@inline function Base.eachindex(even::Bool, u::AbstractMPIField)
-    hw = u.topology.halo_width
-    NT = global_dims(u)[4]
-    @assert iseven(NT)
-    irange = even ? (1+hw:div(NT, 2)) : (div(NT, 2)+1:NT-hw)
-    return u.topology.bulk_sites[irange]
+@inline function allindices(u::AbstractField, fields...)
+    check_dims(u, fields...)
+    return allindices(u)
 end
 
 @inline allindices(u::AbstractField) = eachindex(IndexCartesian(), u.U) # all indices including halo regions
-
-Base.length(u::AbstractField) = u.NV
 
 # overload get and set for the Abstractfields structs, so we dont have to do u.U[μ,x,y,z,t]:
 Base.@propagate_inbounds Base.getindex(u::AbstractField, i::Integer) = u.U[i]
 Base.@propagate_inbounds Base.getindex(u::AbstractField, μ, x, y, z, t) = u.U[μ, x, y, z, t]
 Base.@propagate_inbounds Base.getindex(u::AbstractField, μ, site::SiteCoords) = u.U[μ, site]
 Base.@propagate_inbounds Base.getindex(u::AbstractField, μsite) = u.U[μsite]
+
+Base.@propagate_inbounds function Base.getindex(u::AbstractMPIField, μ, site::SiteCoords)
+    site in u.topology.bulk_sites && return u.U[μ, site]
+    ihalo = get_halo_index(site, u.topology.bulk_sites)
+    # return try
+    #     u.halos[ihalo][μ, site]
+    # catch _
+    #     @error("$(mpi_myrank()), $site, $ihalo, $(u.topology.bulk_sites)")
+    # end
+    return u.halos[ihalo][μ, site]
+end
+
 Base.@propagate_inbounds Base.setindex!(u::AbstractField, v, i::Integer) =
     setindex!(u.U, v, i)
 Base.@propagate_inbounds Base.setindex!(u::AbstractField, v, μ, x, y, z, t) =
@@ -219,18 +228,70 @@ Base.@propagate_inbounds Base.setindex!(u::AbstractField, v, μ, site::SiteCoord
 Base.@propagate_inbounds Base.setindex!(u::AbstractField, v, μsite) =
     setindex!(u.U, v, μsite)
 
+Base.@propagate_inbounds function Base.setindex!(u::AbstractMPIField, v, μ, site::SiteCoords)
+    bulk = u.topology.bulk_sites
+
+    if site in bulk
+        u.U[μ, site] = v
+    else
+        ihalo = get_halo_index(site, bulk)
+        u.halos[ihalo][μ, site] = v
+    end
+
+    return nothing
+end
+
+function check_types(::Type{B}, ::Type{T}, U, halos, sendbuf) where {B,T}
+    # some sanity checks
+    # if !(U isa PtrArray)
+    #     @assert get_backend(U) isa B
+    # end
+    #
+    # if !isnothing(halos)
+    #     for halo in halos
+    #         if !(halo isa PtrArray)
+    #             @assert get_backend(halo) isa B
+    #         end
+    #     end
+    # end
+    #
+    # if !isnothing(sendbuf)
+    #     if !(sendbuf isa PtrArray)
+    #         @assert get_backend(sendbuf) isa B
+    #     end
+    # end
+
+    @assert eltype(eltype(U)) === Complex{T}
+    return nothing
+end
+
+"""
+    check_dims(x1, rest...)
+
+Check if all fields have the same dimensions. Throw an `AssertionError` otherwise.
+"""
+@generated function check_dims(x1, rest::Vararg{Any,N}) where {N}
+    q_inner = Expr(:comparison, :(size(x1)))
+
+    for i in 1:N
+        push!(q_inner.args, :(==))
+        push!(q_inner.args, :(size(rest[$i])))
+    end
+
+    q = Expr(:macrocall, Symbol("@assert"), :(), q_inner)
+    return q
+end
+
 # So we don't print the entire array in the REPL...
 function Base.show(io::IO, ::MIME"text/plain", u::T) where {T<:AbstractField}
-    print(io, "$(typeof(u))", "(;\n")
+    print(io, "$(nameof(typeof(u)))", "(\n")
     for fieldname in fieldnames(T)
-        fieldname ∈ (:U, :NV) && continue
-
-        if fieldname ∈ (:Sf, :Sg, :CV)
-            println(io, "\t", fieldname, " = ", getfield(u, fieldname)[], ",")
+        if fieldname in (:U, :halos, :sendbuf)
+            println(io, "\t", fieldname, ": $(nameof(typeof(getfield(u, fieldname))))")
         elseif fieldname == :topology
-            println(io, "\t", fieldname, " = FieldTopology(...)")
+            println(io, "\t", fieldname, ": FieldTopology")
         else
-            println(io, "\t", fieldname, " = ", getfield(u, fieldname), ",")
+            println(io, "\t", fieldname, " = ", getfield(u, fieldname))
         end
     end
     print(io, ")")
@@ -238,16 +299,14 @@ function Base.show(io::IO, ::MIME"text/plain", u::T) where {T<:AbstractField}
 end
 
 function Base.show(io::IO, u::T) where {T<:AbstractField}
-    print(io, "$(typeof(u))", "(;\n")
+    print(io, "$(nameof(typeof(u)))", "(\n")
     for fieldname in fieldnames(T)
-        fieldname ∈ (:U, :NV) && continue
-
-        if fieldname ∈ (:Sf, :Sg, :CV)
-            println(io, "\t", fieldname, " = ", getfield(u, fieldname)[], ",")
+        if fieldname in (:U, :halos, :sendbuf)
+            println(io, "\t", fieldname, " = $(nameof(typeof(getfield(u, fieldname))))()")
         elseif fieldname == :topology
             println(io, "\t", fieldname, " = FieldTopology(...)")
         else
-            println(io, "\t", fieldname, " = ", getfield(u, fieldname), ",")
+            println(io, "\t", fieldname, " = ", getfield(u, fieldname))
         end
     end
     print(io, ")")

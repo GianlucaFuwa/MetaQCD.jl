@@ -1,5 +1,5 @@
 struct PlaquetteMeasurement{T} <: AbstractMeasurement
-    factor::Float64 # 1 / (6*U.NV*U.NC)
+    factor::Float64 # 1 / (6*length(U)*NC)
     filename::T
     function PlaquetteMeasurement(U::Gaugefield; filename="", flow=NoSmearing())
         if !isnothing(filename) && filename != ""
@@ -23,7 +23,7 @@ struct PlaquetteMeasurement{T} <: AbstractMeasurement
             rpath = nothing
         end
 
-        factor = 1 / (6 * U.NV * U.NC)
+        factor = 1 / 18length(U)
         T = typeof(rpath)
         return new{T}(factor, rpath)
     end

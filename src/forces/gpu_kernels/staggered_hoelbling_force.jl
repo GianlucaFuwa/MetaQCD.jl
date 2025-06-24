@@ -4,10 +4,9 @@ function add_staggered_hoelbling_derivative!(
     fac1 = T(-0.5coeff)
     fac2 = T(coeff)
     bulk = eachindex(dU, U, X, Y)
-    @latmap(
-        Sequential(), Val(1), add_staggered_h_derivative_gpu!, dU, U, X, Y, bc, term,
-        fac1, fac2, bulk
-    )
+    # TODO: can hide
+    update_halo!(U, X, Y)
+    @latmap(bulk, add_staggered_h_derivative_gpu!, dU, U, X, Y, bc, term, fac1, fac2)
 end
 
 @kernel cpu=false function add_staggered_h_derivative_gpu!(
@@ -16,11 +15,8 @@ end
     iglobal = @index(Global, Cartesian)
     site = bulk[iglobal]
     _μ, _ν, _ρ, _σ = term
-
-    @inbounds begin
-        add_staggered_derivative_kernel!(dU, U, X, Y, site, bc, fac1)
-        add_hoelbling_derivative_kernel!(dU, _μ, _ν, U, X, Y, site, bc, fac2)
-        add_hoelbling_derivative_kernel!(dU, _ρ, _σ, U, X, Y, site, bc, fac2)
-    end
+    add_staggered_derivative_kernel!(dU, U, X, Y, site, bc, fac1)
+    add_hoelbling_derivative_kernel!(dU, _μ, _ν, U, X, Y, site, bc, fac2)
+    add_hoelbling_derivative_kernel!(dU, _ρ, _σ, U, X, Y, site, bc, fac2)
 end
 

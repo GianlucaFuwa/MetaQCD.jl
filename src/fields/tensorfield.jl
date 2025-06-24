@@ -7,12 +7,12 @@ struct Improved <: AbstractFieldstrength end
 """
 6-dimensional dense array of statically sized 3x3 matrices contatining associated meta-data.
 
-    Tensorfield{Backend,FloatType}(NX, NY, NZ, NT)
-    Tensorfield{Backend,FloatType}(NX, NY, NZ, NT, numprocs_cart, halo_width)
+    Tensorfield{B,T}(NX, NY, NZ, NT)
+    Tensorfield{B,T}(NX, NY, NZ, NT, numprocs_cart, halo_width)
     Tensorfield(u::AbstractField)
     Tensorfield(parameters::ParameterSet)
 
-Creates a `Tensorfield` on `Backend`, i.e. an array of 3-by-3 `FloatType`-precision matrices
+Creates a `Tensorfield` on `B`, i.e. an array of 3-by-3 `T`-precision matrices
 of size `4 x 4 × NX × NY × NZ × NT` or a zero-initialized Tensorfield of the same size as
 `u`.
 # Supported backends
@@ -20,82 +20,67 @@ of size `4 x 4 × NX × NY × NZ × NT` or a zero-initialized Tensorfield of the
 `CUDABackend` \\
 `ROCBackend`
 """
-struct Tensorfield{Backend,FloatType,IsDistributed,ArrayType,BufferType} <:
-       AbstractField{Backend,FloatType,IsDistributed,ArrayType}
-    U::ArrayType # Actual field storing the gauge variables
-    send_buf::BufferType
-    recv_buf::BufferType
-    NX::Int64 # Number of lattice sites in the x-direction
-    NY::Int64 # Number of lattice sites in the y-direction
-    NZ::Int64 # Number of lattice sites in the z-direction
-    NT::Int64 # Number of lattice sites in the t-direction
-    NV::Int64 # Total number of lattice sites
-    NC::Int64 # Number of colors
-
-    topology::FieldTopology # Info regarding MPI topology
-    function Tensorfield{Backend,FloatType}(NX, NY, NZ, NT) where {Backend,FloatType}
-        U = KA.zeros(Backend(), SU{3,9,FloatType}, 4, 4, NX, NY, NZ, NT)
-        send_buf = recv_buf = nothing
-        NV = NX * NY * NZ * NT
-        numprocs_cart = (1, 1, 1, 1)
-        halo_width = 0
-        topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
-        return new{Backend,FloatType,false,typeof(U),Nothing}(
-            U, send_buf, recv_buf, NX, NY, NZ, NT, NV, 3, topology
-        )
-    end
-
-    function Tensorfield{Backend,FloatType}(
-        NX, NY, NZ, NT, numprocs_cart, halo_width
-    ) where {Backend,FloatType}
-        if prod(numprocs_cart) == 1
-            return Tensorfield{Backend,FloatType}(NX, NY, NZ, NT)
-        end
-
-        NV = NX * NY * NZ * NT
-        topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
-        ldims = topology.local_dims_padded
-
-        halo_width = topology.halo_width
-        origin = OffsetArrays.Origin((1, 1, topology.bulk_sites[1].I .- halo_width...)...)
-        U = OffsetArray(
-            KA.zeros(Backend(), SU{3,9,FloatType}, 4, 4, ldims...), origin
-        )
-
-        buf_length = 16maximum(sz for sz in topology.halo_sizes)
-        send_buf = KA.zeros(Backend(), SU{3,9,FloatType}, buf_length)
-        recv_buf = KA.zeros(Backend(), SU{3,9,FloatType}, buf_length)
-        return new{Backend,FloatType,false,typeof(U),BufferType}(
-            U, send_buf, recv_buf, NX, NY, NZ, NT, NV, 3, topology
-        )
+struct Tensorfield{B,T,M,AT,HT,BT,TT} <: AbstractField{B,T,M,AT}
+    U::AT # Actual field storing the gauge variables
+    halos::HT
+    sendbuf::BT
+    topology::TT # Info regarding MPI topology
+    function Tensorfield{B,T,M}(
+        U::AT, halos::HT, sendbuf::BT, topology::TT
+    ) where {B,T,M,AT,HT,BT,TT}
+        check_types(B, T, U, halos, sendbuf)
+        return new{B,T,M,AT,HT,BT,TT}(U, halos, sendbuf, topology)
     end
 end
 
+@field_constructor Tensorfield
+
 function Tensorfield(
-    u::AbstractField{Backend,FloatType,IsDistributed,ArrayType}
-) where {Backend,FloatType,IsDistributed,ArrayType}
-    u_out = if IsDistributed
-        numprocs_cart = u.topology.numprocs_cart
-        halo_width = maximum(u.topology.halo_width)
-        Tensorfield{Backend,FloatType}(u.NX, u.NY, u.NZ, u.NT, numprocs_cart, halo_width)
+    u::AbstractField{B,T,M}; no_halo=false, hw=get_halo_width(u)
+) where {B,T,M}
+    u_out = if M
+        ncart = get_numprocs_cart(u)
+        Tensorfield{B,T}(size(u)...; numprocs_cart=ncart, halo_width=hw, no_halo=no_halo)
     else
-        Tensorfield{Backend,FloatType}(u.NX, u.NY, u.NZ, u.NT)
+        Tensorfield{B,T}(size(u)...)
     end
 
     return u_out
 end
+
+const MPITensorfield{B,T} = Tensorfield{B,T,true}
+
+Base.eltype(::Type{Tensorfield}, ::Type{T}) where {T} = SMatrix{3,3,Complex{T},9}
 
 # overload get and set for the Tensorfields, so we dont have to do u.U[μ,ν,x,y,z,t]
 Base.@propagate_inbounds Base.getindex(u::Tensorfield, μ, ν, x, y, z, t) =
     u.U[μ, ν, x, y, z, t]
 Base.@propagate_inbounds Base.getindex(u::Tensorfield, μ, ν, site::SiteCoords) =
     u.U[μ, ν, site]
+
+Base.@propagate_inbounds function Base.getindex(u::MPITensorfield, μ, ν, site::SiteCoords)
+    site in u.topology.bulk_sites && return u.U[μ, ν, site]
+    ihalo = get_halo_index(site, u.topology.bulk_sites)
+    return u.halos[ihalo][μ, ν, site]
+end
+
 Base.@propagate_inbounds Base.setindex!(u::Tensorfield, v, μ, ν, x, y, z, t) =
     setindex!(u.U, v, μ, ν, x, y, z, t)
 Base.@propagate_inbounds Base.setindex!(u::Tensorfield, v, μ, ν, site::SiteCoords) =
     setindex!(u.U, v, μ, ν, site)
 
-Base.view(u::Tensorfield, I::CartesianIndices{4}) = view(u.U, 1:4, 1:4, I.indices...)
+Base.@propagate_inbounds function Base.setindex!(u::MPITensorfield, v, μ, ν, site::SiteCoords)
+    bulk = u.topology.bulk_sites
+
+    if site in bulk
+        u.U[μ, ν, site] = v
+    else
+        ihalo = get_halo_index(site, bulk)
+        u.halos[ihalo][μ, ν, site] = v
+    end
+
+    return nothing
+end
 
 function fieldstrength_eachsite!(F::Tensorfield, U, kind_of_fs::String)
     if kind_of_fs == "plaquette"
@@ -113,6 +98,7 @@ function fieldstrength_eachsite!(
     ::Plaquette, F::Tensorfield{CPU,T}, U::Gaugefield{CPU,T}
 ) where {T}
     fac = Complex{T}(im)
+    update_halo!(U)
 
     @batch for site in eachindex(U, F)
         C12 = plaquette(U, 1, 2, site)
@@ -136,6 +122,7 @@ function fieldstrength_eachsite!(
     ::Clover, F::Tensorfield{CPU,T}, U::Gaugefield{CPU,T}
 ) where {T}
     fac = Complex{T}(im / 8)
+    update_halo!(U)
 
     @batch for site in eachindex(U, F)
         C12 = clover_square(U, 1, 2, site, 1)
@@ -150,6 +137,40 @@ function fieldstrength_eachsite!(
         F[2, 4, site] = fac * (C24 - C24')
         C34 = clover_square(U, 3, 4, site, 1)
         F[3, 4, site] = fac * (C34 - C34')
+    end
+
+    return nothing
+end
+
+function create_sendbuf!(F::Tensorfield, sites, dim, dir)
+    ibuf = dir + 2(dim - 1)
+    sendbuf = F.sendbuf[ibuf]
+
+    @batch for i in eachindex(IndexLinear(), sites)
+        site = sites[i]
+        
+        for ν in 1:4
+            for μ in 1:4
+                sendbuf[μ, ν, i] = F[μ, ν, site]
+            end
+        end
+    end
+
+    return sendbuf
+end
+
+function Base.copyto!(a::Tensorfield, b::Tensorfield, arange, brange)
+    @assert length(arange) == length(brange) "send buffer and recv buffer arent of same size"
+
+    @batch for i in eachindex(IndexLinear(), arange)
+        site_a = arange[i]
+        site_b = brange[i]
+
+        for ν in 1:4
+            for μ in 1:4
+                a[μ, ν, site_a] = b[μ, ν, site_b]
+            end
+        end
     end
 
     return nothing

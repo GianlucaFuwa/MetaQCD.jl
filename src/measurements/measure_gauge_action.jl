@@ -1,6 +1,6 @@
 struct GaugeActionMeasurement{T} <: AbstractMeasurement
     GA_dict::Dict{String,Float64} # gauge action definition => value
-    factor::Float64 # 1 / (6*U.NV*U.β)
+    factor::Float64 # 1 / (6*length(U)*U.β)
     filename::T
     function GaugeActionMeasurement(
         U; filename="", GA_methods=["wilson"], flow=NoSmearing()
@@ -35,7 +35,7 @@ struct GaugeActionMeasurement{T} <: AbstractMeasurement
             rpath = nothing
         end
 
-        factor = 1 / (6 * U.NV * U.β)
+        factor = 1 / (6 * length(U) * U.β)
         T = typeof(rpath)
         return new{T}(GA_dict, factor, rpath)
     end

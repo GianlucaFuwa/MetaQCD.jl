@@ -1,8 +1,8 @@
 function save_config(
     ::BridgeFormat, U::Gaugefield{B,T,false}, filename, args...
 ) where {B,T}
-    @assert U.U isa Array
-    NX, NY, NZ, NT = (U.NX, U.NY, U.NZ, U.NT)
+    @assert get_backend(U) isa CPU
+    NX, NY, NZ, NT = U.topology.global_dims
     fp = open(filename, "w")
 
     for it in 1:NT
@@ -29,11 +29,11 @@ function save_config(
 end
 
 function load_config!(::BridgeFormat, U::Gaugefield{B,T,false}, filename) where {B,T}
-    @assert U.U isa Array
-    NX, NY, NZ, NT = (U.NX, U.NY, U.NZ, U.NT)
+    @assert get_backend(U) isa CPU
+    NX, NY, NZ, NT = U.topology.global_dims
     fp = open(filename, "r")
     numdata = countlines(filename)
-    @assert numdata == 4 * U.NV * 9 * 2 "data shape is wrong"
+    @assert numdata == 4 * length(U) * 9 * 2 "data shape is wrong"
 
     for it in 1:NT
         for iz in 1:NZ

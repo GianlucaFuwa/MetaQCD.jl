@@ -284,6 +284,7 @@ function run_sim!(
             checkpointer,
             timing_datafile,
             mpi_multi_sim,
+            Val(parameters.tempering_enabled),
         )
     end
 
@@ -302,11 +303,11 @@ function metaqcd!(
     checkpointer::Checkpointer,
     timing_datafile,
     mpi_multi_sim::Bool,
-)
+    ::Val{tempering_enabled},
+) where {tempering_enabled}
     U = univ.U
     fermion_action = univ.fermion_action
     bias = univ.bias
-    tempering_enabled = parameters.tempering_enabled
     numaccepts_temper = zeros(Int64, MPI_NUMINSTANCES[]-1)
     instance_state = collect(0:univ.numinstances)
     swap_every = parameters.swap_every
@@ -319,7 +320,7 @@ function metaqcd!(
     end
 
     # load in config and recalculate gauge action if given
-    load_config!(U, parameters) && (U.Sg = calc_gauge_action(U))
+    load_config!(U, parameters)
 
     @level1("- Thermalization:")
     _, runtime_therm = @timed begin
@@ -369,9 +370,12 @@ function metaqcd!(
                     bias=bias,
                     metro_test=true,
                 )
-                rand() < 0.5 && update!(parity, U)
 
-                accepted && update_bias!(bias, U.CV, itrj; mpi_multi_sim=mpi_multi_sim)
+                if rand() < 0.5
+                    update!(parity, U[1])
+                end
+
+                accepted && update_bias!(bias, itrj; mpi_multi_sim=mpi_multi_sim)
                 numaccepts += accepted
             end
 
@@ -414,7 +418,7 @@ function metaqcd!(
                     mpi_multi_sim=mpi_multi_sim
                 )
             end
-            calc_weights(bias, U.CV, itrj; mpi_multi_sim=mpi_multi_sim)
+            calc_weights(bias, itrj; mpi_multi_sim=mpi_multi_sim)
             @level1("|  Meas. elapsed time:     $(mtime)  [s]")
             @level1("|  FlowMeas. elapsed time: $(fmtime) [s]\n-")
         end
@@ -495,7 +499,10 @@ function metaqcd_PT!(
                     )
                 end
                 numaccepts[1] += tmp / rank0_updates
-                rand() < 0.5 && update!(parity, U[1])
+
+                if rand() < 0.5
+                    update!(parity, U[1])
+                end
 
                 for i in 2:numinstances
                     accepted = update!(
@@ -506,7 +513,7 @@ function metaqcd_PT!(
                         metro_test=true,
                         instance=i-1,
                     )
-                    accepted && update_bias!(bias[i], U[i].CV, itrj)
+                    accepted && update_bias!(bias[i], bias[i].CV, itrj)
                     numaccepts[i] += accepted
                 end
             end
@@ -525,7 +532,7 @@ function metaqcd_PT!(
                     measurements_with_flow[i], gflow[i], U, itrj, measure_on_all
                 )
             end
-            calc_weights(bias, [U[i].CV for i in 1:numinstances], itrj)
+            calc_weights(bias, itrj)
             @level1("|  Meas. elapsed time:     $(mtime)  [s]")
             @level1("|  FlowMeas. elapsed time: $(fmtime) [s]\n-")
         end

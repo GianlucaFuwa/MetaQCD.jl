@@ -1,19 +1,19 @@
 function energy_density(::Plaquette, U::Gaugefield{B}) where {B<:GPU}
     bulk = eachindex(U)
-    E = @latsum(Sequential(), Val(1), Float64, energy_density_plaq_kernel!, U, bulk)
-    return E / U.NV
+    E = @latsum(bulk, Float64, energy_density_plaq_kernel!, U)
+    return E / length(U)
 end
 
 function energy_density(::Clover, U::Gaugefield{B,T}) where {B<:GPU,T}
     bulk = eachindex(U)
-    E = @latsum(Sequential(), Val(1), Float64, energy_density_clov_kernel!, U, T, bulk)
-    return E / U.NV
+    E = @latsum(bulk, Float64, energy_density_clov_kernel!, U, T)
+    return E / length(U)
 end
 
 function energy_density(::Improved, U::Gaugefield{B,T}) where {B<:GPU,T}
     bulk = eachindex(U)
-    E =  @latsum(Sequential(), Val(1), Float64, energy_density_imp_kernel!, U, T, bulk)
-    return E / U.NV
+    E =  @latsum(bulk, Float64, energy_density_imp_kernel!, U, T)
+    return E / length(U)
 end
 
 @kernel function energy_density_plaq_kernel!(out, @Const(U))
@@ -36,8 +36,8 @@ end
 
     out_group = @groupreduce(+, e, 0.0)
 
-    ti = @index(Local)
-    if ti == 1
+    ithread = @index(Local)
+    if ithread == 1
         @inbounds out[iblock] = out_group
     end
 end
@@ -63,8 +63,8 @@ end
 
     out_group = @groupreduce(+, e, 0.0)
 
-    ti = @index(Local)
-    if ti == 1
+    ithread = @index(Local)
+    if ithread == 1
         @inbounds out[iblock] = out_group
     end
 end
@@ -95,8 +95,8 @@ end
 
     out_group = @groupreduce(+, 5/3 * ec - 1/12 * er, 0.0)
 
-    ti = @index(Local)
-    if ti == 1
+    ithread = @index(Local)
+    if ithread == 1
         @inbounds out[iblock] = out_group
     end
 end

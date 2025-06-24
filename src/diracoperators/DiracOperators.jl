@@ -16,7 +16,6 @@ using KernelAbstractions # With this we can write generic GPU kernels for ROC an
 using LinearAlgebra
 using Polyester
 using Printf
-using SparseArrays
 using StaticArrays
 using StaticTools: StaticString
 using ..MetaIO
@@ -26,10 +25,11 @@ using ..Utils
 
 import KernelAbstractions as KA
 import ..Fields: AbstractField, FieldTopology, Gaugefield, Paulifield, Spinorfield
-import ..Fields: MultiSpinorfield, SpinorfieldEO, Tensorfield, num_spinors
-import ..Fields: check_dims, clear!, clover_square, dims, even_odd, gaussian_pseudofermions!
-import ..Fields: @latmap, @latsum, Clover, Checkerboard2, Sequential, set_source!, volume
-import ..Fields: @groupreduce, fieldstrength_eachsite!, num_colors, num_dirac, update_halo_eo!
+import ..Fields: MultiSpinorfield, SpinorfieldEO, Tensorfield, num_spinors, get_global_dims
+import ..Fields: check_dims, get_local_dims, get_global_dims, get_local_volume
+import ..Fields: clear!, clover_square , even_odd, gaussian_pseudofermions!, is_distributed
+import ..Fields: @latmap, @latsum, Clover, Checkerboard2, Sequential, set_source!
+import ..Fields: @groupreduce, fieldstrength_eachsite!, num_colors, num_dirac
 import ..Fields: PeriodicBC, AntiPeriodicBC, apply_bc, create_bc, distributed_reduce
 import ..Fields: update_halo!
 
@@ -222,54 +222,54 @@ function Base.show(io::IO, D::T) where {T<:AbstractDiracOperator}
     return nothing
 end
 
-function construct_diracmatrix(D, U)
-    n = checksquare(D)
-    Du = D(U)
-    M = spzeros(ComplexF64, n, n)
-    temp1 = similar(get_temp(D))
-    temp2 = similar(get_temp(D))
-    ND = num_dirac(temp1)
-    fdims = dims(U)
-    NV = U.NV
-    @assert n < 5000
-    is_evenodd = temp1 isa SpinorfieldEO
-
-    ii = 1
-
-    for isite in eachindex(U)
-        if is_evenodd
-            iseven(isite) || continue
-        end
-
-        for α in 1:ND
-            for a in 1:3
-                set_source!(temp1, isite, a, α)
-                mul!(temp2, Du, temp1)
-                jj = 1
-
-                for jsite in eachindex(U)
-                    if is_evenodd
-                        iseven(jsite) || continue
-                        _jsite = eo_site(jsite, fdims..., NV)
-                    else
-                        _jsite = jsite
-                    end
-
-                    for β in 1:ND
-                        for b in 1:3
-                            ind = (β - 1) * 3 + b
-                            M[jj, ii] = temp2[_jsite][ind]
-                            jj += 1
-                        end
-                    end
-                end
-
-                ii += 1
-            end
-        end
-    end
-
-    return M
-end
+# function construct_diracmatrix(D, U)
+#     n = checksquare(D)
+#     Du = D(U)
+#     M = spzeros(ComplexF64, n, n)
+#     temp1 = similar(get_temp(D))
+#     temp2 = similar(get_temp(D))
+#     ND = num_dirac(temp1)
+#     fdims = dims(U)
+#     NV = length(U)
+#     @assert n < 5000
+#     is_evenodd = temp1 isa SpinorfieldEO
+#
+#     ii = 1
+#
+#     for isite in eachindex(U)
+#         if is_evenodd
+#             iseven(isite) || continue
+#         end
+#
+#         for α in 1:ND
+#             for a in 1:3
+#                 set_source!(temp1, isite, a, α)
+#                 mul!(temp2, Du, temp1)
+#                 jj = 1
+#
+#                 for jsite in eachindex(U)
+#                     if is_evenodd
+#                         iseven(jsite) || continue
+#                         _jsite = eo_site(jsite, fdims..., NV)
+#                     else
+#                         _jsite = jsite
+#                     end
+#
+#                     for β in 1:ND
+#                         for b in 1:3
+#                             ind = (β - 1) * 3 + b
+#                             M[jj, ii] = temp2[_jsite][ind]
+#                             jj += 1
+#                         end
+#                     end
+#                 end
+#
+#                 ii += 1
+#             end
+#         end
+#     end
+#
+#     return M
+# end
 
 end

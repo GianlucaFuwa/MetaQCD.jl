@@ -205,7 +205,7 @@ function metabuild!(
                 recalc_cv!(U, bias)
 
                 for icv in 1:num_cv
-                    therm_cv[icv, itrj] = U.CV[icv]
+                    therm_cv[icv, itrj] = bias.CV[icv]
                 end
             end
 
@@ -253,7 +253,7 @@ function metabuild!(
 
             @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")
             # all procs send their CVs to all other procs and update their copy of the bias
-            CVs = mpi_allgather(tuple(U.CV...)::NTuple{num_cv,Float64}, comm_shared)
+            CVs = mpi_allgather(tuple(bias.CV...)::NTuple{num_cv,Float64}, comm_shared)
             accepteds = mpi_allgather(accepted::Bool, comm_shared)
             accepted_CVs = CVs[findall(accepteds)] # update only on those CVs that were accepted
 
@@ -268,7 +268,7 @@ function metabuild!(
             calc_measurements_flowed(
                 measurements_with_flow, gflow, U, itrj; mpi_multi_sim=mpi_multi_sim
             )
-            calc_weights(bias, U.CV, itrj)
+            calc_weights(bias, itrj)
         end
     end
 

@@ -12,7 +12,7 @@ using StaticArrays
 using ..Parameters
 using ..Utils
 
-import ..Fields: Gaugefield, is_distributed
+import ..Fields: Gaugefield, is_distributed, get_global_volume, get_global_dims
 
 export __GlobalLogger, MetaLogger, current_time, @level1, @level2, @level3, @level4
 export BMWFormat, BridgeFormat, Checkpointer, ConfigSaver, JLD2Format, set_global_logger!
@@ -64,7 +64,7 @@ function create_filetype(U, ::Type{T}) where {T}
     # 18 entries in matrix * 4 directions per site
     global_dims = (4, topology.global_dims...)
     local_dims = (4, topology.local_dims...)
-    local_ranges = (1:4, topology.local_ranges.indices...) 
+    local_ranges = (1:4, topology.bulk_sites.indices...) 
     offsets = map(r -> (first(r) - 1), local_ranges)
     oldtype = Utils.MPI.Datatype(T)
     ftype = Utils.MPI.Types.create_subarray(global_dims, local_dims, offsets, oldtype)

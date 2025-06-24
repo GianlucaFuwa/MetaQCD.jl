@@ -1,11 +1,13 @@
 function save_config(
     ::JLD2Format, U::Gaugefield{B,T,false}, filename::String, args...
 ) where {B,T}
+    @assert get_backend(U) isa CPU
     filename != "" && jldsave(filename; U=U.U)
     return nothing
 end
 
 function load_config!(::JLD2Format, U::Gaugefield{B,T,false}, filename::String) where {B,T}
+    @assert get_backend(U) isa CPU
     Unew = jldopen(filename, "r") do file
         file["U"]
     end

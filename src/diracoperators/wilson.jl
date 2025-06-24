@@ -43,10 +43,11 @@ struct WilsonDiracOperator{B,T,C,TF,TG,BC} <: AbstractDiracOperator{B,T}
         κ = 1 / (2mass + 8)
         U = nothing
         C = csw == 0 ? false : true
-        temp = Spinorfield(f)
+        hw = C ? 2 : 1
+        temp = Spinorfield(f; hw=hw)
+        boundary_condition = create_bc(bc_str, f.topology)
         TG = Nothing
         TF = typeof(temp)
-        boundary_condition = create_bc(bc_str, f.topology)
         BC = typeof(boundary_condition)
         return new{B,T,C,TF,TG,BC}(U, temp, mass, κ, r, csw, boundary_condition)
     end
@@ -83,6 +84,8 @@ function LinearAlgebra.mul!(
     mass_term = T(8 + 2 * D.mass)
     csw = D.csw
     bc = D.boundary_condition
+    # TODO: can hide
+    update_halo!(U, ϕ)
 
     @batch for site in eachindex(ψ, ϕ, U)
         ψ[site] = wilson_kernel(U, ϕ, site, mass_term, bc, T, Val(1))
@@ -96,7 +99,6 @@ function LinearAlgebra.mul!(
         end
     end
 
-    update_halo!(ψ)
     return nothing
 end
 
@@ -108,6 +110,8 @@ function LinearAlgebra.mul!(
     mass_term = T(8 + 2 * D.parent.mass)
     csw = D.parent.csw
     bc = D.parent.boundary_condition
+    # TODO: can hide
+    update_halo!(U, ϕ)
 
     @batch for site in eachindex(ψ, ϕ, U)
         ψ[site] = wilson_kernel(U, ϕ, site, mass_term, bc, T, Val(-1))
@@ -121,7 +125,6 @@ function LinearAlgebra.mul!(
         end
     end
 
-    update_halo!(ψ)
     return nothing
 end
 
@@ -137,18 +140,19 @@ end
 function wilson_kernel(U, ϕ, site, mass_term, bc, ::Type{T}, ::Val{dagg}) where {T,dagg}
     # dagg can be 1 or -1; if it's -1 then we swap (1 - γᵨ) with (1 + γᵨ) and vice versa
     # We have to wrap in a Val for the same reason as in the next comment
-    NX, NY, NZ, NT = dims(U)
     ψₙ = mass_term * ϕ[site] # factor 1/2 is included at the end
+    NT = size(U, 4)
 
     # use @nexprs here to statically generate the loop
-    # this makes it so Val(i) is well defined at each iteration and no type-instabilities arise
-    @nexprs 4 i -> (
-        siteμ⁺ = move(site, i, 1, (NX, NY, NZ, NT)[i]);
-        siteμ⁻ = move(site, i, -1, (NX, NY, NZ, NT)[i]);
-        ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(i));
-        ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(i));
-        ψₙ -= cmvmul_spin_proj(U[i, site], ϕ⁺, Val(-i*dagg), Val(false));
-        ψₙ -= cmvmul_spin_proj(U[i, siteμ⁻], ϕ⁻, Val(i*dagg), Val(true))
+    # this makes it so Val(μ) is well defined at each iteration and no type-instabilities arise
+    @nexprs 4 μ -> (
+        Nμ = axes(U, μ);
+        siteμ⁺ = move(site, μ, 1, Nμ);
+        siteμ⁻ = move(site, μ, -1, Nμ);
+        ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(μ));
+        ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(μ));
+        ψₙ -= cmvmul_spin_proj(U[μ, site], ϕ⁺, Val(-μ*dagg), Val(false));
+        ψₙ -= cmvmul_spin_proj(U[μ, siteμ⁻], ϕ⁻, Val(μ*dagg), Val(true))
     )
     return T(0.5) * ψₙ
 end

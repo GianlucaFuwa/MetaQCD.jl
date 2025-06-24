@@ -45,7 +45,14 @@ Base.length(c::Cooling) = c.numflow
 
 function flow!(cool::Cooling)
     Uflow = cool.Uflow
+    cool!(Uflow)
+    return nothing
+end
+
+function cool!(Uflow::Gaugefield{CPU})
     GA = WilsonGaugeAction()
+    # TODO: can hide
+    update_halo!(Uflow)
 
     @batch for site in eachindex(Uflow)
         for μ in 1:4
@@ -54,8 +61,6 @@ function flow!(cool::Cooling)
             Uflow[μ, site] = proj_onto_SU3(cooling_SU3(old_link, A_adj))
         end
     end
-
-    return nothing
 end
 
 function cooling_SU3(link, A_adj)

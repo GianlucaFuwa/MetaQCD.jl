@@ -3,9 +3,9 @@ function add_staggered_derivative!(
 ) where {B<:GPU,T,TF<:StaggeredSpinorfield{B,T}}
     fac = T(-0.5coeff)
     bulk = eachindex(dU, U, X, Y)
-    @latmap(
-        Sequential(), Val(1), add_staggered_derivative_gpu!, dU, U, X, Y, bc, fac, bulk
-    )
+    # TODO: can hide
+    update_halo!(U, X, Y)
+    @latmap(bulk, add_staggered_derivative_gpu!, dU, U, X, Y, bc, fac)
 end
 
 @kernel cpu=false function add_staggered_derivative_gpu!(
@@ -13,8 +13,5 @@ end
 )
     iglobal = @index(Global, Cartesian)
     site = bulk[iglobal]
-
-    @inbounds begin
-        add_staggered_derivative_kernel!(dU, U, X, Y, site, bc, fac)
-    end
+    add_staggered_derivative_kernel!(dU, U, X, Y, site, bc, fac)
 end

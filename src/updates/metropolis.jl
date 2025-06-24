@@ -44,16 +44,15 @@ struct Metropolis{ITR,NH,TOR,NOR} <: AbstractUpdate
 end
 
 function update!(metro::Metropolis{ITR,NH,TOR,NOR}, U; kwargs...) where {ITR,NH,TOR,NOR}
-    fac = -U.β / U.NC
+    fac = -U.β / 3 
     GA = gauge_action(U)
     numaccepts_metro = @cpulatsum(ITR(), Val(1), metro, U, GA(), fac)
     numaccepts_or = @cpulatsum(ITR(), NOR(), TOR(), U, GA(), fac)
 
-    numaccepts_metro /= 4 * U.NV * _unwrap_val(NH())
+    numaccepts_metro /= 4 * length(U) * _unwrap_val(NH())
     @level3("|  Metro acceptance: $(numaccepts_metro)")
     adjust_ϵ!(metro, numaccepts_metro)
-    U.Sg = calc_gauge_action(U)
-    numaccepts = (NOR ≡ Val{0}) ? 1.0 : numaccepts_or / (4U.NV * _unwrap_val(NOR()))
+    numaccepts = (NOR ≡ Val{0}) ? 1.0 : numaccepts_or / (4length(U) * _unwrap_val(NOR()))
     return numaccepts
 end
 

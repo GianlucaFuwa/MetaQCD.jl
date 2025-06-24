@@ -143,12 +143,12 @@ function HMC(
     logdir="",
     instance=mpi_myrank(),
 )
-    P = Colorfield(U)
+    P = Colorfield(U; no_halo=true)
     gaussian_TA!(P, 0)
-    P_old = friction == 0 ? nothing : Colorfield(U)
-    U_old = Gaugefield(U)
-    staples = Colorfield(U)
-    force = Colorfield(U)
+    P_old = friction == 0 ? nothing : Colorfield(U; no_halo=true)
+    U_old = Gaugefield(U; no_halo=true)
+    staples = Colorfield(U; no_halo=true)
+    force = Colorfield(U; no_halo=true)
 
     numlevels = Val(length(hmc_levels))
     level_params = level_parameters_from_dict(hmc_levels)
@@ -353,8 +353,7 @@ function update!(
     print_hmc_data(hmc.logfile, ΔP², ΔSg, ΔSf, ΔV, ΔH, S_new, accept)
 
     if accept
-        U.Sg = Sg_new
-        U.CV = CV_new
+        set_cv!(bias, CV_new)
         @level2("|    Accepted")
     else
         copy!(U, U_old)
@@ -377,13 +376,9 @@ function updateU!(
         ϵ = T(hmc.levels[level].Δτ * fac)
         P = hmc.P
 
-        @batch for μsite in eachindex(U, P)
+        @batch for μsite in allindices(U, P)
             U[μsite] = cmatmul_oo(exp_iQ(-im * ϵ * P[μsite]), U[μsite])
         end
-
-        # INFO: don't need to do halo exchange here, since we iterate over all indices
-        # including halo regions
-        # We assume that U's and P's halos are already up-to-date before calling this
     else
         evolve!(U, hmc, fermion_action, bias, therm, level-1)
     end

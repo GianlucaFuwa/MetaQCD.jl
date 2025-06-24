@@ -5,6 +5,7 @@
 
 function save_config(::ILDGFormat, U, filename; parameters=nothing, override=false)
     @assert U.U isa Array
+    NX, NY, NZ, NT = size(U)
 
     if override == false
         @assert !isfile(filename) """
@@ -13,8 +14,6 @@ function save_config(::ILDGFormat, U, filename; parameters=nothing, override=fal
     end
 
     fp = open(filename, "w")
-    N = U.NC
-    @assert N == 3 "Only SU(3) is supported in BMW format"
 
     ### Header
     header_buf = IOBuffer()
@@ -26,15 +25,15 @@ function save_config(::ILDGFormat, U, filename; parameters=nothing, override=fal
             tmp = U[μ, site]
             view(buffer, :, μ) .= reinterpret(reshape, UInt64, deconstruct_mat_bmw(tmp))
         end
-        site_abs = (((site[4] * U.NZ + site[3]) * U.NY + site[2]) * U.NX + site[1])
-        adler64_add!(checksum, buffer, site_abs, U.NV, 16N)
+        site_abs = (((site[4] * NZ + site[3]) * NY + site[2]) * NX + site[1])
+        adler64_add!(checksum, buffer, site_abs, length(U), 16*3)
     end
 
     adler64_finalize!(checksum)
     checksum_str = adler64_string(checksum)
     bytes_written = 0
     bytes_written += write(
-        header_buf, "#BMW $(U.NX) $(U.NY) $(U.NZ) $(U.NT) beta_$(U.β) prec_float64 $checksum_str\n"
+        header_buf, "#BMW $(NX) $(NY) $(NZ) $(NT) beta_$(U.β) prec_float64 $checksum_str\n"
     )
     bytes_written += write(
         header_buf, "Generated with MetaQCD.jl 1.0.0 on Julia $(VERSION)\n"
@@ -65,6 +64,7 @@ end
 
 function load_config!(::BMWFormat, U, filename)
     @assert U.U isa Array
+    Udims = size(U)
     fp = open(filename, "r")
     header_bin = Vector{UInt8}(undef, 4096)
     readbytes!(fp, header_bin, 4096)
@@ -72,9 +72,7 @@ function load_config!(::BMWFormat, U, filename)
     split_header = split(header)
     @assert split_header[1] == "#BMW" "Header doesn't start with \"#BMW\""
     NX, NY, NZ, NT = parse.(Int, split_header[2:5])
-    @assert (NX, NY, NZ, NT) == (U.NX, U.NY, U.NZ, U.NT) "Dimensions do not match"
-    N = U.NC
-    @assert N == 3 "Only SU(3) is supported in BMW format"
+    @assert (NX, NY, NZ, NT) == Udims "Dimensions do not match"
     T = real(eltype(U[1, 1, 1, 1, 1]))
     checksum_read = parse(UInt64, split_header[6])
     checksum_calc = Adler64Checksum()
@@ -90,8 +88,8 @@ function load_config!(::BMWFormat, U, filename)
             tmp = U[μ, site]
             view(buffer, :, μ) .= reinterpret(reshape, UInt64, deconstruct_mat_bmw(tmp))
         end
-        site_abs = (((site[4] * U.NZ + site[3]) * U.NY + site[2]) * U.NX + site[1])
-        adler64_add!(checksum_calc, buffer, site_abs, U.NV, 16N)
+        site_abs = (((site[4] * NZ + site[3]) * NY + site[2]) * NX + site[1])
+        adler64_add!(checksum_calc, buffer, site_abs, length(U), 16*3)
     end
 
     close(fp)

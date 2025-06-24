@@ -90,6 +90,8 @@ function add_wilson_derivative!(
     dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, X::TF, Y::TF, bc; coeff=1
 ) where {T,TF<:WilsonSpinorfield{CPU,T}}
     fac = T(0.5coeff)
+    # TODO: can hide
+    update_halo!(U, X, Y)
 
     # If we write out the kernel and use @batch, the program crashes for some reason
     # Stems from "pload" from StrideArraysCore.jl but ONLY if we write it out AND overload
@@ -99,28 +101,28 @@ function add_wilson_derivative!(
         add_wilson_derivative_kernel!(dU, U, X, Y, site, bc, fac)
     end
 
-    update_halo!(dU)
     return nothing
 end
 
 function add_wilson_derivative_kernel!(dU, U, X, Y, site, bc, fac)
-    NX, NY, NZ, NT = dims(U)
-    siteμ⁺ = move(site, 1, 1, NX)
+    NT = size(dU, 4)
+
+    siteμ⁺ = move(site, 1, 1, axes(dU, 1))
     B = spintrace(spin_proj(X[siteμ⁺], Val(-1)), Y[site])
     C = spintrace(spin_proj(Y[siteμ⁺], Val(1)), X[site])
     dU[1i32, site] += fac * traceless_antihermitian(cmatmul_oo(U[1, site], B + C))
 
-    siteμ⁺ = move(site, 2, 1, NY)
+    siteμ⁺ = move(site, 2, 1, axes(dU, 2))
     B = spintrace(spin_proj(X[siteμ⁺], Val(-2)), Y[site])
     C = spintrace(spin_proj(Y[siteμ⁺], Val(2)), X[site])
     dU[2i32, site] += fac * traceless_antihermitian(cmatmul_oo(U[2, site], B + C))
 
-    siteμ⁺ = move(site, 3, 1, NZ)
+    siteμ⁺ = move(site, 3, 1, axes(dU, 3))
     B = spintrace(spin_proj(X[siteμ⁺], Val(-3)), Y[site])
     C = spintrace(spin_proj(Y[siteμ⁺], Val(3)), X[site])
     dU[3i32, site] += fac * traceless_antihermitian(cmatmul_oo(U[3, site], B + C))
 
-    siteμ⁺ = move(site, 4, 1, NT)
+    siteμ⁺ = move(site, 4, 1, axes(dU, 4))
     B = spintrace(spin_proj(apply_bc(X[siteμ⁺], bc, site, Val(1), NT), Val(-4)), Y[site])
     C = spintrace(spin_proj(apply_bc(Y[siteμ⁺], bc, site, Val(1), NT), Val(4)), X[site])
     dU[4i32, site] += fac * traceless_antihermitian(cmatmul_oo(U[4, site], B + C))
@@ -131,12 +133,13 @@ function add_clover_derivative!(
     dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, Xμν::Tensorfield{CPU,T}, csw; coeff=1
 ) where {T}
     fac = T(csw * coeff / 2)
+    # INFO: we must have already updated the halo for the wilson derivative
+    update_halo!(Xμν)
 
     @batch for site in eachindex(dU, U, Xμν)
         add_clover_derivative_kernel!(dU, U, Xμν, site, fac, T)
     end
 
-    update_halo!(dU)
     return nothing
 end
 
@@ -217,8 +220,8 @@ function calc_Xμν_wilson_kernel!(Xμν, X, Y, site)
 end
 
 function Xμν∇Fμν(Xμν, U, μ, ν, site, ::Type{T}) where {T}
-    Nμ = dims(U)[μ]
-    Nν = dims(U)[ν]
+    Nμ = axes(U, μ)
+    Nν = axes(U, ν)
     siteμ⁺ = move(site, μ, 1i32, Nμ)
     siteν⁺ = move(site, ν, 1i32, Nν)
     siteν⁻ = move(site, ν, -1i32, Nν)

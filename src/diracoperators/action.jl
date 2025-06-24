@@ -24,20 +24,21 @@ struct FermionAction{R,Nf,TD,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,Nf}
         rhmc_order_md=10,
         rhmc_tol_action=1e-3,
         rhmc_tol_md=1e-3,
-        cg_tol_action=1e-14,
-        cg_tol_md=1e-12,
+        cg_tol_action=1e-7,
+        cg_tol_md=1e-6,
         cg_maxiters_action=1000,
         cg_maxiters_md=1000,
         cg_filepath="",
         kwargs...,
     )
         D = DIRAC_OPERATORS[type](f, minimum(mass); bc_str=bc_str, kwargs...)
+        temp = D.temp
         eo_fun = contains(type, "eo") ? even_odd : identity
         TD = typeof(D)
 
         if Nf == default_Nf(D)
             if D isa StaggeredEOPreDiracOperator
-                cg_temps = ntuple(_ -> even_odd(Spinorfield(f; staggered=true)), 4)
+                cg_temps = ntuple(_ -> even_odd(Spinorfield(temp)), 4)
                 power = Nf//2default_Nf(D)
                 rhmc_info_action = RHMCParams(
                     power;
@@ -51,15 +52,11 @@ struct FermionAction{R,Nf,TD,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,Nf}
                 maxerr: $(rhmc_info_action.maxerr) (positive and negative power)
                 """
                 n_temps = max(get_n(rhmc_info_action), get_n_inverse(rhmc_info_action))
-                rhmc_temps1 = ntuple(
-                    _ -> even_odd(Spinorfield(f; staggered=true)), n_temps + 1
-                )
-                rhmc_temps2 = ntuple(
-                    _ -> even_odd(Spinorfield(f; staggered=true)), n_temps + 1
-                )
+                rhmc_temps1 = ntuple(_ -> even_odd(Spinorfield(temp)), n_temps + 1)
+                rhmc_temps2 = ntuple(_ -> even_odd(Spinorfield(temp)), n_temps + 1)
                 rhmc_info_md = nothing
             else
-                cg_temps = ntuple(_ -> eo_fun(Spinorfield(f; staggered=is_staggered(D))), 4)
+                cg_temps = ntuple(_ -> eo_fun(Spinorfield(temp)), 4)
                 rhmc_info_action = nothing
                 rhmc_info_md = nothing
                 rhmc_temps1 = nothing
@@ -75,7 +72,7 @@ struct FermionAction{R,Nf,TD,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,Nf}
             R = true
             rhmc_lambda_low = rhmc_spectral_bound[1]
             rhmc_lambda_high = rhmc_spectral_bound[2]
-            cg_temps = ntuple(_ -> eo_fun(Spinorfield(f; staggered=is_staggered(D))), 2)
+            cg_temps = ntuple(_ -> eo_fun(Spinorfield(temp)), 2)
 
             fun = if precon == "heavy"
                 @assert length(mass) == 2
@@ -117,12 +114,8 @@ struct FermionAction{R,Nf,TD,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,Nf}
             n_temps_action = max(get_n(rhmc_info_action), get_n_inverse(rhmc_info_action))
             n_temps_md = max(get_n(rhmc_info_action), get_n_inverse(rhmc_info_action))
             n_temps = max(n_temps_action, n_temps_md)
-            rhmc_temps1 = ntuple(
-                _ -> eo_fun(Spinorfield(f; staggered=is_staggered(D))), n_temps + 1
-            )
-            rhmc_temps2 = ntuple(
-                _ -> eo_fun(Spinorfield(f; staggered=is_staggered(D))), n_temps + 1
-            )
+            rhmc_temps1 = ntuple(_ -> eo_fun(Spinorfield(temp)), n_temps + 1)
+            rhmc_temps2 = ntuple(_ -> eo_fun(Spinorfield(temp)), n_temps + 1)
         end
 
         Xμν = if type ∈ ("wilson", "wilson_eo")
@@ -227,7 +220,7 @@ function calc_fermion_action(
         fclose(fp)
     end
 
-    Sf = real(dot(ϕ, ψ))
+    Sf = 2real(dot(ϕ, ψ))
     return Sf
 end
 
@@ -349,7 +342,7 @@ function Base.show(io::IO, ::MIME"text/plain", S::FermionAction{R,Nf,TD}) where 
         io,
         """
 
-        |  $(name)(
+        |  $(name)
         |    Nf: $Nf
         |    MASS: $(D.mass)
         """,
@@ -375,13 +368,13 @@ function Base.show(io::IO, ::MIME"text/plain", S::FermionAction{R,Nf,TD}) where 
     print(
         io,
         """
-        |    BOUNDARY CONDITION (TIME): $(D.boundary_condition))
+        |    BOUNDARY CONDITION (TIME): $(nameof(typeof(D.boundary_condition)))
         |    CG TOLERANCE (ACTION): $(S.cg_tol_action)
         |    CG TOLERANCE (MD): $(S.cg_tol_md)
         |    CG MAX ITERS (ACTION): $(S.cg_maxiters_action)
         |    CG MAX ITERS (ACTION): $(S.cg_maxiters_md)
         |    RHMC INFO (Action): $(S.rhmc_info_action)
-        |    RHMC INFO (MD): $(S.rhmc_info_md))
+        |    RHMC INFO (MD): $(S.rhmc_info_md)
         """,
     )
     return nothing
@@ -394,7 +387,7 @@ function Base.show(io::IO, S::FermionAction{R,Nf,TD}) where {R,Nf,TD}
         io,
         """
 
-        |  $(name)(
+        |  $(name)
         |    Nf: $Nf
         |    MASS: $(D.mass)
         """,
@@ -420,13 +413,13 @@ function Base.show(io::IO, S::FermionAction{R,Nf,TD}) where {R,Nf,TD}
     print(
         io,
         """
-        |    BOUNDARY CONDITION (TIME): $(D.boundary_condition))
-        |    CG TOLERANCE (ACTION) = $(S.cg_tol_action)
-        |    CG TOLERANCE (MD) = $(S.cg_tol_md)
-        |    CG MAX ITERS (ACTION) = $(S.cg_maxiters_action)
-        |    CG MAX ITERS (ACTION) = $(S.cg_maxiters_md)
+        |    BOUNDARY CONDITION (TIME): $(nameof(typeof(D.boundary_condition)))
+        |    CG TOLERANCE (ACTION): $(S.cg_tol_action)
+        |    CG TOLERANCE (MD): $(S.cg_tol_md)
+        |    CG MAX ITERS (ACTION): $(S.cg_maxiters_action)
+        |    CG MAX ITERS (ACTION): $(S.cg_maxiters_md)
         |    RHMC INFO (Action): $(S.rhmc_info_action)
-        |    RHMC INFO (MD): $(S.rhmc_info_md))
+        |    RHMC INFO (MD): $(S.rhmc_info_md)
         """,
     )
     return nothing

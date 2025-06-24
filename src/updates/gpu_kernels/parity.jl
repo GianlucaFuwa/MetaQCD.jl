@@ -2,11 +2,11 @@ function update!(parity::ParityUpdate, U::Gaugefield{B}) where {B<:GPU}
     U_bak = parity.U_bak
     @assert typeof(U) == typeof(U_bak)
     copy!(U_bak, U)
-    @latmap(Sequential(), Val(1), parity_update_kernel!, U, U_bak, eachindex(U_bak, U))
+    @latmap(eachindex(U_bak, U), parity_update_kernel!, U, U_bak)
     return nothing
 end
 
-@kernel function parity_update_kernel!(U, @Const(U_bak), bulk)
+@kernel cpu=false function parity_update_kernel!(U, @Const(U_bak), bulk)
     iglobal = @index(Global, Cartesian)
     ix, iy, iz, it = bulk[iglobal].I
 

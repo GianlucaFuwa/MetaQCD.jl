@@ -28,9 +28,9 @@ function test_mpi()
     load_config!(BridgeFormat(), U_4, filename)
     load_config!(BridgeFormat(), U_w2, filename)
 
-    factor_22 = 1 / (6 * U_22.NV * U_22.NC)
+    factor_22 = 1 / (6 * length(U_22) * 3)
     plaq_22 = plaquette_trace_sum(U_22) * factor_22
-    factor_4 = 1 / (6 * U_4.NV * U_4.NC)
+    factor_4 = 1 / (6 * length(U_4) * 3)
     plaq_4 = plaquette_trace_sum(U_4) * factor_4
 
     topop_22 = top_charge(U_22, "plaquette")

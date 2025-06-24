@@ -4,38 +4,24 @@
 Struct StoutSmearing holds all fields relevant to smearing and subsequent recursion. \\
 Since we never actually use the smeared fields in main, they dont have to leave this scope
 """
-struct StoutSmearing{TG,TT,TC} <: AbstractSmearing
+struct StoutSmearing{TG,TT,TC,TL} <: AbstractSmearing
     numlayers::Int64
     ρ::Float64
     Usmeared_multi::Vector{TG}
     C_multi::Vector{TT}
     Q_multi::Vector{TC}
-    Λ::TT
+    Λ::TL
     function StoutSmearing(U::TG; numlayers=0, rho=0) where {TG}
         @assert numlayers >= 0 && rho >= 0 "number of stout layers and ρ must be >= 0"
 
         if numlayers == 0 || rho == 0
             return NoSmearing()
         else
-            C₁ = Colorfield(U; nohalo=true)
-            Q₁ = Expfield(U; nohalo=true)
-            Usmeared_multi = Vector{TG}(undef, numlayers + 1)
-            C_multi = Vector{typeof(C₁)}(undef, numlayers)
-            Q_multi = Vector{typeof(Q₁)}(undef, numlayers)
+            C_multi = [Colorfield(U; no_halo=true) for _ in 1:numlayers]
+            Q_multi = [Expfield(U; no_halo=true) for _ in 1:numlayers]
+            Usmeared_multi = [similar(U) for _ in 1:numlayers+1]
             Λ = Colorfield(U)
-
-            Usmeared_multi[1] = similar(U)
-            Usmeared_multi[end] = similar(U)
-            C_multi[1] = C₁
-            Q_multi[1] = Q₁
-
-            for i in 2:numlayers
-                Usmeared_multi[i] = similar(U)
-                C_multi[i] = Colorfield(U)
-                Q_multi[i] = Expfield(U)
-            end
-
-            return new{TG,typeof(C₁),typeof(Q₁)}(
+            return new{TG,typeof(C_multi[1]),typeof(Q_multi[1]),typeof(Λ)}(
                 numlayers, rho, Usmeared_multi, C_multi, Q_multi, Λ
             )
         end
@@ -76,6 +62,9 @@ function apply_smearing!(smearing, Uin)
 end
 
 function apply_stout_smearing!(Uout, C, Q, U, ρ)
+    # TODO: can hide
+    update_halo!(U)
+
     @batch for site in eachindex(Uout, C, Q, U)
         for μ in 1:4
             Qμ = calc_stout_Q_kernel!(Q, C, U, site, μ, ρ)
@@ -83,8 +72,6 @@ function apply_stout_smearing!(Uout, C, Q, U, ρ)
         end
     end
 
-    update_halo!(Q)
-    update_halo!(Uout)
     return nothing
 end
 
@@ -111,6 +98,8 @@ See [hep-lat/0311018] by Morningstar & Peardon
 function stout_recursion!(Σ, Σ′, U′, U, C, Q, Λ, ρ)
     leftmul_dagg!(Σ′, U′)
     calc_stout_Λ!(Λ, Σ′, Q, U)
+    # TODO: can hide
+    update_halo!(U, Λ)
 
     @batch for site in eachindex(Σ, Σ′, U′, U, C, Q, Λ)
         for μ in 1:4
@@ -118,23 +107,11 @@ function stout_recursion!(Σ, Σ′, U′, U, C, Q, Λ, ρ)
         end
     end
 
-    update_halo!(Σ)
-    return nothing
-end
-
-function calc_stout_Λ!(Λ, Σ′, Q, U)
-    @batch for site in eachindex(Λ, Σ′, Q, U)
-        for μ in 1:4
-            calc_stout_Λ_kernel!(Λ, Σ′, Q, U, site, μ)
-        end
-    end
-
-    update_halo!(Λ)
     return nothing
 end
 
 function stout_recursion_kernel!(Σ, Σ′, U, C, Q, Λ, site, μ, ρ)
-    Nμ = dims(Σ′)[μ]
+    Nμ = axes(Σ′, μ)
     siteμ⁺ = move(site, μ, 1i32, Nμ)
     force_sum = zero3(float_type(U))
 
@@ -143,7 +120,7 @@ function stout_recursion_kernel!(Σ, Σ′, U, C, Q, Λ, site, μ, ρ)
             continue
         end
 
-        Nν = dims(Σ′)[ν]
+        Nν = axes(Σ′, ν)
         siteν⁺ = move(site, ν, 1i32, Nν)
         siteν⁻ = move(site, ν, -1i32, Nν)
         siteμ⁺ν⁻ = move(siteμ⁺, ν, -1i32, Nν)
@@ -172,6 +149,16 @@ function stout_recursion_kernel!(Σ, Σ′, U, C, Q, Λ, site, μ, ρ)
         im * cmatmul_odo(link, C[μ, site], Λ[μ, site]) -
         im * ρ * cmatmul_oo(link, force_sum),
     )
+end
+
+function calc_stout_Λ!(Λ, Σ′, Q, U)
+    @batch for site in eachindex(Λ, Σ′, Q, U)
+        for μ in 1:4
+            calc_stout_Λ_kernel!(Λ, Σ′, Q, U, site, μ)
+        end
+    end
+
+    return nothing
 end
 
 function calc_stout_Λ_kernel!(Λ, Σ′, Q, U, site, μ)

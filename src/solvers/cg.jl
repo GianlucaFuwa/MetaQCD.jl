@@ -1,16 +1,16 @@
-function cg!(x, A, b, Ap, r, p; tol=1e-12, maxiters=1000)
+function cg!(x, A, b, Ap, r, p; tol=1e-7, maxiters=1000)
     mul!(Ap, A, x)
     copy!(r, b)
     axpy!(-1, Ap, r)
     copy!(p, r)
     res = real(dot(r, r))
 
-    if res < tol
-        @level3 "|  CG: converged at iter 0 with res = $res"
-        return 0, res
+    if sqrt(res) < tol
+        @level3 "|  CG: converged at iter 0 with res = $(sqrt(res))"
+        return 0, sqrt(res)
     end
 
-    @level4 "|  CG: residual 0 = $res"
+    @level4 "|  CG: residual 0 = $(sqrt(res))"
 
     for iter in 1:maxiters
         mul!(Ap, A, p)
@@ -18,11 +18,11 @@ function cg!(x, A, b, Ap, r, p; tol=1e-12, maxiters=1000)
         axpy!(α, p, x)
         axpy!(-α, Ap, r)
         res_new = real(dot(r, r))
-        @level4 "|  CG: residual $(iter) = $res_new"
+        @level4 "|  CG: residual $(iter) = $(sqrt(res_new))"
 
-        if res_new < tol
-            @level3 "|  CG: converged at iter $(iter) with res = $res_new"
-            return iter, res_new
+        if sqrt(res_new) < tol
+            @level3 "|  CG: converged at iter $(iter) with res = $(sqrt(res_new))"
+            return iter, sqrt(res_new)
         end
 
         β = res_new / res
@@ -32,11 +32,11 @@ function cg!(x, A, b, Ap, r, p; tol=1e-12, maxiters=1000)
 
     # @level1 "|  CG: did not converge in $maxiters iterations"
     throw(AssertionError("CG did not converge in $maxiters iterations"))
-    return maxiters, res
+    return maxiters, sqrt(res)
 end
 
 function mscg!(
-    x::NTuple{M,V}, shifts, A, b::V, Ap::V, r::V, p::NTuple{L,V}; tol=1e-12, maxiters=1000
+    x::NTuple{M,V}, shifts, A, b::V, Ap::V, r::V, p::NTuple{L,V}; tol=1e-7, maxiters=1000
 ) where {M,L,V} # multishift solver
     N = length(shifts) + 1
     @assert L ≥ M ≥ N
@@ -58,12 +58,12 @@ function mscg!(
     res = dot(r, r)
     res′ = @SVector fill(res, N - 1)
 
-    if abs(res) < tol
-        @level3 "|  MultishiftCG: converged at iter 0 with res = $(abs(res))"
-        return 0, abs(res)
+    if sqrt(abs(res)) < tol
+        @level3 "|  MultishiftCG: converged at iter 0 with res = $(sqrt(abs(res)))"
+        return 0, sqrt(abs(res))
     end
 
-    @level4 "|  MultishiftCG: residual 0 = $(abs(res))"
+    @level4 "|  MultishiftCG: residual 0 = $(sqrt(abs(res)))"
 
     for iter in 1:maxiters
         mul!(Ap, A, p[1])
@@ -79,7 +79,7 @@ function mscg!(
         res_max = abs(res_new)
 
         for i in 1:N-1
-            abs(res′[i]) < tol && continue
+            sqrt(abs(res′[i])) < tol && continue
             axpy!(α′[i], p[i+1], x[i+1])
             @reset β′[i] = ρ′[i]^2 * β
             resᵢ = γ′[i] * res_new
@@ -88,17 +88,17 @@ function mscg!(
             res_max = abs(resᵢ) > res_max ? abs(resᵢ) : res_max
         end
 
-        @level4 "|  MultishiftCG: max residual $(iter) = $res_max"
+        @level4 "|  MultishiftCG: max residual $(iter) = $(sqrt(res_max))"
 
-        if res_max < tol
-            @level3 "|  MultishiftCG: converged at iter $(iter) with max res = $res_max"
-            return iter, res_max
+        if sqrt(res_max) < tol
+            @level3 "|  MultishiftCG: converged at iter $(iter) with res = $(sqrt(res_max))"
+            return iter, sqrt(res_max)
         end
 
         axpby!(1, r, β, p[1])
 
         for i in 1:N-1
-            abs(res′[i]) < tol && continue
+            sqrt(abs(res′[i])) < tol && continue
             axpby!(γ′[i], r, β′[i], p[i+1])
         end
 
@@ -107,10 +107,10 @@ function mscg!(
 
     # @level1 "|  CG: did not converge in $maxiters iterations"
     throw(AssertionError("MultishiftCG did not converge in $maxiters iterations"))
-    return maxiters, res
+    return maxiters, sqrt(abs(res))
 end
 
-function bicg!(x, A, b, Ap, r, p, Ap′, r′, p′; tol=1e-14, maxiters=1000)
+function bicg!(x, A, b, Ap, r, p, Ap′, r′, p′; tol=1e-7, maxiters=1000)
     mul!(Ap, A, x)
     mul!(Ap′, adjoint(A), x)
     copy!(r, b)
@@ -122,12 +122,12 @@ function bicg!(x, A, b, Ap, r, p, Ap′, r′, p′; tol=1e-14, maxiters=1000)
     ρ = dot(r′, r)
     res = abs(dot(r, r))
 
-    if res < tol
-        @level3 "|  BiCG: converged at iter 0 with res = $res"
-        return 0, res
+    if sqrt(res) < tol
+        @level3 "|  BiCG: converged at iter 0 with res = $(sqrt(res))"
+        return 0, sqrt(res)
     end
 
-    @level4 "|  BiCG: residual 0 = $res"
+    @level4 "|  BiCG: residual 0 = $(sqrt(res))"
 
     for iter in 1:maxiters
         mul!(Ap, A, p)
@@ -138,11 +138,11 @@ function bicg!(x, A, b, Ap, r, p, Ap′, r′, p′; tol=1e-14, maxiters=1000)
         axpy!(-α, Ap′, r′)
         ρ_new = dot(r′, r)
         res = abs(dot(r, r))
-        @level4 "|  BiCG: residual $(iter) = $res"
+        @level4 "|  BiCG: residual $(iter) = $(sqrt(res))"
 
         if res < tol
-            @level3 "|  BiCG: converged at iter $(iter) with res = $res"
-            return iter, res
+            @level3 "|  BiCG: converged at iter $(iter) with res = $(sqrt(res))"
+            return iter, sqrt(res)
         end
 
         β = ρ_new / ρ
@@ -153,10 +153,10 @@ function bicg!(x, A, b, Ap, r, p, Ap′, r′, p′; tol=1e-14, maxiters=1000)
 
     # @level1 "|  BiCG: did not converge in $maxiters iterations"
     throw(AssertionError("BiCG did not converge in $maxiters iterations"))
-    return maxiters, res
+    return maxiters, sqrt(res)
 end
 
-function bicg_stab!(x, A, b, v, r, p, r₀, t; tol=1e-14, maxiters=1000)
+function bicg_stab!(x, A, b, v, r, p, r₀, t; tol=1e-7, maxiters=1000)
     mul!(v, A, x)
     copy!(r, b)
     axpy!(-1, v, r)
@@ -164,11 +164,11 @@ function bicg_stab!(x, A, b, v, r, p, r₀, t; tol=1e-14, maxiters=1000)
     copy!(p, r)
     ρ = dot(r₀, r)
     res = abs(ρ)
-    @level4 "|  BiCGStab: residual 0 = $res"
+    @level4 "|  BiCGStab: residual 0 = $(sqrt(res))"
 
     if res < tol
-        @level3 "|  BiCGStab: converged at iter 0 with res = $res"
-        return 0, res
+        @level3 "|  BiCGStab: converged at iter 0 with res = $(sqrt(res))"
+        return 0, sqrt(res)
     end
 
     @assert isfinite(res) && isfinite(ρ) "BiCG: NaN or Inf encountered"
@@ -179,30 +179,30 @@ function bicg_stab!(x, A, b, v, r, p, r₀, t; tol=1e-14, maxiters=1000)
         axpy!(α, p, x)
         axpy!(-α, v, r)
         res = abs(dot(r, r))
-        @level4 "|  BiCGStab: residual $(iter).5 = $res"
+        @level4 "|  BiCGStab: residual $(iter).5 = $(sqrt(res))"
 
         if res < tol
-            @level3 "|  BiCGStab: converged at iter $(iter).5 with res = $res"
-            return iter, res
+            @level3 "|  BiCGStab: converged at iter $(iter).5 with res = $(sqrt(res))"
+            return iter, sqrt(res)
         end
 
         @assert isfinite(res) && isfinite(α) """
-        BiCG: NaN or Inf encountered, res = $res, α = $α
+        BiCG: NaN or Inf encountered, res = $(sqrt(res)), α = $α
         """
         mul!(t, A, r)
         ω = dot(t, r) / dot(t, t)
         axpy!(ω, r, x)
         axpy!(-ω, t, r)
         res = abs(dot(r, r))
-        @level4 "|  BiCGStab: residual $(iter) = $res"
+        @level4 "|  BiCGStab: residual $(iter) = $(sqrt(res))"
 
         if res < tol
-            @level3 "|  BiCGStab: converged at iter $(iter) with res = $res"
-            return iter, res
+            @level3 "|  BiCGStab: converged at iter $(iter) with res = $(sqrt(res))"
+            return iter, sqrt(res)
         end
 
         @assert isfinite(res) && isfinite(ω) """
-        BiCG: NaN or Inf encountered, res = $res, ω = $ω
+        BiCG: NaN or Inf encountered, res = $(sqrt(res)), ω = $ω
         """
         ρ_new = dot(r₀, r)
         β = (ρ_new / ρ) * (α / ω)
@@ -213,5 +213,5 @@ function bicg_stab!(x, A, b, v, r, p, r₀, t; tol=1e-14, maxiters=1000)
 
     # @level1 "|  BiCGStab: did not converge in $maxiters iterations"
     throw(AssertionError("BiCGStab did not converge in $maxiters iterations"))
-    return maxiters, res
+    return maxiters, sqrt(res)
 end

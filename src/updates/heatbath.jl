@@ -43,11 +43,9 @@ end
 
 function update!(hb::Heatbath{<:Any,ITR,TOR,NHB,NOR}, U; kwargs...) where {ITR,TOR,NHB,NOR}
     GA = gauge_action(U)()
-    @cpulatmap(ITR(), NHB(), hb, U, GA, U.NC / U.β)
-    numaccepts_or = @cpulatsum(ITR(), NOR(), TOR(), U, GA, -U.β / U.NC)
-
-    U.Sg = calc_gauge_action(U)
-    numaccepts = (NOR ≡ Val{0}) ? 1.0 : numaccepts_or / (4 * U.NV * _unwrap_val(NOR()))
+    @cpulatmap(ITR(), NHB(), hb, U, GA, 3 / U.β)
+    numaccepts_or = @cpulatsum(ITR(), NOR(), TOR(), U, GA, -U.β / 3)
+    numaccepts = (NOR ≡ Val{0}) ? 1.0 : numaccepts_or / (4 * length(U) * _unwrap_val(NOR()))
     return numaccepts
 end
 

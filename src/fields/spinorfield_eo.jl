@@ -1,3 +1,21 @@
+struct SpinorfieldEO{B,T,M,AT,ND} <: AbstractField{B,T,M,AT}
+    parent::Spinorfield{B,T,M,AT,ND}
+    function SpinorfieldEO(
+        f::Spinorfield{B,T,M,AT,ND}
+    ) where {B,T,M,AT,ND}
+        @assert iseven(size(f, 4)) "Need even time extent for even-odd preconditioning"
+
+        if M
+            @assert iseven(size(f, 4)÷2) """
+            Need time extent divisbile by 4 for even-odd preconditioning with \
+            distributed fields
+            """
+        end
+        
+        return new{B,T,M,AT,ND}(f)
+    end
+end
+
 """
     even_odd(f::Spinorfield)
 
@@ -7,47 +25,28 @@ of even-odd preconditioning. What this amounts to is that we realign the entries
 or iterating only over one half of its indices.
 """
 even_odd(f::Spinorfield) = SpinorfieldEO(f)
+even_odd(f::SpinorfieldEO) = f
 
-struct SpinorfieldEO{Backend,FloatType,IsDistributed,ArrayType,NumDirac} <:
-    AbstractField{Backend,FloatType,IsDistributed,ArrayType}
-    parent::Spinorfield{Backend,FloatType,IsDistributed,ArrayType,NumDirac}
+const MPISpinorfieldEO{B,T,AT,ND} = SpinorfieldEO{B,T,true,AT,ND}
 
-    function SpinorfieldEO(
-        f::Spinorfield{Backend,FloatType,IsDistributed,ArrayType,NumDirac}
-    ) where {Backend,FloatType,IsDistributed,ArrayType,NumDirac}
-        @assert iseven(f.NT) "Need even time extent for even-odd preconditioning"
-
-        if IsDistributed
-            @assert iseven(f.NT÷2) """
-            Need time extent divisbile by 4 for even-odd preconditioning with \
-            distributed fields
-            """
-        end
-        
-        return new{Backend,FloatType,IsDistributed,ArrayType,NumDirac}(f)
-    end
+@inline num_dirac(::SpinorfieldEO{B,T,M,A,ND}) where {B,T,M,A,ND} = ND
+LinearAlgebra.checksquare(f::SpinorfieldEO) = length(f) * num_dirac(f) * num_colors(f)
+function Base.eltype(::Type{SpinorfieldEO}, ::Type{T}, ::Val{ND}) where {T,ND}
+    return SVector{3ND,Complex{T}}
 end
 
-const MPISpinorfieldEO{Backend,FloatType,ArrayType,NumDirac} =
-    SpinorfieldEO{Backend,FloatType,true,ArrayType,NumDirac}
-
-function Spinorfield(
-    f::SpinorfieldEO{Backend,FloatType,IsDistributed,ArrayType,NumDirac}
-) where {Backend,FloatType,IsDistributed,ArrayType,NumDirac}
-    return SpinorfieldEO(f.parent)
-end
-
-is_evenodd(::SpinorfieldEO) = true # is only true for SpinorfieldEO
-dims(f::SpinorfieldEO) = dims(f.parent)
-local_dims(f::SpinorfieldEO) = local_dims(f.parent)
-global_dims(f::SpinorfieldEO) = global_dims(f.parent)
+KA.get_backend(f::SpinorfieldEO) = get_backend(f.parent)
+Base.length(f::SpinorfieldEO) = length(f.parent)
 Base.size(f::SpinorfieldEO) = size(f.parent)
-Base.similar(f::SpinorfieldEO) = even_odd(Spinorfield(f.parent))
-Base.eltype(::SpinorfieldEO{B,T}) where {B,T} = Complex{T}
-LinearAlgebra.checksquare(f::SpinorfieldEO) = LinearAlgebra.checksquare(f.parent) ÷ 2
-num_colors(::SpinorfieldEO{B,T,M,A,ND}) where {B,T,M,A,ND} = 3
-num_dirac(::SpinorfieldEO{B,T,M,A,ND}) where {B,T,M,A,ND} = ND
-volume(f::SpinorfieldEO) = volume(f.parent)
+Base.size(f::SpinorfieldEO, μ) = size(f.parent, μ)
+Base.axes(f::SpinorfieldEO) = axes(f.parent)
+Base.axes(f::SpinorfieldEO, μ::Integer) = axes(f.parent, μ)
+@inline get_local_dims(f::SpinorfieldEO) = get_local_dims(f.parent)
+@inline get_global_dims(f::SpinorfieldEO) = get_global_dims(f.parent)
+@inline get_local_volume(f::SpinorfieldEO) = get_local_volume(f.parent)
+@inline get_global_volume(f::SpinorfieldEO) = get_global_volume(f.parent)
+@inline get_halo_width(f::SpinorfieldEO) = get_halo_width(f.parent)
+@inline get_numprocs_cart(f::SpinorfieldEO) = get_numprocs_cart(f.parent)
 
 Base.@propagate_inbounds Base.getindex(f::SpinorfieldEO, i::Integer) = f.parent.U[i]
 Base.@propagate_inbounds Base.getindex(f::SpinorfieldEO, x, y, z, t) = f.parent.U[x, y, z, t]
@@ -59,11 +58,16 @@ Base.@propagate_inbounds Base.setindex!(f::SpinorfieldEO, v, x, y, z, t) =
 Base.@propagate_inbounds Base.setindex!(f::SpinorfieldEO, v, site::SiteCoords) =
     setindex!(f.parent.U, v, site)
 
-Base.view(f::SpinorfieldEO, I::CartesianIndices{4}) = view(f.parent.U, I.indices...)
-Base.view(f::SpinorfieldEO, I::Vector{CartesianIndex{4}}) = view(f.parent.U, I)
+function Base.getproperty(f::SpinorfieldEO, name::Symbol)
+    if name == :parent
+        return getfield(f, name)
+    else
+        return getfield(f.parent, name)
+    end
+end
 
 @inline function allindices(even::Bool, u::Union{Spinorfield,SpinorfieldEO})
-    NX, NY, NZ, NT = size(u.U)
+    _, NX, NY, NZ, NT = size(u.U)
     @assert iseven(NT)
     last_range = even ? (1:div(NT, 2)) : (div(NT, 2)+1:NT)
     return CartesianIndices((NX, NY, NZ, last_range))
@@ -80,19 +84,17 @@ function set_source!(ϕ_eo::SpinorfieldEO{CPU,T}, site::SiteCoords, a, μ) where
     clear!(ϕ)
     vec_index = (μ - 1) * NC + a
     tup = ntuple(i -> i == vec_index ? one(Complex{T}) : zero(Complex{T}), Val(3ND))
-    _site = eo_site(site, global_dims(ϕ)..., ϕ.NV)
+    _site = map_to_half(site, eachindex(ϕ))
     ϕ[_site] = SVector{3ND,Complex{T}}(tup)
-    # TODO: @hide_communication(ϕ) begin ... end
-    update_halo_eo!(ϕ) # TODO: Even-odd halo exchange
     return nothing
 end
 
 function Base.copy!(ϕ_eo::TF, ψ_eo::TF) where {TF<:SpinorfieldEO{CPU}}
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent
-    even = true
+    even_half = true
 
-    @batch for e_site in eachindex(even, ϕ, ψ)
+    @batch for e_site in eachindex(even_half, ϕ, ψ)
         ϕ[e_site] = ψ[e_site]
     end
 
@@ -102,13 +104,12 @@ end
 function gaussian_pseudofermions!(ϕ_eo::SpinorfieldEO{CPU,T}) where {T}
     ϕ = ϕ_eo.parent
     sz = num_dirac(ϕ) * num_colors(ϕ)
-    even = true
+    even_half = true
 
-    for e_site in eachindex(even, ϕ)
-        ϕ[e_site] = @SVector randn(Complex{T}, sz) # σ = 0.5
+    @batch for e_site in eachindex(even_half, ϕ)
+        ϕ[e_site] = randn(SVector{sz,Complex{T}}) # σ = 0.5
     end
 
-    update_halo_eo!(ϕ)
     return nothing
 end
 
@@ -116,10 +117,10 @@ function LinearAlgebra.mul!(ψ_eo::TF, ϕ_eo::TF, α) where {T,TF<:SpinorfieldEO
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent
     α = Complex{T}(α)
-    even = true
+    even_half = true
 
-    @batch for _site in eachindex(even, ϕ, ψ)
-        ψ[_site] = ϕ[_site] * α
+    @batch for e_site in eachindex(even_half, ϕ, ψ)
+        ψ[e_site] = ϕ[e_site] * α
     end
 
     return nothing
@@ -129,24 +130,24 @@ function LinearAlgebra.axpy!(α, ψ_eo::TF, ϕ_eo::TF) where {T,TF<:SpinorfieldE
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent
     α = Complex{T}(α)
-    even = true
+    even_half = true
 
-    @batch for _site in eachindex(even, ϕ, ψ)
-        ϕ[_site] += α * ψ[_site]
+    @batch for e_site in eachindex(even_half, ϕ, ψ)
+        ϕ[e_site] += α * ψ[e_site]
     end
 
     return nothing
 end
 
 function LinearAlgebra.axpby!(
-    α, ψ_eo::TF, β, ϕ_eo::TF, even=true
+    α, ψ_eo::TF, β, ϕ_eo::TF, even_half=true
 ) where {T,TF<:SpinorfieldEO{CPU,T}}
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent
     α = Complex{T}(α)
     β = Complex{T}(β)
 
-    @batch for _site in eachindex(even, ϕ, ψ)
+    @batch for _site in eachindex(even_half, ϕ, ψ)
         ϕ[_site] = α * ψ[_site] + β * ϕ[_site]
     end
 
@@ -159,130 +160,12 @@ function LinearAlgebra.dot(ϕ_eo::T, ψ_eo::T) where {T<:SpinorfieldEO{CPU}}
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent
     res = 0.0 + 0.0im # res is always double precision, even if T is single precision
-    even = true
+    even_half = true
 
-    @batch reduction = (+, res) for _site in eachindex(even, ϕ, ψ)
-        res += cdot(ϕ[_site], ψ[_site])
+    @batch reduction = (+, res) for e_site in eachindex(even_half, ϕ, ψ)
+        res += cdot(ϕ[e_site], ψ[e_site])
     end
 
     return distributed_reduce(res, +, ϕ)
 end
 
-function dot_all(ϕ_eo::T, ψ_eo::T) where {T<:SpinorfieldEO{CPU}}
-    ϕ = ϕ_eo.parent
-    ψ = ψ_eo.parent
-    res = 0.0 + 0.0im # res is always double precision, even if T is single precision
-
-    @batch reduction = (+, res) for site in eachindex(ϕ, ψ)
-        res += cdot(ϕ[site], ψ[site])
-    end
-
-    return distributed_reduce(res, +, ϕ)
-end
-
-function copy_eo!(ϕ_eo::T, ψ_eo::T) where {T<:SpinorfieldEO{CPU}}
-    ϕ = ϕ_eo.parent
-    ψ = ψ_eo.parent
-    fdims = dims(ϕ)
-    NV = ϕ.NV
-    even = true
-
-    for e_site in eachindex(even, ϕ, ψ)
-        o_site = switch_sides(e_site, fdims..., NV)
-        ϕ[e_site] = ψ[o_site]
-    end
-
-    return nothing
-end
-
-function copy_oe!(ϕ_eo::T, ψ_eo::T) where {T<:SpinorfieldEO{CPU}}
-    ϕ = ϕ_eo.parent
-    ψ = ψ_eo.parent
-    fdims = dims(ϕ)
-    NV = ϕ.NV
-    odd = false
-
-    for o_site in eachindex(odd, ϕ, ψ)
-        e_site = switch_sides(o_site, fdims..., NV)
-        ϕ[o_site] = ψ[e_site]
-    end
-
-    return nothing
-end
-
-function axpy_oe!(α, ψ_eo::T, ϕ_eo::T) where {T<:SpinorfieldEO{CPU}}
-    ϕ = ϕ_eo.parent
-    ψ = ψ_eo.parent
-    FloatT = float_type(ϕ)
-    α = Complex{FloatT}(α)
-    fdims = dims(ϕ)
-    NV = ϕ.NV
-    even = true
-
-    for e_site in eachindex(even, ϕ, ψ)
-        o_site = switch_sides(e_site, fdims..., NV)
-        ϕ[e_site] += α * ψ[o_site]
-    end
-
-    return nothing
-end
-
-function axpy_eo!(α, ψ_eo::T, ϕ_eo::T) where {T<:SpinorfieldEO{CPU}}
-    ϕ = ϕ_eo.parent
-    ψ = ψ_eo.parent
-    FloatT = float_type(ϕ)
-    α = Complex{FloatT}(α)
-    fdims = dims(ϕ)
-    NV = ϕ.NV
-    odd = false
-
-    for o_site in eachindex(odd, ϕ, ψ)
-        e_site = switch_sides(o_site, fdims..., NV)
-        ϕ[o_site] += α * ψ[e_site]
-    end
-
-    return nothing
-end
-
-update_halo_eo!(::AbstractField) = nothing
-
-function update_halo_eo!(u::AbstractMPIField)
-    topology = u.topology
-    comm_cart = topology.comm_cart
-    comm_instance = mpi_comm_instance()
-    border_sites = topology.border_sites_eo
-    halo_sites = topology.halo_sites_eo
-
-    requests = Utils.MPI.Request[]
-
-    for dim in 1:4
-        for (i, parity) in enumerate((:even, :odd))
-            prev_neighbor, next_neighbor = mpi_cart_shift(comm_cart, dim-1, 1)
-            prev_sites_from, next_sites_from = border_sites[parity][dim]
-            prev_sites_to, next_sites_to = halo_sites[parity][dim]
-
-            if prev_neighbor == next_neighbor == mpi_myrank(comm_instance)
-                view(u, next_sites_to) .= view(u, prev_sites_from)
-                view(u, prev_sites_to) .= view(u, next_sites_from)
-            else
-                # Use references of the links themselves as buffers
-                # INFO: Here, `view` is defined such that it automatically references all four
-                # directions `μ`, and we don't have to include it as an argument
-                send_buf_prev = u[prev_sites_from]
-                send_buf_next = u[next_sites_from]
-                recv_buf_prev = u[prev_sites_to]
-                recv_buf_next = u[next_sites_to]
-
-                push!(
-                    requests,
-                    mpi_irecv!(recv_buf_prev, comm_cart; source=prev_neighbor, tag=1+8i),
-                    mpi_isend(send_buf_next, comm_cart; dest=next_neighbor, tag=1+8i),
-                    mpi_irecv!(recv_buf_next, comm_cart; source=next_neighbor, tag=2+8i),
-                    mpi_isend(send_buf_prev, comm_cart; dest=prev_neighbor, tag=2+8i)
-                )
-            end
-        end
-    end
-
-    return mpi_waitall(requests)
-end

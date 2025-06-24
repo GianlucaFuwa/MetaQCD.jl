@@ -133,6 +133,7 @@ end
 
 function top_charge(::Plaquette, U::Gaugefield{CPU})
     Q = 0.0
+    update_halo!(U)
 
     @batch reduction = (+, Q) for site in eachindex(U)
         Q += top_charge_density_plaq(U, site)
@@ -143,6 +144,7 @@ end
 
 function top_charge(::Clover, U::Gaugefield{CPU,T}) where {T}
     Q = 0.0
+    update_halo!(U)
 
     @batch reduction = (+, Q) for site in eachindex(U)
         Q += top_charge_density_clover(U, site, T)
@@ -152,10 +154,11 @@ function top_charge(::Clover, U::Gaugefield{CPU,T}) where {T}
 end
 
 function top_charge(::Improved, U::Gaugefield{CPU,T}) where {T}
-    is_distributed(U) && @assert(maximum(U.topology.halo_width)>=2)
+    is_distributed(U) && @assert(U.topology.halo_width>=2)
     c₀ = T(5/3)
     c₁ = T(-2/12)
     Q = 0.0
+    update_halo!(U)
 
     @batch reduction = (+, Q) for site in eachindex(U)
         Q += top_charge_density_imp(U, site, c₀, c₁, T)
@@ -229,6 +232,7 @@ function top_charge_deriv!(dU, F, U, kind_of_charge, fac=1.0)
     c = float_type(U)(fac / 4π^2)
 
     fieldstrength_eachsite!(kind_of_charge, F, U)
+    update_halo!(F)
 
     @batch for site in eachindex(dU, F, U)
         tmp1 = cmatmul_oo(
@@ -269,7 +273,6 @@ function top_charge_deriv!(dU, F, U, kind_of_charge, fac=1.0)
         dU[4, site] = c * traceless_antihermitian(tmp4)
     end
 
-    update_halo!(dU)
     return nothing
 end
 
@@ -277,8 +280,8 @@ end
 # Derivative of the FμνFρσ term for Field strength tensor given by plaquette
 # """
 function ∇trFμνFρσ(::Plaquette, U, F, μ, ν, ρ, σ, site)
-    Nμ = dims(U)[μ]
-    Nν = dims(U)[ν]
+    Nμ = axes(U, μ)
+    Nν = axes(U, ν)
     siteμ⁺ = move(site, μ, 1i32, Nμ)
     siteν⁺ = move(site, ν, 1i32, Nν)
     siteν⁻ = move(site, ν, -1i32, Nν)
@@ -295,8 +298,8 @@ end
 # Derivative of the FμνFρσ term for Field strength tensor given by 1x1-Clover
 # """
 function ∇trFμνFρσ(::Clover, U, F, μ, ν, ρ, σ, site)
-    Nμ = dims(U)[μ]
-    Nν = dims(U)[ν]
+    Nμ = axes(U, μ)
+    Nν = axes(U, ν)
     siteμ⁺ = move(site, μ, 1i32, Nμ)
     siteν⁺ = move(site, ν, 1i32, Nν)
     siteν⁻ = move(site, ν, -1i32, Nν)

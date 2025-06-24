@@ -1,21 +1,21 @@
-function Base.copy!(a::AbstractField{CPU,T}, b::AbstractField{CPU,T}) where {T}
-    @batch for μsite in allindices(a, b)
+function Base.copy!(a::T, b::T) where {T<:AbstractField}
+    for_allindices(a, b) do μsite
         a[μsite] = b[μsite]
     end
 
     return nothing
 end
 
-function identity_gauges!(u::Gaugefield{CPU,T}) where {T}
-    @batch for μsite in allindices(u)
+function identity_gauges!(u::Gaugefield{B,T}) where {B,T}
+    for_allindices(u) do μsite
         u[μsite] = eye3(T)
     end
 
     return nothing
 end
 
-function random_gauges!(u::Gaugefield{CPU,T}) where {T}
-    for site in eachindex(u)
+function random_gauges!(u::Gaugefield{B,T}) where {B,T}
+    for_eachindex(u) do site
         for μ in 1:4
             u[μ, site] = rand_SU3(T)
         end
@@ -112,3 +112,4 @@ function rightmul_dagg!(a::AbstractField{CPU,T}, b::AbstractField{CPU,T}) where 
 
     return nothing
 end
+

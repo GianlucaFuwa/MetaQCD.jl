@@ -68,11 +68,15 @@ mutable struct Bias{N,TB,TS,TW,T1,T2,T3}
     biasfile::T1
     datafile::T2
     buffers::T3
+    CV::Vector{Float64}
     function Bias(
         cv_numsmears, bias::TB, smearing::TS, weights::TW, bfile::T1, dfile::T2, buffers::T3
     ) where {TB,TS,TW,T1,T2,T3}
         N = length(bias)
-        return new{N,TB,TS,TW,T1,T2,T3}(cv_numsmears, bias, smearing, weights, bfile, dfile)
+        CV = zeros(Float64, N)
+        return new{N,TB,TS,TW,T1,T2,T3}(
+            cv_numsmears, bias, smearing, weights, bfile, dfile, buffers, CV
+        )
     end
 end
 
@@ -99,7 +103,7 @@ function Bias(p, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, bui
         name = bias_parameters.kind_of_cv
 
         if name == "topcharge_clover"
-            is_distributed(U) && @assert(maximum(U.topology.halo_width)>=2)
+            is_distributed(U) && @assert(U.topology.halo_width>=2)
         end
 
         numsmears = bias_parameters.numsmears_for_cv
@@ -218,6 +222,8 @@ end
 Base.length(::Bias{N}) where {N} = N
 (b::Bias{N})(cv) where {N} = sum(b.bias[i](cv[i]) for i in 1:N)
 
+set_cv!(bias::Bias, cv) = bias.CV .= cv
+set_cv!(::NoBias, cv) = nothing
 update_bias!(::NoBias, args...; kwargs...) = nothing
 update_bias!(::Nothing, args...; kwargs...) = nothing
 is_adaptive(b::Bias{N}) where {N} = ntuple(i -> is_adaptive(b.bias[i]), Val(N))
@@ -228,6 +234,10 @@ include("metadynamics.jl")
 include("opes.jl")
 include("opes_multithermal.jl")
 include("parametric.jl")
+
+function update_bias!(b::Bias{N}, itrj; mpi_multi_sim=false) where {N}
+    return update_bias!(b, b.CV, itrj; mpi_multi_sim=mpi_multi_sim)
+end
 
 function update_bias!(
     b::Bias{N}, values, itrj; mpi_multi_sim=false
@@ -264,7 +274,7 @@ recalc_cv!(::Gaugefield, ::NoBias) = nothing
 
 function recalc_cv!(U::Gaugefield, b::Bias{N}) where {N}
     CV_new = calc_cv(U, b)
-    U.CV = CV_new
+    b.CV .= CV_new
     return nothing
 end
 
@@ -276,10 +286,10 @@ function recalc_cv!(U::Vector{TG}, b::Vector{TB}) where {TG<:Gaugefield,TB<:Bias
     return nothing
 end
 
-calc_cv(U, ::Nothing, ::Bool=false) = U.CV
-calc_cv(U, ::Nothing, ::Int64, ::Bool=false) = U.CV
-calc_cv(U, ::NoBias, ::Bool=false) = U.CV
-calc_cv(U, ::NoBias, ::Int64, ::Bool=false) = U.CV
+calc_cv(U, ::Nothing, ::Bool=false) = 0.0
+calc_cv(U, ::Nothing, ::Int64, ::Bool=false) = 0.0
+calc_cv(U, ::NoBias, ::Bool=false) = 0.0
+calc_cv(U, ::NoBias, ::Int64, ::Bool=false) = 0.0
 
 function calc_cv(U, bias::AbstractBias)
     return bias.cvinfo.cv_func(U)

@@ -37,10 +37,10 @@ struct StaggeredDiracOperator{B,T,TF,TG,BC} <: AbstractDiracOperator{B,T}
         f::AbstractField{B,T}, mass; bc_str="antiperiodic", kwargs...
     ) where {B,T}
         U = nothing
-        temp = Spinorfield(f; staggered=true)
+        temp = Spinorfield(f; staggered=true, hw=1)
+        boundary_condition = create_bc(bc_str, f.topology)
         TG = Nothing
         TF = typeof(temp)
-        boundary_condition = create_bc(bc_str, f.topology)
         BC = typeof(boundary_condition)
         return new{B,T,TF,TG,BC}(U, temp, mass, boundary_condition)
     end
@@ -72,12 +72,13 @@ function LinearAlgebra.mul!(
     U = D.U
     mass = T(D.mass)
     bc = D.boundary_condition
+    # TODO: can hide
+    update_halo!(U, ϕ)
 
     @batch for site in eachindex(ψ, ϕ, U)
         ψ[site] = staggered_kernel(U, ϕ, site, mass, bc, T, false)
     end
 
-    update_halo!(ψ)
     return nothing
 end
 
@@ -88,12 +89,13 @@ function LinearAlgebra.mul!(
     U = D.parent.U
     mass = T(D.parent.mass)
     bc = D.parent.boundary_condition
+    # TODO: can hide
+    update_halo!(U, ϕ)
 
     @batch for site in eachindex(ψ, ϕ, U)
         ψ[site] = staggered_kernel(U, ϕ, site, mass, bc, T, true)
     end
 
-    update_halo!(ψ)
     return nothing
 end
 
@@ -108,17 +110,19 @@ end
 
 function staggered_kernel(U, ϕ, site, mass, bc, ::Type{T}, dagg::Bool) where {T}
     sgn = dagg ? -1 : 1
-    NX, NY, NZ, NT = dims(U)
+    NT = size(U, 4)
     ψₙ = 2mass * ϕ[site]
 
     # use @nexprs here to statically generate the loop
     # this makes it so Val(i) is well defined at each iteration and no type-instabilities arise
-    @nexprs 4 i -> (
-        siteμ⁺ = move(site, i, 1, (NX, NY, NZ, NT)[i]);
-        siteμ⁻ = move(site, i, -1, (NX, NY, NZ, NT)[i]);
-        η = sgn * staggered_η(Val(i), site);
-        ψₙ += η * cmvmul(U[i, site], apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(i)));
-        ψₙ -= η * cmvmul_d(U[i, siteμ⁻], apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(i)))
+    @nexprs 4 μ -> (
+        Nμ = axes(U, μ);
+        siteμ⁺ = move(site, μ, 1, Nμ);
+        siteμ⁻ = move(site, μ, -1, Nμ);
+        η = sgn * staggered_η(Val(μ), site);
+        ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(μ));
+        ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(μ));
+        ψₙ += η * (cmvmul(U[μ, site], ϕ⁺) - cmvmul_d(U[μ, siteμ⁻], ϕ⁻))
     )
     return T(0.5) * ψₙ
 end

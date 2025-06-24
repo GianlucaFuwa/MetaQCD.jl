@@ -6,8 +6,8 @@ struct WilsonLoopMeasurement{T} <: AbstractMeasurement
     function WilsonLoopMeasurement(
         U::Gaugefield; filename="", Rmax=4, Tmax=4, flow=NoSmearing()
     )
-        @assert !is_distributed(U) "Wilson loop not supported for distributed fields"
-        @level1("|    Maximum Extends: $Tmax x $Rmax (only even extends are measured for now)")
+        # @assert !is_distributed(U) "Wilson loop not supported for distributed fields"
+        @level1("|    Maximum Extends: $Tmax x $Rmax")
         @level1("|    @info: Wilson loop measurements are not printed to console")
         WL = zeros(Rmax, Tmax)
 
@@ -63,7 +63,7 @@ function measure(
 
     for iT in 1:(m.Tmax)
         for iR in 1:(m.Rmax)
-            WL = wilsonloop(U, iR, iT) / (18.0U.NV)
+            WL = wilsonloop(U, iR, iT) / (18.0length(U))
             m.WL[iR, iT] = WL
         end
     end

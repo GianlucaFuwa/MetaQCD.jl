@@ -10,8 +10,8 @@ using ..MetaIO
 using ..Utils
 
 import ..Fields: AbstractGaugeAction, Expfield, Colorfield, Gaugefield, WilsonGaugeAction
-import ..Fields: check_dims, leftmul_dagg!, staple, staple_eachsite!, update_halo!
-import ..Fields: AbstractField, dims, float_type, gauge_action, @groupreduce, @latmap
+import ..Fields: check_dims, leftmul_dagg!, staple, staple_eachsite!, update_halo!, size
+import ..Fields: AbstractField, get_local_dims, float_type, gauge_action, @groupreduce, @latmap
 
 abstract type AbstractSmearing end
 
@@ -22,6 +22,7 @@ include("./gradientflow.jl")
 include("./cooling.jl")
 include("gpu_kernels/gradientflow.jl")
 include("gpu_kernels/stout.jl")
+include("gpu_kernels/cooling.jl")
 
 function construct_flow(U, parameters)
     flow_integrator = lower_case.(parameters.flow_integrator)

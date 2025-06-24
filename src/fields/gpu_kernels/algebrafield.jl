@@ -1,7 +1,7 @@
 function gaussian_TA!(p::Colorfield{B,T}, ϕ) where {B,T}
     ϕ₁ = T(sqrt(1 - ϕ^2))
     ϕ₂ = T(ϕ)
-    @latmap(Sequential(), Val(1), gaussian_TA_gpu!, p, ϕ₁, ϕ₂, T, eachindex(p))
+    @latmap(eachindex(p), gaussian_TA_gpu!, p, ϕ₁, ϕ₂, T)
 end
 
 @kernel cpu=false function gaussian_TA_gpu!(P, ϕ₁, ϕ₂, ::Type{T}, bulk) where {T}
@@ -14,9 +14,7 @@ end
 end
 
 function calc_kinetic_energy(p::Colorfield{B}) where {B}
-    return @latsum(
-        Sequential(), Val(1), Float64, calc_kinetic_energy_gpu!, p, eachindex(p)
-    )
+    return @latsum(eachindex(p), Float64, calc_kinetic_energy_gpu!, p)
 end
 
 @kernel cpu=false function calc_kinetic_energy_gpu!(out, @Const(P), bulk)
@@ -28,13 +26,13 @@ end
     k = 0.0
     @unroll for μ in (1i32):(4i32)
         pmat = P[μ, site]
-        k += real(tr(cmatmul_oo(pmat, pmat)))
+        k += real(multr(pmat, pmat))
     end
 
     out_group = @groupreduce(+, k, 0.0)
 
-    ti = @index(Local)
-    if ti == 1
+    ithread = @index(Local)
+    if ithread == 1
         @inbounds out[iblock] = out_group
     end
 end

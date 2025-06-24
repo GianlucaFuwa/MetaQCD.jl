@@ -81,37 +81,32 @@ function add_staggered_eo_derivative!(
     X = X_eo.parent
     Y = Y_eo.parent
     fac = T(-0.5coeff)
-    loc_dims = dU.topology.local_dims
-    loc_dims_padded = dU.topology.local_dims_padded
-    origin = dU.topology.bulk_sites[1]
+    bulk = eachindex(dU)
+    # TODO: can hide
+    update_halo!(U, X, Y)
 
     @batch for site in eachindex(dU, U, X, Y)
-        add_staggered_eo_derivative_kernel!(
-            dU, U, X, Y, site, origin, loc_dims, loc_dims_padded, bc, fac
-        )
+        add_staggered_eo_derivative_kernel!(dU, U, X, Y, site, bc, fac, bulk)
     end
 
     return nothing
 end
 
-function add_staggered_eo_derivative_kernel!(
-    dU, U, X, Y, site, origin, local_dims, local_dims_padded, bc, fac
-)
+function add_staggered_eo_derivative_kernel!(dU, U, X, Y, site, bc, fac, bulk)
     # sites that begin with a "_" are meant for indexing into the even-odd preconn'ed
     # fermion field
-    nx, ny, nz, nt = local_dims
-    nv = prod(local_dims)
-    NT = local_dims_padded[4]
-    _site = eo_site(site, origin, nx, ny, nz, nt, nv)
+    NT = size(U, 4)
+    _site = map_to_half(site, bulk)
 
     # use @nexprs here to statically generate the loop
-    # this makes it so Val(i) is well defined at each iteration and no type-instabilities arise
-    @nexprs 4 i -> (
-        _siteμ⁺ = eo_site(move(site, i, 1, local_dims_padded[i]), origin, nx, ny, nz, nt, nv);
-        η = staggered_η(Val(i), site);
-        B = ckron(apply_bc(X[_siteμ⁺], bc, site, Val(1), NT, Val(i)), Y[_site]);
-        C = ckron(apply_bc(Y[_siteμ⁺], bc, site, Val(1), NT, Val(i)), X[_site]);
-        dU[i, site] += (fac * η) * traceless_antihermitian(cmatmul_oo(U[i, site], B - C))
+    # this makes it so Val(μ) is well defined at each iteration and no type-instabilities arise
+    @nexprs 4 μ -> (
+        Nμ = axes(U, μ);
+        _siteμ⁺ = map_to_half(move(site, μ, 1, Nμ), bulk);
+        η = staggered_η(Val(μ), site);
+        B = ckron(apply_bc(X[_siteμ⁺], bc, site, Val(1), NT, Val(μ)), Y[_site]);
+        C = ckron(apply_bc(Y[_siteμ⁺], bc, site, Val(1), NT, Val(μ)), X[_site]);
+        dU[μ, site] += (fac * η) * traceless_antihermitian(cmatmul_oo(U[μ, site], B - C))
     )
     return nothing
 end

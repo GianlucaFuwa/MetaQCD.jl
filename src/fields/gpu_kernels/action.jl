@@ -1,7 +1,6 @@
 function plaquette_trace_sum(U::Gaugefield{B}) where {B}
-    return @latsum(
-        Sequential(), Val(1), Float64, plaquette_trace_sum_gpu!, U, eachindex(U)
-    )
+    update_halo!(U)
+    return @latsum(eachindex(U), Float64, plaquette_trace_sum_gpu!, U)
 end
 
 @kernel cpu=false function plaquette_trace_sum_gpu!(out, @Const(U), bulk)
@@ -19,16 +18,15 @@ end
 
     out_group = @groupreduce(+, pₙ, 0.0)
 
-    ti = @index(Local)
-    if ti == 1
+    ithread = @index(Local)
+    if ithread == 1
         @inbounds out[iblock] = out_group
     end
 end
 
 function rect_trace_sum(U::Gaugefield{B}) where {B}
-    return @latsum(
-        Sequential(), Val(1), Float64, rect_trace_sum_gpu!, U, eachindex(U)
-    )
+    update_halo!(U)
+    return @latsum(eachindex(U), Float64, rect_trace_sum_gpu!, U)
 end
 
 @kernel cpu=false function rect_trace_sum_gpu!(out, @Const(U), bulk)
@@ -46,8 +44,8 @@ end
 
     out_group = @groupreduce(+, r, 0.0)
 
-    ti = @index(Local)
-    if ti == 1
+    ithread = @index(Local)
+    if ithread == 1
         @inbounds out[iblock] = out_group
     end
 end
@@ -58,7 +56,8 @@ function gauge_action_deriv!(
     fac = convert(T, -U.β / 6)
     gaction = gauge_action(U)()
     bulk = eachindex(dU, U, staples)
-    @latmap(Sequential(), Val(1), gauge_action_deriv_gpu!, dU, staples, U, gaction, fac, bulk)
+    update_halo!(U)
+    @latmap(bulk, gauge_action_deriv_gpu!, dU, staples, U, gaction, fac)
     return nothing
 end
 

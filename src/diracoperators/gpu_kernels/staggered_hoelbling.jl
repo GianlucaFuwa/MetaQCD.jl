@@ -7,9 +7,9 @@ function LinearAlgebra.mul!(
     term = get_mass_term(D)
     bc = D.boundary_condition
     bulk = eachindex(ψ, ϕ, U)
-    @latmap(
-        Sequential(), Val(1), staggered_hoelbling_gpu!, ψ, U, ϕ, mass, bc, term, T, false, bulk
-    )
+    # TODO: can hide
+    update_halo!(U, ϕ)
+    @latmap(bulk, staggered_hoelbling_gpu!, ψ, U, ϕ, mass, bc, term, T, false)
 end
 
 function LinearAlgebra.mul!(
@@ -21,9 +21,9 @@ function LinearAlgebra.mul!(
     term = get_mass_term(D.parent)
     bc = D.parent.boundary_condition
     bulk = eachindex(ψ, ϕ, U)
-    @latmap(
-        Sequential(), Val(1), staggered_hoelbling_gpu!, ψ, U, ϕ, mass, bc, term, T, true, bulk
-    )
+    # TODO: can hide
+    update_halo!(U, ϕ)
+    @latmap(bulk, staggered_hoelbling_gpu!, ψ, U, ϕ, mass, bc, term, T, true)
 end
 
 @kernel cpu=false function staggered_hoelbling_gpu!(
