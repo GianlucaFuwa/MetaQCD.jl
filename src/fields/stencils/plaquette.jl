@@ -1,45 +1,29 @@
-function plaquette_trace_sum(U::Gaugefield{CPU})
+function plaquette_trace_sum(U::Gaugefield{B}) where {B}
     update_halo!(U)
-    P = 0.0
 
-    @batch reduction = (+, P) for site in eachindex(U)
-        for μ in 1:3
-            for ν in (μ+1):4
-                P += real(tr(plaquette(U, μ, ν, site)))
+    P = parallelfor_sum(eachindex(U), 0.0, B) do pₙ, site
+        for μ in 1i32:3i32
+            for ν in (μ+1i32):4i32
+                pₙ += real(tr(plaquette(U, μ, ν, site)))
             end
         end
+        pₙ
     end
 
     return distributed_reduce(P, +, U)
 end
 
-function plaquette_trace_eachsite(U::Gaugefield{CPU})
-    out = zeros(size(U.U))
-
-    @batch for site in eachindex(U)
-        P = 0.0
-        for μ in 1:3
-            for ν in (μ+1):4
-                P += real(tr(plaquette(U, μ, ν, site)))
-            end
-        end
-        out[site] = P
-    end
-
-    return out
-end
-
-function rect_trace_sum(U::Gaugefield{CPU})
+function rect_trace_sum(U::Gaugefield{B}) where {B}
     is_distributed(U) && @assert(U.topology.halo_width>=2)
     update_halo!(U)
-    R = 0.0
 
-    @batch reduction = (+, R) for site in eachindex(U)
+    R = parallelfor_sum(eachindex(U), 0.0, B) do rₙ, site
         for μ in 1:3
             for ν in (μ+1):4
-                R += real(tr(rect_1x2(U, μ, ν, site))) + real(tr(rect_2x1(U, μ, ν, site)))
+                rₙ += real(tr(rect_1x2(U, μ, ν, site))) + real(tr(rect_2x1(U, μ, ν, site)))
             end
         end
+        rₙ
     end
 
     return distributed_reduce(R, +, U)
@@ -96,5 +80,21 @@ function plaquette_2x2(U, μ, ν, site)
         cmatmul_dddd(U[μ, siteμ⁺ν²⁺], U[μ, siteν²⁺], U[ν, siteν⁺], U[ν, site]),
     )
     return plaq
+end
+
+function plaquette_trace_eachsite(U::Gaugefield{B}) where {B}
+    out = zeros(size(U.U))
+
+    parallelfor(eachindex(U), B) do site
+        P = 0.0
+        for μ in 1:3
+            for ν in (μ+1):4
+                P += real(tr(plaquette(U, μ, ν, site)))
+            end
+        end
+        out[site] = P
+    end
+
+    return out
 end
 

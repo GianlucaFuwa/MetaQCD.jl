@@ -28,7 +28,7 @@ import ..Fields: IwasakiGaugeAction, DBW2GaugeAction, AbstractFieldstrength, Col
 import ..Fields: Gaugefield, Spinorfield, Tensorfield, calc_gauge_action, check_dims 
 import ..Fields: Plaquette, Clover, Improved, fieldstrength_eachsite!, gauge_action, staple
 import ..Fields: clover_square, float_type, plaquette, wilsonloop
-import ..Fields: @groupreduce, @latmap, @latsum, CPU, ones!, set_source!, clover_rect
+import ..Fields: parallelfor, parallelfor_sum, CPU, ones!, set_source!, clover_rect
 import ..Fields: clear!, distributed_reduce, is_distributed, plaquette_trace_sum
 import ..Fields: update_halo!, get_local_dims, get_global_dims, get_global_volume
 import ..Smearing: AbstractSmearing, Cooling, GradientFlow, NoSmearing, StoutSmearing
@@ -60,9 +60,5 @@ include("measure_energy_density.jl")
 include("measure_pion_correlator.jl")
 include("measure_logdet.jl")
 # include("measure_eigenvalues.jl")
-
-include("gpu_kernels/energydensity.jl")
-include("gpu_kernels/polyakov.jl")
-include("gpu_kernels/topcharge.jl")
 
 end

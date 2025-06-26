@@ -77,8 +77,8 @@ end
 # The Gaugefields module into CG.jl, which also allows us to use the solvers for 
 # for arbitrary arrays, not just fermion fields and dirac operators (good for testing)
 function LinearAlgebra.mul!(
-    ψ::TF, D::WilsonDiracOperator{CPU,T,C,TF,TG}, ϕ::TF
-) where {T,C,TF,TG}
+    ψ::TF, D::WilsonDiracOperator{B,T,C,TF,TG}, ϕ::TF
+) where {B,T,C,TF,TG}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.U
     mass_term = T(8 + 2 * D.mass)
@@ -87,14 +87,14 @@ function LinearAlgebra.mul!(
     # TODO: can hide
     update_halo!(U, ϕ)
 
-    @batch for site in eachindex(ψ, ϕ, U)
+    parallelfor(eachindex(ψ, ϕ, U), B) do site
         ψ[site] = wilson_kernel(U, ϕ, site, mass_term, bc, T, Val(1))
     end
 
     if has_clover_term(D)
         fac = T(-csw / 2)
 
-        @batch for site in eachindex(ψ)
+        parallelfor(eachindex(ψ, ϕ, U), B) do site
             ψ[site] += clover_kernel(U, ϕ, site, fac, T)
         end
     end
@@ -103,8 +103,8 @@ function LinearAlgebra.mul!(
 end
 
 function LinearAlgebra.mul!(
-    ψ::TF, D::Daggered{WilsonDiracOperator{CPU,T,C,TF,TG,BC}}, ϕ::TF
-) where {T,C,TF,TG,BC}
+    ψ::TF, D::Daggered{WilsonDiracOperator{B,T,C,TF,TG,BC}}, ϕ::TF
+) where {B,T,C,TF,TG,BC}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.parent.U
     mass_term = T(8 + 2 * D.parent.mass)
@@ -113,14 +113,14 @@ function LinearAlgebra.mul!(
     # TODO: can hide
     update_halo!(U, ϕ)
 
-    @batch for site in eachindex(ψ, ϕ, U)
+    parallelfor(eachindex(ψ, ϕ, U), B) do site
         ψ[site] = wilson_kernel(U, ϕ, site, mass_term, bc, T, Val(-1))
     end
 
     if has_clover_term(D)
         fac = T(-csw / 2)
 
-        @batch for site in eachindex(ψ, ϕ, U)
+        parallelfor(eachindex(ψ, ϕ, U), B) do site
             ψ[site] += clover_kernel(U, ϕ, site, fac, T)
         end
     end

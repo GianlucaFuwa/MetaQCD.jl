@@ -68,10 +68,10 @@ function flow!(gflow::GradientFlow{TI}, Uin) where {TI}
     return nothing
 end
 
-function updateU!(U::Gaugefield{CPU,T}, Z::Colorfield{CPU,T}, ϵ) where {T}
+function updateU!(U::Gaugefield{B,T}, Z::Colorfield{B,T}, ϵ) where {B,T}
     ϵ = T(ϵ)
 
-    @batch for site in eachindex(U)
+    parallelfor(eachindex(U), B) do site
         for μ in 1:4
             U[μ, site] = cmatmul_oo(exp_iQ(-im * ϵ * Z[μ, site]), U[μ, site])
         end
@@ -80,12 +80,12 @@ function updateU!(U::Gaugefield{CPU,T}, Z::Colorfield{CPU,T}, ϵ) where {T}
     return nothing
 end
 
-function calcZ!(Z::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, ϵ) where {T}
+function calcZ!(Z::Colorfield{B,T}, U::Gaugefield{B,T}, ϵ) where {B,T}
     ϵ = T(ϵ)
     # TODO: can hide
     update_halo!(U)
 
-    @batch for site in eachindex(U)
+    parallelfor(eachindex(U), B) do site
         for μ in 1:4
             A = staple(WilsonGaugeAction(), U, μ, site)
             AU = cmatmul_od(A, U[μ, site])
@@ -96,13 +96,13 @@ function calcZ!(Z::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, ϵ) where {T}
     return nothing
 end
 
-function updateZ!(Z::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, ϵ_old, ϵ_new) where {T}
+function updateZ!(Z::Colorfield{B,T}, U::Gaugefield{B,T}, ϵ_old, ϵ_new) where {B,T}
     ϵ_old = T(ϵ_old)
     ϵ_new = T(ϵ_new)
     # TODO: can hide
     update_halo!(U)
 
-    @batch for site in eachindex(U)
+    parallelfor(eachindex(U), B) do site
         for μ in 1:4
             A = staple(WilsonGaugeAction(), U, μ, site)
             AU = cmatmul_od(A, U[μ, site])

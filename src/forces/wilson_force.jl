@@ -87,17 +87,13 @@ function calc_dSfdU!(
 end
 
 function add_wilson_derivative!(
-    dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, X::TF, Y::TF, bc; coeff=1
-) where {T,TF<:WilsonSpinorfield{CPU,T}}
+    dU::Colorfield{B,T}, U::Gaugefield{B,T}, X::TF, Y::TF, bc; coeff=1
+) where {B,T,TF<:WilsonSpinorfield{B,T}}
     fac = T(0.5coeff)
     # TODO: can hide
     update_halo!(U, X, Y)
 
-    # If we write out the kernel and use @batch, the program crashes for some reason
-    # Stems from "pload" from StrideArraysCore.jl but ONLY if we write it out AND overload
-    # "object_and_preserve" (cant reproduce in MWE yet)
-    # is fine, because writing it like this makes the GPU port easier
-    @batch for site in eachindex(dU, U, X, Y)
+    parallelfor(eachindex(dU, U, X, Y), B) do site
         add_wilson_derivative_kernel!(dU, U, X, Y, site, bc, fac)
     end
 
@@ -130,13 +126,13 @@ function add_wilson_derivative_kernel!(dU, U, X, Y, site, bc, fac)
 end
 
 function add_clover_derivative!(
-    dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, Xμν::Tensorfield{CPU,T}, csw; coeff=1
-) where {T}
+    dU::Colorfield{B,T}, U::Gaugefield{B,T}, Xμν::Tensorfield{B,T}, csw; coeff=1
+) where {B,T}
     fac = T(csw * coeff / 2)
     # INFO: we must have already updated the halo for the wilson derivative
     update_halo!(Xμν)
 
-    @batch for site in eachindex(dU, U, Xμν)
+    parallelfor(eachindex(dU, U, Xμν), B) do site
         add_clover_derivative_kernel!(dU, U, Xμν, site, fac, T)
     end
 
@@ -171,9 +167,9 @@ function add_clover_derivative_kernel!(dU, U, Xμν, site, fac, ::Type{T}) where
 end
 
 function calc_Xμν_wilson_eachsite!(
-    Xμν::Tensorfield{CPU,T}, X::TF, Y::TF
-) where {T,TF<:WilsonSpinorfield}
-    @batch for site in eachindex(Xμν, X, Y)
+    Xμν::Tensorfield{B,T}, X::TF, Y::TF
+) where {B,T,TF<:WilsonSpinorfield{B}}
+    parallelfor(eachindex(Xμν, X, Y), B) do site
         calc_Xμν_wilson_kernel!(Xμν, X, Y, site)
     end
 

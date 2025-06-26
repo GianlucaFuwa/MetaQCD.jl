@@ -1,3 +1,0 @@
-[] Fully support GPUs
-[] ~ Switch from KernelAbstractions to AMDGPU and CUDA directly (using extensions) or rewrite @latmap
-[] Make MPI + Even-Odd preconditioning work (lower prio)

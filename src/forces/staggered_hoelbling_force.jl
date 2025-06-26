@@ -90,14 +90,14 @@ function calc_dSfdU!( # Force for single flavor Staggered-Hoelbling Action (Nf=2
 end
 
 function add_staggered_hoelbling_derivative!(
-    dU::Colorfield{CPU,T,M}, U::Gaugefield{CPU,T,M}, X::TF, Y::TF, bc, term; coeff=1
-) where {T,M,TF<:StaggeredSpinorfield{CPU,T,M}}
+    dU::Colorfield{B,T}, U::Gaugefield{B,T,M}, X::TF, Y::TF, bc, term; coeff=1
+) where {B,T,M,TF<:StaggeredSpinorfield{B,T,M}}
     fac1 = T(-0.5coeff)
     fac2 = T(coeff)
     _μ, _ν, _ρ, _σ = term
     update_halo!(U, X, Y)
 
-    @batch for site in eachindex(dU, U, X, Y)
+    parallelfor(eachindex(dU, U, X, Y), B) do site
         add_staggered_derivative_kernel!(dU, U, X, Y, site, bc, fac1)
         add_hoelbling_derivative_kernel!(dU, _μ, _ν, U, X, Y, site, bc, fac2)
         add_hoelbling_derivative_kernel!(dU, _ρ, _σ, U, X, Y, site, bc, fac2)

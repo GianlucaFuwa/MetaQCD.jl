@@ -370,13 +370,13 @@ function update!(
 end
 
 function updateU!(
-    U::Gaugefield{CPU,T}, hmc, fac, fermion_action, bias, therm, level
-) where {T}
+    U::Gaugefield{B,T}, hmc, fac, fermion_action, bias, therm, level
+) where {B,T}
     if level == 1
         ϵ = T(hmc.levels[level].Δτ * fac)
         P = hmc.P
 
-        @batch for μsite in allindices(U, P)
+        parallelfor(allindices(U, P), B) do μsite
             U[μsite] = cmatmul_oo(exp_iQ(-im * ϵ * P[μsite]), U[μsite])
         end
     else

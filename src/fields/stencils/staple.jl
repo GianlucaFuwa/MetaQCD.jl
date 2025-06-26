@@ -138,10 +138,10 @@ function staple_rect(U, μ, site)
     return staple
 end
 
-function staple_eachsite!(staples::Colorfield{CPU}, U::Gaugefield{CPU})
+function staple_eachsite!(staples::Colorfield{B}, U::Gaugefield{B}) where {B}
     update_halo!(U)
 
-    @batch for site in eachindex(U)
+    parallelfor(eachindex(U), B) do site
         for μ in 1:4
             staples[μ, site] = staple(U, μ, site)
         end

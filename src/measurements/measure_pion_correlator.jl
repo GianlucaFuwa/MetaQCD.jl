@@ -207,6 +207,7 @@ function pion_correlators_avg!(pion_corr, D, ψ, cg_temps, cg_tol, cg_maxiters, 
             for it in 1+halo_width[4]:my_NT+halo_width[4]
                 cit = 0.0
 
+                # TODO:
                 @batch reduction = (+, cit) for iz in 1+halo_width[3]:my_NZ+halo_width[3]
                     for iy in 1+halo_width[2]:my_NY+halo_width[2]
                         for ix in 1+halo_width[1]:my_NX+halo_width[1]

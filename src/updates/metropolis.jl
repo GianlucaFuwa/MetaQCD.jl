@@ -46,8 +46,8 @@ end
 function update!(metro::Metropolis{ITR,NH,TOR,NOR}, U; kwargs...) where {ITR,NH,TOR,NOR}
     fac = -U.β / 3 
     GA = gauge_action(U)
-    numaccepts_metro = @cpulatsum(ITR(), Val(1), metro, U, GA(), fac)
-    numaccepts_or = @cpulatsum(ITR(), NOR(), TOR(), U, GA(), fac)
+    numaccepts_metro = @latsum(ITR(), Val(1), metro, U, GA(), fac)
+    numaccepts_or = @latsum(ITR(), NOR(), TOR(), U, GA(), fac)
 
     numaccepts_metro /= 4 * length(U) * _unwrap_val(NH())
     @level3("|  Metro acceptance: $(numaccepts_metro)")

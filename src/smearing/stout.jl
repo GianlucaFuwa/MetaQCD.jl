@@ -61,11 +61,11 @@ function apply_smearing!(smearing, Uin)
     return nothing
 end
 
-function apply_stout_smearing!(Uout, C, Q, U, ρ)
+function apply_stout_smearing!(Uout::Gaugefield{B}, C, Q, U, ρ) where {B}
     # TODO: can hide
     update_halo!(U)
 
-    @batch for site in eachindex(Uout, C, Q, U)
+    parallelfor(eachindex(Uout, C, Q, U), B) do site
         for μ in 1:4
             Qμ = calc_stout_Q_kernel!(Q, C, U, site, μ, ρ)
             Uout[μ, site] = cmatmul_oo(exp_iQ(Qμ), U[μ, site])
@@ -95,13 +95,13 @@ end
 Stout-Force recursion \\
 See [hep-lat/0311018] by Morningstar & Peardon
 """
-function stout_recursion!(Σ, Σ′, U′, U, C, Q, Λ, ρ)
+function stout_recursion!(Σ, Σ′, U′, U::Gaugefield{B}, C, Q, Λ, ρ) where {B}
     leftmul_dagg!(Σ′, U′)
     calc_stout_Λ!(Λ, Σ′, Q, U)
     # TODO: can hide
     update_halo!(U, Λ)
 
-    @batch for site in eachindex(Σ, Σ′, U′, U, C, Q, Λ)
+    parallelfor(eachindex(Σ, Σ′, U′, U, C, Q, Λ), B) do site
         for μ in 1:4
             stout_recursion_kernel!(Σ, Σ′, U, C, Q, Λ, site, μ, ρ)
         end
@@ -151,8 +151,8 @@ function stout_recursion_kernel!(Σ, Σ′, U, C, Q, Λ, site, μ, ρ)
     )
 end
 
-function calc_stout_Λ!(Λ, Σ′, Q, U)
-    @batch for site in eachindex(Λ, Σ′, Q, U)
+function calc_stout_Λ!(Λ, Σ′, Q::Expfield{B}, U::Gaugefield{B}) where {B}
+    parallelfor(eachindex(Λ, Σ′, Q, U), B) do site
         for μ in 1:4
             calc_stout_Λ_kernel!(Λ, Σ′, Q, U, site, μ)
         end

@@ -102,8 +102,8 @@ function calc_dSfdU!(
 end
 
 function add_wilson_eo_derivative!(
-    dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, X_eo::TF, Y_eo::TF, bc; coeff=1
-) where {T,TF<:WilsonEOPreSpinorfield{CPU,T}}
+    dU::Colorfield{B,T}, U::Gaugefield{B,T}, X_eo::TF, Y_eo::TF, bc; coeff=1
+) where {B,T,TF<:WilsonEOPreSpinorfield{B,T}}
     fac = T(0.5coeff)
     X = X_eo.parent
     Y = Y_eo.parent
@@ -111,7 +111,7 @@ function add_wilson_eo_derivative!(
     # TODO: can hide
     update_halo!(U, X, Y)
 
-    @batch for site in eachindex(dU, U, X, Y)
+    parallelfor(eachindex(dU, U, X, Y), B) do site
         add_wilson_eo_derivative_kernel!(dU, U, X, Y, site, bc, fac, bulk)
     end
 
@@ -136,13 +136,13 @@ function add_wilson_eo_derivative_kernel!(dU, U, X_eo, Y_eo, site, bc, fac, bulk
 end
 
 function calc_Xμν_eo_eachsite!(
-    Xμν::Tensorfield{CPU,T}, X_eo::TF, Y_eo::TF
-) where {T,TF<:WilsonEOPreSpinorfield}
+    Xμν::Tensorfield{B,T}, X_eo::TF, Y_eo::TF
+) where {B,T,TF<:WilsonEOPreSpinorfield}
     X = X_eo.parent
     Y = Y_eo.parent
     bulk = eachindex(X)
 
-    @batch for site in eachindex(Xμν)
+    parallelfor(eachindex(Xμν), B) do site
         calc_Xμν_eo_kernel!(Xμν, X, Y, site, bulk)
     end
 
@@ -191,11 +191,11 @@ function calc_Xμν_eo_kernel!(Xμν, X, Y, site, bulk)
 end
 
 function calc_small_Xμν_eachsite!(
-    Xμν::Tensorfield{CPU,T}, D_oo_inv::Paulifield{CPU,T,M,true}
-) where {T,M}
+    Xμν::Tensorfield{B,T}, D_oo_inv::Paulifield{B,T,M,true}
+) where {B,T,M}
     bulk = eachindex(Xμν)
 
-    @batch for site in eachindex(Xμν, D_oo_inv)
+    parallelfor(eachindex(Xμν, D_oo_inv), B) do site
         calc_small_Xμν_kernel!(Xμν, D_oo_inv, site, T, bulk)
     end
 

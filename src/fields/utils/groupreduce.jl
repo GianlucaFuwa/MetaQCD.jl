@@ -59,29 +59,3 @@ end
     return val
 end
 
-# @inline function tile(NX::Integer, NY::Integer, NZ::Integer, NT::Integer)
-#     maxn = 1024
-#     num1 = min(maxn, NX)
-#     num1 = ld(NX, num1)
-#     maxn = fld(maxn, num1)
-#     num2 = min(maxn, NY)
-#     num2 = ld(NY, num2)
-#     maxn = fld(maxn, num2)
-#     num3 = min(maxn, NZ)
-#     num3 = ld(NZ, num3)
-#     maxn = fld(maxn, num3)
-#     num4 = min(maxn, NT)
-#     num4 = ld(NT, num4)
-#     return num4, num3, num2, num1
-# end
-
-# function ld(x::Integer, y::Integer)
-#     z = y
-#     while z > 0
-#         if x % z == 0
-#             return z
-#         end
-#         z -= 1
-#     end
-#     return 1
-# end

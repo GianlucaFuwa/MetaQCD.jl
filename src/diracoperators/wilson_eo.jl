@@ -224,8 +224,8 @@ function LinearAlgebra.mul!(
 end
 
 function mul_oe!(
-    ψ_eo::TF, U::Gaugefield{CPU,T}, ϕ_eo::TF, bc, into_odd, ::Val{dagg}; fac=1
-) where {T,TF<:WilsonEOPreSpinorfield{CPU,T},dagg}
+    ψ_eo::TF, U::Gaugefield{B,T}, ϕ_eo::TF, bc, into_odd, ::Val{dagg}; fac=1
+) where {B,T,TF<:WilsonEOPreSpinorfield{B,T},dagg}
     ψ = ψ_eo.parent
     ϕ = ϕ_eo.parent
     bulk = eachindex(ψ)
@@ -233,7 +233,7 @@ function mul_oe!(
     # TODO: can hide
     update_halo!(U, ϕ)
 
-    @batch for o_site in eachindex(odd_half, ψ, ϕ, U)
+    parallelfor(eachindex(odd_half, ψ, ϕ, U), B) do o_site
         site = map_from_half(o_site, bulk)
         _site = into_odd ? o_site : switch_sides(o_site, bulk)
         ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, bc, T, Val(dagg), bulk)
@@ -243,8 +243,8 @@ function mul_oe!(
 end
 
 function mul_eo!(
-    ψ_eo::TF, U::Gaugefield{CPU,T}, ϕ_eo::TF, bc, into_odd, ::Val{dagg}; fac=1
-) where {T,TF<:WilsonEOPreSpinorfield{CPU,T},dagg}
+    ψ_eo::TF, U::Gaugefield{B,T}, ϕ_eo::TF, bc, into_odd, ::Val{dagg}; fac=1
+) where {B,T,TF<:WilsonEOPreSpinorfield{B,T},dagg}
     check_dims(ψ_eo, ϕ_eo, U)
     ψ = ψ_eo.parent
     ϕ = ϕ_eo.parent
@@ -253,7 +253,7 @@ function mul_eo!(
     # TODO: can hide
     update_halo!(U, ϕ)
 
-    @batch for e_site in eachindex(even_half, ψ, ϕ, U)
+    parallelfor(eachindex(even_half, ψ, ϕ, U), B) do e_site
         site = map_from_half(e_site, bulk)
         _site = into_odd ? switch_sides(e_site, bulk) : e_site
         ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, bc, T, Val(dagg), bulk)
@@ -284,33 +284,27 @@ function wilson_eo_kernel(U, ϕ, site, bc, ::Type{T}, ::Val{dagg}, bulk) where {
 end
 
 function calc_diag!(
-    D_diag::TW, D_oo_inv::TW, ::Nothing, U::Gaugefield{CPU,T}, mass
-) where {T,M,TW<:Paulifield{CPU,T,M,false}}
+    D_diag::TW, D_oo_inv::TW, ::Nothing, U::Gaugefield{B,T}, mass
+) where {B,T,M,TW<:Paulifield{B,T,M,false}}
     check_dims(D_diag, D_oo_inv, U)
     mass_term = Complex{T}(4 + mass)
     bulk = eachindex(U)
 
-    @batch for site in eachindex(D_diag, D_oo_inv, U)
-        calc_diag_kernel!(D_diag, D_oo_inv, mass_term, site, T, bulk)
+    parallelfor(eachindex(D_diag, D_oo_inv, U), B) do site
+        _site = map_to_half(site, bulk)
+        A = SMatrix{6,6,Complex{T},36}(mass_term * I)
+        D_diag[site] = PauliMatrix(A, A)
+
+        if isodd(site)
+            A_inv = SMatrix{6,6,Complex{T},36}(1/mass_term * I)
+            D_oo_inv[_site] = PauliMatrix(A_inv, A_inv)
+        end
     end
-end
-
-function calc_diag_kernel!(D_diag, D_oo_inv, mass_term, site, ::Type{T}, bulk) where {T}
-    _site = map_to_half(site, bulk)
-    A = SMatrix{6,6,Complex{T},36}(mass_term * I)
-    D_diag[site] = PauliMatrix(A, A)
-
-    if isodd(site)
-        A_inv = SMatrix{6,6,Complex{T},36}(1/mass_term * I)
-        D_oo_inv[_site] = PauliMatrix(A_inv, A_inv)
-    end
-
-    return nothing
 end
 
 function calc_diag!(
-    D_diag::TW, D_oo_inv::TW, Fμν::Tensorfield{CPU,T}, U::Gaugefield{CPU,T}, mass
-) where {T,M,TW<:Paulifield{CPU,T,M,true}} # With clover term
+    D_diag::TW, D_oo_inv::TW, Fμν::Tensorfield{B,T}, U::Gaugefield{B,T}, mass
+) where {B,T,M,TW<:Paulifield{B,T,M,true}} # With clover term
     mass_term = Complex{T}(4 + mass)
     fac = Complex{T}(D_diag.csw / 2)
     bulk = eachindex(U)
@@ -319,7 +313,7 @@ function calc_diag!(
 
     fieldstrength_eachsite!(Clover(), Fμν, U)
 
-    @batch for site in eachindex(D_diag, D_oo_inv, Fμν, U)
+    parallelfor(eachindex(D_diag, D_oo_inv, Fμν, U), B) do site
         calc_diag_csw_kernel!(D_diag, D_oo_inv, Fμν, mass_term, site, fac, T, bulk)
     end
 end
@@ -372,12 +366,12 @@ function calc_diag_csw_kernel!(
 end
 
 function mul_oo_inv!(
-    ϕ_eo::WilsonEOPreSpinorfield{CPU,T}, D_oo_inv::Paulifield{CPU,T}
-) where {T}
+    ϕ_eo::WilsonEOPreSpinorfield{B,T}, D_oo_inv::Paulifield{B,T}
+) where {B,T}
     ϕ = ϕ_eo.parent
     odd_half = false
 
-    @batch for o_site in eachindex(odd_half, ϕ, D_oo_inv)
+    parallelfor(eachindex(odd_half, ϕ, D_oo_inv), B) do o_site
         ϕ[o_site] = cmvmul_block(D_oo_inv[o_site], ϕ[o_site])
     end
 
@@ -385,13 +379,13 @@ function mul_oo_inv!(
 end
 
 function axmy!(
-    D_diag::Paulifield{CPU,T}, ψ_eo::TF, ϕ_eo::TF
-) where {T,TF<:WilsonEOPreSpinorfield{CPU,T}} # even on even is the default
+    D_diag::Paulifield{B,T}, ψ_eo::TF, ϕ_eo::TF
+) where {B,T,TF<:WilsonEOPreSpinorfield{B,T}} # even on even is the default
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent
     even_half = true
 
-    @batch for e_site in eachindex(even_half, ϕ)
+    parallelfor(eachindex(even_half, ψ, ϕ, D_diag), B) do e_site
         ϕ[e_site] = cmvmul_block(D_diag[e_site], ψ[e_site]) - ϕ[e_site]
     end
 
@@ -405,13 +399,12 @@ function trlog(D_diag::Paulifield{B,T,M,false}, mass) where {B,T,M} # Without cl
     return length(D_diag)÷2 * logd
 end
 
-function trlog(D_diag::Paulifield{CPU,T,M,true}, ::Any) where {T,M} # With clover term
-    d = 0.0
+function trlog(D_diag::Paulifield{B,T,M,true}, ::Any) where {B,T,M} # With clover term
     odd_half = false
 
-    @batch reduction=(+, d) for o_site in eachindex(odd_half, D_diag)
+    d = parallelfor_sum(eachindex(odd_half, D_diag), 0.0, B) do dₙ, o_site
         p = D_diag[o_site]
-        d += log(real(det(p.upper)) * real(det(p.lower)))
+        dₙ += log(real(det(p.upper)) * real(det(p.lower)))
     end
 
     return distributed_reduce(d, +, D_diag)

@@ -12,7 +12,7 @@ const TOPO_EXP = Dict(
     "improved" => -0.03210085960569041,
 )
 
-function test_measurements(backend=CPU; nprocs_cart=(1, 1, 1, 1), halo_width=2)
+function test_measurements(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=2)
     mpi_amroot() && println("Gauge observable tests")
     NX = 4
     NY = 4

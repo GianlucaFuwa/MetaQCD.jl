@@ -75,13 +75,13 @@ function calc_dSfdU!(
 end
 
 function add_staggered_derivative!(
-    dU::Colorfield{CPU,T,M}, U::Gaugefield{CPU,T,M}, X::TF, Y::TF, bc; coeff=1
-) where {T,M,TF<:StaggeredSpinorfield{CPU,T,M}}
+    dU::Colorfield{B,T}, U::Gaugefield{B,T,M}, X::TF, Y::TF, bc; coeff=1
+) where {B,T,M,TF<:StaggeredSpinorfield{B,T,M}}
     fac = T(-0.5coeff)
     # TODO: can hide
     update_halo!(U, X, Y)
 
-    @batch for site in eachindex(dU, U, X, Y)
+    parallelfor(eachindex(dU, U, X, Y), B) do site
         add_staggered_derivative_kernel!(dU, U, X, Y, site, bc, fac)
     end
 

@@ -66,8 +66,8 @@ end
 # The Gaugefields module into CG.jl, which also allows us to use the solvers for
 # for arbitrary arrays, not just fermion fields and dirac operators (good for testing)
 function LinearAlgebra.mul!(
-    ψ::TF, D::StaggeredDiracOperator{CPU,T,TF,TG}, ϕ::TF
-) where {T,TF,TG}
+    ψ::TF, D::StaggeredDiracOperator{B,T,TF,TG}, ϕ::TF
+) where {B,T,TF,TG}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.U
     mass = T(D.mass)
@@ -75,7 +75,7 @@ function LinearAlgebra.mul!(
     # TODO: can hide
     update_halo!(U, ϕ)
 
-    @batch for site in eachindex(ψ, ϕ, U)
+    parallelfor(eachindex(ψ, ϕ, U), B) do site
         ψ[site] = staggered_kernel(U, ϕ, site, mass, bc, T, false)
     end
 
@@ -83,8 +83,8 @@ function LinearAlgebra.mul!(
 end
 
 function LinearAlgebra.mul!(
-    ψ::TF, D::Daggered{StaggeredDiracOperator{CPU,T,TF,TG,BC}}, ϕ::TF
-) where {T,TF,TG,BC}
+    ψ::TF, D::Daggered{StaggeredDiracOperator{B,T,TF,TG,BC}}, ϕ::TF
+) where {B,T,TF,TG,BC}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.parent.U
     mass = T(D.parent.mass)
@@ -92,7 +92,7 @@ function LinearAlgebra.mul!(
     # TODO: can hide
     update_halo!(U, ϕ)
 
-    @batch for site in eachindex(ψ, ϕ, U)
+    parallelfor(eachindex(ψ, ϕ, U), B) do site
         ψ[site] = staggered_kernel(U, ϕ, site, mass, bc, T, true)
     end
 

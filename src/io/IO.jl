@@ -12,7 +12,8 @@ using StaticArrays
 using ..Parameters
 using ..Utils
 
-import ..Fields: Gaugefield, is_distributed, get_global_volume, get_global_dims
+import ..Fields: Gaugefield, is_distributed, get_global_volume, get_global_dims, parallelfor
+import ..Fields: WilsonGaugeAction, array_type, to_backend
 
 export __GlobalLogger, MetaLogger, current_time, @level1, @level2, @level3, @level4
 export BMWFormat, BridgeFormat, Checkpointer, ConfigSaver, JLD2Format, set_global_logger!

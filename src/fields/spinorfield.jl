@@ -85,80 +85,65 @@ Base.@propagate_inbounds function Base.setindex!(u::MPISpinorfield, v, site::Sit
     return nothing
 end
 
-function clear!(ϕ::Spinorfield{CPU,T}) where {T}
-    @batch for site in eachindex(ϕ)
-        ϕ[site] = zero(ϕ[site])
-    end
-
-    return nothing
-end
-
-function Base.copy!(ϕ::T, ψ::T) where {T<:Spinorfield{CPU}}
-    @batch for site in eachindex(ϕ, ψ)
-        ϕ[site] = ψ[site]
-    end
-
-    return nothing
-end
-
-function ones!(ϕ::Spinorfield{CPU,T}) where {T}
-    @batch for site in eachindex(ϕ)
+function ones!(ϕ::Spinorfield{B,T}) where {B,T}
+    parallelfor(eachindex(ϕ), B) do site
         ϕ[site] = fill(1, ϕ[site])
     end
 
     return nothing
 end
 
-function set_source!(ϕ::Spinorfield{CPU,T}, site::SiteCoords, a, μ) where {T}
+function set_source!(ϕ::Spinorfield{B,T}, source::SiteCoords, a, μ) where {B,T}
     NC = num_colors(ϕ)
     ND = num_dirac(ϕ)
     @assert μ ∈ 1:ND && a ∈ 1:NC
-    clear!(ϕ)
     vec_index = (μ - 1) * NC + a
-    tup = ntuple(i -> i == vec_index ? one(Complex{T}) : zero(Complex{T}), Val(3ND))
-    ϕ[site] = SVector{3ND,Complex{T}}(tup)
-    update_halo!(ϕ)
-    return nothing
-end
 
-function gaussian_pseudofermions!(ϕ::Spinorfield{CPU,T}) where {T}
-    sz = num_dirac(ϕ) * num_colors(ϕ)
-
-    for site in eachindex(ϕ)
-        ϕ[site] = @SVector randn(Complex{T}, sz) # σ = 0.5
+    parallelfor(eachindex(ϕ), B) do site
+        if site == source
+            tup = ntuple(i -> i == vec_index ? one(Complex{T}) : zero(Complex{T}), Val(3ND))
+            ϕ[site] = SVector{3ND,Complex{T}}(tup)
+        else
+            ϕ[site] = zero(SVector{3ND,Complex{T}})
+        end
     end
 
-    update_halo!(ϕ)
     return nothing
 end
 
-function LinearAlgebra.mul!(ψ::TF, ϕ::TF, α) where {T,TF<:Spinorfield{CPU,T}}
+function gaussian_pseudofermions!(ϕ::Spinorfield{B,T,M,AT,ND}) where {B,T,M,AT,ND}
+    parallelfor(eachindex(ϕ), B) do site
+        ϕ[site] = randn(SVector{3ND,Complex{T}}) # σ = 0.5
+    end
+
+    return nothing
+end
+
+function LinearAlgebra.mul!(ψ::TF, ϕ::TF, α) where {B,T,TF<:Spinorfield{B,T}}
     α = T(α)
 
-    @batch for site in eachindex(ϕ)
+    parallelfor(eachindex(ϕ, ψ), B) do site
         ψ[site] = α * ϕ[site]
     end
 
     return nothing
 end
 
-function LinearAlgebra.axpy!(α, ψ::TF, ϕ::TF) where {T,TF<:Spinorfield{CPU,T}}
+function LinearAlgebra.axpy!(α, ψ::TF, ϕ::TF) where {B,T,TF<:Spinorfield{B,T}}
     α = Complex{T}(α)
 
-    # I'm pretty sure iterating over all indices is fine here
-    @batch for site in eachindex(ψ, ϕ)
+    parallelfor(eachindex(ϕ, ψ), B) do site
         ϕ[site] += α * ψ[site]
     end
 
     return nothing
 end
 
-function LinearAlgebra.axpby!(α, ψ::TF, β, ϕ::TF) where {T,TF<:Spinorfield{CPU,T}}
+function LinearAlgebra.axpby!(α, ψ::TF, β, ϕ::TF) where {B,T,TF<:Spinorfield{B,T}}
     α = Complex{T}(α)
     β = Complex{T}(β)
 
-    # I'm pretty sure iterating over all indices is fine here
-    @batch for site in eachindex(ϕ, ψ)
+    parallelfor(eachindex(ϕ, ψ), B) do site
         ϕ[site] = α * ψ[site] + β * ϕ[site]
     end
 
@@ -167,22 +152,20 @@ end
 
 LinearAlgebra.norm(ϕ::Spinorfield) = sqrt(real(dot(ϕ, ϕ)))
 
-function LinearAlgebra.dot(ϕ::T, ψ::T) where {T<:Spinorfield{CPU}}
-    res = 0.0 + 0.0im # res is always double precision, even if T is single precision
-
-    @batch reduction = (+, res) for site in eachindex(ϕ, ψ)
-        res += cdot(ϕ[site], ψ[site])
+function LinearAlgebra.dot(ϕ::T, ψ::T) where {B,T<:Spinorfield{B}}
+    res = parallelfor_sum(eachindex(ϕ, ψ), 0.0+0.0im, B) do d, site
+        d += dot(ϕ[site], ψ[site])
     end
 
     return distributed_reduce(res, +, ϕ)
 end
 
-function create_sendbuf!(f::Spinorfield, sites, dim, dir)
+function create_sendbuf!(f::Spinorfield{B}, sites, dim, dir) where {B}
     ibuf = dir + 2(dim - 1)
     sendbuf = f.sendbuf[ibuf]
     bulk = eachindex(f)
 
-    @batch for i in eachindex(IndexLinear(), sites)
+    parallelfor(eachindex(IndexLinear(), sites), B) do i
         site = sites[i]
         _site = map_to_half(site, bulk)
         sendbuf[i] = f[_site]
@@ -191,10 +174,10 @@ function create_sendbuf!(f::Spinorfield, sites, dim, dir)
     return sendbuf
 end
 
-function Base.copyto!(a::Spinorfield, b::Spinorfield, arange, brange)
+function Base.copyto!(a::T, b::T, arange, brange) where {B,T<:Spinorfield{B}}
     @assert length(arange) == length(brange) "send buffer and recv buffer arent of same size"
 
-    @batch for i in eachindex(IndexLinear(), arange)
+    parallelfor(eachindex(IndexLinear(), arange), B) do i
         site_a = arange[i]
         site_b = brange[i]
         a[site_a] = b[site_b]
@@ -202,3 +185,4 @@ function Base.copyto!(a::Spinorfield, b::Spinorfield, arange, brange)
 
     return nothing
 end
+

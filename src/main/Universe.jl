@@ -36,7 +36,7 @@ struct Univ{TG,TF,TB}
         @level1("|  FP PREC: $(string(T))")
         @level1("|  L: $(NX)x$(NY)x$(NZ)x$(NT)")
         @level1("|  GAUGE ACTION: $(string(GA))")
-        @level1("|  BETA: $(U.β)")
+        @level1("|  BETA: $(Float64(U.β))")
 
         if TF === QuenchedFermionAction
             @level1("|  FERMION ACTION: Quenched\n-\n")
@@ -58,7 +58,7 @@ struct Univ{TG,TF,TB}
         @level1("|  FP PREC: $(string(T))")
         @level1("|  L: $(NX)x$(NY)x$(NZ)x$(NT)")
         @level1("|  GAUGE ACTION: $(string(GA))")
-        @level1("|  BETA: $(U[1].β)")
+        @level1("|  BETA: $(Float64(U[1].β))")
 
         if TF === QuenchedFermionAction
             @level1("|  FERMION ACTION:\n-\n")

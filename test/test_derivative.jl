@@ -4,7 +4,7 @@ using MetaQCD.Utils
 using MetaQCD.Measurements: top_charge_deriv!
 using Test
 
-function test_ga_derivative(; backend=CPU, GA=WilsonGaugeAction, nprocs_cart=(1, 1, 1, 1), halo_width=1)
+function test_derivative(; backend=CPU, GA=WilsonGaugeAction, nprocs_cart=(1, 1, 1, 1), halo_width=1)
     Random.seed!(123)
     mpi_amroot() && println("Gauge and Clover derivative test")
 
@@ -15,7 +15,7 @@ function test_ga_derivative(; backend=CPU, GA=WilsonGaugeAction, nprocs_cart=(1,
         NY = 4
         NZ = 4
         NT = 4
-        U = Gaugefield{backend,Float64,WilsonGaugeAction}(
+        Ucpu = Gaugefield{CPU,Float64,GA}(
             NX, NY, NZ, NT, 6.0, numprocs_cart=nprocs_cart, halo_width=halo_width
         )
         filename = if nprocs_cart != (1, 1, 1, 1)
@@ -23,10 +23,13 @@ function test_ga_derivative(; backend=CPU, GA=WilsonGaugeAction, nprocs_cart=(1,
         else
             pkgdir(MetaQCD, "test", "testconf.txt")
         end
-        load_config!(BridgeFormat(), U, filename)
+
+        load_config!(BridgeFormat(), Ucpu, filename)
 
         if backend !== CPU
-            U = MetaQCD.to_backend(backend, U)
+            U = MetaQCD.to_backend(backend, Ucpu)
+        else
+            U = Ucpu
         end
 
         # gaction_old = calc_gauge_action(U)
@@ -50,33 +53,27 @@ function test_ga_derivative(; backend=CPU, GA=WilsonGaugeAction, nprocs_cart=(1,
 
         for group_direction in 1:8
             # Unsmeared
-            Ufwd = deepcopy(U)
-            if site in eachindex(U)
-                Ufwd[μ, site] = expλ(group_direction, ΔH) * Ufwd[μ, site]
+            Ufwdcpu = deepcopy(Ucpu)
+            if site in eachindex(Ucpu)
+                Ufwdcpu[μ, site] = expλ(group_direction, ΔH) * Ufwdcpu[μ, site]
             end
+            Ufwd = to_backend(backend, Ufwdcpu)
             gaction_new_fwd = calc_gauge_action(Ufwd)
             topcharge_new_fwd = top_charge(Clover(), Ufwd)
 
-            Ubwd = deepcopy(U)
-            if site in eachindex(U)
-                Ubwd[μ, site] = expλ(group_direction, -ΔH) * Ubwd[μ, site]
+            Ubwdcpu = deepcopy(Ucpu)
+            if site in eachindex(Ucpu)
+                Ubwdcpu[μ, site] = expλ(group_direction, -ΔH) * Ubwdcpu[μ, site]
             end
+            Ubwd = to_backend(backend, Ubwdcpu)
             gaction_new_bwd = calc_gauge_action(Ubwd)
             topcharge_new_bwd = top_charge(Clover(), Ubwd)
 
             # Smeared
-            Ufwd = deepcopy(U)
-            if site in eachindex(U)
-                Ufwd[μ, site] = expλ(group_direction, ΔH) * Ufwd[μ, site]
-            end
             calc_smearedU!(smearing, Ufwd)
             gaction_new_fwd_smeared = calc_gauge_action(smearing.Usmeared_multi[end])
             topcharge_new_fwd_smeared = top_charge(Clover(), smearing.Usmeared_multi[end])
 
-            Ubwd = deepcopy(U)
-            if site in eachindex(U)
-                Ubwd[μ, site] = expλ(group_direction, -ΔH) * Ubwd[μ, site]
-            end
             calc_smearedU!(smearing, Ubwd)
             gaction_new_bwd_smeared = calc_gauge_action(smearing.Usmeared_multi[end])
             topcharge_new_bwd_smeared = top_charge(Clover(), smearing.Usmeared_multi[end])
@@ -98,11 +95,6 @@ function test_ga_derivative(; backend=CPU, GA=WilsonGaugeAction, nprocs_cart=(1,
             ga_symm_diff_smeared = (gaction_new_fwd_smeared - gaction_new_bwd_smeared) / 2ΔH
             tc_symm_diff_smeared = (topcharge_new_fwd_smeared - topcharge_new_bwd_smeared) / 2ΔH
 
-            # @show tc_symm_diff
-            # @show dtopcharge_proj
-            # @show tc_symm_diff_smeared
-            # @show dtopcharge_proj_smeared
-            # println("---")
             relerrors[group_direction, 1] = (ga_symm_diff - dgaction_proj) / ga_symm_diff
             relerrors[group_direction, 2] =
                 (ga_symm_diff_smeared - dgaction_proj_smeared) / ga_symm_diff_smeared

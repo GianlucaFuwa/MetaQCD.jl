@@ -85,8 +85,8 @@ function LinearAlgebra.mul!(
 end
 
 function mul_oe!(
-    ψ_eo::TF, U::Gaugefield{CPU,T,M}, ϕ_eo::TF, bc, into_odd, dagg::Bool; fac=1
-) where {T,M,TF<:SpinorfieldEO{CPU,T,M}}
+    ψ_eo::TF, U::Gaugefield{B,T,M}, ϕ_eo::TF, bc, into_odd, dagg::Bool; fac=1
+) where {B,T,M,TF<:SpinorfieldEO{B,T,M}}
     ψ = ψ_eo.parent
     ϕ = ϕ_eo.parent
     bulk = eachindex(ψ)
@@ -95,7 +95,7 @@ function mul_oe!(
     # TODO: can hide
     update_halo!(U, ϕ)
 
-    @batch for o_site in eachindex(odd_half, ψ, ϕ, U)
+    parallelfor(eachindex(odd_half, ψ, ϕ, U), B) do o_site
         site = map_from_half(o_site, bulk)
         _site = into_odd ? o_site : switch_sides(o_site, bulk)
         ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, bc, T, dagg, halo, bulk)
@@ -105,8 +105,8 @@ function mul_oe!(
 end
 
 function mul_eo!(
-    ψ_eo::TF, U::Gaugefield{CPU,T,M}, ϕ_eo::TF, bc, into_odd, dagg::Bool; fac=1
-) where {T,M,TF<:SpinorfieldEO{CPU,T,M}}
+    ψ_eo::TF, U::Gaugefield{B,T,M}, ϕ_eo::TF, bc, into_odd, dagg::Bool; fac=1
+) where {B,T,M,TF<:SpinorfieldEO{B,T,M}}
     ψ = ψ_eo.parent
     ϕ = ϕ_eo.parent
     bulk = eachindex(ψ)
@@ -115,7 +115,7 @@ function mul_eo!(
     # TODO: can hide
     update_halo!(U, ϕ)
 
-    @batch for e_site in eachindex(even_half, ψ, ϕ, U)
+    parallelfor(eachindex(even_half, ψ, ϕ, U), B) do e_site
         site = map_from_half(e_site, bulk)
         _site = into_odd ? switch_sides(e_site, bulk) : e_site
         ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, bc, T, dagg, halo, bulk)

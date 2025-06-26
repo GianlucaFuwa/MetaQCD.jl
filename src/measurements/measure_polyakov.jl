@@ -83,27 +83,22 @@ function measure(
     return poly
 end
 
-function polyakov_traced(U::Gaugefield{CPU})
+function polyakov_traced(U::Gaugefield{B}) where {B}
     @assert U.topology.numprocs_cart[4] == 1 """
     for polyakov loop, the field cannot be partitioned in the t-dimension
     """
-    NX, NY, NZ, NT = size(U)
-    xrange, yrange, zrange, _ = U.topology.bulk_sites.indices
-    halo_width = U.topology.halo_width
-    P = 0.0 + 0.0im
+    NX, NY, NZ, _ = size(U)
+    xrange, yrange, zrange, trange = U.topology.bulk_sites.indices
 
-    @batch reduction = (+, P) for iz in zrange
-        for iy in yrange
-            for ix in xrange
-                polymat = U[4, ix, iy, iz, 1]
+    P = parallelfor_sum(CartesianIndices((xrange, yrange, zrange)), 0.0+0.0im, B; block_size=64) do p, xyz
+        ix, iy, iz = xyz.I
+        polymat = U[4, ix, iy, iz, 1]
 
-                for it in 2:NT
-                    polymat = cmatmul_oo(polymat, U[4, ix, iy, iz, it])
-                end
-
-                P += tr(polymat)
-            end
+        for it in trange[2:end]
+            polymat = cmatmul_oo(polymat, U[4, ix, iy, iz, it])
         end
+
+        p += tr(polymat)
     end
 
     return distributed_reduce(P / (NX * NY * NZ), +, U)

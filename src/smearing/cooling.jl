@@ -49,12 +49,12 @@ function flow!(cool::Cooling)
     return nothing
 end
 
-function cool!(Uflow::Gaugefield{CPU})
+function cool!(Uflow::Gaugefield{B}) where {B}
     GA = WilsonGaugeAction()
     # TODO: can hide
     update_halo!(Uflow)
 
-    @batch for site in eachindex(Uflow)
+    parallelfor(eachindex(Uflow), B) do site
         for μ in 1:4
             old_link = Uflow[μ, site]
             A_adj = staple(GA, Uflow, μ, site)'

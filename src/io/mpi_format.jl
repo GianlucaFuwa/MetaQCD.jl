@@ -25,6 +25,7 @@ function load_config!(::BridgeFormat, U::Gaugefield{CPU,T,true}, filename) where
     Utils.MPI.File.read_all!(fp, tmp)
     i = 1
 
+    # TODO: for GPU
     for site in eachindex(U)
         for μ in 1:4
             @assert tmp[i] != zero(SMatrix{3,3,ComplexF64,9})

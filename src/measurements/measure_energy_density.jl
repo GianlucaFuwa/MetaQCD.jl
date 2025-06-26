@@ -129,58 +129,61 @@ function energy_density(U, methodname::String)
     return E
 end
 
-function energy_density(::Plaquette, U::Gaugefield{CPU})
-    E = 0.0
+function energy_density(::Plaquette, U::Gaugefield{B}) where {B}
+    update_halo!(U)
 
-    @batch reduction = (+, E) for site in eachindex(U)
+    E = parallelfor_sum(eachindex(U), 0.0, B) do e, site
         for μ in 1:3
             for ν in (μ+1):4
                 Cμν = plaquette(U, μ, ν, site)
                 Fμν = im * traceless_antihermitian(Cμν)
-                E += real(multr(Fμν, Fμν))
+                e += real(multr(Fμν, Fμν))
             end
         end
+        e
     end
 
     return distributed_reduce(E / length(U), +, U)
 end
 
-function energy_density(::Clover, U::Gaugefield{CPU,T}) where {T}
+function energy_density(::Clover, U::Gaugefield{B,T}) where {B,T}
     fac = im * T(1/4)
-    E = 0.0
+    update_halo!(U)
 
-    @batch reduction = (+, E) for site in eachindex(U)
+    E = parallelfor_sum(eachindex(U), 0.0, B) do e, site
         for μ in 1:3
             for ν in (μ+1):4
                 Cμν = clover_square(U, μ, ν, site, 1)
                 Fμν = fac * traceless_antihermitian(Cμν)
-                E += real(multr(Fμν, Fμν))
+                e += real(multr(Fμν, Fμν))
             end
         end
+        e
     end
 
     return distributed_reduce(E / length(U), +, U)
 end
 
-function energy_density(::Improved, U::Gaugefield{CPU})
+function energy_density(::Improved, U::Gaugefield)
     is_distributed(U) && @assert(U.topology.halo_width>=2)
     Eclover = energy_density(Clover(), U)
     Erect = energy_density_rect(U)
     return 5 / 3 * Eclover - 1 / 12 * Erect
 end
 
-function energy_density_rect(U::Gaugefield{CPU,T}) where {T}
+function energy_density_rect(U::Gaugefield{B,T}) where {B,T}
     fac = im * T(1/8)
-    E = 0.0
+    update_halo!(U)
 
-    @batch reduction = (+, E) for site in eachindex(U)
+    E = parallelfor_sum(eachindex(U), 0.0, B) do e, site
         for μ in 1:3
             for ν in (μ+1):4
                 Cμν = clover_rect(U, μ, ν, site, 1, 2)
                 Fμν = fac * traceless_antihermitian(Cμν)
-                E += real(multr(Fμν, Fμν))
+                e += real(multr(Fμν, Fμν))
             end
         end
+        e
     end
 
     return distributed_reduce(E / length(U), +, U)

@@ -83,13 +83,13 @@ function calc_gauge_action(::DBW2GaugeAction, U::Gaugefield)
 end
 
 function gauge_action_deriv!(
-    dU::Colorfield{CPU,T}, staples::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, fac=1
-) where {T}
+    dU::Colorfield{B,T}, staples::Colorfield{B,T}, U::Gaugefield{B,T}, fac=1
+) where {B,T}
     mβover6 = T(-U.β*fac / 6)
     gaction = gauge_action(U)()
     update_halo!(U)
 
-    @batch for site in eachindex(dU, staples, U)
+    parallelfor(eachindex(dU, staples, U), B) do site
         for μ in 1:4
             A = staple(gaction, U, μ, site)
             staples[μ, site] = A

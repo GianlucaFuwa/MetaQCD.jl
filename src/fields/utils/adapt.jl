@@ -30,7 +30,7 @@ function adapt_structure(to, u::AbstractField{B,T,M}) where {B,T,M}
         return MultiSpinorfield{B,T,M,ND}(U, halos, sendbuf, topology, u.numspinors)
     elseif u isa Paulifield
         C = has_clover_term(u)
-        return Paulifield{B,T,M,C}(U, halos, sendbuf, topology, u.csw)
+        return Paulifield{B,T,M,C}(U, halos, sendbuf, topology, u.csw, u.inverse)
     elseif u isa Colorfield
         return Colorfield{B,T,M}(U, halos, sendbuf, topology)
     elseif u isa Expfield
@@ -87,7 +87,7 @@ end
     elseif TU <: Spinorfield || TU <: MultiSpinorfield
         :(Spinorfield{CPU,T,M,num_dirac(u)}($objects...))
     elseif TU <: Paulifield
-        :(Paulifield{CPU,T,M,has_clover_term(u)}($objects..., true))
+        :(Paulifield{CPU,T,M,has_clover_term(u)}($objects...))
     else
         :($(Fieldtype){CPU,T,M}($objects...))
     end

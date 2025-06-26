@@ -25,7 +25,7 @@ function test_fderivative(;
         ""
     end
     name_str ="$dirac$(ifelse(eoprec, " even-odd", ""))"
-    MetaQCD.MetaIO.set_global_logger!(4, nothing; tc=true)
+    MetaQCD.MetaIO.set_global_logger!(1, nothing; tc=true)
 
     @testset "$(name_str)$(csw_str) derivative" begin
         Random.seed!(123 * (mpi_myrank() + 1))
@@ -33,7 +33,7 @@ function test_fderivative(;
         NY = 4
         NZ = 4
         NT = 4
-        U = Gaugefield{backend,Float64,WilsonGaugeAction}(
+        Ucpu = Gaugefield{CPU,Float64,WilsonGaugeAction}(
             NX, NY, NZ, NT, 6.0, numprocs_cart=nprocs_cart, halo_width=halo_width
         )
         filename = if nprocs_cart != (1, 1, 1, 1)
@@ -41,15 +41,14 @@ function test_fderivative(;
         else
             pkgdir(MetaQCD, "test", "testconf.txt")
         end
-        if backend==CPU
-            load_config!(BridgeFormat(), U, filename)
-        else
-            random_gauges!(U)
-        end
 
-        # if backend !== CPU
-        #     U = MetaQCD.to_backend(backend, U)
-        # end
+        load_config!(BridgeFormat(), Ucpu, filename)
+
+        if backend !== CPU
+            U = MetaQCD.to_backend(backend, Ucpu)
+        else
+            U = Ucpu
+        end
 
         is_staggered = contains(dirac, "staggered")
         is_hoelbling = dirac ∈ ("staggered-h1234", "staggered-h1324", "staggered-h1342")
@@ -60,7 +59,7 @@ function test_fderivative(;
             Spinorfield(U; staggered=is_staggered)
         end
 
-        spectral_bound, Nf = if is_staggered && !is_hoelbling
+        rhmc_spectral_bound, Nf = if is_staggered && !is_hoelbling
             (mass^2, 6.0), (single_flavor ? 1 : (eoprec ? 4 : 8))
         else
             (mass^2, 64.0), (single_flavor ? 1 : 2)
@@ -69,13 +68,14 @@ function test_fderivative(;
         action = MetaQCD.DiracOperators.FermionAction(
             dirac*ifelse(eoprec, "_eo", ""),
             U,
-            mass,
+            mass;
             bc_str="antiperiodic",
-            rhmc_spectral_bound=spectral_bound,
-            rhmc_tol_md = 0.01,
-            rhmc_tol_action = 0.01,
-            rhmc_order_md=12,
-            rhmc_order_action=12,
+            Nf,
+            rhmc_spectral_bound,
+            rhmc_tol_md=0.1,
+            rhmc_tol_action=0.1,
+            rhmc_order_md=15,
+            rhmc_order_action=15,
             cg_tol_action=1e-8,
             cg_tol_md=1e-8,
             cg_maxiters_action=1000,
@@ -100,32 +100,26 @@ function test_fderivative(;
 
         for group_direction in 1:8
             # Unsmeared
-            Ufwd = deepcopy(U)
-            if site in eachindex(U)
-                Ufwd[μ, site] = expλ(group_direction, ΔH) * Ufwd[μ, site]
+            Ufwdcpu = deepcopy(Ucpu)
+            if site in eachindex(Ucpu)
+                Ufwdcpu[μ, site] = expλ(group_direction, ΔH) * Ufwdcpu[μ, site]
             end
+            Ufwd = to_backend(backend, Ufwdcpu)
             action_new_fwd = calc_fermion_action(action, Ufwd, ψ)
 
-            Ubwd = deepcopy(U)
-            if site in eachindex(U)
-                Ubwd[μ, site] = expλ(group_direction, -ΔH) * Ubwd[μ, site]
+            Ubwdcpu = deepcopy(Ucpu)
+            if site in eachindex(Ucpu)
+                Ubwdcpu[μ, site] = expλ(group_direction, -ΔH) * Ubwdcpu[μ, site]
             end
+            Ubwd = to_backend(backend, Ubwdcpu)
             action_new_bwd = calc_fermion_action(action, Ubwd, ψ)
 
             # Smeared
-            Ufwd = deepcopy(U)
-            if site in eachindex(U)
-                Ufwd[μ, site] = expλ(group_direction, ΔH) * Ufwd[μ, site]
-            end
             calc_smearedU!(smearing, Ufwd)
             action_new_fwd_smeared = calc_fermion_action(
                 action, smearing.Usmeared_multi[end], ψ
             )
 
-            Ubwd = deepcopy(U)
-            if site in eachindex(U)
-                Ubwd[μ, site] = expλ(group_direction, -ΔH) * Ubwd[μ, site]
-            end
             calc_smearedU!(smearing, Ubwd)
             action_new_bwd_smeared = calc_fermion_action(
                 action, smearing.Usmeared_multi[end], ψ
@@ -140,10 +134,6 @@ function test_fderivative(;
             symm_diff = (action_new_fwd - action_new_bwd) / 2ΔH
             symm_diff_smeared = (action_new_fwd_smeared - action_new_bwd_smeared) / 2ΔH
 
-            if group_direction == 1
-                @show daction_proj
-                @show symm_diff
-            end
             relerrors[group_direction, 1] = (symm_diff - daction_proj) / symm_diff
             relerrors[group_direction, 2] =
                 (symm_diff_smeared - daction_proj_smeared) / symm_diff_smeared

@@ -22,7 +22,7 @@ import ..Fields: AbstractGaugeAction, Gaugefield, Colorfield, identity_gauges!, 
 import ..Fields: WilsonGaugeAction, add!, calc_gauge_action, calc_kinetic_energy, update_halo!
 import ..Fields: allindices, clear!, get_local_dims, normalize!, fieldstrength_eachsite!, float_type
 import ..Fields: check_dims, even_odd, gaussian_TA!, mul!, staple, staple_eachsite!
-import ..Fields: @groupreduce, @latmap, @latsum, @cpulatmap, @cpulatsum, gauge_action
+import ..Fields: parallelfor, @latmap, @latsum, gauge_action
 import ..Fields: AbstractField, Plaquette, Clover, Spinorfield, Tensorfield, is_distributed
 import ..Forces: calc_dSdU_bare!, calc_dSfdU_bare!, calc_dVdU_bare!
 import ..Parameters: ParameterSet
@@ -39,14 +39,6 @@ include("./overrelaxation.jl")
 include("./parity.jl")
 include("./tempering.jl")
 include("./instanton.jl")
-
-include("gpu_kernels/heatbath.jl")
-include("gpu_kernels/hmc.jl")
-include("gpu_kernels/metropolis.jl")
-include("gpu_kernels/overrelaxation.jl")
-include("gpu_kernels/parity.jl")
-include("gpu_kernels/tempering.jl")
-include("gpu_kernels/instanton.jl")
 
 function Updatemethod(parameters::ParameterSet, U; instance=mpi_myrank())
     updatemethod = Updatemethod(

@@ -220,7 +220,7 @@ function calc_fermion_action(
         fclose(fp)
     end
 
-    Sf = 2real(dot(ϕ, ψ))
+    Sf = real(dot(ϕ, ψ))
     return Sf
 end
 

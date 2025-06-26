@@ -76,11 +76,11 @@ end
 @inline gauge_action(::Gaugefield{B,T,M,AT,GA}) where {B,T,M,AT,GA} = GA
 Base.eltype(::Type{Gaugefield}, ::Type{T}) where {T} = SMatrix{3,3,Complex{T},9}
 
-function create_sendbuf!(u::AbstractField, sites, dim, dir)
+function create_sendbuf!(u::AbstractField{B}, sites, dim, dir) where {B}
     ibuf = dir + 2(dim - 1)
     sendbuf = u.sendbuf[ibuf]
 
-    @batch for i in eachindex(IndexLinear(), sites)
+    parallelfor(eachindex(IndexLinear(), sites), B) do i
         site = sites[i]
 
         for μ in 1:4
@@ -91,10 +91,10 @@ function create_sendbuf!(u::AbstractField, sites, dim, dir)
     return sendbuf
 end
 
-function Base.copyto!(a::AbstractField, b::AbstractField, arange, brange)
+function Base.copyto!(a::T, b::T, arange, brange) where {B,T<:AbstractField{B}}
     @assert length(arange) == length(brange) "send buffer and recv buffer arent of same size"
 
-    @batch for i in eachindex(IndexLinear(), arange)
+    parallelfor(eachindex(IndexLinear(), arange), B) do i
         site_a = arange[i]
         site_b = brange[i]
 

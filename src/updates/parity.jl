@@ -6,13 +6,13 @@ struct ParityUpdate{TG} <: AbstractUpdate
     end
 end
 
-function update!(parity::ParityUpdate, U)
+function update!(parity::ParityUpdate, U::Gaugefield{B}) where {B}
     NX, NY, NZ, _ = size(U)
     U_bak = parity.U_bak
     update_halo!(U)
     copy!(U_bak, U)
 
-    @batch for site in eachindex(U)
+    parallelfor(eachindex(U), B) do site
         ix, iy, iz, it = site.I
         ix_min_0 = mod(-ix, NX) + 1
         ix_min_1 = mod(-ix - 1, NX) + 1

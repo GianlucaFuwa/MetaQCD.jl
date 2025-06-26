@@ -76,8 +76,8 @@ function calc_dSfdU!(
 end
 
 function add_staggered_eo_derivative!(
-    dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, X_eo::TF, Y_eo::TF, bc; coeff=1
-) where {T,TF<:StaggeredEOPreSpinorfield{CPU,T}}
+    dU::Colorfield{B,T}, U::Gaugefield{B,T}, X_eo::TF, Y_eo::TF, bc; coeff=1
+) where {B,T,TF<:StaggeredEOPreSpinorfield{B,T}}
     X = X_eo.parent
     Y = Y_eo.parent
     fac = T(-0.5coeff)
@@ -85,7 +85,7 @@ function add_staggered_eo_derivative!(
     # TODO: can hide
     update_halo!(U, X, Y)
 
-    @batch for site in eachindex(dU, U, X, Y)
+    parallelfor(eachindex(dU, U, X, Y), B) do site
         add_staggered_eo_derivative_kernel!(dU, U, X, Y, site, bc, fac, bulk)
     end
 

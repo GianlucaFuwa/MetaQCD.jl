@@ -131,37 +131,34 @@ function top_charge(U::Gaugefield, methodname::String)
     return Q
 end
 
-function top_charge(::Plaquette, U::Gaugefield{CPU})
-    Q = 0.0
+function top_charge(::Plaquette, U::Gaugefield{B}) where {B}
     update_halo!(U)
 
-    @batch reduction = (+, Q) for site in eachindex(U)
-        Q += top_charge_density_plaq(U, site)
+    Q = parallelfor_sum(eachindex(U), 0.0, B) do q, site
+        q += top_charge_density_plaq(U, site)
     end
 
     return distributed_reduce(Q/4π^2, +, U)
 end
 
-function top_charge(::Clover, U::Gaugefield{CPU,T}) where {T}
-    Q = 0.0
+function top_charge(::Clover, U::Gaugefield{B,T}) where {B,T}
     update_halo!(U)
-
-    @batch reduction = (+, Q) for site in eachindex(U)
-        Q += top_charge_density_clover(U, site, T)
+    
+    Q = parallelfor_sum(eachindex(U), 0.0, B; block_size=64) do q, site
+        q += top_charge_density_clover(U, site, Float64)
     end
 
     return distributed_reduce(Q/4π^2, +, U)
 end
 
-function top_charge(::Improved, U::Gaugefield{CPU,T}) where {T}
+function top_charge(::Improved, U::Gaugefield{B,T}) where {B,T}
     is_distributed(U) && @assert(U.topology.halo_width>=2)
     c₀ = T(5/3)
     c₁ = T(-2/12)
-    Q = 0.0
     update_halo!(U)
 
-    @batch reduction = (+, Q) for site in eachindex(U)
-        Q += top_charge_density_imp(U, site, c₀, c₁, T)
+    Q = parallelfor_sum(eachindex(U), 0.0, B) do q, site
+        q += top_charge_density_imp(U, site, c₀, c₁, T)
     end
 
     return distributed_reduce(Q/4π^2, +, U)
@@ -228,13 +225,15 @@ function top_charge_density_rect(U, site, ::Type{T}) where {T}
     return -T(1/256) * qₙ
 end
 
-function top_charge_deriv!(dU, F, U, kind_of_charge, fac=1.0)
-    c = float_type(U)(fac / 4π^2)
+function top_charge_deriv!(
+    dU::Colorfield{B,T}, F::Tensorfield{B,T}, U::Gaugefield{B,T}, kind_of_charge, fac=1.0
+) where {B,T}
+    c = T(fac / 4π^2)
 
     fieldstrength_eachsite!(kind_of_charge, F, U)
     update_halo!(F)
 
-    @batch for site in eachindex(dU, F, U)
+    parallelfor(eachindex(dU, F, U), B) do site
         tmp1 = cmatmul_oo(
             U[1, site],
             (

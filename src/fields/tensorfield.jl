@@ -95,12 +95,12 @@ function fieldstrength_eachsite!(F::Tensorfield, U, kind_of_fs::String)
 end
 
 function fieldstrength_eachsite!(
-    ::Plaquette, F::Tensorfield{CPU,T}, U::Gaugefield{CPU,T}
-) where {T}
+    ::Plaquette, F::Tensorfield{B,T}, U::Gaugefield{B,T}
+) where {B,T}
     fac = Complex{T}(im)
     update_halo!(U)
 
-    @batch for site in eachindex(U, F)
+    parallelfor(eachindex(U, F), B) do site
         C12 = plaquette(U, 1, 2, site)
         F[1, 2, site] = fac * (C12 - C12')
         C13 = plaquette(U, 1, 3, site)
@@ -119,12 +119,12 @@ function fieldstrength_eachsite!(
 end
 
 function fieldstrength_eachsite!(
-    ::Clover, F::Tensorfield{CPU,T}, U::Gaugefield{CPU,T}
-) where {T}
+    ::Clover, F::Tensorfield{B,T}, U::Gaugefield{B,T}
+) where {B,T}
     fac = Complex{T}(im / 8)
     update_halo!(U)
 
-    @batch for site in eachindex(U, F)
+    parallelfor(eachindex(U, F), B) do site
         C12 = clover_square(U, 1, 2, site, 1)
         F[1, 2, site] = fac * (C12 - C12')
         C13 = clover_square(U, 1, 3, site, 1)
@@ -142,13 +142,13 @@ function fieldstrength_eachsite!(
     return nothing
 end
 
-function create_sendbuf!(F::Tensorfield, sites, dim, dir)
+function create_sendbuf!(F::Tensorfield{B}, sites, dim, dir) where {B}
     ibuf = dir + 2(dim - 1)
     sendbuf = F.sendbuf[ibuf]
 
-    @batch for i in eachindex(IndexLinear(), sites)
+    parallelfor(eachindex(IndexLinear(), sites), B) do i
         site = sites[i]
-        
+
         for ν in 1:4
             for μ in 1:4
                 sendbuf[μ, ν, i] = F[μ, ν, site]
@@ -159,10 +159,10 @@ function create_sendbuf!(F::Tensorfield, sites, dim, dir)
     return sendbuf
 end
 
-function Base.copyto!(a::Tensorfield, b::Tensorfield, arange, brange)
+function Base.copyto!(a::Tensorfield{B}, b::Tensorfield{B}, arange, brange) where {B}
     @assert length(arange) == length(brange) "send buffer and recv buffer arent of same size"
 
-    @batch for i in eachindex(IndexLinear(), arange)
+    parallelfor(eachindex(IndexLinear(), arange), B) do i
         site_a = arange[i]
         site_b = brange[i]
 

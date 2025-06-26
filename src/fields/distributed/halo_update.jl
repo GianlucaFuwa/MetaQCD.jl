@@ -190,7 +190,6 @@ function find_batch_loop(ex)
     idcs = findall(s->contains(string(s), string("@batch")), ex.args[2].args)
     @assert length(idcs) == 1 "No @batch loop found, couldn't hide communication"
     idx = idcs[1]
-
     loop = ex.args[2].args[idx]
     rawloop = loop.args[end]
     return loop, rawloop, idx

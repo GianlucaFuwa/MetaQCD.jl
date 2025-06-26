@@ -4,11 +4,12 @@ struct Paulifield{B,T,M,C,AT,TT} <: AbstractField{B,T,M,AT}
     sendbuf::Nothing
     topology::TT
     csw::Float64
+    inverse::Bool
     function Paulifield{B,T,M,C}(
-        U::AT, halos, sendbuf, topology::TT, csw, ::Bool
+        U::AT, halos, sendbuf, topology::TT, csw, inverse
     ) where {B,T,M,C,AT,TT}
         check_types(B, T, U, halos, sendbuf)
-        return new{B,T,M,C,AT,TT}(U, nothing, nothing, topology, csw)
+        return new{B,T,M,C,AT,TT}(U, nothing, nothing, topology, csw, inverse)
     end
 end
 
@@ -65,21 +66,21 @@ Base.@propagate_inbounds function Base.setindex!(u::MPIPaulifield, v, site::Site
     return nothing
 end
 
-function create_sendbuf!(p::Paulifield, sites, dim, dir)
+function create_sendbuf!(p::Paulifield{B}, sites, dim, dir) where {B}
     ibuf = dir + 2(dim - 1)
     sendbuf = p.sendbuf[ibuf]
 
-    @batch for i in eachindex(IndexLinear(), sites)
+    parallelfor(eachindex(IndexLinear(), sites), B) do i
         sendbuf[i] = p[sites[i]]
     end
 
     return sendbuf
 end
 
-function Base.copyto!(a::Paulifield, b::Paulifield, arange, brange)
+function Base.copyto!(a::T, b::T, arange, brange) where {B,T<:Paulifield{B}}
     @assert length(arange) == length(brange) "send buffer and recv buffer arent of same size"
 
-    @batch for i in eachindex(IndexLinear(), arange)
+    parallelfor(eachindex(IndexLinear(), arange), B) do i
         site_a = arange[i]
         site_b = brange[i]
         a[site_a] = b[site_b]

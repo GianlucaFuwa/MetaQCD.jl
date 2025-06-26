@@ -41,8 +41,10 @@ end
 include("distributed/topology.jl")
 include("distributed/halo_update.jl")
 
-include("constructor.jl")
-include("boundaries.jl") # boundary conditions in time direction for spinors
+include("utils/groupreduce.jl")
+include("utils/parallel.jl")
+include("utils/constructor.jl")
+include("utils/boundaries.jl") # boundary conditions in time direction for spinors
 include("gaugefield.jl") # Gaugefield, Colorfield and Expfield structs defined here
 include("colorfield.jl")
 include("expfield.jl")
@@ -52,25 +54,15 @@ include("spinorfield_eo.jl") # Spinorfield for even-odd precon
 include("multispinorfield.jl") # MultiSpinorfield structs defined here 
 include("paulifield.jl") # For now just a placeholder in case I want to implement more efficient storage of su(3) algebra elements
 include("tensorfield.jl") # Tensorfield struct and fieldstrength methods defined here
-include("iterators/cpu_iterators.jl") # Sequential and Checkerboard iterators defined here 
-include("iterators/gpu_iterators.jl") # GPU version of the above
-include("gpu_kernels/utils.jl")
-include("adapt.jl")
+include("utils/iterators.jl") # Sequential and Checkerboard iterators defined here 
+include("utils/adapt.jl")
 
+include("utils/field_operations.jl") # General operations on fields, like adding, copying etc.
 include("action.jl") # Gauge action methods
-include("field_operations.jl") # General operations on fields, like adding, copying etc.
 include("stencils/plaquette.jl") # Definition of clover operator
 include("stencils/clover.jl") # Definition of clover operator
 include("stencils/staple.jl") # Definition of staple operator
 include("stencils/wilsonloop.jl") # Definition of arbitrary side length Wilson loops
-
-include("gpu_kernels/action.jl") # GPU versions of the above:
-include("gpu_kernels/algebrafield.jl")
-include("gpu_kernels/field_operations.jl")
-# TODO: include("gpu_kernels/paulifield.jl")
-include("gpu_kernels/spinorfield.jl")
-include("gpu_kernels/tensorfield.jl")
-include("gpu_kernels/wilsonloop.jl")
 
 # XXX: Not sure why these are here, but whatever
 Base.similar(u::Gaugefield) = Gaugefield(u)
@@ -79,15 +71,6 @@ Base.similar(u::Expfield) = Expfield(u)
 Base.similar(u::Tensorfield) = Tensorfield(u)
 Base.similar(u::Spinorfield) = Spinorfield(u)
 Base.similar(u::MultiSpinorfield) = MultiSpinorfield(u)
-
-# Base.view(u::AbstractField, I::CartesianIndices{4}) = view(u.U, 1:4, I.indices...)
-# Base.view(u::AbstractField, I::Vector{CartesianIndex{4}}) = view(u.U, 1:4, I)
-# Base.view(u::Tensorfield, I::CartesianIndices{4}) = view(u.U, 1:4, 1:4, I.indices...)
-# Base.view(u::Tensorfield, I::Vector{CartesianIndex{4}}) = view(u.U, 1:4, 1:4, I)
-# Base.view(f::Spinorfield, I::CartesianIndices{4}) = view(f.U, I.indices...)
-# Base.view(f::Spinorfield, I::Vector{CartesianIndex{4}}) = view(f.U, I)
-# Base.view(f::MultiSpinorfield, s, I::CartesianIndices{4}) = view(f.U, s, I.indices...)
-# Base.view(f::MultiSpinorfield, s, I::Vector{CartesianIndex{4}}) = view(f.U, s, I)
 
 """
     to_backend(Backend_out, u::AbstractField{Backend_in,FloatType})
@@ -112,16 +95,22 @@ function to_backend(
     Fieldtype = eval(nameof(typeof(u)))
     A = array_type(Bout)
     new_eltype = convert(Tout, eltype(u.U))
-    Uout = A{new_eltype}(u.U)
-    sendbuf = isnothing(u.sendbuf) ? nothing : A{new_eltype}(u.sendbuf)
+    Uout = OffsetArray(A{new_eltype}(u.U), eachindex(IndexCartesian(), u.U).indices...)
     halos = if isnothing(u.halos)
         nothing
     else
         ntuple(Val(8)) do i
             OffsetArray(
                 KA.zeros(Bout(), new_eltype, size(u.halos[i])),
-                eachindex(u.halos[i])...
+                eachindex(IndexCartesian(), u.halos[i]).indices...
             )
+        end
+    end
+    sendbuf = if isnothing(u.sendbuf)
+        nothing
+    else
+        ntuple(Val(8)) do i
+            KA.zeros(Bout(), new_eltype, size(u.sendbuf[i]))
         end
     end
 
@@ -283,9 +272,9 @@ Check if all fields have the same dimensions. Throw an `AssertionError` otherwis
 end
 
 # So we don't print the entire array in the REPL...
-function Base.show(io::IO, ::MIME"text/plain", u::T) where {T<:AbstractField}
-    print(io, "$(nameof(typeof(u)))", "(\n")
-    for fieldname in fieldnames(T)
+function Base.show(io::IO, ::MIME"text/plain", u::AbstractField{B,T}) where {B,T}
+    print(io, "$(nameof(typeof(u))){$B,$T}", "(\n")
+    for fieldname in fieldnames(typeof(u))
         if fieldname in (:U, :halos, :sendbuf)
             println(io, "\t", fieldname, ": $(nameof(typeof(getfield(u, fieldname))))")
         elseif fieldname == :topology
@@ -298,9 +287,9 @@ function Base.show(io::IO, ::MIME"text/plain", u::T) where {T<:AbstractField}
     return nothing
 end
 
-function Base.show(io::IO, u::T) where {T<:AbstractField}
-    print(io, "$(nameof(typeof(u)))", "(\n")
-    for fieldname in fieldnames(T)
+function Base.show(io::IO, u::AbstractField{B,T}) where {B,T}
+    print(io, "$(nameof(typeof(u))){$B,$T}", "(\n")
+    for fieldname in fieldnames(typeof(u))
         if fieldname in (:U, :halos, :sendbuf)
             println(io, "\t", fieldname, " = $(nameof(typeof(getfield(u, fieldname))))()")
         elseif fieldname == :topology

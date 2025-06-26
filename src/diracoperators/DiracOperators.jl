@@ -28,8 +28,8 @@ import ..Fields: AbstractField, FieldTopology, Gaugefield, Paulifield, Spinorfie
 import ..Fields: MultiSpinorfield, SpinorfieldEO, Tensorfield, num_spinors, get_global_dims
 import ..Fields: check_dims, get_local_dims, get_global_dims, get_local_volume
 import ..Fields: clear!, clover_square , even_odd, gaussian_pseudofermions!, is_distributed
-import ..Fields: @latmap, @latsum, Clover, Checkerboard2, Sequential, set_source!
-import ..Fields: @groupreduce, fieldstrength_eachsite!, num_colors, num_dirac
+import ..Fields: parallelfor, parallelfor_sum, Clover, Checkerboard2, Sequential, set_source!
+import ..Fields: fieldstrength_eachsite!, num_colors, num_dirac
 import ..Fields: PeriodicBC, AntiPeriodicBC, apply_bc, create_bc, distributed_reduce
 import ..Fields: update_halo!
 
@@ -96,20 +96,7 @@ include("staggered.jl")
 include("staggered_hoelbling.jl")
 include("wilson.jl")
 include("wilson_eo.jl")
-include("gpu_kernels/staggered.jl")
-include("gpu_kernels/staggered_hoelbling.jl")
-include("gpu_kernels/staggered_eo.jl")
-include("gpu_kernels/wilson.jl")
-include("gpu_kernels/wilson_eo.jl")
 include("arnoldi.jl")
-
-# @inline function Base.isa(D, ::Type{StaggeredTypeOperator})
-#     return (D isa StaggeredDiracOperator || D isa StaggeredEOPreDiracOperator)
-# end
-#
-# @inline function Base.isa(D, ::Type{WilsonTypeOperator})
-#     return (D isa WilsonDiracOperator || D isa WilsonEOPreDiracOperator)
-# end
 
 const DIRAC_OPERATORS = Dict(
     "staggered" => StaggeredDiracOperator,
