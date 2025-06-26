@@ -1,5 +1,5 @@
 [![Global Docs](https://img.shields.io/badge/docs-MetaQCD-blue.svg)](https://gianlucafuwa.github.io/MetaQCD.jl/dev/)
-[![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
+<!-- [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl) -->
 
 # MetaQCD.jl
 
@@ -23,12 +23,13 @@ For detailed information on how to use this package, see the [docs](https://gian
 - [x] Even-odd preconditioner for Wilson(-Clover)
 - [x] Even-odd preconditioner for Staggered
 - [ ] Mass-splitting preconditioner / Hasenbusch trick
-- [ ] Full support for CUDA and ROCm backends
+- [x] Full support for GPU Backends (Should support all Backends that KernelAbstractions.jl supports, though not all are tested)
 - [ ] Multi-node parallelism using MPI (not working with even-odd preconditioned fermions yet)
 
 ## Installation:
-First make sure you have Julia version **1.9.4** installed. You can use [juliaup](https://github.com/JuliaLang/juliaup) for that or just install the release from the [Julia website](https://julialang.org/downloads/oldreleases).
-> Versions above this work too, but all development and optimization is done on 1.9.4 up until now and for the foreseeable future.
+First make sure you have Julia version **1.9.4 or above** installed. You can use [juliaup](https://github.com/JuliaLang/juliaup) for that or just install the release from the [Julia website](https://julialang.org/downloads/oldreleases).
+> The particulare version you want is ultimately determined by the GPU you want to use.
+Newer GPUs need more recent versions of Julia for compatibility.
 
 Then:
 
