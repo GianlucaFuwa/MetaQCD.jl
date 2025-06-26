@@ -144,7 +144,7 @@ end
 function top_charge(::Clover, U::Gaugefield{B,T}) where {B,T}
     update_halo!(U)
     
-    Q = parallelfor_sum(eachindex(U), 0.0, B; block_size=64) do q, site
+    Q = parallelfor_sum(eachindex(U), 0.0, B) do q, site
         q += top_charge_density_clover(U, site, Float64)
     end
 

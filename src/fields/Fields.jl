@@ -291,11 +291,11 @@ function Base.show(io::IO, u::AbstractField{B,T}) where {B,T}
     print(io, "$(nameof(typeof(u))){$B,$T}", "(\n")
     for fieldname in fieldnames(typeof(u))
         if fieldname in (:U, :halos, :sendbuf)
-            println(io, "\t", fieldname, " = $(nameof(typeof(getfield(u, fieldname))))()")
+            println(io, "\t", fieldname, ":  $(nameof(typeof(getfield(u, fieldname))))")
         elseif fieldname == :topology
-            println(io, "\t", fieldname, " = FieldTopology(...)")
+            println(io, "\t", fieldname, ":  FieldTopology")
         else
-            println(io, "\t", fieldname, " = ", getfield(u, fieldname))
+            println(io, "\t", fieldname, ":  ", getfield(u, fieldname))
         end
     end
     print(io, ")")

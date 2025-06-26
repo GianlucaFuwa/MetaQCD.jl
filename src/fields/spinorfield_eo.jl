@@ -168,7 +168,7 @@ function LinearAlgebra.dot(ϕ_eo::T, ψ_eo::T) where {B,T<:SpinorfieldEO{B}}
     even_half = true
 
     res = parallelfor_sum(eachindex(even_half, ϕ, ψ), 0.0+0.0im, B) do d, e_site
-        d += cdot(ϕ[e_site], ψ[e_site])
+        d += dot(ϕ[e_site], ψ[e_site])
     end
 
     return distributed_reduce(res, +, ϕ)

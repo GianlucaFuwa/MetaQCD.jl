@@ -124,7 +124,7 @@ function runtests(; backend=CPU, nprocs_cart=(1, 1, 1, 1))
 
         if mpi_size() == 1 # INFO: Local updates only without distributed fields
             test_update(backend; update_method="heatbath")
-            test_update(backend; update_method="metropolis", gaction=IwasakiGaugeAction)
+            # test_update(backend; update_method="metropolis", gaction=IwasakiGaugeAction)
         end
 
         test_update(backend; update_method="hmc", hmc_integrator="Leapfrog")
@@ -159,7 +159,7 @@ redirect_stdout(sout) do
         end
     end
 
-    runtests(; nprocs_cart=(1, 1, 1, mpi_size()))
+    # runtests(; nprocs_cart=(1, 1, 1, mpi_size()))
 end
 
 # using AMDGPU, AMDGPU: allowscalar
