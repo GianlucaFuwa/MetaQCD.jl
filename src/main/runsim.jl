@@ -320,7 +320,7 @@ function metaqcd!(
     end
 
     # load in config and recalculate gauge action if given
-    load_config!(U, parameters)
+    load_field!(U, parameters)
 
     @level1("- Thermalization:")
     _, runtime_therm = @timed begin
@@ -406,7 +406,7 @@ function metaqcd!(
                 )
             end
 
-            save_config(config_saver, U, itrj, parameters)
+            save_field(config_saver, U, itrj, parameters)
             create_checkpoint(checkpointer, univ, updatemethod, nothing, itrj)
 
             _, mtime = @timed calc_measurements(
@@ -523,7 +523,7 @@ function metaqcd_PT!(
 
             temper!(U, bias, numaccepts_temper, swap_every, itrj; recalc=true)
 
-            save_config(config_saver, U[1], itrj, parameters)
+            save_field(config_saver, U[1], itrj, parameters)
             create_checkpoint(checkpointer, univ, updatemethod, updatemethod_pt, itrj)
 
             _, mtime = @timed calc_measurements(measurements, U, itrj, measure_on_all)

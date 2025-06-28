@@ -47,7 +47,7 @@ function LinearAlgebra.norm(u::AbstractField{B}, ::Val{2}) where {B}# avg 2-norm
     return distributed_reduce(norm2, +, u)
 end
 
-function LinearAlgebra.norm(u::AbstractField{B}, ::Val{Inf}) where {B}# FIXME: max of 2-norms, Inf misleading
+function LinearAlgebra.norm(u::AbstractField{B}, ::Val{Inf}) where {B}
     normsup = parallelfor_max(allindices(u), typemin(Float64), B) do nsup, μsite
         nsup = max(nsup, cnorm2(u[μsite])) 
     end

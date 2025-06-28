@@ -52,6 +52,24 @@ function parallelfor_sum(
     end
 end
 
+function parallelfor_max(
+    f, itr, init, ::Type{backend}, args...; block_size::Int=min(256, length(itr))
+) where {backend}
+    if backend == CPU
+        result = init
+
+        @batch reduction = (max, result) for i in eachindex(IndexLinear(), itr)
+            @inbounds site = itr[i]
+            res = @inline f(init, site)
+            result = max(result, res)
+        end
+
+        return result
+    else
+        return _foreachindex_reduce_gpu(init, max, f, itr, backend; block_size)
+    end
+end
+
 function _foreachindex_reduce_gpu(
     out, op, f, itr, ::Type{backend}; block_size::Int=min(256, length(itr))
 ) where {backend}

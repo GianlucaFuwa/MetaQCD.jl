@@ -27,13 +27,15 @@ titles = (
 Random.seed!(1234)
 
 N = 32
+backend_str = "rocm"
+backend = MetaQCD.Fields.BACKENDS[backend_str]
 
 suite = BenchmarkGroup()
 
 for (i, dirac) in enumerate(ops)
     s = suite["$(titles[i])"] = BenchmarkGroup()
     for T in (Float32, Float64)
-        U = Gaugefield{CPU,T,WilsonGaugeAction}(N, N, N, N, 6.0)
+        U = Gaugefield{backend,T,WilsonGaugeAction}(N, N, N, N, 6.0)
         csw = titles[i] == "Wilson-Clover" ? 1.0 : 0.0
         D = dirac(U, 0.01; csw=csw)
         ϕ = Spinorfield(D.temp)

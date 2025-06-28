@@ -1,40 +1,48 @@
-# TODO: Use new Topology with OffsetArrays
-function save_config(::BridgeFormat, U::Gaugefield{CPU,T,true}, filename, args...) where {T}
-    fp = Utils.MPI.File.open(U.topology.comm_cart, filename; write=true)
-    set_view!(fp, U, SMatrix{3,3,Complex{T},9})
-    Utils.MPI.File.write_all(fp, U.U)
+function save_field(::BridgeFormat, u::AbstractField{B,T,true}, filename) where {B,T}
+    return save_field_mpi(u, filename)
+end
+
+function save_field_mpi(u::AbstractField{B,T}, filename, args...) where {B,T}
+    fp = Utils.MPI.File.open(u.topology.comm_cart, filename; write=true)
+    set_view!(fp, u, eltype(u))
+    Utils.MPI.File.write_all(fp, device_to_host(u.U.parent, B))
     Utils.MPI.File.close(fp)
-    mpi_barrier(U.topology.comm_cart)
+    mpi_barrier(u.topology.comm_cart)
     return nothing
 end
 
-function save_config(::Bool, U::Gaugefield{CPU,T}, filename, args...) where {T}
-    fp = Utils.MPI.File.open(U.topology.comm_cart, filename; write=true)
-    set_view!(fp, U, SMatrix{3,3,Complex{T},9})
-    Utils.MPI.File.write_all(fp, U.U)
-    Utils.MPI.File.close(fp)
-    mpi_barrier(U.topology.comm_cart)
-    return nothing
+function load_field!(::BridgeFormat, u::AbstractField{B,T,true}, filename) where {B,T}
+    return load_field_mpi!(u, filename)
 end
 
-function load_config!(::BridgeFormat, U::Gaugefield{CPU,T,true}, filename) where {T}
-    fp = Utils.MPI.File.open(U.topology.comm_cart, filename; read=true)
-    set_view!(fp, U, SMatrix{3,3,ComplexF64,9})
+function load_field_mpi!(u::AbstractField{B,T}, filename) where {B,T}
+    fp = Utils.MPI.File.open(u.topology.comm_cart, filename; read=true)
+    etype = eltype(u)
+    set_view!(fp, u, etype)
 
-    tmp = zeros(SMatrix{3,3,ComplexF64,9}, 4U.topology.local_volume)
+    inner_len = if u isa Spinorfield || u isa SpinorfieldEO || u isa Paulifield
+        1
+    elseif u isa Tensorfield
+        16
+    elseif u isa MultiSpinorfield
+        u.numspinors
+    else
+        4
+    end
+
+    tmp = zeros(etype, inner_len * u.topology.local_volume)
     Utils.MPI.File.read_all!(fp, tmp)
-    i = 1
+    tmp = device_to_host(tmp, B)
 
-    # TODO: for GPU
-    for site in eachindex(U)
-        for μ in 1:4
-            @assert tmp[i] != zero(SMatrix{3,3,ComplexF64,9})
-            U[μ, site] = tmp[i]
-            i += 1
-        end
+    ind = allindices(u)
+    itr = eachindex(IndexLinear(), ind)
+
+    parallelfor(itr, B) do i
+        μsite = ind[i]
+        u[μsite] = tmp[i]
     end
 
     Utils.MPI.File.close(fp)
-    mpi_barrier(U.topology.comm_cart)
+    mpi_barrier(u.topology.comm_cart)
     return nothing
 end

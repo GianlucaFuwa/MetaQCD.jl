@@ -27,7 +27,8 @@ results = run(suite)
 
 for (op, flops) in FLOPS
     N = BenchDirac.N
-    fp = open("benchmark/results_$(op)_$(N).txt", "w+")
+    backend = BenchDirac.backend_str
+    fp = open("benchmark/results_$(op)_$(N)_$(backend).txt", "w+")
     println(fp, "==== $(op) ====")
 
     for T in (Float64, Float32)

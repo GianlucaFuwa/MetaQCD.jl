@@ -7,7 +7,7 @@ function test_fermion_measurements(backend=CPU)
         NX, NY, NZ, NT, 6.0
     )
     filename = pkgdir(MetaQCD, "test", "testconf.txt")
-    load_config!(BridgeFormat(), U, filename)
+    load_field!(BridgeFormat(), U, filename)
 
     if backend !== CPU
         U = MetaQCD.to_backend(backend, U)

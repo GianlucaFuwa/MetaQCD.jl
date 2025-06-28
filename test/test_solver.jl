@@ -33,7 +33,7 @@ function test_solver(
     #     pkgdir(MetaQCD, "test", "testconf.txt")
     # end
 
-    # load_config!(BridgeFormat(), U, filename)
+    # load_field!(BridgeFormat(), U, filename)
 
     if backend !== CPU
         U = MetaQCD.to_backend(backend, U)

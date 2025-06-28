@@ -31,7 +31,7 @@ function test_reversibility(
     to = TimerOutput()
 
     identity_gauges!(U)
-    # @timeit to "load_config!" load_config!(BridgeFormat(), U, "./test/testconf.txt")
+    # @timeit to "load_field!" load_field!(BridgeFormat(), U, "./test/testconf.txt")
 
     bias = if with_bias
         Bias(

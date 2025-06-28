@@ -163,12 +163,10 @@ end
 function create_sendbuf!(f::Spinorfield{B}, sites, dim, dir) where {B}
     ibuf = dir + 2(dim - 1)
     sendbuf = f.sendbuf[ibuf]
-    bulk = eachindex(f)
 
     parallelfor(eachindex(IndexLinear(), sites), B) do i
         site = sites[i]
-        _site = map_to_half(site, bulk)
-        sendbuf[i] = f[_site]
+        sendbuf[i] = f[site]
     end
 
     return sendbuf

@@ -28,7 +28,7 @@ function test_measurements(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=2
         pkgdir(MetaQCD, "test", "testconf.txt")
     end
 
-    load_config!(BridgeFormat(), U, filename)
+    load_field!(BridgeFormat(), U, filename)
 
     if backend !== CPU
         U = MetaQCD.to_backend(backend, U)

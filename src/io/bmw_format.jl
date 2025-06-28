@@ -24,7 +24,7 @@
 #| format from the pervious one, the header line is required to start with #18BMW. |
 #+---------------------------------------------------------------------------------+
 
-function save_config(
+function save_field(
     ::BMWFormat, U::Gaugefield{B,T,false}, filename, parameters=nothing; override=false
 ) where {B,T}
     @assert get_backend(U) isa CPU
@@ -100,7 +100,7 @@ function save_config(
     return nothing
 end
 
-function load_config!(::BMWFormat, U::Gaugefield{B,T,false}, filename) where {B,T}
+function load_field!(::BMWFormat, U::Gaugefield{B,T,false}, filename) where {B,T}
     @assert get_backend(U) isa CPU
     Udims = size(U)
     fp = open(filename, "r")

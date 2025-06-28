@@ -48,15 +48,15 @@ Base.axes(f::SpinorfieldEO, μ::Integer) = axes(f.parent, μ)
 @inline get_halo_width(f::SpinorfieldEO) = get_halo_width(f.parent)
 @inline get_numprocs_cart(f::SpinorfieldEO) = get_numprocs_cart(f.parent)
 
-Base.@propagate_inbounds Base.getindex(f::SpinorfieldEO, i::Integer) = f.parent.U[i]
-Base.@propagate_inbounds Base.getindex(f::SpinorfieldEO, x, y, z, t) = f.parent.U[x, y, z, t]
-Base.@propagate_inbounds Base.getindex(f::SpinorfieldEO, site::SiteCoords) = f.parent.U[site]
+Base.@propagate_inbounds Base.getindex(f::SpinorfieldEO, i::Integer) = f.parent[i]
+Base.@propagate_inbounds Base.getindex(f::SpinorfieldEO, x, y, z, t) = f.parent[x, y, z, t]
+Base.@propagate_inbounds Base.getindex(f::SpinorfieldEO, site::SiteCoords) = f.parent[site]
 Base.@propagate_inbounds Base.setindex!(f::SpinorfieldEO, v, i::Integer) =
-    setindex!(f.parent.U, v, i)
+    setindex!(f.parent, v, i)
 Base.@propagate_inbounds Base.setindex!(f::SpinorfieldEO, v, x, y, z, t) =
-    setindex!(f.parent.U, v, x, y, z, t)
+    setindex!(f.parent, v, x, y, z, t)
 Base.@propagate_inbounds Base.setindex!(f::SpinorfieldEO, v, site::SiteCoords) =
-    setindex!(f.parent.U, v, site)
+    setindex!(f.parent, v, site)
 
 function Base.getproperty(f::SpinorfieldEO, name::Symbol)
     if name == :parent
@@ -174,12 +174,44 @@ function LinearAlgebra.dot(ϕ_eo::T, ψ_eo::T) where {B,T<:SpinorfieldEO{B}}
     return distributed_reduce(res, +, ϕ)
 end
 
-function create_sendbuf!(f::SpinorfieldEO, sites, dim, dir)
-    return create_sendbuf!(f.parent, sites, dim, dir)
+# function create_sendbuf!(f::SpinorfieldEO, sites, dim, dir)
+#     return create_sendbuf!(f.parent, sites, dim, dir)
+# end
+#
+# function Base.copyto!(a::T, b::T, arange, brange) where {T<:SpinorfieldEO}
+#     return copyto!(a.parent, b.parent, arange, brange)
+# end
+
+function create_sendbuf!(f_eo::SpinorfieldEO{B}, sites, dim, dir) where {B}
+    f = f_eo.parent
+    ibuf = dir + 2(dim - 1)
+    sendbuf = f.sendbuf[ibuf]
+    bulk = eachindex(f)
+
+    parallelfor(eachindex(IndexLinear(), sites), B) do i
+        site = sites[i]
+        _site = map_to_half(site, bulk)
+        sendbuf[i] = f[_site]
+    end
+
+    return sendbuf
 end
 
-function Base.copyto!(a::T, b::T, arange, brange) where {T<:SpinorfieldEO}
-    # XXX: only do even sites?
-    return copyto!(a.parent, b.parent, arange, brange)
-end
+function Base.copyto!(a_eo::T, b_eo::T, arange, brange) where {B,T<:SpinorfieldEO{B}}
+    @assert length(arange) == length(brange) "send buffer and recv buffer arent of same size"
+    a, b = a_eo.parent, b_eo.parent
+    bulk_a = eachindex(a)
+    bulk_b = eachindex(b)
+    halo_a = a_eo.topology.halo_sites
+    halo_b = b_eo.topology.halo_sites
 
+    parallelfor(eachindex(IndexLinear(), arange), B) do i
+        site_a = arange[i]
+        site_b = brange[i]
+        _site_a = map_to_half(site_a, bulk_a, halo_a)
+        _site_b = map_to_half(site_b, bulk_b, halo_b)
+        a[_site_a] = b[_site_b]
+    end
+
+    return nothing
+end

@@ -84,8 +84,6 @@ Ports the AbstractField u to the backend `Backend_out`, maintaining all elements
 function to_backend(
     ::Type{Bout}, u::AbstractField{Bin,Tin,M}, ::Type{Tout}=Tin
 ) where {M,Bout,Tout,Bin,Tin}
-    @assert M === false "Switching backends not yet supported with MPI parallelization" # FIXME
-
     if Bout === Bin
         u_out = similar(u)
         copy!(u_out, u)
@@ -93,9 +91,9 @@ function to_backend(
     end
 
     Fieldtype = eval(nameof(typeof(u)))
-    A = array_type(Bout)
+    AType = array_type(Bout)
     new_eltype = convert(Tout, eltype(u.U))
-    Uout = OffsetArray(A{new_eltype}(u.U), eachindex(IndexCartesian(), u.U).indices...)
+    Uout = OffsetArray(AType{new_eltype}(u.U), eachindex(IndexCartesian(), u.U).indices...)
     halos = if isnothing(u.halos)
         nothing
     else
@@ -128,6 +126,15 @@ function to_backend(
         return Paulifield{Bout,Tout,M,C}(Uout, sendbuf, halos, u.topology, u.csw)
     else
         return Fieldtype{Bout,Tout,M}(Uout, sendbuf, halos, u.topology)
+    end
+end
+
+function device_to_host(x, ::Type{B}) where {B}
+    if get_backend(x) isa B
+        return x
+    else
+        AType = array_type(B)
+        return AType(x)
     end
 end
 
@@ -274,6 +281,7 @@ end
 # So we don't print the entire array in the REPL...
 function Base.show(io::IO, ::MIME"text/plain", u::AbstractField{B,T}) where {B,T}
     print(io, "$(nameof(typeof(u))){$B,$T}", "(\n")
+    println(io, "\tsize:", " $(size(u))")
     for fieldname in fieldnames(typeof(u))
         if fieldname in (:U, :halos, :sendbuf)
             println(io, "\t", fieldname, ": $(nameof(typeof(getfield(u, fieldname))))")
@@ -289,6 +297,7 @@ end
 
 function Base.show(io::IO, u::AbstractField{B,T}) where {B,T}
     print(io, "$(nameof(typeof(u))){$B,$T}", "(\n")
+    println(io, "\tsize:", " $(size(u))")
     for fieldname in fieldnames(typeof(u))
         if fieldname in (:U, :halos, :sendbuf)
             println(io, "\t", fieldname, ":  $(nameof(typeof(getfield(u, fieldname))))")

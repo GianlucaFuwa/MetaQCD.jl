@@ -199,8 +199,11 @@ Calculate the 2-norm of the complex NxN matrix `M`
     m = reinterpret(reshape, T, MMatrix(M))
     re = zero(T)
 
-    @turbo for i in Base.Slice(static(1):static(N)), j in Base.Slice(static(1):static(N))
-        re += m[1, j, i] * m[1, j, i] + m[2, j, i] * m[2, j, i]
+    # This doesnt work with @turbo on AMDGPU because of bzhi instruction not being recognized
+    @simd for i in Base.Slice(static(1):static(N))
+        for j in Base.Slice(static(1):static(N))
+            re += m[1, j, i] * m[1, j, i] + m[2, j, i] * m[2, j, i]
+        end
     end
 
     return sqrt(re)

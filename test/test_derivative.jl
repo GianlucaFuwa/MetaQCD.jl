@@ -24,7 +24,7 @@ function test_derivative(; backend=CPU, GA=WilsonGaugeAction, nprocs_cart=(1, 1,
             pkgdir(MetaQCD, "test", "testconf.txt")
         end
 
-        load_config!(BridgeFormat(), Ucpu, filename)
+        load_field!(BridgeFormat(), Ucpu, filename)
 
         if backend !== CPU
             U = MetaQCD.to_backend(backend, Ucpu)

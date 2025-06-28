@@ -1,11 +1,11 @@
-function save_config(
+function save_field(
     ::JLD2Format, U::Gaugefield{B,T,false}, filename::String, args...
 ) where {B,T}
     filename != "" && jldsave(filename; U=Array(U.U))
     return nothing
 end
 
-function load_config!(::JLD2Format, U::Gaugefield{B,T,false}, filename::String) where {B,T}
+function load_field!(::JLD2Format, U::Gaugefield{B,T,false}, filename::String) where {B,T}
     Unew = array_type(B)(jldopen(filename, "r") do file
         file["U"]
     end)

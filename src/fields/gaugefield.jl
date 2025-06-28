@@ -75,6 +75,7 @@ end
 
 @inline gauge_action(::Gaugefield{B,T,M,AT,GA}) where {B,T,M,AT,GA} = GA
 Base.eltype(::Type{Gaugefield}, ::Type{T}) where {T} = SMatrix{3,3,Complex{T},9}
+# Base.eltype(::Gaugefield{B,T}) where {B,T} = SMatrix{3,3,Complex{T},9}
 
 function create_sendbuf!(u::AbstractField{B}, sites, dim, dir) where {B}
     ibuf = dir + 2(dim - 1)

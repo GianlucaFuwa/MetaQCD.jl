@@ -3,7 +3,7 @@
 #| format, see https://hpc.desy.de/ildg/documentation/ for documentation           |
 #|---------------------------------------------------------------------------------+
 
-function save_config(::ILDGFormat, U, filename; parameters=nothing, override=false)
+function save_field(::ILDGFormat, U, filename; parameters=nothing, override=false)
     @assert U.U isa Array
     NX, NY, NZ, NT = size(U)
 
@@ -62,7 +62,7 @@ function save_config(::ILDGFormat, U, filename; parameters=nothing, override=fal
     return nothing
 end
 
-function load_config!(::BMWFormat, U, filename)
+function load_field!(::BMWFormat, U, filename)
     @assert U.U isa Array
     Udims = size(U)
     fp = open(filename, "r")
