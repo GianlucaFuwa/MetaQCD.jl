@@ -29,12 +29,12 @@ fermion_action = "staggered"
 [[fermion_action.fermions]]
 Nf = 2
 mass = 0.01                         # numerator mass and denominator mass
-cg_tol_action = 1e-19
-cg_tol_md = 1e-10
+cg_tol_action = 1e-8
+cg_tol_md = 1e-7
 cg_maxiters_action = 5000
 cg_maxiters_md = 1000
 rhmc_order_action = 15
-rhmc_order_md = 10
+rhmc_order_md = 15
 rhmc_spectral_bound = [0.0001, 6.0]
 
 [bias]
@@ -56,7 +56,7 @@ static = [false, false]
 hmc_trajectory = 1
 
 [[hmc.levels]]
-forces = [1]
+forces = [0, 1, 2]
 integrator = "OMF4"
 numsteps = 5
 

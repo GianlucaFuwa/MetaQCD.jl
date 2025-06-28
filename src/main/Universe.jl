@@ -74,19 +74,9 @@ function Univ(parameters::ParameterSet; mpi_multi_sim=false, build=false)
     if length(parameters.biases) != 0
         if parameters.tempering_enabled && !mpi_multi_sim
             numinstances = parameters.numinstances
-            U₁ = Gaugefield(parameters)
-            fermion_action = init_fermion_actions(parameters, U₁)
-            bias₁ = Bias(parameters, U₁; dummy=true) # dummy bias for non-MetaD stream
-
-            U = Vector{typeof(U₁)}(undef, numinstances)
-            bias = Vector{Bias}(undef, numinstances) # XXX: Type unstable
-            U[1] = U₁
-            bias[1] = bias₁
-
-            for i in 2:numinstances
-                U[i] = Gaugefield(parameters)
-                bias[i] = Bias(parameters, U[i]; instance=i-1)
-            end
+            U = [Gaugefield(parameters) for _ in 1:numinstances]
+            bias = [Bias(parameters, U[i]; instance=i-1, dummy=i==1) for i in 1:numinstances]
+            fermion_action = init_fermion_actions(parameters, U[1])
         elseif parameters.tempering_enabled && mpi_multi_sim
             numinstances = 1
             U = Gaugefield(parameters)

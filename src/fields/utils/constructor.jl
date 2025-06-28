@@ -82,7 +82,7 @@ macro field_constructor(struct_name, kwargs...)
 
     halo_check = if struct_name == :Gaugefield
         quote
-            if numprocs > 1
+            if numprocs > 1 && !no_halo
                 @assert halo_width >= stencil_size(GA) """
                 halo_width must be >= 2 when using improved gauge actions
                 """

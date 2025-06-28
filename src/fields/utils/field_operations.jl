@@ -1,4 +1,4 @@
-function Base.copy!(a::T, b::T) where {B,T<:AbstractField{B}}
+function Base.copy!(a::AbstractField{B,T}, b::AbstractField{B,T}) where {B,T}
     parallelfor(allindices(a, b), B) do μsite
         a[μsite] = b[μsite]
     end
@@ -55,7 +55,7 @@ function LinearAlgebra.norm(u::AbstractField{B}, ::Val{Inf}) where {B}
     return distributed_reduce(normsup, max, u)
 end
 
-function add!(a::T, b::T, fac) where {B,T<:AbstractField{B}}
+function add!(a::AbstractField{B,T}, b::AbstractField{B,T}, fac) where {B,T}
     parallelfor(allindices(a, b), B) do μsite
         a[μsite] += fac * b[μsite]
     end

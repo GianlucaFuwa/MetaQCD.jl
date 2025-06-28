@@ -27,8 +27,8 @@ fermion_action = "staggered"
 [[fermion_action.fermions]]
 Nf = 2
 mass = 0.01                         # numerator mass and denominator mass
-cg_tol_action = 1e-19
-cg_tol_md = 1e-10
+cg_tol_action = 1e-8
+cg_tol_md = 1e-7
 cg_maxiters_action = 5000
 cg_maxiters_md = 1000
 rhmc_order_action = 15

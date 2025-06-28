@@ -35,7 +35,7 @@ function build_bias(parameterfile::String)
     end
 
     @assert mpi_size() == num_instances * num_dist "MPI comm size must be = numinstances*prod(numprocs_cart)"
-    mpi_split(mpi_comm(); color=mpi_myrank()%num_instances)
+    mpi_split(mpi_comm(); color=mpi_myrank()÷num_instances)
     MPI_NUMINSTANCES[] = num_instances # change global consant defined in utils/mpi.jl
 
     if mpi_amroot()
