@@ -15,8 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        version: ["1.9.4", "nightly", "1"]
-        juliathreads: [1, 2]
+        version: ["1.9.4", "1"]
     steps:
       - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@latest
@@ -28,13 +27,13 @@ jobs:
         run: julia -e '
           using PkgBenchmark, BenchmarkCI;
           BenchmarkCI.judge(
-          PkgBenchmark.BenchmarkConfig(
-          env = Dict(
-          "JULIA_NUM_THREADS" => "2",
-          "OMP_NUM_THREADS" => "1",
-          ),
-          ),
-          "origin/dirac";
+            PkgBenchmark.BenchmarkConfig(
+              env = Dict(
+                "JULIA_NUM_THREADS" => "2",
+                "OMP_NUM_THREADS" => "1",
+              ),
+            ),
+            "origin/dirac";
           );
           '
       - name: Push results
