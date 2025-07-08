@@ -97,6 +97,20 @@ macro field_constructor(struct_name, kwargs...)
     else
         :(eltype($(struct_name), T))
     end
+
+    # additional struct fields
+    extra_fields = if struct_name == :Gaugefield
+        :(β::Float64)
+    elseif struct_name == :MultiSpinorfield
+        :(numspinors::Int64)
+    elseif struct_name == :Paulifield
+        quote
+            csw::Float64
+            inverse::Bool
+        end
+    else
+        Expr(:block)
+    end
     
     # Build final constructor call arguments
     base_args = [:NX, :NY, :NZ, :NT, extra_args...]
@@ -106,16 +120,34 @@ macro field_constructor(struct_name, kwargs...)
     else
         [:B, :T, extra_types...], :()
     end
-    
+
     # Generate the complete constructor
     constructor_expr = quote
+        struct $(struct_name){B,T,M,$(extra_types...),AT,HT,BT,TT,HV} <: AbstractField{B,T,M}
+            U::AT
+            halos::HT
+            sendbuf::BT
+            topology::TT
+            $(extra_fields)
+            halo_valid::HV
+            function $(struct_name){B,T,M,$(extra_types...)}(
+                U::AT, halos::HT, sendbuf::BT, topology::TT, $(extra_args...), halo_valid::HV
+            ) where {B,T,M,$(extra_types...),AT,HT,BT,TT,HV}
+                check_types(B, T, U, halos, sendbuf)
+                return new{B,T,M,$(extra_types...),AT,HT,BT,TT,HV}(
+                    U, halos, sendbuf, topology, $(extra_args...), halo_valid
+                )
+            end
+        end
+
         function $(struct_name){$(base_types...)}(
-            $(base_args...); numprocs_cart=(1, 1, 1, 1), halo_width=0, no_halo=false
+            $(base_args...);
+            numprocs_cart=(1, 1, 1, 1), halo_width=0, no_halo=false, halo_valid=Ref(false)
         ) where {$(base_types...)}
             numprocs = prod(numprocs_cart)
-            dist = numprocs > 1 && !no_halo
+            M = numprocs > 1 && !no_halo
 
-            if !dist
+            if !M
                 halo_width = 0
             end
 
@@ -131,7 +163,7 @@ macro field_constructor(struct_name, kwargs...)
             halo_sites = topology.halo_sites
             border_sites = topology.border_sites
 
-            halos = if numprocs > 1 && !no_halo
+            halos = if M
                 tuple([
                     OffsetArray(
                         KA.zeros(B(), eltype_val, $(halo_dims.args...)),
@@ -143,7 +175,7 @@ macro field_constructor(struct_name, kwargs...)
                 nothing
             end
 
-            sendbuf = if numprocs > 1 && !no_halo
+            sendbuf = if M
                 tuple(
                     [KA.zeros(B(), eltype_val, $(sendbuf_dims)) for i in 1:4 for j in 1:2]
                     ...)
@@ -152,7 +184,7 @@ macro field_constructor(struct_name, kwargs...)
             end
             # Return constructed object
             $additional_ex
-            return $(struct_name){B,T,dist,$(extra_types...)}($(final_args...))
+            return $(struct_name){B,T,M,$(extra_types...)}($(final_args...), halo_valid)
         end
     end
 

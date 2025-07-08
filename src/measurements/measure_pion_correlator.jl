@@ -57,22 +57,22 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT,T1} <: AbstractMeasurement
 
         if !isnothing(filename) && filename != ""
             rpath = StaticString(filename)
-            header = ""
-
-            if flow == true || flow != NoSmearing()
-                header *= @sprintf("%-11s%-7s%-9s", "itrj", "iflow", "tflow")
-            else
-                header *= @sprintf("%-11s", "itrj")
-            end
-
-            for it in 1:NT
-                header *= @sprintf("%-25s", "pion_corr_$(it)")
-            end
 
             if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
-                open(filename, "w") do fp
-                    println(fp, header)
+                fp = fopen(filename, "w")
+                printf(fp, "%-11s", "itrj")
+
+                if flow == true || flow != NoSmearing()
+                    printf(fp, "%-7s", "iflow")
+                    printf(fp, "%-9s", "tflow")
                 end
+
+                for it in 1:NT
+                    printf(fp, "%-25s", "pion_corr_$(it)")
+                end
+
+                newline(fp)
+                fclose(fp)
             end
 
             cg_filepath = if mpi_amroot(MPI_COMM_INSTANCE[]) && (filename != "")
@@ -86,10 +86,11 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT,T1} <: AbstractMeasurement
             cg_dataf = StaticString(cg_filepath)
 
             if cg_filepath != ""
-                open(cg_datafile, "w") do fp
-                    @printf(fp, "%-11s%-25s", "iters", "res")
-                    println(fp)
-                end
+                fp = fopen(cg_datafile, "w")
+                printf(fp, "%-11s", "iters")
+                printf(fp, "%-25s", "res")
+                newline(fp)
+                fclose(fp)
             end
         else
             rpath = nothing

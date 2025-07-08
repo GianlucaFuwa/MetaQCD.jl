@@ -31,6 +31,7 @@ struct FieldTopology
     halo_sites::ContiguousExchangeSites
     # Sites in bulk that belong to border regions (forward and backward per dim)
     border_sites::ContiguousExchangeSites # one for each stencil size up to halo_width
+    flat_border_sites::Vector{CartesianIndex{4}} # unique and indexable
 
     global_volume::Int64 # Number of sites in global field
     local_volume::Int64 # Number of sites in local partition
@@ -63,13 +64,19 @@ struct FieldTopology
         end)
         halo_sites = calc_halo_sites(bulk_sites, local_dims, halo_width)
         border_sites = calc_border_sites(bulk_sites, local_dims, halo_width)
+        inner_bulk = if _unwrap_val(HIDE_COMMS)
+            shrink_bulk(bulk_sites, halo_width)
+        else
+            bulk_sites
+        end
+        flat_border_sites = sort!(collect(setdiff(bulk_sites, inner_bulk)))
 
         global_volume = prod(global_dims)
         local_volume = prod(local_dims)
         return new(
             comm_cart, numprocs, numprocs_cart, myrank_cart,
             halo_width, global_dims, local_dims,
-            origin, bulk_sites, bulk_sites_padded, halo_sites, border_sites,
+            origin, bulk_sites, bulk_sites_padded, halo_sites, border_sites, flat_border_sites,
             global_volume, local_volume,
         )
     end

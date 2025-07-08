@@ -13,24 +13,24 @@ struct WilsonLoopMeasurement{T} <: AbstractMeasurement
 
         if !isnothing(filename) && filename != ""
             rpath = StaticString(filename)
-            header = ""
-
-            if flow == true || flow != NoSmearing()
-                header *= @sprintf("%-11s%-7s%-9s", "itrj", "iflow", "tflow")
-            else
-                header *= @sprintf("%-11s", "itrj")
-            end
-
-            for iT in 1:Tmax
-                for iR in 1:Rmax
-                    header *= @sprintf("%-25s", "wilson_loop_$(iR)x$(iT)")
-                end
-            end
 
             if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
-                open(filename, "w") do fp
-                    println(fp, header)
+                fp = fopen(filename, "w")
+                printf(fp, "%-11s", "itrj")
+
+                if flow == true || flow != NoSmearing()
+                    printf(fp, "%-7s", "iflow")
+                    printf(fp, "%-9s", "tflow")
                 end
+
+                for iT in 1:Tmax
+                    for iR in 1:Rmax
+                        printf(fp, "%-25s", "wilson_loop_$(iR)x$(iT)")
+                    end
+                end
+
+                newline(fp)
+                fclose(fp)
             end
         else
             rpath = nothing

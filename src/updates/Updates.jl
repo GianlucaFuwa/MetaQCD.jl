@@ -5,10 +5,8 @@ using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
 using StaticArrays
 using Polyester: @batch
-using Printf
 using Random: rand, default_rng
 using StaticTools: StaticString
-using Unicode
 using ..MetaIO
 using ..RHMCParameters
 using ..Utils
@@ -94,8 +92,7 @@ function Updatemethod(
     numorelax=4,
     instance=mpi_myrank(),
 )
-    lower_case(str) = Unicode.normalize(str; casefold=true)
-    if lower_case(update_method) == "hmc"
+    if lowercase(update_method) == "hmc"
         updatemethod = HMC(
             U,
             hmc_levels,
@@ -113,11 +110,11 @@ function Updatemethod(
             logdir=logdir,
             instance=instance,
         )
-    elseif lower_case(update_method) == "metropolis"
+    elseif lowercase(update_method) == "metropolis"
         updatemethod = Metropolis(
             U, metro_ϵ, metro_numhits, metro_target_acc, or_algorithm, numorelax
         )
-    elseif lower_case(update_method) == "heatbath"
+    elseif lowercase(update_method) == "heatbath"
         updatemethod = Heatbath(U, hb_maxit, numheatbath, or_algorithm, numorelax)
     else
         error("update method $(update_method) is not supported")

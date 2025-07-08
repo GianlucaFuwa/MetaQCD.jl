@@ -15,7 +15,7 @@ function load_field!(::BridgeFormat, u::AbstractField{B,T,true}, filename) where
     return load_field_mpi!(u, filename)
 end
 
-function load_field_mpi!(u::AbstractField{B,T}, filename) where {B,T}
+function load_field_mpi!(u::AbstractField{B,T,M}, filename) where {B,T,M}
     fp = Utils.MPI.File.open(u.topology.comm_cart, filename; read=true)
     etype = eltype(u)
     set_view!(fp, u, etype)
@@ -37,7 +37,7 @@ function load_field_mpi!(u::AbstractField{B,T}, filename) where {B,T}
     ind = allindices(u)
     itr = eachindex(IndexLinear(), ind)
 
-    parallelfor(itr, B) do i
+    parallelfor(itr, B, Val(M), (), (u,), (u,)) do i, u
         μsite = ind[i]
         u[μsite] = tmp[i]
     end

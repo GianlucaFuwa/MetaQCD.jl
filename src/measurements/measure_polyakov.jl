@@ -7,25 +7,20 @@ struct PolyakovMeasurement{T} <: AbstractMeasurement
 
         if !isnothing(filename) && filename != ""
             rpath = StaticString(filename)
-            header = ""
-
-            if flow == true || flow != NoSmearing()
-                header *= @sprintf(
-                    "%-11s%-7s%-9s%-25s%-25s",
-                    "itrj",
-                    "iflow",
-                    "tflow",
-                    "Re(plaq)",
-                    "Im(poly)"
-                )
-            else
-                header *= @sprintf("%-11s%-25s%-25s", "itrj", "Re(poly)", "Im(poly)")
-            end
 
             if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
-                open(filename, "w") do fp
-                    println(fp, header)
+                fp = fopen(filename, "w")
+                printf(fp, "%-11s", "itrj")
+
+                if flow == true || flow != NoSmearing()
+                    printf(fp, "%-7s", "iflow")
+                    printf(fp, "%-9s", "tflow")
                 end
+
+                printf(fp, "%-25s", "Re(poly)")
+                printf(fp, "%-25s", "Im(poly)")
+                newline(fp)
+                fclose(fp)
             end
         else
             rpath = nothing
@@ -83,14 +78,14 @@ function measure(
     return poly
 end
 
-function polyakov_traced(U::Gaugefield{B}) where {B}
+function polyakov_traced(U::Gaugefield{B,T,M}) where {B,T,M}
     @assert U.topology.numprocs_cart[4] == 1 """
     for polyakov loop, the field cannot be partitioned in the t-dimension
     """
     NX, NY, NZ, _ = size(U)
     xrange, yrange, zrange, trange = U.topology.bulk_sites.indices
-
-    P = parallelfor_sum(CartesianIndices((xrange, yrange, zrange)), 0.0+0.0im, B) do p, xyz
+    itr = CartesianIndices((xrange, yrange, zrange))
+    P = parallelfor_sum(itr, 0.0+0.0im, B, Val(M), (), (), (U,)) do p, xyz, U
         ix, iy, iz = xyz.I
         polymat = U[4, ix, iy, iz, 1]
 
@@ -103,7 +98,3 @@ function polyakov_traced(U::Gaugefield{B}) where {B}
 
     return distributed_reduce(P / (NX * NY * NZ), +, U)
 end
-
-# TODO:
-# function polyakov_traced(U::Gaugefield{CPU,T,true}) where {T}
-# end

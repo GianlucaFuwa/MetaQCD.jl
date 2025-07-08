@@ -78,23 +78,21 @@ end
 # for arbitrary arrays, not just fermion fields and dirac operators (good for testing)
 function LinearAlgebra.mul!(
     ψ::TF, D::WilsonDiracOperator{B,T,C,TF,TG}, ϕ::TF
-) where {B,T,C,TF,TG}
+) where {B,T,M,C,TF<:WilsonSpinorfield{B,T,M},TG}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.U
     mass_term = T(8 + 2 * D.mass)
     csw = D.csw
     bc = D.boundary_condition
-    # TODO: can hide
-    update_halo!(U, ϕ)
 
-    parallelfor(eachindex(ψ, ϕ, U), B) do site
+    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ)) do site, U, ϕ, ψ
         ψ[site] = wilson_kernel(U, ϕ, site, mass_term, bc, T, Val(1))
     end
 
     if has_clover_term(D)
         fac = T(-csw / 2)
 
-        parallelfor(eachindex(ψ, ϕ, U), B) do site
+        parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (), (ψ,), (U, ϕ, ψ)) do site, U, ϕ, ψ
             ψ[site] += clover_kernel(U, ϕ, site, fac, T)
         end
     end
@@ -104,23 +102,21 @@ end
 
 function LinearAlgebra.mul!(
     ψ::TF, D::Daggered{WilsonDiracOperator{B,T,C,TF,TG,BC}}, ϕ::TF
-) where {B,T,C,TF,TG,BC}
+) where {B,T,M,C,TF<:WilsonSpinorfield{B,T,M},TG,BC}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.parent.U
     mass_term = T(8 + 2 * D.parent.mass)
     csw = D.parent.csw
     bc = D.parent.boundary_condition
-    # TODO: can hide
-    update_halo!(U, ϕ)
 
-    parallelfor(eachindex(ψ, ϕ, U), B) do site
+    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ)) do site, U, ϕ, ψ
         ψ[site] = wilson_kernel(U, ϕ, site, mass_term, bc, T, Val(-1))
     end
 
     if has_clover_term(D)
         fac = T(-csw / 2)
 
-        parallelfor(eachindex(ψ, ϕ, U), B) do site
+        parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (), (ψ,), (U, ϕ, ψ)) do site, U, ϕ, ψ
             ψ[site] += clover_kernel(U, ϕ, site, fac, T)
         end
     end

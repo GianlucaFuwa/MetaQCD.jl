@@ -29,10 +29,7 @@ function test_fderivative(;
 
     @testset "$(name_str)$(csw_str) derivative" begin
         Random.seed!(123 * (mpi_myrank() + 1))
-        NX = 4
-        NY = 4
-        NZ = 4
-        NT = 4
+        NX = NY = NZ = NT = 4
         Ucpu = Gaugefield{CPU,Float64,WilsonGaugeAction}(
             NX, NY, NZ, NT, 6.0, numprocs_cart=nprocs_cart, halo_width=halo_width
         )
@@ -53,12 +50,6 @@ function test_fderivative(;
         is_staggered = contains(dirac, "staggered")
         is_hoelbling = dirac ∈ ("staggered-h1234", "staggered-h1324", "staggered-h1342")
 
-        ψ = if eoprec
-            even_odd(Spinorfield(U; staggered=is_staggered))
-        else
-            Spinorfield(U; staggered=is_staggered)
-        end
-
         rhmc_spectral_bound, Nf = if is_staggered && !is_hoelbling
             (mass^2, 6.0), (single_flavor ? 1 : (eoprec ? 4 : 8))
         else
@@ -78,17 +69,26 @@ function test_fderivative(;
             rhmc_order_action=15,
             cg_tol_action=1e-8,
             cg_tol_md=1e-8,
-            cg_maxiters_action=1000,
-            cg_maxiters_md=1000,
+            cg_maxiters_action=5000,
+            cg_maxiters_md=5000,
             csw=csw,
         )
         mpi_amroot() && (@show action)
 
+        ψ = if eoprec
+            even_odd(Spinorfield(action.D.temp; staggered=is_staggered))
+        else
+            Spinorfield(action.D.temp; staggered=is_staggered)
+        end
+
+        mpi_amroot() && println("sample pseudofermions")
         sample_pseudofermions!(ψ, action, U)
 
         # Test for smearing with 5 steps and stout parameter 0.12
+        mpi_amroot() && println("smearing")
         smearing = StoutSmearing(U; numlayers=5, rho=0.12)
 
+        mpi_amroot() && println("temps")
         dSfdU = Colorfield(U)
         dSfdU_smeared = Colorfield(U)
         temp_force = Colorfield(U)
@@ -100,6 +100,7 @@ function test_fderivative(;
 
         for group_direction in 1:8
             # Unsmeared
+            mpi_amroot() && println("$(group_direction) unsmeared fwd")
             Ufwdcpu = deepcopy(Ucpu)
             if site in eachindex(Ucpu)
                 Ufwdcpu[μ, site] = expλ(group_direction, ΔH) * Ufwdcpu[μ, site]
@@ -107,6 +108,7 @@ function test_fderivative(;
             Ufwd = to_backend(backend, Ufwdcpu)
             action_new_fwd = calc_fermion_action(action, Ufwd, ψ)
 
+            mpi_amroot() && println("$(group_direction) unsmeared bwd")
             Ubwdcpu = deepcopy(Ucpu)
             if site in eachindex(Ucpu)
                 Ubwdcpu[μ, site] = expλ(group_direction, -ΔH) * Ubwdcpu[μ, site]
@@ -115,11 +117,13 @@ function test_fderivative(;
             action_new_bwd = calc_fermion_action(action, Ubwd, ψ)
 
             # Smeared
+            mpi_amroot() && println("$(group_direction) smeared fwd")
             calc_smearedU!(smearing, Ufwd)
             action_new_fwd_smeared = calc_fermion_action(
                 action, smearing.Usmeared_multi[end], ψ
             )
 
+            mpi_amroot() && println("$(group_direction) smeared bwd")
             calc_smearedU!(smearing, Ubwd)
             action_new_bwd_smeared = calc_fermion_action(
                 action, smearing.Usmeared_multi[end], ψ

@@ -23,8 +23,8 @@ function save_field(
 end
 
 function save_field(
-    ::BridgeFormat, f::Spinorfield{B,T,false,AT,ND}, filename, args...
-) where {B,T,AT,ND}
+    ::BridgeFormat, f::Spinorfield{B,T,false,ND}, filename, args...
+) where {B,T,ND}
     @assert B == CPU
     fp = open(filename, "w")
     ftmp = to_backend(CPU, f)
@@ -69,8 +69,8 @@ function load_field!(::BridgeFormat, U::Gaugefield{B,T,false}, filename) where {
 end
 
 function load_field!(
-    ::BridgeFormat, f::Spinorfield{B,T,false,AT,ND}, filename
-) where {B,T,AT,ND}
+    ::BridgeFormat, f::Spinorfield{B,T,false,ND}, filename
+) where {B,T,ND}
     @assert B == CPU "load_field! in bridge format not supported for GPU fields yet"
     fp = open(filename, "r")
     numdata = countlines(filename)

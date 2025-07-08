@@ -87,13 +87,12 @@ function calc_dSfdU!(
 end
 
 function add_wilson_derivative!(
-    dU::Colorfield{B,T}, U::Gaugefield{B,T}, X::TF, Y::TF, bc; coeff=1
-) where {B,T,TF<:WilsonSpinorfield{B,T}}
+    dU::Colorfield{B,T}, U::Gaugefield{B,T,M}, X::TF, Y::TF, bc; coeff=1
+) where {B,T,M,TF<:WilsonSpinorfield{B,T,M}}
     fac = T(0.5coeff)
-    # TODO: can hide
-    update_halo!(U, X, Y)
+    itr = eachindex(dU, U, X, Y)
 
-    parallelfor(eachindex(dU, U, X, Y), B) do site
+    parallelfor(itr, B, Val(M), (X, Y), (dU,), (dU, U, X, Y)) do site, dU, U, X, Y
         add_wilson_derivative_kernel!(dU, U, X, Y, site, bc, fac)
     end
 
@@ -126,13 +125,12 @@ function add_wilson_derivative_kernel!(dU, U, X, Y, site, bc, fac)
 end
 
 function add_clover_derivative!(
-    dU::Colorfield{B,T}, U::Gaugefield{B,T}, Xμν::Tensorfield{B,T}, csw; coeff=1
-) where {B,T}
+    dU::Colorfield{B,T}, U::Gaugefield{B,T,M}, Xμν::Tensorfield{B,T,M}, csw; coeff=1
+) where {B,T,M}
     fac = T(csw * coeff / 2)
-    # INFO: we must have already updated the halo for the wilson derivative
-    update_halo!(Xμν)
+    itr = eachindex(dU, U, Xμν)
 
-    parallelfor(eachindex(dU, U, Xμν), B) do site
+    parallelfor(itr, B, Val(M), (U, Xμν), (dU,), (dU, U, Xμν)) do site, dU, U, Xμν
         add_clover_derivative_kernel!(dU, U, Xμν, site, fac, T)
     end
 
@@ -168,8 +166,8 @@ end
 
 function calc_Xμν_wilson_eachsite!(
     Xμν::Tensorfield{B,T}, X::TF, Y::TF
-) where {B,T,TF<:WilsonSpinorfield{B}}
-    parallelfor(eachindex(Xμν, X, Y), B) do site
+) where {B,T,M,TF<:WilsonSpinorfield{B,T,M}}
+    parallelfor(eachindex(Xμν, X, Y), B, Val(M), (), (Xμν,), (Xμν, X, Y)) do site, Xμν, X, Y
         calc_Xμν_wilson_kernel!(Xμν, X, Y, site)
     end
 

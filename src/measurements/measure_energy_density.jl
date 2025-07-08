@@ -26,22 +26,22 @@ struct EnergyDensityMeasurement{T} <: AbstractMeasurement
 
         if !isnothing(filename) && filename != ""
             rpath = StaticString(filename)
-            header = ""
-
-            if flow == true || flow != NoSmearing()
-                header *= @sprintf("%-11s%-7s%-9s", "itrj", "iflow", "tflow")
-            else
-                header *= @sprintf("%-11s", "itrj")
-            end
-
-            for methodname in ED_methods
-                header *= @sprintf("%-25s", "E_$(methodname)")
-            end
 
             if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
-                open(filename, "w") do fp
-                    println(fp, header)
+                fp = fopen(filename, "w")
+                printf(fp, "%-11s", "itrj")
+
+                if flow == true || flow != NoSmearing()
+                    printf(fp, "%-7s", "iflow")
+                    printf(fp, "%-9s", "tflow")
                 end
+
+                for method in keys(ED_dict)
+                    printf(fp, "%-25s", "E_$(method)")
+                end
+
+                newline(fp)
+                fclose(fp)
             end
         else
             rpath = nothing
@@ -129,10 +129,8 @@ function energy_density(U, methodname::String)
     return E
 end
 
-function energy_density(::Plaquette, U::Gaugefield{B}) where {B}
-    update_halo!(U)
-
-    E = parallelfor_sum(eachindex(U), 0.0, B) do e, site
+function energy_density(::Plaquette, U::Gaugefield{B,T,M}) where {B,T,M}
+    E = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (U,), (), (U,)) do e, site, U
         for μ in 1:3
             for ν in (μ+1):4
                 Cμν = plaquette(U, μ, ν, site)
@@ -146,11 +144,10 @@ function energy_density(::Plaquette, U::Gaugefield{B}) where {B}
     return distributed_reduce(E / length(U), +, U)
 end
 
-function energy_density(::Clover, U::Gaugefield{B,T}) where {B,T}
+function energy_density(::Clover, U::Gaugefield{B,T,M}) where {B,T,M}
     fac = im * T(1/4)
-    update_halo!(U)
 
-    E = parallelfor_sum(eachindex(U), 0.0, B) do e, site
+    E = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (U,), (), (U,)) do e, site, U
         for μ in 1:3
             for ν in (μ+1):4
                 Cμν = clover_square(U, μ, ν, site, 1)
@@ -171,11 +168,10 @@ function energy_density(::Improved, U::Gaugefield)
     return 5 / 3 * Eclover - 1 / 12 * Erect
 end
 
-function energy_density_rect(U::Gaugefield{B,T}) where {B,T}
+function energy_density_rect(U::Gaugefield{B,T,M}) where {B,T,M}
     fac = im * T(1/8)
-    update_halo!(U)
 
-    E = parallelfor_sum(eachindex(U), 0.0, B) do e, site
+    E = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (U,), (), (U,)) do e, site, U
         for μ in 1:3
             for ν in (μ+1):4
                 Cμν = clover_rect(U, μ, ν, site, 1, 2)

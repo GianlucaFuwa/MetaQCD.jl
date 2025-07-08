@@ -1,8 +1,8 @@
-struct SpinorfieldEO{B,T,M,AT,ND} <: AbstractField{B,T,M,AT}
-    parent::Spinorfield{B,T,M,AT,ND}
+struct SpinorfieldEO{B,T,M,ND} <: AbstractField{B,T,M}
+    parent::Spinorfield{B,T,M,ND}
     function SpinorfieldEO(
-        f::Spinorfield{B,T,M,AT,ND}
-    ) where {B,T,M,AT,ND}
+        f::Spinorfield{B,T,M,ND}
+    ) where {B,T,M,ND}
         @assert iseven(size(f, 4)) "Need even time extent for even-odd preconditioning"
 
         if M
@@ -12,7 +12,7 @@ struct SpinorfieldEO{B,T,M,AT,ND} <: AbstractField{B,T,M,AT}
             """
         end
         
-        return new{B,T,M,AT,ND}(f)
+        return new{B,T,M,ND}(f)
     end
 end
 
@@ -27,9 +27,9 @@ or iterating only over one half of its indices.
 even_odd(f::Spinorfield) = SpinorfieldEO(f)
 even_odd(f::SpinorfieldEO) = f
 
-const MPISpinorfieldEO{B,T,AT,ND} = SpinorfieldEO{B,T,true,AT,ND}
+const MPISpinorfieldEO{B,T,ND} = SpinorfieldEO{B,T,true,ND}
 
-@inline num_dirac(::SpinorfieldEO{B,T,M,A,ND}) where {B,T,M,A,ND} = ND
+@inline num_dirac(::SpinorfieldEO{B,T,M,ND}) where {B,T,M,ND} = ND
 LinearAlgebra.checksquare(f::SpinorfieldEO) = length(f) * num_dirac(f) * num_colors(f)
 function Base.eltype(::Type{SpinorfieldEO}, ::Type{T}, ::Val{ND}) where {T,ND}
     return SVector{3ND,Complex{T}}
@@ -76,26 +76,27 @@ end
 clear!(ϕ_eo::SpinorfieldEO) = clear!(ϕ_eo.parent)
 ones!(ϕ_eo::SpinorfieldEO) = ones!(ϕ_eo.parent)
 
-function Base.copy!(ϕ_eo::T, ψ_eo::T) where {B,T<:SpinorfieldEO{B}}
+function Base.copy!(ϕ_eo::TF, ψ_eo::TF) where {B,T,M,TF<:SpinorfieldEO{B,T,M}}
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent
     even_half = true
+    itr = eachindex(even_half, ϕ, ψ)
 
-    parallelfor(eachindex(even_half, ϕ, ψ), B) do e_site
+    parallelfor(itr, B, Val(M), (), (ϕ,), (ϕ, ψ)) do e_site, ϕ, ψ
         ϕ[e_site] = ψ[e_site]
     end
 
     return nothing
 end
 
-function set_source!(ϕ_eo::SpinorfieldEO{B,T}, source::SiteCoords, a, μ) where {B,T}
+function set_source!(ϕ_eo::SpinorfieldEO{B,T,M}, source::SiteCoords, a, μ) where {B,T,M}
     ϕ = ϕ_eo.parent
     NC = num_colors(ϕ)
     ND = num_dirac(ϕ)
     @assert μ ∈ 1:ND && a ∈ 1:3
     vec_index = (μ - 1) * NC + a
 
-    parallelfor(eachindex(ϕ), B) do site
+    parallelfor(eachindex(ϕ), B, Val(M), (), (ϕ,), (ϕ,)) do site, ϕ
         if site == source
             tup = ntuple(i -> i == vec_index ? one(Complex{T}) : zero(Complex{T}), Val(3ND))
             _site = map_to_half(site, eachindex(ϕ))
@@ -104,56 +105,57 @@ function set_source!(ϕ_eo::SpinorfieldEO{B,T}, source::SiteCoords, a, μ) where
             ϕ[_site] = zero(SVector{3ND,Complex{T}})
         end
     end
+
     return nothing
 end
 
-function gaussian_pseudofermions!(ϕ_eo::SpinorfieldEO{B,T,M,AT,ND}) where {B,T,M,AT,ND}
+function gaussian_pseudofermions!(ϕ_eo::SpinorfieldEO{B,T,M,ND}) where {B,T,M,ND}
     ϕ = ϕ_eo.parent
     even_half = true
 
-    parallelfor(eachindex(even_half, ϕ), B) do e_site
+    parallelfor(eachindex(even_half, ϕ), B, Val(M), (), (ϕ,), (ϕ,)) do e_site, ϕ
         ϕ[e_site] = randn(SVector{3ND,Complex{T}}) # σ = 0.5
     end
 
     return nothing
 end
 
-function LinearAlgebra.mul!(ψ_eo::TF, ϕ_eo::TF, α) where {B,T,TF<:SpinorfieldEO{B,T}}
+function LinearAlgebra.mul!(ψ_eo::TF, ϕ_eo::TF, α) where {B,T,M,TF<:SpinorfieldEO{B,T,M}}
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent
     α = Complex{T}(α)
     even_half = true
 
-    parallelfor(eachindex(even_half, ϕ, ψ), B) do e_site
+    parallelfor(eachindex(even_half, ϕ, ψ), B, Val(M), (), (ψ,), (ψ, ϕ)) do e_site, ψ, ϕ
         ψ[e_site] = ϕ[e_site] * α
     end
 
     return nothing
 end
 
-function LinearAlgebra.axpy!(α, ψ_eo::TF, ϕ_eo::TF) where {B,T,TF<:SpinorfieldEO{B,T}} # even on even is the default
+function LinearAlgebra.axpy!(α, ϕ_eo::TF, ψ_eo::TF) where {B,T,M,TF<:SpinorfieldEO{B,T,M}} # even on even is the default
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent
     α = Complex{T}(α)
     even_half = true
 
-    parallelfor(eachindex(even_half, ϕ, ψ), B) do e_site
-        ϕ[e_site] += α * ψ[e_site]
+    parallelfor(eachindex(even_half, ϕ, ψ), B, Val(M), (), (ψ,), (ψ, ϕ)) do e_site, ψ, ϕ
+        ψ[e_site] += α * ϕ[e_site]
     end
 
     return nothing
 end
 
 function LinearAlgebra.axpby!(
-    α, ψ_eo::TF, β, ϕ_eo::TF, even_half=true
-) where {B,T,TF<:SpinorfieldEO{B,T}}
+    α, ϕ_eo::TF, β, ψ_eo::TF, even_half=true
+) where {B,T,M,TF<:SpinorfieldEO{B,T,M}}
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent
     α = Complex{T}(α)
     β = Complex{T}(β)
 
-    parallelfor(eachindex(even_half, ϕ, ψ), B) do _site
-        ϕ[_site] = α * ψ[_site] + β * ϕ[_site]
+    parallelfor(eachindex(even_half, ϕ, ψ), B, Val(M), (), (ψ,), (ψ, ϕ)) do _site, ψ, ϕ
+        ψ[_site] = α * ϕ[_site] + β * ψ[_site]
     end
 
     return nothing
@@ -161,34 +163,28 @@ end
 
 LinearAlgebra.norm(ϕ_eo::SpinorfieldEO) = sqrt(real(dot(ϕ_eo, ϕ_eo)))
 
-function LinearAlgebra.dot(ϕ_eo::T, ψ_eo::T) where {B,T<:SpinorfieldEO{B}}
+function LinearAlgebra.dot(ϕ_eo::TF, ψ_eo::TF) where {B,T,M,TF<:SpinorfieldEO{B,T,M}}
     ϕ = ϕ_eo.parent
     ψ = ψ_eo.parent
     res = 0.0 + 0.0im # res is always double precision, even if T is single precision
     even_half = true
+    itr = eachindex(even_half, ϕ, ψ)
 
-    res = parallelfor_sum(eachindex(even_half, ϕ, ψ), 0.0+0.0im, B) do d, e_site
+    res = parallelfor_sum(itr, 0.0+0.0im, B, Val(M), (), (), (ϕ, ψ)) do d, e_site, ϕ, ψ
         d += dot(ϕ[e_site], ψ[e_site])
     end
 
     return distributed_reduce(res, +, ϕ)
 end
 
-# function create_sendbuf!(f::SpinorfieldEO, sites, dim, dir)
-#     return create_sendbuf!(f.parent, sites, dim, dir)
-# end
-#
-# function Base.copyto!(a::T, b::T, arange, brange) where {T<:SpinorfieldEO}
-#     return copyto!(a.parent, b.parent, arange, brange)
-# end
-
-function create_sendbuf!(f_eo::SpinorfieldEO{B}, sites, dim, dir) where {B}
+function create_sendbuf!(f_eo::SpinorfieldEO{B,T,M}, sites, dim, dir) where {B,T,M}
     f = f_eo.parent
     ibuf = dir + 2(dim - 1)
     sendbuf = f.sendbuf[ibuf]
     bulk = eachindex(f)
+    itr = eachindex(IndexLinear(), sites)
 
-    parallelfor(eachindex(IndexLinear(), sites), B) do i
+    parallelfor(itr, B, Val(M), (), (), (f,)) do i, f
         site = sites[i]
         _site = map_to_half(site, bulk)
         sendbuf[i] = f[_site]
@@ -197,7 +193,9 @@ function create_sendbuf!(f_eo::SpinorfieldEO{B}, sites, dim, dir) where {B}
     return sendbuf
 end
 
-function Base.copyto!(a_eo::T, b_eo::T, arange, brange) where {B,T<:SpinorfieldEO{B}}
+function Base.copyto!(
+    a_eo::TF, b_eo::TF, arange, brange
+) where {B,T,M,TF<:SpinorfieldEO{B,T,M}}
     @assert length(arange) == length(brange) "send buffer and recv buffer arent of same size"
     a, b = a_eo.parent, b_eo.parent
     bulk_a = eachindex(a)
@@ -205,7 +203,7 @@ function Base.copyto!(a_eo::T, b_eo::T, arange, brange) where {B,T<:SpinorfieldE
     halo_a = a_eo.topology.halo_sites
     halo_b = b_eo.topology.halo_sites
 
-    parallelfor(eachindex(IndexLinear(), arange), B) do i
+    parallelfor(eachindex(IndexLinear(), arange), B, Val(M), (), (), (a, b)) do i, a, b
         site_a = arange[i]
         site_b = brange[i]
         _site_a = map_to_half(site_a, bulk_a, halo_a)

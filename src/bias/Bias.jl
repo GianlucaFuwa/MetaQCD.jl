@@ -3,11 +3,9 @@ module BiasModule
 using DelimitedFiles
 using LinearAlgebra
 using Polyester: @batch
-using Printf
 using StaticArrays
 using StaticTools: StaticString
 using Statistics
-using Unicode
 using ..MetaIO
 using ..Parameters: ParameterSet
 using ..Utils
@@ -165,19 +163,19 @@ function Bias(p, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, bui
 
     _datafile = joinpath(p.measure_dir, "bias_data_$(inum_str).txt")
     datafile = StaticString(_datafile)
-    open(_datafile, "w") do fp
-        @printf(fp, "%-11s", "itrj")
+    fp = fopen(_datafile, "w")
+    printf(fp, "%-11s", "itrj")
 
-        for i in 1:num_cv
-            @printf(fp, "%-25s", "cv$i")
-        end
-
-        for name in kinds_of_weights
-            @printf(fp, "%-25s", "weight_$(name)")
-        end
-
-        println(fp)
+    for i in 1:num_cv
+        printf(fp, "%-25s", "cv$i")
     end
+
+    for name in kinds_of_weights
+        printf(fp, "%-25s", "weight_$(name)")
+    end
+
+    newline(fp)
+    fclose(fp)
 
     @level1("|  BIASFILE: $(string(biasfile))")
     @level1("|  DATAFILE: $(string(datafile))")

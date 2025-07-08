@@ -7,6 +7,7 @@ using LinearAlgebra
 using MacroTools
 using OffsetArrays
 using Polyester # Used for the @batch macro, which enables multi threading
+using Preferences
 using Random
 using StaticArrays # Used for the SU3 matrices
 using ..Utils # Contains utility functions, such as projections and the exponential map
@@ -24,14 +25,13 @@ const BACKENDS = Dict{String,Type{<:KA.Backend}}("cpu" => CPU)
 
 # Define an abstract field super type that is parametrized by the backend, the precision and
 # the array type (Array, CuArray, ROCArray)
-abstract type AbstractField{Backend,FloatType,IsDistributed,ArrayType} end
+abstract type AbstractField{Backend,FloatType,IsDistributed} end
 
-const AbstractMPIField{Backend,FloatType,ArrayType} =
-    AbstractField{Backend,FloatType,true,ArrayType}
+const AbstractMPIField{Backend,FloatType} = AbstractField{Backend,FloatType,true}
 
 @inline function is_distributed(
-    ::AbstractField{Backend,FloatType,IsDistributed,ArrayType}
-) where {Backend,FloatType,IsDistributed,ArrayType}
+    ::AbstractField{Backend,FloatType,IsDistributed}
+) where {Backend,FloatType,IsDistributed}
     return IsDistributed
 end
 
@@ -40,6 +40,8 @@ end
 # utility functions for MPI-distributed fields
 include("distributed/topology.jl")
 include("distributed/halo_update.jl")
+# include("distributed/hide_communication.jl")
+include("distributed/comm_utils.jl")
 
 include("utils/groupreduce.jl")
 include("utils/parallel.jl")
@@ -162,6 +164,26 @@ Base.axes(u::AbstractField, μ::Integer) = u.topology.bulk_sites_padded.indices[
 @inline get_halo_width(u::AbstractField) = u.topology.halo_width
 @inline get_numprocs_cart(u::AbstractField) = u.topology.numprocs_cart
 
+@inline function invalidate_halo!(u::AbstractField) 
+    if u.halo_valid isa Base.RefValue{Bool}
+        u.halo_valid[] = false
+    end
+
+    return nothing
+end
+
+@inline function validate_halo!(u::AbstractField)
+    if u.halo_valid isa Base.RefValue{Bool}
+        u.halo_valid[] = false
+    end
+
+    return nothing
+end
+
+@inline function halo_is_valid(u::AbstractField)
+    return u.halo_valid isa Base.RefValue{Bool} ? u.halo_valid[] : true
+end
+
 # Field iterators / lattice sites
 @inline function Base.eachindex(u::AbstractField, fields...)
     check_dims(u, fields...)
@@ -282,15 +304,23 @@ end
 function Base.show(io::IO, ::MIME"text/plain", u::AbstractField{B,T}) where {B,T}
     print(io, "$(nameof(typeof(u))){$B,$T}", "(\n")
     println(io, "\tsize:", " $(size(u))")
+
+    if u isa Spinorfield || u isa MultiSpinorfield
+        println(io, "\tnumdirac:", " $(num_dirac(u))")
+    end
+
+    u isa MultiSpinorfield && println(io, "\tnumspinors:", " $(num_spinors(u))")
+
     for fieldname in fieldnames(typeof(u))
         if fieldname in (:U, :halos, :sendbuf)
             println(io, "\t", fieldname, ": $(nameof(typeof(getfield(u, fieldname))))")
         elseif fieldname == :topology
             println(io, "\t", fieldname, ": FieldTopology")
         else
-            println(io, "\t", fieldname, " = ", getfield(u, fieldname))
+            println(io, "\t", fieldname, ": ", getfield(u, fieldname))
         end
     end
+
     print(io, ")")
     return nothing
 end
@@ -298,15 +328,23 @@ end
 function Base.show(io::IO, u::AbstractField{B,T}) where {B,T}
     print(io, "$(nameof(typeof(u))){$B,$T}", "(\n")
     println(io, "\tsize:", " $(size(u))")
+
+    if u isa Spinorfield || u isa MultiSpinorfield
+        println(io, "\tnumdirac:", " $(num_dirac(u))")
+    end
+
+    u isa MultiSpinorfield && println(io, "\tnumspinors:", " $(num_spinors(u))")
+
     for fieldname in fieldnames(typeof(u))
         if fieldname in (:U, :halos, :sendbuf)
-            println(io, "\t", fieldname, ":  $(nameof(typeof(getfield(u, fieldname))))")
+            println(io, "\t", fieldname, ": $(nameof(typeof(getfield(u, fieldname))))")
         elseif fieldname == :topology
-            println(io, "\t", fieldname, ":  FieldTopology")
+            println(io, "\t", fieldname, ": FieldTopology")
         else
-            println(io, "\t", fieldname, ":  ", getfield(u, fieldname))
+            println(io, "\t", fieldname, ": ", getfield(u, fieldname))
         end
     end
+
     print(io, ")")
     return nothing
 end

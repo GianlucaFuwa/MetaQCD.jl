@@ -21,3 +21,9 @@ approx*.dat
 error*.dat
 /.benchmarkci
 /benchmark/*.json
+/benchmark/results*
+/benchmark/_*
+/benchmark/Manifest*
+/benchmark/scaling_results
+/test/_*
+.zed

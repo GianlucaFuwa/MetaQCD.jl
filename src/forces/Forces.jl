@@ -6,9 +6,7 @@ using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
 using StaticArrays
 using Polyester: @batch
-using Printf
 using StaticTools: StaticString
-using Unicode
 using ..MetaIO
 using ..RHMCParameters
 using ..Utils
@@ -30,10 +28,10 @@ import ..Smearing: AbstractSmearing, NoSmearing, StoutSmearing
 import ..Smearing: calc_smearedU!, get_layer, stout_backprop!
 
 # some aliases
-const StaggeredSpinorfield{B,T,M,A} = Spinorfield{B,T,M,A,1}
-const StaggeredEOPreSpinorfield{B,T,M,A} = SpinorfieldEO{B,T,M,A,1}
-const WilsonSpinorfield{B,T,M,A} = Spinorfield{B,T,M,A,4}
-const WilsonEOPreSpinorfield{B,T,M,A} = SpinorfieldEO{B,T,M,A,4}
+const StaggeredSpinorfield{B,T,M} = Spinorfield{B,T,M,1}
+const StaggeredEOPreSpinorfield{B,T,M} = SpinorfieldEO{B,T,M,1}
+const WilsonSpinorfield{B,T,M} = Spinorfield{B,T,M,4}
+const WilsonEOPreSpinorfield{B,T,M} = SpinorfieldEO{B,T,M,4}
 
 """
     calc_dSfdU_bare!(dU::Colorfield, fermion_action, U, ϕ, ::Any, ::NoSmearing)

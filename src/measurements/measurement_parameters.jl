@@ -84,23 +84,23 @@ end
 end
 
 function initialize_measurement_parameters(methodname)
-    if Unicode.normalize(methodname; casefold=true) == "gauge_action"
+    if lowercase(methodname) == "gauge_action"
         method = GaugeActionParameters()
-    elseif Unicode.normalize(methodname; casefold=true) == "plaquette"
+    elseif lowercase(methodname) == "plaquette"
         method = PlaquetteParameters()
-    elseif Unicode.normalize(methodname; casefold=true) == "polyakov_loop"
+    elseif lowercase(methodname) == "polyakov_loop"
         method = PolyakovParameters()
-    elseif Unicode.normalize(methodname; casefold=true) == "wilson_loop"
+    elseif lowercase(methodname) == "wilson_loop"
         method = WilsonLoopParameters()
-    elseif Unicode.normalize(methodname; casefold=true) == "topological_charge"
+    elseif lowercase(methodname) == "topological_charge"
         method = TopologicalChargeParameters()
-    elseif Unicode.normalize(methodname; casefold=true) == "energy_density"
+    elseif lowercase(methodname) == "energy_density"
         method = EnergyDensityParameters()
-    elseif Unicode.normalize(methodname; casefold=true) == "logdet"
+    elseif lowercase(methodname) == "logdet"
         method = LogDetParameters()
-    elseif Unicode.normalize(methodname; casefold=true) == "pion_correlator"
+    elseif lowercase(methodname) == "pion_correlator"
         method = PionCorrelatorParameters()
-    elseif Unicode.normalize(methodname; casefold=true) == "eigenvalues"
+    elseif lowercase(methodname) == "eigenvalues"
         method = EigenvaluesParameters()
     else
         error("$methodname is not implemented")

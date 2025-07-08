@@ -1,10 +1,10 @@
 """
-    Metropolis(U::Gaugefield{B,T,A,GA}, eo, ϵ, numhits, target_acc, or_alg, numorelax) where {B,T,A,GA}
+    Metropolis(U::Gaugefield{B,T,GA}, eo, ϵ, numhits, target_acc, or_alg, numorelax) where {B,T,A,GA}
 
 Create a `Metropolis` object.
 
 # Arguments
-- `U::Gaugefield{B,T,A,GA}`: Gauge field object.
+- `U::Gaugefield{B,T,GA}`: Gauge field object.
 - `eo`: Even-odd preconditioning.
 - `ϵ`: Step size for the update.
 - `numhits`: Number of Metropolis hits.
@@ -25,8 +25,8 @@ struct Metropolis{ITR,NH,TOR,NOR} <: AbstractUpdate
     overrelaxation::TOR
     numorelax::Int64
     function Metropolis(
-        ::Gaugefield{B,T,A,GA}, ϵ, numhits, target_acc, or_alg, numorelax; kwargs...
-    ) where {B,T,A,GA}
+        ::Gaugefield{B,T,GA}, ϵ, numhits, target_acc, or_alg, numorelax; kwargs...
+    ) where {B,T,GA}
         @level1("┌ Constructing Metropolis...")
         m_ϵ = Base.RefValue{Float64}(ϵ)
         ITR = (GA == WilsonGaugeAction) ? Checkerboard2 : Checkerboard4

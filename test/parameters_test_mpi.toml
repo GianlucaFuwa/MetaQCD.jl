@@ -7,7 +7,7 @@ verboselevel = 1
 log_to_console = true
 
 [ensemble]
-L = [4, 4, 4, 4]
+L = [8, 8, 8, 8]
 numtherm = 10
 numsteps = 10
 initial = "cold"
@@ -21,8 +21,8 @@ non_metadynamics_updates = 1
 measure_on_all = true
 
 [gauge_action]
-beta = 1.25
-gauge_action = "dbw2"
+beta = 6.0
+gauge_action = "wilson"
 
 [fermion_action]
 fermion_action = "staggered"

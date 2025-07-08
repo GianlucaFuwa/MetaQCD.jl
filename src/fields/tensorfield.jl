@@ -4,36 +4,24 @@ struct Plaquette <: AbstractFieldstrength end
 struct Clover <: AbstractFieldstrength end
 struct Improved <: AbstractFieldstrength end
 
-"""
-6-dimensional dense array of statically sized 3x3 matrices contatining associated meta-data.
+@field_constructor Tensorfield
+
+@doc raw"""
+Wrapper around a 6-dimensional dense array of statically sized 3x3 matrices contatining
+information about the global MPI-topology.
 
     Tensorfield{B,T}(NX, NY, NZ, NT)
-    Tensorfield{B,T}(NX, NY, NZ, NT, numprocs_cart, halo_width)
+    Tensorfield{B,T}(NX, NY, NZ, NT; numprocs_cart, halo_width)
     Tensorfield(u::AbstractField)
-    Tensorfield(parameters::ParameterSet)
 
 Creates a `Tensorfield` on `B`, i.e. an array of 3-by-3 `T`-precision matrices
 of size `4 x 4 × NX × NY × NZ × NT` or a zero-initialized Tensorfield of the same size as
 `u`.
 # Supported backends
-`CPU` \\
-`CUDABackend` \\
-`ROCBackend`
-"""
-struct Tensorfield{B,T,M,AT,HT,BT,TT} <: AbstractField{B,T,M,AT}
-    U::AT # Actual field storing the gauge variables
-    halos::HT
-    sendbuf::BT
-    topology::TT # Info regarding MPI topology
-    function Tensorfield{B,T,M}(
-        U::AT, halos::HT, sendbuf::BT, topology::TT
-    ) where {B,T,M,AT,HT,BT,TT}
-        check_types(B, T, U, halos, sendbuf)
-        return new{B,T,M,AT,HT,BT,TT}(U, halos, sendbuf, topology)
-    end
-end
-
-@field_constructor Tensorfield
+`CPU` \
+`CUDABackend` (provided CUDA.jl is loaded) \
+`ROCBackend` (provided AMDGPU.jl is loaded)
+""" Tensorfield
 
 function Tensorfield(
     u::AbstractField{B,T,M}; no_halo=false, hw=get_halo_width(u)
@@ -95,12 +83,11 @@ function fieldstrength_eachsite!(F::Tensorfield, U, kind_of_fs::String)
 end
 
 function fieldstrength_eachsite!(
-    ::Plaquette, F::Tensorfield{B,T}, U::Gaugefield{B,T}
-) where {B,T}
+    ::Plaquette, F::Tensorfield{B,T}, U::Gaugefield{B,T,M}
+) where {B,T,M}
     fac = Complex{T}(im)
-    update_halo!(U)
 
-    parallelfor(eachindex(U, F), B) do site
+    parallelfor(eachindex(U, F), B, Val(M), (U,), (F,), (U, F)) do site, U, F
         C12 = plaquette(U, 1, 2, site)
         F[1, 2, site] = fac * (C12 - C12')
         C13 = plaquette(U, 1, 3, site)
@@ -119,12 +106,11 @@ function fieldstrength_eachsite!(
 end
 
 function fieldstrength_eachsite!(
-    ::Clover, F::Tensorfield{B,T}, U::Gaugefield{B,T}
-) where {B,T}
+    ::Clover, F::Tensorfield{B,T}, U::Gaugefield{B,T,M}
+) where {B,T,M}
     fac = Complex{T}(im / 8)
-    update_halo!(U)
 
-    parallelfor(eachindex(U, F), B) do site
+    parallelfor(eachindex(U, F), B, Val(M), (U,), (F,), (U, F)) do site, U, F
         C12 = clover_square(U, 1, 2, site, 1)
         F[1, 2, site] = fac * (C12 - C12')
         C13 = clover_square(U, 1, 3, site, 1)
@@ -142,11 +128,12 @@ function fieldstrength_eachsite!(
     return nothing
 end
 
-function create_sendbuf!(F::Tensorfield{B}, sites, dim, dir) where {B}
+function create_sendbuf!(F::Tensorfield{B,T,M}, sites, dim, dir) where {B,T,M}
     ibuf = dir + 2(dim - 1)
     sendbuf = F.sendbuf[ibuf]
+    itr = eachindex(IndexLinear(), sites)
 
-    parallelfor(eachindex(IndexLinear(), sites), B) do i
+    parallelfor(itr, B, Val(M), (), (), (F,)) do i, F
         site = sites[i]
 
         for ν in 1:4
@@ -159,10 +146,10 @@ function create_sendbuf!(F::Tensorfield{B}, sites, dim, dir) where {B}
     return sendbuf
 end
 
-function Base.copyto!(a::Tensorfield{B}, b::Tensorfield{B}, arange, brange) where {B}
+function Base.copyto!(a::Tensorfield{B,T,M}, b::Tensorfield{B}, arange, brange) where {B,T,M}
     @assert length(arange) == length(brange) "send buffer and recv buffer arent of same size"
 
-    parallelfor(eachindex(IndexLinear(), arange), B) do i
+    parallelfor(eachindex(IndexLinear(), arange), B, Val(M), (), (), (a, b)) do i, a, b
         site_a = arange[i]
         site_b = brange[i]
 

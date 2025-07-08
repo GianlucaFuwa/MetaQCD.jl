@@ -226,15 +226,16 @@ function HMC(
     force2 = (!has_smearing && numcv == 0) ? nothing : Colorfield(U)
 
     if fermion_action == "staggered"
-        ϕ = ntuple(_ -> Spinorfield(U; staggered=true), numfermions)
+        ϕ = ntuple(_ -> Spinorfield(U; staggered=true, hw=1), numfermions)
     elseif fermion_action == "staggered_eo"
-        ϕ = ntuple(_ -> even_odd(Spinorfield(U; staggered=true)), numfermions)
+        ϕ = ntuple(_ -> even_odd(Spinorfield(U; staggered=true, hw=1)), numfermions)
     elseif fermion_action ∈ ["staggered_h1234", "staggered_1342"]
-        ϕ = ntuple(_ -> Spinorfield(U; staggered=true), numfermions)
+        ϕ = ntuple(_ -> Spinorfield(U; staggered=true, hw=2), numfermions)
     elseif fermion_action == "wilson"
-        ϕ = ntuple(_ -> Spinorfield(U), numfermions)
+        # TODO: differentiate between clover and non-clover in hw
+        ϕ = ntuple(_ -> Spinorfield(U; hw=2), numfermions)
     elseif fermion_action == "wilson_eo"
-        ϕ = ntuple(_ -> even_odd(Spinorfield(U)), numfermions)
+        ϕ = ntuple(_ -> even_odd(Spinorfield(U; hw=2)), numfermions)
     elseif fermion_action ∈ ["quenched", "none"]
         ϕ = nothing
     else
@@ -249,19 +250,16 @@ function HMC(
 
         for ii in instance
             _logfile = joinpath(logdir, "hmc_acc_logs_$(lpad(ii, 3, "0")).txt")
-            open(_logfile, "w") do fp
-                @printf(
-                    fp,
-                    "%-25s%-25s%-25s%-25s%-25s%-25s%-8s\n",
-                    "ΔP²",
-                    "ΔSg",
-                    "ΔSf",
-                    "ΔV",
-                    "ΔH",
-                    "S",
-                    "Accepted"
-                )
-            end
+            fp = fopen(_logfile, "w")
+            printf(fp, "%-25s", "ΔP²")
+            printf(fp, "%-25s", "ΔSg")
+            printf(fp, "%-25s", "ΔSf")
+            printf(fp, "%-25s", "ΔV")
+            printf(fp, "%-25s", "ΔH")
+            printf(fp, "%-25s", "S")
+            printf(fp, "%-8s", "Accepted")
+            newline(fp)
+            fclose(fp)
         end
 
         _logfile = joinpath(logdir, "hmc_acc_logs_$(lpad(instance[1], 3, "0")).txt")
@@ -370,13 +368,13 @@ function update!(
 end
 
 function updateU!(
-    U::Gaugefield{B,T}, hmc, fac, fermion_action, bias, therm, level
-) where {B,T}
+    U::Gaugefield{B,T,M}, hmc, fac, fermion_action, bias, therm, level
+) where {B,T,M}
     if level == 1
         ϵ = T(hmc.levels[level].Δτ * fac)
         P = hmc.P
 
-        parallelfor(allindices(U, P), B) do μsite
+        parallelfor(allindices(U, P), B, Val(M), (), (U,), (U, P)) do μsite, U, P
             U[μsite] = cmatmul_oo(exp_iQ(-im * ϵ * P[μsite]), U[μsite])
         end
     else

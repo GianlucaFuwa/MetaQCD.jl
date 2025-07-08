@@ -15,7 +15,6 @@ using LinearAlgebra: checksquare
 using KernelAbstractions # With this we can write generic GPU kernels for ROC and CUDA
 using LinearAlgebra
 using Polyester
-using Printf
 using StaticArrays
 using StaticTools: StaticString
 using ..MetaIO
@@ -31,7 +30,7 @@ import ..Fields: clear!, clover_square , even_odd, gaussian_pseudofermions!, is_
 import ..Fields: parallelfor, parallelfor_sum, Clover, Checkerboard2, Sequential, set_source!
 import ..Fields: fieldstrength_eachsite!, num_colors, num_dirac
 import ..Fields: PeriodicBC, AntiPeriodicBC, apply_bc, create_bc, distributed_reduce
-import ..Fields: update_halo!
+import ..Fields: device_to_host
 
 abstract type AbstractDiracOperator{B,T} end
 abstract type AbstractFermionAction{R,Nf} end # R indicates whether the action uses rational approximation or not, TM whether there are twisted masses or not
@@ -43,10 +42,10 @@ struct QuenchedFermionAction <: AbstractFermionAction{false,0}
 end
 
 # some aliases
-const StaggeredSpinorfield{B,T,M,A} = Spinorfield{B,T,M,A,1}
-const StaggeredEOPreSpinorfield{B,T,M,A} = SpinorfieldEO{B,T,M,A,1}
-const WilsonSpinorfield{B,T,M,A} = Spinorfield{B,T,M,A,4}
-const WilsonEOPreSpinorfield{B,T,M,A} = SpinorfieldEO{B,T,M,A,4}
+const StaggeredSpinorfield{B,T,M} = Spinorfield{B,T,M,1}
+const StaggeredEOPreSpinorfield{B,T,M} = SpinorfieldEO{B,T,M,1}
+const WilsonSpinorfield{B,T,M} = Spinorfield{B,T,M,4}
+const WilsonEOPreSpinorfield{B,T,M} = SpinorfieldEO{B,T,M,4}
 
 Base.eltype(D::AbstractDiracOperator) = eltype(D.temp)
 LinearAlgebra.checksquare(D::AbstractDiracOperator) = LinearAlgebra.checksquare(D.temp)

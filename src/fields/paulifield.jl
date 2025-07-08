@@ -1,19 +1,23 @@
-struct Paulifield{B,T,M,C,AT,TT} <: AbstractField{B,T,M,AT}
-    U::AT
-    halos::Nothing # XXX: ugly
-    sendbuf::Nothing
-    topology::TT
-    csw::Float64
-    inverse::Bool
-    function Paulifield{B,T,M,C}(
-        U::AT, halos, sendbuf, topology::TT, csw, inverse
-    ) where {B,T,M,C,AT,TT}
-        check_types(B, T, U, halos, sendbuf)
-        return new{B,T,M,C,AT,TT}(U, nothing, nothing, topology, csw, inverse)
-    end
-end
-
 @field_constructor Paulifield extra_types=C extra_args=(csw, inverse)
+
+# TODO: complete docs
+@doc raw"""
+Wrapper around a 4-dimensional dense array of `PauliMatrix`-objects contatining
+information about the global MPI-topology.
+A `PauliMatrix` is made up of 2 6x6 complex matrices, which are the upper left and lower
+lower right blocks of a full 12x12 hermitian matrix.
+
+    Paulifield{B,T,C}(NX, NY, NZ, NT, csw, inverse)
+    Paulifield{B,T,C}(NX, NY, NZ, NT, csw, inverse; numprocs_cart, halo_width)
+    Paulifield(f::AbstractField, csw, inverse; no_halo, hw)
+
+Creates a Paulifield on `B`, i.e. an array of link-variables
+of size `NX × NY × NZ × NT` or a zero-initialized copy of `f`.
+# Supported backends
+`CPU` \
+`CUDABackend` (provided CUDA.jl is loaded) \
+`ROCBackend` (provided AMDGPU.jl is loaded)
+""" Paulifield
 
 function Paulifield(
     u::AbstractField{B,T,M}, csw, inverse; no_halo=false, hw=get_halo_width(u)
@@ -66,21 +70,22 @@ Base.@propagate_inbounds function Base.setindex!(u::MPIPaulifield, v, site::Site
     return nothing
 end
 
-function create_sendbuf!(p::Paulifield{B}, sites, dim, dir) where {B}
+function create_sendbuf!(p::Paulifield{B,T,M}, sites, dim, dir) where {B,T,M}
     ibuf = dir + 2(dim - 1)
     sendbuf = p.sendbuf[ibuf]
+    itr = eachindex(IndexLinear(), sites)
 
-    parallelfor(eachindex(IndexLinear(), sites), B) do i
+    parallelfor(itr, B, Val(M), (), (), (p,)) do i, p
         sendbuf[i] = p[sites[i]]
     end
 
     return sendbuf
 end
 
-function Base.copyto!(a::T, b::T, arange, brange) where {B,T<:Paulifield{B}}
+function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:Paulifield{B,T,M}}
     @assert length(arange) == length(brange) "send buffer and recv buffer arent of same size"
 
-    parallelfor(eachindex(IndexLinear(), arange), B) do i
+    parallelfor(eachindex(IndexLinear(), arange), B, Val(M), (), (), (a, b)) do i, a, b
         site_a = arange[i]
         site_b = brange[i]
         a[site_a] = b[site_b]

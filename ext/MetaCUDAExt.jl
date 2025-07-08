@@ -1,7 +1,7 @@
 module MetaCUDAExt
 
 using CUDA
-using CUDA: CUDABackend, CuArray
+using CUDA: CUDABackend, CuArray, launch_configuration
 import MetaQCD.Fields
 
 function __init__()
@@ -10,5 +10,10 @@ function __init__()
 end
 
 Fields.array_type(::Type{CUDABackend}) = CuArray
+
+function Fields.simple_tune(itr, kernel, ::Type{CUDABackend})
+    config = launch_configuration(kernel)
+    return min(length(itr), config.threads)
+end
 
 end

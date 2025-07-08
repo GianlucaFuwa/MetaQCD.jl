@@ -1,5 +1,5 @@
 """
-    Heatbath(U::Gaugefield{B,T,A,GA}, MAXIT, numheatbath, or_alg, numorelax) where {B,T,A,GA}
+    Heatbath(U::Gaugefield{B,T,GA}, MAXIT, numheatbath, or_alg, numorelax) where {B,T,GA}
 
 Create a `Heatbath`` object.
 
@@ -25,8 +25,8 @@ struct Heatbath{MAXIT,ITR,TOR,NHB,NOR} <: AbstractUpdate end
 # @inline NOR(::Heatbath{<:Any,<:Any,<:Any,<:Any,NOR}) where {NOR} = _unwrap_val(NOR)
 
 function Heatbath(
-    ::Gaugefield{B,T,A,GA}, MAXIT, numheatbath, or_alg, numorelax; kwargs...
-) where {B,T,A,GA}
+    ::Gaugefield{B,T,GA}, MAXIT, numheatbath, or_alg, numorelax; kwargs...
+) where {B,T,GA}
     @level1("┌ Constructing Heatbath...")
     ITR = GA == WilsonGaugeAction ? Checkerboard2 : Checkerboard4
     @level1("|  ITERATOR: $(string(ITR))")

@@ -1,4 +1,4 @@
-using Statistics
+using Statistics, MetaQCD.Utils, BenchmarkTools
 
 const FLOPS = Dict("Staggered" => 587, "Wilson" => 1368, "Wilson-Clover" => 1368 + 1728)
 function  mem_per_site(op, ::Type{T}) where T
@@ -25,24 +25,26 @@ using .BenchDirac
 tune!(suite)
 results = run(suite)
 
-for (op, flops) in FLOPS
-    N = BenchDirac.N
-    backend = BenchDirac.backend_str
-    fp = open("benchmark/results_$(op)_$(N)_$(backend).txt", "w+")
-    println(fp, "==== $(op) ====")
+if mpi_amroot()
+    for (op, flops) in FLOPS
+        N = BenchDirac.N
+        backend = BenchDirac.backend_str
+        fp = open("benchmark/results_$(op)_$(N)_$(backend)_$(mpi_size())procs.txt", "w+")
+        println(fp, "==== $(op) ====")
 
-    for T in (Float64, Float32)
-        mem = mem_per_site(op, T)
-        println(fp, "$T:")
-        println(fp, "   L = $(N)^4:")
-        mintime = minimum(results.data[op]["$T"].times)
-        avgtime = mean(results.data[op]["$T"].times)
-        println(fp, "   Max: $(N^4*flops / mintime) GFLOPS")
-        println(fp, "   Avg: $(N^4*flops / avgtime) GFLOPS")
-        println()
-        println(fp, "   Max: $(N^4*mem / mintime) GB/s")
-        println(fp, "   Avg: $(N^4*mem / avgtime) GB/s")
+        for T in (Float64, Float32)
+            mem = mem_per_site(op, T)
+            println(fp, "$T:")
+            println(fp, "   L = $(N)^4:")
+            mintime = minimum(results.data[op]["$T"].times)
+            avgtime = mean(results.data[op]["$T"].times)
+            println(fp, "   Max: $(N^4*flops / mintime) GFLOPS")
+            println(fp, "   Avg: $(N^4*flops / avgtime) GFLOPS")
+            println()
+            println(fp, "   Max: $(N^4*mem / mintime) GB/s")
+            println(fp, "   Avg: $(N^4*mem / avgtime) GB/s")
+        end
+
+        close(fp)
     end
-
-    close(fp)
 end

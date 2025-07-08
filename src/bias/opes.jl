@@ -408,34 +408,34 @@ write_to_file(::OPES, ::Nothing) = nothing
 
 function write_to_file(o::OPES, filename::AbstractString)
     filename=="" && return nothing
-    (tmppath, tmpio) = mktemp()
-    print(tmpio, "#")
+    tmppath = tempname()
+    tmpio = fopen(tmppath, "w")
+    printf(tmpio, "#")
 
     for var in opes_state_vars
-        print(tmpio, rpad(var, 25))
+        printf(tmpio, "%-25s", string(var))
     end
 
-    println(tmpio)
+    newline(tmpio)
 
     for var in opes_state_vars
-        print(tmpio, rpad(getproperty(o, var), 25))
+        printf(tmpio, "%-25.15E", getproperty(o, var))
     end
 
-    println(tmpio, "\n")
-    print(tmpio, rpad("#height", 25))
-    print(tmpio, rpad("center", 25))
-    print(tmpio, rpad("sigma", 25))
-
-    println(tmpio)
+    newline(tmpio)
+    printf(tmpio, "%-25s", "#height")
+    printf(tmpio, "%-25s", "center")
+    printf(tmpio, "%-25s", "sigma")
+    newline(tmpio)
 
     for kernel in o.kernels
-        @printf(tmpio, "%+-25.15e", kernel.height)
-        @printf(tmpio, "%+-25.15e", kernel.center)
-        @printf(tmpio, "%+-25.15e", kernel.σ)
-        println(tmpio)
+        printf(tmpio, "%+-25.15E", kernel.height)
+        printf(tmpio, "%+-25.15E", kernel.center)
+        printf(tmpio, "%+-25.15E", kernel.σ)
+        newline(tmpio)
     end
 
-    close(tmpio)
+    fclose(tmpio)
     mv(tmppath, filename; force=true)
     return nothing
 end

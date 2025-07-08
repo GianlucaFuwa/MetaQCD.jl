@@ -132,12 +132,12 @@ function temper!( # INFO: When not using MPI in tempering
     return nothing
 end
 
-function swap_U!(a::T, b::T, biasa, biasb) where {B,T<:Gaugefield{B}}
+function swap_U!(a::TF, b::TF, biasa, biasb) where {B,T,M,TF<:Gaugefield{B,T,M}}
     a_CV_tmp = deepcopy(biasa.CV)
     biasa.CV = biasb.CV
     biasb.CV = a_CV_tmp
 
-    parallelfor(allindices(a, b), B) do μsite
+    parallelfor(allindices(a, b), B, Val(M), (), (a, b), (a, b)) do μsite, a, b
         a_tmp = a[μsite]
         a[μsite] = b[μsite]
         b[μsite] = a_tmp

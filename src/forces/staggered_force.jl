@@ -78,10 +78,9 @@ function add_staggered_derivative!(
     dU::Colorfield{B,T}, U::Gaugefield{B,T,M}, X::TF, Y::TF, bc; coeff=1
 ) where {B,T,M,TF<:StaggeredSpinorfield{B,T,M}}
     fac = T(-0.5coeff)
-    # TODO: can hide
-    update_halo!(U, X, Y)
+    itr = eachindex(dU, U, X, Y)
 
-    parallelfor(eachindex(dU, U, X, Y), B) do site
+    parallelfor(itr, B, Val(M), (X, Y), (dU,), (dU, U, X, Y)) do site, dU, U, X, Y
         add_staggered_derivative_kernel!(dU, U, X, Y, site, bc, fac)
     end
 

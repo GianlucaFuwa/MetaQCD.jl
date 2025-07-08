@@ -11,7 +11,6 @@ using MPI
 using MuladdMacro: @muladd
 using Polyester
 using Random
-using Unicode
 using StaticArrays
 using StaticTools
 # using PrecompileTools: PrecompileTools
@@ -64,7 +63,7 @@ export cdot, cmvmul, cmvmul_d, cvmmul, cvmmul_d, cmvmul_block
 export cmvmul_color, cmvmul_d_color, cvmmul_color, cvmmul_d_color
 export ckron, spintrace, cmvmul_spin_proj, spin_proj, σμν_spin_mul
 export _unwrap_val, SU, restore_last_col, restore_last_row, FLOAT_TYPE
-export cinv, i32, spintrace_pauli, lower_case, struct2dict
+export cinv, i32, spintrace_pauli, struct2dict
 
 abstract type AbstractIterator end
 struct Sequential <: AbstractIterator end
@@ -72,8 +71,6 @@ struct Checkerboard2 <: AbstractIterator end
 struct Checkerboard4 <: AbstractIterator end
 struct EvenSites <: AbstractIterator end
 struct OddSites <: AbstractIterator end
-
-lower_case(str) = Unicode.normalize(str; casefold=true)
 
 @inline _unwrap_val(::Val{B}) where {B} = B
 

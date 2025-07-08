@@ -26,22 +26,22 @@ struct TopologicalChargeMeasurement{T} <: AbstractMeasurement
 
         if !isnothing(filename) && filename != ""
             rpath = StaticString(filename)
-            header = ""
-
-            if flow == true || flow != NoSmearing()
-                header *= @sprintf("%-11s%-7s%-9s", "itrj", "iflow", "tflow")
-            else
-                header *= @sprintf("%-11s", "itrj")
-            end
-
-            for method in keys(TC_dict)
-                header *= @sprintf("%-25s", "Q_$(method)")
-            end
 
             if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
-                open(filename, "w") do fp
-                    println(fp, header)
+                fp = fopen(filename, "w")
+                printf(fp, "%-11s", "itrj")
+
+                if flow == true || flow != NoSmearing()
+                    printf(fp, "%-7s", "iflow")
+                    printf(fp, "%-9s", "tflow")
                 end
+
+                for method in keys(TC_dict)
+                    printf(fp, "%-25s", "Q_$(method)")
+                end
+
+                newline(fp)
+                fclose(fp)
             end
         else
             rpath = nothing
@@ -131,33 +131,29 @@ function top_charge(U::Gaugefield, methodname::String)
     return Q
 end
 
-function top_charge(::Plaquette, U::Gaugefield{B}) where {B}
-    update_halo!(U)
-
-    Q = parallelfor_sum(eachindex(U), 0.0, B) do q, site
+function top_charge(::Plaquette, U::Gaugefield{B,T,M}) where {B,T,M}
+    Q = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (U,), (), (U,)) do q, site, U
         q += top_charge_density_plaq(U, site)
     end
 
     return distributed_reduce(Q/4π^2, +, U)
 end
 
-function top_charge(::Clover, U::Gaugefield{B,T}) where {B,T}
-    update_halo!(U)
-    
-    Q = parallelfor_sum(eachindex(U), 0.0, B) do q, site
+function top_charge(::Clover, U::Gaugefield{B,T,M}) where {B,T,M}
+    itr = eachindex(U)
+    Q = parallelfor_sum(itr, 0.0, B, Val(M), (U,), (), (U,); block_size=128) do q, site, U
         q += top_charge_density_clover(U, site, Float64)
     end
 
     return distributed_reduce(Q/4π^2, +, U)
 end
 
-function top_charge(::Improved, U::Gaugefield{B,T}) where {B,T}
+function top_charge(::Improved, U::Gaugefield{B,T,M}) where {B,T,M}
     is_distributed(U) && @assert(U.topology.halo_width>=2)
     c₀ = T(5/3)
     c₁ = T(-2/12)
-    update_halo!(U)
-
-    Q = parallelfor_sum(eachindex(U), 0.0, B) do q, site
+    itr = eachindex(U)
+    Q = parallelfor_sum(itr, 0.0, B, Val(M), (U,), (), (U,); block_size=128) do q, site, U
         q += top_charge_density_imp(U, site, c₀, c₁, T)
     end
 
@@ -226,14 +222,12 @@ function top_charge_density_rect(U, site, ::Type{T}) where {T}
 end
 
 function top_charge_deriv!(
-    dU::Colorfield{B,T}, F::Tensorfield{B,T}, U::Gaugefield{B,T}, kind_of_charge, fac=1.0
-) where {B,T}
+    dU::Colorfield{B,T}, F::Tensorfield{B,T,M}, U::Gaugefield{B,T}, kind_of_charge, fac=1.0
+) where {B,T,M}
     c = T(fac / 4π^2)
+    fieldstrength_eachsite!(kind_of_charge, F, U) # halo update of U done here
 
-    fieldstrength_eachsite!(kind_of_charge, F, U)
-    update_halo!(F)
-
-    parallelfor(eachindex(dU, F, U), B) do site
+    parallelfor(eachindex(dU, F, U), B, Val(M), (F,), (U,), (F, U)) do site, F, U
         tmp1 = cmatmul_oo(
             U[1, site],
             (

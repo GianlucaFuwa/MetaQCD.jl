@@ -1,31 +1,22 @@
-"""
+@field_constructor MultiSpinorfield extra_types=ND extra_args=numspinors
+
+@doc raw"""
+Wrapper around a 5-dimensional dense array of statically 3xND vectors contatining
+information about the global MPI-topology.
+
     MultiSpinorfield{B,T,ND}(NX, NY, NZ, NT, numspinors)
+    MultiSpinorfield{B,T,ND}(NX, NY, NZ, NT, numspinors; numprocs_cart, halo_width)
     MultiSpinorfield(ψ::MultiSpinorfield)
     MultiSpinorfield(f::AbstractField; numspinors=1, staggered=false)
 
-Creates a MultiSpinorfield on `B`, i.e. an array of link-variables (numcolors×NumDirac×numspinors complex vectors
-with `T` precision) of size `NX × NY × NZ × NT` or a zero-initialized copy of `ψ`.
+Creates a MultiSpinorfield on `B`, i.e. an array of link-variables (numcolors×NumDirac complex vectors
+with `T` precision) of size `numspinors x NX × NY × NZ × NT` or a zero-initialized copy of `ψ`.
 If `staggered=true`, the number of Dirac degrees of freedom (ND) is reduced to 1 instead of 4.
 # Supported backends
-`CPU` \\
-`CUDABackend` \\
-`ROCBackend`
-"""
-struct MultiSpinorfield{B,T,M,AT,GA,HT,BT,TT} <: AbstractField{B,T,M,AT}
-    U::AT # Actual field storing the gauge variables
-    halos::HT
-    sendbuf::BT
-    topology::TT # Info regarding MPI topology
-    numspinors::Int64
-    function MultiSpinorfield{B,T,M,ND}(
-        U::AT, halos::HT, sendbuf::BT, topology::TT, numspinors
-    ) where {B,T,M,AT,ND,HT,BT,TT}
-        check_types(B, T, U, halos, sendbuf)
-        return new{B,T,M,AT,ND,HT,BT,TT}(U, halos, sendbuf, topology, numspinors)
-    end
-end
-
-@field_constructor MultiSpinorfield extra_types=ND extra_args=numspinors
+`CPU` \
+`CUDABackend` (provided CUDA.jl is loaded) \
+`ROCBackend` (provided AMDGPU.jl is loaded)
+""" MultiSpinorfield
 
 function MultiSpinorfield(
     f::MultiSpinorfield{B,T,M,ND}; no_halo=false, hw=halo_width(f)
@@ -67,10 +58,10 @@ function MultiSpinorfield(
     return u_out
 end
 
-const MPIMultiSpinorfield{B,T,AT,ND,HT,TT} = MultiSpinorfield{B,T,true,AT,ND,HT,TT}
+const MPIMultiSpinorfield{B,T,ND,AT,HT,TT} = MultiSpinorfield{B,T,true,ND,AT,HT,TT}
 
 # Need to overload dims and size again, because we are using 4D arrays for fermions
-@inline num_dirac(::MultiSpinorfield{B,T,M,A,ND}) where {B,T,M,A,ND} = ND
+@inline num_dirac(::MultiSpinorfield{B,T,M,ND}) where {B,T,M,ND} = ND
 @inline num_spinors(f::MultiSpinorfield) = f.numspinors
 LinearAlgebra.checksquare(f::MultiSpinorfield) = length(f) * num_dirac(f) * num_colors(f)
 function Base.eltype(::Type{MultiSpinorfield}, ::Type{T}, ::Val{ND}) where {T,ND}
@@ -96,11 +87,9 @@ Base.@propagate_inbounds function Base.setindex!(u::MPIMultiSpinorfield, v, is, 
     return _setindex_lat!(u, v, is, site, u.topology.bulk_sites, u.topology.halo_width)
 end
 
-function ones!(ϕ::MultiSpinorfield{B,T}) where {B,T}
-    numspinors = num_spinors(ϕ)
-
-    parallelfor(eachindex(ϕ), B) do site
-        for is in 1:numspinors
+function ones!(ϕ::MultiSpinorfield{B,T,M}) where {B,T,M}
+    parallelfor(eachindex(ϕ), B, Val(M), (), (ϕ,), (ϕ,)) do site, ϕ
+        for is in 1:ϕ.numspinors
             ϕ[is, site] = fill(1, ϕ[is, site])
         end
     end
@@ -108,20 +97,19 @@ function ones!(ϕ::MultiSpinorfield{B,T}) where {B,T}
     return nothing
 end
 
-function set_source!(ϕ::MultiSpinorfield{B,T}, source::SiteCoords, a, μ) where {B,T}
+function set_source!(ϕ::MultiSpinorfield{B,T,M}, source::SiteCoords, a, μ) where {B,T,M}
     ND = num_dirac(ϕ)
     @assert μ ∈ 1:ND && a ∈ 1:3
     vec_index = 3(μ - 1) + a
-    numspinors = ϕ.numspinors
 
-    parallelfor(eachindex(ϕ), B) do site
+    parallelfor(eachindex(ϕ), B, Val(M), (), (ϕ,), (ϕ,)) do site, ϕ
         if site == source
             tup = ntuple(i -> i == vec_index ? one(Complex{T}) : zero(Complex{T}), Val(3ND))
-            for is in 1:numspinors
+            for is in 1:ϕ.numspinors
                 ϕ[is, site] = SVector{3ND,Complex{T}}(tup)
             end
         else
-            for is in 1:numspinors
+            for is in 1:ϕ.numspinors
                 ϕ[is, site] = zero(SVector{3ND,Complex{T}})
             end
         end
@@ -130,12 +118,11 @@ function set_source!(ϕ::MultiSpinorfield{B,T}, source::SiteCoords, a, μ) where
     return nothing
 end
 
-function gaussian_pseudofermions!(ϕ::MultiSpinorfield{B,T}) where {B,T}
+function gaussian_pseudofermions!(ϕ::MultiSpinorfield{B,T,M}) where {B,T,M}
     ND = num_dirac(ϕ)
-    numspinors = ϕ.numspinors
 
-    parallelfor(eachindex(ϕ), B) do site
-        for is in 1:numspinors
+    parallelfor(eachindex(ϕ), B, Val(M), (), (ϕ,), (ϕ,)) do site, ϕ
+        for is in 1:ϕ.numspinors
             ϕ[is, site] = randn(SVector{3ND,Complex{T}}) # σ = 0.5
         end
     end
@@ -143,15 +130,15 @@ function gaussian_pseudofermions!(ϕ::MultiSpinorfield{B,T}) where {B,T}
     return nothing
 end
 
-function create_sendbuf!(f::MultiSpinorfield{B}, sites, dim, dir) where {B}
-    numspinors = num_spinors(f)
+function create_sendbuf!(f::MultiSpinorfield{B,T,M}, sites, dim, dir) where {B,T,M}
     ibuf = dir + 2(dim - 1)
     sendbuf = f.sendbuf[ibuf]
+    itr = eachindex(IndexLinear(), sites)
 
-    parallelfor(eachindex(IndexLinear(), sites), B) do i
+    parallelfor(itr, B, Val(M), (), (), (f,)) do i, f
         site = sites[i]
 
-        for is in 1:numspinors
+        for is in 1:f.numspinors
             sendbuf[is, i] = f[is, site]
         end
     end
@@ -159,16 +146,15 @@ function create_sendbuf!(f::MultiSpinorfield{B}, sites, dim, dir) where {B}
     return sendbuf
 end
 
-function Base.copyto!(a::T, b::T, arange, brange) where {B,T<:MultiSpinorfield{B}}
+function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:MultiSpinorfield{B,T,M}}
     @assert length(arange) == length(brange) "send buffer and recv buffer arent of same size"
     @assert num_spinors(a) == num_spinors(b) "input fields must have same `numspinors`"
-    numspinors = num_spinors(a)
 
-    parallelfor(eachindex(IndexLinear(), arange), B) do i
+    parallelfor(eachindex(IndexLinear(), arange), B, Val(M), (), (), (a, b)) do i, a, b
         site_a = arange[i]
         site_b = brange[i]
 
-        for is in 1:numspinors
+        for is in 1:a.numspinors
             a[is, site_a] = b[is, site_b]
         end
     end

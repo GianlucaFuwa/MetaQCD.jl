@@ -5,7 +5,6 @@ using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
 using Polyester: @batch
 using StaticArrays
-using Unicode
 using ..MetaIO
 using ..Utils
 
@@ -22,7 +21,7 @@ include("./gradientflow.jl")
 include("./cooling.jl")
 
 function construct_flow(U, parameters)
-    flow_integrator = lower_case.(parameters.flow_integrator)
+    flow_integrator = lowercase.(parameters.flow_integrator)
 
     # can measure using multiple integrators in one simulation
     smearing = ntuple(length(flow_integrator)) do i

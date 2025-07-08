@@ -43,13 +43,13 @@ end
 # INFO: This converts u to a PtrArray pointing to the entries of u.U, meaning that we cant
 # access any of the fields of u within the @batch loop
 # @inline object_and_preserve(u::AbstractField) = object_and_preserve(u.U)
-@generated function object_and_preserve(u::TU) where {T,M,AT,TU<:AbstractField{CPU,T,M,AT}}
+@generated function object_and_preserve(u::TF) where {T,M,TF<:AbstractField{CPU,T,M}}
     q = quote
         $(Expr(:meta, :inline))
     end
 
-    Fieldtype = nameof(TU)
-    fnames = fieldnames(TU)
+    Fieldtype = nameof(TF)
+    fnames = fieldnames(TF)
     for name in fnames
         if name == :topology
             hw_expr = :(halo_width = u.topology.halo_width)
@@ -59,6 +59,10 @@ end
             push!(q.args, quote
                 $(Symbol(:o_and_p_, name)) =
                     (($hw_expr, $bulk_expr, $bulk_pad_expr, $glob_expr), nothing)
+            end)
+        elseif name == :halo_valid
+            push!(q.args, quote
+                $(Symbol(:o_and_p_, name)) = (nothing, nothing)
             end)
         else
             push!(
@@ -82,11 +86,11 @@ end
     push!(q.args, Expr(:(=), :preserves, preserves))
 
     q_field = Expr(:(=), :u_ptr)
-    qu = if TU <: Gaugefield
+    qu = if TF <: Gaugefield
         :(Gaugefield{CPU,T,M,gauge_action(u)}($objects...))
-    elseif TU <: Spinorfield || TU <: MultiSpinorfield
+    elseif TF <: Spinorfield || TF <: MultiSpinorfield
         :(Spinorfield{CPU,T,M,num_dirac(u)}($objects...))
-    elseif TU <: Paulifield
+    elseif TF <: Paulifield
         :(Paulifield{CPU,T,M,has_clover_term(u)}($objects...))
     else
         :($(Fieldtype){CPU,T,M}($objects...))

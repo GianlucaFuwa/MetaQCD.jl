@@ -92,10 +92,9 @@ function mul_oe!(
     bulk = eachindex(ψ)
     halo = M ? ψ.topology.halo_sites : nothing
     odd_half = false
-    # TODO: can hide
-    update_halo!(U, ϕ)
+    itr = eachindex(odd_half, ψ, ϕ, U)
 
-    parallelfor(eachindex(odd_half, ψ, ϕ, U), B) do o_site
+    parallelfor(itr, B, Val(M), (U, ϕ_eo), (ψ,), (U, ϕ, ψ)) do o_site, U, ϕ, ψ
         site = map_from_half(o_site, bulk)
         _site = into_odd ? o_site : switch_sides(o_site, bulk)
         ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, bc, T, dagg, halo, bulk)
@@ -112,10 +111,9 @@ function mul_eo!(
     bulk = eachindex(ψ)
     halo = M ? ψ.topology.halo_sites : nothing
     even_half = true
-    # TODO: can hide
-    update_halo!(U, ϕ)
+    itr = eachindex(even_half, ψ, ϕ, U)
 
-    parallelfor(eachindex(even_half, ψ, ϕ, U), B) do e_site
+    parallelfor(itr, B, Val(M), (U, ϕ_eo), (ψ,), (U, ϕ, ψ)) do e_site, U, ϕ, ψ
         site = map_from_half(e_site, bulk)
         _site = into_odd ? switch_sides(e_site, bulk) : e_site
         ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, bc, T, dagg, halo, bulk)

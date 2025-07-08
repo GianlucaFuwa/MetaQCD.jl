@@ -127,10 +127,11 @@ struct FermionAction{R,Nf,TD,CT,RI1,RI2,RT,TX,T} <: AbstractFermionAction{R,Nf}
         cg_datafile = StaticString(cg_filepath)
 
         if cg_filepath != ""
-            open(cg_datafile, "w") do fp
-                @printf(fp, "%-11s%-25s", "iters", "res")
-                println(fp)
-            end
+            fp = fopen(cg_datafile, "w")
+            printf(fp, "%-11s", "iters")
+            printf(fp, "%-25s", "res")
+            newline(fp)
+            fclose(fp)
         end
 
         CT = typeof(cg_temps)

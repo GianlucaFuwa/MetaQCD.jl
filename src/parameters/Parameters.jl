@@ -2,7 +2,6 @@ module Parameters
 
 using Dates
 using LinearAlgebra
-using Unicode
 using TOML
 using ..Utils
 
@@ -234,7 +233,7 @@ function check_parameters(p::ParameterSet)
 
     if prod(p.numprocs_cart) > 1
         @assert p.halo_width >= 1 "Halo width must be >= 1, when using field decomposition"
-        @assert lower_case(p.update_method) == "hmc" """
+        @assert lowercase(p.update_method) == "hmc" """
         Field decomposition not supported for local update algorithms
         """
 
@@ -246,7 +245,7 @@ function check_parameters(p::ParameterSet)
         end
     end
 
-    @assert lower_case(p.gauge_action) ∈ ["wilson", "iwasaki", "symanzik_tree", "dbw2"] """
+    @assert lowercase(p.gauge_action) ∈ ["wilson", "iwasaki", "symanzik_tree", "dbw2"] """
     gauge_action in [\"gauge_action\"]: \"$(p.gauge_action)\" is not supported.
     Supported gactions are:
     Wilson
@@ -255,7 +254,7 @@ function check_parameters(p::ParameterSet)
     Symanzik_tree
     """
 
-    @assert lower_case(p.fermion_action) ∈ [
+    @assert lowercase(p.fermion_action) ∈ [
         "none", "wilson", "wilson_eo", "staggered", "staggered_eo",
         "staggered-h1234", "staggered-h1324", "staggered-h1342"
     ] """
@@ -271,18 +270,18 @@ function check_parameters(p::ParameterSet)
     Staggered-H1342
     """
 
-    if lower_case(p.fermion_action) != "none"
-        @assert lower_case(p.update_method) == "hmc" "Dynamical fermions only with HMC"
+    if lowercase(p.fermion_action) != "none"
+        @assert lowercase(p.update_method) == "hmc" "Dynamical fermions only with HMC"
     end
 
-    @assert lower_case(p.initial) ∈ ["cold", "hot"] """
+    @assert lowercase(p.initial) ∈ ["cold", "hot"] """
     intial in [\"ensemble\"]: \"$(p.initial)\" is not supported.
     Supported initial conditions are:
     cold
     hot
     """
 
-    @assert lower_case(p.update_method) ∈ ["hmc", "metropolis", "heatbath"] """
+    @assert lowercase(p.update_method) ∈ ["hmc", "metropolis", "heatbath"] """
     update_method in [\"ensemble\"]: \"$(p.update_method)\" is not supported.
     Supported methods are:
     HMC
@@ -290,7 +289,7 @@ function check_parameters(p::ParameterSet)
     Heatbath
     """
 
-    # @assert lower_case(p.hmc_integrator) ∈ [
+    # @assert lowercase(p.hmc_integrator) ∈ [
     #     "leapfrog", "omf2slow", "omf2", "omf4slow", "omf4", "leapfrogra", "omf4ra"
     # ] """
     # hmc_integrator in [\"hmc\"]: \"$(p.hmc_integrator)\" is not supported.
@@ -305,7 +304,7 @@ function check_parameters(p::ParameterSet)
     # """
 
     for flow_int in p.flow_integrator
-        @assert lower_case(flow_int) ∈ ["euler", "rk2", "rk3", "rk3w7", "cooling"] """
+        @assert lowercase(flow_int) ∈ ["euler", "rk2", "rk3", "rk3w7", "cooling"] """
         flow_integrator in [\"gradient_flow\"]: \"$(flow_int)\" is not supported.
         Supported methods are:
         Euler
@@ -316,7 +315,7 @@ function check_parameters(p::ParameterSet)
         """
     end
 
-    @assert lower_case(p.save_config_format) ∈ ["", "bmw", "bridge", "jld", "jld2"] """
+    @assert lowercase(p.save_config_format) ∈ ["", "bmw", "bridge", "jld", "jld2"] """
     save_config_format in [\"data\"]: \"$(p.save_config_format)\" \
     is not supported.
     Supported methods are:
@@ -327,7 +326,7 @@ function check_parameters(p::ParameterSet)
 
     if p.load_config_fromfile
         @assert isfile(p.load_config_path) "Your load_config_path doesn't exist"
-        @assert lower_case(p.load_config_format) ∈ ["bmw", "bridge", "jld", "jld2"] """
+        @assert lowercase(p.load_config_format) ∈ ["bmw", "bridge", "jld", "jld2"] """
         loadU_format in [\"data\"]: \"$(p.load_config_format)\" \
         is not supported.
         Supported methods are:

@@ -24,6 +24,18 @@ function mpi_init()
     end
 end
 
+@inline function mpi_split(comm=mpi_comm(); color=0, key=0)
+    comm_split = MPI.Comm_split(comm, color, key)
+    MPI_INSTANCE_INITIALIZED[] = true
+    MPI_COMM_INSTANCE[] = comm_split
+    MPI_INSTANCE[] = color
+
+    comm_shared = MPI.Comm_split(comm, MPI.Comm_rank(comm_split), 0)
+    MPI_COMM_SHARED[] = comm_shared
+    return comm_split
+end
+
+
 @inline function mpi_comm()
     mpi_init()
     return MPI.COMM_WORLD
@@ -54,18 +66,6 @@ end
 @inline function mpi_amroot(comm=mpi_comm())
     return mpi_myrank(comm) == 0
 end
-
-@inline function mpi_split(comm=mpi_comm(); color=0, key=0)
-    comm_split = MPI.Comm_split(comm, color, key)
-    MPI_INSTANCE_INITIALIZED[] = true
-    MPI_COMM_INSTANCE[] = comm_split
-    MPI_INSTANCE[] = color
-
-    comm_shared = MPI.Comm_split(comm, MPI.Comm_rank(comm_split), 0)
-    MPI_COMM_SHARED[] = comm_shared
-    return comm_split
-end
-
 @inline function mpi_barrier(comm=mpi_comm())
     mpi_init()
     return MPI.Barrier(comm)

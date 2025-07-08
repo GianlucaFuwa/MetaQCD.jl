@@ -27,13 +27,13 @@ function bias_parameters_from_dict(input::Dict, instance=mpi_rank())
 end
 
 function initialize_bias_parameters(type)
-    if Unicode.normalize(type; casefold=true) ∈ ("metad", "metadynamics")
+    if lowercase(type) ∈ ("metad", "metadynamics")
         method = MetadynamicsParameters()
-    elseif Unicode.normalize(type; casefold=true) == "opes"
+    elseif lowercase(type) == "opes"
         method = OPESParameters()
-    elseif Unicode.normalize(type; casefold=true) == "opesmt"
+    elseif lowercase(type) == "opesmt"
         method = OPESmultithermalParameters()
-    elseif Unicode.normalize(type; casefold=true) == "parametric"
+    elseif lowercase(type) == "parametric"
         method = ParametricParameters()
     else
         error("$(type) is not implemented")

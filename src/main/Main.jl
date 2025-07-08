@@ -2,7 +2,6 @@ module Main
 
 using Dates
 using DelimitedFiles
-using InteractiveUtils
 using LinearAlgebra
 using Random
 using Statistics

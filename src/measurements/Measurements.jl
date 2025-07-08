@@ -12,9 +12,7 @@ using KernelAbstractions
 using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
 using Polyester
-using Printf: @printf, @sprintf
 using StaticTools: StaticString
-using Unicode
 using ..MetaIO
 using ..Utils
 

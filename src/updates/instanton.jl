@@ -5,7 +5,7 @@ function set_instanton!(U::Gaugefield, Q::Vector{Int64})
     return nothing
 end
 
-function set_instanton!(U::Gaugefield{B,T}, Q) where {B,T}
+function set_instanton!(U::Gaugefield{B,T,M}, Q) where {B,T,M}
     NX, NY, NZ, NT = size(U)
     xrange, yrange, zrange, trange = U.topology.bulk_sites.indices
     identity_gauges!(U)
@@ -17,14 +17,16 @@ function set_instanton!(U::Gaugefield{B,T}, Q) where {B,T}
     field_x = T(2π * abs(Q) / NX)
     field_t = T(2π * abs(Q) / (NX*NT))
 
-    parallelfor(eachindex(U), B) do site
+    parallelfor(eachindex(U), B, Val(M), (), (U,), (U,)) do site, U
         it = site[4]
         cit = cos(field_t * it)
         sit = sin(field_t * it)
         U[1, site] = s_comp + cit * s_id + im * sit * s
     end
 
-    parallelfor(CartesianIndices((xrange, yrange, zrange)), B) do xyz
+    itr = CartesianIndices((xrange, yrange, zrange))
+
+    parallelfor(itr, B, Val(M), (), (U,), (U,)) do xyz, U
         ix, iy, iz = xyz.I
         cit = cos(field_x * ix)
         sit = sin(field_x * ix)
@@ -43,14 +45,16 @@ function set_instanton!(U::Gaugefield{B,T}, Q) where {B,T}
     t_comp = tau_comp(T)
     t_id = tau_id(T)
 
-    parallelfor(eachindex(U), B) do site
+    parallelfor(eachindex(U), B, Val(M), (), (U,), (U,)) do site, U
         iy = site[2]
         cit = cos(field_y * iy)
         sit = sin(field_y * iy)
         U[3, site] = t_comp + cit * t_id + im * sit * t
     end
 
-    parallelfor(CartesianIndices((xrange, zrange, trange)), B) do xzt
+    itr = CartesianIndices((xrange, zrange, trange))
+
+    parallelfor(itr, B, Val(M), (), (U,), (U,)) do xzt, U
         ix, iz, it = xzt.I
         cit = cos(field_z * iz)
         sit = sin(field_z * iz)

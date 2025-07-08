@@ -1,7 +1,5 @@
 module MetaQCD
 
-using Requires
-
 include("./utils/Utils.jl")
 include("./parameters/Parameters.jl")
 include("./fields/Fields.jl")
@@ -23,7 +21,6 @@ using .Utils
 using .Main
 using .Solvers
 using LinearAlgebra
-using Unicode
 
 export BMWFormat, BridgeFormat, JLD2Format, load_field!, save_field
 export MetaLogger, current_time, @level1, @level2, @level3, set_global_logger!

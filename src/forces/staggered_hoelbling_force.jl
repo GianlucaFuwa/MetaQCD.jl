@@ -95,9 +95,9 @@ function add_staggered_hoelbling_derivative!(
     fac1 = T(-0.5coeff)
     fac2 = T(coeff)
     _μ, _ν, _ρ, _σ = term
-    update_halo!(U, X, Y)
+    itr = eachindex(dU, U, X, Y)
 
-    parallelfor(eachindex(dU, U, X, Y), B) do site
+    parallelfor(itr, B, Val(M), (U, X, Y), (dU,), (dU, U, X, Y)) do site, dU, U, X, Y
         add_staggered_derivative_kernel!(dU, U, X, Y, site, bc, fac1)
         add_hoelbling_derivative_kernel!(dU, _μ, _ν, U, X, Y, site, bc, fac2)
         add_hoelbling_derivative_kernel!(dU, _ρ, _σ, U, X, Y, site, bc, fac2)

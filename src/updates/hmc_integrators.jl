@@ -296,11 +296,11 @@ function integrator_from_str(str::String, friction=0.0)
 end
 
 function num_U_updates(str::String)
-    if lower_case(str) ∈ ("leapfrog", "leapfrogra")
+    if lowercase(str) ∈ ("leapfrog", "leapfrogra")
         return 1
-    elseif lower_case(str) ∈ ("omf2", "omf2slow")
+    elseif lowercase(str) ∈ ("omf2", "omf2slow")
         return 2
-    elseif lower_case(str) ∈ ("omf4", "omf4slow", "omf4ra")
+    elseif lowercase(str) ∈ ("omf4", "omf4slow", "omf4ra")
         return 5
     else
         error("integrator \"$(str)\" not supported")

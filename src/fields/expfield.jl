@@ -1,33 +1,21 @@
+@field_constructor Expfield
+
 """
-5-dimensional dense array of `ExpiQCoeffs` objects contatining associated meta-data. The
-objects hold the `Q`-matrices and all the exponential parameters needed for stout-force
-recursion.
+Wrapper around a 5-dimensional dense array of `ExpiQCoeffs` objects contatining
+information about the global MPI-topology. The array holds the `Q`-matrices and all the
+exponential parameters needed for stout-force recursion.
 
     Expfield{B,T}(NX, NY, NZ, NT)
-    Expfield{B,T}(NX, NY, NZ, NT, numprocs_cart, halo_width)
+    Expfield{B,T}(NX, NY, NZ, NT; numprocs_cart, halo_width)
     Expfield(u::AbstractField)
 
 Creates a Expfield on `B`, i.e. an array of `T`-precison `ExpiQCoeffs` objects
 of size `4 × NX × NY × NZ × NT` or of the same size as `u`.
 # Supported backends
-`CPU` \\
-`CUDABackend` \\
-`ROCBackend`
-"""
-struct Expfield{B,T,M,AT,HT,BT,TT} <: AbstractField{B,T,M,AT}
-    U::AT # Actual field storing the gauge variables
-    halos::HT
-    sendbuf::BT
-    topology::TT # Info regarding MPI topology
-    function Expfield{B,T,M}(
-        U::AT, halos::HT, sendbuf::BT, topology::TT
-    ) where {B,T,M,AT,HT,BT,TT}
-        check_types(B, T, U, halos, sendbuf)
-        return new{B,T,M,AT,HT,BT,TT}(U, halos, sendbuf, topology)
-    end
-end
-
-@field_constructor Expfield
+`CPU` \
+`CUDABackend` (provided CUDA.jl is loaded) \
+`ROCBackend` (provided AMDGPU.jl is loaded)
+""" Expfield
 
 function Expfield(
     u::AbstractField{B,T,M}; no_halo=false, hw=get_halo_width(u)

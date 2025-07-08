@@ -2,7 +2,6 @@ module Universe
 
 using Dates
 using LinearAlgebra
-using Unicode
 using TOML: parsefile
 using ..MetaIO
 using ..Utils
@@ -27,8 +26,8 @@ struct Univ{TG,TF,TB}
     bias::TB
     numinstances::Int64
     function Univ(
-        U::Gaugefield{BACKEND,T,M,A,GA}, fermion_action::TF, bias::TB, numinstances
-    ) where {BACKEND,T,M,A,GA,TF,TB}
+        U::Gaugefield{BACKEND,T,M,GA}, fermion_action::TF, bias::TB, numinstances
+    ) where {BACKEND,T,M,GA,TF,TB}
         NX, NY, NZ, NT = size(U)
         @level1("- Constructing Universe...")
         @level1("|  NUM INSTANCES: $(numinstances)")
@@ -50,7 +49,7 @@ struct Univ{TG,TF,TB}
 
     function Univ(
         U::Vector{TG}, fermion_action::TF, bias::Vector{TB}, numinstances
-    ) where {B,T,M,A,GA,TG<:Gaugefield{B,T,M,A,GA},TF,TB}
+    ) where {B,T,M,GA,TG<:Gaugefield{B,T,M,GA},TF,TB}
         NX, NY, NZ, NT = size(U[1])
         @level1("- Constructing Universe...")
         @level1("|  NUM INSTANCES: $(numinstances)")

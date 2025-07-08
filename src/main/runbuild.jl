@@ -73,14 +73,7 @@ function build_bias(parameterfile::String)
 
     set_global_logger!(parameters.verboselevel, logpath; tc=to_console)
 
-    # print time and system info, because it looks cool I guess
-    # all these "@level1" calls are just for logging, level1 is always printed
-    # and anything higher has to specified in the parameter file (default is level2)
     @level1("# Working directory: $(pwd()) @ $(string(current_time()))")
-    # buf = IOBuffer()
-    # InteractiveUtils.versioninfo(buf)
-    # versioninfo = String(take!(buf))
-    # @level1(versioninfo)
     @level1("[ Running MetaQCD.jl version $(PACKAGE_VERSION)\n")
     @level1("[ Random seed is: $seed\n")
 

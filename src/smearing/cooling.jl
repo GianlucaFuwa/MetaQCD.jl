@@ -49,12 +49,10 @@ function flow!(cool::Cooling)
     return nothing
 end
 
-function cool!(Uflow::Gaugefield{B}) where {B}
+function cool!(Uflow::Gaugefield{B,T,M}) where {B,T,M}
     GA = WilsonGaugeAction()
-    # TODO: can hide
-    update_halo!(Uflow)
 
-    parallelfor(eachindex(Uflow), B) do site
+    parallelfor(eachindex(Uflow), B, Val(M), (), (Uflow,), (Uflow,)) do site, Uflow
         for μ in 1:4
             old_link = Uflow[μ, site]
             A_adj = staple(GA, Uflow, μ, site)'

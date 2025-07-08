@@ -92,16 +92,14 @@ end
 # for arbitrary arrays, not just fermion fields and dirac operators (good for testing)
 function LinearAlgebra.mul!(
     ψ::TF, D::StaggeredHoelblingDiracOperator{MT,B,T,TF,TG}, ϕ::TF
-) where {MT,B,T,TF,TG}
+) where {MT,B,T,M,TF<:StaggeredSpinorfield{B,T,M},TG}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.U
     mass = T(D.mass)
     term = get_mass_term(D)
     bc = D.boundary_condition
-    # TODO: can hide
-    update_halo!(U, ϕ)
 
-    parallelfor(eachindex(ψ, ϕ, U), B) do site
+    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ)) do site, U, ϕ, ψ
         ψ[site] = staggered_hoelbling_kernel(U, ϕ, site, mass, bc, term, T, false)
     end
 
@@ -110,16 +108,14 @@ end
 
 function LinearAlgebra.mul!(
     ψ::TF, D::Daggered{StaggeredHoelblingDiracOperator{MT,B,T,TF,TG,BC}}, ϕ::TF
-) where {MT,B,T,TF,TG,BC}
+) where {MT,B,T,M,TF<:StaggeredSpinorfield{B,T,M},TG,BC}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.parent.U
     mass = T(D.parent.mass)
     term = get_mass_term(D.parent)
     bc = D.parent.boundary_condition
-    # TODO: can hide
-    update_halo!(U, ϕ)
 
-    parallelfor(eachindex(ψ, ϕ, U), B) do site
+    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ)) do site, U, ϕ, ψ
         ψ[site] = staggered_hoelbling_kernel(U, ϕ, site, mass, bc, term, T, true)
     end
 

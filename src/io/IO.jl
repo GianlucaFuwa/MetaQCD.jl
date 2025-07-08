@@ -1,12 +1,10 @@
 module MetaIO
 
 using Dates
-using InteractiveUtils: InteractiveUtils
 using JLD2
 using KernelAbstractions # TODO: save and load of Fields on GPUs
 using LinearAlgebra
 using Polyester
-using Printf
 using Random
 using StaticArrays
 using ..Parameters
