@@ -3,7 +3,6 @@
 # [MetaQCD]
 # MPI_HIDE_COMMUNICATION = true
 const HIDE_COMMS = Val(@load_preference("MPI_HIDE_COMMUNICATION", false))
-@show HIDE_COMMS
 
 function parallelfor(
     f,

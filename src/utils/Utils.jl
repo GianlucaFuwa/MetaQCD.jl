@@ -25,7 +25,7 @@ export mpi_isend, mpi_recv, mpi_irecv!, mpi_waitall, mpi_allreduce, mpi_allgathe
 export mpi_bcast, mpi_bcast!, mpi_buffer, mpi_bcast_isbits, mpi_write_at
 export PauliMatrix, exp_iQ, exp_iQ_coeffs, ExpiQCoeffs, get_B₁, get_B₂, get_Q, get_Q²
 export gen_SU3_matrix, is_special_unitary, is_traceless_antihermitian
-export kenney_laub, proj_onto_SU3, multr, cnorm2
+export kenney_laub, proj_onto_SU3, multr
 export make_submatrix_12, make_submatrix_13, make_submatrix_23
 export embed_into_SU3_12, embed_into_SU3_13, embed_into_SU3_23
 export antihermitian, hermitian, traceless_antihermitian, traceless_hermitian, materialize_TA
@@ -184,27 +184,6 @@ Calculate the trace of the product of two complex NxN matrices `A` and `B` of pr
 #
 #     return Complex{T}(re, im)
 # end
-
-"""
-    cnorm2(A::SMatrix{N,N,Complex{T},N²}) where {N,N²,T}
-
-Calculate the 2-norm of the complex NxN matrix `M`
-"""
-@inline function cnorm2(M::SU{N,N²,T}) where {N,N²,T}
-    # for some reason we have to convert A and B to MArrays, otherwise we get a dynamic
-    # function invocation for reinterpret(...) on CUDA
-    m = reinterpret(reshape, T, MMatrix(M))
-    re = zero(T)
-
-    # This doesnt work with @turbo on AMDGPU because of bzhi instruction not being recognized
-    @simd for i in Base.Slice(static(1):static(N))
-        for j in Base.Slice(static(1):static(N))
-            re += m[1, j, i] * m[1, j, i] + m[2, j, i] * m[2, j, i]
-        end
-    end
-
-    return sqrt(re)
-end
 
 """
     cinv(M)

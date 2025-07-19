@@ -56,21 +56,21 @@ function LinearAlgebra.tr(u::AbstractField{B,T,M}) where {B,T,M}
     return distributed_reduce(trace, +, u)
 end
 
-function LinearAlgebra.norm(u::AbstractField{B,T,M}, ::Val{2}) where {B,T,M}# avg 2-norm
-    norm2 = parallelfor_sum(eachindex(u), 0.0, B, Val(M), (), (), (u,)) do n2, site, u
+function LinearAlgebra.norm(U::AbstractField{B,T,M}, ::Val{2}) where {B,T,M}# avg 2-norm
+    norm2 = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (), (), (U,)) do n2, site, U
         for μ in 1:4
-            n2 += cnorm2(u[μ, site])
+            n2 += norm(U[μ, site], 2)
         end
         n2
     end
 
-    norm2 /= 4length(u)
-    return distributed_reduce(norm2, +, u)
+    norm2 /= 4length(U)
+    return distributed_reduce(norm2, +, U)
 end
 
 function LinearAlgebra.norm(u::AbstractField{B,T,M}, ::Val{Inf}) where {B,T,M}
     normsup = parallelfor_max(allindices(u), typemin(Float64), B) do nsup, μsite
-        nsup = max(nsup, cnorm2(u[μsite])) 
+        nsup = max(nsup, norm(u[μsite], 2)) 
     end
 
     return distributed_reduce(normsup, max, u)
