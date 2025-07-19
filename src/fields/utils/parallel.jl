@@ -1,7 +1,3 @@
-# This determines whether communication should be hidden in mpi halo exchange
-# can be set in a LocalPreferences.toml file within the projects directory, like:
-# [MetaQCD]
-# MPI_HIDE_COMMUNICATION = true
 const HIDE_COMMS = Val(@load_preference("MPI_HIDE_COMMUNICATION", false))
 
 function parallelfor(
