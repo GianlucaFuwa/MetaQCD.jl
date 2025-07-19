@@ -10,29 +10,36 @@ MetaQCD.MetaIO.set_global_logger!(1, nothing; tc=false) # INFO: disable logging 
 
 ops = (
     WilsonDiracOperator,
+    WilsonDiracOperator,
     # WilsonEOPreDiracOperator,
     StaggeredDiracOperator,
-    StaggeredEOPreDiracOperator,
+    # StaggeredEOPreDiracOperator,
 )
 
 titles = (
     "Wilson",
+    "Wilson-Clover",
     # "Wilson (Even-Odd preconditioned)",
     "Staggered",
-    "Staggered (Even-Odd preconditioned)",
+    # "Staggered (Even-Odd preconditioned)",
 )
 
 Random.seed!(1234)
 
-N = 16
+N = 32
+backend_str = "cpu"
+backend = MetaQCD.Fields.BACKENDS[backend_str]
 
 suite = BenchmarkGroup()
 
 for (i, dirac) in enumerate(ops)
+    # numprocs_cart = (1, 1, 1, 1)
+    # halo_width = titles[i] == "Wilson-Clover" ? 2 : 1
     s = suite["$(titles[i])"] = BenchmarkGroup()
     for T in (Float32, Float64)
-        U = Gaugefield{CPU,T,WilsonGaugeAction}(N, N, N, N, 6.0)
-        D = dirac(U, 0.01; csw=1.0)
+        U = Gaugefield{backend,T,WilsonGaugeAction}(N, N, N, N, 6.0)
+        csw = titles[i] == "Wilson-Clover" ? 1.0 : 0.0
+        D = dirac(U, 0.01; csw=csw)
         ϕ = Spinorfield(D.temp)
         ψ = Spinorfield(D.temp)
 
