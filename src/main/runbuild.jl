@@ -1,4 +1,4 @@
-function build_bias(parameterfile::String; backend="cpu")
+function build_bias(parameterfile::String)
     # When using MPI we make sure that only rank 0 prints to the console
     if mpi_amroot()
         ext = splitext(parameterfile)[end]
@@ -8,7 +8,16 @@ function build_bias(parameterfile::String; backend="cpu")
     end
 
     # load parameters from toml file
-    parameters = construct_params_from_toml(parameterfile; backend=backend)
+    parameters = construct_params_from_toml(parameterfile)
+    if parameters.backend == "cuda"
+        @assert "cuda" in keys(BACKENDS) """
+        In order to use the CUDA Backend, CUDA.jl has to be loaded
+        """
+    elseif parameters.backend ∈ ("rocm", "roc", "amdgpu")
+        @assert "rocm" in keys(BACKENDS) """
+        In order to use the ROCM Backend, AMDGPU.jl has to be loaded
+        """
+    end
 
     @assert !parameters.tempering_enabled "Tempering must not be enabled in build"
     num_instances = parameters.numinstances
@@ -26,7 +35,7 @@ function build_bias(parameterfile::String; backend="cpu")
     end
 
     @assert mpi_size() == num_instances * num_dist "MPI comm size must be = numinstances*prod(numprocs_cart)"
-    mpi_split(mpi_comm(); color=mpi_myrank()%num_instances)
+    mpi_split(mpi_comm(); color=mpi_myrank()÷num_instances)
     MPI_NUMINSTANCES[] = num_instances # change global consant defined in utils/mpi.jl
 
     if mpi_amroot()
@@ -64,14 +73,7 @@ function build_bias(parameterfile::String; backend="cpu")
 
     set_global_logger!(parameters.verboselevel, logpath; tc=to_console)
 
-    # print time and system info, because it looks cool I guess
-    # all these "@level1" calls are just for logging, level1 is always printed
-    # and anything higher has to specified in the parameter file (default is level2)
     @level1("# Working directory: $(pwd()) @ $(string(current_time()))")
-    # buf = IOBuffer()
-    # InteractiveUtils.versioninfo(buf)
-    # versioninfo = String(take!(buf))
-    # @level1(versioninfo)
     @level1("[ Running MetaQCD.jl version $(PACKAGE_VERSION)\n")
     @level1("[ Random seed is: $seed\n")
 
@@ -146,7 +148,7 @@ function metabuild!(
     U = univ.U
     fermion_action = univ.fermion_action
     bias = univ.bias
-    comm_root = mpi_comm_root()
+    comm_shared = mpi_comm_shared()
     starting_Q = parameters.starting_Q
     num_cv = length(bias)
     therm_cv = Matrix{Float64}(undef, num_cv, parameters.numtherm)
@@ -179,7 +181,7 @@ function metabuild!(
                     fermion_action=fermion_action,
                     bias=NoBias(),
                     metro_test=itrj>10, # So we dont get stuck at the beginning
-                    therm=true,
+                    therm=Val(true),
                 )
 
                 mpi_barrier()
@@ -196,7 +198,7 @@ function metabuild!(
                 recalc_cv!(U, bias)
 
                 for icv in 1:num_cv
-                    therm_cv[icv, itrj] = U.CV[icv]
+                    therm_cv[icv, itrj] = bias.CV[icv]
                 end
             end
 
@@ -211,7 +213,7 @@ function metabuild!(
 
     for i in 1:num_cv
         if adaptive_σ[i]
-            std_cv = mpi_allgather(std(view(therm_cv, i, :))::Float64, comm_root)
+            std_cv = mpi_allgather(std(view(therm_cv, i, :))::Float64, comm_shared)
             set_sigma0!(bias, mean(std_cv), i)
         end
     end
@@ -244,13 +246,13 @@ function metabuild!(
 
             @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")
             # all procs send their CVs to all other procs and update their copy of the bias
-            CVs = mpi_allgather(tuple(U.CV...)::NTuple{num_cv,Float64}, comm_root)
-            accepteds = mpi_allgather(accepted::Bool, comm_root)
+            CVs = mpi_allgather(tuple(bias.CV...)::NTuple{num_cv,Float64}, comm_shared)
+            accepteds = mpi_allgather(accepted::Bool, comm_shared)
             accepted_CVs = CVs[findall(accepteds)] # update only on those CVs that were accepted
 
             update_bias!(bias, accepted_CVs, itrj; mpi_multi_sim=mpi_multi_sim)
 
-            acceptances = mpi_allgather(numaccepts::Float64, comm_root) # XXX: should use MPI.gather?
+            acceptances = mpi_allgather(numaccepts::Float64, comm_shared) # XXX: should use MPI.gather?
             print_acceptance_rates(acceptances, itrj)
 
             create_checkpoint(checkpointer, univ, updatemethod, nothing, itrj)
@@ -259,7 +261,7 @@ function metabuild!(
             calc_measurements_flowed(
                 measurements_with_flow, gflow, U, itrj; mpi_multi_sim=mpi_multi_sim
             )
-            calc_weights(bias, U.CV, itrj)
+            calc_weights(bias, itrj)
         end
     end
 

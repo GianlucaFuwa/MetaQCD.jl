@@ -64,34 +64,24 @@ struct EigenvaluesMeasurement{T,TA,TD} <: AbstractMeasurement
         end
 
         if !isnothing(filename) && filename != ""
-            path = filename * MYEXT
-            rpath = StaticString(path)
-            header = ""
-
-            if flow
-                header *= @sprintf("%-11s%-7s%-9s", "itrj", "iflow", "tflow")
-            else
-                header *= @sprintf("%-11s", "itrj")
-            end
-
-            if which == "LM" || which == "LR" || which == "LI"
-                vals = zeros(ComplexF64, nev)
-            elseif which == "SM" || which == "SR" || which == "SI"
-                vals = zeros(ComplexF64, nev)
-            elseif which == "LSM"
-                vals = zeros(ComplexF64, 2nev)
-            else
-                error("\"which\" in eigenvalue measurement can only be LM, LR, LI, SM, SR, SI or LSM. Was $which")
-            end
-            
-            for i in eachindex(vals)
-                header *= @sprintf("%-25s%-25s", "eig_re_$(i)", "eig_im_$(i)")
-            end
+            rpath = StaticString(filename)
 
             if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
-                open(path, "w") do fp
-                    println(fp, header)
+                fp = fopen(path, "w")
+                printf(fp, "%-11s", "itrj")
+
+                if flow == true || flow != NoSmearing()
+                    printf(fp, "%-7s", "iflow")
+                    printf(fp, "%-9s", "tflow")
                 end
+
+                for i in eachindex(vals)
+                    printf(fp, "%-25s", "eig_re_$(i)")
+                    printf(fp, "%-25s", "eig_im_$(i)")
+                end
+
+                newline(fp)
+                fclose(fp)
             end
         else
             rpath = nothing
@@ -198,19 +188,19 @@ function measure(m::EigenvaluesMeasurement{T}, U, itrj, flow=nothing) where {T}
         if T !== Nothing
             filename = set_ext!(m.filename)
             fp = fopen(filename, "a")
-            @printf(fp, "%-11i", itrj)
+            printf(fp, "%-11i", itrj)
 
             if !isnothing(flow)
-                @printf(fp, "%-7i", iflow)
-                @printf(fp, "%-9.5f", τ)
+                printf(fp, "%-7i", iflow)
+                printf(fp, "%-9.5f", τ)
             end
 
             for value in vals
-                @printf(fp, "%+-25.15E", real(value))
-                @printf(fp, "%+-25.15E", imag(value))
+                printf(fp, "%+-25.15E", real(value))
+                printf(fp, "%+-25.15E", imag(value))
             end
 
-            @printf(fp, "\n")
+            newline(fp)
             fclose(fp)
         end
     end

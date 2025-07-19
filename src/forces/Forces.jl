@@ -1,13 +1,12 @@
 module Forces
 
+using Base.Cartesian: @nexprs
 using KernelAbstractions
 using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
 using StaticArrays
 using Polyester: @batch
-using Printf
 using StaticTools: StaticString
-using Unicode
 using ..MetaIO
 using ..RHMCParameters
 using ..Utils
@@ -19,20 +18,20 @@ import ..DiracOperators: WilsonEOPreDiracOperator, FermionAction, has_clover_ter
 import ..DiracOperators: Daggered, DdaggerD, Spinorfield, SpinorfieldEO, apply_bc
 import ..DiracOperators: staggered_η, staggered_ημν, solve_dirac!, solve_dirac_multishift!
 import ..DiracOperators: mul_oe!, mul_eo!, mul_oo_inv!, get_mass_term
-import ..Fields: AbstractGaugeAction, Gaugefield, Colorfield, add!, global_dims
-import ..Fields: allindices, clear!, dims, normalize!, fieldstrength_eachsite!, float_type
-import ..Fields: check_dims, even_odd, mul!, staple, staple_eachsite!
-import ..Fields: @groupreduce, @latmap, @latsum, gauge_action, is_distributed, update_halo!
+import ..Fields: AbstractGaugeAction, Gaugefield, Colorfield, add!, get_global_dims
+import ..Fields: allindices, clear!, normalize!, fieldstrength_eachsite!, float_type
+import ..Fields: check_dims, even_odd, mul!, staple, staple_eachsite!, get_local_dims
+import ..Fields: parallelfor, gauge_action, is_distributed, update_halo!
 import ..Fields: AbstractField, Plaquette, Clover, Spinorfield, Tensorfield
-import ..Fields: Paulifield, MultiSpinorfield, gauge_action_deriv!
+import ..Fields: Paulifield, MultiSpinorfield, gauge_action_deriv!, size
 import ..Smearing: AbstractSmearing, NoSmearing, StoutSmearing
 import ..Smearing: calc_smearedU!, get_layer, stout_backprop!
 
 # some aliases
-const StaggeredSpinorfield{B,T,M,A} = Spinorfield{B,T,M,A,1}
-const StaggeredEOPreSpinorfield{B,T,M,A} = SpinorfieldEO{B,T,M,A,1}
-const WilsonSpinorfield{B,T,M,A} = Spinorfield{B,T,M,A,4}
-const WilsonEOPreSpinorfield{B,T,M,A} = SpinorfieldEO{B,T,M,A,4}
+const StaggeredSpinorfield{B,T,M} = Spinorfield{B,T,M,1}
+const StaggeredEOPreSpinorfield{B,T,M} = SpinorfieldEO{B,T,M,1}
+const WilsonSpinorfield{B,T,M} = Spinorfield{B,T,M,4}
+const WilsonEOPreSpinorfield{B,T,M} = SpinorfieldEO{B,T,M,4}
 
 """
     calc_dSfdU_bare!(dU::Colorfield, fermion_action, U, ϕ, ::Any, ::NoSmearing)
@@ -72,9 +71,5 @@ include("wilson_eo_force.jl")
 include("staggered_force.jl")
 include("staggered_eo_force.jl")
 include("staggered_hoelbling_force.jl")
-
-include("gpu_kernels/wilson_force.jl")
-include("gpu_kernels/staggered_force.jl")
-include("gpu_kernels/staggered_hoelbling_force.jl")
 
 end

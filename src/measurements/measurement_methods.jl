@@ -16,7 +16,7 @@ function MeasurementMethods(
     U, measurement_dir, measurement_methods::Vector{Dict};
     flow=NoSmearing(), additional_string="",
 )
-    fstr = filter(x -> x!='_', flow_string(flow))
+    fstr = replace(flow_string(flow), "_" => " ")
     @level1("- Preparing$(fstr) Measurements...")
     num_measurements = length(measurement_methods)
     # measurement_parameters_set = Vector{MeasurementParameters}(undef, num_measurements)

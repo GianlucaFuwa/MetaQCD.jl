@@ -1,29 +1,28 @@
 struct PlaquetteMeasurement{T} <: AbstractMeasurement
-    factor::Float64 # 1 / (6*U.NV*U.NC)
+    factor::Float64 # 1 / (6*length(U)*NC)
     filename::T
     function PlaquetteMeasurement(U::Gaugefield; filename="", flow=NoSmearing())
         if !isnothing(filename) && filename != ""
             rpath = StaticString(filename)
-            header = ""
-
-            if flow == true || flow != NoSmearing()
-                header *= @sprintf(
-                    "%-11s%-7s%-9s%-25s", "itrj", "iflow", "tflow", "Re(plaq)"
-                )
-            else
-                header *= @sprintf("%-11s%-25s", "itrj", "Re(plaq)")
-            end
 
             if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
-                open(filename, "w") do fp
-                    println(fp, header)
+                fp = fopen(filename, "w")
+                printf(fp, "%-11s", "itrj")
+
+                if flow == true || flow != NoSmearing()
+                    printf(fp, "%-7s", "iflow")
+                    printf(fp, "%-9s", "tflow")
                 end
+
+                printf(fp, "%-25s", "Re(plaq)")
+                newline(fp)
+                fclose(fp)
             end
         else
             rpath = nothing
         end
 
-        factor = 1 / (6 * U.NV * U.NC)
+        factor = 1 / 18length(U)
         T = typeof(rpath)
         return new{T}(factor, rpath)
     end

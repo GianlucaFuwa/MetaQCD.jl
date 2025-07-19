@@ -2,7 +2,7 @@
     Metadynamics <: AbstractBias
 
 Metadynamics bias-enhanced sampler from https://arxiv.org/abs/cond-mat/0208352 .
-    
+
     Metadynamics(p::MetadynamicsParameters; dummy=false)
 
 Create an instance of a Metadynamics bias using the inputs or the parameters given in `p`.
@@ -21,7 +21,7 @@ must be ordered \\
 `weight::Float64 = 0.01` - (Starting) Height of added Gaussians; must be positive \\
 `penalty_weight::Float64 = 1000` - Penalty when cv is outside of `cvlims`; must be positive \\
 """
-struct Metadynamics{CV} <: AbstractBias
+mutable struct Metadynamics{CV} <: AbstractBias
     cvinfo::CV
     static::Bool
     symmetric::Bool
@@ -69,10 +69,10 @@ function Metadynamics(
     @level1("|  BIN_WIDTH: $(p.bin_width)")
     @assert p.bin_width > 0 "BIN_WIDTH must be > 0"
 
-    if (0 < instance <= length(p.usebiases) && !dummy)
-        bin_vals, values = metad_from_file(p, p.usebiases[instance+1])
-    elseif build && (length(p.usebiases) != 0)
-        bin_vals, values = metad_from_file(p, p.usebiases[1])
+    if (0 < instance <= length(p.load_bias) && !dummy)
+        bin_vals, values = metad_from_file(p, p.load_bias[instance+1])
+    elseif build && (length(p.load_bias) != 0)
+        bin_vals, values = metad_from_file(p, p.load_bias[1])
     else
         bin_vals, values = metad_from_file(p, "")
     end
@@ -199,19 +199,37 @@ function write_to_file(m::Metadynamics, filename::AbstractString)
     return nothing
 end
 
-function metad_from_file(p, usebias)
+function metad_from_file(p, filename)
     cvlims = p.cvlims
 
-    if usebias == ""
+    if filename == ""
         bin_vals = range(cvlims[1], cvlims[2]; step=p.bin_width)
         values = zero(bin_vals)
         @level1("|  initialized as zeros")
         return collect(bin_vals), values
     else
-        values, _ = readdlm(usebias, Float64; header=true)
+        values, _ = readdlm(filename, Float64; header=true)
         bin_vals = range(cvlims[1], cvlims[2]; step=p.bin_width)
         @assert length(values[:, 2]) == length(bin_vals) "your bias doesn't match parameters"
-        @level1("|  initialized from \"$(usebias)\"")
+        @level1("|  initialized from \"$(filename)\"")
         return collect(bin_vals), values[:, 2]
     end
+end
+
+function create_buffer(m::Metadynamics)
+    # for Metadynamics, only need to communicate static, write_bias_every and values
+    # all others are the same between ranks
+    return Vector{Float64}(undef, 2+length(m.values))
+end
+
+function pack_buffer!(buf, m::Metadynamics)
+    buf[1] = Float64(m.static)
+    buf[2] = Float64(m.write_bias_every)
+    buf[3:end] .= m.values
+end
+
+function unpack_buffer!(m::Metadynamics, buf)
+    m.static = round(Bool, buf[1])
+    m.write_bias_every = round(Int64, buf[2])
+    m.values .= view(buf, 3:length(buf))
 end

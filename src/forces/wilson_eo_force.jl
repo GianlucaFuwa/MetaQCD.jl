@@ -1,5 +1,5 @@
 function calc_dSfdU!(
-    dU, fermion_action::FermionAction{false,2,TD}, U, ϕ_eo::WilsonEOPreSpinorfield,
+    dU, fermion_action::FermionAction{false,2,TD}, U, ϕ_eo::WilsonEOPreSpinorfield
 ) where {TD<:WilsonEOPreDiracOperator}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
@@ -10,7 +10,19 @@ function calc_dSfdU!(
     bc = D.boundary_condition
 
     clear!(X_eo)
-    solve_dirac!(X_eo, DdagD, ϕ_eo, Y_eo, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp LinearAlgebra.mul!(Y, D, X) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
+    iters, res = solve_dirac!(X_eo, DdagD, ϕ_eo, Y_eo, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp LinearAlgebra.mul!(Y, D, X) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
+
+    cg_datafile = fermion_action.cg_datafile
+
+    if cg_datafile != ""
+        set_ext!(cg_datafile, MPI_INSTANCE[])
+        fp = fopen(cg_datafile, "a")
+        printf(fp, "%-11i", iters)
+        printf(fp, "%-25.15E", res)
+        printf(fp, "%s", "# force")
+        newline(fp)
+        fclose(fp)
+    end
 
     LinearAlgebra.mul!(Y_eo, D, X_eo)
     mul_oe!(X_eo, U, X_eo, bc, true, Val(1))
@@ -25,20 +37,20 @@ function calc_dSfdU!(
         calc_Xμν_eo_eachsite!(Xμν, X_eo, Y_eo)
         add_clover_derivative!(dU, U, Xμν, -D.csw)
         calc_small_Xμν_eachsite!(Xμν, D_oo_inv)
-        add_clover_derivative!(dU, U, Xμν, -2D.csw) 
+        add_clover_derivative!(dU, U, Xμν, -2D.csw)
     end
 
     return nothing
 end
 
 function calc_dSfdU!(
-    dU, fermion_action::FermionAction{true,1,TD}, U, ϕ_eo::WilsonEOPreSpinorfield,
+    dU, fermion_action::FermionAction{true,1,TD}, U, ϕ_eo::WilsonEOPreSpinorfield
 ) where {TD<:WilsonEOPreDiracOperator}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
     cg_maxiters = fermion_action.cg_maxiters_md
     rhmc = fermion_action.rhmc_info_md
-    n = get_n(rhmc)
+    n = get_n_inverse(rhmc)
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     D_oo_inv = D.D_oo_inv
@@ -53,7 +65,21 @@ function calc_dSfdU!(
 
     shifts = get_β_inverse(rhmc)
     coeffs = get_α_inverse(rhmc)
-    solve_dirac_multishift!(Xs, shifts, DdagD, ϕ_eo, temp1, temp2, Ys, cg_tol, cg_maxiters)
+    iters, res = solve_dirac_multishift!(
+        Xs, shifts, DdagD, ϕ_eo, temp1, temp2, Ys, cg_tol, cg_maxiters
+    )
+
+    cg_datafile = fermion_action.cg_datafile
+
+    if cg_datafile != ""
+        set_ext!(cg_datafile, MPI_INSTANCE[])
+        fp = fopen(cg_datafile, "a")
+        printf(fp, "%-11i", iters)
+        printf(fp, "%-25.15E", res)
+        printf(fp, "%s", "# force")
+        newline(fp)
+        fclose(fp)
+    end
 
     for i in 1:n
         LinearAlgebra.mul!(Ys[i+1], D, Xs[i+1]) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
@@ -68,7 +94,7 @@ function calc_dSfdU!(
             calc_Xμν_eo_eachsite!(Xμν, Xs[i+1], Ys[i+1])
             add_clover_derivative!(dU, U, Xμν, -D.csw; coeff=coeffs[i])
             calc_small_Xμν_eachsite!(Xμν, D_oo_inv)
-            add_clover_derivative!(dU, U, Xμν, -2D.csw; coeff=coeffs[i]) 
+            add_clover_derivative!(dU, U, Xμν, -2D.csw; coeff=coeffs[i])
         end
     end
 
@@ -76,75 +102,54 @@ function calc_dSfdU!(
 end
 
 function add_wilson_eo_derivative!(
-    dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, X_eo::TF, Y_eo::TF, bc; coeff=1
-) where {T,TF<:WilsonEOPreSpinorfield{CPU,T}}
-    check_dims(dU, U, X_eo, Y_eo)
+    dU::Colorfield{B,T}, U::Gaugefield{B,T,M}, X_eo::TF, Y_eo::TF, bc; coeff=1
+) where {B,T,M,TF<:WilsonEOPreSpinorfield{B,T,M}}
     fac = T(0.5coeff)
     X = X_eo.parent
     Y = Y_eo.parent
+    bulk = eachindex(U)
+    itr = eachindex(dU, U, X, Y)
 
-    # INFO: If we write out the kernel and use @batch, the program crashes for some reason
-    # Stems from "pload" from StrideArraysCore.jl but ONLY if we write it out AND overload
-    # "object_and_preserve" (cant reproduce in MWE yet)
-    # is fine, because writing it like this makes the GPU port easier
-
-    @batch for site in eachindex(dU)
-        add_wilson_eo_derivative_kernel!(dU, U, X, Y, site, bc, fac)
+    parallelfor(itr, B, Val(M), (X_eo, Y_eo), (dU,), (dU, U, X, Y)) do site, dU, U, X, Y
+        add_wilson_eo_derivative_kernel!(dU, U, X, Y, site, bc, fac, bulk)
     end
 
     return nothing
 end
 
-function add_wilson_eo_derivative_kernel!(dU, U, X_eo, Y_eo, site, bc, fac)
+function add_wilson_eo_derivative_kernel!(dU, U, X_eo, Y_eo, site, bc, fac, bulk)
     # sites that begin with a "_" are meant for indexing into the even-odd preconn'ed
-    # fermion field 
-    NX, NY, NZ, NT = dims(U)
-    NV = NX * NY * NZ * NT
-    _site = eo_site(site, NX, NY, NZ, NT, NV)
-
-    _siteμ⁺ = eo_site(move(site, 1, 1, NX), NX, NY, NZ, NT, NV)
-    B = spintrace(spin_proj(X_eo[_siteμ⁺], Val(-1)), Y_eo[_site])
-    C = spintrace(spin_proj(Y_eo[_siteμ⁺], Val(1)), X_eo[_site])
-    dU[1i32, site] += fac * traceless_antihermitian(cmatmul_oo(U[1, site], B + C))
-
-    _siteμ⁺ = eo_site(move(site, 2, 1, NY), NX, NY, NZ, NT, NV)
-    B = spintrace(spin_proj(X_eo[_siteμ⁺], Val(-2)), Y_eo[_site])
-    C = spintrace(spin_proj(Y_eo[_siteμ⁺], Val(2)), X_eo[_site])
-    dU[2i32, site] += fac * traceless_antihermitian(cmatmul_oo(U[2, site], B + C))
-
-    _siteμ⁺ = eo_site(move(site, 3, 1, NZ), NX, NY, NZ, NT, NV)
-    B = spintrace(spin_proj(X_eo[_siteμ⁺], Val(-3)), Y_eo[_site])
-    C = spintrace(spin_proj(Y_eo[_siteμ⁺], Val(3)), X_eo[_site])
-    dU[3i32, site] += fac * traceless_antihermitian(cmatmul_oo(U[3, site], B + C))
-
-    _siteμ⁺ = eo_site(move(site, 4, 1, NT), NX, NY, NZ, NT, NV)
-    B = spintrace(
-        spin_proj(apply_bc(X_eo[_siteμ⁺], bc, site, Val(1), NT), Val(-4)), Y_eo[_site]
+    # fermion field
+    NT = size(U, 4)
+    _site = map_to_half(site, bulk)
+    @nexprs 4 μ -> (
+        Nμ = axes(U, μ);
+        _siteμ⁺ = map_to_half(move(site, μ, 1, Nμ), bulk);
+        X⁺ = apply_bc(X_eo[_siteμ⁺], bc, site, Val(1), NT, Val(μ));
+        Y⁺ = apply_bc(Y_eo[_siteμ⁺], bc, site, Val(1), NT, Val(μ));
+        B = spintrace(spin_proj(X⁺, Val(-μ)), Y_eo[_site]);
+        C = spintrace(spin_proj(Y⁺, Val(μ)), X_eo[_site]);
+        dU[μ, site] += fac * traceless_antihermitian(cmatmul_oo(U[μ, site], B + C))
     )
-    C = spintrace(
-        spin_proj(apply_bc(Y_eo[_siteμ⁺], bc, site, Val(1), NT), Val(4)), X_eo[_site]
-    )
-    dU[4i32, site] += fac * traceless_antihermitian(cmatmul_oo(U[4, site], B + C))
     return nothing
 end
 
 function calc_Xμν_eo_eachsite!(
-    Xμν::Tensorfield{CPU,T}, X_eo::TF, Y_eo::TF
-) where {T,TF<:WilsonEOPreSpinorfield}
+    Xμν::Tensorfield{B,T}, X_eo::TF, Y_eo::TF
+) where {B,T,M,TF<:WilsonEOPreSpinorfield{B,T,M}}
     X = X_eo.parent
     Y = Y_eo.parent
+    bulk = eachindex(X)
 
-    @batch for site in eachindex(Xμν)
-        calc_Xμν_eo_kernel!(Xμν, X, Y, site)
+    parallelfor(eachindex(Xμν), B, Val(M), () , (Xμν,), (Xμν, X, Y)) do site, Xμν, X, Y
+        calc_Xμν_eo_kernel!(Xμν, X, Y, site, bulk)
     end
 
     return nothing
 end
 
-function calc_Xμν_eo_kernel!(Xμν, X, Y, site)
-    NX, NY, NZ, NT = dims(Xμν)
-    NV = NX * NY * NZ * NT
-    _site = eo_site(site, NX, NY, NZ, NT, NV)
+function calc_Xμν_eo_kernel!(Xμν, X, Y, site, bulk)
+    _site = map_to_half(site, bulk)
 
     X₁₂ =
         spintrace(σμν_spin_mul(X[_site], Val(1), Val(2)), Y[_site]) +
@@ -185,22 +190,21 @@ function calc_Xμν_eo_kernel!(Xμν, X, Y, site)
 end
 
 function calc_small_Xμν_eachsite!(
-    Xμν::Tensorfield{CPU,T}, D_oo_inv::Paulifield{CPU,T,M,true}
-) where {T,M}
-    check_dims(Xμν, D_oo_inv)
+    Xμν::Tensorfield{B,T}, D_oo_inv::Paulifield{B,T,M,true}
+) where {B,T,M}
+    bulk = eachindex(Xμν)
+    itr = eachindex(Xμν, D_oo_inv)
 
-    for site in eachindex(Xμν)
-        calc_small_Xμν_kernel!(Xμν, D_oo_inv, site, T)
+    parallelfor(itr, B, Val(M), (), (Xμν,), (Xμν, D_oo_inv)) do site, Xμν, D_oo_inv
+        calc_small_Xμν_kernel!(Xμν, D_oo_inv, site, T, bulk)
     end
 
     return nothing
 end
 
-function calc_small_Xμν_kernel!(Xμν, D_oo_inv, site, ::Type{T}) where {T}
+function calc_small_Xμν_kernel!(Xμν, D_oo_inv, site, ::Type{T}, bulk) where {T}
     if isodd(site)
-        NX, NY, NZ, NT = dims(Xμν)
-        NV = NX * NY * NZ * NT
-        _site = eo_site_switch(site, NX, NY, NZ, NT, NV)
+        _site = map_to_half(site, bulk)
         Minv = D_oo_inv[_site]
 
         X₁₂ = spintrace_pauli(Minv, Val(1), Val(2))

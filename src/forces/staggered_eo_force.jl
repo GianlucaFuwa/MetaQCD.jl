@@ -1,5 +1,5 @@
 function calc_dSfdU!(
-    dU, fermion_action::FermionAction{false,4,TD}, U, ϕ_eo::StaggeredEOPreSpinorfield,
+    dU, fermion_action::FermionAction{false,4,TD}, U, ϕ_eo::StaggeredEOPreSpinorfield
 ) where {TD<:StaggeredEOPreDiracOperator}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
@@ -10,7 +10,20 @@ function calc_dSfdU!(
     bc = D.boundary_condition
 
     clear!(X_eo) # initial guess is zero
-    solve_dirac!(X_eo, DdagD, ϕ_eo, Y_eo, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp
+    iters, res = solve_dirac!(X_eo, DdagD, ϕ_eo, Y_eo, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp
+
+    cg_datafile = fermion_action.cg_datafile
+
+    if cg_datafile != ""
+        set_ext!(cg_datafile, MPI_INSTANCE[])
+        fp = fopen(cg_datafile, "a")
+        printf(fp, "%-11i", iters)
+        printf(fp, "%-25.15E", res)
+        printf(fp, "%s", "# force")
+        newline(fp)
+        fclose(fp)
+    end
+
     clear!(Y_eo)
     mul_oe!(Y_eo, U, X_eo, bc, true, false)
     add_staggered_eo_derivative!(dU, U, X_eo, Y_eo, bc)
@@ -18,13 +31,13 @@ function calc_dSfdU!(
 end
 
 function calc_dSfdU!(
-    dU, fermion_action::FermionAction{true,Nf,TD}, U, ϕ_eo::StaggeredEOPreSpinorfield,
+    dU, fermion_action::FermionAction{true,Nf,TD}, U, ϕ_eo::StaggeredEOPreSpinorfield
 ) where {Nf,TD<:StaggeredEOPreDiracOperator}
     clear!(dU)
     cg_tol = fermion_action.cg_tol_md
     cg_maxiters = fermion_action.cg_maxiters_md
     rhmc = fermion_action.rhmc_info_md
-    n = get_n(rhmc)
+    n = get_n_inverse(rhmc)
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     bc = D.boundary_condition
@@ -38,7 +51,21 @@ function calc_dSfdU!(
 
     shifts = get_β_inverse(rhmc)
     coeffs = get_α_inverse(rhmc)
-    solve_dirac_multishift!(Xs, shifts, DdagD, ϕ_eo, temp1, temp2, Ys, cg_tol, cg_maxiters)
+    iters, res = solve_dirac_multishift!(
+        Xs, shifts, DdagD, ϕ_eo, temp1, temp2, Ys, cg_tol, cg_maxiters
+    )
+
+    cg_datafile = fermion_action.cg_datafile
+
+    if cg_datafile != ""
+        set_ext!(cg_datafile, MPI_INSTANCE[])
+        fp = fopen(cg_datafile, "a")
+        printf(fp, "%-11i", iters)
+        printf(fp, "%-25.15E", res)
+        printf(fp, "%s", "# force")
+        newline(fp)
+        fclose(fp)
+    end
 
     for i in 1:n
         mul_oe!(Ys[i+1], U, Xs[i+1], bc, true, false)
@@ -49,50 +76,36 @@ function calc_dSfdU!(
 end
 
 function add_staggered_eo_derivative!(
-    dU::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, X_eo::TF, Y_eo::TF, bc; coeff=1
-) where {T,TF<:StaggeredEOPreSpinorfield{CPU,T}}
-    check_dims(dU, U, X_eo, Y_eo)
+    dU::Colorfield{B,T}, U::Gaugefield{B,T,M}, X_eo::TF, Y_eo::TF, bc; coeff=1
+) where {B,T,M,TF<:StaggeredEOPreSpinorfield{B,T,M}}
     X = X_eo.parent
     Y = Y_eo.parent
     fac = T(-0.5coeff)
+    bulk = eachindex(dU)
+    itr = eachindex(dU, U, X, Y)
 
-    @batch for site in eachindex(dU)
-        add_staggered_eo_derivative_kernel!(dU, U, X, Y, site, bc, fac)
+    parallelfor(itr, B, Val(M), (X_eo, Y_eo), (dU,), (dU, U, X, Y)) do site, dU, U, X, Y
+        add_staggered_eo_derivative_kernel!(dU, U, X, Y, site, bc, fac, bulk)
     end
 
-    update_halo!(dU)
     return nothing
 end
 
-function add_staggered_eo_derivative_kernel!(dU, U, X, Y, site, bc, fac)
+function add_staggered_eo_derivative_kernel!(dU, U, X, Y, site, bc, fac, bulk)
     # sites that begin with a "_" are meant for indexing into the even-odd preconn'ed
-    # fermion field 
-    NX, NY, NZ, NT = dims(U)
-    NV = NX * NY * NZ * NT
-    _site = eo_site(site, NX, NY, NZ, NT, NV)
+    # fermion field
+    NT = size(U, 4)
+    _site = map_to_half(site, bulk)
 
-    _siteμ⁺ = eo_site(move(site, 1, 1, NX), NX, NY, NZ, NT, NV)
-    η = staggered_η(Val(1), site)
-    B = ckron(X[_siteμ⁺], Y[_site])
-    C = ckron(Y[_siteμ⁺], X[_site])
-    dU[1, site] += (fac * η) * traceless_antihermitian(cmatmul_oo(U[1, site], B - C))
-
-    _siteμ⁺ = eo_site(move(site, 2, 1, NY), NX, NY, NZ, NT, NV)
-    η = staggered_η(Val(2), site)
-    B = ckron(X[_siteμ⁺], Y[_site])
-    C = ckron(Y[_siteμ⁺], X[_site])
-    dU[2, site] += (fac * η) * traceless_antihermitian(cmatmul_oo(U[2, site], B - C))
-
-    _siteμ⁺ = eo_site(move(site, 3, 1, NZ), NX, NY, NZ, NT, NV)
-    η = staggered_η(Val(3), site)
-    B = ckron(X[_siteμ⁺], Y[_site])
-    C = ckron(Y[_siteμ⁺], X[_site])
-    dU[3, site] += (fac * η) * traceless_antihermitian(cmatmul_oo(U[3, site], B - C))
-
-    _siteμ⁺ = eo_site(move(site, 4, 1, NT), NX, NY, NZ, NT, NV)
-    η = staggered_η(Val(4), site)
-    B = ckron(apply_bc(X[_siteμ⁺], bc, site, Val(1), NT), Y[_site])
-    C = ckron(apply_bc(Y[_siteμ⁺], bc, site, Val(1), NT), X[_site])
-    dU[4, site] += (fac * η) * traceless_antihermitian(cmatmul_oo(U[4, site], B - C))
+    # use @nexprs here to statically generate the loop
+    # this makes it so Val(μ) is well defined at each iteration and no type-instabilities arise
+    @nexprs 4 μ -> (
+        Nμ = axes(U, μ);
+        _siteμ⁺ = map_to_half(move(site, μ, 1, Nμ), bulk);
+        η = staggered_η(Val(μ), site);
+        B = ckron(apply_bc(X[_siteμ⁺], bc, site, Val(1), NT, Val(μ)), Y[_site]);
+        C = ckron(apply_bc(Y[_siteμ⁺], bc, site, Val(1), NT, Val(μ)), X[_site]);
+        dU[μ, site] += (fac * η) * traceless_antihermitian(cmatmul_oo(U[μ, site], B - C))
+    )
     return nothing
 end

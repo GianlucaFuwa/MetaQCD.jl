@@ -43,10 +43,11 @@ struct WilsonDiracOperator{B,T,C,TF,TG,BC} <: AbstractDiracOperator{B,T}
         κ = 1 / (2mass + 8)
         U = nothing
         C = csw == 0 ? false : true
-        temp = Spinorfield(f)
+        hw = C ? 2 : 1
+        temp = Spinorfield(f; hw=hw)
+        boundary_condition = create_bc(bc_str, f.topology)
         TG = Nothing
         TF = typeof(temp)
-        boundary_condition = create_bc(bc_str, f.topology)
         BC = typeof(boundary_condition)
         return new{B,T,C,TF,TG,BC}(U, temp, mass, κ, r, csw, boundary_condition)
     end
@@ -76,54 +77,50 @@ end
 # The Gaugefields module into CG.jl, which also allows us to use the solvers for 
 # for arbitrary arrays, not just fermion fields and dirac operators (good for testing)
 function LinearAlgebra.mul!(
-    ψ::TF, D::WilsonDiracOperator{CPU,T,C,TF,TG}, ϕ::TF
-) where {T,C,TF,TG}
+    ψ::TF, D::WilsonDiracOperator{B,T,C,TF,TG}, ϕ::TF
+) where {B,T,M,C,TF<:WilsonSpinorfield{B,T,M},TG}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.U
     mass_term = T(8 + 2 * D.mass)
     csw = D.csw
     bc = D.boundary_condition
-    check_dims(ψ, ϕ, U)
 
-    @batch for site in eachindex(ψ)
+    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ)) do site, U, ϕ, ψ
         ψ[site] = wilson_kernel(U, ϕ, site, mass_term, bc, T, Val(1))
     end
 
     if has_clover_term(D)
         fac = T(-csw / 2)
 
-        @batch for site in eachindex(ψ)
+        parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (), (ψ,), (U, ϕ, ψ)) do site, U, ϕ, ψ
             ψ[site] += clover_kernel(U, ϕ, site, fac, T)
         end
     end
 
-    update_halo!(ψ)
     return nothing
 end
 
 function LinearAlgebra.mul!(
-    ψ::TF, D::Daggered{WilsonDiracOperator{CPU,T,C,TF,TG,BC}}, ϕ::TF
-) where {T,C,TF,TG,BC}
+    ψ::TF, D::Daggered{WilsonDiracOperator{B,T,C,TF,TG,BC}}, ϕ::TF
+) where {B,T,M,C,TF<:WilsonSpinorfield{B,T,M},TG,BC}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.parent.U
     mass_term = T(8 + 2 * D.parent.mass)
     csw = D.parent.csw
     bc = D.parent.boundary_condition
-    check_dims(ψ, ϕ, U)
 
-    @batch for site in eachindex(ψ)
+    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ)) do site, U, ϕ, ψ
         ψ[site] = wilson_kernel(U, ϕ, site, mass_term, bc, T, Val(-1))
     end
 
     if has_clover_term(D)
         fac = T(-csw / 2)
 
-        @batch for site in eachindex(ψ)
+        parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (), (ψ,), (U, ϕ, ψ)) do site, U, ϕ, ψ
             ψ[site] += clover_kernel(U, ϕ, site, fac, T)
         end
     end
 
-    update_halo!(ψ)
     return nothing
 end
 
@@ -139,31 +136,20 @@ end
 function wilson_kernel(U, ϕ, site, mass_term, bc, ::Type{T}, ::Val{dagg}) where {T,dagg}
     # dagg can be 1 or -1; if it's -1 then we swap (1 - γᵨ) with (1 + γᵨ) and vice versa
     # We have to wrap in a Val for the same reason as in the next comment
-    NX, NY, NZ, NT = dims(U)
     ψₙ = mass_term * ϕ[site] # factor 1/2 is included at the end
-    # Cant do a for loop here because Val(μ) cannot be known at compile time and is 
-    # therefore dynamically dispatched
-    siteμ⁺ = move(site, 1, 1, NX)
-    siteμ⁻ = move(site, 1, -1, NX)
-    ψₙ -= cmvmul_spin_proj(U[1, site], ϕ[siteμ⁺], Val(-1dagg), Val(false))
-    ψₙ -= cmvmul_spin_proj(U[1, siteμ⁻], ϕ[siteμ⁻], Val(1dagg), Val(true))
+    NT = size(U, 4)
 
-    siteμ⁺ = move(site, 2, 1, NY)
-    siteμ⁻ = move(site, 2, -1, NY)
-    ψₙ -= cmvmul_spin_proj(U[2, site], ϕ[siteμ⁺], Val(-2dagg), Val(false))
-    ψₙ -= cmvmul_spin_proj(U[2, siteμ⁻], ϕ[siteμ⁻], Val(2dagg), Val(true))
-
-    siteμ⁺ = move(site, 3, 1, NZ)
-    siteμ⁻ = move(site, 3, -1, NZ)
-    ψₙ -= cmvmul_spin_proj(U[3, site], ϕ[siteμ⁺], Val(-3dagg), Val(false))
-    ψₙ -= cmvmul_spin_proj(U[3, siteμ⁻], ϕ[siteμ⁻], Val(3dagg), Val(true))
-
-    siteμ⁺ = move(site, 4, 1, NT)
-    siteμ⁻ = move(site, 4, -1, NT)
-    ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT)
-    ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT)
-    ψₙ -= cmvmul_spin_proj(U[4, site], ϕ⁺, Val(-4dagg), Val(false))
-    ψₙ -= cmvmul_spin_proj(U[4, siteμ⁻], ϕ⁻, Val(4dagg), Val(true))
+    # use @nexprs here to statically generate the loop
+    # this makes it so Val(μ) is well defined at each iteration and no type-instabilities arise
+    @nexprs 4 μ -> (
+        Nμ = axes(U, μ);
+        siteμ⁺ = move(site, μ, 1, Nμ);
+        siteμ⁻ = move(site, μ, -1, Nμ);
+        ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(μ));
+        ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(μ));
+        ψₙ -= cmvmul_spin_proj(U[μ, site], ϕ⁺, Val(-μ*dagg), Val(false));
+        ψₙ -= cmvmul_spin_proj(U[μ, siteμ⁻], ϕ⁻, Val(μ*dagg), Val(true))
+    )
     return T(0.5) * ψₙ
 end
 
@@ -171,30 +157,31 @@ function clover_kernel(U, ϕ, site, fac, ::Type{T}) where {T}
     # Observed that it makes a difference whether we only make F antihermitian or traceless
     # antihermitian in the accuracy of the derivative --> TA makes it worse
     # is most severe when U is unsmeared
-    Cₙₘ = zero(ϕ[site])
+    ϕ_n = ϕ[site]
+    Cₙₘ = zero(ϕ_n)
 
     C₁₂ = clover_square(U, 1, 2, site, 1)
     F₁₂ = C₁₂ - C₁₂'
-    Cₙₘ += cmvmul_color(F₁₂, σμν_spin_mul(ϕ[site], Val(1), Val(2)))
+    Cₙₘ += cmvmul_color(F₁₂, σμν_spin_mul(ϕ_n, Val(1), Val(2)))
 
     C₁₃ = clover_square(U, 1, 3, site, 1)
     F₁₃ = C₁₃ - C₁₃'
-    Cₙₘ += cmvmul_color(F₁₃, σμν_spin_mul(ϕ[site], Val(1), Val(3)))
+    Cₙₘ += cmvmul_color(F₁₃, σμν_spin_mul(ϕ_n, Val(1), Val(3)))
 
     C₁₄ = clover_square(U, 1, 4, site, 1)
     F₁₄ = C₁₄ - C₁₄'
-    Cₙₘ += cmvmul_color(F₁₄, σμν_spin_mul(ϕ[site], Val(1), Val(4)))
+    Cₙₘ += cmvmul_color(F₁₄, σμν_spin_mul(ϕ_n, Val(1), Val(4)))
 
     C₂₃ = clover_square(U, 2, 3, site, 1)
     F₂₃ = C₂₃ - C₂₃'
-    Cₙₘ += cmvmul_color(F₂₃, σμν_spin_mul(ϕ[site], Val(2), Val(3)))
+    Cₙₘ += cmvmul_color(F₂₃, σμν_spin_mul(ϕ_n, Val(2), Val(3)))
 
     C₂₄ = clover_square(U, 2, 4, site, 1)
     F₂₄ = C₂₄ - C₂₄'
-    Cₙₘ += cmvmul_color(F₂₄, σμν_spin_mul(ϕ[site], Val(2), Val(4)))
+    Cₙₘ += cmvmul_color(F₂₄, σμν_spin_mul(ϕ_n, Val(2), Val(4)))
 
     C₃₄ = clover_square(U, 3, 4, site, 1)
     F₃₄ = C₃₄ - C₃₄'
-    Cₙₘ += cmvmul_color(F₃₄, σμν_spin_mul(ϕ[site], Val(3), Val(4)))
+    Cₙₘ += cmvmul_color(F₃₄, σμν_spin_mul(ϕ_n, Val(3), Val(4)))
     return Complex{T}(fac * im / 8) * Cₙₘ
 end

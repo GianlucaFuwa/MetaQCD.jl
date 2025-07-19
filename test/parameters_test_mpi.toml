@@ -1,57 +1,4 @@
-["Physical Settings"]
-L = [4, 4, 4, 4]
-beta = 6.0
-gauge_action = "wilson"
-numtherm = 10
-numsteps = 10
-initial = "cold"
-update_method = "hmc"
-parity_update = true
-numprocs_cart = [1, 1, 1, 2]
-halo_width = 1
-
-["Dynamical Fermion Settings"]
-fermion_action = "staggered"
-eo_precon = false
-Nf = [8]
-mass = [0.0]
-wilson_csw = 1.0
-cg_tol_action = 1e-16
-cg_tol_md = 1e-16
-cg_maxiters_action = 5000
-cg_maxiters_md = 5000
-rhmc_spectral_bound = [0.0001, 6.0]
-rhmc_prec_action = 64
-rhmc_prec_md = 64
-
-["Bias Settings"]
-rhostout_for_cv = 0.12
-kinds_of_weights = ["branduardi"]
-# tempering specific parameters
-tempering_enabled = true
-numinstances = 2
-swap_every = 1
-non_metadynamics_updates = 1
-measure_on_all = true
-["Bias Settings".biases.1]
-kind_of_bias = "parametric"
-kind_of_cv = "topcharge_clover"
-Q = 0.0
-A = 10.0
-Z = 1.15
-numsmears_for_cv = 4
-cvlims = [-3.0, 3.0]
-penalty_weight = 100.0
-static = true
-
-["HMC Settings"]
-hmc_trajectory = 1
-hmc_steps = 5
-hmc_integrator = "OMF4"
-hmc_numsmear_fermion = 0
-hmc_rhostout_fermion = 0.12
-
-["System Settings"]
+[data]
 float_type = "double"
 ensemble_dir = "/home/runner/work/MetaQCD.jl/MetaQCD.jl/mpi"
 randomseed = 0
@@ -59,23 +6,77 @@ overwrite = true
 verboselevel = 1
 log_to_console = true
 
-["Gradient Flow Settings"]
+[ensemble]
+L = [8, 8, 8, 8]
+numtherm = 10
+numsteps = 10
+initial = "cold"
+update_method = "hmc"
+numprocs_cart = [1, 1, 1, 2]
+halo_width = 2
+tempering_enabled = true
+numinstances = 2
+swap_every = 1
+non_metadynamics_updates = 1
+measure_on_all = true
+
+[gauge_action]
+beta = 6.0
+gauge_action = "wilson"
+
+[fermion_action]
+fermion_action = "staggered"
+[[fermion_action.fermions]]
+Nf = 2
+mass = 0.01                         # numerator mass and denominator mass
+cg_tol_action = 1e-8
+cg_tol_md = 1e-7
+cg_maxiters_action = 5000
+cg_maxiters_md = 1000
+rhmc_order_action = 15
+rhmc_order_md = 15
+rhmc_spectral_bound = [0.0001, 6.0]
+
+[bias]
+rhostout_for_cv = 0.12
+kinds_of_weights = ["branduardi"]
+[[bias.biases]]
+type = "metad"
+kind_of_cv = "topcharge_clover"
+numsmears_for_cv = 4
+cvlims = [-3.0, 3.0]
+stride = 1
+biasfactor = inf
+bin_width = 0.02
+weight = 0.02
+penalty_weight = 100.0
+static = [false, false]
+
+[hmc]
+hmc_trajectory = 1
+
+[[hmc.levels]]
+forces = [0, 1, 2]
+integrator = "OMF4"
+numsteps = 5
+
+[gradient_flow]
 flow_integrator = "euler"
 flow_num = 7
 flow_steps = 1
-flow_tf = 0.12 # total flow time is flow_num * flow_tf
+flow_tf = 0.12            # total flow time is flow_num * flow_tf
 flow_measure_every = 7
 
-["Measurement Settings".measurements.Plaquette]
-measure_every = 1
+[measurements.Plaquette]
+measure_every = 10
 
-["Measurement Settings".measurements.Topological_charge]
-measure_every = 1
-kinds_of_topological_charge = ["plaquette", "clover"]
+[measurements.Topological_charge]
+measure_every = 10
+type = ["plaquette", "clover"]
 
-["Measurement Settings".measurements_with_flow.Plaquette]
-measure_every = 1
+[measurements_with_flow.Plaquette]
+measure_every = 10
 
-["Measurement Settings".measurements_with_flow.Topological_charge]
-measure_every = 1
-kinds_of_topological_charge = ["plaquette", "clover"]
+[measurements_with_flow.Topological_charge]
+measure_every = 10
+type = ["plaquette", "clover"]

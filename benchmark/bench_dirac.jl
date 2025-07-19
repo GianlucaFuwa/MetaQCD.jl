@@ -40,8 +40,8 @@ for (i, dirac) in enumerate(ops)
         U = Gaugefield{backend,T,WilsonGaugeAction}(N, N, N, N, 6.0)
         csw = titles[i] == "Wilson-Clover" ? 1.0 : 0.0
         D = dirac(U, 0.01; csw=csw)
-        ϕ = Spinorfield(D.temp)
-        ψ = Spinorfield(D.temp)
+        ϕ = similar(D.temp)
+        ψ = similar(D.temp)
 
         random_gauges!(U)
         gaussian_pseudofermions!(ϕ)

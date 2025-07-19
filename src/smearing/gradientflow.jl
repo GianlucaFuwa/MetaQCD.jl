@@ -23,10 +23,10 @@ struct GradientFlow{TI,TG,TT} <: AbstractSmearing
         (numflow == 0 || tf == 0) && (return NoSmearing())
 
         @level1("- Constructing Gradient Flow...")
-        Z = Colorfield(U)
+        Z = Colorfield(U; no_halo=true)
         Uflow = similar(U)
 
-        integrator = Unicode.normalize(integrator; casefold=true)
+        integrator = lowercase(integrator)
         TI = if integrator == "euler"
             Euler
         elseif integrator == "rk2"
@@ -68,23 +68,22 @@ function flow!(gflow::GradientFlow{TI}, Uin) where {TI}
     return nothing
 end
 
-function updateU!(U::Gaugefield{CPU,T}, Z::Colorfield{CPU,T}, ϵ) where {T}
+function updateU!(U::Gaugefield{B,T,M}, Z::Colorfield{B,T}, ϵ) where {B,T,M}
     ϵ = T(ϵ)
 
-    @batch for site in eachindex(U)
+    parallelfor(eachindex(U), B, Val(M), (), (U,), (U, Z)) do site, U, Z
         for μ in 1:4
             U[μ, site] = cmatmul_oo(exp_iQ(-im * ϵ * Z[μ, site]), U[μ, site])
         end
     end
 
-    update_halo!(U)
     return nothing
 end
 
-function calcZ!(Z::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, ϵ) where {T}
+function calcZ!(Z::Colorfield{B,T}, U::Gaugefield{B,T,M}, ϵ) where {B,T,M}
     ϵ = T(ϵ)
 
-    @batch for site in eachindex(U)
+    parallelfor(eachindex(U), B, Val(M), (U,), (Z,), (U, Z)) do site, U, Z
         for μ in 1:4
             A = staple(WilsonGaugeAction(), U, μ, site)
             AU = cmatmul_od(A, U[μ, site])
@@ -92,15 +91,14 @@ function calcZ!(Z::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, ϵ) where {T}
         end
     end
 
-    update_halo!(Z)
     return nothing
 end
 
-function updateZ!(Z::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, ϵ_old, ϵ_new) where {T}
+function updateZ!(Z::Colorfield{B,T}, U::Gaugefield{B,T,M}, ϵ_old, ϵ_new) where {B,T,M}
     ϵ_old = T(ϵ_old)
     ϵ_new = T(ϵ_new)
 
-    @batch for site in eachindex(U)
+    parallelfor(eachindex(U), B, Val(M), (U,), (Z,), (U, Z)) do site, U, Z
         for μ in 1:4
             A = staple(WilsonGaugeAction(), U, μ, site)
             AU = cmatmul_od(A, U[μ, site])
@@ -108,6 +106,5 @@ function updateZ!(Z::Colorfield{CPU,T}, U::Gaugefield{CPU,T}, ϵ_old, ϵ_new) wh
         end
     end
 
-    update_halo!(Z)
     return nothing
 end

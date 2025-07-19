@@ -1,12 +1,12 @@
-set_instanton!(U::Gaugefield, ::Nothing) = nothing
+set_instanton!(::Gaugefield, ::Nothing) = nothing
 
 function set_instanton!(U::Gaugefield, Q::Vector{Int64})
     set_instanton!(U, Q[MPI_MYINSTANCE[]+1])
     return nothing
 end
 
-function set_instanton!(U::Gaugefield{CPU,T}, Q) where {T}
-    NX, NY, NZ, NT = global_dims(U)
+function set_instanton!(U::Gaugefield{B,T,M}, Q) where {B,T,M}
+    NX, NY, NZ, NT = size(U)
     xrange, yrange, zrange, trange = U.topology.bulk_sites.indices
     identity_gauges!(U)
 
@@ -17,21 +17,20 @@ function set_instanton!(U::Gaugefield{CPU,T}, Q) where {T}
     field_x = T(2π * abs(Q) / NX)
     field_t = T(2π * abs(Q) / (NX*NT))
 
-    @batch for site in eachindex(U)
+    parallelfor(eachindex(U), B, Val(M), (), (U,), (U,)) do site, U
         it = site[4]
         cit = cos(field_t * it)
         sit = sin(field_t * it)
         U[1, site] = s_comp + cit * s_id + im * sit * s
     end
 
-    @batch for iz in zrange
-        for iy in yrange
-            for ix in xrange
-                cit = cos(field_x * ix)
-                sit = sin(field_x * ix)
-                U[4, ix, iy, iz, NT] = s_comp + cit * s_id - im * sit * s
-            end
-        end
+    itr = CartesianIndices((xrange, yrange, zrange))
+
+    parallelfor(itr, B, Val(M), (), (U,), (U,)) do xyz, U
+        ix, iy, iz = xyz.I
+        cit = cos(field_x * ix)
+        sit = sin(field_x * ix)
+        U[4, ix, iy, iz, NT] = s_comp + cit * s_id - im * sit * s
     end
 
     if Q == 0
@@ -46,24 +45,22 @@ function set_instanton!(U::Gaugefield{CPU,T}, Q) where {T}
     t_comp = tau_comp(T)
     t_id = tau_id(T)
 
-    @batch for site in eachindex(U)
+    parallelfor(eachindex(U), B, Val(M), (), (U,), (U,)) do site, U
         iy = site[2]
         cit = cos(field_y * iy)
         sit = sin(field_y * iy)
         U[3, site] = t_comp + cit * t_id + im * sit * t
     end
 
-    @batch for it in trange
-        for iz in zrange
-            for ix in xrange
-                cit = cos(field_z * iz)
-                sit = sin(field_z * iz)
-                U[2, ix, NY, iz, it] = t_comp + cit * t_id - im * sit * t
-            end
-        end
+    itr = CartesianIndices((xrange, zrange, trange))
+
+    parallelfor(itr, B, Val(M), (), (U,), (U,)) do xzt, U
+        ix, iz, it = xzt.I
+        cit = cos(field_z * iz)
+        sit = sin(field_z * iz)
+        U[2, ix, NY, iz, it] = t_comp + cit * t_id - im * sit * t
     end
 
-    update_halo!(U)
     return nothing
 end
 

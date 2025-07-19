@@ -26,22 +26,22 @@ struct TopologicalChargeMeasurement{T} <: AbstractMeasurement
 
         if !isnothing(filename) && filename != ""
             rpath = StaticString(filename)
-            header = ""
-
-            if flow == true || flow != NoSmearing()
-                header *= @sprintf("%-11s%-7s%-9s", "itrj", "iflow", "tflow")
-            else
-                header *= @sprintf("%-11s", "itrj")
-            end
-
-            for method in keys(TC_dict)
-                header *= @sprintf("%-25s", "Q_$(method)")
-            end
 
             if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
-                open(filename, "w") do fp
-                    println(fp, header)
+                fp = fopen(filename, "w")
+                printf(fp, "%-11s", "itrj")
+
+                if flow == true || flow != NoSmearing()
+                    printf(fp, "%-7s", "iflow")
+                    printf(fp, "%-9s", "tflow")
                 end
+
+                for method in keys(TC_dict)
+                    printf(fp, "%-25s", "Q_$(method)")
+                end
+
+                newline(fp)
+                fclose(fp)
             end
         else
             rpath = nothing
@@ -131,35 +131,30 @@ function top_charge(U::Gaugefield, methodname::String)
     return Q
 end
 
-function top_charge(::Plaquette, U::Gaugefield{CPU})
-    Q = 0.0
-
-    @batch reduction = (+, Q) for site in eachindex(U)
-        Q += top_charge_density_plaq(U, site)
+function top_charge(::Plaquette, U::Gaugefield{B,T,M}) where {B,T,M}
+    Q = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (U,), (), (U,)) do q, site, U
+        q += top_charge_density_plaq(U, site)
     end
 
     return distributed_reduce(Q/4π^2, +, U)
 end
 
-function top_charge(::Clover, U::Gaugefield{CPU,T}) where {T}
+function top_charge(::Clover, U::Gaugefield{B,T,M}) where {B,T,M}
+    itr = eachindex(U)
+    Q = parallelfor_sum(itr, 0.0, B, Val(M), (U,), (), (U,); block_size=128) do q, site, U
+        q += top_charge_density_clover(U, site, Float64)
+    end
+
+    return distributed_reduce(Q/4π^2, +, U)
+end
+
+function top_charge(::Improved, U::Gaugefield{B,T,M}) where {B,T,M}
     is_distributed(U) && @assert(U.topology.halo_width>=2)
-    Q = 0.0
-
-    @batch reduction = (+, Q) for site in eachindex(U)
-        Q += top_charge_density_clover(U, site, T)
-    end
-
-    return distributed_reduce(Q/4π^2, +, U)
-end
-
-function top_charge(::Improved, U::Gaugefield{CPU,T}) where {T}
-    is_distributed(U) && @assert(U.topology.halo_width>=3)
     c₀ = T(5/3)
     c₁ = T(-2/12)
-    Q = 0.0
-
-    @batch reduction = (+, Q) for site in eachindex(U)
-        Q += top_charge_density_imp(U, site, c₀, c₁, T)
+    itr = eachindex(U)
+    Q = parallelfor_sum(itr, 0.0, B, Val(M), (U,), (), (U,); block_size=128) do q, site, U
+        q += top_charge_density_imp(U, site, c₀, c₁, T)
     end
 
     return distributed_reduce(Q/4π^2, +, U)
@@ -226,13 +221,13 @@ function top_charge_density_rect(U, site, ::Type{T}) where {T}
     return -T(1/256) * qₙ
 end
 
-function top_charge_deriv!(dU, F, U, kind_of_charge, fac=1.0)
-    check_dims(dU, F, U)
-    c = float_type(U)(fac / 4π^2)
+function top_charge_deriv!(
+    dU::Colorfield{B,T}, F::Tensorfield{B,T,M}, U::Gaugefield{B,T}, kind_of_charge, fac=1.0
+) where {B,T,M}
+    c = T(fac / 4π^2)
+    fieldstrength_eachsite!(kind_of_charge, F, U) # halo update of U done here
 
-    fieldstrength_eachsite!(kind_of_charge, F, U)
-
-    @batch for site in eachindex(U)
+    parallelfor(eachindex(dU, F, U), B, Val(M), (F,), (U,), (F, U)) do site, F, U
         tmp1 = cmatmul_oo(
             U[1, site],
             (
@@ -271,7 +266,6 @@ function top_charge_deriv!(dU, F, U, kind_of_charge, fac=1.0)
         dU[4, site] = c * traceless_antihermitian(tmp4)
     end
 
-    update_halo!(dU)
     return nothing
 end
 
@@ -279,8 +273,8 @@ end
 # Derivative of the FμνFρσ term for Field strength tensor given by plaquette
 # """
 function ∇trFμνFρσ(::Plaquette, U, F, μ, ν, ρ, σ, site)
-    Nμ = dims(U)[μ]
-    Nν = dims(U)[ν]
+    Nμ = axes(U, μ)
+    Nν = axes(U, ν)
     siteμ⁺ = move(site, μ, 1i32, Nμ)
     siteν⁺ = move(site, ν, 1i32, Nν)
     siteν⁻ = move(site, ν, -1i32, Nν)
@@ -297,8 +291,8 @@ end
 # Derivative of the FμνFρσ term for Field strength tensor given by 1x1-Clover
 # """
 function ∇trFμνFρσ(::Clover, U, F, μ, ν, ρ, σ, site)
-    Nμ = dims(U)[μ]
-    Nν = dims(U)[ν]
+    Nμ = axes(U, μ)
+    Nν = axes(U, ν)
     siteμ⁺ = move(site, μ, 1i32, Nμ)
     siteν⁺ = move(site, ν, 1i32, Nν)
     siteν⁻ = move(site, ν, -1i32, Nν)

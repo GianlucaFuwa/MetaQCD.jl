@@ -250,3 +250,39 @@ function opesmt_from_file!(counter, rct, beta, lambda, deltaF, usebias)
         return counter, rct, beta, lambda, deltaF
     end
 end
+
+function create_buffer(o::OPESmultithermal)
+    # for OPES, need to communicate
+    # static, counter, sum_weights, sum_weights2, current_bias, (5)
+    # current_weight, Z, KDEnorm, old_sum_weights, (4)
+    # old_Z, old_KDEnorm, nker, nδker, write_bias_every (5)
+    # kernels, δkernels
+    # all others are the same between ranks
+    return Vector{Float64}(undef, 14+3length(o.kernels)+3length(o.δkernels))
+end
+
+function pack_buffer!(buf, o::OPESmultithermal)
+    buf[1] = Float64(o.static)
+    buf[2] = Float64(o.counter)
+    buf[3] = o.rct
+    buf[4] = o.current_bias
+    buf[5] = o.current_weight
+    buf[6] = o.sum_weights
+    buf[7] = o.sum_weights2
+    buf[8] = Float64(o.write_bias_every)
+    buf[9:end] .= o.ΔF
+    return nothing
+end
+
+function unpack_buffer!(o::OPESmultithermal, buf)
+    o.static = round(Bool, buf[1])
+    o.counter = round(Int64, buf[2])
+    o.rct = buf[3]
+    o.current_bias = buf[4]
+    o.current_weight = buf[5]
+    o.sum_weights = buf[6]
+    o.sum_weights2 = buf[7]
+    o.write_bias_every = round(Int64, buf[8])
+    o.ΔF = view(buf, 9:length(buf))
+    return nothing
+end

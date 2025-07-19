@@ -1,17 +1,17 @@
-function save_config(
+function save_field(
     ::JLD2Format, U::Gaugefield{B,T,false}, filename::String, args...
 ) where {B,T}
-    filename != "" && jldsave(filename; U=U.U)
+    filename != "" && jldsave(filename; U=Array(U.U))
     return nothing
 end
 
-function load_config!(::JLD2Format, U::Gaugefield{B,T,false}, filename::String) where {B,T}
-    Unew = jldopen(filename, "r") do file
+function load_field!(::JLD2Format, U::Gaugefield{B,T,false}, filename::String) where {B,T}
+    Unew = array_type(B)(jldopen(filename, "r") do file
         file["U"]
-    end
+    end)
     @assert (size(Unew) == size(U.U)) "Size of supplied config is wrong"
 
-    for site in eachindex(U)
+    parallelfor(eachindex(U), B, Val(false), (), (U,), (U,)) do site, U
         for μ in 1:4
             U[μ, site] = SMatrix{3,3,Complex{T},9}(Unew[μ, site])
         end
@@ -23,6 +23,12 @@ end
 function create_checkpoint(
     ::JLD2Format, univ, updatemethod, updatemethod_pt, itrj::Int, filename::String
 )
+    # TODO: GPU support
+    if univ.U isa Vector
+        @assert get_backend(univ.U[1]) isa CPU
+    else
+        @assert get_backend(univ.U) isa CPU
+    end
     state = get_rng_state()
     if filename != ""
         jldsave(

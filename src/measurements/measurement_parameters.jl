@@ -1,41 +1,41 @@
 abstract type MeasurementParameters end
 
-Base.@kwdef mutable struct EnergyDensityParameters <: MeasurementParameters
+@kwdef mutable struct EnergyDensityParameters <: MeasurementParameters
     measure_every::Int64 = 10
     type::Vector{String} = ["clover"]
     methodname::String = "energy_density"
 end
 
-Base.@kwdef mutable struct GaugeActionParameters <: MeasurementParameters
+@kwdef mutable struct GaugeActionParameters <: MeasurementParameters
     measure_every::Int64 = 1
     type::Vector{String} = ["wilson"]
     methodname::String = "gauge_action"
 end
 
-Base.@kwdef mutable struct PlaquetteParameters <: MeasurementParameters
+@kwdef mutable struct PlaquetteParameters <: MeasurementParameters
     measure_every::Int64 = 1
     methodname::String = "plaquette"
 end
 
-Base.@kwdef mutable struct PolyakovParameters <: MeasurementParameters
+@kwdef mutable struct PolyakovParameters <: MeasurementParameters
     measure_every::Int64 = 1
     methodname::String = "polyakov_loop"
 end
 
-Base.@kwdef mutable struct TopologicalChargeParameters <: MeasurementParameters
+@kwdef mutable struct TopologicalChargeParameters <: MeasurementParameters
     measure_every::Int64 = 10
     type::Vector{String} = ["clover"]
     methodname::String = "topological_charge"
 end
 
-Base.@kwdef mutable struct WilsonLoopParameters <: MeasurementParameters
+@kwdef mutable struct WilsonLoopParameters <: MeasurementParameters
     Tmax::Int64 = 4
     Rmax::Int64 = 4
     measure_every::Int64 = 10
     methodname::String = "wilson_loop"
 end
 
-Base.@kwdef mutable struct LogDetParameters <: MeasurementParameters
+@kwdef mutable struct LogDetParameters <: MeasurementParameters
     type::Vector{String} = ["staggered"]
     Nf::Union{Int64,Vector{Int64}} = 2
     mass::Union{Float64,Vector{Float64}} = 0.1
@@ -52,7 +52,7 @@ Base.@kwdef mutable struct LogDetParameters <: MeasurementParameters
     methodname::String = "logdet"
 end
 
-Base.@kwdef mutable struct PionCorrelatorParameters <: MeasurementParameters
+@kwdef mutable struct PionCorrelatorParameters <: MeasurementParameters
     dirac_type::String = "staggered"
     mass::Float64 = 0.1
     r::Float64 = 1.0
@@ -65,7 +65,7 @@ Base.@kwdef mutable struct PionCorrelatorParameters <: MeasurementParameters
     methodname::String = "pion_correlator"
 end
 
-Base.@kwdef mutable struct EigenvaluesParameters <: MeasurementParameters
+@kwdef mutable struct EigenvaluesParameters <: MeasurementParameters
     dirac_type::String = "staggered"
     mass::Float64 = 0.1
     r::Float64 = 1.0
@@ -84,23 +84,23 @@ Base.@kwdef mutable struct EigenvaluesParameters <: MeasurementParameters
 end
 
 function initialize_measurement_parameters(methodname)
-    if Unicode.normalize(methodname; casefold=true) == "gauge_action"
+    if lowercase(methodname) == "gauge_action"
         method = GaugeActionParameters()
-    elseif Unicode.normalize(methodname; casefold=true) == "plaquette"
+    elseif lowercase(methodname) == "plaquette"
         method = PlaquetteParameters()
-    elseif Unicode.normalize(methodname; casefold=true) == "polyakov_loop"
+    elseif lowercase(methodname) == "polyakov_loop"
         method = PolyakovParameters()
-    elseif Unicode.normalize(methodname; casefold=true) == "wilson_loop"
+    elseif lowercase(methodname) == "wilson_loop"
         method = WilsonLoopParameters()
-    elseif Unicode.normalize(methodname; casefold=true) == "topological_charge"
+    elseif lowercase(methodname) == "topological_charge"
         method = TopologicalChargeParameters()
-    elseif Unicode.normalize(methodname; casefold=true) == "energy_density"
+    elseif lowercase(methodname) == "energy_density"
         method = EnergyDensityParameters()
-    elseif Unicode.normalize(methodname; casefold=true) == "logdet"
+    elseif lowercase(methodname) == "logdet"
         method = LogDetParameters()
-    elseif Unicode.normalize(methodname; casefold=true) == "pion_correlator"
+    elseif lowercase(methodname) == "pion_correlator"
         method = PionCorrelatorParameters()
-    elseif Unicode.normalize(methodname; casefold=true) == "eigenvalues"
+    elseif lowercase(methodname) == "eigenvalues"
         method = EigenvaluesParameters()
     else
         error("$methodname is not implemented")

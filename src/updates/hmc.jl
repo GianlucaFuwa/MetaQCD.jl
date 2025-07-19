@@ -1,157 +1,248 @@
 abstract type AbstractIntegrator end
 
+include("hmc_levels.jl")
+
 """
     HMC(
         U,
-        integrator,
+        hmc_levels,
         trajectory,
-        steps,
-        friction = 0,
-        numsmear = 0,
-        ρ_stout = 0;
-        hmc_logging = true,
-        fermion_action = QuenchedFermionAction,
-        heavy_flavours = 0,
-        num_cv = 0,
-        logdir = "",
+        friction=0.0,
+        numsmear_gauge=0,
+        numsmear_fermion=0,
+        rho_stout_gauge=0.0,
+        rho_stout_fermion=0.0;
+        rafriction=0.0,
+        hmc_logging=true,
+        fermion_action="quenched",
+        numfermions=0,
+        numcv=0,
+        logdir="",
+        instance=mpi_myrank(),
     )
 
 Create an `HMC` object, that can be used as an update algorithm.
 
 # Arguments
 - `U`: The gauge field on which the update is performed.
-- `integrator`: The integrator used to evolve the field.
+- `levels`: A vector of `Dict`s that define the levels of the hmc integration scheme.
+To see what parameters are needed see the file "./hmc_levels".
 - `trajectory`: The length of the HMC trajectory.
 - `steps`: The number of integrator steps within the trajectory.
 - `friction`: Friction factor in the GHMC algorithm. Has to be in the range [0, 1].
-- `numsmear`: Number of Stout smearing steps applied to the gauge action.
-- `ρ_stout`: Step length of the Stout smearing applied to the gauge action.
+- `numsmear_gauge`: Number of Stout smearing steps applied to the gauge action.
+- `numsmear_fermion`: Number of Stout smearing steps applied to the fermion action.
+- `rho_stout_gauge`: Step length of the Stout smearing applied to the gauge action.
+- `rho_stout_fermion`: Step length of the Stout smearing applied to the fermion action.
+- `rafriction`: Friction parameter for the repell-attract HMC.
 - `hmc_logging`: If true, creates a logfile in `logdir` containing information
 on the trajectories, unless `logdir = ""`
-- `fermion_action`: An `AbstratFermionAction` to initialize the appropriate fermion fields
-- `heavy_flavours`: The number of non-degenerate heavy flavours, again to initialize the
+- `fermion_action`: An String that identifies the fermion action type to initialize the appropriate fermion fields
+- `numfermions`: The number of non-degenerate heavy flavours, again to initialize the
 right number of fermion fields
-- `num_cv`: If bigger than 0, additional fields are initialized that are needed for Stout
+- `numcv`: If bigger than 0, additional fields are initialized that are needed for Stout
 force recursion when using a bias.
-
-# Supported Integrators
-- `Leapfrog`
-- `OMF2`
-- `OMF2Slow`
-- `OMF4`
-- `OMF4Slow`
+- `logdir`: Directory that hmc data should be written into.
+- `instance`: Integer identifier of current instance (for parallel tempering and multiple walkers).
 
 # Supported Fermion Actions
-- `WilsonFermionAction`
-- `WilsonEOPreFermionAction`
-- `StaggeredFermionAction`
-- `StaggeredEOPreFermionAction`
+- `quenched`
+- `staggered`
+- `staggered_eo`
+- `wilson`
+- `wilson_eo`
 """
-struct HMC{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TFP1,TFP2} <: AbstractUpdate
-    integrator::TI
-    steps::Int64
-    Δτ::Float64
+struct HMC{TL,NL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF} <: AbstractUpdate
+    levels::TL
+    numlevels::Val{NL}
     friction::Float64
 
     P::TT
-    P_old::PO # second momentum field for GHMC
+    P_old::TPO # second momentum field for GHMC
     U_old::TG
     ϕ::TF
     staples::TT
     force::TT
-    force2::F2 # second force field for smearing
-    fieldstrength::FS # fieldstrength fields for Bias
+    force2::TF2 # second force field for smearing
+    fieldstrength::TFS # fieldstrength fields for Bias
     smearing_gauge::TSG
     smearing_fermion::TSF
 
-    logfile::TFP1
-    forcefile::TFP2
+    logfile::TLF
     function HMC(
-        integrator, steps, Δτ, friction, P, P_old, U_old, ϕ, staples, force, force2,
-        fieldstrength, smearing_gauge, smearing_fermion, logfile, forcefile,
+        levels,
+        numlevels,
+        friction,
+        P,
+        P_old,
+        U_old,
+        ϕ,
+        staples,
+        force,
+        force2,
+        fieldstrength,
+        smearing_gauge,
+        smearing_fermion,
+        logfile,
     )
         @level1("- Constructing HMC...")
-        @level1("|  INTEGRATOR: $(string(integrator))")
-        @level1("|  TRAJECTORY LENGTH: $(steps * Δτ)")
-        @level1("|  STEPS: $(steps)")
-        @level1("|  STEP LENGTH: $(Δτ)")
+        @level1("|  LEVELS:")
+        for lvl in reverse(levels)
+            @level1("$(string(lvl))")
+        end
         @level1("|  FRICTION: $(friction) $(ifelse(friction==0, "(default)", ""))")
         isnothing(fieldstrength) ? @level1("|  BIAS DISABLED") : @level1("|  BIAS ENABLED")
         @level1("|  GAUGE SMEARING: $(string(smearing_gauge))")
         @level1("|  FERMION SMEARING: $(string(smearing_fermion))")
         !isnothing(logfile) && @level1("|  HMC LOGFILE: $(logfile)")
-        !isnothing(forcefile) && @level1("|  HMC FORCEFILE: $(forcefile)")
         @level1("-\n")
-        TI = typeof(integrator)
+        TL = typeof(levels)
+        NL = _unwrap_val(numlevels)
         TG = typeof(U_old)
         TT = typeof(staples)
         TF = typeof(ϕ)
         TSG = typeof(smearing_gauge)
         TSF = typeof(smearing_fermion)
-        PO = typeof(P_old)
-        F2 = typeof(force2)
-        FS = typeof(fieldstrength)
-        TFP1 = typeof(logfile)
-        TFP2 = typeof(forcefile)
-        return new{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TFP1,TFP2}(
-            integrator, steps, Δτ, friction, P, P_old, U_old, ϕ, staples, force, force2,
-            fieldstrength, smearing_gauge, smearing_fermion, logfile, forcefile,
+        TPO = typeof(P_old)
+        TF2 = typeof(force2)
+        TFS = typeof(fieldstrength)
+        TLF = typeof(logfile)
+        return new{TL,NL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF}(
+            levels,
+            numlevels,
+            friction,
+            P,
+            P_old,
+            U_old,
+            ϕ,
+            staples,
+            force,
+            force2,
+            fieldstrength,
+            smearing_gauge,
+            smearing_fermion,
+            logfile,
         )
     end
 end
 
 function HMC(
     U,
-    integrator::AbstractIntegrator,
+    hmc_levels,
     trajectory,
-    steps,
     friction=0.0,
     numsmear_gauge=0,
     numsmear_fermion=0,
-    ρ_stout_gauge=0.0,
-    ρ_stout_fermion=0.0;
+    rho_stout_gauge=0.0,
+    rho_stout_fermion=0.0;
+    rafriction=0.0,
     hmc_logging=true,
     fermion_action="quenched",
-    heavy_flavours=0,
-    num_cv=0,
+    numfermions=0,
+    numcv=0,
     logdir="",
     instance=mpi_myrank(),
 )
-    Δτ = trajectory/steps
-    P = Colorfield(U)
+    P = Colorfield(U; no_halo=true)
     gaussian_TA!(P, 0)
-    P_old = friction == 0 ? nothing : Colorfield(U)
-    U_old = Gaugefield(U)
-    staples = Colorfield(U)
-    force = Colorfield(U)
+    P_old = friction == 0 ? nothing : Colorfield(U; no_halo=true)
+    U_old = Gaugefield(U; no_halo=true)
+    staples = Colorfield(U; no_halo=true)
+    force = Colorfield(U; no_halo=true)
 
-    smearing_gauge = StoutSmearing(U; numlayers=numsmear_gauge, rho=ρ_stout_gauge)
-    smearing_fermion = if fermion_action === QuenchedFermionAction
+    numlevels = Val(length(hmc_levels))
+    level_params = level_parameters_from_dict(hmc_levels)
+
+    levels = ntuple(numlevels) do i
+        lvl = level_params[i]
+        forces = lvl.forces
+        numchildren = Val(i - 1)
+        Δτ = if i == length(level_params)
+            trajectory / lvl.numsteps
+        else
+            Nᵢ = lvl.numsteps
+
+            for j in i+1:length(hmc_levels)
+                Nᵢ *= num_U_updates(level_params[j].integrator) * level_params[j].numsteps
+            end
+
+            trajectory / Nᵢ
+        end
+
+        numcv == 0 &&
+            (@assert 0 ∉ forces "bias force cannot be in hmc level without bias")
+        HMCLevel(
+            integrator_from_str(lvl.integrator, rafriction),
+            lvl.numsteps,
+            Δτ,
+            forces;
+            numchildren=numchildren,
+            hmc_logging=hmc_logging,
+            logdir=logdir,
+            instance=instance,
+            distributed=is_distributed(U),
+        )
+    end
+
+    allforces = collect(Iterators.flatten([lvl.forces for lvl in levels]))
+    fail = false
+
+    if Val(1) ∉ allforces
+        @error("Gauge force not included in any level")
+        fail = true
+    end
+
+    if numcv > 0
+        if Val(0) ∉ allforces
+            @error("Bias force not included in any level")
+            fail = true
+        end
+    end
+
+    for ipf in 1:numfermions
+        if Val(ipf + 1) ∉ allforces
+            @error("Fermion force $(ipf) (i.e., force $(ipf+1)) not included in any level")
+            fail = true
+        end
+    end
+
+    for iforce in allforces
+        if _unwrap_val(iforce) > numfermions+1
+            @error("Force $(iforce) doesn't have a matching action. You probably don't have enough fermion actions.")
+            fail = true
+        end
+    end
+
+    fail && error("Forces missing")
+
+    smearing_gauge = StoutSmearing(U; numlayers=numsmear_gauge, rho=rho_stout_gauge)
+    smearing_fermion = if fermion_action == "quenched"
         NoSmearing()
     else
-        StoutSmearing(U; numlayers=numsmear_fermion, rho=ρ_stout_fermion)
+        StoutSmearing(U; numlayers=numsmear_fermion, rho=rho_stout_fermion)
     end
 
     has_smearing = smearing_gauge != NoSmearing() || smearing_fermion != NoSmearing()
-    force2 = (!has_smearing && num_cv==0) ? nothing : Colorfield(U)
+    force2 = (!has_smearing && numcv == 0) ? nothing : Colorfield(U)
 
     if fermion_action == "staggered"
-        ϕ = ntuple(_ -> Spinorfield(U; staggered=true), 1 + heavy_flavours)
+        ϕ = ntuple(_ -> Spinorfield(U; staggered=true, hw=1), numfermions)
     elseif fermion_action == "staggered_eo"
-        ϕ = ntuple(_ -> even_odd(Spinorfield(U; staggered=true)), 1 + heavy_flavours)
+        ϕ = ntuple(_ -> even_odd(Spinorfield(U; staggered=true, hw=1)), numfermions)
     elseif fermion_action ∈ ["staggered_h1234", "staggered_1342"]
-        ϕ = ntuple(_ -> Spinorfield(U; staggered=true), 1 + heavy_flavours)
+        ϕ = ntuple(_ -> Spinorfield(U; staggered=true, hw=2), numfermions)
     elseif fermion_action == "wilson"
-        ϕ = ntuple(_ -> Spinorfield(U), 1 + heavy_flavours)
+        # TODO: differentiate between clover and non-clover in hw
+        ϕ = ntuple(_ -> Spinorfield(U; hw=2), numfermions)
     elseif fermion_action == "wilson_eo"
-        ϕ = ntuple(_ -> even_odd(Spinorfield(U)), 1 + heavy_flavours)
+        ϕ = ntuple(_ -> even_odd(Spinorfield(U; hw=2)), numfermions)
     elseif fermion_action ∈ ["quenched", "none"]
         ϕ = nothing
     else
         throw(AssertionError("Dynamical fermions \"$fermion_action\" not supported"))
     end
 
-    fieldstrength = num_cv>0 ? Tensorfield(U) : nothing
+    fieldstrength = numcv > 0 ? Tensorfield(U) : nothing
     comm_instance = mpi_comm_instance()
 
     if hmc_logging && (logdir != "") && (!is_distributed(U) || mpi_amroot(comm_instance))
@@ -159,77 +250,62 @@ function HMC(
 
         for ii in instance
             _logfile = joinpath(logdir, "hmc_acc_logs_$(lpad(ii, 3, "0")).txt")
-            open(_logfile, "w") do fp
-                @printf(
-                    fp,
-                    "%-25s%-25s%-25s%-25s%-25s%-25s%-25s\n",
-                    "ΔP²", "ΔSg", "ΔSf", "ΔV", "ΔH", "S", "Accepted"
-                )
-            end
+            fp = fopen(_logfile, "w")
+            printf(fp, "%-25s", "ΔP²")
+            printf(fp, "%-25s", "ΔSg")
+            printf(fp, "%-25s", "ΔSf")
+            printf(fp, "%-25s", "ΔV")
+            printf(fp, "%-25s", "ΔH")
+            printf(fp, "%-25s", "S")
+            printf(fp, "%-8s", "Accepted")
+            newline(fp)
+            fclose(fp)
         end
 
         _logfile = joinpath(logdir, "hmc_acc_logs_$(lpad(instance[1], 3, "0")).txt")
         logfile = StaticString(_logfile)
-
-        if !isnothing(ϕ)
-            for ii in instance
-                ext = "$(lpad(ii, 3, "0")).txt"
-                _forcefile = joinpath(logdir, "hmc_force_logs_$(ext)")
-                force_fp = fopen(_forcefile, "w")
-                printf(force_fp, "%-25s", "avg||F_Sg||")
-                printf(force_fp, "%-25s", "sup||F_Sg||")
-
-                for i in eachindex(ϕ)
-                    printf(force_fp, "%-25s", "avg||F_Sf$i||")
-                    printf(force_fp, "%-25s", "sup||F_Sf$i||")
-                end
-
-                if num_cv > 0
-                    printf(force_fp, "%-25s", "avg||F_V||")
-                    printf(force_fp, "%-25s", "sup||F_V||")
-                end
-
-                newline(force_fp)
-                fclose(force_fp)
-            end
-
-            ext = "$(lpad(instance[1], 3, "0")).txt"
-            _forcefile = joinpath(logdir, "hmc_force_logs_$(ext)")
-            forcefile = StaticString(_forcefile)
-        else
-            forcefile = nothing
-        end
     else
         logfile = nothing
-        forcefile = nothing
     end
 
     return HMC(
-        integrator, steps, Δτ, friction, P, P_old, U_old, ϕ, staples, force, force2,
-        fieldstrength, smearing_gauge, smearing_fermion, logfile, forcefile,
+        levels,
+        numlevels,
+        friction,
+        P,
+        P_old,
+        U_old,
+        ϕ,
+        staples,
+        force,
+        force2,
+        fieldstrength,
+        smearing_gauge,
+        smearing_fermion,
+        logfile,
     )
 end
 
 include("hmc_integrators.jl")
 
 function update!(
-    hmc::HMC{TI},
+    hmc::HMC,
     U;
     fermion_action::TF=QuenchedFermionAction(),
     bias::TB=NoBias(),
     metro_test::Bool=true,
-    therm::Bool=false,
+    therm::Val{THERM}=Val(false),
     instance=MPI_INSTANCE[],
-) where {TI,TF,TB}
+) where {TF,TB,THERM}
     if TF !== QuenchedFermionAction
         @assert TF <: Tuple "fermion_action must be nothing or a tuple of fermion actions"
         @assert !isnothing(hmc.ϕ) "fermion_action passed but not activated in HMC"
     end
 
     set_ext!(hmc.logfile, instance)
-    set_ext!(hmc.forcefile, instance)
-
-    integrator = therm ? default_integrator(hmc.integrator) : hmc.integrator
+    for lvl in hmc.levels
+        set_ext!(lvl.forcefile, instance)
+    end
 
     U_old = hmc.U_old
     P_old = hmc.P_old
@@ -239,7 +315,8 @@ function update!(
     # Check if bias and fermion smearing have same parameters
     shared_smearing = (bias == NoBias()) ? false : (bias.smearing == hmc.smearing_fermion)
     smearing_fermion = shared_smearing ? bias.smearing : hmc.smearing_fermion
-    friction = therm ? 0.0 : hmc.friction
+    friction = THERM ? 0.0 : hmc.friction
+    numlevels = _unwrap_val(hmc.numlevels)
 
     copy!(U_old, U)
     gaussian_TA!(P, friction)
@@ -252,7 +329,7 @@ function update!(
     sample_pseudofermions!(ϕ, fermion_action, U, smearing_fermion, shared_smearing)
     Sf_old = calc_fermion_action(fermion_action, U, ϕ, smearing_fermion, true) # INFO: fields are already smeared in sampling, so we dont have to here
 
-    evolve!(integrator, U, hmc, fermion_action, bias)
+    evolve!(U, hmc, fermion_action, bias, therm, numlevels)
 
     trP²_new = -calc_kinetic_energy(P)
     Sg_new = calc_gauge_action(U, smearing_gauge)
@@ -274,8 +351,7 @@ function update!(
     print_hmc_data(hmc.logfile, ΔP², ΔSg, ΔSf, ΔV, ΔH, S_new, accept)
 
     if accept
-        U.Sg = Sg_new
-        U.CV = CV_new
+        set_cv!(bias, CV_new)
         @level2("|    Accepted")
     else
         copy!(U, U_old)
@@ -291,80 +367,100 @@ function update!(
     return accept
 end
 
-function updateU!(U::Gaugefield{CPU,T}, hmc, fac) where {T}
-    ϵ = T(hmc.Δτ * fac)
-    P = hmc.P
-    check_dims(U, P)
+function updateU!(
+    U::Gaugefield{B,T,M}, hmc, fac, fermion_action, bias, therm, level
+) where {B,T,M}
+    if level == 1
+        ϵ = T(hmc.levels[level].Δτ * fac)
+        P = hmc.P
 
-    @batch for μsite in allindices(U)
-        U[μsite] = cmatmul_oo(exp_iQ(-im * ϵ * P[μsite]), U[μsite])
+        parallelfor(allindices(U, P), B, Val(M), (), (U,), (U, P)) do μsite, U, P
+            U[μsite] = cmatmul_oo(exp_iQ(-im * ϵ * P[μsite]), U[μsite])
+        end
+    else
+        evolve!(U, hmc, fermion_action, bias, therm, level-1)
     end
 
-    # INFO: don't need to do halo exchange here, since we iterate over all indices
-    # including halo regions
-    # We assume that U's and P's halos are already up-to-date before calling this
     return nothing
 end
 
-function updateP!(U, hmc::HMC, fac, fermion_action, bias)
-    ϵ = hmc.Δτ * fac
+function updateP!(U, hmc::HMC, fac, fermion_action, bias, level)
+    lvl = hmc.levels[level]
+    forces = lvl.forces
+    ϵ = lvl.Δτ * fac
     P = hmc.P
     staples = hmc.staples
     force = hmc.force
     ϕ = hmc.ϕ
     temp_force = hmc.force2
     smearing_gauge = hmc.smearing_gauge
-    smearing_fermion = if bias == NoBias() || isnothing(bias)
-        hmc.smearing_fermion
+    if bias == NoBias() || isnothing(bias)
+        shared_smearing = false
+        smearing_fermion = hmc.smearing_fermion
     else
         shared_smearing = (bias.smearing == hmc.smearing_fermion)
-        shared_smearing ? bias.smearing : hmc.smearing_fermion
+        smearing_fermion = shared_smearing ? bias.smearing : hmc.smearing_fermion
     end
 
     fieldstrength = hmc.fieldstrength
 
-    fp = !isnothing(hmc.forcefile) ? fopen(hmc.forcefile, "a") : nothing
+    fp = !isnothing(lvl.forcefile) ? fopen(lvl.forcefile, "a") : nothing
 
-    calc_dSdU_bare!(force, staples, U, temp_force, smearing_gauge)
+    if Val(0) ∈ forces
+        if bias isa Bias
+            for i in 1:length(bias)
+                is_smeared = i > 1
+                calc_dVdU_bare!(
+                    force, (fieldstrength, staples), U, temp_force, bias, i, is_smeared
+                )
 
-    if !isnothing(fp)
-        norm2 = norm(force, Val(2))
-        normsup = norm(force, Val(Inf))
-        printf(fp, "%+-25.15E", norm2)
-        printf(fp, "%+-25.15E", normsup)
-    end
+                if !isnothing(fp)
+                    norm2 = norm(force, Val(2))
+                    normsup = norm(force, Val(Inf))
+                    printf(fp, "%+-25.15E", norm2)
+                    printf(fp, "%+-25.15E", normsup)
+                end
 
-    add!(P, force, ϵ)
-
-    if fermion_action !== QuenchedFermionAction()
-        for i in eachindex(fermion_action)
-            calc_dSfdU_bare!(
-                force, fermion_action[i], U, ϕ[i], temp_force, smearing_fermion, i>1
-            )
-
-            if !isnothing(fp)
-                norm2 = norm(force, Val(2))
-                normsup = norm(force, Val(Inf))
-                printf(fp, "%+-25.15E", norm2)
-                printf(fp, "%+-25.15E", normsup)
+                add!(P, force, ϵ)
             end
-
-            add!(P, force, ϵ)
         end
     end
 
-    if bias isa Bias
-        for i in 1:length(bias)
-            is_smeared = shared_smearing || i>1
-            calc_dVdU_bare!(
-                force, (fieldstrength, staples), U, temp_force, bias, i, is_smeared
+    if Val(1) ∈ forces
+        calc_dSdU_bare!(force, staples, U, temp_force, smearing_gauge)
+
+        if !isnothing(fp)
+            norm2 = norm(force, Val(2))
+            normsup = norm(force, Val(Inf))
+            printf(fp, "%-25.15E", norm2) # FIXME: bugs out sometimes
+            printf(fp, "%-25.15E", normsup)
+        end
+
+        add!(P, force, ϵ)
+    end
+
+    if fermion_action !== QuenchedFermionAction()
+        iforce = 0
+        for i in forces
+            i ∈ (Val(0), Val(1)) && continue # if bias or gauge force, go to next iteration
+            iforce += 1
+
+            is_smeared = (shared_smearing && Val(0) ∈ forces) || iforce > 1
+            calc_dSfdU_bare!(
+                force,
+                fermion_action[_unwrap_val(i)-1],
+                U,
+                ϕ[_unwrap_val(i)-1],
+                temp_force,
+                smearing_fermion,
+                is_smeared,
             )
 
             if !isnothing(fp)
                 norm2 = norm(force, Val(2))
                 normsup = norm(force, Val(Inf))
-                printf(fp, "%+-25.15E", norm2)
-                printf(fp, "%+-25.15E", normsup)
+                printf(fp, "%-25.15E", norm2)
+                printf(fp, "%-25.15E", normsup)
             end
 
             add!(P, force, ϵ)
@@ -461,7 +557,7 @@ end
     printf(fp, "%+-25.15E", ΔV)
     printf(fp, "%+-25.15E", ΔH)
     printf(fp, "%+-25.15E", S)
-    printf(fp, "%-25.1i", Int64(accept))
+    printf(fp, "%-i", Int64(accept))
     newline(fp)
     fclose(fp)
     return nothing
@@ -471,38 +567,35 @@ end
 # custom serialization, because saving and loading IOStreams doesn't work
 using JLD2
 
-struct HMCSerialization{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TFP1,TFP2}
-    integrator::TI
-    steps::Int64
-    Δτ::Float64
+struct HMCSerialization{TL,NL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF}
+    levels::TL
+    numlevels::Val{NL}
     friction::Float64
 
     P::TT
-    P_old::PO # second momentum field for GHMC
+    P_old::TPO # second momentum field for GHMC
     U_old::TG
     ϕ::TF
     staples::TT
     force::TT
-    force2::F2 # second force field for smearing
-    fieldstrength::FS # fieldstrength fields for Bias
+    force2::TF2 # second force field for smearing
+    fieldstrength::TFS # fieldstrength fields for Bias
     smearing_gauge::TSG
     smearing_fermion::TSF
 
-    logfile::TFP1
-    forcefile::TFP2
+    logfile::TLF
 end
 
 function JLD2.writeas(
-    ::Type{<:HMC{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TFP1,TFP2}}
-) where {TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TFP1,TFP2}
-    return HMCSerialization{TI,TG,TT,TF,TSG,TSF,PO,F2,FS,TFP1,TFP2}
+    ::Type{<:HMC{TL,NL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TFLS}}
+) where {TL,NL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TFLS}
+    return HMCSerialization{TL,NL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TFLS}
 end
 
 function Base.convert(::Type{<:HMCSerialization}, hmc::HMC)
     out = HMCSerialization(
-        hmc.integrator,
-        hmc.steps,
-        hmc.Δτ,
+        hmc.levels,
+        hmc.numlevels,
         hmc.friction,
         hmc.P,
         hmc.P_old,
@@ -515,16 +608,14 @@ function Base.convert(::Type{<:HMCSerialization}, hmc::HMC)
         hmc.smearing_gauge,
         hmc.smearing_fermion,
         hmc.logfile,
-        hmc.forcefile,
     )
     return out
 end
 
 function Base.convert(::Type{<:HMC}, hmc::HMCSerialization)
     out = HMC(
-        hmc.integrator,
-        hmc.steps,
-        hmc.Δτ,
+        hmc.levels,
+        hmc.numlevels,
         hmc.friction,
         hmc.P,
         hmc.P_old,
@@ -537,7 +628,6 @@ function Base.convert(::Type{<:HMC}, hmc::HMCSerialization)
         hmc.smearing_gauge,
         hmc.smearing_fermion,
         hmc.logfile,
-        hmc.forcefile,
     )
     return out
 end

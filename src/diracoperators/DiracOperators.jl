@@ -10,12 +10,11 @@ adjoint and Hermitian (D†D convention) counterpart, which are used to make the
 """
 module DiracOperators
 
+using Base.Cartesian: @nexprs
 using LinearAlgebra: checksquare
 using KernelAbstractions # With this we can write generic GPU kernels for ROC and CUDA
 using LinearAlgebra
 using Polyester
-using Printf
-using SparseArrays
 using StaticArrays
 using StaticTools: StaticString
 using ..MetaIO
@@ -25,24 +24,28 @@ using ..Utils
 
 import KernelAbstractions as KA
 import ..Fields: AbstractField, FieldTopology, Gaugefield, Paulifield, Spinorfield
-import ..Fields: MultiSpinorfield, SpinorfieldEO, Tensorfield
-import ..Fields: check_dims, clear!, clover_square, dims, even_odd, gaussian_pseudofermions!
-import ..Fields: @latmap, @latsum, Clover, Checkerboard2, Sequential, set_source!, volume
-import ..Fields: @groupreduce, fieldstrength_eachsite!, num_colors, num_dirac
+import ..Fields: MultiSpinorfield, SpinorfieldEO, Tensorfield, num_spinors, get_global_dims
+import ..Fields: check_dims, get_local_dims, get_global_dims, get_local_volume
+import ..Fields: clear!, clover_square , even_odd, gaussian_pseudofermions!, is_distributed
+import ..Fields: parallelfor, parallelfor_sum, Clover, Checkerboard2, Sequential, set_source!
+import ..Fields: fieldstrength_eachsite!, num_colors, num_dirac
 import ..Fields: PeriodicBC, AntiPeriodicBC, apply_bc, create_bc, distributed_reduce
+import ..Fields: device_to_host
 
 abstract type AbstractDiracOperator{B,T} end
-abstract type AbstractFermionAction{R,Nf} end # R indicates whether the action uses rational approximation or not
+abstract type AbstractFermionAction{R,Nf} end # R indicates whether the action uses rational approximation or not, TM whether there are twisted masses or not
+abstract type StaggeredTypeOperator end
+abstract type WilsonTypeOperator end
 
-struct QuenchedFermionAction <: AbstractFermionAction{false,0} 
+struct QuenchedFermionAction <: AbstractFermionAction{false,0}
     QuenchedFermionAction(args...; kwargs...) = new()
 end
 
 # some aliases
-const StaggeredSpinorfield{B,T,M,A} = Spinorfield{B,T,M,A,1}
-const StaggeredEOPreSpinorfield{B,T,M,A} = SpinorfieldEO{B,T,M,A,1}
-const WilsonSpinorfield{B,T,M,A} = Spinorfield{B,T,M,A,4}
-const WilsonEOPreSpinorfield{B,T,M,A} = SpinorfieldEO{B,T,M,A,4}
+const StaggeredSpinorfield{B,T,M} = Spinorfield{B,T,M,1}
+const StaggeredEOPreSpinorfield{B,T,M} = SpinorfieldEO{B,T,M,1}
+const WilsonSpinorfield{B,T,M} = Spinorfield{B,T,M,4}
+const WilsonEOPreSpinorfield{B,T,M} = SpinorfieldEO{B,T,M,4}
 
 Base.eltype(D::AbstractDiracOperator) = eltype(D.temp)
 LinearAlgebra.checksquare(D::AbstractDiracOperator) = LinearAlgebra.checksquare(D.temp)
@@ -75,23 +78,23 @@ Wrap the Dirac operator `D` such that future functions know to treat it as `D†
 """
 struct DdaggerD{TD,B,T} <: AbstractDiracOperator{B,T}
     parent::TD
-    DdaggerD(D::TD) where {B,T,TD<:AbstractDiracOperator{B,T}} = new{TD,B,T}(D)
+    twisted_mass::Float64
+    function DdaggerD(D::TD, tmass=0.0) where {B,T,TD<:AbstractDiracOperator{B,T}}
+        return new{TD,B,T}(D, tmass)
+    end
 end
 
 LinearAlgebra.checksquare(D::DdaggerD) = LinearAlgebra.checksquare(D.parent)
 Base.eltype(D::DdaggerD) = eltype(D.parent)
 get_temp(D::DdaggerD) = D.parent.temp
 
+include("fermion_parameters.jl")
 include("staggered_eo.jl")
 include("action.jl")
 include("staggered.jl")
 include("staggered_hoelbling.jl")
 include("wilson.jl")
 include("wilson_eo.jl")
-include("gpu_kernels/staggered.jl")
-include("gpu_kernels/staggered_eo.jl")
-include("gpu_kernels/wilson.jl")
-include("gpu_kernels/wilson_eo.jl")
 include("arnoldi.jl")
 
 const DIRAC_OPERATORS = Dict(
@@ -164,13 +167,19 @@ end
 
 # So we don't print the entire array in the REPL...
 function Base.show(io::IO, ::MIME"text/plain", D::T) where {T<:AbstractDiracOperator}
-    print(io, "$(typeof(D))", "(;")
+    println(io, "$(nameof(typeof(D)))", "(;")
 
     for fieldname in fieldnames(T)
-        if fieldname ∈ (:U, :temp, :D_diag, :D_oo_inv, :Fμν)
+        if fieldname ∈ (:temp, :D_diag, :D_oo_inv, :Fμν)
             continue
+        elseif fieldname == :U
+            if isnothing(D.U)
+                println(io, "\tno gauge background", ",")
+            else
+                println(io, "\thas gauge background", ",")
+            end
         else
-            print(io, " ", fieldname, " = ", getfield(D, fieldname), ",")
+            println(io, "\t", fieldname, " = ", getfield(D, fieldname), ",")
         end
     end
 
@@ -179,11 +188,17 @@ function Base.show(io::IO, ::MIME"text/plain", D::T) where {T<:AbstractDiracOper
 end
 
 function Base.show(io::IO, D::T) where {T<:AbstractDiracOperator}
-    print(io, "$(typeof(D))", "(;")
+    print(io, "$(nameof(typeof(D)))", "(;")
 
     for fieldname in fieldnames(T)
-        if fieldname ∈ (:U, :temp)
+        if fieldname ∈ (:temp, :D_diag, :D_oo_inv, :Fμν)
             continue
+        elseif fieldname == :U
+            if isnothing(D.U)
+                println(io, "\tno gauge background", ",")
+            else
+                println(io, "\thas gauge background", ",")
+            end
         else
             print(io, " ", fieldname, " = ", getfield(D, fieldname), ",")
         end
@@ -193,54 +208,54 @@ function Base.show(io::IO, D::T) where {T<:AbstractDiracOperator}
     return nothing
 end
 
-function construct_diracmatrix(D, U)
-    n = checksquare(D)
-    Du = D(U)
-    M = spzeros(ComplexF64, n, n) 
-    temp1 = similar(get_temp(D))
-    temp2 = similar(get_temp(D))
-    ND = num_dirac(temp1)
-    fdims = dims(U)
-    NV = U.NV
-    @assert n < 5000
-    is_evenodd = temp1 isa SpinorfieldEO
-
-    ii = 1
-
-    for isite in eachindex(U)
-        if is_evenodd
-            iseven(isite) || continue
-        end
-
-        for α in 1:ND
-            for a in 1:3
-                set_source!(temp1, isite, a, α)
-                mul!(temp2, Du, temp1)
-                jj = 1
-
-                for jsite in eachindex(U)
-                    if is_evenodd
-                        iseven(jsite) || continue
-                        _jsite = eo_site(jsite, fdims..., NV)
-                    else
-                        _jsite = jsite
-                    end
-
-                    for β in 1:ND
-                        for b in 1:3
-                            ind = (β - 1) * 3 + b
-                            M[jj, ii] = temp2[_jsite][ind]
-                            jj += 1
-                        end
-                    end
-                end
-
-                ii += 1
-            end
-        end
-    end
-
-    return M
-end
+# function construct_diracmatrix(D, U)
+#     n = checksquare(D)
+#     Du = D(U)
+#     M = spzeros(ComplexF64, n, n)
+#     temp1 = similar(get_temp(D))
+#     temp2 = similar(get_temp(D))
+#     ND = num_dirac(temp1)
+#     fdims = dims(U)
+#     NV = length(U)
+#     @assert n < 5000
+#     is_evenodd = temp1 isa SpinorfieldEO
+#
+#     ii = 1
+#
+#     for isite in eachindex(U)
+#         if is_evenodd
+#             iseven(isite) || continue
+#         end
+#
+#         for α in 1:ND
+#             for a in 1:3
+#                 set_source!(temp1, isite, a, α)
+#                 mul!(temp2, Du, temp1)
+#                 jj = 1
+#
+#                 for jsite in eachindex(U)
+#                     if is_evenodd
+#                         iseven(jsite) || continue
+#                         _jsite = eo_site(jsite, fdims..., NV)
+#                     else
+#                         _jsite = jsite
+#                     end
+#
+#                     for β in 1:ND
+#                         for b in 1:3
+#                             ind = (β - 1) * 3 + b
+#                             M[jj, ii] = temp2[_jsite][ind]
+#                             jj += 1
+#                         end
+#                     end
+#                 end
+#
+#                 ii += 1
+#             end
+#         end
+#     end
+#
+#     return M
+# end
 
 end

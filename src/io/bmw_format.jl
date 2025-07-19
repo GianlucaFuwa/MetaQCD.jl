@@ -24,18 +24,18 @@
 #| format from the pervious one, the header line is required to start with #18BMW. |
 #+---------------------------------------------------------------------------------+
 
-function save_config(
+function save_field(
     ::BMWFormat, U::Gaugefield{B,T,false}, filename, parameters=nothing; override=false
 ) where {B,T}
-    @assert U.U isa Array
+    @assert get_backend(U) isa CPU
+    NX, NY, NZ, NT = size(U)
+
     if override == false
         @assert !isfile(filename) """
         File $filename to store config in already exists and override is \"false\"
         """
     end
     fp = open(filename, "w")
-    N = U.NC
-    @assert N == 3 "Only SU(3) is supported in BMW format"
 
     ### Header
     header_buf = IOBuffer()
@@ -47,15 +47,15 @@ function save_config(
             tmp = U[μ, site]
             view(buffer, :, μ) .= reinterpret(reshape, UInt64, deconstruct_mat_bmw(tmp))
         end
-        site_abs = (((site[4] * U.NZ + site[3]) * U.NY + site[2]) * U.NX + site[1])
-        adler64_add!(checksum, buffer, site_abs, U.NV, 16N)
+        site_abs = (((site[4] * NZ + site[3]) * NY + site[2]) * NX + site[1])
+        adler64_add!(checksum, buffer, site_abs, length(U), 16*3)
     end
 
     adler64_finalize!(checksum)
     checksum_str = adler64_string(checksum)
     bytes_written = 0
     bytes_written += write(
-        header_buf, "#BMW $(U.NX) $(U.NY) $(U.NZ) $(U.NT) $checksum_str\n"
+        header_buf, "#BMW $(NX) $(NY) $(NZ) $(NT) $checksum_str\n"
     )
     bytes_written += write(
         header_buf, "Generated with MetaQCD.jl $(METAQCD_VERSION) on Julia $(VERSION) @ $(Dates.now())\n"
@@ -100,8 +100,9 @@ function save_config(
     return nothing
 end
 
-function load_config!(::BMWFormat, U::Gaugefield{B,T,false}, filename) where {B,T}
-    @assert U.U isa Array
+function load_field!(::BMWFormat, U::Gaugefield{B,T,false}, filename) where {B,T}
+    @assert get_backend(U) isa CPU
+    Udims = size(U)
     fp = open(filename, "r")
     header_bin = Vector{UInt8}(undef, 4096)
     readbytes!(fp, header_bin, 4096)
@@ -109,9 +110,7 @@ function load_config!(::BMWFormat, U::Gaugefield{B,T,false}, filename) where {B,
     split_header = split(header)
     @assert split_header[1] == "#BMW" "Header doesn't start with \"#BMW\""
     NX, NY, NZ, NT = parse.(Int, split_header[2:5])
-    @assert (NX, NY, NZ, NT) == (U.NX, U.NY, U.NZ, U.NT) "Dimensions do not match"
-    N = U.NC
-    @assert N == 3 "Only SU(3) is supported in BMW format"
+    @assert (NX, NY, NZ, NT) == Udims "Dimensions do not match"
     checksum_read = parse(UInt64, split_header[6])
     checksum_calc = Adler64Checksum()
 
@@ -126,8 +125,8 @@ function load_config!(::BMWFormat, U::Gaugefield{B,T,false}, filename) where {B,
             tmp = U[μ, site]
             view(buffer, :, μ) .= reinterpret(reshape, UInt64, deconstruct_mat_bmw(tmp))
         end
-        site_abs = (((site[4] * U.NZ + site[3]) * U.NY + site[2]) * U.NX + site[1])
-        adler64_add!(checksum_calc, buffer, site_abs, U.NV, 16N)
+        site_abs = (((site[4] * NZ + site[3]) * NY + site[2]) * NX + site[1])
+        adler64_add!(checksum_calc, buffer, site_abs, length(U), 16*3)
     end
 
     close(fp)

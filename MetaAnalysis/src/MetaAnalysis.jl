@@ -121,51 +121,123 @@ end
 
 phys_not(val::uwreal) = phys_not(value(val), ADerrors.err(val))
 
-function phys_not(val::Float64, err::Float64)
-    err > 1 && return phys_not_cp(val, err)
-    exp_err = round(Int64, log10(err), RoundDown)-1
-    err_shifted = err / 10.0^exp_err
-    val_str = if exp_err < -5
-        @sprintf("%f", round(val, digits=-exp_err))
-    else
-        @sprintf("%g", round(val, digits=-exp_err))
+using Printf
+
+function phys_not(val::Real, err::Real)
+    if err == 0
+        return string(val) * "(0)"
     end
-    xx = abs(val) > 1 ? Int(2 + floor(log10(abs(val)))) : 2
-    val_str = length(val_str)!=-exp_err+xx ? rpad(val_str, -exp_err+xx, "0") : val_str
-    err_str = "($(round(Int64, err_shifted)))"
-    return val_str * err_str
-end
-
-function phys_not(val::Int64, err::Int64)
-    exp_err = round(Int64, log10(err), RoundDown)
-    err_shifted = err / 10^exp_err
-    val_str = @sprintf("%g", round(val, digits=-exp_err))
-    val_str = length(val_str)!=-exp_err+2 ? rpad(val_str, -exp_err+2, "0") : val_str
-    err_str = "($(round(Int64, err_shifted)))"
-    return val_str * err_str
-end
-
-function phys_not_cp(val::Float64, err::Float64)
-    # Calculate the exponent of the error
-    exp_err = floor(log10(err))
-
-    # Shift the error to have 2 significant digits
-    err_shifted = exp_err > 1 ? round(err / 10^exp_err, sigdigits=2) : round(err, sigdigits=2)
-    num_nachkomma = length(strip(splitext("$err_shifted")[2], '.'))
-
-    # Format the value without trailing zeroes
-    val_str = strip(@sprintf("%.2f", round(val, digits=num_nachkomma)), '0')
-    val_str = strip(val_str, '.')
-
-    # Format the error with trailing zeroes
-    err_str = @sprintf("%.2f", err_shifted)
-    err_str = rstrip(err_str, '.')
-    err_str = rstrip(err_str, '0')
-    err_str = rstrip(err_str, '.')
-    err_str = @sprintf("(%s)", err_str)
-
-    # Return the formatted string
-    return val_str * err_str
+    
+    val, err = Float64(val), Float64(err)
+    
+    # Find the order of magnitude of the error
+    err_order = floor(Int, log10(abs(err)))
+    
+    # The error determines the precision of our measurement
+    # We'll round both value and error to this precision level
+    precision_factor = 10.0^err_order
+    
+    # Round value and error to this precision
+    val_rounded = round(val / precision_factor) * precision_factor
+    err_rounded = round(err / precision_factor) * precision_factor
+    
+    # The error in parentheses is the error divided by the precision factor
+    err_display = round(Int, err_rounded / precision_factor)
+    
+    # If the error display is >= 100, we need to shift our precision
+    while err_display >= 100
+        precision_factor *= 10
+        err_order += 1
+        val_rounded = round(val / precision_factor) * precision_factor
+        err_rounded = round(err / precision_factor) * precision_factor
+        err_display = round(Int, err_rounded / precision_factor)
+    end
+    
+    # If error display is < 10, we might want 2 digits (like 32 from 0.0032)
+    # This happens when we want to show more precision
+    if err_display < 10 && err_order < 0
+        # Try one more level of precision
+        precision_factor /= 10
+        err_order -= 1
+        val_rounded = round(val / precision_factor) * precision_factor
+        err_rounded = round(err / precision_factor) * precision_factor
+        err_display = round(Int, err_rounded / precision_factor)
+        
+        # If this makes it too big, revert
+        if err_display >= 100
+            precision_factor *= 10
+            err_order += 1
+            val_rounded = round(val / precision_factor) * precision_factor
+            err_rounded = round(err / precision_factor) * precision_factor
+            err_display = round(Int, err_rounded / precision_factor)
+        end
+    end
+    
+    err_str = @sprintf("(%d)", err_display)
+    
+    # Determine if we need scientific notation
+    abs_val = abs(val_rounded)
+    use_scientific = false
+    
+    if abs_val > 0
+        val_magnitude = floor(Int, log10(abs_val))
+        # Use scientific notation for very large numbers or when precision is very small
+        use_scientific = (val_magnitude >= 5) || (err_order <= -4)
+    end
+    
+    if use_scientific && val_rounded != 0
+        # Scientific notation
+        exponent = floor(Int, log10(abs_val))
+        mantissa = val_rounded / 10.0^exponent
+        
+        # For scientific notation, we need to recalculate the error representation
+        # The error should be expressed in the same units as the mantissa
+        mantissa_err = err / 10.0^exponent
+        
+        # Find appropriate precision for the mantissa based on mantissa_err
+        if mantissa_err >= 1
+            # Error is in the units place of mantissa
+            mantissa_str = @sprintf("%.0f", round(mantissa))
+            err_display_sci = round(Int, mantissa_err)
+        else
+            # Error is in decimal places of mantissa
+            err_order_mantissa = floor(Int, log10(mantissa_err))
+            precision_factor_mantissa = 10.0^err_order_mantissa
+            
+            mantissa_rounded = round(mantissa / precision_factor_mantissa) * precision_factor_mantissa
+            err_display_sci = round(Int, mantissa_err / precision_factor_mantissa)
+            
+            # Handle case where we want 2 digits in error
+            if err_display_sci < 10 && err_order_mantissa < 0
+                precision_factor_mantissa /= 10
+                mantissa_rounded = round(mantissa / precision_factor_mantissa) * precision_factor_mantissa
+                err_display_sci = round(Int, mantissa_err / precision_factor_mantissa)
+                if err_display_sci >= 100
+                    precision_factor_mantissa *= 10
+                    mantissa_rounded = round(mantissa / precision_factor_mantissa) * precision_factor_mantissa
+                    err_display_sci = round(Int, mantissa_err / precision_factor_mantissa)
+                end
+            end
+            
+            decimal_places = max(0, -floor(Int, log10(abs(precision_factor_mantissa))))
+            mantissa_str = @sprintf("%.*f", decimal_places, mantissa_rounded)
+        end
+        
+        err_str_sci = @sprintf("(%d)", err_display_sci)
+        return mantissa_str * err_str_sci * @sprintf("e%d", exponent)
+    else
+        # Regular notation
+        if err_order >= 0
+            # Integer precision
+            val_str = @sprintf("%.0f", val_rounded)
+        else
+            # Decimal precision
+            decimal_places = -err_order
+            val_str = @sprintf("%.*f", decimal_places, val_rounded)
+        end
+        
+        return val_str * err_str
+    end
 end
 
 end

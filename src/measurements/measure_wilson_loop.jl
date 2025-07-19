@@ -6,31 +6,31 @@ struct WilsonLoopMeasurement{T} <: AbstractMeasurement
     function WilsonLoopMeasurement(
         U::Gaugefield; filename="", Rmax=4, Tmax=4, flow=NoSmearing()
     )
-        @assert !is_distributed(U) "Wilson loop not supported for distributed fields"
-        @level1("|    Maximum Extends: $Tmax x $Rmax (only even extends are measured for now)")
+        # @assert !is_distributed(U) "Wilson loop not supported for distributed fields"
+        @level1("|    Maximum Extends: $Tmax x $Rmax")
         @level1("|    @info: Wilson loop measurements are not printed to console")
         WL = zeros(Rmax, Tmax)
 
         if !isnothing(filename) && filename != ""
             rpath = StaticString(filename)
-            header = ""
-
-            if flow == true || flow != NoSmearing()
-                header *= @sprintf("%-11s%-7s%-9s", "itrj", "iflow", "tflow")
-            else
-                header *= @sprintf("%-11s", "itrj")
-            end
-
-            for iT in 1:Tmax
-                for iR in 1:Rmax
-                    header *= @sprintf("%-25s", "wilson_loop_$(iR)x$(iT)")
-                end
-            end
 
             if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
-                open(filename, "w") do fp
-                    println(fp, header)
+                fp = fopen(filename, "w")
+                printf(fp, "%-11s", "itrj")
+
+                if flow == true || flow != NoSmearing()
+                    printf(fp, "%-7s", "iflow")
+                    printf(fp, "%-9s", "tflow")
                 end
+
+                for iT in 1:Tmax
+                    for iR in 1:Rmax
+                        printf(fp, "%-25s", "wilson_loop_$(iR)x$(iT)")
+                    end
+                end
+
+                newline(fp)
+                fclose(fp)
             end
         else
             rpath = nothing
@@ -63,7 +63,7 @@ function measure(
 
     for iT in 1:(m.Tmax)
         for iR in 1:(m.Rmax)
-            WL = wilsonloop(U, iR, iT) / (18.0U.NV)
+            WL = wilsonloop(U, iR, iT) / (18.0length(U))
             m.WL[iR, iT] = WL
         end
     end

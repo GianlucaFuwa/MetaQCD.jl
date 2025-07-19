@@ -1,5 +1,5 @@
 """
-    Heatbath(U::Gaugefield{B,T,A,GA}, MAXIT, numheatbath, or_alg, numorelax) where {B,T,A,GA}
+    Heatbath(U::Gaugefield{B,T,GA}, MAXIT, numheatbath, or_alg, numorelax) where {B,T,GA}
 
 Create a `Heatbath`` object.
 
@@ -25,8 +25,8 @@ struct Heatbath{MAXIT,ITR,TOR,NHB,NOR} <: AbstractUpdate end
 # @inline NOR(::Heatbath{<:Any,<:Any,<:Any,<:Any,NOR}) where {NOR} = _unwrap_val(NOR)
 
 function Heatbath(
-    ::Gaugefield{B,T,A,GA}, MAXIT, numheatbath, or_alg, numorelax; kwargs...
-) where {B,T,A,GA}
+    ::Gaugefield{B,T,GA}, MAXIT, numheatbath, or_alg, numorelax; kwargs...
+) where {B,T,GA}
     @level1("┌ Constructing Heatbath...")
     ITR = GA == WilsonGaugeAction ? Checkerboard2 : Checkerboard4
     @level1("|  ITERATOR: $(string(ITR))")
@@ -43,11 +43,9 @@ end
 
 function update!(hb::Heatbath{<:Any,ITR,TOR,NHB,NOR}, U; kwargs...) where {ITR,TOR,NHB,NOR}
     GA = gauge_action(U)()
-    @latmap(ITR(), NHB(), hb, U, GA, U.NC / U.β)
-    numaccepts_or = @latsum(ITR(), NOR(), TOR(), U, GA, -U.β / U.NC)
-
-    U.Sg = calc_gauge_action(U)
-    numaccepts = (NOR ≡ Val{0}) ? 1.0 : numaccepts_or / (4 * U.NV * _unwrap_val(NOR()))
+    @latmap(ITR(), NHB(), hb, U, GA, 3 / U.β)
+    numaccepts_or = @latsum(ITR(), NOR(), TOR(), U, GA, -U.β / 3)
+    numaccepts = (NOR ≡ Val{0}) ? 1.0 : numaccepts_or / (4 * length(U) * _unwrap_val(NOR()))
     return numaccepts
 end
 

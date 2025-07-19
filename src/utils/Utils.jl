@@ -1,5 +1,9 @@
 module Utils
 
+# INFO:
+# - Cannot use functions that contain reinterpret of SArrays, e.g., multr in GPU kernels
+# - Cannot use @SMatrix or @SVector in GPU kernels
+
 using Accessors: @set
 using LinearAlgebra
 using LoopVectorization
@@ -7,28 +11,27 @@ using MPI
 using MuladdMacro: @muladd
 using Polyester
 using Random
-using Unicode
 using StaticArrays
 using StaticTools
-using PrecompileTools: PrecompileTools
+# using PrecompileTools: PrecompileTools
 
 export METAQCD_VERSION, to_vec
 export MPI_COMM_WORLD, MPI_COMM_INSTANCE, MPI_WORLD_SIZE, MPI_INSTANCE_SIZE, MPI_INSTANCE
 export MPI_NUMINSTANCES
-export mpi_comm_instance, mpi_comm_root, mpi_ssend, mpi_srecv
+export mpi_comm_instance, mpi_comm_shared, mpi_ssend, mpi_recv!, mpi_datatype, mpi_buffer
 export mpi_init, mpi_comm, mpi_size, mpi_parallel, mpi_myrank, mpi_amroot, mpi_barrier
 export mpi_cart_create, mpi_cart_coords, mpi_cart_shift, mpi_multirequest, mpi_send
 export mpi_isend, mpi_recv, mpi_irecv!, mpi_waitall, mpi_allreduce, mpi_allgather, mpi_split
-export mpi_bcast, mpi_bcast!, mpi_bcast_isbits, mpi_write_at, update_halo!
-export PauliMatrix, exp_iQ, exp_iQ_coeffs, exp_iQ_su3, get_B₁, get_B₂, get_Q, get_Q²
+export mpi_bcast, mpi_bcast!, mpi_buffer, mpi_bcast_isbits, mpi_write_at
+export PauliMatrix, exp_iQ, exp_iQ_coeffs, ExpiQCoeffs, get_B₁, get_B₂, get_Q, get_Q²
 export gen_SU3_matrix, is_special_unitary, is_traceless_antihermitian
-export kenney_laub, proj_onto_SU3, multr, cnorm2
+export kenney_laub, proj_onto_SU3, multr
 export make_submatrix_12, make_submatrix_13, make_submatrix_23
 export embed_into_SU3_12, embed_into_SU3_13, embed_into_SU3_23
 export antihermitian, hermitian, traceless_antihermitian, traceless_hermitian, materialize_TA
 export zero2, zero3, zerov3, eye2, eye3, onev3, gaussian_TA_mat, rand_SU3
-export SiteCoords, eo_site, eo_site_switch, move, switch_sides
-export cartesian_to_linear, linear_to_cartesian, set_ext!
+export SiteCoords, move, get_halo_index, map_to_half, map_to_half_switch, map_from_half
+export cartesian_to_linear, linear_to_cartesian, set_ext!, switch_sides, halo_to_full
 export Sequential, Checkerboard2, Checkerboard4, EvenSites, OddSites
 export λ, expλ, γ1, γ2, γ3, γ4, γ5, σ12, σ13, σ14, σ23, σ24, σ34
 export cmatmul_oo, cmatmul_dd, cmatmul_do, cmatmul_od
@@ -60,7 +63,7 @@ export cdot, cmvmul, cmvmul_d, cvmmul, cvmmul_d, cmvmul_block
 export cmvmul_color, cmvmul_d_color, cvmmul_color, cvmmul_d_color
 export ckron, spintrace, cmvmul_spin_proj, spin_proj, σμν_spin_mul
 export _unwrap_val, SU, restore_last_col, restore_last_row, FLOAT_TYPE
-export cinv, i32, spintrace_pauli, lower_case, struct2dict
+export cinv, i32, spintrace_pauli, struct2dict
 
 abstract type AbstractIterator end
 struct Sequential <: AbstractIterator end
@@ -69,20 +72,18 @@ struct Checkerboard4 <: AbstractIterator end
 struct EvenSites <: AbstractIterator end
 struct OddSites <: AbstractIterator end
 
-lower_case(str) = Unicode.normalize(str; casefold=true)
-
 @inline _unwrap_val(::Val{B}) where {B} = B
 
 @inline set_ext!(::Nothing, args...) = nothing
 @inline set_ext!(filename::String, args...) = filename
 
 @inline function set_ext!(filename::StaticString{N}, ::Val{len}=Val(3)) where {N,len}
-    filename[end-len-4:end-len-2] = lpad(MPI_INSTANCE[], 3, "0")
+    filename[end-len-2:end-len-2] = StaticString((UInt8('0' + MPI_INSTANCE[]), 0x00))
     return filename
 end
 
 @inline function set_ext!(filename::StaticString{N}, inst, ::Val{len}=Val(3)) where {N,len}
-    filename[end-len-4:end-len-2] = lpad(inst, 3, "0")
+    filename[end-len-2:end-len-2] = StaticString((UInt8('0' + inst), 0x00))
     return filename
 end
 
@@ -94,6 +95,18 @@ const FLOAT_TYPE = Dict{String,DataType}(
     "float64" => Float64,
     "double" => Float64,
 )
+
+@inline function Base.convert(
+    ::Type{Tout}, ::Type{SMatrix{N,M,Complex{Tin},NM}}
+) where {N,M,NM,Tin,Tout<:AbstractFloat}
+    return SMatrix{N,M,Complex{Tout},NM}
+end
+
+@inline function Base.convert(
+    ::Type{Tout}, ::Type{SVector{N,Complex{Tin}}}
+) where {N,Tin,Tout<:AbstractFloat}
+    return SVector{N,Complex{Tout}}
+end
 
 struct Literal{T} end
 Base.:(*)(x::Number, ::Type{Literal{T}}) where {T} = T(x)
@@ -111,46 +124,15 @@ end
 @inline to_vec(x::Number, len::Int64) = fill(x, len)
 @inline to_vec(x::Tuple, len::Int64) = fill(x, len)
 
-@inline eye2(::Type{T}) where {T<:AbstractFloat} = @SArray [
-    one(Complex{T}) zero(Complex{T})
-    zero(Complex{T}) one(Complex{T})
-]
-
-@inline eye3(::Type{T}) where {T<:AbstractFloat} = @SArray [
-    one(Complex{T}) zero(Complex{T}) zero(Complex{T})
-    zero(Complex{T}) one(Complex{T}) zero(Complex{T})
-    zero(Complex{T}) zero(Complex{T}) one(Complex{T})
-]
-
-@inline eye4(::Type{T}) where {T<:AbstractFloat} = @SArray [
-    one(Complex{T}) zero(Complex{T}) zero(Complex{T}) zero(Complex{T})
-    zero(Complex{T}) one(Complex{T}) zero(Complex{T}) zero(Complex{T})
-    zero(Complex{T}) zero(Complex{T}) one(Complex{T}) zero(Complex{T})
-    zero(Complex{T}) zero(Complex{T}) zero(Complex{T}) one(Complex{T})
-]
-
-@inline zero2(::Type{T}) where {T<:AbstractFloat} = @SArray [
-    zero(Complex{T}) zero(Complex{T})
-    zero(Complex{T}) zero(Complex{T})
-]
-
-@inline zero3(::Type{T}) where {T<:AbstractFloat} = @SArray [
-    zero(Complex{T}) zero(Complex{T}) zero(Complex{T})
-    zero(Complex{T}) zero(Complex{T}) zero(Complex{T})
-    zero(Complex{T}) zero(Complex{T}) zero(Complex{T})
-]
-
-@inline zerov3(::Type{T}) where {T<:AbstractFloat} = @SVector [
-    zero(Complex{T})
-    zero(Complex{T})
-    zero(Complex{T})
-]
-
-@inline onev3(::Type{T}) where {T<:AbstractFloat} = @SVector [
-    one(Complex{T})
-    one(Complex{T})
-    one(Complex{T})
-]
+@inline eye2(::Type{T}) where {T<:AbstractFloat} = one(SMatrix{2,2,Complex{T},4})
+@inline eye3(::Type{T}) where {T<:AbstractFloat} = one(SMatrix{3,3,Complex{T},9})
+@inline eye4(::Type{T}) where {T<:AbstractFloat} = one(SMatrix{4,4,Complex{T},16})
+@inline zero2(::Type{T}) where {T<:AbstractFloat} = zero(SMatrix{2,2,Complex{T},4})
+@inline zero3(::Type{T}) where {T<:AbstractFloat} = zero(SMatrix{3,3,Complex{T},9})
+@inline zerov3(::Type{T}) where {T<:AbstractFloat} = zero(SVector{3,Complex{T}})
+@inline onev3(::Type{T}) where {T<:AbstractFloat} = SVector{3,Complex{T}}(
+    (Complex{T}(1.0),Complex{T}(1.0),Complex{T}(1.0))
+)
 
 const SU{N,N²,T} = SMatrix{N,N,Complex{T},N²}
 
@@ -172,6 +154,7 @@ Base.zero(::Type{PauliMatrix{N,N²,T}}) where {N,N²,T} =
     PauliMatrix(UniformScaling(zero(T)), Val(N))
 Base.one(::Type{PauliMatrix{N,N²,T}}) where {N,N²,T} =
     PauliMatrix(UniformScaling(one(T)), Val(N))
+Base.eltype(::Type{PauliMatrix{N,N²,T}}) where {N,N²,T} = Complex{T}
 
 function Base.rand(::Type{PauliMatrix{N,N²,T}}) where {N,N²,T}
     upper = hermitian(@SMatrix(rand(Complex{T}, N, N)))
@@ -184,39 +167,23 @@ end
 
 Calculate the trace of the product of two complex NxN matrices `A` and `B` of precision `T`.
 """
-@inline function multr(A::SU{N,N²,T}, B::SU{N,N²,T}) where {N,N²,T}
-    # for some reason we have to convert A and B to MArrays, otherwise we get a dynamic
-    # function invocation for reinterpret(...) on CUDA
-    a = reinterpret(reshape, T, MMatrix(A))
-    b = reinterpret(reshape, T, MMatrix(B))
-    re = zero(Float64)
-    im = zero(Float64)
-
-    @turbo for i in Base.Slice(static(1):static(N)), j in Base.Slice(static(1):static(N))
-        re += a[1, i, j] * b[1, j, i] - a[2, i, j] * b[2, j, i]
-        im += a[1, i, j] * b[2, j, i] + a[2, i, j] * b[1, j, i]
-    end
-
-    return ComplexF64(re, im)
-end
-
-"""
-    cnorm2(A::SMatrix{N,N,Complex{T},N²}) where {N,N²,T}
-
-Calculate the 2-norm of the complex NxN matrix `M`
-"""
-@inline function cnorm2(M::SU{N,N²,T}) where {N,N²,T}
-    # for some reason we have to convert A and B to MArrays, otherwise we get a dynamic
-    # function invocation for reinterpret(...) on CUDA
-    m = reinterpret(reshape, T, MMatrix(M))
-    re = zero(Float64)
-
-    @turbo for i in Base.Slice(static(1):static(N)), j in Base.Slice(static(1):static(N))
-        re += m[1, j, i] * m[1, j, i] + m[2, j, i] * m[2, j, i]
-    end
-
-    return sqrt(re)
-end
+@inline multr(A, B) = tr(cmatmul_oo(A, B))
+# XXX: causes problems on GPUs
+# @inline function multr(A::SU{N,N²,T}, B::SU{N,N²,T}) where {N,N²,T}
+#     # for some reason we have to convert A and B to MArrays, otherwise we get a dynamic
+#     # function invocation for reinterpret(...) on CUDA
+#     a = reinterpret(reshape, T, MMatrix(A))
+#     b = reinterpret(reshape, T, MMatrix(B))
+#     re = zero(T)
+#     im = zero(T)
+#
+#     @turbo for i in Base.Slice(static(1):static(N)), j in Base.Slice(static(1):static(N))
+#         re += a[1, i, j] * b[1, j, i] - a[2, i, j] * b[2, j, i]
+#         im += a[1, i, j] * b[2, j, i] + a[2, i, j] * b[1, j, i]
+#     end
+#
+#     return Complex{T}(re, im)
+# end
 
 """
     cinv(M)
@@ -226,7 +193,7 @@ Calculate the inverse of the complex matrix `M`.
 @inline cinv(M::SMatrix{2,2,Complex{T},4}) where {T} = inv(M)
 @inline cinv(M::SMatrix{3,3,Complex{T},9}) where {T} = inv(M)
 @inline cinv(M::SMatrix{4,4,Complex{T},16}) where {T} = inv(M)
-# StaticArrays has speical implementations for small sizes
+# StaticArrays has special implementations for small sizes
 @inline function cinv(M::SMatrix{N,N,Complex{T},N²}) where {N,N²,T}
     Q, R = qr(M)
     S = inv_upper_tri(R)

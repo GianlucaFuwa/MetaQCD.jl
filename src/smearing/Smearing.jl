@@ -5,13 +5,12 @@ using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
 using Polyester: @batch
 using StaticArrays
-using Unicode
 using ..MetaIO
 using ..Utils
 
 import ..Fields: AbstractGaugeAction, Expfield, Colorfield, Gaugefield, WilsonGaugeAction
-import ..Fields: check_dims, leftmul_dagg!, staple, staple_eachsite!, update_halo!
-import ..Fields: AbstractField, dims, float_type, gauge_action, @groupreduce, @latmap
+import ..Fields: check_dims, leftmul_dagg!, staple, staple_eachsite!, update_halo!, size
+import ..Fields: AbstractField, get_local_dims, float_type, gauge_action, parallelfor
 
 abstract type AbstractSmearing end
 
@@ -20,11 +19,9 @@ struct NoSmearing <: AbstractSmearing end
 include("./stout.jl")
 include("./gradientflow.jl")
 include("./cooling.jl")
-include("gpu_kernels/gradientflow.jl")
-include("gpu_kernels/stout.jl")
 
 function construct_flow(U, parameters)
-    flow_integrator = lower_case.(parameters.flow_integrator)
+    flow_integrator = lowercase.(parameters.flow_integrator)
 
     # can measure using multiple integrators in one simulation
     smearing = ntuple(length(flow_integrator)) do i

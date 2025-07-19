@@ -11,7 +11,9 @@ function test_instanton(backend=CPU; nprocs_cart=(1, 1, 1, 1), halo_width=1)
     NY = 12
     NZ = 12
     NT = 12
-    U = Gaugefield{CPU,Float64,WilsonGaugeAction}(NX, NY, NZ, NT, 6.0, nprocs_cart, halo_width)
+    U = Gaugefield{CPU,Float64,WilsonGaugeAction}(
+        NX, NY, NZ, NT, 6.0, numprocs_cart=nprocs_cart, halo_width=halo_width
+    )
 
     if backend !== CPU
         U = MetaQCD.to_backend(backend, U)

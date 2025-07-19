@@ -35,6 +35,11 @@ struct StaggeredHoelblingDiracOperator{MT,B,T,TF,TG,BC} <: AbstractDiracOperator
     function StaggeredHoelblingDiracOperator{MT}(
         U::TG, temp::TF, mass, c1, c2, bc::BC
     ) where {B,T,MT,TG<:Gaugefield{B,T},TF<:StaggeredSpinorfield{B,T},BC}
+        if is_distributed(U)
+            @assert U.topology.halo_width >= 2 """
+            halo_width must be >= 2 when using hoelbling type staggered fermions
+            """
+        end
         return new{MT,B,T,TF,TG,BC}(U, temp, mass, c1, c2, bc)
     end
 
@@ -43,7 +48,7 @@ struct StaggeredHoelblingDiracOperator{MT,B,T,TF,TG,BC} <: AbstractDiracOperator
     ) where {MT,B,T}
         @assert MT ∈ (1234, 1324, 1342) "Mass term $(MT) not supported"
         U = nothing
-        temp = Spinorfield(f; staggered=true)
+        temp = Spinorfield(f; staggered=true, hw=2)
         TG = Nothing
         TF = typeof(temp)
         boundary_condition = create_bc(bc_str, f.topology)
@@ -86,38 +91,34 @@ end
 # The Gaugefields module into CG.jl, which also allows us to use the solvers for 
 # for arbitrary arrays, not just fermion fields and dirac operators (good for testing)
 function LinearAlgebra.mul!(
-    ψ::TF, D::StaggeredHoelblingDiracOperator{MT,CPU,T,TF,TG}, ϕ::TF
-) where {MT,T,TF,TG}
+    ψ::TF, D::StaggeredHoelblingDiracOperator{MT,B,T,TF,TG}, ϕ::TF
+) where {MT,B,T,M,TF<:StaggeredSpinorfield{B,T,M},TG}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.U
     mass = T(D.mass)
     term = get_mass_term(D)
     bc = D.boundary_condition
-    check_dims(ψ, ϕ, U)
 
-    @batch for site in eachindex(ψ)
+    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ)) do site, U, ϕ, ψ
         ψ[site] = staggered_hoelbling_kernel(U, ϕ, site, mass, bc, term, T, false)
     end
 
-    update_halo!(ψ)
     return nothing
 end
 
 function LinearAlgebra.mul!(
-    ψ::TF, D::Daggered{StaggeredHoelblingDiracOperator{MT,CPU,T,TF,TG,BC}}, ϕ::TF
-) where {MT,T,TF,TG,BC}
+    ψ::TF, D::Daggered{StaggeredHoelblingDiracOperator{MT,B,T,TF,TG,BC}}, ϕ::TF
+) where {MT,B,T,M,TF<:StaggeredSpinorfield{B,T,M},TG,BC}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.parent.U
     mass = T(D.parent.mass)
     term = get_mass_term(D.parent)
     bc = D.parent.boundary_condition
-    check_dims(ψ, ϕ, U)
 
-    @batch for site in eachindex(ψ)
+    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ)) do site, U, ϕ, ψ
         ψ[site] = staggered_hoelbling_kernel(U, ϕ, site, mass, bc, term, T, true)
     end
 
-    update_halo!(ψ)
     return nothing
 end
 
@@ -132,42 +133,31 @@ end
 
 function staggered_hoelbling_kernel(U, ϕ, site, mass, bc, term, ::Type{T}, dagg::Bool) where {T}
     sgn = dagg ? -1 : 1
-    NX, NY, NZ, NT = dims(U)
     _μ, _ν, _ρ, _σ = term
+    NT = size(U, 4)
     ψₙ = (2mass + 4) * ϕ[site] + (
         hoelbling_mass(_μ, _ν, U, ϕ, site, bc, T) +
         hoelbling_mass(_ρ, _σ, U, ϕ, site, bc, T)
     )
 
-    # Cant do a for loop here because Val(μ) cannot be known at compile time and is 
-    # therefore dynamically dispatched
-    siteμ⁺ = move(site, 1, 1, NX)
-    siteμ⁻ = move(site, 1, -1, NX)
-    η = sgn * staggered_η(Val(1), site)
-    ψₙ += η * (cmvmul(U[1, site], ϕ[siteμ⁺]) - cmvmul_d(U[1, siteμ⁻], ϕ[siteμ⁻]))
-
-    siteμ⁺ = move(site, 2, 1, NY)
-    siteμ⁻ = move(site, 2, -1, NY)
-    η = sgn * staggered_η(Val(2), site)
-    ψₙ += η * (cmvmul(U[2, site], ϕ[siteμ⁺]) - cmvmul_d(U[2, siteμ⁻], ϕ[siteμ⁻]))
-
-    siteμ⁺ = move(site, 3, 1, NZ)
-    siteμ⁻ = move(site, 3, -1, NZ)
-    η = sgn * staggered_η(Val(3), site)
-    ψₙ += η * (cmvmul(U[3, site], ϕ[siteμ⁺]) - cmvmul_d(U[3, siteμ⁻], ϕ[siteμ⁻]))
-
-    siteμ⁺ = move(site, 4, 1, NT)
-    siteμ⁻ = move(site, 4, -1, NT)
-    η = sgn * staggered_η(Val(4), site)
-    ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT)
-    ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT)
-    ψₙ += η * (cmvmul(U[4, site], ϕ⁺) - cmvmul_d(U[4, siteμ⁻], ϕ⁻))
+    # use @nexprs here to statically generate the loop
+    # this makes it so Val(i) is well defined at each iteration and no type-instabilities arise
+    @nexprs 4 μ -> (
+        Nμ = axes(U, μ);
+        siteμ⁺ = move(site, μ, 1, Nμ);
+        siteμ⁻ = move(site, μ, -1, Nμ);
+        η = sgn * staggered_η(Val(μ), site);
+        ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(μ));
+        ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(μ));
+        ψₙ += η * (cmvmul(U[μ, site], ϕ⁺) - cmvmul_d(U[μ, siteμ⁻], ϕ⁻))
+    )
     return T(0.5) * ψₙ
 end
 
 function hoelbling_mass(::Val{μ}, ::Val{ν}, U, ϕ, site, bc, ::Type{T}) where {μ,ν,T}
-    Nμ = dims(U)[μ]
-    Nν = dims(U)[ν]
+    NT = size(U, 4)
+    Nμ = axes(U, μ)
+    Nν = axes(U, ν)
     siteμ⁺ = move(site, μ, 1, Nμ)
     siteμ⁻ = move(site, μ, -1, Nμ)
     siteν⁺ = move(site, ν, 1, Nν)
@@ -178,29 +168,29 @@ function hoelbling_mass(::Val{μ}, ::Val{ν}, U, ϕ, site, bc, ::Type{T}) where 
     siteμ⁻ν⁻ = move(siteμ⁻, ν, -1, Nν)
 
     tmpϕ = apply_bc(
-        apply_bc(ϕ[siteμ⁺ν⁺], bc, site, Val(1), Nμ, Val(μ)),
-        bc, site, Val(1), Nν, Val(ν)
+        apply_bc(ϕ[siteμ⁺ν⁺], bc, site, Val(1), NT, Val(μ)),
+        bc, site, Val(1), NT, Val(ν)
     )
     tmp = cmatmul_oo(U[μ, site], U[ν, siteμ⁺]) + cmatmul_oo(U[ν, site], U[μ, siteν⁺])
     Mμν = cmvmul(tmp, tmpϕ)
 
     tmpϕ = apply_bc(
-        apply_bc(ϕ[siteμ⁺ν⁻], bc, site, Val(1), Nμ, Val(μ)),
-        bc, site, Val(-1), Nν, Val(ν)
+        apply_bc(ϕ[siteμ⁺ν⁻], bc, site, Val(1), NT, Val(μ)),
+        bc, site, Val(-1), NT, Val(ν)
     )
     tmp = cmatmul_od(U[μ, site], U[ν, siteμ⁺ν⁻]) + cmatmul_do(U[ν, siteν⁻], U[μ, siteν⁻])
     Mμν += cmvmul(tmp, tmpϕ)
 
     tmpϕ = apply_bc(
-        apply_bc(ϕ[siteμ⁻ν⁺], bc, site, Val(-1), Nμ, Val(μ)),
-        bc, site, Val(1), Nν, Val(ν)
+        apply_bc(ϕ[siteμ⁻ν⁺], bc, site, Val(-1), NT, Val(μ)),
+        bc, site, Val(1), NT, Val(ν)
     )
     tmp = cmatmul_do(U[μ, siteμ⁻], U[ν, siteμ⁻]) + cmatmul_od(U[ν, site], U[μ, siteμ⁻ν⁺])
     Mμν += cmvmul(tmp, tmpϕ)
 
     tmpϕ = apply_bc(
-        apply_bc(ϕ[siteμ⁻ν⁻], bc, site, Val(-1), Nμ, Val(μ)),
-        bc, site, Val(-1), Nν, Val(ν)
+        apply_bc(ϕ[siteμ⁻ν⁻], bc, site, Val(-1), NT, Val(μ)),
+        bc, site, Val(-1), NT, Val(ν)
     )
     tmp = cmatmul_dd(U[μ, siteμ⁻], U[ν, siteμ⁻ν⁻]) + cmatmul_dd(U[ν, siteν⁻], U[μ, siteμ⁻ν⁻])
     Mμν += cmvmul(tmp, tmpϕ)
@@ -237,32 +227,3 @@ end
     return q
 end
 
-# @inline function staggered_ημν(::Val{1}, ::Val{2}, site)
-#     return ifelse(iseven(site[2]), 1, -1)
-# end
-# @inline staggered_ημν(::Val{2}, ::Val{1}, site) = staggered_ημν(Val(1), Val(2), site)
-#
-# @inline function staggered_ημν(::Val{1}, ::Val{3}, site)
-#     return ifelse(iseven(site[2] + site[3]), 1, -1)
-# end
-# @inline staggered_ημν(::Val{3}, ::Val{1}, site) = -staggered_ημν(Val(1), Val(3), site)
-#
-# @inline function staggered_ημν(::Val{1}, ::Val{4}, site)
-#     return ifelse(iseven(site[2] + site[3] + site[4]), 1, -1)
-# end
-# @inline staggered_ημν(::Val{4}, ::Val{1}, site) = -staggered_ημν(Val(1), Val(4), site)
-#
-# @inline function staggered_ημν(::Val{2}, ::Val{3}, site)
-#     return ifelse(iseven(site[2]), 1, -1)
-# end
-# @inline staggered_ημν(::Val{3}, ::Val{2}, site) = -staggered_ημν(Val(2), Val(3), site)
-#
-# @inline function staggered_ημν(::Val{2}, ::Val{4}, site)
-#     return ifelse(iseven(site[3] + site[4]), 1, -1)
-# end
-# @inline staggered_ημν(::Val{4}, ::Val{2}, site) = -staggered_ημν(Val(2), Val(4), site)
-#
-# @inline function staggered_ημν(::Val{3}, ::Val{4}, site)
-#     return ifelse(iseven(site[4]), 1, -1)
-# end
-# @inline staggered_ημν(::Val{4}, ::Val{3}, site) = staggered_ημν(Val(3), Val(4), site)

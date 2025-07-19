@@ -1,6 +1,6 @@
 struct GaugeActionMeasurement{T} <: AbstractMeasurement
     GA_dict::Dict{String,Float64} # gauge action definition => value
-    factor::Float64 # 1 / (6*U.NV*U.β)
+    factor::Float64 # 1 / (6*length(U)*U.β)
     filename::T
     function GaugeActionMeasurement(
         U; filename="", GA_methods=["wilson"], flow=NoSmearing()
@@ -14,28 +14,28 @@ struct GaugeActionMeasurement{T} <: AbstractMeasurement
 
         if !isnothing(filename) && filename != ""
             rpath = StaticString(filename)
-            header = ""
-
-            if flow == true || flow != NoSmearing()
-                header *= @sprintf("%-11s%-7s%-9s", "itrj", "iflow", "tflow")
-            else
-                header *= @sprintf("%-11s", "itrj")
-            end
-
-            for methodname in GA_methods
-                header *= @sprintf("%-25s", "S_$(methodname)")
-            end
 
             if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
-                open(filename, "w") do fp
-                    println(fp, header)
+                fp = fopen(filename, "w")
+                printf(fp, "%-11s", "itrj")
+
+                if flow == true || flow != NoSmearing()
+                    printf(fp, "%-7s", "iflow")
+                    printf(fp, "%-9s", "tflow")
                 end
+
+                for method in keys(GA_dict)
+                    printf(fp, "%-25s", "S_$(method)")
+                end
+
+                newline(fp)
+                fclose(fp)
             end
         else
             rpath = nothing
         end
 
-        factor = 1 / (6 * U.NV * U.β)
+        factor = 1 / (6 * length(U) * U.β)
         T = typeof(rpath)
         return new{T}(GA_dict, factor, rpath)
     end

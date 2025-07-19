@@ -1,10 +1,10 @@
 """
-    Metropolis(U::Gaugefield{B,T,A,GA}, eo, ϵ, numhits, target_acc, or_alg, numorelax) where {B,T,A,GA}
+    Metropolis(U::Gaugefield{B,T,GA}, eo, ϵ, numhits, target_acc, or_alg, numorelax) where {B,T,A,GA}
 
 Create a `Metropolis` object.
 
 # Arguments
-- `U::Gaugefield{B,T,A,GA}`: Gauge field object.
+- `U::Gaugefield{B,T,GA}`: Gauge field object.
 - `eo`: Even-odd preconditioning.
 - `ϵ`: Step size for the update.
 - `numhits`: Number of Metropolis hits.
@@ -25,8 +25,8 @@ struct Metropolis{ITR,NH,TOR,NOR} <: AbstractUpdate
     overrelaxation::TOR
     numorelax::Int64
     function Metropolis(
-        ::Gaugefield{B,T,A,GA}, ϵ, numhits, target_acc, or_alg, numorelax; kwargs...
-    ) where {B,T,A,GA}
+        ::Gaugefield{B,T,GA}, ϵ, numhits, target_acc, or_alg, numorelax; kwargs...
+    ) where {B,T,GA}
         @level1("┌ Constructing Metropolis...")
         m_ϵ = Base.RefValue{Float64}(ϵ)
         ITR = (GA == WilsonGaugeAction) ? Checkerboard2 : Checkerboard4
@@ -44,16 +44,15 @@ struct Metropolis{ITR,NH,TOR,NOR} <: AbstractUpdate
 end
 
 function update!(metro::Metropolis{ITR,NH,TOR,NOR}, U; kwargs...) where {ITR,NH,TOR,NOR}
-    fac = -U.β / U.NC
+    fac = -U.β / 3 
     GA = gauge_action(U)
     numaccepts_metro = @latsum(ITR(), Val(1), metro, U, GA(), fac)
     numaccepts_or = @latsum(ITR(), NOR(), TOR(), U, GA(), fac)
 
-    numaccepts_metro /= 4 * U.NV * _unwrap_val(NH())
+    numaccepts_metro /= 4 * length(U) * _unwrap_val(NH())
     @level3("|  Metro acceptance: $(numaccepts_metro)")
     adjust_ϵ!(metro, numaccepts_metro)
-    U.Sg = calc_gauge_action(U)
-    numaccepts = (NOR ≡ Val{0}) ? 1.0 : numaccepts_or / (4U.NV * _unwrap_val(NOR()))
+    numaccepts = (NOR ≡ Val{0}) ? 1.0 : numaccepts_or / (4length(U) * _unwrap_val(NOR()))
     return numaccepts
 end
 

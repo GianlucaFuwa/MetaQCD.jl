@@ -26,22 +26,22 @@ struct EnergyDensityMeasurement{T} <: AbstractMeasurement
 
         if !isnothing(filename) && filename != ""
             rpath = StaticString(filename)
-            header = ""
-
-            if flow == true || flow != NoSmearing()
-                header *= @sprintf("%-11s%-7s%-9s", "itrj", "iflow", "tflow")
-            else
-                header *= @sprintf("%-11s", "itrj")
-            end
-
-            for methodname in ED_methods
-                header *= @sprintf("%-25s", "E_$(methodname)")
-            end
 
             if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
-                open(filename, "w") do fp
-                    println(fp, header)
+                fp = fopen(filename, "w")
+                printf(fp, "%-11s", "itrj")
+
+                if flow == true || flow != NoSmearing()
+                    printf(fp, "%-7s", "iflow")
+                    printf(fp, "%-9s", "tflow")
                 end
+
+                for method in keys(ED_dict)
+                    printf(fp, "%-25s", "E_$(method)")
+                end
+
+                newline(fp)
+                fclose(fp)
             end
         else
             rpath = nothing
@@ -129,60 +129,58 @@ function energy_density(U, methodname::String)
     return E
 end
 
-function energy_density(::Plaquette, U::Gaugefield{CPU})
-    E = 0.0
-
-    @batch reduction = (+, E) for site in eachindex(U)
+function energy_density(::Plaquette, U::Gaugefield{B,T,M}) where {B,T,M}
+    E = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (U,), (), (U,)) do e, site, U
         for μ in 1:3
             for ν in (μ+1):4
                 Cμν = plaquette(U, μ, ν, site)
                 Fμν = im * traceless_antihermitian(Cμν)
-                E += real(multr(Fμν, Fμν))
+                e += real(multr(Fμν, Fμν))
             end
         end
+        e
     end
 
-    return distributed_reduce(E / U.NV, +, U)
+    return distributed_reduce(E / length(U), +, U)
 end
 
-function energy_density(::Clover, U::Gaugefield{CPU,T}) where {T}
-    is_distributed(U) && @assert(U.topology.halo_width>=2)
+function energy_density(::Clover, U::Gaugefield{B,T,M}) where {B,T,M}
     fac = im * T(1/4)
-    E = 0.0
 
-    @batch reduction = (+, E) for site in eachindex(U)
+    E = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (U,), (), (U,)) do e, site, U
         for μ in 1:3
             for ν in (μ+1):4
                 Cμν = clover_square(U, μ, ν, site, 1)
                 Fμν = fac * traceless_antihermitian(Cμν)
-                E += real(multr(Fμν, Fμν))
+                e += real(multr(Fμν, Fμν))
             end
         end
+        e
     end
 
-    return distributed_reduce(E / U.NV, +, U)
+    return distributed_reduce(E / length(U), +, U)
 end
 
-function energy_density(::Improved, U::Gaugefield{CPU})
-    is_distributed(U) && @assert(U.topology.halo_width>=3)
+function energy_density(::Improved, U::Gaugefield)
+    is_distributed(U) && @assert(U.topology.halo_width>=2)
     Eclover = energy_density(Clover(), U)
     Erect = energy_density_rect(U)
     return 5 / 3 * Eclover - 1 / 12 * Erect
 end
 
-function energy_density_rect(U::Gaugefield{CPU,T}) where {T}
+function energy_density_rect(U::Gaugefield{B,T,M}) where {B,T,M}
     fac = im * T(1/8)
-    E = 0.0
 
-    @batch reduction = (+, E) for site in eachindex(U)
+    E = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (U,), (), (U,)) do e, site, U
         for μ in 1:3
             for ν in (μ+1):4
                 Cμν = clover_rect(U, μ, ν, site, 1, 2)
                 Fμν = fac * traceless_antihermitian(Cμν)
-                E += real(multr(Fμν, Fμν))
+                e += real(multr(Fμν, Fμν))
             end
         end
+        e
     end
 
-    return distributed_reduce(E / U.NV, +, U)
+    return distributed_reduce(E / length(U), +, U)
 end

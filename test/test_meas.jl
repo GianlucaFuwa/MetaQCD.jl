@@ -4,29 +4,41 @@ using Test
 using LinearAlgebra
 using Random
 
-const PLAQ_EXP = 0.587818337847024
-const POLY_EXP = 0.5255246068616176 - 0.15140850971249734im
-const TOPO_EXP = Dict(
-    "plaquette" => -0.2730960126400261,
-    "clover" => -0.027164585971545994,
-    "improved" => -0.03210085960569041,
+const EXP4 = Dict(
+    "plaq" => 0.587818337847024,
+    "poly" => 0.5255246068616176 - 0.15140850971249734im,
+    "topo_plaq" => -0.2730960126400261,
+    "topo_clov" => -0.027164585971545994,
+    "topo_imp" => -0.03210085960569041,
 )
 
-function test_measurements(backend=CPU; nprocs_cart=(1, 1, 1, 1), halo_width=2)
-    mpi_amroot() && println("Gauge observable tests")
-    NX = 4
-    NY = 4
-    NZ = 4
-    NT = 4
-    U = Gaugefield{CPU,Float64,WilsonGaugeAction}(NX, NY, NZ, NT, 6.0, nprocs_cart, halo_width)
+const EXP16 = Dict(
+    "plaq" => 0.5943106319764989,
+    "poly" => 0.004036670632078757 + 0.009469086655463761im,
+    "topo_plaq" => -14.1372,
+    "topo_clov" => 1.73549,
+    "topo_imp" => 2.61387,
+)
 
-    filename = if nprocs_cart != (1, 1, 1, 1)
-        pkgdir(MetaQCD, "test", "testconf_mpi")
+function test_measurements(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=2)
+    mpi_amroot() && println("Gauge observable tests")
+    if mpi_size() > 1
+        NX = NY = NZ = NT = 16
     else
-        pkgdir(MetaQCD, "test", "testconf.txt")
+        NX = NY = NZ = NT = 16
+    end
+    U = Gaugefield{CPU,Float64,WilsonGaugeAction}(
+        NX, NY, NZ, NT, 6.0; numprocs_cart=nprocs_cart, halo_width=halo_width
+    )
+
+    add_str = mpi_size() > 1 ? "_16" : "_16"
+    filename = if nprocs_cart != (1, 1, 1, 1)
+        pkgdir(MetaQCD, "test", "testconf$(add_str)_mpi")
+    else
+        pkgdir(MetaQCD, "test", "testconf$(add_str).txt")
     end
 
-    load_config!(BridgeFormat(), U, filename)
+    load_field!(BridgeFormat(), U, filename)
 
     if backend !== CPU
         U = MetaQCD.to_backend(backend, U)
@@ -51,13 +63,21 @@ function test_measurements(backend=CPU; nprocs_cart=(1, 1, 1, 1), halo_width=2)
         mpi_amroot() && println("==========")
     end
 
-    TC_methods  = ["plaquette", "clover", "improved"]
+    TC_methods  = if mpi_size() > 1
+        ["plaquette", "clover"]
+    else
+        ["plaquette", "clover", "improved"]
+    end
     m_topo = TopologicalChargeMeasurement(U, TC_methods=TC_methods)
     topo = measure(m_topo, U)
 
     mpi_amroot() && println("==========")
 
-    ED_methods  = ["plaquette", "clover", "improved"]
+    ED_methods  = if mpi_size() > 1
+        ["plaquette", "clover"]
+    else
+        ["plaquette", "clover", "improved"]
+    end
     m_ed = EnergyDensityMeasurement(U, ED_methods=ED_methods)
     ed = measure(m_ed, U)
 
@@ -68,14 +88,15 @@ function test_measurements(backend=CPU; nprocs_cart=(1, 1, 1, 1), halo_width=2)
     gaction = measure(m_gaction, U)
 
     if mpi_amroot()
+        expvalues = NX == 4 ? EXP4 : EXP16
         @testset "Gauge observables" begin
-            @test isapprox(PLAQ_EXP, plaq)
-            nprocs_cart[4] == 1 && (@test isapprox(POLY_EXP, poly)) # FIXME: for now U cannot be partitioned in time dimension
-            # @test isapprox(TOPO_EXP["plaquette"], topo["plaquette"])
-            # @test isapprox(TOPO_EXP["clover"], topo["clover"])
-            # @test isapprox(TOPO_EXP["improved"], topo["improved"])
+            @test isapprox(expvalues["plaq"], plaq)
+            nprocs_cart[4] == 1 && (@test isapprox(expvalues["poly"], poly)) # FIXME: for now U cannot be partitioned in time dimension
+            # @test isapprox(expvalues["topo_plaq"], topo["plaquette"])
+            # @test isapprox(expvalues["topo_clov"], topo["clover"])
+            # @test isapprox(expvalues["topo_imp"], topo["improved"])
             if nprocs_cart == (1, 1, 1, 1)
-                @test isapprox(PLAQ_EXP, wilsonloop[1, 1])
+                @test isapprox(expvalues["plaq"], wilsonloop[1, 1])
             end
         end
     end

@@ -1,44 +1,62 @@
-name: Benchmarks
+name: Benchmark
 
 on:
   pull_request:
-    branches:
-      - dirac
-  push:
-    branches:
-      - dirac
+    branches: [dirac]
 
 jobs:
-  Benchmark:
-    if: "!contains(github.event.head_commit.message, 'skip benchmarks')"
+  benchmark:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        version: ['1.9.4', '1.10', '1']
-        juliathreads: [1, 2]
+        version: ["1.12.0-rc1"]
     steps:
-      - uses: actions/checkout@v2
-      - uses: julia-actions/setup-julia@latest
+      - uses: MilesCranmer/AirspeedVelocity.jl@action-v1
         with:
-          version: ${{ matrix.version }}
-      - name: Install dependencies
-        run: julia -e 'using Pkg; pkg"add PkgBenchmark BenchmarkCI@0.1"'
-      - name: Run benchmarks
-        run: julia -e '
-          using PkgBenchmark, BenchmarkCI;
-          BenchmarkCI.judge(
-              PkgBenchmark.BenchmarkConfig(
-                  env = Dict(
-                      "JULIA_NUM_THREADS" => "2",
-                      "OMP_NUM_THREADS" => "1",
-                  ),
-              ),
-              "origin/dirac";
-          );
-          '
-      - name: Push results
-        run: julia -e "using BenchmarkCI; BenchmarkCI.pushresult()"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SSH_KEY: ${{ secrets.DOCUMENTER_KEY }}
+          julia-version: ${{ matrix.version }}
+          exeflags: "--threads=auto"
+          job-summary: "true"
+# name: Benchmarks
+#
+# on:
+#   pull_request:
+#     branches:
+#       - dirac
+#   push:
+#     branches:
+#       - dirac
+#
+# jobs:
+#   Benchmark:
+#     if: "!contains(github.event.head_commit.message, 'skip benchmarks')"
+#     runs-on: ubuntu-latest
+#     strategy:
+#       fail-fast: false
+#       matrix:
+#         version: ["lts", "1.12.0-rc1"]
+#     steps:
+#       - uses: actions/checkout@v4
+#       - uses: julia-actions/setup-julia@latest
+#         with:
+#           version: ${{ matrix.version }}
+#       - name: Install dependencies
+#         run: julia -e 'using Pkg; pkg"add PkgBenchmark BenchmarkCI@0.1"'
+#       - name: Run benchmarks
+#         run: julia -e '
+#           using PkgBenchmark, BenchmarkCI;
+#           BenchmarkCI.judge(
+#             PkgBenchmark.BenchmarkConfig(
+#               env = Dict(
+#                 "JULIA_NUM_THREADS" => "2",
+#                 "OMP_NUM_THREADS" => "1",
+#               ),
+#             ),
+#             "origin/dirac";
+#           );
+#           '
+#       - name: Push results
+#         run: julia -e "using BenchmarkCI; BenchmarkCI.pushresult()"
+#         env:
+#           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#           SSH_KEY: ${{ secrets.DOCUMENTER_KEY }}

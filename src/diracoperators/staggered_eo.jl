@@ -10,6 +10,7 @@ Create a free even-odd preconditioned Staggered Dirac Operator with mass `mass`.
 `bc_str` can either be `"periodic"` or `"antiperiodic"` and specifies the boundary
 condition in the time direction.
 
+using Base: @nexprs
 If `csw ≠ 0`, a clover term is included. 
 
 This object cannot be directly applied to a fermion vector, since it lacks a gauge
@@ -40,10 +41,10 @@ struct StaggeredEOPreDiracOperator{B,T,TF,TG,BC} <: AbstractDiracOperator{B,T}
         f::AbstractField{B,T}, mass; bc_str="antiperiodic", kwargs...
     ) where {B,T}
         U = nothing
-        temp = even_odd(Spinorfield(f; staggered=true))
+        temp = even_odd(Spinorfield(f; staggered=true, hw=1))
+        boundary_condition = create_bc(bc_str, f.topology)
         TG = Nothing
         TF = typeof(temp)
-        boundary_condition = create_bc(bc_str, f.topology)
         BC = typeof(boundary_condition)
         return new{B,T,TF,TG,BC}(U, temp, mass, boundary_condition)
     end
@@ -84,86 +85,58 @@ function LinearAlgebra.mul!(
 end
 
 function mul_oe!(
-    ψ_eo::TF, U::Gaugefield{CPU,T}, ϕ_eo::TF, bc, into_odd, dagg::Bool; fac=1
-) where {T,TF<:SpinorfieldEO{CPU,T}}
-    check_dims(ψ_eo, ϕ_eo, U)
+    ψ_eo::TF, U::Gaugefield{B,T,M}, ϕ_eo::TF, bc, into_odd, dagg::Bool; fac=1
+) where {B,T,M,TF<:SpinorfieldEO{B,T,M}}
     ψ = ψ_eo.parent
     ϕ = ϕ_eo.parent
-    fdims = dims(ψ)
-    NV = ψ.NV
+    bulk = eachindex(ψ)
+    odd_half = false
+    itr = eachindex(odd_half, ψ, ϕ, U)
 
-    @batch for site in eachindex(ψ)
-        isodd(site) || continue
-        _site = if into_odd
-            eo_site(site, fdims..., NV)
-        else
-            eo_site_switch(site, fdims..., NV)
-        end
-        ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, bc, T, dagg)
+    parallelfor(itr, B, Val(M), (U, ϕ_eo), (ψ,), (U, ϕ, ψ)) do o_site, U, ϕ, ψ
+        site = map_from_half(o_site, bulk)
+        _site = into_odd ? o_site : switch_sides(o_site, bulk)
+        ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, bc, T, dagg, bulk)
     end
 
-    update_halo!(ψ) # TODO: Even-odd halo exchange
     return nothing
 end
 
 function mul_eo!(
-    ψ_eo::TF, U::Gaugefield{CPU,T}, ϕ_eo::TF, bc, into_odd, dagg::Bool; fac=1
-) where {T,TF<:SpinorfieldEO{CPU,T}}
-    check_dims(ψ_eo, ϕ_eo, U)
+    ψ_eo::TF, U::Gaugefield{B,T,M}, ϕ_eo::TF, bc, into_odd, dagg::Bool; fac=1
+) where {B,T,M,TF<:SpinorfieldEO{B,T,M}}
     ψ = ψ_eo.parent
     ϕ = ϕ_eo.parent
-    fdims = dims(ψ)
-    NV = ψ.NV
+    bulk = eachindex(ψ)
+    even_half = true
+    itr = eachindex(even_half, ψ, ϕ, U)
 
-    @batch for site in eachindex(ψ)
-        iseven(site) || continue
-        _site = if into_odd
-            eo_site_switch(site, fdims..., NV)
-        else
-            eo_site(site, fdims..., NV)
-        end
-        ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, bc, T, dagg)
+    parallelfor(itr, B, Val(M), (U, ϕ_eo), (ψ,), (U, ϕ, ψ)) do e_site, U, ϕ, ψ
+        site = map_from_half(e_site, bulk)
+        _site = into_odd ? switch_sides(e_site, bulk) : e_site
+        ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, bc, T, dagg, bulk)
     end
 
-    update_halo!(ψ) # TODO: Even-odd halo exchange
     return nothing
 end
 
-function staggered_eo_kernel(U, ϕ, site, bc, ::Type{T}, dagg::Bool) where {T}
-    sgn = dagg ? -1 : 1
+function staggered_eo_kernel(U, ϕ, site, bc, ::Type{T}, dagg::Bool, bulk) where {T}
     # sites that begin with a "_" are meant for indexing into the even-odd preconn'ed
     # fermion field 
-    NX, NY, NZ, NT = dims(U)
-    NV = NX * NY * NZ * NT
+    sgn = dagg ? -1 : 1
+    NT = size(U, 4)
     ψₙ = zero(ϕ[site])
-    # Cant do a for loop here because Val(μ) cannot be known at compile time and is 
-    # therefore dynamically dispatched
-    _siteμ⁺ = eo_site(move(site, 1, 1, NX), NX, NY, NZ, NT, NV)
-    siteμ⁻ = move(site, 1, -1, NX)
-    _siteμ⁻ = eo_site(siteμ⁻, NX, NY, NZ, NT, NV)
-    η = sgn * staggered_η(Val(1), site)
-    ψₙ += η * cmvmul(U[1, site], ϕ[_siteμ⁺])
-    ψₙ -= η * cmvmul_d(U[1, siteμ⁻], ϕ[_siteμ⁻])
 
-    _siteμ⁺ = eo_site(move(site, 2, 1, NY), NX, NY, NZ, NT, NV)
-    siteμ⁻ = move(site, 2, -1, NY)
-    _siteμ⁻ = eo_site(siteμ⁻, NX, NY, NZ, NT, NV)
-    η = sgn * staggered_η(Val(2), site)
-    ψₙ += η * cmvmul(U[2, site], ϕ[_siteμ⁺])
-    ψₙ -= η * cmvmul_d(U[2, siteμ⁻], ϕ[_siteμ⁻])
-
-    _siteμ⁺ = eo_site(move(site, 3, 1, NZ), NX, NY, NZ, NT, NV)
-    siteμ⁻ = move(site, 3, -1, NZ)
-    _siteμ⁻ = eo_site(siteμ⁻, NX, NY, NZ, NT, NV)
-    η = sgn * staggered_η(Val(3), site)
-    ψₙ += η * cmvmul(U[3, site], ϕ[_siteμ⁺])
-    ψₙ -= η * cmvmul_d(U[3, siteμ⁻], ϕ[_siteμ⁻])
-
-    _siteμ⁺ = eo_site(move(site, 4, 1, NT), NX, NY, NZ, NT, NV)
-    siteμ⁻ = move(site, 4, -1, NT)
-    _siteμ⁻ = eo_site(siteμ⁻, NX, NY, NZ, NT, NV)
-    η = sgn * staggered_η(Val(4), site)
-    ψₙ += η * cmvmul(U[4, site], apply_bc(ϕ[_siteμ⁺], bc, site, Val(1), NT))
-    ψₙ -= η * cmvmul_d(U[4, siteμ⁻], apply_bc(ϕ[_siteμ⁻], bc, site, Val(-1), NT))
+    # use @nexprs here to statically generate the loop
+    # this makes it so Val(μ) is well defined at each iteration and no type-instabilities arise
+    @nexprs 4 μ -> (
+        Nμ = axes(U, μ);
+        _siteμ⁺ = map_to_half(move(site, μ, 1, Nμ), bulk);
+        siteμ⁻ = move(site, μ, -1, Nμ);
+        _siteμ⁻ = map_to_half(siteμ⁻, bulk);
+        η = sgn * staggered_η(Val(μ), site);
+        ψₙ += η * cmvmul(U[μ, site], apply_bc(ϕ[_siteμ⁺], bc, site, Val(1), NT, Val(μ)));
+        ψₙ -= η * cmvmul_d(U[μ, siteμ⁻], apply_bc(ϕ[_siteμ⁻], bc, site, Val(-1), NT, Val(μ)))
+    )
     return T(0.5) * ψₙ
 end

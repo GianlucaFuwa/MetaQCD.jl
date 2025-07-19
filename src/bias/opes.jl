@@ -408,34 +408,34 @@ write_to_file(::OPES, ::Nothing) = nothing
 
 function write_to_file(o::OPES, filename::AbstractString)
     filename=="" && return nothing
-    (tmppath, tmpio) = mktemp()
-    print(tmpio, "#")
+    tmppath = tempname()
+    tmpio = fopen(tmppath, "w")
+    printf(tmpio, "#")
 
     for var in opes_state_vars
-        print(tmpio, rpad(var, 25))
+        printf(tmpio, "%-25s", string(var))
     end
 
-    println(tmpio)
+    newline(tmpio)
 
     for var in opes_state_vars
-        print(tmpio, rpad(getproperty(o, var), 25))
+        printf(tmpio, "%-25.15E", getproperty(o, var))
     end
 
-    println(tmpio, "\n")
-    print(tmpio, rpad("#height", 25))
-    print(tmpio, rpad("center", 25))
-    print(tmpio, rpad("sigma", 25))
-
-    println(tmpio)
+    newline(tmpio)
+    printf(tmpio, "%-25s", "#height")
+    printf(tmpio, "%-25s", "center")
+    printf(tmpio, "%-25s", "sigma")
+    newline(tmpio)
 
     for kernel in o.kernels
-        @printf(tmpio, "%+-25.15e", kernel.height)
-        @printf(tmpio, "%+-25.15e", kernel.center)
-        @printf(tmpio, "%+-25.15e", kernel.σ)
-        println(tmpio)
+        printf(tmpio, "%+-25.15E", kernel.height)
+        printf(tmpio, "%+-25.15E", kernel.center)
+        printf(tmpio, "%+-25.15E", kernel.σ)
+        newline(tmpio)
     end
 
-    close(tmpio)
+    fclose(tmpio)
     mv(tmppath, filename; force=true)
     return nothing
 end
@@ -462,4 +462,80 @@ function opes_from_file!(dict, usebias)
 
         return kernels, length(kernels)
     end
+end
+
+function create_buffer(o::OPES)
+    # for OPES, need to communicate
+    # static, counter, sum_weights, sum_weights2, current_bias, (5)
+    # current_weight, Z, KDEnorm, old_sum_weights, (4)
+    # old_Z, old_KDEnorm, nker, nδker, write_bias_every (5)
+    # kernels, δkernels
+    # all others are the same between ranks
+    return Vector{Float64}(undef, 14+3length(o.kernels)+3length(o.δkernels))
+end
+
+function pack_buffer!(buf, o::OPES)
+    buf[1] = Float64(o.static)
+    buf[2] = Float64(o.counter)
+    buf[3] = o.sum_weights
+    buf[4] = o.sum_weights2
+    buf[5] = o.current_bias
+    buf[6] = o.current_weight
+    buf[7] = o.Z
+    buf[8] = o.KDEnorm
+    buf[9] = o.old_sum_weights
+    buf[10] = o.old_Z
+    buf[11] = o.old_KDEnorm
+    buf[12] = Float64(o.nker)
+    buf[13] = Float64(o.nδker)
+    buf[14] = Float64(o.write_bias_every)
+
+    i = 15
+    for kernel in o.kernels
+        buf[i] = kernel.height
+        buf[i+1] = kernel.center
+        buf[i+2] = kernel.σ
+        i += 3
+    end
+
+    for dkernel in o.δkernels
+        buf[i] = dkernel.height
+        buf[i+1] = dkernel.center
+        buf[i+2] = dkernel.σ
+        i += 3
+    end
+
+    return nothing
+end
+
+function unpack_buffer!(o::OPES, buf)
+    o.static = round(Bool, buf[1])
+    o.counter = round(Int64, buf[2])
+    o.sum_weights = buf[3]
+    o.sum_weights2 = buf[4]
+    o.current_bias = buf[5]
+    o.current_weight = buf[6]
+    o.Z = buf[7]
+    o.KDEnorm = buf[8]
+    o.old_sum_weights = buf[9]
+    o.old_Z = buf[10]
+    o.old_KDEnorm = buf[11]
+    o.nker = round(Int64, buf[12])
+    o.nδker = round(Int64, buf[13])
+    o.write_bias_every = round(Int64, buf[14])
+
+    kernels = o.kernels
+    i = 15
+    for ik in eachindex(kernels)
+        kernels[ik] = Kernel(buf[i], buf[i+1], buf[i+2])
+        i += 3
+    end
+
+    dkernels = o.δkernels
+    for ik in eachindex(dkernels)
+        dkernels[ik] = Kernel(buf[i], buf[i+1], buf[i+2])
+        i += 3
+    end
+
+    return nothing
 end

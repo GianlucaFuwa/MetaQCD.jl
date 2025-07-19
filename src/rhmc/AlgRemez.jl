@@ -7,6 +7,7 @@
 module AlgRemez
 
 using AlgRemez_jll
+using LinearAlgebra
 using ..Utils
 
 struct AlgRemezCoeffs{N}

@@ -1,12 +1,11 @@
 module BiasModule
 
 using DelimitedFiles
+using LinearAlgebra
 using Polyester: @batch
-using Printf
 using StaticArrays
 using StaticTools: StaticString
 using Statistics
-using Unicode
 using ..MetaIO
 using ..Parameters: ParameterSet
 using ..Utils
@@ -42,7 +41,7 @@ ext_length(::AbstractBias) = Val(0) # Determine length of file extension statica
 
 """
     Bias{NumCV,BiasType,Smearing,Weights,BiasFile,DataFile}
-    
+
 Container for bias potential and metadata.
 
     Bias(p::ParameterSet, U::Gaugefield; instance=0, dummy=false, build=false)
@@ -59,18 +58,23 @@ If `dummy=true` the bias is static and set to zero as for the measurement stream
 If `build=true` certain things are made more convenient for the building of the bias, like
 only the root rank printing its bias to file etc.
 """
-mutable struct Bias{N,TB,TS,TW,T1,T2}
+mutable struct Bias{N,TB,TS,TW,T1,T2,T3}
     cv_numsmears::Vector{Int64}
     bias::TB
     smearing::TS
     kinds_of_weights::TW
     biasfile::T1
     datafile::T2
+    buffers::T3
+    CV::Vector{Float64}
     function Bias(
-        cv_numsmears, bias::TB, smearing::TS, weights::TW, bfile::T1, dfile::T2
-    ) where {TB,TS,TW,T1,T2}
+        cv_numsmears, bias::TB, smearing::TS, weights::TW, bfile::T1, dfile::T2, buffers::T3
+    ) where {TB,TS,TW,T1,T2,T3}
         N = length(bias)
-        return new{N,TB,TS,TW,T1,T2}(cv_numsmears, bias, smearing, weights, bfile, dfile)
+        CV = zeros(Float64, N)
+        return new{N,TB,TS,TW,T1,T2,T3}(
+            cv_numsmears, bias, smearing, weights, bfile, dfile, buffers, CV
+        )
     end
 end
 
@@ -93,39 +97,41 @@ function Bias(p, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, bui
 
     bias = ntuple(num_cv) do i
         @level1("|")
-        bias_parameters = bias_parameters_from_dict(biases[i])
+        bias_parameters = bias_parameters_from_dict(biases[i], instance)
         name = bias_parameters.kind_of_cv
 
-        if name == "topcharge_plaquette"
-            is_distributed(U) && @assert(U.topology.halo_width>=1)
-        elseif name == "topcharge_clover"
+        if name == "topcharge_clover"
             is_distributed(U) && @assert(U.topology.halo_width>=2)
         end
 
         numsmears = bias_parameters.numsmears_for_cv
         cv_numsmears[i] = numsmears
-        @level1("|  Bias $i: $(bias_parameters.name)")
+        @level1("|  Bias $i: $(bias_parameters.type)")
         @level1("|  CV$i: $(name) with $(numsmears)x$(rho) Stout smearing")
-        if biases[i]["kind_of_bias"] ∈ ["metad", "metadynamics"]
+        if biases[i]["type"] ∈ ["metad", "metadynamics"]
             Metadynamics(
                 bias_parameters;
                 instance=instance, dummy=dummy, mpi_multi_sim=mpi_multi_sim, build=build
             )
-        elseif biases[i]["kind_of_bias"] == "opes"
+        elseif biases[i]["type"] == "opes"
             OPES(
                 bias_parameters;
                 instance=instance, dummy=dummy, mpi_multi_sim=mpi_multi_sim, build=build
             )
-        elseif biases[i]["kind_of_bias"] == "opesmt"
+        elseif biases[i]["type"] == "opesmt"
             OPESmultithermal(
                 bias_parameters, p.beta;
                 instance=instance, dummy=dummy, mpi_multi_sim=mpi_multi_sim, build=build
             )
-        elseif biases[i]["kind_of_bias"] == "parametric"
+        elseif biases[i]["type"] == "parametric"
             Parametric(bias_parameters; dummy=dummy)
         else
-            error("kind_of_bias $(p[i]["kind_of_bias"]) not supported. Try metad, opes, opesmt or parametric")
+            error("type $(p[i]["type"]) not supported. Try metad, opes, opesmt or parametric")
         end
+    end
+
+    buffers = ntuple(length(bias)) do i
+        create_buffer(bias[i])
     end
 
     smearing = StoutSmearing(U; numlayers=maximum(cv_numsmears), rho=rho)
@@ -133,7 +139,7 @@ function Bias(p, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, bui
     kinds_of_weights = if any(x -> !(x isa Metadynamics), bias)
         ["branduardi"]
     else
-        p.kinds_of_weights
+        p.weight_type
     end
 
     inum_str = lpad(inum, 3, "0")
@@ -157,19 +163,19 @@ function Bias(p, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, bui
 
     _datafile = joinpath(p.measure_dir, "bias_data_$(inum_str).txt")
     datafile = StaticString(_datafile)
-    open(_datafile, "w") do fp
-        @printf(fp, "%-11s", "itrj")
+    fp = fopen(_datafile, "w")
+    printf(fp, "%-11s", "itrj")
 
-        for i in 1:num_cv
-            @printf(fp, "%-25s", "cv$i")
-        end
-
-        for name in kinds_of_weights
-            @printf(fp, "%-25s", "weight_$(name)")
-        end
-
-        println(fp)
+    for i in 1:num_cv
+        printf(fp, "%-25s", "cv$i")
     end
+
+    for name in kinds_of_weights
+        printf(fp, "%-25s", "weight_$(name)")
+    end
+
+    newline(fp)
+    fclose(fp)
 
     @level1("|  BIASFILE: $(string(biasfile))")
     @level1("|  DATAFILE: $(string(datafile))")
@@ -192,6 +198,7 @@ function Bias(p, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, bui
         kinds_of_weights,
         biasfile,
         datafile,
+        buffers,
     )
 end
 
@@ -213,6 +220,8 @@ end
 Base.length(::Bias{N}) where {N} = N
 (b::Bias{N})(cv) where {N} = sum(b.bias[i](cv[i]) for i in 1:N)
 
+set_cv!(bias::Bias, cv) = bias.CV .= cv
+set_cv!(::NoBias, cv) = nothing
 update_bias!(::NoBias, args...; kwargs...) = nothing
 update_bias!(::Nothing, args...; kwargs...) = nothing
 is_adaptive(b::Bias{N}) where {N} = ntuple(i -> is_adaptive(b.bias[i]), Val(N))
@@ -224,13 +233,17 @@ include("opes.jl")
 include("opes_multithermal.jl")
 include("parametric.jl")
 
+function update_bias!(b::Bias{N}, itrj; mpi_multi_sim=false) where {N}
+    return update_bias!(b, b.CV, itrj; mpi_multi_sim=mpi_multi_sim)
+end
+
 function update_bias!(
     b::Bias{N}, values, itrj; mpi_multi_sim=false
 ) where {N}
     (length(values) == 0) && return nothing
 
     for (icv, bias) in enumerate(b.bias)
-        bias.static && continue 
+        bias.static && continue
         values_i = ntuple(j -> values[j][icv], length(values))
         update!(bias, values_i, itrj)
 
@@ -250,7 +263,7 @@ function update_bias!(
             end
         end
     end
-    
+
     return nothing
 end
 
@@ -259,7 +272,7 @@ recalc_cv!(::Gaugefield, ::NoBias) = nothing
 
 function recalc_cv!(U::Gaugefield, b::Bias{N}) where {N}
     CV_new = calc_cv(U, b)
-    U.CV = CV_new
+    b.CV .= CV_new
     return nothing
 end
 
@@ -271,10 +284,10 @@ function recalc_cv!(U::Vector{TG}, b::Vector{TB}) where {TG<:Gaugefield,TB<:Bias
     return nothing
 end
 
-calc_cv(U, ::Nothing, ::Bool=false) = U.CV
-calc_cv(U, ::Nothing, ::Int64, ::Bool=false) = U.CV
-calc_cv(U, ::NoBias, ::Bool=false) = U.CV
-calc_cv(U, ::NoBias, ::Int64, ::Bool=false) = U.CV
+calc_cv(U, ::Nothing, ::Bool=false) = 0.0
+calc_cv(U, ::Nothing, ::Int64, ::Bool=false) = 0.0
+calc_cv(U, ::NoBias, ::Bool=false) = 0.0
+calc_cv(U, ::NoBias, ::Int64, ::Bool=false) = 0.0
 
 function calc_cv(U, bias::AbstractBias)
     return bias.cvinfo.cv_func(U)

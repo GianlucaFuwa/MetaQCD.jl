@@ -28,7 +28,7 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT,T1} <: AbstractMeasurement
         @level1("|    CG Tolerance: $(cg_tol)")
         @level1("|    CG Max Iterations: $(cg_maxiters)")
         @level1("|    Boundary Condition: $(bc_str)")
-        NT = local_dims(U)[end]
+        NT = get_local_dims(U)[end]
         pion_corr = zeros(Float64, NT)
 
         if dirac_type == "staggered"
@@ -57,22 +57,22 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT,T1} <: AbstractMeasurement
 
         if !isnothing(filename) && filename != ""
             rpath = StaticString(filename)
-            header = ""
-
-            if flow == true || flow != NoSmearing()
-                header *= @sprintf("%-11s%-7s%-9s", "itrj", "iflow", "tflow")
-            else
-                header *= @sprintf("%-11s", "itrj")
-            end
-
-            for it in 1:NT
-                header *= @sprintf("%-25s", "pion_corr_$(it)")
-            end
 
             if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
-                open(filename, "w") do fp
-                    println(fp, header)
+                fp = fopen(filename, "w")
+                printf(fp, "%-11s", "itrj")
+
+                if flow == true || flow != NoSmearing()
+                    printf(fp, "%-7s", "iflow")
+                    printf(fp, "%-9s", "tflow")
                 end
+
+                for it in 1:NT
+                    printf(fp, "%-25s", "pion_corr_$(it)")
+                end
+
+                newline(fp)
+                fclose(fp)
             end
 
             cg_filepath = if mpi_amroot(MPI_COMM_INSTANCE[]) && (filename != "")
@@ -86,10 +86,11 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT,T1} <: AbstractMeasurement
             cg_dataf = StaticString(cg_filepath)
 
             if cg_filepath != ""
-                open(cg_datafile, "w") do fp
-                    @printf(fp, "%-11s%-25s", "iters", "res")
-                    println(fp)
-                end
+                fp = fopen(cg_datafile, "w")
+                printf(fp, "%-11s", "iters")
+                printf(fp, "%-25s", "res")
+                newline(fp)
+                fclose(fp)
             end
         else
             rpath = nothing
@@ -176,8 +177,8 @@ We follow the procedure outlined in DOI: 10.1007/978-3-642-01850-3 (Gattringer) 
 """
 function pion_correlators_avg!(pion_corr, D, ψ, cg_temps, cg_tol, cg_maxiters, cg_datafile)
     check_dims(D.U, ψ, cg_temps...)
-    NX, NY, NZ, NT = global_dims(ψ)
-    my_NX, my_NY, my_NZ, my_NT = local_dims(ψ)
+    NX, NY, NZ, NT = size(ψ)
+    my_NX, my_NY, my_NZ, my_NT = get_local_dims(ψ)
     halo_width = D.U.topology.halo_width
     @assert length(pion_corr) == NT
 
@@ -187,7 +188,7 @@ function pion_correlators_avg!(pion_corr, D, ψ, cg_temps, cg_tol, cg_maxiters, 
     propagator, temps... = cg_temps
     pion_corr .= 0.0
 
-    for a in 1:ψ.NC
+    for a in 1:3
         for μ in 1:num_dirac(ψ)
             ones!(propagator)
             set_source!(ψ, source, a, μ)
@@ -204,12 +205,13 @@ function pion_correlators_avg!(pion_corr, D, ψ, cg_temps, cg_tol, cg_maxiters, 
                 fclose(fp)
             end
 
-            for it in 1+halo_width:my_NT+halo_width
+            for it in 1+halo_width[4]:my_NT+halo_width[4]
                 cit = 0.0
 
-                @batch reduction = (+, cit) for iz in 1+halo_width:my_NZ+halo_width
-                    for iy in 1+halo_width:my_NY+halo_width
-                        for ix in 1+halo_width:my_NX+halo_width
+                # TODO:
+                @batch reduction = (+, cit) for iz in 1+halo_width[3]:my_NZ+halo_width[3]
+                    for iy in 1+halo_width[2]:my_NY+halo_width[2]
+                        for ix in 1+halo_width[1]:my_NX+halo_width[1]
                             cit += real(
                                 cdot(propagator[ix, iy, iz, it], propagator[ix, iy, iz, it])
                             )

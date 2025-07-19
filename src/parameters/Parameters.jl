@@ -1,7 +1,7 @@
 module Parameters
 
 using Dates
-using Unicode
+using LinearAlgebra
 using TOML
 using ..Utils
 
@@ -41,14 +41,14 @@ function save_parameters(fp, parameters) # XXX: We already create a copy of the 
     return nothing
 end
 
-function construct_params_from_toml(filename::String; backend="cpu")
+function construct_params_from_toml(filename::String)
     parameters = TOML.parsefile(filename)
     inputfile = isabspath(filename) ? filename : joinpath(pwd(), filename)
     mpi_amroot() && println("inputfile: ", inputfile * "\n")
-    return construct_params_from_toml(parameters, inputfile; backend=backend)
+    return construct_params_from_toml(parameters, inputfile)
 end
 
-function construct_params_from_toml(parameters, inputfile; backend="cpu")
+function construct_params_from_toml(parameters, inputfile)
     pnames = fieldnames(ParameterSet)
     numparams = length(pnames)
     value_Params = Vector{Any}(undef, numparams)
@@ -56,14 +56,16 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
     # generated_dirname = generate_dirname(parameters)
     # @show generated_dirname
 
-    physical = PhysicalParameters()
-    set_params_value!(value_Params, physical)
-    fermion = DynamicalFermionParameters()
+    ensemble = EnsembleParameters()
+    set_params_value!(value_Params, ensemble)
+    data = DataParameters()
+    set_params_value!(value_Params, data)
+    gauge = GaugeActionParameters()
+    set_params_value!(value_Params, gauge)
+    fermion = FermionActionParameters()
     set_params_value!(value_Params, fermion)
     bias = BiasParameters()
     set_params_value!(value_Params, bias)
-    system = SystemParameters()
-    set_params_value!(value_Params, system)
     hmc = HMCParameters()
     set_params_value!(value_Params, hmc)
     meas = MeasurementParameters()
@@ -72,14 +74,14 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
     set_params_value!(value_Params, gradientflow)
 
     overwrite = try
-        parameters["System Settings"]["overwrite"]
+        parameters["data"]["overwrite"]
     catch
-        @warn "\"overwrite\" not specified in System Settings; default to true."
+        @warn "\"overwrite\" not specified in 'data'; default to true."
         true
     end
 
     ensemble_dir = try
-        parameters["System Settings"]["ensemble_dir"]
+        parameters["data"]["ensemble_dir"]
     catch
         tmp = if mpi_amroot()
             tmpp = "$(homedir())/data/MetaQCD/$(generated_dirname)"
@@ -133,7 +135,7 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
     if !isdir(bias_dir) && mpi_amroot()
         mkpath(bias_dir)
     end
-    
+
     posl = findfirst(x -> String(x) == "log_dir", pnames)
     posm = findfirst(x -> String(x) == "measure_dir", pnames)
     poss = findfirst(x -> String(x) == "save_config_dir", pnames)
@@ -168,18 +170,17 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
     mpi_barrier()
 
     for (i, pname_i) in enumerate(pnames)
-        for (_, value) in parameters
+        for (dname, value) in parameters
+            if dname == "measurements" && pname_i == :measurements
+                valuedir = construct_measurement_dicts(value)
+                value_Params[i] = valuedir
+            elseif dname == "measurements_with_flow" && pname_i == :measurements_with_flow
+                valuedir = construct_measurement_dicts(value)
+                value_Params[i] = valuedir
+            end
+
             if haskey(value, String(pname_i))
-                if String(pname_i) == "measurements"
-                    valuedir = construct_measurement_dicts(value[String(pname_i)])
-                    value_Params[i] = valuedir
-                elseif String(pname_i) == "measurements_with_flow"
-                    valuedir = construct_measurement_dicts(value[String(pname_i)])
-                    value_Params[i] = valuedir
-                elseif String(pname_i) == "biases"
-                    valuedir = construct_bias_dicts(value[String(pname_i)])
-                    value_Params[i] = valuedir
-                elseif String(pname_i) == "L"
+                if String(pname_i) == "L"
                     value_Params[i] = Tuple(value[String(pname_i)])
                 elseif String(pname_i) == "flow_integrator"
                     if value[String(pname_i)] isa String
@@ -202,8 +203,6 @@ function construct_params_from_toml(parameters, inputfile; backend="cpu")
                     end
                 elseif String(pname_i) == "numprocs_cart"
                     value_Params[i] = Tuple(value[String(pname_i)])
-                elseif String(pname_i) == "backend"
-                    value_Params[i] = backend
                 else
                     value_Params[i] = value[String(pname_i)]
                 end
@@ -234,10 +233,10 @@ function check_parameters(p::ParameterSet)
 
     if prod(p.numprocs_cart) > 1
         @assert p.halo_width >= 1 "Halo width must be >= 1, when using field decomposition"
-        @assert lower_case(p.update_method) == "hmc" """
+        @assert lowercase(p.update_method) == "hmc" """
         Field decomposition not supported for local update algorithms
         """
-        
+
         if p.gauge_action != "wilson"
             @assert p.halo_width >= 2 """
             Halo width must be >= 2, when using field decomposition with improved \
@@ -246,8 +245,8 @@ function check_parameters(p::ParameterSet)
         end
     end
 
-    @assert lower_case(p.gauge_action) ∈ ["wilson", "iwasaki", "symanzik_tree", "dbw2"] """
-    gauge_action in [\"Physical Settings\"]: \"$(p.gauge_action)\" is not supported.
+    @assert lowercase(p.gauge_action) ∈ ["wilson", "iwasaki", "symanzik_tree", "dbw2"] """
+    gauge_action in [\"gauge_action\"]: \"$(p.gauge_action)\" is not supported.
     Supported gactions are:
     Wilson
     Iwasaki
@@ -255,56 +254,58 @@ function check_parameters(p::ParameterSet)
     Symanzik_tree
     """
 
-    @assert lower_case(p.fermion_action) ∈ [
-        "none", "wilson", "staggered",
+    @assert lowercase(p.fermion_action) ∈ [
+        "none", "wilson", "wilson_eo", "staggered", "staggered_eo",
         "staggered-h1234", "staggered-h1324", "staggered-h1342"
     ] """
-    fermion_action in [\"Physical Settings\"]: \"$(p.fermion_action)\" is not supported.
+    fermion_action in [\"fermion_action\"]: \"$(p.fermion_action)\" is not supported.
     Supported gactions are:
     None
     Wilson
+    Wilson_EO
     Staggered
+    Staggered_EO
     Staggered-H1234
     Staggered-H1324
     Staggered-H1342
     """
 
-    if lower_case(p.fermion_action) != "none"
-        @assert lower_case(p.update_method) == "hmc" "Dynamical fermions only with HMC"
+    if lowercase(p.fermion_action) != "none"
+        @assert lowercase(p.update_method) == "hmc" "Dynamical fermions only with HMC"
     end
 
-    @assert lower_case(p.initial) ∈ ["cold", "hot"] """
-    intial in [\"Physical Settings\"]: \"$(p.initial)\" is not supported.
+    @assert lowercase(p.initial) ∈ ["cold", "hot"] """
+    intial in [\"ensemble\"]: \"$(p.initial)\" is not supported.
     Supported initial conditions are:
     cold
     hot
     """
 
-    @assert lower_case(p.update_method) ∈ ["hmc", "metropolis", "heatbath"] """
-    update_method in [\"Physical Settings\"]: \"$(p.update_method)\" is not supported.
+    @assert lowercase(p.update_method) ∈ ["hmc", "metropolis", "heatbath"] """
+    update_method in [\"ensemble\"]: \"$(p.update_method)\" is not supported.
     Supported methods are:
     HMC
     Metropolis
     Heatbath
     """
 
-    @assert lower_case(p.hmc_integrator) ∈ [
-        "leapfrog", "omf2slow", "omf2", "omf4slow", "omf4", "leapfrogra", "omf4ra"
-    ] """
-    hmc_integrator in [\"HMC Settings\"]: \"$(p.hmc_integrator)\" is not supported.
-    Supported methods are:
-    Leapfrog
-    LeapfrogRA
-    OMF2Slow
-    OMF2
-    OMF4Slow
-    OMF4
-    OMF4RA
-    """
+    # @assert lowercase(p.hmc_integrator) ∈ [
+    #     "leapfrog", "omf2slow", "omf2", "omf4slow", "omf4", "leapfrogra", "omf4ra"
+    # ] """
+    # hmc_integrator in [\"hmc\"]: \"$(p.hmc_integrator)\" is not supported.
+    # Supported methods are:
+    # Leapfrog
+    # LeapfrogRA
+    # OMF2Slow
+    # OMF2
+    # OMF4Slow
+    # OMF4
+    # OMF4RA
+    # """
 
     for flow_int in p.flow_integrator
-        @assert lower_case(flow_int) ∈ ["euler", "rk2", "rk3", "rk3w7", "cooling"] """
-        flow_integrator in [\"Gradient Flow Settings\"]: \"$(flow_int)\" is not supported.
+        @assert lowercase(flow_int) ∈ ["euler", "rk2", "rk3", "rk3w7", "cooling"] """
+        flow_integrator in [\"gradient_flow\"]: \"$(flow_int)\" is not supported.
         Supported methods are:
         Euler
         RK2
@@ -314,8 +315,8 @@ function check_parameters(p::ParameterSet)
         """
     end
 
-    @assert lower_case(p.save_config_format) ∈ ["", "bmw", "bridge", "jld", "jld2"] """
-    save_config_format in [\"System Settings\"]: \"$(p.save_config_format)\" \
+    @assert lowercase(p.save_config_format) ∈ ["", "bmw", "bridge", "jld", "jld2"] """
+    save_config_format in [\"data\"]: \"$(p.save_config_format)\" \
     is not supported.
     Supported methods are:
     Bridge
@@ -325,8 +326,8 @@ function check_parameters(p::ParameterSet)
 
     if p.load_config_fromfile
         @assert isfile(p.load_config_path) "Your load_config_path doesn't exist"
-        @assert lower_case(p.load_config_format) ∈ ["bmw", "bridge", "jld", "jld2"] """
-        loadU_format in [\"System Settings\"]: \"$(p.load_config_format)\" \
+        @assert lowercase(p.load_config_format) ∈ ["bmw", "bridge", "jld", "jld2"] """
+        loadU_format in [\"data\"]: \"$(p.load_config_format)\" \
         is not supported.
         Supported methods are:
         Bridge
@@ -336,6 +337,62 @@ function check_parameters(p::ParameterSet)
     end
 
     return nothing
+end
+
+const FERMION_DICT_PARAMS = [
+    "Nf", "mass", "cg_tol_action", "cg_tol_md", "cg_maxiters_action", "cg_maxiters_md",
+    "rhmc_order_action", "rhmc_order_md", "rhmc_spectral_bound", "hasenbusch",
+]
+
+function construct_fermion_dicts(x)
+    fermion_dicts = Vector{Dict}(undef, length(x))
+
+    for (method, method_dict) in x
+        dictᵢ = Dict()
+
+        for (key, value) in method_dict
+            dictᵢ[key] = value
+        end
+
+        fermion_dicts[parse(Int64, method)] = dictᵢ
+    end
+
+    return fermion_dicts
+end
+
+function construct_level_dicts(x)
+    level_dicts = Dict[]
+
+    for (method, method_dict) in x
+        dictᵢ = Dict()
+        dictᵢ["level"] = parse(Int64, method)
+
+        for (key, value) in method_dict
+            dictᵢ[key] = value
+        end
+
+        push!(level_dicts, dictᵢ)
+    end
+
+    return level_dicts
+end
+
+function construct_bias_dicts(x)
+    bias_dicts = Dict[]
+
+    for (method, method_dict) in x
+        # @show method, method_dict
+        dictᵢ = Dict()
+        dictᵢ["bias"] = method
+
+        for (key, value) in method_dict
+            dictᵢ[key] = value
+        end
+
+        push!(bias_dicts, dictᵢ)
+    end
+
+    return bias_dicts
 end
 
 function construct_measurement_dicts(x)
@@ -355,68 +412,52 @@ function construct_measurement_dicts(x)
     return meas_dicts
 end
 
-function construct_bias_dicts(x)
-    bias_dicts = Dict[]
-
-    for (method, method_dict) in x
-        dictᵢ = Dict()
-        dictᵢ["bias"] = method
-
-        for (key, value) in method_dict
-            dictᵢ[key] = value
-        end
-
-        push!(bias_dicts, dictᵢ)
-    end
-
-    return bias_dicts
-end
-
 @noinline function overwrite_detected(s::String)
     mpi_amroot() && throw(AssertionError("""
                     The provided $s directory or file already exists
-                    and \"overwrite\" in [\"System Settings\"] is set to false.
+                    and \"overwrite\" in [\"data\"] is set to false.
                     """))
     return nothing
 end
 
 function generate_dirname(parameters)
     time_now = Dates.format(now(), "YYYY-mm-dd-HH_MM_SS_ss")
-    NX, NY, NZ, NT = parameters["Physical Settings"]["L"]
+    NX, NY, NZ, NT = parameters["ensemble"]["L"]
 
     gauge_str = try
-        parameters["Physical Settings"]["gauge_action"]
+        parameters["gauge_action"]["gauge_action"]
     catch _
         "wilson"
     end
     beta_str = try
-        parameters["Physical Settings"]["beta"]
+        parameters["gauge_action"]["beta"]
     catch
-        error("beta has to defined in [\"Physical Settings\"]")
+        error("beta has to defined in [\"gauge_action\"]")
     end
     fermion_str = try
-        parameters["Dynamical Fermion Settings"]["fermion_action"]
+        parameters["fermion_action"]["fermion_action"]
     catch _
         ""
     end
-    Nf_str = if fermion_str != ""
-        try
-            Nf = parameters["Dynamical Fermion Settings"]["Nf"]
-            str = "_Nf"
-            for i in eachindex(Nf)
-                i == length(Nf) && continue
-                str *= "$(Nf[i])+"
-            end
-            str *= "$(Nf[end])"
-        catch _
-            error("Nf has to be defined in [\"Dynamical Fermion Settings\"]")
-        end
-    else
-        ""
-    end
+    # FIXME:
+    # Nf_str = if fermion_str != ""
+    #     try
+    #         Nf = parameters["fermion_action"]["Nf"]
+    #         str = "_Nf"
+    #         for i in eachindex(Nf)
+    #             i == length(Nf) && continue
+    #             str *= "$(Nf[i])+"
+    #         end
+    #         str *= "$(Nf[end])"
+    #     catch _
+    #         error("Nf has to be defined in [\"Dynamical Fermion Settings\"]")
+    #     end
+    # else
+    #     ""
+    # end
     mass_str = if fermion_str != ""
         try
-            mass = parameters["Dynamical Fermion Settings"]["mass"]
+            mass = parameters["fermion_action"]["mass"]
             str = "_mass"
             for i in eachindex(mass)
                 i == length(mass) && continue
@@ -424,13 +465,15 @@ function generate_dirname(parameters)
             end
             str *= "$(mass[end])"
         catch _
-            error("mass has to be defined in [\"Dynamical Fermion Settings\"]")
+            error("mass has to be defined in [\"fermion_action\"]")
         end
     else
         ""
     end
 
-    dirname = "$(NX)x$(NY)x$(NZ)x$(NT)_$(gauge_str)_beta$(beta_str)_$(fermion_str)$(Nf_str)$(mass_str)"
+    # FIXME:
+    # dirname = "$(NX)x$(NY)x$(NZ)x$(NT)_$(gauge_str)_beta$(beta_str)_$(fermion_str)$(Nf_str)$(mass_str)"
+    dirname = "$(NX)x$(NY)x$(NZ)x$(NT)_$(gauge_str)_beta$(beta_str)_$(fermion_str)$(mass_str)"
     return dirname * "_$(time_now)"
 end
 

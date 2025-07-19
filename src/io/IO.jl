@@ -1,23 +1,24 @@
 module MetaIO
 
 using Dates
-using InteractiveUtils: InteractiveUtils
 using JLD2
 using KernelAbstractions # TODO: save and load of Fields on GPUs
 using LinearAlgebra
 using Polyester
-using Printf
 using Random
 using StaticArrays
 using ..Parameters
 using ..Utils
 
-import ..Fields: Gaugefield, is_distributed
+import ..Fields: AbstractField, Gaugefield, Spinorfield, SpinorfieldEO, Paulifield
+import ..Fields: Tensorfield, MultiSpinorfield
+import ..Fields: is_distributed, get_global_volume, get_global_dims, parallelfor
+import ..Fields: WilsonGaugeAction, array_type, to_backend, device_to_host, allindices
 
 export __GlobalLogger, MetaLogger, current_time, @level1, @level2, @level3, @level4
 export BMWFormat, BridgeFormat, Checkpointer, ConfigSaver, JLD2Format, set_global_logger!
 export fclose, fopen, printf, prints_to_console, newline
-export create_checkpoint, load_checkpoint, load_config!, save_config
+export create_checkpoint, load_checkpoint, load_field!, save_field
 
 include("printf.jl")
 include("verbose.jl")
@@ -51,20 +52,28 @@ const EXT = Dict{String, String}(
 
 function proc_offset(args...) end # INFO: Need this for writing fields to file --- is implemented in fields/parallel.jl
 
-function set_view!(fp, U, ::Type{T}; offset=0, infokws...) where {T}
+function set_view!(fp, u, ::Type{T}; offset=0, infokws...) where {T}
     etype = Utils.MPI.Datatype(T)
-    filetype = create_filetype(U, T)
+    filetype = create_filetype(u, T)
     datarep = "native"
     Utils.MPI.File.set_view!(fp, offset, etype, filetype, datarep; infokws...)
     return nothing
 end
 
-function create_filetype(U, ::Type{T}) where {T}
-    topology = U.topology
-    # 18 entries in matrix * 4 directions per site
-    global_dims = (4, topology.global_dims...)
-    local_dims = (4, topology.local_dims...)
-    local_ranges = (1:4, topology.local_ranges...) 
+function create_filetype(u, ::Type{T}) where {T}
+    topology = u.topology
+    inner_len = if u isa Spinorfield || u isa SpinorfieldEO || u isa Paulifield
+        1
+    elseif u isa Tensorfield
+        16
+    elseif u isa MultiSpinorfield
+        u.numspinors
+    else
+        4
+    end
+    global_dims = (inner_len, topology.global_dims...)
+    local_dims = (inner_len, topology.local_dims...)
+    local_ranges = (1:inner_len, topology.bulk_sites.indices...) 
     offsets = map(r -> (first(r) - 1), local_ranges)
     oldtype = Utils.MPI.Datatype(T)
     ftype = Utils.MPI.Types.create_subarray(global_dims, local_dims, offsets, oldtype)
@@ -152,26 +161,26 @@ struct ConfigSaver{T}
     end
 end
 
-function save_config(saver::ConfigSaver{T}, U, itrj, parameters=nothing) where {T}
+function save_field(saver::ConfigSaver{T}, U, itrj, parameters=nothing) where {T}
     T ≡ Nothing && return nothing
 
     if itrj % saver.save_config_every == 0
         itrjstring = lpad(itrj, 8, "0")
         filename = saver.save_config_dir * "/config_$(itrjstring)$(saver.ext)"
-        save_config(T(), U, filename, parameters)
+        save_field(T(), U, filename, parameters)
         @level1("|  Config saved in $(string(T)) in file \"$(filename)\"")
     end
 
     return nothing
 end
 
-function load_config!(U, parameters)
+function load_field!(U, parameters)
     parameters.load_config_fromfile || return false
     filename = parameters.loadU_dir * "/" * parameters.load_config_filename
     format = parameters.load_config_format
 
     try
-        load_config!(FORMATS[parameters.load_config_format](), U, filename)
+        load_field!(FORMATS[parameters.load_config_format](), U, filename)
     catch _
         error("loadU_format \"$(format)\" not supported.")
     end

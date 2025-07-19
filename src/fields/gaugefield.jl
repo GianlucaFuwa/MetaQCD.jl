@@ -1,117 +1,53 @@
-"""
-    Gaugefield{Backend,FloatType,IsDistributed,ArrayType,GaugeAction} <:
-    AbstractField{Backend,FloatType,IsDistributed,ArrayType}
+@field_constructor Gaugefield extra_types=GA extra_args=β
 
-5-dimensional dense array of statically sized 3x3 matrices contatining associated meta-data.
+@doc raw"""
+Wrapper around a 5-dimensional dense array of statically sized 3x3 matrices contatining
+information about the global MPI-topology.
 
-    Gaugefield{Backend,FloatType,GaugeAction}(NX, NY, NZ, NT, β)
-    Gaugefield{Backend,FloatType,GaugeAction}(NX, NY, NZ, NT, β, numprocs_cart, halo_width)
-    Gaugefield(U::Gaugefield)
+    Gaugefield{B,T,GA}(NX, NY, NZ, NT, β)
+    Gaugefield{B,T,GA}(NX, NY, NZ, NT, β; numprocs_cart, halo_width)
+    Gaugefield(U::Gaugefield; no_halo, hw)
     Gaugefield(parameters::ParameterSet)
 
-Creates a Gaugefield on `Backend`, i.e. an array of link-variables (SU3 matrices with
-`FloatType` precision) of size `4 × NX × NY × NZ × NT` with coupling parameter `β` and gauge
-action `GaugeAction` or a zero-initialized copy of `U`
+Creates a Gaugefield on backend `B`, i.e. an array of link-variables (SU3 matrices with
+`T` precision) of size `4 × NX × NY × NZ × NT` with coupling parameter `β` and gauge
+action `GA` or a zero-initialized copy of `U`
 # Supported backends
-`CPU` \\
-`CUDABackend` \\
-`ROCBackend`
+`CPU` \
+`CUDABackend` (provided CUDA.jl is loaded) \
+`ROCBackend` (provided AMDGPU.jl is loaded)
 # Supported gauge actions
-`WilsonGaugeAction` \\
-`SymanzikTreeGaugeAction` (Lüscher-Weisz) \\
-`IwasakiGaugeAction` \\
+`WilsonGaugeAction` \
+`SymanzikTreeGaugeAction` (Lüscher-Weisz) \
+`IwasakiGaugeAction` \
 `DBW2GaugeAction`
-"""
-struct Gaugefield{Backend,FloatType,IsDistributed,ArrayType,GaugeAction} <:
-    AbstractField{Backend,FloatType,IsDistributed,ArrayType}
-    U::ArrayType # Actual field storing the gauge variables
-    NX::Int64 # Number of lattice sites in the x-direction
-    NY::Int64 # Number of lattice sites in the y-direction
-    NZ::Int64 # Number of lattice sites in the z-direction
-    NT::Int64 # Number of lattice sites in the t-direction
-    NV::Int64 # Total number of lattice sites
-    NC::Int64 # Number of colors
-    
-    topology::FieldTopology # Info regarding MPI topology
-
-    β::Float64 # Seems weird to have it here, but I couldnt be bothered passing it as an argument everywhere
-    Sg::Base.RefValue{Float64} # Current Gauge action, used to safe work
-    CV::Vector{Float64} # Current collective variable, used to safe work
-    function Gaugefield{Backend,FloatType,GaugeAction}(
-        NX, NY, NZ, NT, β; ncv=1
-    ) where {Backend,FloatType,GaugeAction}
-        U = KA.zeros(Backend(), SU{3,9,FloatType}, 4, NX, NY, NZ, NT)
-        NV = NX * NY * NZ * NT
-        numprocs_cart = (1, 1, 1, 1)
-        halo_width = 0
-        topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
-        Sg = Base.RefValue{Float64}(0.0)
-        CV = zeros(Float64, ncv)
-        return new{Backend,FloatType,false,typeof(U),GaugeAction}(
-            U, NX, NY, NZ, NT, NV, 3, topology, β, Sg, CV
-        )
-    end
-
-    function Gaugefield{Backend,FloatType,GaugeAction}(
-        NX, NY, NZ, NT, β, numprocs_cart, halo_width; ncv=1
-    ) where {Backend,FloatType,GaugeAction}
-        if prod(numprocs_cart) == 1
-            return Gaugefield{Backend,FloatType,GaugeAction}(NX, NY, NZ, NT, β)
-        end
-
-        @assert halo_width >= stencil_size(GaugeAction) """
-        halo_width must be >= 2 when using improved gauge actions
-        """
-
-        NV = NX * NY * NZ * NT
-        topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
-        ldims = topology.local_dims
-        dims_in = ntuple(i -> ldims[i]+2halo_width, Val(4)) 
-        U = KA.zeros(Backend(), SU{3,9,FloatType}, 4, dims_in...)
-        Sg = Base.RefValue{Float64}(0.0)
-        CV = zeros(Float64, ncv)
-        return new{Backend,FloatType,true,typeof(U),GaugeAction}(
-            U, NX, NY, NZ, NT, NV, 3, topology, β, Sg, CV
-        )
-    end
-end
+""" Gaugefield
 
 function Gaugefield(
-    u::Gaugefield{Backend,FloatType,IsDistributed,ArrayType,GaugeAction}
-) where {Backend,FloatType,IsDistributed,ArrayType,GaugeAction}
-    ncv = length(u.CV)
-
-    u_out = if IsDistributed
-        numprocs_cart = u.topology.numprocs_cart
-        halo_width = u.topology.halo_width
-        Gaugefield{Backend,FloatType,GaugeAction}(
-            u.NX, u.NY, u.NZ, u.NT, u.β, numprocs_cart, halo_width; ncv=ncv
+    u::Gaugefield{B,T,M,GA}; no_halo=false, hw=get_halo_width(u)
+) where {B,T,M,GA}
+    u_out = if M
+        ncart = get_numprocs_cart(u)
+        Gaugefield{B,T,GA}(
+            size(u)..., u.β, numprocs_cart=ncart, halo_width=hw, no_halo=no_halo
         )
     else
-        Gaugefield{Backend,FloatType,GaugeAction}(u.NX, u.NY, u.NZ, u.NT, u.β, ncv=ncv)
+        Gaugefield{B,T,GA}(size(u)..., u.β)
     end
 
     return u_out
 end
 
 function Gaugefield(parameters)
-    NX, NY, NZ, NT = parameters.L
+    global_dims = parameters.L
     β = parameters.beta
-    GaugeAction = GAUGE_ACTION[parameters.gauge_action]
-    FloatType = Utils.FLOAT_TYPE[parameters.float_type]
-    Backend = BACKENDS[parameters.backend]
-    numprocs_cart = parameters.numprocs_cart
-    numprocs = sum(numprocs_cart)
-    halo_width = parameters.halo_width
-    ncv = length(parameters.biases)
+    GA = GAUGE_ACTION[parameters.gauge_action]
+    T = Utils.FLOAT_TYPE[parameters.float_type]
+    B = BACKENDS[parameters.backend]
+    ncart = parameters.numprocs_cart
+    hw = parameters.halo_width
 
-    U = if numprocs > 1
-        Gaugefield{Backend,FloatType,GaugeAction}(
-            NX, NY, NZ, NT, β, numprocs_cart, halo_width; ncv=ncv
-        )
-    else
-        Gaugefield{Backend,FloatType,GaugeAction}(NX, NY, NZ, NT, β; ncv=ncv)
-    end
+    U = Gaugefield{B,T,GA}(global_dims..., β, numprocs_cart=ncart, halo_width=hw)
 
     initial = parameters.initial
     if initial == "cold"
@@ -125,164 +61,36 @@ function Gaugefield(parameters)
     return U
 end
 
-"""
-    Colorfield{Backend,FloatType,IsDistributed,ArrayType} <:
-    AbstractField{Backend,FloatType,IsDistributed,ArrayType}
+@inline gauge_action(::Gaugefield{B,T,M,GA}) where {B,T,M,GA} = GA
+Base.eltype(::Type{Gaugefield}, ::Type{T}) where {T} = SMatrix{3,3,Complex{T},9}
+# Base.eltype(::Gaugefield{B,T}) where {B,T} = SMatrix{3,3,Complex{T},9}
 
-5-dimensional dense array of statically sized 3x3 matrices contatining associated meta-data.
+function create_sendbuf!(u::AbstractField{B,T,M}, sites, dim, dir) where {B,T,M}
+    ibuf = dir + 2(dim - 1)
+    sendbuf = u.sendbuf[ibuf]
+    itr = eachindex(IndexLinear(), sites)
 
-    Colorfield{Backend,FloatType}(NX, NY, NZ, NT)
-    Colorfield{Backend,FloatType}(NX, NY, NZ, NT, numprocs_cart, halo_width)
-    Colorfield(u::AbstractField)
+    parallelfor(itr, B, Val(M), (), (), (u,)) do i, u
+        site = sites[i]
 
-Creates a Colorfield on `Backend`, i.e. an array of 3-by-3 `FloatType`-precision matrices of
-size `4 × NX × NY × NZ × NT` or a zero-initialized Colorfield of the same size as `u`
-# Supported backends
-`CPU` \\
-`CUDABackend` \\
-`ROCBackend`
-"""
-struct Colorfield{Backend,FloatType,IsDistributed,ArrayType} <:
-    AbstractField{Backend,FloatType,IsDistributed,ArrayType}
-    U::ArrayType # Actual field storing the gauge variables
-    NX::Int64 # Number of lattice sites in the x-direction
-    NY::Int64 # Number of lattice sites in the y-direction
-    NZ::Int64 # Number of lattice sites in the z-direction
-    NT::Int64 # Number of lattice sites in the t-direction
-    NV::Int64 # Total number of lattice sites
-    NC::Int64 # Number of colors
-    
-    topology::FieldTopology # Info regarding MPI topology
-    function Colorfield{Backend,FloatType}(NX, NY, NZ, NT) where {Backend,FloatType}
-        U = KA.zeros(Backend(), SU{3,9,FloatType}, 4, NX, NY, NZ, NT)
-        NV = NX * NY * NZ * NT
-        numprocs_cart = (1, 1, 1, 1)
-        halo_width = 0
-        topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
-        return new{Backend,FloatType,false,typeof(U)}(U, NX, NY, NZ, NT, NV, 3, topology)
-    end
-
-    function Colorfield{Backend,FloatType}(
-        NX, NY, NZ, NT, numprocs_cart, halo_width
-    ) where {Backend,FloatType}
-        if prod(numprocs_cart) == 1
-            return Colorfield{Backend,FloatType}(NX, NY, NZ, NT)
+        for μ in 1:4
+            sendbuf[μ, i] = u[μ, site]
         end
-
-        NV = NX * NY * NZ * NT
-        topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
-        ldims = topology.local_dims
-        dims_in = ntuple(i -> ldims[i]+2halo_width, Val(4)) 
-        U = KA.zeros(Backend(), SU{3,9,FloatType}, 4, dims_in...)
-        return new{Backend,FloatType,true,typeof(U)}(U, NX, NY, NZ, NT, NV, 3, topology)
     end
+
+    return sendbuf
 end
 
-function Colorfield(
-    u::AbstractField{Backend,FloatType,IsDistributed}
-) where {Backend,FloatType,IsDistributed}
-    u_out = if IsDistributed
-        numprocs_cart = u.topology.numprocs_cart
-        halo_width = u.topology.halo_width
-        Colorfield{Backend,FloatType}(u.NX, u.NY, u.NZ, u.NT, numprocs_cart, halo_width)
-    else
-        Colorfield{Backend,FloatType}(u.NX, u.NY, u.NZ, u.NT)
-    end
+function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:AbstractField{B,T,M}}
+    @assert length(arange) == length(brange) "send buffer and recv buffer arent of same size"
 
-    return u_out
-end
+    parallelfor(eachindex(IndexLinear(), arange), B, Val(M), (), (), (a, b)) do i, a, b
+        site_a = arange[i]
+        site_b = brange[i]
 
-"""
-    Expfield{Backend,FloatType,IsDistributed,ArrayType} <:
-    AbstractField{Backend,FloatType,IsDistributed,ArrayType}
-
-5-dimensional dense array of `exp_iQ_su3` objects contatining associated meta-data. The
-objects hold the `Q`-matrices and all the exponential parameters needed for stout-force
-recursion.
-
-    Expfield{Backend,FloatType}(NX, NY, NZ, NT)
-    Expfield{Backend,FloatType}(NX, NY, NZ, NT, numprocs_cart, halo_width)
-    Expfield(u::AbstractField)
-
-Creates a Expfield on `Backend`, i.e. an array of `FloatType`-precison `exp_iQ_su3` objects
-of size `4 × NX × NY × NZ × NT` or of the same size as `u`.
-# Supported backends
-`CPU` \\
-`CUDABackend` \\
-`ROCBackend`
-"""
-struct Expfield{Backend,FloatType,IsDistributed,ArrayType} <:
-    AbstractField{Backend,FloatType,IsDistributed,ArrayType}
-    U::ArrayType # Actual field storing the gauge variables
-    NX::Int64 # Number of lattice sites in the x-direction
-    NY::Int64 # Number of lattice sites in the y-direction
-    NZ::Int64 # Number of lattice sites in the z-direction
-    NT::Int64 # Number of lattice sites in the t-direction
-    NV::Int64 # Total number of lattice sites
-    NC::Int64 # Number of colors
-    
-    topology::FieldTopology # Info regarding MPI topology
-    function Expfield{Backend,FloatType}(NX, NY, NZ, NT) where {Backend,FloatType}
-        U = KA.zeros(Backend(), exp_iQ_su3{FloatType}, 4, NX, NY, NZ, NT)
-        NV = NX * NY * NZ * NT
-        numprocs_cart = (1, 1, 1, 1)
-        halo_width = 0
-        topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
-        return new{Backend,FloatType,false,typeof(U)}(U, NX, NY, NZ, NT, NV, 3, topology)
-    end
-
-    function Expfield{Backend,FloatType}(
-        NX, NY, NZ, NT, numprocs_cart, halo_width
-    ) where {Backend,FloatType}
-        if prod(numprocs_cart) == 1
-            return Expfield{Backend,FloatType}(NX, NY, NZ, NT)
+        for μ in 1:4
+            a[μ, site_a] = b[μ, site_b]
         end
-
-        NV = NX * NY * NZ * NT
-        topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
-        ldims = topology.local_dims
-        dims_in = ntuple(i -> ldims[i]+2halo_width, Val(4)) 
-        U = KA.zeros(Backend(), exp_iQ_su3{FloatType}, 4, dims_in...)
-        return new{Backend,FloatType,true,typeof(U)}(U, NX, NY, NZ, NT, NV, 3, topology)
-    end
-end
-
-function Expfield(
-    u::AbstractField{Backend,FloatType,IsDistributed}
-) where {Backend,FloatType,IsDistributed}
-    u_out = if IsDistributed
-        numprocs_cart = u.topology.numprocs_cart
-        halo_width = u.topology.halo_width
-        Expfield{Backend,FloatType}(u.NX, u.NY, u.NZ, u.NT, numprocs_cart, halo_width)
-    else
-        Expfield{Backend,FloatType}(u.NX, u.NY, u.NZ, u.NT)
-    end
-
-    return u_out
-end
-
-@inline function gauge_action(
-    ::Gaugefield{Backend,FloatType,IsDistributed,ArrayType,GaugeAction}
-) where {Backend,FloatType,IsDistributed,ArrayType,GaugeAction}
-    return GaugeAction
-end
-
-# overload getproperty and setproperty! for convenience
-@inline function Base.getproperty(u::Gaugefield, p::Symbol)
-    if p == :Sg
-        return getfield(u, :Sg)[]
-    else
-        return getfield(u, p)
-    end
-end
-
-@inline function Base.setproperty!(u::Gaugefield, p::Symbol, val)
-    if p == :Sg
-        getfield(u, :Sg)[] = val
-    elseif p == :CV
-        getfield(u, :CV) .= val
-    else
-        setfield!(u, p, val)
     end
 
     return nothing

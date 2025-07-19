@@ -1,26 +1,25 @@
-function test_gradflow(backend=CPU; nprocs_cart=(1, 1, 1, 1), halo_width=1)
+function test_gradflow(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=1)
     Random.seed!(123)
     println("Smearing tests")
-    NX = 4
-    NY = 4
-    NZ = 4
-    NT = 4
-    U = Gaugefield{CPU,Float64,WilsonGaugeAction}(NX, NY, NZ, NT, 6.0, nprocs_cart, halo_width)
+    NX = NY = NZ = NT = 4
+    U = Gaugefield{CPU,Float64,WilsonGaugeAction}(
+        NX, NY, NZ, NT, 6.0, numprocs_cart=nprocs_cart, halo_width=halo_width
+    )
     numflow = 7
 
-    filename = if MetaQCD.Fields.is_distributed(U)
+    filename = if nprocs_cart != (1, 1, 1, 1)
         pkgdir(MetaQCD, "test", "testconf_mpi")
     else
         pkgdir(MetaQCD, "test", "testconf.txt")
     end
 
-    load_config!(BridgeFormat(), U, filename)
+    load_field!(BridgeFormat(), U, filename)
 
     if backend !== CPU
         U = MetaQCD.to_backend(backend, U)
     end
 
-    mfac = 1 / (6 * U.NV * U.NC)
+    mfac = 1 / (18 * length(U))
     plaq = plaquette_trace_sum(U) * mfac
 
     g = GradientFlow(U; integrator="euler", numflow=numflow, steps=1, tf=0.12)
@@ -49,6 +48,10 @@ function test_gradflow(backend=CPU; nprocs_cart=(1, 1, 1, 1), halo_width=1)
         mpi_amroot() && println("$(i-1)\tplaq (stout): $(p)")
     end
 
-    mpi_amroot() && (@test isapprox(p_stout, p_flow[end]))
+    if mpi_amroot()
+        @testset "Gradient flow / Stout equivalence" begin
+            @test isapprox(p_stout, p_flow[end])
+        end
+    end
     return isapprox(p_stout, p_flow[end])
 end

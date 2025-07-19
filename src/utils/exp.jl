@@ -5,7 +5,7 @@ using Base.Math: isinf_real
 # See https://ranocha.de/blog/Optimizing_EC_Trixi for further details.
 @muladd begin
     # convenient struct to store exponential coefficients
-    struct exp_iQ_su3{T}
+    struct ExpiQCoeffs{T}
         Q::SU{3,9,T}
         Q²::SU{3,9,T}
         expiQ::SU{3,9,T}
@@ -20,30 +20,56 @@ using Base.Math: isinf_real
         b₂₂::Complex{T}
     end
 
-    function exp_iQ_su3(::Type{T}) where {T}
+    function ExpiQCoeffs(::Type{T}) where {T}
         Q = zero3(T)
         Q² = zero3(T)
         expiQ = zero3(T)
         T0 = zero(Complex{T})
-        return exp_iQ_su3{T}(Q, Q², expiQ, T0, T0, T0, T0, T0, T0, T0, T0, T0)
+        return ExpiQCoeffs{T}(Q, Q², expiQ, T0, T0, T0, T0, T0, T0, T0, T0, T0)
     end
 
-    Base.zero(::Type{exp_iQ_su3{T}}) where {T} = exp_iQ_su3(T)
-    exp_iQ(e::exp_iQ_su3{T}) where {T} = e.expiQ
-    get_Q(e::exp_iQ_su3{T}) where {T} = e.Q
-    get_Q²(e::exp_iQ_su3{T}) where {T} = e.Q²
-    get_B₁(e::exp_iQ_su3{T}) where {T} = e.b₁₀ * eye3(T) + e.b₁₁ * e.Q + e.b₁₂ * e.Q²
-    get_B₂(e::exp_iQ_su3{T}) where {T} = e.b₂₀ * eye3(T) + e.b₂₁ * e.Q + e.b₂₂ * e.Q²
+    @inline function Base.convert(::Type{ExpiQCoeffs{Tout}}, e::ExpiQCoeffs) where {Tout}
+        Q = SU{3,9,Tout}(e.Q)
+        Q² = SU{3,9,Tout}(e.Q²)
+        expiQ = SU{3,9,Tout}(e.expiQ)
+        vals = Complex{Tout}.((e.f₀, e.f₁, e.f₂, e.b₁₀, e.b₁₁, e.b₁₂, e.b₂₀, e.b₂₁, e.b₂₂))
+        return ExpiQCoeffs{Tout}(Q, Q², expiQ, vals...)
+    end
+
+    @inline function Base.convert(
+        ::Type{ExpiQCoeffs{Tout}}, ::Type{ExpiQCoeffs{Tin}}
+    ) where {Tin,Tout<:AbstractFloat}
+        return ExpiQCoeffs{Tout}
+    end
+
+    @inline function Base.convert(::Type{Tout}, e::ExpiQCoeffs) where {Tout<:AbstractFloat}
+        return convert(ExpiQCoeffs{Tout}, e)
+    end
+
+    @inline function Base.convert(
+        ::Type{Tout}, ::Type{ExpiQCoeffs{Tin}}
+    ) where {Tin,Tout<:AbstractFloat}
+        return ExpiQCoeffs{Tout}
+    end
+
+    Base.eltype(::ExpiQCoeffs{T}) where {T} = Complex{T}
+    Base.eltype(::Type{ExpiQCoeffs{T}}) where {T} = Complex{T}
+    Base.zero(::Type{ExpiQCoeffs{T}}) where {T} = ExpiQCoeffs(T)
+    exp_iQ(e::ExpiQCoeffs{T}) where {T} = e.expiQ
+    get_Q(e::ExpiQCoeffs{T}) where {T} = e.Q
+    get_Q²(e::ExpiQCoeffs{T}) where {T} = e.Q²
+    get_B₁(e::ExpiQCoeffs{T}) where {T} = e.b₁₀ * eye3(T) + e.b₁₁ * e.Q + e.b₁₂ * e.Q²
+    get_B₂(e::ExpiQCoeffs{T}) where {T} = e.b₂₀ * eye3(T) + e.b₂₁ * e.Q + e.b₂₂ * e.Q²
 
     """
         exp_iQ(Q::SU{3,9,T}) where {T}
-        exp_iQ(e::exp_iQ_su3{T}) where {T}
+        exp_iQ(e::ExpiQCoeffs{T}) where {T}
     
     Compute the exponential of a traceless Hermitian 3x3 matrix `Q` or return the `exp_iQ` field
-    of the `exp_iQ_su3{T}`-object `e`. \\
+    of the `ExpiQCoeffs{T}`-object `e`. \\
     From Morningstar & Peardon (2008) arXiv:hep-lat/0311018v1
     """
-    function exp_iQ(Q::SU{3,9,T}) where {T}
+    @inline function exp_iQ(Q::SU{3,9,T}) where {T}
         u, w, signflip = set_uw(Q)
         f₀, f₁, f₂, _ = set_fj(T, u, w, signflip)
         mat = f₀ * eye3(T) + f₁ * Q + f₂ * cmatmul_oo(Q, Q)
@@ -53,14 +79,14 @@ using Base.Math: isinf_real
     """
         exp_iQ_coeffs(Q::SU{3,9,T}) where {T}
     
-    Return a `exp_iQ_su3` object that contains the exponential of `Q` and all parameters
+    Return a `ExpiQCoeffs` object that contains the exponential of `Q` and all parameters
     obtained in the Cayley-Hamilton algorithm that are needed for Stout force recursion.
     """
-    function exp_iQ_coeffs(Q::SU{3,9,T}) where {T}
+    @inline function exp_iQ_coeffs(Q::SU{3,9,T}) where {T}
         f₀, f₁, f₂, b₁₀, b₁₁, b₁₂, b₂₀, b₂₁, b₂₂ = calc_coefficients(Q)
         Q² = cmatmul_oo(Q, Q)
         mat = f₀ * eye3(T) + f₁ * Q + f₂ * Q²
-        return exp_iQ_su3(Q, Q², mat, f₀, f₁, f₂, b₁₀, b₁₁, b₁₂, b₂₀, b₂₁, b₂₂)
+        return ExpiQCoeffs(Q, Q², mat, f₀, f₁, f₂, b₁₀, b₁₁, b₁₂, b₂₀, b₂₁, b₂₂)
     end
 
     function calc_coefficients(Q::SU{3,9,T}) where {T}

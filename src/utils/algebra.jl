@@ -48,18 +48,18 @@
     Generate a random Matrix X ∈ SU(3) with precision `T`. \\
     """
     @inline function rand_SU3(::Type{T}) where {T}
-        out = @SMatrix rand(Complex{T}, 3, 3)
+        out = rand(SMatrix{3,3,Complex{T},9})
         out = proj_onto_SU3(out)
         return out
     end
 
     @inline function materialize_TA(h₁::T, h₂::T, h₃::T, h₄::T, h₅::T, h₆::T, h₇::T, h₈::T) where {T}
         sq3i = 1 / sqrt(T(3))
-        out = @SMatrix [
-            im*(h₃+h₈*sq3i)     h₂+im*h₁   h₅+im*h₄
-            -h₂+im*h₁   im*(-h₃+h₈*sq3i)   h₇+im*h₆
-            -h₅+im*h₄   -h₇+im*h₆   im*(-2*h₈*sq3i)
-        ]
+        out = SMatrix{3,3,Complex{T},9}(
+            im*(h₃+h₈*sq3i),     h₂+im*h₁,   h₅+im*h₄,
+            -h₂+im*h₁,   im*(-h₃+h₈*sq3i),   h₇+im*h₆,
+            -h₅+im*h₄,   -h₇+im*h₆,   im*(-2*h₈*sq3i)
+        )
         return out
     end
 
@@ -94,32 +94,38 @@
     #     return out
     # end
 
-    @inline embed_into_SU3_12(M::SMatrix{2,2,Complex{T},4}) where {T} = @SMatrix [
-        M[1, 1] M[1, 2] zero(T)
-        M[2, 1] M[2, 2] zero(T)
-        zero(T) zero(T) one(T)
-    ]
+    @inline function embed_into_SU3_12(M::SMatrix{2,2,Complex{T},4}) where {T}
+        return SMatrix{3,3,Complex{T},9}(
+            M[1, 1], M[1, 2], zero(T),
+            M[2, 1], M[2, 2], zero(T),
+            zero(T), zero(T), one(T)
+        )
+    end
 
-    @inline embed_into_SU3_13(M::SMatrix{2,2,Complex{T},4}) where {T} = @SMatrix [
-        M[1, 1] zero(T) M[1, 2]
-        zero(T) one(T) zero(T)
-        M[2, 1] zero(T) M[2, 2]
-    ]
+    @inline function embed_into_SU3_13(M::SMatrix{2,2,Complex{T},4}) where {T}
+        return SMatrix{3,3,Complex{T},9}(
+            M[1, 1], zero(T), M[1, 2],
+            zero(T), one(T), zero(T),
+            M[2, 1], zero(T), M[2, 2]
+        )
+    end
 
-    @inline embed_into_SU3_23(M::SMatrix{2,2,Complex{T},4}) where {T} = @SMatrix [
-        one(T) zero(T) zero(T)
-        zero(T) M[1, 1] M[1, 2]
-        zero(T) M[2, 1] M[2, 2]
-    ]
+    @inline function embed_into_SU3_23(M::SMatrix{2,2,Complex{T},4}) where {T}
+        return SMatrix{3,3,Complex{T},9}(
+            one(T), zero(T), zero(T),
+            zero(T), M[1, 1], M[1, 2],
+            zero(T), M[2, 1], M[2, 2]
+        )
+    end
 
     @inline function make_submatrix_12(M::SMatrix{3,3,Complex{T},9}) where {T}
         onehalf = T(0.5)
         α = onehalf * (M[1, 1] + conj(M[2, 2]))
         β = onehalf * (M[2, 1] - conj(M[1, 2]))
-        out = @SMatrix [
-            α -conj(β)
-            β conj(α)
-        ]
+        out = SMatrix{2,2,Complex{T},4}(
+            α, -conj(β),
+            β, conj(α)
+        )
         return out
     end
 
@@ -127,10 +133,10 @@
         onehalf = T(0.5)
         α = onehalf * (M[1, 1] + conj(M[3, 3]))
         β = onehalf * (M[3, 1] - conj(M[1, 3]))
-        out = @SMatrix [
-            α -conj(β)
-            β conj(α)
-        ]
+        out = SMatrix{2,2,Complex{T},4}(
+            α, -conj(β),
+            β, conj(α)
+        )
         return out
     end
 
@@ -138,10 +144,10 @@
         onehalf = T(0.5)
         α = onehalf * (M[2, 2] + conj(M[3, 3]))
         β = onehalf * (M[3, 2] - conj(M[2, 3]))
-        out = @SMatrix [
-            α -conj(β)
-            β conj(α)
-        ]
+        out = SMatrix{2,2,Complex{T},4}(
+            α, -conj(β),
+            β, conj(α)
+        )
         return out
     end
 
@@ -149,10 +155,10 @@
         onehalf = T(0.5)
         α = onehalf * (M[1, 1] + conj(M[2, 2]))
         β = onehalf * (M[1, 2] - conj(M[2, 1]))
-        out = @SMatrix [
-            α -conj(β)
-            β conj(α)
-        ]
+        out = SMatrix{2,2,Complex{T},4}(
+            α, -conj(β),
+            β, conj(α)
+        )
         return out
     end
 

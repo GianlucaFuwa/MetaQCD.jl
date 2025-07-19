@@ -45,17 +45,20 @@ Base.length(c::Cooling) = c.numflow
 
 function flow!(cool::Cooling)
     Uflow = cool.Uflow
+    cool!(Uflow)
+    return nothing
+end
+
+function cool!(Uflow::Gaugefield{B,T,M}) where {B,T,M}
     GA = WilsonGaugeAction()
 
-    @batch for site in eachindex(Uflow)
+    parallelfor(eachindex(Uflow), B, Val(M), (), (Uflow,), (Uflow,)) do site, Uflow
         for μ in 1:4
             old_link = Uflow[μ, site]
             A_adj = staple(GA, Uflow, μ, site)'
             Uflow[μ, site] = proj_onto_SU3(cooling_SU3(old_link, A_adj))
         end
     end
-
-    return nothing
 end
 
 function cooling_SU3(link, A_adj)

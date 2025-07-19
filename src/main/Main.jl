@@ -2,14 +2,16 @@ module Main
 
 using Dates
 using DelimitedFiles
-using InteractiveUtils
+using LinearAlgebra
 using Random
 using Statistics
 using StaticTools: StaticString
 using ..MetaIO
 using ..Utils
+using ..Fields: BACKENDS
 
-import ..BiasModule: NoBias, calc_weights, is_adaptive, recalc_cv!, update_bias!, set_sigma0!
+import ..BiasModule: Bias, NoBias, calc_weights, is_adaptive, recalc_cv!, update_bias!
+import ..BiasModule: set_cv!, set_sigma0!
 import ..DiracOperators: QuenchedFermionAction
 import ..Fields: calc_gauge_action, is_distributed, normalize!
 import ..Measurements: MeasurementMethods, calc_measurements, calc_measurements_flowed
@@ -21,7 +23,7 @@ import ..Updates: set_instanton!
 
 export build_bias, run_sim
 
-const PACKAGE_VERSION = "1.2.0"
+const PACKAGE_VERSION = "2.0.0"
 
 function print_acceptance_rates(numaccepts, itrj)
     for (i, value) in enumerate(numaccepts)

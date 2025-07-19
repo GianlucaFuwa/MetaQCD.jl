@@ -1,0 +1,148 @@
+function wilsonloop(U, μ, ν, site, Lμ, Lν)
+    right = sign(Lμ) == 1i32
+    top = sign(Lν) == 1i32
+
+    if right && top
+        return wilsonloop_top_right(U, μ, ν, site, Lμ, Lν)
+    elseif !right && top
+        return wilsonloop_top_left(U, μ, ν, site, Lμ, Lν)
+    elseif right && !top
+        return wilsonloop_bottom_right(U, μ, ν, site, Lμ, Lν)
+    else
+        return wilsonloop_bottom_left(U, μ, ν, site, Lμ, Lν)
+    end
+end
+
+function wilsonloop_top_right(U::Gaugefield{B,T}, μ, ν, site, Lμ, Lν) where {B,T}
+    Nμ = axes(U, μ)
+    Nν = axes(U, ν)
+    wil = eye3(T)
+    Lμ = abs(Lμ)
+    Lν = abs(Lν)
+
+    for _ in (1i32):Lμ
+        wil = cmatmul_oo(wil, U[μ, site])
+        site = move(site, μ, 1i32, Nμ)
+    end
+
+    for _ in (1i32):Lν
+        wil = cmatmul_oo(wil, U[ν, site])
+        site = move(site, ν, 1i32, Nν)
+    end
+
+    for _ in (1i32):Lμ
+        site = move(site, μ, -1i32, Nμ)
+        wil = cmatmul_od(wil, U[μ, site])
+    end
+
+    for _ in (1i32):Lν
+        site = move(site, ν, -1i32, Nν)
+        wil = cmatmul_od(wil, U[ν, site])
+    end
+
+    return wil
+end
+
+function wilsonloop_top_left(U::Gaugefield{B,T}, μ, ν, site, Lμ, Lν) where {B,T}
+    Nμ = axes(U, μ)
+    Nν = axes(U, ν)
+    wil = eye3(T)
+    Lμ = abs(Lμ)
+    Lν = abs(Lν)
+
+    for _ in (1i32):Lν
+        wil = cmatmul_oo(wil, U[ν, site])
+        site = move(site, ν, 1i32, Nν)
+    end
+
+    for _ in (1i32):Lμ
+        site = move(site, μ, -1i32, Nμ)
+        wil = cmatmul_od(wil, U[μ, site])
+    end
+
+    for _ in (1i32):Lν
+        site = move(site, ν, -1i32, Nν)
+        wil = cmatmul_od(wil, U[ν, site])
+    end
+
+    for _ in (1i32):Lμ
+        wil = cmatmul_oo(wil, U[μ, site])
+        site = move(site, μ, 1i32, Nμ)
+    end
+
+    return wil
+end
+
+function wilsonloop_bottom_left(U::Gaugefield{B,T}, μ, ν, site, Lμ, Lν) where {B,T}
+    Nμ = axes(U, μ)
+    Nν = axes(U, ν)
+    wil = eye3(T)
+    Lμ = abs(Lμ)
+    Lν = abs(Lν)
+
+    for _ in (1i32):Lμ
+        site = move(site, μ, -1i32, Nμ)
+        wil = cmatmul_od(wil, U[μ, site])
+    end
+
+    for _ in (1i32):Lν
+        site = move(site, ν, -1i32, Nν)
+        wil = cmatmul_od(wil, U[ν, site])
+    end
+
+    for _ in (1i32):Lμ
+        wil = cmatmul_oo(wil, U[μ, site])
+        site = move(site, μ, 1i32, Nμ)
+    end
+
+    for _ in (1i32):Lν
+        wil = cmatmul_oo(wil, U[ν, site])
+        site = move(site, ν, 1i32, Nν)
+    end
+
+    return wil
+end
+
+function wilsonloop_bottom_right(U::Gaugefield{B,T}, μ, ν, site, Lμ, Lν) where {B,T}
+    Nμ = axes(U, μ)
+    Nν = axes(U, ν)
+    wil = eye3(T)
+    Lμ = abs(Lμ)
+    Lν = abs(Lν)
+
+    for _ in (1i32):Lν
+        site = move(site, ν, -1i32, Nν)
+        wil = cmatmul_od(wil, U[ν, site])
+    end
+
+    for _ in (1i32):Lμ
+        wil = cmatmul_oo(wil, U[μ, site])
+        site = move(site, μ, 1i32, Nμ)
+    end
+
+    for _ in (1i32):Lν
+        wil = cmatmul_oo(wil, U[ν, site])
+        site = move(site, ν, 1i32, Nν)
+    end
+
+    for _ in (1i32):Lμ
+        site = move(site, μ, -1i32, Nμ)
+        wil = cmatmul_od(wil, U[μ, site])
+    end
+
+    return wil
+end
+
+function wilsonloop(U::Gaugefield{B,T,M}, Lμ, Lν) where {B,T,M}
+    is_distributed(U) && @assert(Lμ <= get_halo_width(U) && Lν <= get_halo_width(U))
+    W = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (U,), (), (U,)) do w, site, U
+        for μ in 1:3
+            for ν in (μ + 1):4
+                w += real(tr(wilsonloop(U, μ, ν, site, Lμ, Lν)))
+            end
+        end
+        w
+    end
+
+    return distributed_reduce(W, +, U)
+end

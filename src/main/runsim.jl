@@ -1,4 +1,4 @@
-function run_sim(parameterfile::String; backend="cpu")
+function run_sim(parameterfile::String)
     # When using MPI we make sure that only rank 0 prints to the console
     if mpi_amroot()
         ext = splitext(parameterfile)[end]
@@ -8,7 +8,17 @@ function run_sim(parameterfile::String; backend="cpu")
     end
 
     # load parameters from toml file
-    parameters = construct_params_from_toml(parameterfile; backend=backend)
+    parameters = construct_params_from_toml(parameterfile)
+    if parameters.backend == "cuda"
+        @assert "cuda" in keys(BACKENDS) """
+        In order to use the CUDA Backend, CUDA.jl has to be loaded
+        """
+    elseif parameters.backend ∈ ("rocm", "roc", "amdgpu")
+        @assert "rocm" in keys(BACKENDS) """
+        In order to use the ROCM Backend, AMDGPU.jl has to be loaded
+        """
+    end
+
     num_instances = parameters.numinstances
     num_dist = prod(parameters.numprocs_cart)
 
@@ -17,7 +27,7 @@ function run_sim(parameterfile::String; backend="cpu")
         true
     else
         @assert mpi_size() == num_dist """
-        MPI comm size must be = prod(numprocs_cart) when not using multiple simulation streams or = numinstances*prod(numprocs_cart) when doing so 
+        MPI comm size must be = prod(numprocs_cart) when not using multiple simulation streams or = numinstances*prod(numprocs_cart) when doing so
         """
         false
     end
@@ -28,8 +38,9 @@ function run_sim(parameterfile::String; backend="cpu")
         """
     end
 
-    mpi_split(mpi_comm(); color=mpi_myrank()%num_instances)
-    MPI_NUMINSTANCES[] = num_instances
+    num_mpiinstances = multi_sim ? 1 : num_instances
+    mpi_split(mpi_comm(); color=mpi_myrank()÷num_mpiinstances)
+    MPI_NUMINSTANCES[] = num_mpiinstances
 
     # set random seed if provided, otherwise generate one
     if parameters.randomseed != 0
@@ -50,14 +61,7 @@ function run_sim(parameterfile::String; backend="cpu")
 
     set_global_logger!(parameters.verboselevel, logpath; tc=to_console)
 
-    # print time and system info, because it looks cool I guess
-    # btw, all these "@level1" calls are just for logging, level1 is always printed
-    # and anything higher has to specified in the parameter file (default is level2)
     @level1("# Working directory: $(pwd()) @ $(string(current_time()))")
-    # buf = IOBuffer()
-    # InteractiveUtils.versioninfo(buf)
-    # versioninfo = String(take!(buf))
-    # @level1(versioninfo)
     @level1("[ Running MetaQCD.jl version $(PACKAGE_VERSION)\n")
     @level1("[ Random seed is: $seed\n")
 
@@ -71,11 +75,13 @@ function run_sim(parameterfile::String; backend="cpu")
         updatemethod = updatemethod_pt = nothing
     end
 
-    run_sim!(univ, parameters, updatemethod, updatemethod_pt; mpi_multi_sim=multi_sim)
+    run_sim!(univ, parameters, updatemethod, updatemethod_pt, multi_sim)
     return nothing
 end
 
-function run_sim!(univ, parameters, updatemethod, updatemethod_pt; mpi_multi_sim=false)
+function run_sim!(
+    univ::Univ, parameters::ParameterSet, updatemethod, updatemethod_pt, mpi_multi_sim=false
+)
     U = univ.U
 
     # initialize update method, measurements, and bias
@@ -86,28 +92,26 @@ function run_sim!(univ, parameters, updatemethod, updatemethod_pt; mpi_multi_sim
             elseif !isnothing(updatemethod) && MPI_INSTANCE[]==0
                 # TODO:
             elseif isnothing(updatemethod_pt) && !(MPI_INSTANCE[]==0)
-                faction_type = if univ.fermion_action == QuenchedFermionAction() 
+                faction_type = if univ.fermion_action == QuenchedFermionAction()
                     "quenched"
                 else
                     parameters.fermion_action
                 end
                 # all MetaD streams use HMC, so there is no need to initialize more than 1
-                hmc_integrator = parameters.hmc_integrator
-                hmc_rafriction = parameters.hmc_rafriction
                 updatemethod = HMC(
                     U,
-                    integrator_from_str(hmc_integrator, hmc_rafriction),
+                    parameters.levels,
                     parameters.hmc_trajectory,
-                    parameters.hmc_steps,
                     parameters.hmc_friction,
                     parameters.hmc_numsmear_gauge,
                     parameters.hmc_numsmear_fermion,
                     parameters.hmc_rhostout_gauge,
                     parameters.hmc_rhostout_fermion;
+                    rafriction=parameters.hmc_rafriction,
                     hmc_logging=true,
                     fermion_action=faction_type,
-                    heavy_flavours=length(parameters.Nf) - 1,
-                    num_cv=length(univ.bias),
+                    numfermions=length(parameters.fermions),
+                    numcv=length(parameters.biases),
                     logdir=parameters.log_dir,
                     instance=MPI_INSTANCE[],
                 )
@@ -123,28 +127,26 @@ function run_sim!(univ, parameters, updatemethod, updatemethod_pt; mpi_multi_sim
         else
             if isnothing(updatemethod) && isnothing(updatemethod_pt)
                 updatemethod = Updatemethod(parameters, U[1])
-                faction_type = if univ.fermion_action == QuenchedFermionAction() 
+                faction_type = if univ.fermion_action == QuenchedFermionAction()
                     "quenched"
                 else
                     parameters.fermion_action
                 end
                 # all MetaD streams use HMC, so there is no need to initialize more than 1
-                hmc_integrator = parameters.hmc_integrator
-                hmc_rafriction = parameters.hmc_rafriction
                 updatemethod_pt = HMC(
                     U[1],
-                    integrator_from_str(hmc_integrator, hmc_rafriction),
+                    parameters.levels,
                     parameters.hmc_trajectory,
-                    parameters.hmc_steps,
                     parameters.hmc_friction,
                     parameters.hmc_numsmear_gauge,
                     parameters.hmc_numsmear_fermion,
                     parameters.hmc_rhostout_gauge,
                     parameters.hmc_rhostout_fermion;
+                    rafriction=parameters.hmc_rafriction,
                     hmc_logging=true,
                     fermion_action=faction_type,
-                    heavy_flavours=length(parameters.Nf) - 1,
-                    num_cv=length(univ.bias[1]),
+                    numfermions=length(parameters.fermions),
+                    numcv=length(parameters.biases),
                     logdir=parameters.log_dir,
                     instance=1:parameters.numinstances-1,
                 )
@@ -276,6 +278,7 @@ function run_sim!(univ, parameters, updatemethod, updatemethod_pt; mpi_multi_sim
             checkpointer,
             timing_datafile,
             mpi_multi_sim,
+            Val(parameters.tempering_enabled),
         )
     end
 
@@ -283,22 +286,22 @@ function run_sim!(univ, parameters, updatemethod, updatemethod_pt; mpi_multi_sim
 end
 
 function metaqcd!(
-    parameters,
-    univ,
+    parameters::ParameterSet,
+    univ::Univ,
     updatemethod,
     gflow,
-    measurements,
+    measurements::MeasurementMethods,
     measurements_with_flow,
     parity,
-    config_saver,
-    checkpointer,
+    config_saver::ConfigSaver,
+    checkpointer::Checkpointer,
     timing_datafile,
-    mpi_multi_sim,
-)
+    mpi_multi_sim::Bool,
+    ::Val{tempering_enabled},
+) where {tempering_enabled}
     U = univ.U
     fermion_action = univ.fermion_action
     bias = univ.bias
-    tempering_enabled = parameters.tempering_enabled
     numaccepts_temper = zeros(Int64, MPI_NUMINSTANCES[]-1)
     instance_state = collect(0:univ.numinstances)
     swap_every = parameters.swap_every
@@ -311,7 +314,7 @@ function metaqcd!(
     end
 
     # load in config and recalculate gauge action if given
-    load_config!(U, parameters) && (U.Sg = calc_gauge_action(U))
+    load_field!(U, parameters)
 
     @level1("- Thermalization:")
     _, runtime_therm = @timed begin
@@ -324,7 +327,7 @@ function metaqcd!(
                     fermion_action=fermion_action,
                     bias=NoBias(),
                     metro_test=itrj>10, # So we dont get stuck at the beginning
-                    therm=true,
+                    therm=Val(true),
                 )
             end
 
@@ -361,9 +364,12 @@ function metaqcd!(
                     bias=bias,
                     metro_test=true,
                 )
-                rand() < 0.5 && update!(parity, U)
 
-                accepted && update_bias!(bias, U.CV, itrj; mpi_multi_sim=mpi_multi_sim)
+                if rand() < 0.5
+                    update!(parity, U[1])
+                end
+
+                accepted>0 && update_bias!(bias, itrj; mpi_multi_sim=mpi_multi_sim)
                 numaccepts += accepted
             end
 
@@ -394,7 +400,7 @@ function metaqcd!(
                 )
             end
 
-            save_config(config_saver, U, itrj, parameters)
+            save_field(config_saver, U, itrj, parameters)
             create_checkpoint(checkpointer, univ, updatemethod, nothing, itrj)
 
             _, mtime = @timed calc_measurements(
@@ -406,7 +412,7 @@ function metaqcd!(
                     mpi_multi_sim=mpi_multi_sim
                 )
             end
-            calc_weights(bias, U.CV, itrj; mpi_multi_sim=mpi_multi_sim)
+            calc_weights(bias, itrj; mpi_multi_sim=mpi_multi_sim)
             @level1("|  Meas. elapsed time:     $(mtime)  [s]")
             @level1("|  FlowMeas. elapsed time: $(fmtime) [s]\n-")
         end
@@ -421,8 +427,8 @@ function metaqcd!(
 end
 
 function metaqcd_PT!(
-    parameters,
-    univ,
+    parameters::ParameterSet,
+    univ::Univ,
     updatemethod,
     updatemethod_pt,
     gflow,
@@ -455,7 +461,7 @@ function metaqcd_PT!(
                         fermion_action=fermion_action,
                         bias=NoBias(),
                         metro_test=false,
-                        therm=true,
+                        therm=Val(true),
                         instance=i-1,
                     )
                 end
@@ -487,7 +493,10 @@ function metaqcd_PT!(
                     )
                 end
                 numaccepts[1] += tmp / rank0_updates
-                rand() < 0.5 && update!(parity, U[1])
+
+                if rand() < 0.5
+                    update!(parity, U[1])
+                end
 
                 for i in 2:numinstances
                     accepted = update!(
@@ -498,7 +507,7 @@ function metaqcd_PT!(
                         metro_test=true,
                         instance=i-1,
                     )
-                    accepted && update_bias!(bias[i], U[i].CV, itrj)
+                    accepted && update_bias!(bias[i], bias[i].CV, itrj)
                     numaccepts[i] += accepted
                 end
             end
@@ -508,7 +517,7 @@ function metaqcd_PT!(
 
             temper!(U, bias, numaccepts_temper, swap_every, itrj; recalc=true)
 
-            save_config(config_saver, U[1], itrj, parameters)
+            save_field(config_saver, U[1], itrj, parameters)
             create_checkpoint(checkpointer, univ, updatemethod, updatemethod_pt, itrj)
 
             _, mtime = @timed calc_measurements(measurements, U, itrj, measure_on_all)
@@ -517,7 +526,7 @@ function metaqcd_PT!(
                     measurements_with_flow[i], gflow[i], U, itrj, measure_on_all
                 )
             end
-            calc_weights(bias, [U[i].CV for i in 1:numinstances], itrj)
+            calc_weights(bias, itrj)
             @level1("|  Meas. elapsed time:     $(mtime)  [s]")
             @level1("|  FlowMeas. elapsed time: $(fmtime) [s]\n-")
         end

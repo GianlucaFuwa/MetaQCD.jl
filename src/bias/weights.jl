@@ -5,29 +5,29 @@ https://pubs.acs.org/doi/pdf/10.1021/acs.jctc.9b00867
 calc_weights(::Nothing, args...; kwargs...) = nothing
 calc_weights(::NoBias, args...; kwargs...) = nothing
 
-function calc_weights(b::Bias, cv, itrj; mpi_multi_sim=false)
-    calc_weights(b.datafile, b, cv, itrj; mpi_multi_sim=mpi_multi_sim)
+function calc_weights(b::Bias, itrj; mpi_multi_sim=false)
+    calc_weights(b.datafile, b, itrj; mpi_multi_sim=mpi_multi_sim)
     return nothing
 end
 
-function calc_weights(b::Vector{<:Bias}, cv, itrj)
+function calc_weights(b::Vector{<:Bias}, itrj)
     for i in eachindex(b)
-        calc_weights(b[i].datafile, b[i], cv[i], itrj)
+        calc_weights(b[i].datafile, b[i], itrj)
     end
 
     return nothing
 end
 
-function calc_weights(datafiles, b::Vector{<:Bias}, cv, itrj)
+function calc_weights(datafiles, b::Vector{<:Bias}, itrj)
     for i in eachindex(b)
-        calc_weights(datafiles[i], b[i], cv[i], itrj)
+        calc_weights(datafiles[i], b[i], itrj)
     end
 
     return nothing
 end
 
 function calc_weights(
-    datafile, b::Bias{TCV,TS,TB}, cv, itrj; mpi_multi_sim=false
+    datafile, b::Bias{TCV,TS,TB}, itrj; mpi_multi_sim=false
 ) where {TCV,TS,TB}
     mpi_amroot(mpi_comm_instance()) || return nothing
     
@@ -35,10 +35,10 @@ function calc_weights(
         w = 0.0
         
         for (icv, bias) in enumerate(b.bias)
-            w += calc_weight(bias, cv[icv], method)
+            w += calc_weight(bias, b.CV[icv], method)
         end
 
-        @level1("$itrj\t$(string(cv))\t$(w) # cv weight_$method")
+        @level1("$itrj\t$(string(b.CV))\t$(w) # cv weight_$method")
     end
 
     if datafile != ""
@@ -51,15 +51,15 @@ function calc_weights(
         fp = fopen(_filename, "a")
         printf(fp, "%-11i", itrj)
 
-        for i in eachindex(cv)
-            printf(fp, "%+-25.15E", cv[i])
+        for i in eachindex(b.CV)
+            printf(fp, "%+-25.15E", b.CV[i])
         end
 
         for method in b.kinds_of_weights
             w = 0.0
 
             for (icv, bias) in enumerate(b.bias)
-                w += calc_weight(bias, cv[icv], method)
+                w += calc_weight(bias, b.CV[icv], method)
             end
 
             printf(fp, "%-25.15E", w)
