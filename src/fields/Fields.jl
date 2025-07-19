@@ -72,6 +72,7 @@ Base.similar(u::Colorfield) = Colorfield(u)
 Base.similar(u::Expfield) = Expfield(u)
 Base.similar(u::Tensorfield) = Tensorfield(u)
 Base.similar(u::Spinorfield) = Spinorfield(u)
+Base.similar(u::SpinorfieldEO) = SpinorfieldEO(u.parent)
 Base.similar(u::MultiSpinorfield) = MultiSpinorfield(u)
 
 """
