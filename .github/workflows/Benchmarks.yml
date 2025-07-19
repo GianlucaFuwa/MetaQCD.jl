@@ -3,11 +3,6 @@ name: Benchmark
 on:
   pull_request:
     branches: [dirac]
-    paths-ignore: ['docs/**', '*.md']
-
-permissions:
-  pull-requests: write
-  contents: read
 
 jobs:
   benchmark:
@@ -15,13 +10,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        version: ["lts", "1.12.0-rc1"]
+        version: ["1.12.0-rc1"]
     steps:
       - uses: MilesCranmer/AirspeedVelocity.jl@action-v1
         with:
-          julia_version: ${{ matrix.version }}
-          script: "benchmark/benchmarks.jl"
-          annotate_pr: true
+          julia-version: ${{ matrix.version }}
+          exeflags: "--threads=auto"
+          job-summary: "true"
 # name: Benchmarks
 #
 # on:

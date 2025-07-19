@@ -27,7 +27,7 @@ For detailed information on how to use this package, see the [docs](https://gian
 - [x] Multi-node parallelism using MPI
 
 ## Installation:
-First make sure you have Julia version **1.9.4 or above** installed. You can use [juliaup](https://github.com/JuliaLang/juliaup) for that or just install the release from the [Julia website](https://julialang.org/downloads/oldreleases).
+First make sure you have Julia version **1.12.0 or above** installed. You can use [juliaup](https://github.com/JuliaLang/juliaup) for that or just install the release from the [Julia website](https://julialang.org/downloads/oldreleases).
 > The particular version you want is ultimately determined by the GPU you want to use.
 Newer GPUs need more recent versions of Julia for compatibility.
 

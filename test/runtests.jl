@@ -24,9 +24,9 @@ function runtests(; backend=CPU, nprocs_cart=(1, 1, 1, 1))
             test_measurements(; backend)
         elseif mpi_size() == 2
             test_measurements(; backend, nprocs_cart=(1, 1, 2, 1), halo_width=2)
-        elseif mpi_size() == 4; 
+        elseif mpi_size() == 4
             test_measurements(; backend, nprocs_cart=(1, 2, 2, 1), halo_width=2)
-        elseif mpi_size() == 8; 
+        elseif mpi_size() == 8
             test_measurements(; backend, nprocs_cart=(2, 2, 2, 1), halo_width=2)
         else
             error("mpi_size has to be 1, 2, 4 or 8 in tests")
