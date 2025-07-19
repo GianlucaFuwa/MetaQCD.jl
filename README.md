@@ -23,8 +23,8 @@ For detailed information on how to use this package, see the [docs](https://gian
 - [x] Even-odd preconditioner for Wilson(-Clover)
 - [x] Even-odd preconditioner for Staggered
 - [ ] Mass-splitting preconditioner / Hasenbusch trick
-- [x] Full support for GPU Backends (Should support all Backends that KernelAbstractions.jl supports, though not all are tested)
-- [ ] Multi-node parallelism using MPI (not working with even-odd preconditioned fermions yet)
+- [x] Full support for GPU Backends (CUDA and ROCm for now)
+- [x] Multi-node parallelism using MPI
 
 ## Installation:
 First make sure you have Julia version **1.9.4 or above** installed. You can use [juliaup](https://github.com/JuliaLang/juliaup) for that or just install the release from the [Julia website](https://julialang.org/downloads/oldreleases).

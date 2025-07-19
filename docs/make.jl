@@ -22,6 +22,7 @@ makedocs(
         "Dirac Operators" => "dirac.md",
         # "Fermion Actions" => "fermion_actions.md",
         "Biased Sampling Methods" => "biased_sampling.md",
+        "Parallelization" => "parallel.md",
         "Visualization" => "viz.md",
         "Parameters" => "parameters.md",
         "Utility Functions" => "utils.md",
