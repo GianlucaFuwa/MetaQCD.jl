@@ -5,10 +5,12 @@ randomseed = 0
 overwrite = true
 verboselevel = 1
 log_to_console = true
+save_config_format = "bridge"
+save_config_every = 10
 
 [ensemble]
-L = [4, 4, 4, 4]
-numtherm = 10
+L = [16, 16, 16, 16]
+numtherm = 50
 numsteps = 10
 initial = "cold"
 update_method = "heatbath"
@@ -27,7 +29,7 @@ flow_steps = 1
 flow_tf = 0.12 # total flow time is flow_num * flow_tf
 flow_measure_every = 7
 
-kmeasurements.Plaquette]
+[measurements.Plaquette]
 measure_every = 10
 
 [measurements.Topological_charge]

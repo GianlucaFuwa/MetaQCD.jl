@@ -81,14 +81,14 @@ function test_fderivative(;
             Spinorfield(action.D.temp; staggered=is_staggered)
         end
 
-        mpi_amroot() && println("sample pseudofermions")
+        # mpi_amroot() && println("sample pseudofermions")
         sample_pseudofermions!(ψ, action, U)
 
         # Test for smearing with 5 steps and stout parameter 0.12
-        mpi_amroot() && println("smearing")
+        # mpi_amroot() && println("smearing")
         smearing = StoutSmearing(U; numlayers=5, rho=0.12)
 
-        mpi_amroot() && println("temps")
+        # mpi_amroot() && println("temps")
         dSfdU = Colorfield(U)
         dSfdU_smeared = Colorfield(U)
         temp_force = Colorfield(U)
@@ -100,7 +100,7 @@ function test_fderivative(;
 
         for group_direction in 1:8
             # Unsmeared
-            mpi_amroot() && println("$(group_direction) unsmeared fwd")
+            # mpi_amroot() && println("$(group_direction) unsmeared fwd")
             Ufwdcpu = deepcopy(Ucpu)
             if site in eachindex(Ucpu)
                 Ufwdcpu[μ, site] = expλ(group_direction, ΔH) * Ufwdcpu[μ, site]
@@ -108,7 +108,7 @@ function test_fderivative(;
             Ufwd = to_backend(backend, Ufwdcpu)
             action_new_fwd = calc_fermion_action(action, Ufwd, ψ)
 
-            mpi_amroot() && println("$(group_direction) unsmeared bwd")
+            # mpi_amroot() && println("$(group_direction) unsmeared bwd")
             Ubwdcpu = deepcopy(Ucpu)
             if site in eachindex(Ucpu)
                 Ubwdcpu[μ, site] = expλ(group_direction, -ΔH) * Ubwdcpu[μ, site]
@@ -117,13 +117,13 @@ function test_fderivative(;
             action_new_bwd = calc_fermion_action(action, Ubwd, ψ)
 
             # Smeared
-            mpi_amroot() && println("$(group_direction) smeared fwd")
+            # mpi_amroot() && println("$(group_direction) smeared fwd")
             calc_smearedU!(smearing, Ufwd)
             action_new_fwd_smeared = calc_fermion_action(
                 action, smearing.Usmeared_multi[end], ψ
             )
 
-            mpi_amroot() && println("$(group_direction) smeared bwd")
+            # mpi_amroot() && println("$(group_direction) smeared bwd")
             calc_smearedU!(smearing, Ubwd)
             action_new_bwd_smeared = calc_fermion_action(
                 action, smearing.Usmeared_multi[end], ψ

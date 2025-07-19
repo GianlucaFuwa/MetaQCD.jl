@@ -15,7 +15,7 @@ function __latmap(
     C == 0 && return nothing
 
     for _ in 1:C
-        parallelfor(eachindex(U), B, Val(M), U, (U,), (U,), (U,)) do site, U
+        parallelfor(eachindex(U), B, Val(M), (U,), (U,), (U,)) do site, U
             for μ in 1:4
                 f!(U, μ, site, GA, fac)
             end
@@ -57,7 +57,7 @@ function __latmap(
     for _ in 1:C
         for μ in 1:4
             for pass in 1:4
-                parallelfor(eachindex(U), B, Val(M), U, (U,), (U,), (U,)) do site, U
+                parallelfor(eachindex(U), B, Val(M), (U,), (U,), (U,)) do site, U
                     if mod1(sum(site.I) + site[μ], 4) == pass
                         f!(U, μ, site, GA, fac)
                     end
@@ -129,7 +129,7 @@ function __latsum(
     ::Checkerboard4, ::Val{C}, f!::F, U::Gaugefield{B,T,M}, GA, fac
 ) where {C,F,B,T,M}
     C == 0 && return 0.0
-    itr = CartesianIndices(U)
+    itr = eachindex(U)
     out = 0.0
 
     for _ in 1:C

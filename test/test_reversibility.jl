@@ -1,6 +1,6 @@
 using MetaQCD
+using MetaQCD.MetaIO: printf
 using Random
-using Printf
 using TimerOutputs
 
 function test_reversibility(
@@ -99,13 +99,13 @@ function reversibility_test(hmc::HMC{TI}, U, fermion, bias, str, to) where {TI}
     H_new = Sg_new + trP²_new + Sf_new + V_new
 
     ΔH = H_new - H_old
-    println("┌ $str")
-    @printf("| ΔSg    = %+.5e (%+.10e)\n", Sg_new - Sg_old, Sg_old)
-    @printf("| ΔtrP²  = %+.5e (%+.10e)\n", trP²_new - trP²_old, trP²_old)
-    @printf("| ΔSf    = %+.5e (%+.10e)\n", Sf_new - Sf_old, Sf_old)
-    @printf("| ΔV     = %+.5e (%+.10e)\n", V_new - V_old, V_old)
-    @printf("| ΔH_mid = %+.5e (%+.10e)\n", ΔH_mid, H_old)
-    @printf("| ΔH     = %+.5e (%+.10e)\n", ΔH, H_old)
-    @printf("└\n")
+    printf("┌ $(str)\n")
+    printf("| ΔSg    = %+.5e (%+.10e)\n", Sg_new - Sg_old, Sg_old)
+    printf("| ΔtrP²  = %+.5e (%+.10e)\n", trP²_new - trP²_old, trP²_old)
+    printf("| ΔSf    = %+.5e (%+.10e)\n", Sf_new - Sf_old, Sf_old)
+    printf("| ΔV     = %+.5e (%+.10e)\n", V_new - V_old, V_old)
+    printf("| ΔH_mid = %+.5e (%+.10e)\n", ΔH_mid, H_old)
+    printf("| ΔH     = %+.5e (%+.10e)\n", ΔH, H_old)
+    printf("└\n")
     return ΔH
 end

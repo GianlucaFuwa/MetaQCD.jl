@@ -369,7 +369,7 @@ function metaqcd!(
                     update!(parity, U[1])
                 end
 
-                accepted && update_bias!(bias, itrj; mpi_multi_sim=mpi_multi_sim)
+                accepted>0 && update_bias!(bias, itrj; mpi_multi_sim=mpi_multi_sim)
                 numaccepts += accepted
             end
 

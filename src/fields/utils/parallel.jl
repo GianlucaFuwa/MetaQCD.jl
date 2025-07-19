@@ -3,6 +3,7 @@
 # [MetaQCD]
 # MPI_HIDE_COMMUNICATION = true
 const HIDE_COMMS = Val(@load_preference("MPI_HIDE_COMMUNICATION", false))
+@show HIDE_COMMS
 
 function parallelfor(
     f,
@@ -31,7 +32,7 @@ function parallelfor(
     block_size=min(256, length(itr))
 ) where {B,M,hide}
     if M && hide && length(to_validate) > 0
-        sendrecvtasks = start_halo_update!(to_validate; do_edges=Val(false))
+        sendrecvtasks = start_halo_update!(to_validate; do_edges=Val(true))
         hw, idx = findmin(get_halo_width, to_validate)
         inner_bulk = shrink_bulk(itr, hw)
         new_block_size = min(block_size, min(256, length(inner_bulk)))
@@ -74,7 +75,7 @@ function _foreachindex_gpu(f, itr, backend::GPU, block_size::Int=min(256, length
     @assert block_size > 0
     blocks = (length(itr) + block_size - 1) ÷ block_size
     kernel = _foreachindex_global!(backend)
-    kernel(f, itr; ndrange=length(itr))
+    kernel(f, itr; ndrange=(block_size * blocks,))
     return nothing
 end
 
@@ -121,7 +122,7 @@ function parallelfor_sum(
     block_size=min(256, length(itr))
 ) where {B,M,hide}
     if M && hide && length(to_validate) > 0
-        sendrecvtasks = start_halo_update!(to_validate; do_edges=Val(false))
+        sendrecvtasks = start_halo_update!(to_validate; do_edges=Val(true))
         hw, idx = findmin(get_halo_width, to_validate)
         inner_bulk = shrink_bulk(itr, hw)
         new_block_size = min(block_size, min(256, length(inner_bulk)))

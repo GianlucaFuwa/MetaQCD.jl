@@ -47,11 +47,7 @@ function cooperative_wait(task::Task)
         yield()
     end
 
-    try
-        wait(task)
-    catch err
-        error(err)
-    end
+    wait(task)
     return nothing
 end
 

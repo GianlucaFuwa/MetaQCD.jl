@@ -39,7 +39,7 @@ end
 
 # utility functions for MPI-distributed fields
 include("distributed/topology.jl")
-include("distributed/halo_update.jl")
+include("distributed/halo_update_async.jl")
 # include("distributed/hide_communication.jl")
 include("distributed/comm_utils.jl")
 

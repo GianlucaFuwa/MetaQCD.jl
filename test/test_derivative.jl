@@ -11,10 +11,7 @@ function test_derivative(; backend=CPU, GA=WilsonGaugeAction, nprocs_cart=(1, 1,
     relerrors = Matrix{Float64}(undef, 8, 4)
 
     @testset "Gauge derivative" begin
-        NX = 4
-        NY = 4
-        NZ = 4
-        NT = 4
+        NX = NY = NZ = NT = 4
         Ucpu = Gaugefield{CPU,Float64,GA}(
             NX, NY, NZ, NT, 6.0, numprocs_cart=nprocs_cart, halo_width=halo_width
         )

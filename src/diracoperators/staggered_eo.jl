@@ -90,14 +90,13 @@ function mul_oe!(
     ψ = ψ_eo.parent
     ϕ = ϕ_eo.parent
     bulk = eachindex(ψ)
-    halo = M ? ψ.topology.halo_sites : nothing
     odd_half = false
     itr = eachindex(odd_half, ψ, ϕ, U)
 
     parallelfor(itr, B, Val(M), (U, ϕ_eo), (ψ,), (U, ϕ, ψ)) do o_site, U, ϕ, ψ
         site = map_from_half(o_site, bulk)
         _site = into_odd ? o_site : switch_sides(o_site, bulk)
-        ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, bc, T, dagg, halo, bulk)
+        ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, bc, T, dagg, bulk)
     end
 
     return nothing
@@ -109,20 +108,19 @@ function mul_eo!(
     ψ = ψ_eo.parent
     ϕ = ϕ_eo.parent
     bulk = eachindex(ψ)
-    halo = M ? ψ.topology.halo_sites : nothing
     even_half = true
     itr = eachindex(even_half, ψ, ϕ, U)
 
     parallelfor(itr, B, Val(M), (U, ϕ_eo), (ψ,), (U, ϕ, ψ)) do e_site, U, ϕ, ψ
         site = map_from_half(e_site, bulk)
         _site = into_odd ? switch_sides(e_site, bulk) : e_site
-        ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, bc, T, dagg, halo, bulk)
+        ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, bc, T, dagg, bulk)
     end
 
     return nothing
 end
 
-function staggered_eo_kernel(U, ϕ, site, bc, ::Type{T}, dagg::Bool, halo, bulk) where {T}
+function staggered_eo_kernel(U, ϕ, site, bc, ::Type{T}, dagg::Bool, bulk) where {T}
     # sites that begin with a "_" are meant for indexing into the even-odd preconn'ed
     # fermion field 
     sgn = dagg ? -1 : 1
@@ -133,9 +131,9 @@ function staggered_eo_kernel(U, ϕ, site, bc, ::Type{T}, dagg::Bool, halo, bulk)
     # this makes it so Val(μ) is well defined at each iteration and no type-instabilities arise
     @nexprs 4 μ -> (
         Nμ = axes(U, μ);
-        _siteμ⁺ = map_to_half(move(site, μ, 1, Nμ), bulk, halo);
+        _siteμ⁺ = map_to_half(move(site, μ, 1, Nμ), bulk);
         siteμ⁻ = move(site, μ, -1, Nμ);
-        _siteμ⁻ = map_to_half(siteμ⁻, bulk, halo);
+        _siteμ⁻ = map_to_half(siteμ⁻, bulk);
         η = sgn * staggered_η(Val(μ), site);
         ψₙ += η * cmvmul(U[μ, site], apply_bc(ϕ[_siteμ⁺], bc, site, Val(1), NT, Val(μ)));
         ψₙ -= η * cmvmul_d(U[μ, siteμ⁻], apply_bc(ϕ[_siteμ⁻], bc, site, Val(-1), NT, Val(μ)))

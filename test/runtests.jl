@@ -26,12 +26,14 @@ function runtests(; backend=CPU, nprocs_cart=(1, 1, 1, 1))
             test_measurements(; backend, nprocs_cart=(1, 1, 2, 1), halo_width=2)
         elseif mpi_size() == 4; 
             test_measurements(; backend, nprocs_cart=(1, 2, 2, 1), halo_width=2)
+        elseif mpi_size() == 8; 
+            test_measurements(; backend, nprocs_cart=(2, 2, 2, 1), halo_width=2)
         else
-            error("mpi_size has to be 1, 2 or 4 in tests")
+            error("mpi_size has to be 1, 2, 4 or 8 in tests")
         end
 
-        # # gauge derivative
-        # test_derivative(; backend, nprocs_cart, halo_width=2)
+        # gauge derivative
+        test_derivative(; backend, nprocs_cart, halo_width=2)
 
         # staggered derivative
         test_fderivative(; 
@@ -107,7 +109,7 @@ function runtests(; backend=CPU, nprocs_cart=(1, 1, 1, 1))
             eoprec=true,
             csw=0,
         )
-
+        #
         # # FIXME: wilson-clover eo-pre derivative
         # test_fderivative(;
         #     backend,
@@ -119,29 +121,29 @@ function runtests(; backend=CPU, nprocs_cart=(1, 1, 1, 1))
         #     eoprec=true,
         #     csw=1.78,
         # )
-
+        #
         test_gradflow(; backend, nprocs_cart, halo_width=1)
-        #
-        # if mpi_size() == 1 # INFO: Local updates only without distributed fields
-        #     test_update(backend; update_method="heatbath")
-        #     # test_update(backend; update_method="metropolis", gaction=IwasakiGaugeAction)
-        # end
-        #
-        # test_update(backend; update_method="hmc", hmc_integrator="Leapfrog")
-        # test_update(backend; update_method="hmc", hmc_integrator="OMF2")
-        # test_update(backend; update_method="hmc", hmc_integrator="OMF4")
-        # 
-        # # Run a short simulation as final test (doesnt work on github actions)
-        # if backend == CPU
-        #     @testset "simulation" begin
-        #         if mpi_size() == 1 # INFO: Local updates only without distributed fields
-        #             run_sim(joinpath(pkgdir(MetaQCD, "test", "parameters_test.toml")))
-        #         elseif mpi_size() == 2
-        #             run_sim(joinpath(pkgdir(MetaQCD, "test", "parameters_test_mpi.toml")))
-        #         end
-        #         @test true
-        #     end
-        # end
+
+        if mpi_size() == 1 # INFO: Local updates only without distributed fields
+            test_update(backend; update_method="heatbath")
+            # test_update(backend; update_method="metropolis", gaction=IwasakiGaugeAction)
+        end
+
+        test_update(backend; update_method="hmc", hmc_integrator="Leapfrog")
+        test_update(backend; update_method="hmc", hmc_integrator="OMF2")
+        test_update(backend; update_method="hmc", hmc_integrator="OMF4")
+
+        # Run a short simulation as final test (doesnt work on github actions)
+        if backend == CPU
+            @testset "simulation" begin
+                if mpi_size() == 1 # INFO: Local updates only without distributed fields
+                    run_sim(joinpath(pkgdir(MetaQCD, "test", "parameters_test.toml")))
+                elseif mpi_size() == 2
+                    run_sim(joinpath(pkgdir(MetaQCD, "test", "parameters_test_mpi.toml")))
+                end
+                @test true
+            end
+        end
     end
 end
 

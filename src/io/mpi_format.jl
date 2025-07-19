@@ -37,7 +37,7 @@ function load_field_mpi!(u::AbstractField{B,T,M}, filename) where {B,T,M}
     ind = allindices(u)
     itr = eachindex(IndexLinear(), ind)
 
-    parallelfor(itr, B, Val(M), (), (u,), (u,)) do i, u
+    parallelfor(itr, B, Val(M), Val(false), (), (u,), (u,)) do i, u
         μsite = ind[i]
         u[μsite] = tmp[i]
     end

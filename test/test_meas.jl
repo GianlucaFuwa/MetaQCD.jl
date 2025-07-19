@@ -14,18 +14,15 @@ const TOPO_EXP = Dict(
 
 function test_measurements(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=2)
     mpi_amroot() && println("Gauge observable tests")
-    NX = 4
-    NY = 4
-    NZ = 4
-    NT = 4
+    NX = NY = NZ = NT = 16
     U = Gaugefield{CPU,Float64,WilsonGaugeAction}(
         NX, NY, NZ, NT, 6.0; numprocs_cart=nprocs_cart, halo_width=halo_width
     )
 
     filename = if nprocs_cart != (1, 1, 1, 1)
-        pkgdir(MetaQCD, "test", "testconf_mpi")
+        pkgdir(MetaQCD, "test", "testconf_16_mpi")
     else
-        pkgdir(MetaQCD, "test", "testconf.txt")
+        pkgdir(MetaQCD, "test", "testconf_16.txt")
     end
 
     load_field!(BridgeFormat(), U, filename)

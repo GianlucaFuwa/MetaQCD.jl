@@ -1,10 +1,7 @@
 function test_gradflow(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=1)
     Random.seed!(123)
     println("Smearing tests")
-    NX = 4
-    NY = 4
-    NZ = 4
-    NT = 4
+    NX = NY = NZ = NT = 4
     U = Gaugefield{CPU,Float64,WilsonGaugeAction}(
         NX, NY, NZ, NT, 6.0, numprocs_cart=nprocs_cart, halo_width=halo_width
     )
