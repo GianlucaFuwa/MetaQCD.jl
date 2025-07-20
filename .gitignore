@@ -27,3 +27,4 @@ error*.dat
 /benchmark/scaling_results
 /test/_*
 .zed
+LocalPreferences.toml
