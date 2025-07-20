@@ -36,7 +36,7 @@ components at the same time, which should be more efficient.
 When using even-odd preconditioned dirac operators, the fermion fields get wrapped in a
 struct called `EvenOdd` such that we can overload all functions on that type. Our convention
 is to define the fields on the even sites. We map all even sites to the first half of the
-array to have contiguous memory accesses. The function `eo_site` does exactly this mapping.
+array to have contiguous memory accesses. The function `map_to_half` does exactly this mapping.
 
 `Spinorfield`s are created in the same way as `Gaugefield`s with the gauge action type
 parameter being replaced by the number of Dirac indices. For `Spinorfield`s we have the

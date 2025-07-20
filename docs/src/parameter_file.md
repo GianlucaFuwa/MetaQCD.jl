@@ -155,8 +155,9 @@ The last special observable is the `Pion_correlator`, which has the attributes:
 > If `randomseed == 0` then the seed is randomly set! (This is the default behavior)
 - `overwrite`: Whether the program should ignore overwrites or error when a file would be overwritten as a boolean (e.g., `overwrite = true`)
 
+<!-- TODO: -->
 ## Bias Settings (Only when using biased enhanced sampling)
-Biases are specified similarly to measurements. Note, that each bias/CV has to have the same smearing
+Biases are specified similarly to hmc levels. Note, that each bias/CV has to have the same smearing
 step size, meaning that only the number of smearing steps can be varied per bias.
 The general bias parameters are:
 - `rhostout_for_cv`: Smearing step size for the cv as a float (e.g, `rhostout_for_cv = 0.12`)
@@ -171,16 +172,16 @@ The general bias parameters are:
 The individual biases/CVs themselves are specified like the observables in `measurements`,
 albeit with the subkey `biases` followed by any ID of your choice:
 ```
-["Bias Settings"]
+[bias]
 rhostout_for_cv = 0.12
 ...
-["Bias Settings".biases.1]
+[[bias.biases]]
 kind_of_bias = "metad"
 ...
-["Bias Settings".biases.2]
+[[bias.biases]]
 kind_of_bias = "opes"
 ...
-["Bias Settings".biases.3]
+[[bias.biases]]
 kind_of_bias = "opesmt"
 ...
 ```
