@@ -374,7 +374,7 @@ function updateU!(
         ϵ = T(hmc.levels[level].Δτ * fac)
         P = hmc.P
 
-        parallelfor(allindices(U, P), B, Val(M), (), (U,), (U, P)) do μsite, U, P
+        parallelfor(allindices(U, P), B, Val(M), (), (U,), (U, P)) do μsite, (U, P)
             U[μsite] = cmatmul_oo(exp_iQ(-im * ϵ * P[μsite]), U[μsite])
         end
     else

@@ -6,19 +6,6 @@ using MetaQCD.Fields: update_halo!, parallelfor, start_halo_update!, finalize_ha
 using MetaQCD.Fields: shrink_bulk, device_to_host, _parallelfor
 using MetaQCD.DiracOperators: staggered_kernel
 
-function stagg_mul!(
-    ψ::TF, D::StaggeredDiracOperator{B,T,TF,TG}, ϕ::TF
-) where {B,T,TF,TG}
-    @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
-    U = D.U
-
-    _parallelfor(eachindex(ψ, ϕ, U), B, 256) do site
-        ψ[site] = staggered_kernel(U, ϕ, site, mass, bc, T, false)
-    end
-
-    return nothing
-end
-
 function main()
     # ------- NVTX -------
     NVTX.enable_gc_hooks()
@@ -47,7 +34,7 @@ function main()
     sendrecvtasks = start_halo_update!((U, ϕ); do_edges=Val(true))
     inner_bulk = shrink_bulk(eachindex(U, ϕ, ψ), halo_width)
 
-    _parallelfor((U, ϕ, ψ), inner_bulk, B, 256) do site, U, ϕ, ψ
+    _parallelfor((U, ϕ, ψ), inner_bulk, B, 256) do site, (U, ϕ, ψ)
         ψ[site] = staggered_kernel(U, ϕ, site, mass, bc, T, false)
     end
 
@@ -57,7 +44,7 @@ function main()
     NVTX.range_push(; message="outer update", color=colorant"red")
     outer_bulk = U.topology.flat_border_sites
 
-    _parallelfor((U, ϕ, ψ), outer_bulk, B, 256) do site, U, ϕ, ψ
+    _parallelfor((U, ϕ, ψ), outer_bulk, B, 256) do site, (U, ϕ, ψ)
         ψ[site] = staggered_kernel(U, ϕ, site, mass, bc, T, false)
     end
     NVTX.range_pop()

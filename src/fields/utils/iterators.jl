@@ -15,7 +15,7 @@ function __latmap(
     C == 0 && return nothing
 
     for _ in 1:C
-        parallelfor(eachindex(U), B, Val(M), (U,), (U,), (U,)) do site, U
+        parallelfor(eachindex(U), B, Val(M), (U,), (U,), (U,)) do site, (U,)
             for μ in 1:4
                 f!(U, μ, site, GA, fac)
             end
@@ -36,7 +36,7 @@ function __latmap(
     for _ in 1:C
         for μ in 1:4
             for pass in 1:2
-                parallelfor(itr, B, Val(M), (U,), (U,), (U,)) do yzt, U
+                parallelfor(itr, B, Val(M), (U,), (U,), (U,)) do yzt, (U,)
                     for ix in (1 + iseven(sum(yzt.I) + pass)):2:NX
                         site = CartesianIndex((ix, yzt.I...))
                         f!(U, μ, site, GA, fac)
@@ -57,7 +57,7 @@ function __latmap(
     for _ in 1:C
         for μ in 1:4
             for pass in 1:4
-                parallelfor(eachindex(U), B, Val(M), (U,), (U,), (U,)) do site, U
+                parallelfor(eachindex(U), B, Val(M), (U,), (U,), (U,)) do site, (U,)
                     if mod1(sum(site.I) + site[μ], 4) == pass
                         f!(U, μ, site, GA, fac)
                     end
@@ -88,7 +88,7 @@ function __latsum(
     out = 0.0
 
     for _ in 1:C
-        out += parallelfor_sum(itr, 0.0, B, Val(M), (U,), (U,), (U,)) do outi, site
+        out += parallelfor_sum(itr, 0.0, B, Val(M), (U,), (U,), (U,)) do outi, site, (U,)
             for μ in 1:4
                 outi += f!(U, μ, site, GA, fac)
             end
@@ -111,7 +111,7 @@ function __latsum(
     for _ in 1:C
         for μ in 1:4
             for pass in 1:2
-                out += parallelfor_sum(itr, 0.0, B, Val(M), (U,), (U,), (U,)) do outi, yzt, U
+                out += parallelfor_sum(itr, 0.0, B, Val(M), (U,), (U,), (U,)) do outi, yzt, (U,)
                     for ix in (1 + iseven(sum(yzt.I) + pass)):2:NX
                         site = CartesianIndex((ix, yzt.I...))
                         outi += f!(U, μ, site, GA, fac)
@@ -135,7 +135,7 @@ function __latsum(
     for _ in 1:C
         for μ in 1:4
             for pass in 1:4
-                out += parallelfor_sum(itr, 0.0, B, Val(M), (U,), (U,), (U,)) do outi, site, U
+                out += parallelfor_sum(itr, 0.0, B, Val(M), (U,), (U,), (U,)) do outi, site, (U,)
                     if mod1(sum(site.I) + site[μ], 4) == pass
                         outi += f!(U, μ, site, GA, fac)
                     end

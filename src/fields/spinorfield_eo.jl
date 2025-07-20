@@ -82,7 +82,7 @@ function Base.copy!(ϕ_eo::TF, ψ_eo::TF) where {B,T,M,TF<:SpinorfieldEO{B,T,M}}
     even_half = true
     itr = eachindex(even_half, ϕ, ψ)
 
-    parallelfor(itr, B, Val(M), (), (ϕ,), (ϕ, ψ)) do e_site, ϕ, ψ
+    parallelfor(itr, B, Val(M), (), (ϕ,), (ϕ, ψ)) do e_site, (ϕ, ψ)
         ϕ[e_site] = ψ[e_site]
     end
 
@@ -96,7 +96,7 @@ function set_source!(ϕ_eo::SpinorfieldEO{B,T,M}, source::SiteCoords, a, μ) whe
     @assert μ ∈ 1:ND && a ∈ 1:3
     vec_index = (μ - 1) * NC + a
 
-    parallelfor(eachindex(ϕ), B, Val(M), (), (ϕ,), (ϕ,)) do site, ϕ
+    parallelfor(eachindex(ϕ), B, Val(M), (), (ϕ,), (ϕ,)) do site, (ϕ,)
         if site == source
             tup = ntuple(i -> i == vec_index ? one(Complex{T}) : zero(Complex{T}), Val(3ND))
             _site = map_to_half(site, eachindex(ϕ))
@@ -113,7 +113,7 @@ function gaussian_pseudofermions!(ϕ_eo::SpinorfieldEO{B,T,M,ND}) where {B,T,M,N
     ϕ = ϕ_eo.parent
     even_half = true
 
-    parallelfor(eachindex(even_half, ϕ), B, Val(M), (), (ϕ,), (ϕ,)) do e_site, ϕ
+    parallelfor(eachindex(even_half, ϕ), B, Val(M), (), (ϕ,), (ϕ,)) do e_site, (ϕ,)
         ϕ[e_site] = randn(SVector{3ND,Complex{T}}) # σ = 0.5
     end
 
@@ -126,7 +126,7 @@ function LinearAlgebra.mul!(ψ_eo::TF, ϕ_eo::TF, α) where {B,T,M,TF<:Spinorfie
     α = Complex{T}(α)
     even_half = true
 
-    parallelfor(eachindex(even_half, ϕ, ψ), B, Val(M), (), (ψ,), (ψ, ϕ)) do e_site, ψ, ϕ
+    parallelfor(eachindex(even_half, ϕ, ψ), B, Val(M), (), (ψ,), (ψ, ϕ)) do e_site, (ψ, ϕ)
         ψ[e_site] = ϕ[e_site] * α
     end
 
@@ -139,7 +139,7 @@ function LinearAlgebra.axpy!(α, ϕ_eo::TF, ψ_eo::TF) where {B,T,M,TF<:Spinorfi
     α = Complex{T}(α)
     even_half = true
 
-    parallelfor(eachindex(even_half, ϕ, ψ), B, Val(M), (), (ψ,), (ψ, ϕ)) do e_site, ψ, ϕ
+    parallelfor(eachindex(even_half, ϕ, ψ), B, Val(M), (), (ψ,), (ψ, ϕ)) do e_site, (ψ, ϕ)
         ψ[e_site] += α * ϕ[e_site]
     end
 
@@ -154,7 +154,7 @@ function LinearAlgebra.axpby!(
     α = Complex{T}(α)
     β = Complex{T}(β)
 
-    parallelfor(eachindex(even_half, ϕ, ψ), B, Val(M), (), (ψ,), (ψ, ϕ)) do _site, ψ, ϕ
+    parallelfor(eachindex(even_half, ϕ, ψ), B, Val(M), (), (ψ,), (ψ, ϕ)) do _site, (ψ, ϕ)
         ψ[_site] = α * ϕ[_site] + β * ψ[_site]
     end
 
@@ -170,24 +170,24 @@ function LinearAlgebra.dot(ϕ_eo::TF, ψ_eo::TF) where {B,T,M,TF<:SpinorfieldEO{
     even_half = true
     itr = eachindex(even_half, ϕ, ψ)
 
-    res = parallelfor_sum(itr, 0.0+0.0im, B, Val(M), (), (), (ϕ, ψ)) do d, e_site, ϕ, ψ
+    res = parallelfor_sum(itr, 0.0+0.0im, B, Val(M), (), (), (ϕ, ψ)) do d, e_site, (ϕ, ψ)
         d += dot(ϕ[e_site], ψ[e_site])
     end
 
     return distributed_reduce(res, +, ϕ)
 end
 
-function create_sendbuf!(f_eo::SpinorfieldEO{B,T,M}, sites, dim, dir) where {B,T,M}
-    f = f_eo.parent
+function create_sendbuf!(ϕ_eo::SpinorfieldEO{B,T,M}, sites, dim, dir) where {B,T,M}
+    ϕ = ϕ_eo.parent
     ibuf = dir + 2(dim - 1)
-    sendbuf = f.sendbuf[ibuf]
-    bulk = eachindex(f)
+    sendbuf = ϕ.sendbuf[ibuf]
+    bulk = eachindex(ϕ)
     itr = eachindex(IndexLinear(), sites)
 
-    parallelfor(itr, B, Val(M), (), (), (f,)) do i, f
+    parallelfor(itr, B, Val(M), (), (), (ϕ,)) do i, (ϕ,)
         site = sites[i]
         _site = map_to_half(site, bulk)
-        sendbuf[i] = f[_site]
+        sendbuf[i] = ϕ[_site]
     end
 
     return sendbuf
@@ -203,7 +203,7 @@ function Base.copyto!(
     halo_a = a_eo.topology.halo_sites
     halo_b = b_eo.topology.halo_sites
 
-    parallelfor(eachindex(IndexLinear(), arange), B, Val(M), (), (), (a, b)) do i, a, b
+    parallelfor(eachindex(IndexLinear(), arange), B, Val(M), (), (), (a, b)) do i, (a, b)
         site_a = arange[i]
         site_b = brange[i]
         _site_a = map_to_half(site_a, bulk_a, halo_a)

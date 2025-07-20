@@ -92,7 +92,7 @@ function add_wilson_derivative!(
     fac = T(0.5coeff)
     itr = eachindex(dU, U, X, Y)
 
-    parallelfor(itr, B, Val(M), (X, Y), (dU,), (dU, U, X, Y)) do site, dU, U, X, Y
+    parallelfor(itr, B, Val(M), (X, Y), (dU,), (dU, U, X, Y)) do site, (dU, U, X, Y)
         add_wilson_derivative_kernel!(dU, U, X, Y, site, bc, fac)
     end
 
@@ -130,7 +130,7 @@ function add_clover_derivative!(
     fac = T(csw * coeff / 2)
     itr = eachindex(dU, U, Xμν)
 
-    parallelfor(itr, B, Val(M), (U, Xμν), (dU,), (dU, U, Xμν)) do site, dU, U, Xμν
+    parallelfor(itr, B, Val(M), (U, Xμν), (dU,), (dU, U, Xμν)) do site, (dU, U, Xμν)
         add_clover_derivative_kernel!(dU, U, Xμν, site, fac, T)
     end
 
@@ -167,7 +167,7 @@ end
 function calc_Xμν_wilson_eachsite!(
     Xμν::Tensorfield{B,T}, X::TF, Y::TF
 ) where {B,T,M,TF<:WilsonSpinorfield{B,T,M}}
-    parallelfor(eachindex(Xμν, X, Y), B, Val(M), (), (Xμν,), (Xμν, X, Y)) do site, Xμν, X, Y
+    parallelfor(eachindex(Xμν, X, Y), B, Val(M), (), (Xμν,), (Xμν, X, Y)) do site, (Xμν, X, Y)
         calc_Xμν_wilson_kernel!(Xμν, X, Y, site)
     end
 

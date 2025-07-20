@@ -76,7 +76,7 @@ Base.@propagate_inbounds function Base.setindex!(u::MPISpinorfield, v, site::Sit
 end
 
 function ones!(ϕ::Spinorfield{B,T,M}) where {B,T,M}
-    parallelfor(eachindex(ϕ), B, Val(M), (), (ϕ,), (ϕ,)) do site, ϕ
+    parallelfor(eachindex(ϕ), B, Val(M), (), (ϕ,), (ϕ,)) do site, (ϕ,)
         ϕ[site] = fill(1, ϕ[site])
     end
 
@@ -89,7 +89,7 @@ function set_source!(ϕ::Spinorfield{B,T,M}, source::SiteCoords, a, μ) where {B
     @assert μ ∈ 1:ND && a ∈ 1:NC
     vec_index = (μ - 1) * NC + a
 
-    parallelfor(eachindex(ϕ), B, Val(M), (), (ϕ,), (ϕ,)) do site, ϕ
+    parallelfor(eachindex(ϕ), B, Val(M), (), (ϕ,), (ϕ,)) do site, (ϕ,)
         if site == source
             tup = ntuple(i -> i == vec_index ? one(Complex{T}) : zero(Complex{T}), Val(3ND))
             ϕ[site] = SVector{3ND,Complex{T}}(tup)
@@ -102,7 +102,7 @@ function set_source!(ϕ::Spinorfield{B,T,M}, source::SiteCoords, a, μ) where {B
 end
 
 function gaussian_pseudofermions!(ϕ::Spinorfield{B,T,M,ND}) where {B,T,M,ND}
-    parallelfor(eachindex(ϕ), B, Val(M), (), (ϕ,), (ϕ,)) do site, ϕ
+    parallelfor(eachindex(ϕ), B, Val(M), (), (ϕ,), (ϕ,)) do site, (ϕ,)
         ϕ[site] = randn(SVector{3ND,Complex{T}}) # σ = 0.5
     end
 
@@ -112,7 +112,7 @@ end
 function LinearAlgebra.mul!(ψ::TF, ϕ::TF, α) where {B,T,M,TF<:Spinorfield{B,T,M}}
     α = T(α)
 
-    parallelfor(eachindex(ϕ, ψ), B, Val(M), (), (ψ,), (ψ, ϕ)) do site, ψ, ϕ
+    parallelfor(eachindex(ϕ, ψ), B, Val(M), (), (ψ,), (ψ, ϕ)) do site, (ψ, ϕ)
         ψ[site] = α * ϕ[site]
     end
 
@@ -122,7 +122,7 @@ end
 function LinearAlgebra.axpy!(α, ϕ::TF, ψ::TF) where {B,T,M,TF<:Spinorfield{B,T,M}}
     α = Complex{T}(α)
 
-    parallelfor(eachindex(ϕ, ψ), B, Val(M), (), (ψ,), (ψ, ϕ)) do site, ψ, ϕ
+    parallelfor(eachindex(ϕ, ψ), B, Val(M), (), (ψ,), (ψ, ϕ)) do site, (ψ, ϕ)
         ψ[site] += α * ϕ[site]
     end
 
@@ -133,7 +133,7 @@ function LinearAlgebra.axpby!(α, ϕ::TF, β, ψ::TF) where {B,T,M,TF<:Spinorfie
     α = Complex{T}(α)
     β = Complex{T}(β)
 
-    parallelfor(eachindex(ϕ, ψ), B, Val(M), (), (ψ,), (ψ, ϕ)) do site, ψ, ϕ
+    parallelfor(eachindex(ϕ, ψ), B, Val(M), (), (ψ,), (ψ, ϕ)) do site, (ψ, ϕ)
         ψ[site] = α * ϕ[site] + β * ψ[site]
     end
 
@@ -145,21 +145,21 @@ LinearAlgebra.norm(ϕ::Spinorfield) = sqrt(real(dot(ϕ, ϕ)))
 function LinearAlgebra.dot(ϕ::TF, ψ::TF) where {B,T,M,TF<:Spinorfield{B,T,M}}
     itr = eachindex(ϕ, ψ)
 
-    res = parallelfor_sum(itr, 0.0+0.0im, B, Val(M), (), (), (ϕ, ψ)) do d, site, ϕ, ψ
+    res = parallelfor_sum(itr, 0.0+0.0im, B, Val(M), (), (), (ϕ, ψ)) do d, site, (ϕ, ψ)
         d += dot(ϕ[site], ψ[site])
     end
 
     return distributed_reduce(res, +, ϕ)
 end
 
-function create_sendbuf!(f::Spinorfield{B,T,M}, sites, dim, dir) where {B,T,M}
+function create_sendbuf!(ϕ::Spinorfield{B,T,M}, sites, dim, dir) where {B,T,M}
     ibuf = dir + 2(dim - 1)
-    sendbuf = f.sendbuf[ibuf]
+    sendbuf = ϕ.sendbuf[ibuf]
     itr = eachindex(IndexLinear(), sites)
 
-    parallelfor(itr, B, Val(M), (), (), (f,)) do i, f
+    parallelfor(itr, B, Val(M), (), (), (ϕ,)) do i, (ϕ,)
         site = sites[i]
-        sendbuf[i] = f[site]
+        sendbuf[i] = ϕ[site]
     end
 
     return sendbuf
@@ -168,7 +168,7 @@ end
 function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:Spinorfield{B,T,M}}
     @assert length(arange) == length(brange) "send buffer and recv buffer arent of same size"
 
-    parallelfor(eachindex(IndexLinear(), arange), B, Val(M), (), (), (a, b)) do i, a, b
+    parallelfor(eachindex(IndexLinear(), arange), B, Val(M), (), (), (a, b)) do i, (a, b)
         site_a = arange[i]
         site_b = brange[i]
         a[site_a] = b[site_b]

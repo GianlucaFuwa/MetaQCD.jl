@@ -5,7 +5,7 @@ function Base.deepcopy(u::AbstractField{B,T,M}) where {B,T,M}
 end
 
 function Base.copy!(a::AbstractField{B,T,M}, b::AbstractField{B,T,M}) where {B,T,M}
-    parallelfor(allindices(a, b), B, Val(M), (), (a,), (a, b)) do μsite, a, b
+    parallelfor(allindices(a, b), B, Val(M), (), (a,), (a, b)) do μsite, (a, b)
         a[μsite] = b[μsite]
     end
 
@@ -13,7 +13,7 @@ function Base.copy!(a::AbstractField{B,T,M}, b::AbstractField{B,T,M}) where {B,T
 end
 
 function identity_gauges!(u::Gaugefield{B,T,M}) where {B,T,M}
-    parallelfor(allindices(u), B, Val(M), (), (u,), (u,)) do μsite, u
+    parallelfor(allindices(u), B, Val(M), (), (u,), (u,)) do μsite, (u,)
         u[μsite] = eye3(T)
     end
 
@@ -21,7 +21,7 @@ function identity_gauges!(u::Gaugefield{B,T,M}) where {B,T,M}
 end
 
 function random_gauges!(u::Gaugefield{B,T,M}) where {B,T,M}
-    parallelfor(allindices(u), B, Val(M), (), (u,), (u,)) do μsite, u
+    parallelfor(allindices(u), B, Val(M), (), (u,), (u,)) do μsite, (u,)
         u[μsite] = rand_SU3(T)
     end
 
@@ -29,7 +29,7 @@ function random_gauges!(u::Gaugefield{B,T,M}) where {B,T,M}
 end
 
 function clear!(u::AbstractField{B,T,M}) where {B,T,M} # set all link variables to zero
-    parallelfor(allindices(u), B, Val(M), (), (u,), (u,)) do μsite, u
+    parallelfor(allindices(u), B, Val(M), (), (u,), (u,)) do μsite, (u,)
         u[μsite] = zero(u[μsite])
     end
 
@@ -37,7 +37,7 @@ function clear!(u::AbstractField{B,T,M}) where {B,T,M} # set all link variables 
 end
 
 function normalize!(u::Gaugefield{B,T,M}) where {B,T,M}
-    parallelfor(allindices(u), B, Val(M), (), (u,), (u,)) do μsite, u
+    parallelfor(allindices(u), B, Val(M), (), (u,), (u,)) do μsite, (u,)
         u[μsite] = proj_onto_SU3(u[μsite])
     end
 
@@ -45,7 +45,7 @@ function normalize!(u::Gaugefield{B,T,M}) where {B,T,M}
 end
 
 function LinearAlgebra.tr(u::AbstractField{B,T,M}) where {B,T,M}
-    trace = parallelfor_sum(eachindex(u), 0.0, B, Val(M), (), (), (u,)) do t, site, u
+    trace = parallelfor_sum(eachindex(u), 0.0, B, Val(M), (), (), (u,)) do t, site, (u,)
         for μ in 1:4
             t += tr(u[μ, site])
         end
@@ -57,7 +57,7 @@ function LinearAlgebra.tr(u::AbstractField{B,T,M}) where {B,T,M}
 end
 
 function LinearAlgebra.norm(U::AbstractField{B,T,M}, ::Val{2}) where {B,T,M}# avg 2-norm
-    norm2 = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (), (), (U,)) do n2, site, U
+    norm2 = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (), (), (U,)) do n2, site, (U,)
         for μ in 1:4
             n2 += norm(U[μ, site], 2)
         end
@@ -77,7 +77,7 @@ function LinearAlgebra.norm(u::AbstractField{B,T,M}, ::Val{Inf}) where {B,T,M}
 end
 
 function add!(a::AbstractField{B,T,M}, b::AbstractField{B,T,M}, fac) where {B,T,M}
-    parallelfor(allindices(a, b), B, Val(M), (), (a,), (a, b)) do μsite, a, b
+    parallelfor(allindices(a, b), B, Val(M), (), (a,), (a, b)) do μsite, (a, b)
         a[μsite] += fac * b[μsite]
     end
 
@@ -87,7 +87,7 @@ end
 function mul!(a::AbstractField{B,T,M}, α::Number) where {B,T,M}
     α = T(α)
 
-    parallelfor(allindices(a), B, Val(M), (), (a,), (a,)) do μsite, a
+    parallelfor(allindices(a), B, Val(M), (), (a,), (a,)) do μsite, (a,)
         a[μsite] *= α
     end
 
@@ -95,7 +95,7 @@ function mul!(a::AbstractField{B,T,M}, α::Number) where {B,T,M}
 end
 
 function leftmul!(a::AbstractField{B,T,M}, b::AbstractField{B,T,M}) where {B,T,M}
-    parallelfor(allindices(a, b), B, Val(M), (), (a,), (a, b)) do μsite, a, b
+    parallelfor(allindices(a, b), B, Val(M), (), (a,), (a, b)) do μsite, (a, b)
         a[μsite] = cmatmul_oo(b[μsite], a[μsite])
     end
 
@@ -103,7 +103,7 @@ function leftmul!(a::AbstractField{B,T,M}, b::AbstractField{B,T,M}) where {B,T,M
 end
 
 function leftmul_dagg!(a::AbstractField{B,T,M}, b::AbstractField{B,T,M}) where {B,T,M}
-    parallelfor(allindices(a, b), B, Val(M), (), (a,), (a, b)) do μsite, a, b
+    parallelfor(allindices(a, b), B, Val(M), (), (a,), (a, b)) do μsite, (a, b)
         a[μsite] = cmatmul_do(b[μsite], a[μsite])
     end
 
@@ -111,7 +111,7 @@ function leftmul_dagg!(a::AbstractField{B,T,M}, b::AbstractField{B,T,M}) where {
 end
 
 function rightmul!(a::AbstractField{B,T,M}, b::AbstractField{B,T,M}) where {B,T,M}
-    parallelfor(allindices(a, b), B, Val(M), (), (a,), (a, b)) do μsite, a, b
+    parallelfor(allindices(a, b), B, Val(M), (), (a,), (a, b)) do μsite, (a, b)
         a[μsite] = cmatmul_oo(a[μsite], b[μsite])
     end
 
@@ -119,7 +119,7 @@ function rightmul!(a::AbstractField{B,T,M}, b::AbstractField{B,T,M}) where {B,T,
 end
 
 function rightmul_dagg!(a::AbstractField{B,T,M}, b::AbstractField{B,T,M}) where {B,T,M}
-    parallelfor(allindices(a, b), B, Val(M), (), (a,), (a, b)) do μsite, a, b
+    parallelfor(allindices(a, b), B, Val(M), (), (a,), (a, b)) do μsite, (a, b)
         a[μsite] = cmatmul_od(a[μsite], b[μsite])
     end
 

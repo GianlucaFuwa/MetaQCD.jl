@@ -87,7 +87,7 @@ function fieldstrength_eachsite!(
 ) where {B,T,M}
     fac = Complex{T}(im)
 
-    parallelfor(eachindex(U, F), B, Val(M), (U,), (F,), (U, F)) do site, U, F
+    parallelfor(eachindex(U, F), B, Val(M), (U,), (F,), (U, F)) do site, (U, F)
         C12 = plaquette(U, 1, 2, site)
         F[1, 2, site] = fac * (C12 - C12')
         C13 = plaquette(U, 1, 3, site)
@@ -110,7 +110,7 @@ function fieldstrength_eachsite!(
 ) where {B,T,M}
     fac = Complex{T}(im / 8)
 
-    parallelfor(eachindex(U, F), B, Val(M), (U,), (F,), (U, F)) do site, U, F
+    parallelfor(eachindex(U, F), B, Val(M), (U,), (F,), (U, F)) do site, (U, F)
         C12 = clover_square(U, 1, 2, site, 1)
         F[1, 2, site] = fac * (C12 - C12')
         C13 = clover_square(U, 1, 3, site, 1)
@@ -133,7 +133,7 @@ function create_sendbuf!(F::Tensorfield{B,T,M}, sites, dim, dir) where {B,T,M}
     sendbuf = F.sendbuf[ibuf]
     itr = eachindex(IndexLinear(), sites)
 
-    parallelfor(itr, B, Val(M), (), (), (F,)) do i, F
+    parallelfor(itr, B, Val(M), (), (), (F,)) do i, (F,)
         site = sites[i]
 
         for ν in 1:4
@@ -149,7 +149,7 @@ end
 function Base.copyto!(a::Tensorfield{B,T,M}, b::Tensorfield{B}, arange, brange) where {B,T,M}
     @assert length(arange) == length(brange) "send buffer and recv buffer arent of same size"
 
-    parallelfor(eachindex(IndexLinear(), arange), B, Val(M), (), (), (a, b)) do i, a, b
+    parallelfor(eachindex(IndexLinear(), arange), B, Val(M), (), (), (a, b)) do i, (a, b)
         site_a = arange[i]
         site_b = brange[i]
 

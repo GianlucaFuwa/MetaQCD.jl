@@ -93,7 +93,7 @@ function mul_oe!(
     odd_half = false
     itr = eachindex(odd_half, ψ, ϕ, U)
 
-    parallelfor(itr, B, Val(M), (U, ϕ_eo), (ψ,), (U, ϕ, ψ)) do o_site, U, ϕ, ψ
+    parallelfor(itr, B, Val(M), (U, ϕ_eo), (ψ,), (U, ϕ, ψ)) do o_site, (U, ϕ, ψ)
         site = map_from_half(o_site, bulk)
         _site = into_odd ? o_site : switch_sides(o_site, bulk)
         ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, bc, T, dagg, bulk)
@@ -111,7 +111,7 @@ function mul_eo!(
     even_half = true
     itr = eachindex(even_half, ψ, ϕ, U)
 
-    parallelfor(itr, B, Val(M), (U, ϕ_eo), (ψ,), (U, ϕ, ψ)) do e_site, U, ϕ, ψ
+    parallelfor(itr, B, Val(M), (U, ϕ_eo), (ψ,), (U, ϕ, ψ)) do e_site, (U, ϕ, ψ)
         site = map_from_half(e_site, bulk)
         _site = into_odd ? switch_sides(e_site, bulk) : e_site
         ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, bc, T, dagg, bulk)

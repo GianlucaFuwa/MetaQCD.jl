@@ -88,8 +88,10 @@ Base.@propagate_inbounds function Base.setindex!(u::MPIMultiSpinorfield, v, is, 
 end
 
 function ones!(ϕ::MultiSpinorfield{B,T,M}) where {B,T,M}
-    parallelfor(eachindex(ϕ), B, Val(M), (), (ϕ,), (ϕ,)) do site, ϕ
-        for is in 1:ϕ.numspinors
+    numspinors = ϕ.numspinors
+
+    parallelfor(eachindex(ϕ), B, Val(M), (), (ϕ,), (ϕ,)) do site, (ϕ,)
+        for is in 1:numspinors
             ϕ[is, site] = fill(1, ϕ[is, site])
         end
     end
@@ -102,7 +104,7 @@ function set_source!(ϕ::MultiSpinorfield{B,T,M}, source::SiteCoords, a, μ) whe
     @assert μ ∈ 1:ND && a ∈ 1:3
     vec_index = 3(μ - 1) + a
 
-    parallelfor(eachindex(ϕ), B, Val(M), (), (ϕ,), (ϕ,)) do site, ϕ
+    parallelfor(eachindex(ϕ), B, Val(M), (), (ϕ,), (ϕ,)) do site, (ϕ,)
         if site == source
             tup = ntuple(i -> i == vec_index ? one(Complex{T}) : zero(Complex{T}), Val(3ND))
             for is in 1:ϕ.numspinors
@@ -121,7 +123,7 @@ end
 function gaussian_pseudofermions!(ϕ::MultiSpinorfield{B,T,M}) where {B,T,M}
     ND = num_dirac(ϕ)
 
-    parallelfor(eachindex(ϕ), B, Val(M), (), (ϕ,), (ϕ,)) do site, ϕ
+    parallelfor(eachindex(ϕ), B, Val(M), (), (ϕ,), (ϕ,)) do site, (ϕ,)
         for is in 1:ϕ.numspinors
             ϕ[is, site] = randn(SVector{3ND,Complex{T}}) # σ = 0.5
         end
@@ -130,16 +132,17 @@ function gaussian_pseudofermions!(ϕ::MultiSpinorfield{B,T,M}) where {B,T,M}
     return nothing
 end
 
-function create_sendbuf!(f::MultiSpinorfield{B,T,M}, sites, dim, dir) where {B,T,M}
+function create_sendbuf!(ϕ::MultiSpinorfield{B,T,M}, sites, dim, dir) where {B,T,M}
     ibuf = dir + 2(dim - 1)
-    sendbuf = f.sendbuf[ibuf]
+    sendbuf = ϕ.sendbuf[ibuf]
     itr = eachindex(IndexLinear(), sites)
+    numspinors = ϕ.numspinors
 
-    parallelfor(itr, B, Val(M), (), (), (f,)) do i, f
+    parallelfor(itr, B, Val(M), (), (), (ϕ,)) do i, (ϕ,)
         site = sites[i]
 
-        for is in 1:f.numspinors
-            sendbuf[is, i] = f[is, site]
+        for is in 1:numspinors
+            sendbuf[is, i] = ϕ[is, site]
         end
     end
 

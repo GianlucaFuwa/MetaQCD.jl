@@ -110,7 +110,7 @@ function add_wilson_eo_derivative!(
     bulk = eachindex(U)
     itr = eachindex(dU, U, X, Y)
 
-    parallelfor(itr, B, Val(M), (X_eo, Y_eo), (dU,), (dU, U, X, Y)) do site, dU, U, X, Y
+    parallelfor(itr, B, Val(M), (X_eo, Y_eo), (dU,), (dU, U, X, Y)) do site, (dU, U, X, Y)
         add_wilson_eo_derivative_kernel!(dU, U, X, Y, site, bc, fac, bulk)
     end
 
@@ -141,7 +141,7 @@ function calc_Xμν_eo_eachsite!(
     Y = Y_eo.parent
     bulk = eachindex(X)
 
-    parallelfor(eachindex(Xμν), B, Val(M), () , (Xμν,), (Xμν, X, Y)) do site, Xμν, X, Y
+    parallelfor(eachindex(Xμν), B, Val(M), () , (Xμν,), (Xμν, X, Y)) do site, (Xμν, X, Y)
         calc_Xμν_eo_kernel!(Xμν, X, Y, site, bulk)
     end
 
@@ -195,7 +195,7 @@ function calc_small_Xμν_eachsite!(
     bulk = eachindex(Xμν)
     itr = eachindex(Xμν, D_oo_inv)
 
-    parallelfor(itr, B, Val(M), (), (Xμν,), (Xμν, D_oo_inv)) do site, Xμν, D_oo_inv
+    parallelfor(itr, B, Val(M), (), (Xμν,), (Xμν, D_oo_inv)) do site, (Xμν, D_oo_inv)
         calc_small_Xμν_kernel!(Xμν, D_oo_inv, site, T, bulk)
     end
 

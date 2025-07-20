@@ -80,7 +80,7 @@ function add_staggered_derivative!(
     fac = T(-0.5coeff)
     itr = eachindex(dU, U, X, Y)
 
-    parallelfor(itr, B, Val(M), (X, Y), (dU,), (dU, U, X, Y)) do site, dU, U, X, Y
+    parallelfor(itr, B, Val(M), (X, Y), (dU,), (dU, U, X, Y)) do site, (dU, U, X, Y)
         add_staggered_derivative_kernel!(dU, U, X, Y, site, bc, fac)
     end
 

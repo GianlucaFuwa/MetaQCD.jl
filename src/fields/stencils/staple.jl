@@ -139,7 +139,7 @@ function staple_rect(U, μ, site)
 end
 
 function staple_eachsite!(staples::Colorfield{B}, U::Gaugefield{B,T,M}) where {B,T,M}
-    parallelfor(eachindex(U), B, Val(M), (U,), (staples,), (U, staples)) do site, U, staples
+    parallelfor(eachindex(U), B, Val(M), (U,), (staples,), (U, staples)) do site, (U, staples)
         for μ in 1:4
             staples[μ, site] = staple(U, μ, site)
         end

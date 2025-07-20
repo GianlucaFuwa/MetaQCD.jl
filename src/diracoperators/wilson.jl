@@ -85,14 +85,14 @@ function LinearAlgebra.mul!(
     csw = D.csw
     bc = D.boundary_condition
 
-    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ)) do site, U, ϕ, ψ
+    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ)) do site, (U, ϕ, ψ)
         ψ[site] = wilson_kernel(U, ϕ, site, mass_term, bc, T, Val(1))
     end
 
     if has_clover_term(D)
         fac = T(-csw / 2)
 
-        parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (), (ψ,), (U, ϕ, ψ)) do site, U, ϕ, ψ
+        parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (), (ψ,), (U, ϕ, ψ)) do site, (U, ϕ, ψ)
             ψ[site] += clover_kernel(U, ϕ, site, fac, T)
         end
     end
@@ -109,14 +109,14 @@ function LinearAlgebra.mul!(
     csw = D.parent.csw
     bc = D.parent.boundary_condition
 
-    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ)) do site, U, ϕ, ψ
+    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ)) do site, (U, ϕ, ψ)
         ψ[site] = wilson_kernel(U, ϕ, site, mass_term, bc, T, Val(-1))
     end
 
     if has_clover_term(D)
         fac = T(-csw / 2)
 
-        parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (), (ψ,), (U, ϕ, ψ)) do site, U, ϕ, ψ
+        parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (), (ψ,), (U, ϕ, ψ)) do site, (U, ϕ, ψ)
             ψ[site] += clover_kernel(U, ϕ, site, fac, T)
         end
     end

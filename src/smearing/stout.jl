@@ -64,7 +64,7 @@ end
 function apply_stout_smearing!(Uout::Gaugefield{B,T,M}, C, Q, U, ρ) where {B,T,M}
     itr = eachindex(Uout, C, Q, U)
 
-    parallelfor(itr, B, Val(M), (U,), (Uout, C, Q), (Uout, C, Q, U)) do site, Uout, C, Q, U
+    parallelfor(itr, B, Val(M), (U,), (Uout, C, Q), (Uout, C, Q, U)) do site, (Uout, C, Q, U)
         for μ in 1:4
             Qμ = calc_stout_Q_kernel!(Q, C, U, site, μ, ρ)
             Uout[μ, site] = cmatmul_oo(exp_iQ(Qμ), U[μ, site])
@@ -99,7 +99,7 @@ function stout_recursion!(Σ, Σ′, U′, U::Gaugefield{B,T,M}, C, Q, Λ, ρ) w
     calc_stout_Λ!(Λ, Σ′, Q, U)
     itr = eachindex(Σ, Σ′, U′, U, C, Q, Λ)
 
-    parallelfor(itr, B, Val(M), (U, Λ), (Σ,), (Σ, Σ′, U, C, Q, Λ)) do site, Σ, Σ′, U, C, Q, Λ
+    parallelfor(itr, B, Val(M), (U, Λ), (Σ,), (Σ, Σ′, U, C, Q, Λ)) do site, (Σ, Σ′, U, C, Q, Λ)
         for μ in 1:4
             stout_recursion_kernel!(Σ, Σ′, U, C, Q, Λ, site, μ, ρ)
         end
@@ -152,7 +152,7 @@ end
 function calc_stout_Λ!(Λ, Σ′, Q::Expfield{B}, U::Gaugefield{B,T,M}) where {B,T,M}
     itr = eachindex(Λ, Σ′, Q, U)
 
-    parallelfor(itr, B, Val(M), (), (Λ,), (Λ, Σ′, Q, U)) do site, Λ, Σ′, Q, U
+    parallelfor(itr, B, Val(M), (), (Λ,), (Λ, Σ′, Q, U)) do site, (Λ, Σ′, Q, U)
         for μ in 1:4
             calc_stout_Λ_kernel!(Λ, Σ′, Q, U, site, μ)
         end

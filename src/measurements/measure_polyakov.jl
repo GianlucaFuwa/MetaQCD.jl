@@ -85,7 +85,7 @@ function polyakov_traced(U::Gaugefield{B,T,M}) where {B,T,M}
     NX, NY, NZ, _ = size(U)
     xrange, yrange, zrange, trange = U.topology.bulk_sites.indices
     itr = CartesianIndices((xrange, yrange, zrange))
-    P = parallelfor_sum(itr, 0.0+0.0im, B, Val(M), (), (), (U,)) do p, xyz, U
+    P = parallelfor_sum(itr, 0.0+0.0im, B, Val(M), (), (), (U,)) do p, xyz, (U,)
         ix, iy, iz = xyz.I
         polymat = U[4, ix, iy, iz, 1]
 

@@ -1,5 +1,5 @@
 function plaquette_trace_sum(U::Gaugefield{B,T,M}) where {B,T,M}
-    P = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (U,), (), (U,)) do pₙ, site, U
+    P = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (U,), (), (U,)) do pₙ, site, (U,)
         for μ in 1:3
             for ν in (μ+1):4
                 pₙ += real(tr(plaquette(U, μ, ν, site)))
@@ -13,7 +13,7 @@ end
 
 function rect_trace_sum(U::Gaugefield{B,T,M}) where {B,T,M}
     is_distributed(U) && @assert(U.topology.halo_width>=2)
-    R = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (U,), (), (U,)) do rₙ, site, U
+    R = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (U,), (), (U,)) do rₙ, site, (U,)
         for μ in 1:3
             for ν in (μ+1):4
                 rₙ += real(tr(rect_1x2(U, μ, ν, site))) + real(tr(rect_2x1(U, μ, ν, site)))
@@ -81,7 +81,7 @@ end
 function plaquette_trace_eachsite(U::Gaugefield{B,T,M}) where {B,T,M}
     out = zeros(length(U))
 
-    parallelfor(eachindex(U), B, Val(M), (), (), (U,)) do site, U
+    parallelfor(eachindex(U), B, Val(M), (), (), (U,)) do site, (U,)
         P = 0.0
         for μ in 1:3
             for ν in (μ+1):4

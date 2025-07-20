@@ -137,7 +137,7 @@ function swap_U!(a::TF, b::TF, biasa, biasb) where {B,T,M,TF<:Gaugefield{B,T,M}}
     biasa.CV = biasb.CV
     biasb.CV = a_CV_tmp
 
-    parallelfor(allindices(a, b), B, Val(M), (), (a, b), (a, b)) do μsite, a, b
+    parallelfor(allindices(a, b), B, Val(M), (), (a, b), (a, b)) do μsite, (a, b)
         a_tmp = a[μsite]
         a[μsite] = b[μsite]
         b[μsite] = a_tmp

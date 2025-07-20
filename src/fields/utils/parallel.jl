@@ -54,28 +54,28 @@ function _parallelfor(f, captured, itr, ::Type{backend}, block_size) where {back
     if backend == CPU
         @batch for i in eachindex(IndexLinear(), itr)
             @inbounds site = itr[i]
-            @inline f(site, captured...)
+            @inline f(site, captured)
         end
     else
-        _foreachindex_gpu(f, itr, backend(), block_size)
+        _foreachindex_gpu(f, captured, itr, backend(), block_size)
     end
 
     return nothing
 end
 
-function _foreachindex_gpu(f, itr, backend::GPU, block_size::Int=min(256, length(itr)))
+function _foreachindex_gpu(f, captured, itr, backend::GPU, block_size::Int=min(256, length(itr)))
     # name = nameof(f)
     # println(name)
     # GPU implementation
     @assert block_size > 0
     blocks = (length(itr) + block_size - 1) ÷ block_size
     kernel = _foreachindex_global!(backend)
-    kernel(f, itr; ndrange=(block_size * blocks,))
+    kernel(f, captured, itr; ndrange=(block_size * blocks,))
     return nothing
 end
 
 @kernel inbounds=true unsafe_indices=true function _foreachindex_global!(
-    f, itr
+    f, captured, itr
 )
     # Calculate global index
     N = @groupsize()[1]
@@ -84,7 +84,7 @@ end
     i = ithread + (iblock - 0x1) * N
 
     if i <= length(itr)
-        f(itr[i])
+        f(itr[i], captured)
     end
 end
 
@@ -147,12 +147,12 @@ function _parallelfor_sum(f, captured, itr, init, ::Type{backend}, block_size) w
 
         @batch reduction = (+, result) for i in eachindex(IndexLinear(), itr)
             @inbounds site = itr[i]
-            result += @inline f(init, site, captured...)
+            result += @inline f(init, site, captured)
         end
 
         return result
     else
-        return _foreachindex_reduce_gpu(init, +, f, itr, backend, block_size)
+        return _foreachindex_reduce_gpu(init, +, f, captured, itr, backend, block_size)
     end
 end
 
@@ -175,7 +175,7 @@ function parallelfor_max(
 end
 
 function _foreachindex_reduce_gpu(
-    out, op, f, itr, ::Type{backend}, block_size::Int=min(256, length(itr))
+    out, op, f, captured, itr, ::Type{backend}, block_size::Int=min(256, length(itr))
 ) where {backend}
     # name = nameof(f)
     # println(name)
@@ -184,12 +184,12 @@ function _foreachindex_reduce_gpu(
     blocks = (length(itr) + block_size - 1) ÷ block_size
     out_vec = KA.zeros(backend(), typeof(out), blocks)
     kernel = _foreachindex_reduce_global!(backend(), block_size)
-    kernel(out_vec, out, op, f, itr; ndrange=(block_size * blocks,))
+    kernel(out_vec, out, op, f, captured, itr; ndrange=(block_size * blocks,))
     return reduce(op, out_vec)
 end
 
 @kernel inbounds=true unsafe_indices=true function _foreachindex_reduce_global!(
-    out, init, op, f, itr
+    out, init, op, f, captured, itr
 )
     # Calculate global index
     N = @groupsize()[1]
@@ -198,7 +198,7 @@ end
     i = ithread + (iblock - 0x1) * N
 
     if i <= length(itr)
-        out_i = f(init, itr[i])
+        out_i = f(init, itr[i], captured)
     end
 
     out_group = @groupreduce(op, out_i, init)
@@ -209,4 +209,5 @@ end
     end
 end
 
+# TODO:
 simple_tune(itr, args...) = min(256, length(itr))

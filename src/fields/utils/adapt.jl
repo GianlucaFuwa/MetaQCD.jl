@@ -21,22 +21,22 @@ function adapt_structure(to, u::AbstractField{B,T,M}) where {B,T,M}
 
     if u isa Gaugefield
         GA = gauge_action(u)
-        return Gaugefield{B,T,M,GA}(U, halos, sendbuf, topology, u.β)
+        return Gaugefield{B,T,M,GA}(U, halos, sendbuf, topology, u.β, nothing)
     elseif u isa Spinorfield
         ND = num_dirac(u)
-        return Spinorfield{B,T,M,ND}(U, halos, sendbuf, topology)
+        return Spinorfield{B,T,M,ND}(U, halos, sendbuf, topology, nothing)
     elseif u isa MultiSpinorfield
         ND = num_dirac(u)
-        return MultiSpinorfield{B,T,M,ND}(U, halos, sendbuf, topology, u.numspinors)
+        return MultiSpinorfield{B,T,M,ND}(U, halos, sendbuf, topology, u.numspinors, nothing)
     elseif u isa Paulifield
         C = has_clover_term(u)
-        return Paulifield{B,T,M,C}(U, halos, sendbuf, topology, u.csw, u.inverse)
+        return Paulifield{B,T,M,C}(U, halos, sendbuf, topology, u.csw, u.inverse, nothing)
     elseif u isa Colorfield
-        return Colorfield{B,T,M}(U, halos, sendbuf, topology)
+        return Colorfield{B,T,M}(U, halos, sendbuf, topology, nothing)
     elseif u isa Expfield
-        return Expfield{B,T,M}(U, halos, sendbuf, topology)
+        return Expfield{B,T,M}(U, halos, sendbuf, topology, nothing)
     elseif u isa Tensorfield
-        return Tensorfield{B,T,M}(U, halos, sendbuf, topology)
+        return Tensorfield{B,T,M}(U, halos, sendbuf, topology, nothing)
     end
 end
 

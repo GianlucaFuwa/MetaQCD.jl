@@ -232,7 +232,7 @@ function mul_oe!(
     odd_half = false
     itr = eachindex(odd_half, ψ, ϕ, U)
 
-    parallelfor(itr, B, Val(M), (U, ϕ_eo), (ψ,), (U, ϕ, ψ)) do o_site, U, ϕ, ψ
+    parallelfor(itr, B, Val(M), (U, ϕ_eo), (ψ,), (U, ϕ, ψ)) do o_site, (U, ϕ, ψ)
         site = map_from_half(o_site, bulk)
         _site = into_odd ? o_site : switch_sides(o_site, bulk)
         ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, bc, T, Val(dagg), bulk)
@@ -251,7 +251,7 @@ function mul_eo!(
     even_half = true
     itr = eachindex(even_half, ψ, ϕ, U)
 
-    parallelfor(itr, B, Val(M), (U, ϕ_eo), (ψ,), (U, ϕ, ψ)) do e_site, U, ϕ, ψ
+    parallelfor(itr, B, Val(M), (U, ϕ_eo), (ψ,), (U, ϕ, ψ)) do e_site, (U, ϕ, ψ)
         site = map_from_half(e_site, bulk)
         _site = into_odd ? switch_sides(e_site, bulk) : e_site
         ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, bc, T, Val(dagg), bulk)
@@ -289,7 +289,7 @@ function calc_diag!(
     bulk = eachindex(U)
     itr = eachindex(D_diag, D_oo_inv, U)
 
-    parallelfor(itr, B, Val(M), (), (D_diag, D_oo_inv), (D_diag, D_oo_inv)) do site, D_diag, D_oo_inv
+    parallelfor(itr, B, Val(M), (), (D_diag, D_oo_inv), (D_diag, D_oo_inv)) do site, (D_diag, D_oo_inv)
         _site = map_to_half(site, bulk)
         A = SMatrix{6,6,Complex{T},36}(mass_term * I)
         D_diag[site] = PauliMatrix(A, A)
@@ -311,7 +311,7 @@ function calc_diag!(
 
     fieldstrength_eachsite!(Clover(), Fμν, U)
 
-    parallelfor(itr, B, Val(M), (), (D_diag, D_oo_inv), (D_diag, D_oo_inv, Fμν)) do site, D_diag, D_oo_inv, Fμν
+    parallelfor(itr, B, Val(M), (), (D_diag, D_oo_inv), (D_diag, D_oo_inv, Fμν)) do site, (D_diag, D_oo_inv, Fμν)
         calc_diag_csw_kernel!(D_diag, D_oo_inv, Fμν, mass_term, site, fac, T, bulk)
     end
 end
@@ -370,7 +370,7 @@ function mul_oo_inv!(
     odd_half = false
     itr = eachindex(odd_half, ϕ, D_oo_inv)
 
-    parallelfor(itr, B, Val(M), (), (ϕ,), (ϕ, D_oo_inv)) do o_site, ϕ, D_oo_inv
+    parallelfor(itr, B, Val(M), (), (ϕ,), (ϕ, D_oo_inv)) do o_site, (ϕ, D_oo_inv)
         ϕ[o_site] = cmvmul_block(D_oo_inv[o_site], ϕ[o_site])
     end
 
@@ -385,7 +385,7 @@ function axmy!(
     even_half = true
     itr = eachindex(even_half, ϕ, ψ, D_diag)
 
-    parallelfor(itr, B, Val(M), (), (ϕ,), (ϕ, ψ, D_diag)) do e_site, ϕ, ψ, D_diag
+    parallelfor(itr, B, Val(M), (), (ϕ,), (ϕ, ψ, D_diag)) do e_site, (ϕ, ψ, D_diag)
         ϕ[e_site] = cmvmul_block(D_diag[e_site], ψ[e_site]) - ϕ[e_site]
     end
 
@@ -403,7 +403,7 @@ function trlog(D_diag::Paulifield{B,T,M,true}, ::Any) where {B,T,M} # With clove
     odd_half = false
     itr = eachindex(odd_half, D_diag)
 
-    d = parallelfor_sum(itr, 0.0, B, Val(M), (), (), (D_diag,)) do dₙ, o_site, D_diag
+    d = parallelfor_sum(itr, 0.0, B, Val(M), (), (), (D_diag,)) do dₙ, o_site, (D_diag,)
         p = D_diag[o_site]
         dₙ += log(real(det(p.upper)) * real(det(p.lower)))
     end

@@ -75,7 +75,7 @@ function create_sendbuf!(p::Paulifield{B,T,M}, sites, dim, dir) where {B,T,M}
     sendbuf = p.sendbuf[ibuf]
     itr = eachindex(IndexLinear(), sites)
 
-    parallelfor(itr, B, Val(M), (), (), (p,)) do i, p
+    parallelfor(itr, B, Val(M), (), (), (p,)) do i, (p,)
         sendbuf[i] = p[sites[i]]
     end
 
@@ -85,7 +85,7 @@ end
 function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:Paulifield{B,T,M}}
     @assert length(arange) == length(brange) "send buffer and recv buffer arent of same size"
 
-    parallelfor(eachindex(IndexLinear(), arange), B, Val(M), (), (), (a, b)) do i, a, b
+    parallelfor(eachindex(IndexLinear(), arange), B, Val(M), (), (), (a, b)) do i, (a, b)
         site_a = arange[i]
         site_b = brange[i]
         a[site_a] = b[site_b]

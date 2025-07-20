@@ -73,7 +73,7 @@ function LinearAlgebra.mul!(
     mass = T(D.mass)
     bc = D.boundary_condition
 
-    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ)) do site, U, ϕ, ψ
+    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ)) do site, (U, ϕ, ψ)
         ψ[site] = staggered_kernel(U, ϕ, site, mass, bc, T, false)
     end
 
@@ -88,7 +88,7 @@ function LinearAlgebra.mul!(
     mass = T(D.parent.mass)
     bc = D.parent.boundary_condition
 
-    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ)) do site, U, ϕ, ψ
+    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ)) do site, (U, ϕ, ψ)
         ψ[site] = staggered_kernel(U, ϕ, site, mass, bc, T, true)
     end
 

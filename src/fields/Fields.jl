@@ -102,7 +102,7 @@ function to_backend(
     else
         ntuple(Val(8)) do i
             OffsetArray(
-                KA.zeros(Bout(), new_eltype, size(u.halos[i])),
+                AType{new_eltype}(u.halos[i]),
                 eachindex(IndexCartesian(), u.halos[i]).indices...
             )
         end
@@ -115,20 +115,24 @@ function to_backend(
         end
     end
 
+    ext = Base.RefValue{Bool}(true)
+
     if u isa Gaugefield
         GA = gauge_action(u)
-        return Gaugefield{Bout,Tout,M,GA}(Uout, sendbuf, halos, u.topology, u.β)
+        return Gaugefield{Bout,Tout,M,GA}(Uout, halos, sendbuf, u.topology, u.β, ext)
     elseif u isa Spinorfield
         ND = num_dirac(u)
-        return Spinorfield{Bout,Tout,M,ND}(Uout, sendbuf, halos, u.topology)
+        return Spinorfield{Bout,Tout,M,ND}(Uout, halos, sendbuf, u.topology, ext)
     elseif u isa MultiSpinorfield
         ND = num_dirac(u)
-        return MultiSpinorfield{Bout,Tout,M,ND}(Uout, sendbuf, halos, u.topology, u.numspinors)
+        return MultiSpinorfield{Bout,Tout,M,ND}(
+            Uout, halos, sendbuf, u.topology, u.numspinors, ext
+        )
     elseif u isa Paulifield
         C = has_clover_term(u)
-        return Paulifield{Bout,Tout,M,C}(Uout, sendbuf, halos, u.topology, u.csw)
+        return Paulifield{Bout,Tout,M,C}(Uout, halos, sendbuf, u.topology, u.csw, ext)
     else
-        return Fieldtype{Bout,Tout,M}(Uout, sendbuf, halos, u.topology)
+        return Fieldtype{Bout,Tout,M}(Uout, halos, sendbuf, u.topology, ext)
     end
 end
 

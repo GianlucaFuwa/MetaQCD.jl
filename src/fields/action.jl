@@ -89,7 +89,7 @@ function gauge_action_deriv!(
     gaction = gauge_action(U)()
     itr = eachindex(dU, staples, U)
 
-    parallelfor(itr, B, Val(M), (U,), (dU, staples), (U, dU, staples)) do site, U, dU, staples
+    parallelfor(itr, B, Val(M), (U,), (dU, staples), (U, dU, staples)) do site, (U, dU, staples)
         for μ in 1:4
             A = staple(gaction, U, μ, site)
             staples[μ, site] = A

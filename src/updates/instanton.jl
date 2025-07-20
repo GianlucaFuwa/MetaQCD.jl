@@ -17,7 +17,7 @@ function set_instanton!(U::Gaugefield{B,T,M}, Q) where {B,T,M}
     field_x = T(2π * abs(Q) / NX)
     field_t = T(2π * abs(Q) / (NX*NT))
 
-    parallelfor(eachindex(U), B, Val(M), (), (U,), (U,)) do site, U
+    parallelfor(eachindex(U), B, Val(M), (), (U,), (U,)) do site, (U,)
         it = site[4]
         cit = cos(field_t * it)
         sit = sin(field_t * it)
@@ -26,7 +26,7 @@ function set_instanton!(U::Gaugefield{B,T,M}, Q) where {B,T,M}
 
     itr = CartesianIndices((xrange, yrange, zrange))
 
-    parallelfor(itr, B, Val(M), (), (U,), (U,)) do xyz, U
+    parallelfor(itr, B, Val(M), (), (U,), (U,)) do xyz, (U,)
         ix, iy, iz = xyz.I
         cit = cos(field_x * ix)
         sit = sin(field_x * ix)
@@ -45,7 +45,7 @@ function set_instanton!(U::Gaugefield{B,T,M}, Q) where {B,T,M}
     t_comp = tau_comp(T)
     t_id = tau_id(T)
 
-    parallelfor(eachindex(U), B, Val(M), (), (U,), (U,)) do site, U
+    parallelfor(eachindex(U), B, Val(M), (), (U,), (U,)) do site, (U,)
         iy = site[2]
         cit = cos(field_y * iy)
         sit = sin(field_y * iy)
@@ -54,7 +54,7 @@ function set_instanton!(U::Gaugefield{B,T,M}, Q) where {B,T,M}
 
     itr = CartesianIndices((xrange, zrange, trange))
 
-    parallelfor(itr, B, Val(M), (), (U,), (U,)) do xzt, U
+    parallelfor(itr, B, Val(M), (), (U,), (U,)) do xzt, (U,)
         ix, iz, it = xzt.I
         cit = cos(field_z * iz)
         sit = sin(field_z * iz)

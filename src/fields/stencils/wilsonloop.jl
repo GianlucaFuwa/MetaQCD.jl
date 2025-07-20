@@ -135,7 +135,7 @@ end
 
 function wilsonloop(U::Gaugefield{B,T,M}, Lμ, Lν) where {B,T,M}
     is_distributed(U) && @assert(Lμ <= get_halo_width(U) && Lν <= get_halo_width(U))
-    W = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (U,), (), (U,)) do w, site, U
+    W = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (U,), (), (U,)) do w, site, (U,)
         for μ in 1:3
             for ν in (μ + 1):4
                 w += real(tr(wilsonloop(U, μ, ν, site, Lμ, Lν)))

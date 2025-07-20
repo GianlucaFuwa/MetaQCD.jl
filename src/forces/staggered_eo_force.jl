@@ -84,7 +84,7 @@ function add_staggered_eo_derivative!(
     bulk = eachindex(dU)
     itr = eachindex(dU, U, X, Y)
 
-    parallelfor(itr, B, Val(M), (X_eo, Y_eo), (dU,), (dU, U, X, Y)) do site, dU, U, X, Y
+    parallelfor(itr, B, Val(M), (X_eo, Y_eo), (dU,), (dU, U, X, Y)) do site, (dU, U, X, Y)
         add_staggered_eo_derivative_kernel!(dU, U, X, Y, site, bc, fac, bulk)
     end
 

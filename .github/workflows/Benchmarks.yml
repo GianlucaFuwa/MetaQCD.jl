@@ -3,6 +3,8 @@ name: Benchmark
 on:
   pull_request:
     branches: [dirac]
+  push:
+    branches: [dirac]
 
 jobs:
   benchmark:
@@ -10,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        version: ["1.12.0-rc1"]
+        version: ["lts", "1.12.0-rc1"]
     steps:
       - uses: MilesCranmer/AirspeedVelocity.jl@action-v1
         with:

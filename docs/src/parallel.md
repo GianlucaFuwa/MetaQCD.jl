@@ -23,8 +23,9 @@ end
 The way these functions work is that they take in a function `f` as the first argument which
 would be the kernel for the function to be parallelized and as a second argument the space
 of lattice indices `itr` to iterate over. The two next arguments are the backend `B` of the
-fields and a Boolean `M` wrapped in a `Val` (to make it compile time known) that specifies
-whether the fields are MPI-distributed.
+fields and a Boolean `M` wrapped in a `Val`, to make it compile time known, that specifies
+whether the fields are MPI-distributed. `B` and `M` are always at compile time
+embedded into the parsed fields.
 For the halo exchange this function also needs to know which fields' halos have to be
 validated before execution of the kernel and which fields' halos become invalidated after
 execution of the kernel. In this way we can save time by not validating the halo of a field
@@ -56,7 +57,7 @@ to be able to target different backends with very low coding overhead.
 An example usage of this parallelization function is:
 ```julia
 function plaquette_trace_sum(U::Gaugefield{B,T,M}) where {B,T,M}
-    P = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (U,), (), (U,)) do pₙ, site, U
+    P = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (U,), (), (U,)) do pₙ, site, (U,)
         for μ in 1:3
             for ν in (μ+1):4
                 pₙ += real(tr(plaquette(U, μ, ν, site)))
@@ -69,7 +70,7 @@ function plaquette_trace_sum(U::Gaugefield{B,T,M}) where {B,T,M}
 end
 
 function Base.copy!(a::AbstractField{B,T,M}, b::AbstractField{B,T,M}) where {B,T,M}
-    parallelfor(allindices(a, b), B, Val(M), (), (a,), (a, b)) do μsite, a, b
+    parallelfor(allindices(a, b), B, Val(M), (), (a,), (a, b)) do μsite, (a, b)
         a[μsite] = b[μsite]
     end
 
