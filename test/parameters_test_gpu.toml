@@ -1,0 +1,83 @@
+[gradient_flow]
+flow_num = 7
+flow_steps = 1
+flow_integrator = "euler"
+flow_measure_every = 7
+flow_tf = 0.12
+
+[hmc]
+hmc_trajectory = 1
+
+    [[hmc.levels]]
+    forces = [0, 1, 2]
+    integrator = "OMF4"
+    numsteps = 5
+
+[ensemble]
+measure_on_all = true
+update_method = "hmc"
+swap_every = 1
+numsteps = 10
+initial = "cold"
+numinstances = 2
+L = [4, 4, 4, 4]
+numtherm = 10
+tempering_enabled = true
+non_metadynamics_updates = 1
+
+[measurements.Topological_charge]
+measure_every = 10
+type = ["plaquette", "clover"]
+
+[measurements.Plaquette]
+measure_every = 10
+
+[gauge_action]
+gauge_action = "dbw2"
+beta = 1.25
+
+[data]
+backend = "rocm"
+overwrite = true
+ensemble_dir = "/home/runner/work/MetaQCD.jl/MetaQCD.jl/nonmpi"
+randomseed = 0
+verboselevel = 1
+log_to_console = true
+float_type = "single"
+
+[bias]
+rhostout_for_cv = 0.12
+weight_type = ["branduardi"]
+
+    [[bias.biases]]
+    kind_of_cv = "topcharge_clover"
+    weight = 0.02
+    numsmears_for_cv = 4
+    static = [false, false]
+    penalty_weight = 100.0
+    cvlims = [-3.0, 3.0]
+    stride = 1
+    bin_width = 0.02
+    biasfactor = +inf
+    type = "metad"
+
+[fermion_action]
+fermion_action = "staggered"
+
+    [[fermion_action.fermions]]
+    Nf = 2
+    cg_tol_md = 1.0e-7
+    cg_maxiters_action = 5000
+    cg_tol_action = 1.0e-8
+    rhmc_order_action = 15
+    rhmc_spectral_bound = [0.0001, 6.0]
+    mass = 0.01
+    cg_maxiters_md = 1000
+    rhmc_order_md = 15
+
+[measurements_with_flow.Topological_charge]
+measure_every = 10
+type = ["plaquette", "clover"]
+
+[measurements_with_flow.Plaquette]
+measure_every = 10

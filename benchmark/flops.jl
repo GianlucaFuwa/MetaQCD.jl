@@ -33,6 +33,7 @@ if mpi_amroot()
         println(fp, "==== $(op) ====")
 
         for T in (Float64, Float32)
+            println("Benching $op $T")
             mem = mem_per_site(op, T)
             println(fp, "$T:")
             println(fp, "   L = $(N)^4:")

@@ -1,7 +1,5 @@
 module Smearing
 
-using KernelAbstractions
-using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
 using Polyester: @batch
 using StaticArrays

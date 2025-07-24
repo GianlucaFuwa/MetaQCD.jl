@@ -69,7 +69,7 @@ function LinearAlgebra.norm(U::AbstractField{B,T,M}, ::Val{2}) where {B,T,M}# av
 end
 
 function LinearAlgebra.norm(u::AbstractField{B,T,M}, ::Val{Inf}) where {B,T,M}
-    normsup = parallelfor_max(allindices(u), typemin(Float64), B) do nsup, μsite
+    normsup = parallelfor_max(allindices(u), typemin(Float64), B, (u,)) do nsup, μsite, (u,)
         nsup = max(nsup, norm(u[μsite], 2)) 
     end
 

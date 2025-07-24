@@ -12,7 +12,6 @@ module DiracOperators
 
 using Base.Cartesian: @nexprs
 using LinearAlgebra: checksquare
-using KernelAbstractions # With this we can write generic GPU kernels for ROC and CUDA
 using LinearAlgebra
 using Polyester
 using StaticArrays
@@ -22,7 +21,6 @@ using ..RHMCParameters
 using ..Solvers
 using ..Utils
 
-import KernelAbstractions as KA
 import ..Fields: AbstractField, FieldTopology, Gaugefield, Paulifield, Spinorfield
 import ..Fields: MultiSpinorfield, SpinorfieldEO, Tensorfield, num_spinors, get_global_dims
 import ..Fields: check_dims, get_local_dims, get_global_dims, get_local_volume

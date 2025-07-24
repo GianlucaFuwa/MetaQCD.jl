@@ -1,8 +1,6 @@
 module Fields
 
 using Base.Meta: quot
-using KernelAbstractions # With this we can write generic GPU kernels for ROC and CUDA
-using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
 using MacroTools
 using OffsetArrays
@@ -13,15 +11,18 @@ using StaticArrays # Used for the SU3 matrices
 using ..Utils # Contains utility functions, such as projections and the exponential map
 
 import Adapt: adapt_structure
-import KernelAbstractions as KA # With this we can write generic GPU kernels for ROC and CUDA
 import StrideArraysCore: PtrArray, object_and_preserve # This is used to convert the AbstractField to a PtrArray in the @batch loop
 
+struct CPU end
 # When CUDA.jl or AMDGPU.jl are loaded, their backends are appended to this Dict
-const BACKENDS = Dict{String,Type{<:KA.Backend}}("cpu" => CPU)
+const BACKENDS = Dict{String,Any}("cpu" => CPU)
 
 # We are going to need these if we want to transfer a field from one backend to another
 # For other backends, we overload this method in their respective extensions
 @inline array_type(::Type{CPU}) = Array
+bzeros(::CPU, args...) = zeros(args...)
+synchronize(::CPU) = nothing
+priority!(::CPU, priority) = nothing
 
 # Define an abstract field super type that is parametrized by the backend, the precision and
 # the array type (Array, CuArray, ROCArray)
@@ -43,7 +44,6 @@ include("distributed/halo_update_async.jl")
 # include("distributed/hide_communication.jl")
 include("distributed/comm_utils.jl")
 
-include("utils/groupreduce.jl")
 include("utils/parallel.jl")
 include("utils/constructor.jl")
 include("utils/boundaries.jl") # boundary conditions in time direction for spinors
@@ -111,11 +111,11 @@ function to_backend(
         nothing
     else
         ntuple(Val(8)) do i
-            KA.zeros(Bout(), new_eltype, size(u.sendbuf[i]))
+            bzeros(Bout(), new_eltype, size(u.sendbuf[i]))
         end
     end
 
-    ext = Base.RefValue{Bool}(true)
+    ext = Base.RefValue{Bool}(halo_is_valid(u))
 
     if u isa Gaugefield
         GA = gauge_action(u)
@@ -137,11 +137,10 @@ function to_backend(
 end
 
 function device_to_host(x, ::Type{B}) where {B}
-    if get_backend(x) isa B
+    if x isa array_type(B)
         return x
     else
-        AType = array_type(B)
-        return AType(x)
+        return array_type(B)(x)
     end
 end
 
@@ -153,8 +152,7 @@ Base.pointer(u::AbstractField) = pointer(u.U)
 Base.strides(u::AbstractField) = strides(u.U)
 
 # Some useful functions that share geometry information about the fields
-KA.get_backend(u::AbstractField) = get_backend(u.U)
-KA.get_backend(u::OffsetArray) = get_backend(u.parent)
+get_backend(::AbstractField{B}) where B = B
 Base.length(u::AbstractField) = u.topology.global_volume
 Base.size(u::AbstractField) = u.topology.global_dims
 Base.size(u::AbstractField, μ) = u.topology.global_dims[μ]

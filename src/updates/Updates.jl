@@ -1,7 +1,5 @@
 module Updates
 
-using KernelAbstractions
-using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
 using StaticArrays
 using Polyester: @batch
@@ -11,7 +9,6 @@ using ..MetaIO
 using ..RHMCParameters
 using ..Utils
 
-import KernelAbstractions as KA
 import ..BiasModule: Bias, NoBias, calc_cv, ∂V∂Q, recalc_cv!, set_cv!
 import ..BiasModule: update_bias!, pack_buffer!, unpack_buffer!
 import ..DiracOperators: AbstractDiracOperator, FermionAction, QuenchedFermionAction

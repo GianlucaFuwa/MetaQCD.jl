@@ -88,11 +88,11 @@ function start_halo_update_single!(
             recv_req_prev = mpi_irecv!(recv_buf_prev, comm_cart; source=prev_nbr, tag=1+2(dim-1))
             recv_req_next = mpi_irecv!(recv_buf_next, comm_cart; source=next_nbr, tag=2+2(dim-1))
             recv_task = Base.Threads.@spawn :interactive begin
-                KA.priority!(backend(), :high)
+                priority!(backend(), :high)
                 wait(recv_req_prev)
-                KA.synchronize(backend())
+                synchronize(backend())
                 wait(recv_req_next)
-                KA.synchronize(backend())
+                synchronize(backend())
             end
 
             push!(all_recv_tasks, recv_task)

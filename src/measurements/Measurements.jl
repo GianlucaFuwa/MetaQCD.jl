@@ -8,15 +8,12 @@ observable and prints it to file and/or console.
 """
 module Measurements
 
-using KernelAbstractions
-using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
 using Polyester
 using StaticTools: StaticString
 using ..MetaIO
 using ..Utils
 
-import KernelAbstractions as KA
 import ..DiracOperators: Daggered, DdaggerD, StaggeredDiracOperator, WilsonDiracOperator
 import ..DiracOperators: StaggeredEOPreDiracOperator, even_odd, solve_dirac!
 import ..DiracOperators: ArnoldiWorkspaceMeta, get_eigenvalues, num_dirac

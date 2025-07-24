@@ -27,7 +27,7 @@ titles = (
 Random.seed!(1234)
 
 N = 32
-backend_str = "cpu"
+backend_str = "rocm"
 backend = MetaQCD.Fields.BACKENDS[backend_str]
 
 suite = BenchmarkGroup()

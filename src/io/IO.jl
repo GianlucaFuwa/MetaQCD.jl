@@ -2,7 +2,6 @@ module MetaIO
 
 using Dates
 using JLD2
-using KernelAbstractions # TODO: save and load of Fields on GPUs
 using LinearAlgebra
 using Polyester
 using Random
@@ -11,7 +10,7 @@ using ..Parameters
 using ..Utils
 
 import ..Fields: AbstractField, Gaugefield, Spinorfield, SpinorfieldEO, Paulifield
-import ..Fields: Tensorfield, MultiSpinorfield
+import ..Fields: Tensorfield, MultiSpinorfield, CPU, get_backend
 import ..Fields: is_distributed, get_global_volume, get_global_dims, parallelfor
 import ..Fields: WilsonGaugeAction, array_type, to_backend, device_to_host, allindices
 

@@ -158,7 +158,7 @@ macro field_constructor(struct_name, kwargs...)
             eltype_val = $eltype_q
             origin = $origin_q
             ldims = $ldims_q
-            U = OffsetArray(KA.zeros(B(), eltype_val, ldims...), origin)
+            U = OffsetArray(bzeros(B(), eltype_val, ldims...), origin)
             # Create halos and sendbuf
             halo_sites = topology.halo_sites
             border_sites = topology.border_sites
@@ -166,7 +166,7 @@ macro field_constructor(struct_name, kwargs...)
             halos = if M
                 tuple([
                     OffsetArray(
-                        KA.zeros(B(), eltype_val, $(halo_dims.args...)),
+                        bzeros(B(), eltype_val, $(halo_dims.args...)),
                         $(halo_indices.args...)
                     )
                     for i in 1:4 for j in 1:2
@@ -177,7 +177,7 @@ macro field_constructor(struct_name, kwargs...)
 
             sendbuf = if M
                 tuple(
-                    [KA.zeros(B(), eltype_val, $(sendbuf_dims)) for i in 1:4 for j in 1:2]
+                    [bzeros(B(), eltype_val, $(sendbuf_dims)) for i in 1:4 for j in 1:2]
                     ...)
             else
                 nothing

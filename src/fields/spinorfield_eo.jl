@@ -35,7 +35,7 @@ function Base.eltype(::Type{SpinorfieldEO}, ::Type{T}, ::Val{ND}) where {T,ND}
     return SVector{3ND,Complex{T}}
 end
 
-KA.get_backend(f::SpinorfieldEO) = get_backend(f.parent)
+get_backend(::SpinorfieldEO{B}) where {B} = B
 Base.length(f::SpinorfieldEO) = length(f.parent)
 Base.size(f::SpinorfieldEO) = size(f.parent)
 Base.size(f::SpinorfieldEO, μ) = size(f.parent, μ)

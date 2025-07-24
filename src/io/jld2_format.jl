@@ -25,9 +25,9 @@ function create_checkpoint(
 )
     # TODO: GPU support
     if univ.U isa Vector
-        @assert get_backend(univ.U[1]) isa CPU
+        @assert get_backend(univ.U[1]) == CPU
     else
-        @assert get_backend(univ.U) isa CPU
+        @assert get_backend(univ.U) == CPU
     end
     state = get_rng_state()
     if filename != ""

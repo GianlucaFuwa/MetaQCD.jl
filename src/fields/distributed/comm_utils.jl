@@ -53,6 +53,7 @@ end
 
 function get_recv_task(::Type{backend}, recv_reqs::Vector{Utils.MPI.Request}) where {backend}
     return Base.Threads.@spawn begin
+        # TODO:
         KA.priority!(backend, :high)
         Base.wait.(recv_reqs)
         KA.synchronize(backend())

@@ -27,7 +27,7 @@
 function save_field(
     ::BMWFormat, U::Gaugefield{B,T,false}, filename, parameters=nothing; override=false
 ) where {B,T}
-    @assert get_backend(U) isa CPU
+    @assert get_backend(U) == CPU
     NX, NY, NZ, NT = size(U)
 
     if override == false
@@ -101,7 +101,7 @@ function save_field(
 end
 
 function load_field!(::BMWFormat, U::Gaugefield{B,T,false}, filename) where {B,T}
-    @assert get_backend(U) isa CPU
+    @assert get_backend(U) == CPU
     Udims = size(U)
     fp = open(filename, "r")
     header_bin = Vector{UInt8}(undef, 4096)

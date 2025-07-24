@@ -1,8 +1,6 @@
 module Forces
 
 using Base.Cartesian: @nexprs
-using KernelAbstractions
-using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
 using StaticArrays
 using Polyester: @batch

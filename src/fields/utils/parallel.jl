@@ -1,4 +1,8 @@
 const HIDE_COMMS = Val(@load_preference("MPI_HIDE_COMMUNICATION", false))
+function groupreduce end
+function threadidx end
+function groupidx end
+function groupdim end
 
 function parallelfor(
     f,
@@ -63,29 +67,27 @@ function _parallelfor(f, captured, itr, ::Type{backend}, block_size) where {back
     return nothing
 end
 
-function _foreachindex_gpu(f, captured, itr, backend::GPU, block_size::Int=min(256, length(itr)))
+function _foreachindex_gpu(f, captured, itr, backend, block_size::Int=min(256, length(itr)))
     # name = nameof(f)
     # println(name)
     # GPU implementation
     @assert block_size > 0
     blocks = (length(itr) + block_size - 1) ÷ block_size
-    kernel = _foreachindex_global!(backend)
-    kernel(f, captured, itr; ndrange=(block_size * blocks,))
+    launch_foreachindex_global!(backend, f, captured, itr, block_size, blocks)
     return nothing
 end
 
-@kernel inbounds=true unsafe_indices=true function _foreachindex_global!(
-    f, captured, itr
-)
-    # Calculate global index
-    N = @groupsize()[1]
-    iblock = @index(Group, Linear)
-    ithread = @index(Local, Linear)
-    i = ithread + (iblock - 0x1) * N
+function launch_foreachindex_global! end
+
+function _foreachindex_global!(f, captured, itr)
+    i = threadidx() + (groupidx() - 0x1) * groupdim()
 
     if i <= length(itr)
-        f(itr[i], captured)
+        @inbounds site = itr[i]
+        @inline f(site, captured)
     end
+
+    return nothing
 end
 
 function parallelfor_sum(
@@ -156,24 +158,6 @@ function _parallelfor_sum(f, captured, itr, init, ::Type{backend}, block_size) w
     end
 end
 
-function parallelfor_max(
-    f, itr, init, ::Type{backend}, block_size::Int=min(256, length(itr))
-) where {backend}
-    if backend == CPU
-        result = init
-
-        @batch reduction = (max, result) for i in eachindex(IndexLinear(), itr)
-            @inbounds site = itr[i]
-            res = @inline f(init, site)
-            result = max(result, res)
-        end
-
-        return result
-    else
-        return _foreachindex_reduce_gpu(init, max, f, itr, backend, block_size)
-    end
-end
-
 function _foreachindex_reduce_gpu(
     out, op, f, captured, itr, ::Type{backend}, block_size::Int=min(256, length(itr))
 ) where {backend}
@@ -182,30 +166,49 @@ function _foreachindex_reduce_gpu(
     # GPU implementation
     @assert block_size > 0
     blocks = (length(itr) + block_size - 1) ÷ block_size
-    out_vec = KA.zeros(backend(), typeof(out), blocks)
-    kernel = _foreachindex_reduce_global!(backend(), block_size)
-    kernel(out_vec, out, op, f, captured, itr; ndrange=(block_size * blocks,))
+    out_vec = launch_foreachindex_reduce_global!(
+        backend(), out, op, f, captured, itr, block_size, blocks
+    )
     return reduce(op, out_vec)
 end
 
-@kernel inbounds=true unsafe_indices=true function _foreachindex_reduce_global!(
-    out, init, op, f, captured, itr
-)
-    # Calculate global index
-    N = @groupsize()[1]
-    iblock = @index(Group, Linear)
-    ithread = @index(Local, Linear)
-    i = ithread + (iblock - 0x1) * N
+function launch_foreachindex_reduce_global! end
+
+function _foreachindex_reduce_global!(out, init, op, f, captured, itr)
+    iblock = groupidx()
+    ithread = threadidx()
+    i = ithread + (iblock - 0x1) * groupdim()
 
     if i <= length(itr)
         out_i = f(init, itr[i], captured)
+    else
+        out_i = init
     end
 
-    out_group = @groupreduce(op, out_i, init)
+    out_group = groupreduce(op, out_i, init)
 
-    ithread = @index(Local)
     if ithread == 1
         @inbounds out[iblock] = out_group
+    end
+
+    return nothing
+end
+
+function parallelfor_max(
+    f, itr, init, ::Type{backend}, captured::Tuple, block_size::Int=min(256, length(itr))
+) where {backend}
+    if backend == CPU
+        result = init
+
+        @batch reduction = (max, result) for i in eachindex(IndexLinear(), itr)
+            @inbounds site = itr[i]
+            res = @inline f(init, site, captured)
+            result = max(result, res)
+        end
+
+        return result
+    else
+        return _foreachindex_reduce_gpu(init, max, f, captured, itr, backend, block_size)
     end
 end
 
