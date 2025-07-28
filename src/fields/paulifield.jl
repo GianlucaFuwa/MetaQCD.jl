@@ -79,7 +79,7 @@ function create_sendbuf!(p::Paulifield{B,T,M}, sites, dim, dir) where {B,T,M}
         sendbuf[i] = p[sites[i]]
     end
 
-    return sendbuf
+    return mpi_make_transferrable(sendbuf)[1]
 end
 
 function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:Paulifield{B,T,M}}

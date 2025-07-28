@@ -12,7 +12,7 @@ function Base.copy!(a::AbstractField{B,T,M}, b::AbstractField{B,T,M}) where {B,T
     return nothing
 end
 
-function identity_gauges!(u::Gaugefield{B,T,M}) where {B,T,M}
+function identity_gauges!(u::GaugeLikeField{B,T,M}) where {B,T,M}
     parallelfor(allindices(u), B, Val(M), (), (u,), (u,)) do μsite, (u,)
         u[μsite] = eye3(T)
     end
@@ -44,7 +44,7 @@ function normalize!(u::Gaugefield{B,T,M}) where {B,T,M}
     return nothing
 end
 
-function LinearAlgebra.tr(u::AbstractField{B,T,M}) where {B,T,M}
+function LinearAlgebra.tr(u::GaugeLikeField{B,T,M}) where {B,T,M}
     trace = parallelfor_sum(eachindex(u), 0.0, B, Val(M), (), (), (u,)) do t, site, (u,)
         for μ in 1:4
             t += tr(u[μ, site])
@@ -94,7 +94,7 @@ function mul!(a::AbstractField{B,T,M}, α::Number) where {B,T,M}
     return nothing
 end
 
-function leftmul!(a::AbstractField{B,T,M}, b::AbstractField{B,T,M}) where {B,T,M}
+function leftmul!(a::GaugeLikeField{B,T,M}, b::GaugeLikeField{B,T,M}) where {B,T,M}
     parallelfor(allindices(a, b), B, Val(M), (), (a,), (a, b)) do μsite, (a, b)
         a[μsite] = cmatmul_oo(b[μsite], a[μsite])
     end
@@ -102,7 +102,7 @@ function leftmul!(a::AbstractField{B,T,M}, b::AbstractField{B,T,M}) where {B,T,M
     return nothing
 end
 
-function leftmul_dagg!(a::AbstractField{B,T,M}, b::AbstractField{B,T,M}) where {B,T,M}
+function leftmul_dagg!(a::GaugeLikeField{B,T,M}, b::GaugeLikeField{B,T,M}) where {B,T,M}
     parallelfor(allindices(a, b), B, Val(M), (), (a,), (a, b)) do μsite, (a, b)
         a[μsite] = cmatmul_do(b[μsite], a[μsite])
     end
@@ -110,7 +110,7 @@ function leftmul_dagg!(a::AbstractField{B,T,M}, b::AbstractField{B,T,M}) where {
     return nothing
 end
 
-function rightmul!(a::AbstractField{B,T,M}, b::AbstractField{B,T,M}) where {B,T,M}
+function rightmul!(a::GaugeLikeField{B,T,M}, b::GaugeLikeField{B,T,M}) where {B,T,M}
     parallelfor(allindices(a, b), B, Val(M), (), (a,), (a, b)) do μsite, (a, b)
         a[μsite] = cmatmul_oo(a[μsite], b[μsite])
     end
@@ -118,7 +118,7 @@ function rightmul!(a::AbstractField{B,T,M}, b::AbstractField{B,T,M}) where {B,T,
     return nothing
 end
 
-function rightmul_dagg!(a::AbstractField{B,T,M}, b::AbstractField{B,T,M}) where {B,T,M}
+function rightmul_dagg!(a::GaugeLikeField{B,T,M}, b::GaugeLikeField{B,T,M}) where {B,T,M}
     parallelfor(allindices(a, b), B, Val(M), (), (a,), (a, b)) do μsite, (a, b)
         a[μsite] = cmatmul_od(a[μsite], b[μsite])
     end

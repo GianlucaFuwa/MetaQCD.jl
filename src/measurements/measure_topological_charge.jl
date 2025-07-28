@@ -132,7 +132,8 @@ function top_charge(U::Gaugefield, methodname::String)
 end
 
 function top_charge(::Plaquette, U::Gaugefield{B,T,M}) where {B,T,M}
-    Q = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (U,), (), (U,)) do q, site, (U,)
+    itr = eachindex(U)
+    Q = parallelfor_sum(itr, 0.0, B, Val(M), (U,), (), (U,)) do q, site, (U,)
         q += top_charge_density_plaq(U, site)
     end
 
@@ -141,7 +142,7 @@ end
 
 function top_charge(::Clover, U::Gaugefield{B,T,M}) where {B,T,M}
     itr = eachindex(U)
-    Q = parallelfor_sum(itr, 0.0, B, Val(M), (U,), (), (U,); block_size=128) do q, site, (U,)
+    Q = parallelfor_sum(itr, 0.0, B, Val(M), (U,), (), (U,)) do q, site, (U,)
         q += top_charge_density_clover(U, site, Float64)
     end
 
@@ -153,68 +154,68 @@ function top_charge(::Improved, U::Gaugefield{B,T,M}) where {B,T,M}
     c₀ = T(5/3)
     c₁ = T(-2/12)
     itr = eachindex(U)
-    Q = parallelfor_sum(itr, 0.0, B, Val(M), (U,), (), (U,); block_size=128) do q, site, (U,)
+    Q = parallelfor_sum(itr, 0.0, B, Val(M), (U,), (), (U,); block_size=256) do q, site, (U,)
         q += top_charge_density_imp(U, site, c₀, c₁, T)
     end
 
     return distributed_reduce(Q/4π^2, +, U)
 end
 
-function top_charge_density_plaq(U, site)
-    C₁₂ = plaquette(U, 1i32, 2i32, site)
+@inline function top_charge_density_plaq(U, site)
+    C₁₂ = plaquette(U, 1, 2, site)
     F₁₂ = C₁₂ - C₁₂'
-    C₁₃ = plaquette(U, 1i32, 3i32, site)
+    C₁₃ = plaquette(U, 1, 3, site)
     F₁₃ = C₁₃ - C₁₃'
-    C₂₃ = plaquette(U, 2i32, 3i32, site)
+    C₂₃ = plaquette(U, 2, 3, site)
     F₂₃ = C₂₃ - C₂₃'
-    C₁₄ = plaquette(U, 1i32, 4i32, site)
+    C₁₄ = plaquette(U, 1, 4, site)
     F₁₄ = C₁₄ - C₁₄'
-    C₂₄ = plaquette(U, 2i32, 4i32, site)
+    C₂₄ = plaquette(U, 2, 4, site)
     F₂₄ = C₂₄ - C₂₄'
-    C₃₄ = plaquette(U, 3i32, 4i32, site)
+    C₃₄ = plaquette(U, 3, 4, site)
     F₃₄ = C₃₄ - C₃₄'
 
     qₙ = real(multr(F₁₂, F₃₄)) - real(multr(F₁₃, F₂₄)) + real(multr(F₁₄, F₂₃))
     return -qₙ
 end
 
-function top_charge_density_clover(U, site, ::Type{T}) where {T}
-    C₁₂ = clover_square(U, 1i32, 2i32, site, 1i32)
+@inline function top_charge_density_clover(U, site, ::Type{T}) where {T}
+    C₁₂ = clover_1x1(U, 1, 2, site)
     F₁₂ = C₁₂ - C₁₂'
-    C₁₃ = clover_square(U, 1i32, 3i32, site, 1i32)
+    C₁₃ = clover_1x1(U, 1, 3, site)
     F₁₃ = C₁₃ - C₁₃'
-    C₂₃ = clover_square(U, 2i32, 3i32, site, 1i32)
+    C₂₃ = clover_1x1(U, 2, 3, site)
     F₂₃ = C₂₃ - C₂₃'
-    C₁₄ = clover_square(U, 1i32, 4i32, site, 1i32)
+    C₁₄ = clover_1x1(U, 1, 4, site)
     F₁₄ = C₁₄ - C₁₄'
-    C₂₄ = clover_square(U, 2i32, 4i32, site, 1i32)
+    C₂₄ = clover_1x1(U, 2, 4, site)
     F₂₄ = C₂₄ - C₂₄'
-    C₃₄ = clover_square(U, 3i32, 4i32, site, 1i32)
+    C₃₄ = clover_1x1(U, 3, 4, site)
     F₃₄ = C₃₄ - C₃₄'
 
     qₙ = real(multr(F₁₂, F₃₄)) - real(multr(F₁₃, F₂₄)) + real(multr(F₁₄, F₂₃))
     return -T(1/64) * qₙ
 end
 
-function top_charge_density_imp(U, site, c₀, c₁, ::Type{T}) where {T}
+@inline function top_charge_density_imp(U, site, c₀, c₁, ::Type{T}) where {T}
     q_clov = top_charge_density_clover(U, site, T)
     q_rect = top_charge_density_rect(U, site, T)
     q_imp = c₀ * q_clov + c₁ * q_rect
     return q_imp
 end
 
-function top_charge_density_rect(U, site, ::Type{T}) where {T}
-    C₁₂ = clover_rect(U, 1i32, 2i32, site, 1i32, 2i32)
+@inline function top_charge_density_rect(U, site, ::Type{T}) where {T}
+    C₁₂ = clover_2x1(U, 1, 2, site) + clover_1x2(U, 1, 2, site)
     F₁₂ = C₁₂ - C₁₂'
-    C₁₃ = clover_rect(U, 1i32, 3i32, site, 1i32, 2i32)
+    C₁₃ = clover_2x1(U, 1, 3, site) + clover_1x2(U, 1, 3, site)
     F₁₃ = C₁₃ - C₁₃'
-    C₂₃ = clover_rect(U, 2i32, 3i32, site, 1i32, 2i32)
+    C₂₃ = clover_2x1(U, 2, 3, site) + clover_1x2(U, 2, 3, site)
     F₂₃ = C₂₃ - C₂₃'
-    C₁₄ = clover_rect(U, 1i32, 4i32, site, 1i32, 2i32)
+    C₁₄ = clover_2x1(U, 1, 4, site) + clover_1x2(U, 1, 4, site)
     F₁₄ = C₁₄ - C₁₄'
-    C₂₄ = clover_rect(U, 2i32, 4i32, site, 1i32, 2i32)
+    C₂₄ = clover_2x1(U, 2, 4, site) + clover_1x2(U, 2, 4, site)
     F₂₄ = C₂₄ - C₂₄'
-    C₃₄ = clover_rect(U, 3i32, 4i32, site, 1i32, 2i32)
+    C₃₄ = clover_2x1(U, 3, 4, site) + clover_1x2(U, 3, 4, site)
     F₃₄ = C₃₄ - C₃₄'
 
     qₙ = real(multr(F₁₂, F₃₄)) - real(multr(F₁₃, F₂₄)) + real(multr(F₁₄, F₂₃))
@@ -275,10 +276,10 @@ end
 function ∇trFμνFρσ(::Plaquette, U, F, μ, ν, ρ, σ, site)
     Nμ = axes(U, μ)
     Nν = axes(U, ν)
-    siteμ⁺ = move(site, μ, 1i32, Nμ)
-    siteν⁺ = move(site, ν, 1i32, Nν)
-    siteν⁻ = move(site, ν, -1i32, Nν)
-    siteμ⁺ν⁻ = move(siteμ⁺, ν, -1i32, Nν)
+    siteμ⁺ = move(site, μ, 1, Nμ)
+    siteν⁺ = move(site, ν, 1, Nν)
+    siteν⁻ = move(site, ν, -1, Nν)
+    siteμ⁺ν⁻ = move(siteμ⁺, ν, -1, Nν)
 
     component =
         cmatmul_oddo(U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site], F[ρ, σ, site]) +
@@ -293,11 +294,11 @@ end
 function ∇trFμνFρσ(::Clover, U, F, μ, ν, ρ, σ, site)
     Nμ = axes(U, μ)
     Nν = axes(U, ν)
-    siteμ⁺ = move(site, μ, 1i32, Nμ)
-    siteν⁺ = move(site, ν, 1i32, Nν)
-    siteν⁻ = move(site, ν, -1i32, Nν)
-    siteμ⁺ν⁺ = move(siteμ⁺, ν, 1i32, Nν)
-    siteμ⁺ν⁻ = move(siteμ⁺, ν, -1i32, Nν)
+    siteμ⁺ = move(site, μ, 1, Nμ)
+    siteν⁺ = move(site, ν, 1, Nν)
+    siteν⁻ = move(site, ν, -1, Nν)
+    siteμ⁺ν⁺ = move(siteμ⁺, ν, 1, Nν)
+    siteμ⁺ν⁻ = move(siteμ⁺, ν, -1, Nν)
 
     # get reused matrices up to cache (can precalculate some products too)
     # Uνsiteμ⁺ = U[ν,siteμ⁺]

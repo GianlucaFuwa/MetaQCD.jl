@@ -6,6 +6,7 @@ const MPI_WORLD_SIZE = Base.RefValue{Int64}()
 const MPI_INSTANCE_SIZE = Base.RefValue{Int64}()
 const MPI_NUMINSTANCES = Base.RefValue{Int64}(1)
 const MPI_INSTANCE = Base.RefValue{Int64}(0)
+const MPI_IS_GPUAWARE = Val(@load_preference("MPI_IS_GPUAWARE", false))
 
 """
     mpi_init()
@@ -34,7 +35,6 @@ end
     MPI_COMM_SHARED[] = comm_shared
     return comm_split
 end
-
 
 @inline function mpi_comm()
     mpi_init()
@@ -66,6 +66,7 @@ end
 @inline function mpi_amroot(comm=mpi_comm())
     return mpi_myrank(comm) == 0
 end
+
 @inline function mpi_barrier(comm=mpi_comm())
     mpi_init()
     return MPI.Barrier(comm)
@@ -149,4 +150,12 @@ end
 
 @inline function mpi_write_at(fp, offset, data)
     return MPI.File.write_at(fp, offset, data)
+end
+
+@inline function mpi_make_transferrable(x::AbstractArray)
+    if x isa Array || MPI_IS_GPUAWARE == Val(true)
+        return x, false
+    else
+        return Array(x), true
+    end
 end

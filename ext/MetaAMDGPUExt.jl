@@ -22,19 +22,55 @@ Fields.priority!(::ROCBackend, priority) = AMDGPU.priority!(priority)
 function Fields.launch_foreachindex_global!(
     ::ROCBackend, f, captured, itr, groupsize, gridsize
 )
+    if Fields.TUNE_KERNELS == Val(true)
+        if !haskey(Fields.KERNEL_CACHE, string(Symbol(f)))
+            kernel = @roc launch=false _foreachindex_global!(f, captured, itr)
+            config = launch_configuration(kernel; max_block_size=min(length(itr), groupsize))
+            Fields.KERNEL_CACHE[string(Symbol(f))] = config.groupsize
+            groupsize = config.groupsize
+        else
+            groupsize = Fields.KERNEL_CACHE[string(Symbol(f))]
+        end
+
+        gridsize = cld(length(itr), groupsize)
+    end
+
     @roc groupsize=groupsize gridsize=gridsize _foreachindex_global!(f, captured, itr) 
-    synchronize()
     return nothing
 end
 
 function Fields.launch_foreachindex_reduce_global!(
     ::ROCBackend, out, op, f, captured, itr, groupsize, gridsize
 )
-    out_vec = AMDGPU.zeros(typeof(out), gridsize)
-    wanted_items = nextpow(2, length(itr))
-    reduce_items = wanted_items > groupsize ? prevpow(2, groupsize) : wanted_items
-    bytes_out = sizeof(typeof(out)) * reduce_items
-    @roc groupsize=groupsize gridsize=gridsize shmem=bytes_out _foreachindex_reduce_global!(
+    length(itr) == 0 && return out
+    compute_shmem(items) = items * sizeof(typeof(out))
+
+    if Fields.TUNE_KERNELS == Val(true)
+        if !haskey(Fields.KERNEL_CACHE, string(Symbol(f)))
+            # how many items do we want?
+            wanted_items = nextpow(2, length(itr))
+            # how many items can we launch?
+            max_block_size = 1024
+            compute_items(max_items) = wanted_items > max_items ? prevpow(2, max_items) : wanted_items
+            max_shmem = max_block_size |> compute_items |> compute_shmem
+            out_vec = AMDGPU.zeros(typeof(out), gridsize)
+            kernel = @roc launch=false _foreachindex_reduce_global!(
+                out_vec, out, op, f, captured, itr
+            ) 
+            kernel_config = launch_configuration(kernel; shmem=max_shmem, max_block_size)
+            # determine the launch configuration
+            groupsize = compute_items(kernel_config.groupsize)
+            gridsize = cld(length(itr), groupsize)
+            Fields.KERNEL_CACHE[string(Symbol(f))] = groupsize
+        else
+            groupsize = Fields.KERNEL_CACHE[string(Symbol(f))]
+            gridsize = cld(length(itr), groupsize)
+        end
+    end
+    # perform the actual reduction
+    out_vec = AMDGPU.zeros(typeof(out), groupsize)
+    reduce_shmem = compute_shmem(groupsize)
+    @roc gridsize=gridsize groupsize=groupsize shmem=reduce_shmem _foreachindex_reduce_global!(
         out_vec, out, op, f, captured, itr
     ) 
     return out_vec
@@ -44,10 +80,5 @@ end
 @inline Fields.groupidx() = workgroupIdx().x
 @inline Fields.groupdim() = workgroupDim().x
 @inline Fields.groupreduce(op, val, neutral) = reduce_group(op, val, neutral)
-
-function Fields.simple_tune(itr, kernel, ::Type{ROCBackend})
-    config = launch_configuration(kernel)
-    return min(length(itr), config.groupsize)
-end
 
 end

@@ -30,7 +30,7 @@ function test_derivative(; backend=CPU, GA=WilsonGaugeAction, nprocs_cart=(1, 1,
         end
 
         # gaction_old = calc_gauge_action(U)
-        # topcharge_old = top_charge(Clover(), U)
+        # topcharge_old = top_charge(U)
 
         # Test for smearing with 5 steps and stout parameter 0.12
         smearing = StoutSmearing(U; numlayers=5, rho=0.12)

@@ -150,7 +150,7 @@ function energy_density(::Clover, U::Gaugefield{B,T,M}) where {B,T,M}
     E = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (U,), (), (U,)) do e, site, (U,)
         for μ in 1:3
             for ν in (μ+1):4
-                Cμν = clover_square(U, μ, ν, site, 1)
+                Cμν = clover_1x1(U, μ, ν, site)
                 Fμν = fac * traceless_antihermitian(Cμν)
                 e += real(multr(Fμν, Fμν))
             end
@@ -174,7 +174,7 @@ function energy_density_rect(U::Gaugefield{B,T,M}) where {B,T,M}
     E = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (U,), (), (U,)) do e, site, (U,)
         for μ in 1:3
             for ν in (μ+1):4
-                Cμν = clover_rect(U, μ, ν, site, 1, 2)
+                Cμν = clover_2x1(U, μ, ν, site) + clover_1x2(U, μ, ν, site)
                 Fμν = fac * traceless_antihermitian(Cμν)
                 e += real(multr(Fμν, Fμν))
             end

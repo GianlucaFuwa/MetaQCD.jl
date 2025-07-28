@@ -190,7 +190,7 @@ function create_sendbuf!(ϕ_eo::SpinorfieldEO{B,T,M}, sites, dim, dir) where {B,
         sendbuf[i] = ϕ[_site]
     end
 
-    return sendbuf
+    return mpi_make_transferrable(sendbuf)[1]
 end
 
 function Base.copyto!(

@@ -1,4 +1,6 @@
 const HIDE_COMMS = Val(@load_preference("MPI_HIDE_COMMUNICATION", false))
+const TUNE_KERNELS = Val(@load_preference("TUNE_KERNELS", false))
+const KERNEL_CACHE::Dict{String,Int64} = Dict{String,Int64}() # function name => block size
 function groupreduce end
 function threadidx end
 function groupidx end
@@ -180,7 +182,7 @@ function _foreachindex_reduce_global!(out, init, op, f, captured, itr)
     i = ithread + (iblock - 0x1) * groupdim()
 
     if i <= length(itr)
-        out_i = f(init, itr[i], captured)
+        out_i = @inline f(init, itr[i], captured)
     else
         out_i = init
     end

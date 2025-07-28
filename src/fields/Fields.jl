@@ -59,6 +59,8 @@ include("tensorfield.jl") # Tensorfield struct and fieldstrength methods defined
 include("utils/iterators.jl") # Sequential and Checkerboard iterators defined here 
 include("utils/adapt.jl")
 
+const GaugeLikeField{B,T,M} = Union{Gaugefield{B,T,M},Colorfield{B,T,M}}
+
 include("utils/field_operations.jl") # General operations on fields, like adding, copying etc.
 include("action.jl") # Gauge action methods
 include("stencils/plaquette.jl") # Definition of clover operator

@@ -10,6 +10,7 @@ using LoopVectorization
 using MPI
 using MuladdMacro: @muladd
 using Polyester
+using Preferences
 using Random
 using StaticArrays
 using StaticTools
@@ -17,7 +18,7 @@ using StaticTools
 
 export METAQCD_VERSION, to_vec
 export MPI_COMM_WORLD, MPI_COMM_INSTANCE, MPI_WORLD_SIZE, MPI_INSTANCE_SIZE, MPI_INSTANCE
-export MPI_NUMINSTANCES
+export MPI_NUMINSTANCES, MPI_IS_GPUAWARE, mpi_make_transferrable
 export mpi_comm_instance, mpi_comm_shared, mpi_ssend, mpi_recv!, mpi_datatype, mpi_buffer
 export mpi_init, mpi_comm, mpi_size, mpi_parallel, mpi_myrank, mpi_amroot, mpi_barrier
 export mpi_cart_create, mpi_cart_coords, mpi_cart_shift, mpi_multirequest, mpi_send

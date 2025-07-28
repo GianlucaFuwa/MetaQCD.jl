@@ -66,8 +66,8 @@ function start_halo_update_single!(
         else
             send_buf_prev = create_sendbuf!(u, prev_sites_from, dim, 1)
             send_buf_next = create_sendbuf!(u, next_sites_from, dim, 2)
-            recv_buf_prev = u.halos[2(dim-1) + 1].parent
-            recv_buf_next = u.halos[2(dim-1) + 2].parent
+            recv_buf_prev = get_recv_buf(u, 2(dim-1) + 1)
+            recv_buf_next = get_recv_buf(u, 2(dim-1) + 2)
 
             recv_req_prev = mpi_irecv!(recv_buf_prev, comm_cart; source=prev_nbr, tag=1+2(dim-1))
             recv_req_next = mpi_irecv!(recv_buf_next, comm_cart; source=next_nbr, tag=2+2(dim-1))

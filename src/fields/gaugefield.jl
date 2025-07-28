@@ -78,7 +78,12 @@ function create_sendbuf!(u::AbstractField{B,T,M}, sites, dim, dir) where {B,T,M}
         end
     end
 
-    return sendbuf
+    return mpi_make_transferrable(sendbuf)[1]
+end
+
+function get_recv_buf(u::AbstractField{B,T,M}, num) where {B,T,M}
+    @assert 1 <= num <= 8 "halo index $num is out-of-bounds (must be in [1, 8])"
+    return mpi_make_transferrable(u.halos[num].parent)
 end
 
 function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:AbstractField{B,T,M}}

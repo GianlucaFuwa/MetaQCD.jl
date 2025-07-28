@@ -79,8 +79,8 @@ function start_halo_update_single!(
         else
             send_buf_prev = create_sendbuf!(u, prev_sites_from, dim, 1)
             send_buf_next = create_sendbuf!(u, next_sites_from, dim, 2)
-            recv_buf_prev = u.halos[2(dim-1) + 1].parent
-            recv_buf_next = u.halos[2(dim-1) + 2].parent
+            recv_buf_prev, needs_copyto1 = get_recv_buf(u, 2(dim-1) + 1)
+            recv_buf_next, needs_copyto2 = get_recv_buf(u, 2(dim-1) + 2)
 
             # Start receives first (these must be started on main thread)
 
@@ -91,8 +91,10 @@ function start_halo_update_single!(
                 priority!(backend(), :high)
                 wait(recv_req_prev)
                 synchronize(backend())
+                needs_copyto1 && copyto!(u.halos[2(dim-1) + 1], recv_buf_prev)
                 wait(recv_req_next)
                 synchronize(backend())
+                needs_copyto2 && copyto!(u.halos[2(dim-1) + 2], recv_buf_next)
             end
 
             push!(all_recv_tasks, recv_task)

@@ -162,7 +162,7 @@ function create_sendbuf!(ϕ::Spinorfield{B,T,M}, sites, dim, dir) where {B,T,M}
         sendbuf[i] = ϕ[site]
     end
 
-    return sendbuf
+    return mpi_make_transferrable(sendbuf)[1]
 end
 
 function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:Spinorfield{B,T,M}}

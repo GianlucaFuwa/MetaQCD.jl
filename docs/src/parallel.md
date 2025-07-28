@@ -50,8 +50,15 @@ When using `parallelfor_sum` for reductions, there is one extra argument after `
 is the initial value of the reduction variable `init`.
 
 Multithreading (when `B == CPU`) is handled via [Polyester.jl](https://github.com/JuliaSIMD/Polyester.jl)'s
-`@batch` macro and GPU execution via [KernelAbstractions.jl](https://github.com/JuliaGPU/KernelAbstractions.jl)
-to be able to target different backends with very low coding overhead.
+`@batch` macro and GPU execution via so called ["exstensions"](https://docs.julialang.org/en/v1/manual/code-loading/#man-extensions),
+which make it possible to load code only if a specific package was loaded first. In this
+case the functions needed for GPU support, namely `launch_foreachindex_global!` and
+`launch_foreachindex_reduce_global!` (see [the CUDA example](../../ext/MetaCUDAExt.jl))
+among other utility functions.
+
+There is also the possibility to have the package automatically tune the kernels instead of
+using the default block size of 256 by switching `TUNE_KERNELS = true` in LocalPreferences.toml.
+The tuning is fairly shallow, as it uses CUDA's and ROCm's built-in occupancy checker.k
 
 ## Example Usage
 An example usage of this parallelization function is:

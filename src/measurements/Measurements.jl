@@ -22,8 +22,8 @@ import ..Fields: WilsonGaugeAction, SymanzikTreeGaugeAction, SymanzikTadGaugeAct
 import ..Fields: IwasakiGaugeAction, DBW2GaugeAction, AbstractFieldstrength, Colorfield
 import ..Fields: Gaugefield, Spinorfield, Tensorfield, calc_gauge_action, check_dims 
 import ..Fields: Plaquette, Clover, Improved, fieldstrength_eachsite!, gauge_action, staple
-import ..Fields: clover_square, float_type, plaquette, wilsonloop
-import ..Fields: parallelfor, parallelfor_sum, CPU, ones!, set_source!, clover_rect
+import ..Fields: clover_1x1, clover_2x1, clover_1x2, float_type, plaquette, wilsonloop
+import ..Fields: parallelfor, parallelfor_sum, CPU, ones!, set_source!
 import ..Fields: clear!, distributed_reduce, is_distributed, plaquette_trace_sum
 import ..Fields: update_halo!, get_local_dims, get_global_dims, get_global_volume
 import ..Smearing: AbstractSmearing, Cooling, GradientFlow, NoSmearing, StoutSmearing

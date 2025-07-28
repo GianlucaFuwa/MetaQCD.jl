@@ -23,6 +23,19 @@ end
 function Fields.launch_foreachindex_global!(
     ::CUDABackend, f, captured, itr, threads, blocks
 )
+    if Fields.TUNE_KERNELS == Val(true)
+        if !haskey(Fields.KERNEL_CACHE, string(Symbol(f)))
+            kernel = @cuda launch=false _foreachindex_global!(f, captured, itr)
+            config = launch_configuration(kernel; max_threads=min(length(itr), threads))
+            Fields.KERNEL_CACHE[string(Symbol(f))] = config.threads
+            threads = config.groupsize
+        else
+            threads = Fields.KERNEL_CACHE[string(Symbol(f))]
+        end
+
+        blocks = cld(length(itr), threads)
+    end
+
     @cuda threads=threads blocks=blocks _foreachindex_global!(f, captured, itr) 
     return nothing
 end
@@ -30,11 +43,35 @@ end
 function Fields.launch_foreachindex_reduce_global!(
     ::CUDABackend, out, op, f, captured, itr, threads, blocks
 )
-    out_vec = CUDA.zeros(typeof(out), blocks)
-    wanted_items = nextpow(2, length(itr))
-    reduce_items = wanted_items > threads ? prevpow(2, threads) : wanted_items
-    bytes_out = sizeof(typeof(out)) * reduce_items
-    @cuda threads=threads blocks=blocks shmem=bytes_out _foreachindex_reduce_global!(
+    length(itr) == 0 && return out
+    compute_shmem(items) = items * sizeof(typeof(out))
+
+    if Fields.TUNE_KERNELS == Val(true)
+        if !haskey(Fields.KERNEL_CACHE, string(Symbol(f)))
+            # how many items do we want?
+            wanted_items = nextpow(2, length(itr))
+            # how many items can we launch?
+            max_block_size = 1024
+            compute_items(max_items) = wanted_items > max_items ? prevpow(2, max_items) : wanted_items
+            max_shmem = max_block_size |> compute_items |> compute_shmem
+            out_vec = CUDA.zeros(typeof(out), threads)
+            kernel = @cuda launch=false _foreachindex_reduce_global!(
+                out_vec, out, op, f, captured, itr
+            ) 
+            kernel_config = launch_configuration(kernel; shmem=max_shmem, max_block_size)
+            # determine the launch configuration
+            threads = compute_items(kernel_config.groupsize)
+            Fields.KERNEL_CACHE[string(Symbol(f))] = threads
+        else
+            threads = Fields.KERNEL_CACHE[string(Symbol(f))]
+        end
+
+        blocks = cld(length(itr), threads)
+    end
+    # perform the actual reduction
+    out_vec = CUDA.zeros(typeof(out), threads)
+    reduce_shmem = compute_shmem(threads)
+    @cuda blocks=blocks threads=threads shmem=reduce_shmem _foreachindex_reduce_global!(
         out_vec, out, op, f, captured, itr
     ) 
     return out_vec
@@ -44,10 +81,5 @@ end
 @inline Fields.groupidx() = blockIdx().x
 @inline Fields.groupdim() = blockDim().x
 @inline Fields.groupreduce(op, val, neutral) = reduce_block(op, val, neutral)
-
-function Fields.simple_tune(itr, kernel, ::Type{CUDABackend})
-    config = launch_configuration(kernel)
-    return min(length(itr), config.threads)
-end
 
 end

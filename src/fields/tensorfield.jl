@@ -111,17 +111,17 @@ function fieldstrength_eachsite!(
     fac = Complex{T}(im / 8)
 
     parallelfor(eachindex(U, F), B, Val(M), (U,), (F,), (U, F)) do site, (U, F)
-        C12 = clover_square(U, 1, 2, site, 1)
+        C12 = clover_1x1(U, 1, 2, site)
         F[1, 2, site] = fac * (C12 - C12')
-        C13 = clover_square(U, 1, 3, site, 1)
+        C13 = clover_1x1(U, 1, 3, site)
         F[1, 3, site] = fac * (C13 - C13')
-        C14 = clover_square(U, 1, 4, site, 1)
+        C14 = clover_1x1(U, 1, 4, site)
         F[1, 4, site] = fac * (C14 - C14')
-        C23 = clover_square(U, 2, 3, site, 1)
+        C23 = clover_1x1(U, 2, 3, site)
         F[2, 3, site] = fac * (C23 - C23')
-        C24 = clover_square(U, 2, 4, site, 1)
+        C24 = clover_1x1(U, 2, 4, site)
         F[2, 4, site] = fac * (C24 - C24')
-        C34 = clover_square(U, 3, 4, site, 1)
+        C34 = clover_1x1(U, 3, 4, site)
         F[3, 4, site] = fac * (C34 - C34')
     end
 
@@ -143,7 +143,7 @@ function create_sendbuf!(F::Tensorfield{B,T,M}, sites, dim, dir) where {B,T,M}
         end
     end
 
-    return sendbuf
+    return mpi_make_transferrable(sendbuf)[1]
 end
 
 function Base.copyto!(a::Tensorfield{B,T,M}, b::Tensorfield{B}, arange, brange) where {B,T,M}

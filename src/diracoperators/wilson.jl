@@ -160,27 +160,27 @@ function clover_kernel(U, ϕ, site, fac, ::Type{T}) where {T}
     ϕ_n = ϕ[site]
     Cₙₘ = zero(ϕ_n)
 
-    C₁₂ = clover_square(U, 1, 2, site, 1)
+    C₁₂ = clover_1x1(U, 1, 2, site)
     F₁₂ = C₁₂ - C₁₂'
     Cₙₘ += cmvmul_color(F₁₂, σμν_spin_mul(ϕ_n, Val(1), Val(2)))
 
-    C₁₃ = clover_square(U, 1, 3, site, 1)
+    C₁₃ = clover_1x1(U, 1, 3, site)
     F₁₃ = C₁₃ - C₁₃'
     Cₙₘ += cmvmul_color(F₁₃, σμν_spin_mul(ϕ_n, Val(1), Val(3)))
 
-    C₁₄ = clover_square(U, 1, 4, site, 1)
+    C₁₄ = clover_1x1(U, 1, 4, site)
     F₁₄ = C₁₄ - C₁₄'
     Cₙₘ += cmvmul_color(F₁₄, σμν_spin_mul(ϕ_n, Val(1), Val(4)))
 
-    C₂₃ = clover_square(U, 2, 3, site, 1)
+    C₂₃ = clover_1x1(U, 2, 3, site)
     F₂₃ = C₂₃ - C₂₃'
     Cₙₘ += cmvmul_color(F₂₃, σμν_spin_mul(ϕ_n, Val(2), Val(3)))
 
-    C₂₄ = clover_square(U, 2, 4, site, 1)
+    C₂₄ = clover_1x1(U, 2, 4, site)
     F₂₄ = C₂₄ - C₂₄'
     Cₙₘ += cmvmul_color(F₂₄, σμν_spin_mul(ϕ_n, Val(2), Val(4)))
 
-    C₃₄ = clover_square(U, 3, 4, site, 1)
+    C₃₄ = clover_1x1(U, 3, 4, site)
     F₃₄ = C₃₄ - C₃₄'
     Cₙₘ += cmvmul_color(F₃₄, σμν_spin_mul(ϕ_n, Val(3), Val(4)))
     return Complex{T}(fac * im / 8) * Cₙₘ

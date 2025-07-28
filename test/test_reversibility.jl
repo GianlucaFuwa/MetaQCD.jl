@@ -33,6 +33,7 @@ function test_reversibility(
     identity_gauges!(U)
     # @timeit to "load_field!" load_field!(BridgeFormat(), U, "./test/testconf.txt")
 
+    # FIXME:
     bias = if with_bias
         Bias(
             Clover(),
