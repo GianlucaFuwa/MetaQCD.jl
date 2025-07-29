@@ -82,12 +82,12 @@ if mpi_amroot()
     println(
         fp,
         rpad("Op", 20),
-        rpad("medianperf", 20),
-        rpad("meanperf", 20),
-        rpad("stdperf", 20),
-        rpad("medianbandw", 20),
-        rpad("meanbandw", 20),
-        rpad("stdbandw", 20),
+        rpad("medianperf [GFLOPs]", 20),
+        rpad("meanperf [GFLOPs]", 20),
+        rpad("stdperf [GFLOPs]", 20),
+        rpad("medianbandw [GB/s]", 20),
+        rpad("meanbandw [GB/s]", 20),
+        rpad("stdbandw [GB/s]", 20),
     )
 end
 

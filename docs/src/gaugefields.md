@@ -1,46 +1,98 @@
-# Implementation of Gauge and Spinor fields
+# Implementation of Gauge and Spinor Fields
 
-We create a 4-dimensional SU(3) gauge field by specifying the backend, floating point
-precision, gauge action, dimensions and coupling parameter beta:
+This section describes the core field types in MetaQCD and how to create and initialize them for lattice QCD calculations.
+
+## `AbstractField` Type Architecture
+
+### Core Field Types
+
+MetaQCD implements three main matrix field container types:
+
+#### `Gaugefield`
+- **Purpose**: Standard gauge field for lattice QCD simulations
+- **Contains**: Main array `U` plus gauge action information
+- **Usage**: Standard gauge field operations and measurements
+
+#### `Colorfield` 
+- **Purpose**: Simplified gauge field without action metadata
+- **Contains**: Main array `U` only (no gauge action information)
+- **Usage**: Intermediate calculations where action type is irrelevant
+
+#### `Expfield`
+- **Purpose**: Extended field for advanced smearing algorithms
+- **Contains**: 3×3 matrices plus additional "Q" matrices for Stout algorithm
+- **Usage**: Stout smearing and recursive smearing operations
+
+### Data Storage Structure
+
+All field types use a **5-dimensional array** structure:
+- **Dimensions**: `[μ, x, y, z, t]` where `μ` (fastest/first index) indexes the 4 spacetime directions
+- **Elements**: Statically sized 3×3 complex matrices (`SMatrix` from StaticArrays.jl)
+- **Storage**: Matrices stored as tuples under the hood for optimal performance
+
+### Performance Benefits
+
+The use of `SMatrix` provides several advantages:
+
+- **Zero Allocations**: No memory allocation during linear algebra operations
+- **Immutable Operations**: Matrices are always replaced rather than mutated
+- **Optimized Storage**: Compile-time known sizes enable aggressive optimization
+
+### Backend Support
+
+Different computing backends (CPU, GPU) are handled through Julia extensions, as detailed in the parallelization section. This allows the same code to run efficiently on various hardware while only loading GPU-specific code when needed.
+
+### Future Optimizations
+
+More memory-efficient storage schemes for SU(3) and su(3) elements may be implemented in future versions to further reduce memory footprint.
+
+## Spinor Fields
+
+### Data Structure
+
+Fermion fields (spinors) are stored as **4-dimensional arrays** containing `n_color × n_dirac` complex-valued `SVector`s.
+
+**Design Choice**: Using 4 dimensions instead of 5 enables writing routines that process all Dirac components simultaneously, improving computational efficiency.
+
+### Creating Spinor Fields
+
 ```julia
-backend = CPU
-prec = Float64
-action = WilsonGaugeAction
-Ns = Nt = 12
-beta = 6.0
-U = Gaugefield{backend,prec,action}(Ns, Ns, Ns, Nt, beta) # all links are set to 0
+# Create spinor field (n_dirac replaces gauge action parameter)
+ψ = Spinorfield{backend,prec,n_dirac}(Ns, Ns, Ns, Nt)
 ```
-and set the initial conditions with `identity_gauges!(U)` (cold) or
-`random_gauges!(U)` (hot).
 
-`Gaugefield`s, `Colorfield`s and `Expfield`s are structs that contain a main Array `U`,
-which is a 5-dimensional array of statically sized 3x3 complex matrices, i.e., `SMatrix`
-objects from `StaticArrays.jl` (where arrays are stored as Tuples under the hood).
-`Colorfield`s are really just `Gaugefield`s without the added information of the gauge
-action and `Expfield`s don't just store 3x3 complex matrices but all the information
-required for the "Q" matrices of the Stout algorithm and Stout recursion.
+### Initialization Methods
 
-The fact that the elements are statically sized immutable arrays means that, for one, there
-are no allocations when performing linear algebra operations with them and secondly that we
-always just override the matrices in the arrays instead of mutating them.
+- **Unit field**: `ones!(ψ)` - Sets all components to 1
+- **Random field**: `gaussian_pseudofermions!(ψ)` - Generates Gaussian random pseudofermions
 
-The different backends are handled by `Kernelabstractions.jl`.
+## Even-Odd Preconditioning
 
-We might use more memory efficient storage schemes for SU(3) or su(3) elements in the future.
+### `EvenOdd` Wrapper
 
-Fermion fields or spinors or whatever you want to call them are stored in 4-dimensional 
-arrays of `n_color * n_dirac` complex valued `SVector`s. The reason for chosing 4 instead of
-5 dimensions is that this enabled us to write routines that take care of all dirac
-components at the same time, which should be more efficient.
+For even-odd preconditioned Dirac operators, spinor fields are wrapped in an `EvenOdd` struct:
 
-When using even-odd preconditioned dirac operators, the fermion fields get wrapped in a
-struct called `EvenOdd` such that we can overload all functions on that type. Our convention
-is to define the fields on the even sites. We map all even sites to the first half of the
-array to have contiguous memory accesses. The function `map_to_half` does exactly this mapping.
+```julia
+ψ_eo = EvenOdd(ψ)
+```
 
-`Spinorfield`s are created in the same way as `Gaugefield`s with the gauge action type
-parameter being replaced by the number of Dirac indices. For `Spinorfield`s we have the
-`ones!` and `gaussian_pseudofermions!` methods to init them.
+This wrapper allows overloading all relevant functions to work with the preconditioned structure.
+
+### Memory Layout Optimization
+
+**Convention**: Fields are defined on even sites, with all even sites mapped to the first half of the array for **contiguous memory access**.
+
+**Implementation**: The `map_to_half` function handles the mapping between full lattice indices and the compressed even-site storage.
+
+### Benefits
+
+- **Reduced Memory**: Only stores even sites explicitly
+- **Cache Efficiency**: Contiguous memory layout improves cache performance  
+- **Algorithmic Efficiency**: Enables optimized even-odd preconditioned algorithms
+
+## API Documentation
+
+The following types are available with full documentation:
 
 ```@docs
 Gaugefield

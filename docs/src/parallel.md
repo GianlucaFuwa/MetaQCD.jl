@@ -1,67 +1,97 @@
 # Parallelization
 
-All paralleization is handled by the functions `parallelfor` and `parallelfor_sum` in
-in the file [src/fields/utils/parallel.jl](../../src/fields/utils/parallel.jl).
+This document explains how to use parallelization features in MetaQCD, including both single-node and distributed computing capabilities.
+
+## Overview
+
+All parallelization is handled through two main functions:
+- `parallelfor` - For general parallel operations
+- `parallelfor_sum` - For parallel reductions
+
+Both functions are located in [`src/fields/utils/parallel.jl`](../../src/fields/utils/parallel.jl).
+
+## Core Functions
+
+### `parallelfor`
+
+The main parallelization function with the following signature:
 
 ```julia
 function parallelfor(
-    f,
-    itr,
-    ::Type{B}, # backend
-    ::Val{M}, # whether field is mpi-distributed
-    to_validate::Tuple,
-    invalidated::Tuple,
-    captured::Tuple;
-    block_size=min(256, length(itr))
+    f,                    # Kernel function to parallelize
+    itr,                  # Iterator over lattice indices
+    ::Type{B},            # Backend type (CPU/GPU)
+    ::Val{M},             # MPI distribution flag (compile-time)
+    to_validate::Tuple,   # Fields requiring halo validation before execution
+    invalidated::Tuple,   # Fields whose halos become invalid after execution
+    captured::Tuple;      # Fields captured by kernel f
+    block_size=min(256, length(itr))  # GPU block size (optional)
 ) where {B,M}
-    return parallelfor(
-        f, itr, B, Val(M), HIDE_COMMS, to_validate, invalidated, captured; block_size
-    )
-end
 ```
 
-The way these functions work is that they take in a function `f` as the first argument which
-would be the kernel for the function to be parallelized and as a second argument the space
-of lattice indices `itr` to iterate over. The two next arguments are the backend `B` of the
-fields and a Boolean `M` wrapped in a `Val`, to make it compile time known, that specifies
-whether the fields are MPI-distributed. `B` and `M` are always at compile time
-embedded into the parsed fields.
-For the halo exchange this function also needs to know which fields' halos have to be
-validated before execution of the kernel and which fields' halos become invalidated after
-execution of the kernel. In this way we can save time by not validating the halo of a field
-whose halo is already up to date.
-The last argument is the fields that are captured by the kernel `f` and one can optionally
-pass the block size for execution on GPUs.
+### Parameters
 
-One may notice the `HIDE_COMMS` variable. This variable is set at compile time, by including
-it in a `LocalPreferences.toml` file in the packages base directory like this:
+- **`f`**: The kernel function that will be executed in parallel
+- **`itr`**: The space of lattice indices to iterate over
+- **`B`**: Backend type, automatically embedded in parsed fields at compile time
+- **`M`**: Boolean flag (wrapped in `Val`) indicating MPI distribution status
+- **`to_validate`**: Tuple of fields whose halos must be validated before kernel execution
+- **`invalidated`**: Tuple of fields whose halos become invalid after kernel execution
+- **`captured`**: Fields that the kernel function `f` will access
 
-```
+### Halo Exchange Optimization
+
+The system optimizes performance by tracking halo validation status:
+- Only validates halos that are out of date
+- Marks halos as invalid when they're modified
+- Saves computational time by avoiding unnecessary validation
+
+## Communication Hiding
+
+### Configuration
+
+Communication can be hidden behind computation using the `HIDE_COMMS` compile-time variable. Configure this in `LocalPreferences.toml`:
+
+```toml
 [MetaQCD]
-MPI_HIDE_COMMUNICATION = false
+MPI_HIDE_COMMUNICATION = false  # Set to true to enable communication hiding
 ```
 
-If true, communication is hidden behind computation by splitting the kernel into two, where
-the first iterates over all indices which are independent of halos and secondly over the
-rest, while executing the halo exchange asynchronously using Julia's task mechanism
-and `@spawn`.
+### How It Works
 
-When using `parallelfor_sum` for reductions, there is one extra argument after `itr` which
-is the initial value of the reduction variable `init`.
+When `HIDE_COMMS = true`, the system:
+1. Splits kernels into two parts:
+   - First: Processes indices independent of halos
+   - Second: Processes remaining indices
+2. Executes halo exchange asynchronously using Julia's `@spawn` and task mechanism
+3. Overlaps computation with communication for better performance
 
-Multithreading (when `B == CPU`) is handled via [Polyester.jl](https://github.com/JuliaSIMD/Polyester.jl)'s
-`@batch` macro and GPU execution via so called ["exstensions"](https://docs.julialang.org/en/v1/manual/code-loading/#man-extensions),
-which make it possible to load code only if a specific package was loaded first. In this
-case the functions needed for GPU support, namely `launch_foreachindex_global!` and
-`launch_foreachindex_reduce_global!` (see [the CUDA example](../../ext/MetaCUDAExt.jl))
-among other utility functions.
+## Backend Support
 
-There is also the possibility to have the package automatically tune the kernels instead of
-using the default block size of 256 by switching `TUNE_KERNELS = true` in LocalPreferences.toml.
-The tuning is fairly shallow, as it uses CUDA's and ROCm's built-in occupancy checker.k
+### CPU (Multithreading)
+- Uses [Polyester.jl](https://github.com/JuliaSIMD/Polyester.jl)'s `@batch` macro
+- Automatically handles thread distribution
 
-## Example Usage
-An example usage of this parallelization function is:
+### GPU Support
+- Implemented via Julia extensions (loaded only when GPU packages are available)
+- Key functions: `launch_foreachindex_global!` and `launch_foreachindex_reduce_global!`
+- See [CUDA example](../../ext/MetaCUDAExt.jl) for implementation details
+
+### Kernel Tuning
+
+Enable automatic kernel tuning in `LocalPreferences.toml`:
+
+```toml
+[MetaQCD]
+TUNE_KERNELS = true
+```
+
+The tuning system uses built-in occupancy checkers from CUDA and ROCm to optimize performance beyond the default block size of 256.
+
+## Usage Examples
+
+### Parallel Reduction Example
+
 ```julia
 function plaquette_trace_sum(U::Gaugefield{B,T,M}) where {B,T,M}
     P = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (U,), (), (U,)) do pₙ, site, (U,)
@@ -70,31 +100,64 @@ function plaquette_trace_sum(U::Gaugefield{B,T,M}) where {B,T,M}
                 pₙ += real(tr(plaquette(U, μ, ν, site)))
             end
         end
-        pₙ # reduction variable has to be the return value of the kernel for reductions
+        return pₙ  # Must return reduction variable
     end
-
-    return distributed_reduce(P, +, U) # reduce over all MPI ranks that participated in the calculation
+    return distributed_reduce(P, +, U)  # Reduce across all MPI ranks
 end
+```
 
+**Note**: For reductions with `parallelfor_sum`, include an initial value (`0.0` in this example) after the iterator.
+
+### Parallel Field Copy Example
+
+```julia
 function Base.copy!(a::AbstractField{B,T,M}, b::AbstractField{B,T,M}) where {B,T,M}
     parallelfor(allindices(a, b), B, Val(M), (), (a,), (a, b)) do μsite, (a, b)
         a[μsite] = b[μsite]
     end
-
     return nothing
 end
 ```
 
-In Julia one can use the `do` syntax for functions that take another function as their first
-argument. The code within the `do` block is therefor the function `f` mentioned above
-with the arguments `pₙ, site, U`.
+### Understanding the `do` Syntax
 
-## MPI distributed computing
-MPI distribution of fields is done by splitting the fields according to a 4D tuple
-`numprocs_cart` which specifies the number of processes per dimension. All the needed
-information regarding the topology is then stored in a [`FieldTopology`](../../src/fields/distributed/topology.jl)
-object, such as the halo width, the global/local dimensions/volume and the bulk, halo and
-border indices.
+Julia's `do` syntax creates an anonymous function as the first argument:
+- The code inside the `do` block becomes the kernel function `f`
+- Arguments after `do` (like `pₙ, site, (U,)`) are the function parameters
+- For reductions, the reduction variable must be the return value
 
-Edges and corners in the halo exchange are handled by using an extended face propagation
-scheme which is drastically easier to implement than doing edges and corners separately.
+## MPI Distributed Computing
+
+### Domain Decomposition
+
+Fields are distributed across MPI processes using a 4D tuple `numprocs_cart` that specifies the number of processes per spatial dimension.
+
+### Topology Management
+
+All topology information is stored in a [`FieldTopology`](../../src/fields/distributed/topology.jl) object, including:
+- Halo width specifications
+- Global and local dimensions/volumes
+- Bulk, halo, and border index mappings
+
+### Halo Implementation
+
+Halos are implemented using **separate arrays** rather than padding the main field arrays. In 4D, this means maintaining 8 separate halo arrays alongside the bulk data. This design choice ensures that:
+
+- **GPU Performance**: Loops over the bulk data remain coalesced, maximizing memory bandwidth on GPUs
+- **Clear Separation**: Bulk and halo data are explicitly separated in memory
+
+*Note: This implementation approach may be subject to change in future versions.*
+
+#### Abstracted Access
+
+This complex halo structure is **completely abstracted away** from the user through:
+
+- **Overloaded `getindex` and `setindex!`**: These methods on `AbstractField` types automatically determine which halo array needs to be accessed based on the requested index
+- **Simplified Indexing**: Using [OffsetArrays.jl](https://github.com/JuliaArrays/OffsetArrays.jl), each partition's fields maintain the correct **global indices**, including halos
+- **Transparent Usage**: Users can index fields naturally without worrying about the underlying halo storage implementation
+
+This abstraction allows developers to write code as if working with a single, continuous array while benefiting from the optimized separate halo storage underneath.
+
+### Halo Exchange Strategy
+
+The system uses an **extended face propagation scheme** for handling edges and corners in halo exchanges. This approach simplifies implementation compared to handling edges and corners separately, making the code more maintainable and less error-prone.
