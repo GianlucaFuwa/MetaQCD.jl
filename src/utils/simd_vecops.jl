@@ -923,7 +923,7 @@ end
         σμν_spin_mul!(MVector{M,ComplexF32}(undef), MVector{M,ComplexF32}(x), Val(2))
     )
 end
-@inline function σμν_spin_mul(x::SVector{M,ComplexF16}, ::Val{4}) where {M}
+@inline function σμν_spin_mul(x::SVector{M,ComplexF16}, ::Val{5}) where {M}
     return SVector{M,ComplexF16}(
         σμν_spin_mul!(MVector{M,ComplexF32}(undef), MVector{M,ComplexF32}(x), Val(4))
     )
