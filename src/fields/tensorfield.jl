@@ -15,7 +15,7 @@ information about the global MPI-topology.
     Tensorfield(u::AbstractField)
 
 Creates a `Tensorfield` on `B`, i.e. an array of 3-by-3 `T`-precision matrices
-of size `4 x 4 × NX × NY × NZ × NT` or a zero-initialized Tensorfield of the same size as
+of size `6 × NX × NY × NZ × NT` or a zero-initialized Tensorfield of the same size as
 `u`.
 # Supported backends
 `CPU` \
@@ -24,13 +24,13 @@ of size `4 x 4 × NX × NY × NZ × NT` or a zero-initialized Tensorfield of the
 """ Tensorfield
 
 function Tensorfield(
-    u::AbstractField{B,T,M}; no_halo=false, hw=get_halo_width(u)
-) where {B,T,M}
+    u::AbstractField{B,T,M}, ::Type{Tnew}=T; no_halo=false, hw=get_halo_width(u)
+) where {B,T,M,Tnew}
     u_out = if M
         ncart = get_numprocs_cart(u)
-        Tensorfield{B,T}(size(u)...; numprocs_cart=ncart, halo_width=hw, no_halo=no_halo)
+        Tensorfield{B,Tnew}(size(u)...; numprocs_cart=ncart, halo_width=hw, no_halo=no_halo)
     else
-        Tensorfield{B,T}(size(u)...)
+        Tensorfield{B,Tnew}(size(u)...)
     end
 
     return u_out
@@ -40,34 +40,52 @@ const MPITensorfield{B,T} = Tensorfield{B,T,true}
 
 Base.eltype(::Type{Tensorfield}, ::Type{T}) where {T} = SMatrix{3,3,Complex{T},9}
 
-# overload get and set for the Tensorfields, so we dont have to do u.U[μ,ν,x,y,z,t]
-Base.@propagate_inbounds Base.getindex(u::Tensorfield, μ, ν, x, y, z, t) =
-    u.U[μ, ν, x, y, z, t]
-Base.@propagate_inbounds Base.getindex(u::Tensorfield, μ, ν, site::SiteCoords) =
-    u.U[μ, ν, site]
+Base.@propagate_inbounds Base.getindex(u::Tensorfield, i, x, y, z, t) =
+    u.U[i, x, y, z, t]
+Base.@propagate_inbounds Base.getindex(u::Tensorfield, i, site::SiteCoords) =
+    u.U[i, site]
 
-Base.@propagate_inbounds function Base.getindex(u::MPITensorfield, μ, ν, site::SiteCoords)
-    site in u.topology.bulk_sites && return u.U[μ, ν, site]
+Base.@propagate_inbounds function Base.getindex(u::MPITensorfield, i, site::SiteCoords)
+    site in u.topology.bulk_sites && return u.U[i, site]
     ihalo = get_halo_index(site, u.topology.bulk_sites)
-    return u.halos[ihalo][μ, ν, site]
+    return u.halos[ihalo][i, site]
 end
 
-Base.@propagate_inbounds Base.setindex!(u::Tensorfield, v, μ, ν, x, y, z, t) =
-    setindex!(u.U, v, μ, ν, x, y, z, t)
-Base.@propagate_inbounds Base.setindex!(u::Tensorfield, v, μ, ν, site::SiteCoords) =
-    setindex!(u.U, v, μ, ν, site)
+Base.@propagate_inbounds Base.setindex!(u::Tensorfield, v, i, x, y, z, t) =
+    setindex!(u.U, v, i, x, y, z, t)
+Base.@propagate_inbounds Base.setindex!(u::Tensorfield, v, i, site::SiteCoords) =
+    setindex!(u.U, v, i, site)
 
-Base.@propagate_inbounds function Base.setindex!(u::MPITensorfield, v, μ, ν, site::SiteCoords)
+Base.@propagate_inbounds function Base.setindex!(u::MPITensorfield, v, i, site::SiteCoords)
     bulk = u.topology.bulk_sites
 
     if site in bulk
-        u.U[μ, ν, site] = v
+        u.U[i, site] = v
     else
         ihalo = get_halo_index(site, bulk)
-        u.halos[ihalo][μ, ν, site] = v
+        u.halos[ihalo][i, site] = v
     end
 
     return nothing
+end
+
+@inline function get_tensor_index(μ, ν)
+    lo, hi = minmax(μ, ν)
+    return if lo == 1 && hi == 2
+        1
+    elseif lo == 1 && hi == 3
+        2
+    elseif lo == 1 && hi == 4
+        3
+    elseif lo == 2 && hi == 3
+        4
+    elseif lo == 2 && hi == 4
+        5
+    elseif lo == 3 && hi == 4
+        6
+    else
+        throw(AssertionError("invalid tensor index combination"))
+    end
 end
 
 function fieldstrength_eachsite!(F::Tensorfield, U, kind_of_fs::String)
@@ -89,17 +107,17 @@ function fieldstrength_eachsite!(
 
     parallelfor(eachindex(U, F), B, Val(M), (U,), (F,), (U, F)) do site, (U, F)
         C12 = plaquette(U, 1, 2, site)
-        F[1, 2, site] = fac * (C12 - C12')
+        F[1, site] = fac * (C12 - C12')
         C13 = plaquette(U, 1, 3, site)
-        F[1, 3, site] = fac * (C13 - C13')
+        F[2, site] = fac * (C13 - C13')
         C14 = plaquette(U, 1, 4, site)
-        F[1, 4, site] = fac * (C14 - C14')
+        F[3, site] = fac * (C14 - C14')
         C23 = plaquette(U, 2, 3, site)
-        F[2, 3, site] = fac * (C23 - C23')
+        F[4, site] = fac * (C23 - C23')
         C24 = plaquette(U, 2, 4, site)
-        F[2, 4, site] = fac * (C24 - C24')
+        F[5, site] = fac * (C24 - C24')
         C34 = plaquette(U, 3, 4, site)
-        F[3, 4, site] = fac * (C34 - C34')
+        F[6, site] = fac * (C34 - C34')
     end
 
     return nothing
@@ -112,17 +130,17 @@ function fieldstrength_eachsite!(
 
     parallelfor(eachindex(U, F), B, Val(M), (U,), (F,), (U, F)) do site, (U, F)
         C12 = clover_1x1(U, 1, 2, site)
-        F[1, 2, site] = fac * (C12 - C12')
+        F[1, site] = fac * (C12 - C12')
         C13 = clover_1x1(U, 1, 3, site)
-        F[1, 3, site] = fac * (C13 - C13')
+        F[2, site] = fac * (C13 - C13')
         C14 = clover_1x1(U, 1, 4, site)
-        F[1, 4, site] = fac * (C14 - C14')
+        F[3, site] = fac * (C14 - C14')
         C23 = clover_1x1(U, 2, 3, site)
-        F[2, 3, site] = fac * (C23 - C23')
+        F[4, site] = fac * (C23 - C23')
         C24 = clover_1x1(U, 2, 4, site)
-        F[2, 4, site] = fac * (C24 - C24')
+        F[5, site] = fac * (C24 - C24')
         C34 = clover_1x1(U, 3, 4, site)
-        F[3, 4, site] = fac * (C34 - C34')
+        F[6, site] = fac * (C34 - C34')
     end
 
     return nothing
@@ -135,12 +153,12 @@ function create_sendbuf!(F::Tensorfield{B,T,M}, sites, dim, dir) where {B,T,M}
 
     parallelfor(itr, B, Val(M), (), (), (F,)) do i, (F,)
         site = sites[i]
-
-        for ν in 1:4
-            for μ in 1:4
-                sendbuf[μ, ν, i] = F[μ, ν, site]
-            end
-        end
+        sendbuf[1, i] = F[1, site]
+        sendbuf[2, i] = F[2, site]
+        sendbuf[3, i] = F[3, site]
+        sendbuf[4, i] = F[4, site]
+        sendbuf[5, i] = F[5, site]
+        sendbuf[6, i] = F[6, site]
     end
 
     return mpi_make_transferrable(sendbuf)[1]
@@ -152,12 +170,12 @@ function Base.copyto!(a::Tensorfield{B,T,M}, b::Tensorfield{B}, arange, brange) 
     parallelfor(eachindex(IndexLinear(), arange), B, Val(M), (), (), (a, b)) do i, (a, b)
         site_a = arange[i]
         site_b = brange[i]
-
-        for ν in 1:4
-            for μ in 1:4
-                a[μ, ν, site_a] = b[μ, ν, site_b]
-            end
-        end
+        a[1, site_a] = b[1, site_b]
+        a[2, site_a] = b[2, site_b]
+        a[3, site_a] = b[3, site_b]
+        a[4, site_a] = b[4, site_b]
+        a[5, site_a] = b[5, site_b]
+        a[6, site_a] = b[6, site_b]
     end
 
     return nothing

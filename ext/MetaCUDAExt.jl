@@ -24,13 +24,14 @@ function Fields.launch_foreachindex_global!(
     ::CUDABackend, f, captured, itr, threads, blocks
 )
     if Fields.TUNE_KERNELS == Val(true)
-        if !haskey(Fields.KERNEL_CACHE, string(Symbol(f)))
+        f_str = "$(Symbol(f))_$(Fields.float_type(captured[1]))"
+        if !haskey(Fields.KERNEL_CACHE, f_str)
             kernel = @cuda launch=false _foreachindex_global!(f, captured, itr)
             config = launch_configuration(kernel; max_threads=min(length(itr), threads))
-            Fields.KERNEL_CACHE[string(Symbol(f))] = config.threads
+            Fields.KERNEL_CACHE[f_str] = config.threads
             threads = config.groupsize
         else
-            threads = Fields.KERNEL_CACHE[string(Symbol(f))]
+            threads = Fields.KERNEL_CACHE[f_str]
         end
 
         blocks = cld(length(itr), threads)
@@ -47,7 +48,8 @@ function Fields.launch_foreachindex_reduce_global!(
     compute_shmem(items) = items * sizeof(typeof(out))
 
     if Fields.TUNE_KERNELS == Val(true)
-        if !haskey(Fields.KERNEL_CACHE, string(Symbol(f)))
+        f_str = "$(Symbol(f))_$(Fields.float_type(captured[1]))"
+        if !haskey(Fields.KERNEL_CACHE, f_str)
             # how many items do we want?
             wanted_items = nextpow(2, length(itr))
             # how many items can we launch?
@@ -61,9 +63,9 @@ function Fields.launch_foreachindex_reduce_global!(
             kernel_config = launch_configuration(kernel; shmem=max_shmem, max_block_size)
             # determine the launch configuration
             threads = compute_items(kernel_config.groupsize)
-            Fields.KERNEL_CACHE[string(Symbol(f))] = threads
+            Fields.KERNEL_CACHE[f_str] = threads
         else
-            threads = Fields.KERNEL_CACHE[string(Symbol(f))]
+            threads = Fields.KERNEL_CACHE[f_str]
         end
 
         blocks = cld(length(itr), threads)
@@ -74,7 +76,7 @@ function Fields.launch_foreachindex_reduce_global!(
     @cuda blocks=blocks threads=threads shmem=reduce_shmem _foreachindex_reduce_global!(
         out_vec, out, op, f, captured, itr
     ) 
-    return out_vec
+    return reduce(op, out_vec)
 end
 
 @inline Fields.threadidx() = threadIdx().x

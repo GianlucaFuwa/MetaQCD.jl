@@ -280,10 +280,11 @@ function ∇trFμνFρσ(::Plaquette, U, F, μ, ν, ρ, σ, site)
     siteν⁺ = move(site, ν, 1, Nν)
     siteν⁻ = move(site, ν, -1, Nν)
     siteμ⁺ν⁻ = move(siteμ⁺, ν, -1, Nν)
+    i = get_tensor_index(ρ, σ)
 
     component =
-        cmatmul_oddo(U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site], F[ρ, σ, site]) +
-        cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], F[ρ, σ, siteν⁻], U[ν, siteν⁻])
+        cmatmul_oddo(U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site], F[i, site]) +
+        cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], F[i, siteν⁻], U[ν, siteν⁻])
 
     return eltype(component)(im * 1 / 2) * component
 end
@@ -299,6 +300,8 @@ function ∇trFμνFρσ(::Clover, U, F, μ, ν, ρ, σ, site)
     siteν⁻ = move(site, ν, -1, Nν)
     siteμ⁺ν⁺ = move(siteμ⁺, ν, 1, Nν)
     siteμ⁺ν⁻ = move(siteμ⁺, ν, -1, Nν)
+    i = get_tensor_index(μ, ν)
+    sgn = μ > ν ? -1 : 1
 
     # get reused matrices up to cache (can precalculate some products too)
     # Uνsiteμ⁺ = U[ν,siteμ⁺]
@@ -309,14 +312,14 @@ function ∇trFμνFρσ(::Clover, U, F, μ, ν, ρ, σ, site)
     # Uνsiteν⁻ = U[ν,siteν⁻]
 
     component =
-        cmatmul_oddo(U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site], F[ρ, σ, site]) +
-        cmatmul_odod(U[ν, siteμ⁺], U[μ, siteν⁺], F[ρ, σ, siteν⁺], U[ν, site]) +
-        cmatmul_oodd(U[ν, siteμ⁺], F[ρ, σ, siteμ⁺ν⁺], U[μ, siteν⁺], U[ν, site]) +
-        cmatmul_oodd(F[ρ, σ, siteμ⁺], U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site]) -
-        cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻], F[ρ, σ, site]) -
-        cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], F[ρ, σ, siteν⁻], U[ν, siteν⁻]) -
-        cmatmul_dodo(U[ν, siteμ⁺ν⁻], F[ρ, σ, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻]) -
-        cmatmul_oddo(F[ρ, σ, siteμ⁺], U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻])
+        cmatmul_oddo(U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site], F[i, site]) +
+        cmatmul_odod(U[ν, siteμ⁺], U[μ, siteν⁺], F[i, siteν⁺], U[ν, site]) +
+        cmatmul_oodd(U[ν, siteμ⁺], F[i, siteμ⁺ν⁺], U[μ, siteν⁺], U[ν, site]) +
+        cmatmul_oodd(F[i, siteμ⁺], U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site]) -
+        cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻], F[i, site]) -
+        cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], F[i, siteν⁻], U[ν, siteν⁻]) -
+        cmatmul_dodo(U[ν, siteμ⁺ν⁻], F[i, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻]) -
+        cmatmul_oddo(F[i, siteμ⁺], U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻])
 
-    return eltype(component)(im * 1 / 8) * component
+    return eltype(component)(im * sgn / 8) * component
 end

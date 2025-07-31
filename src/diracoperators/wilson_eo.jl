@@ -324,32 +324,32 @@ function calc_diag_csw_kernel!(
     i = SVector((1, 2))
     j = SVector((3, 4))
 
-    F₁₂ = Fμν[1, 2, site]
+    F₁₂ = Fμν[1, site]
     σ = σ12(T)
     A₊ = ckron(σ[i, i], F₁₂)
     A₋ = ckron(σ[j, j], F₁₂)
 
-    F₁₃ = Fμν[1, 3, site]
+    F₁₃ = Fμν[2, site]
     σ = σ13(T)
     A₊ += ckron(σ[i, i], F₁₃)
     A₋ += ckron(σ[j, j], F₁₃)
 
-    F₁₄ = Fμν[1, 4, site]
+    F₁₄ = Fμν[3, site]
     σ = σ14(T)
     A₊ += ckron(σ[i, i], F₁₄)
     A₋ += ckron(σ[j, j], F₁₄)
 
-    F₂₃ = Fμν[2, 3, site]
+    F₂₃ = Fμν[4, site]
     σ = σ23(T)
     A₊ += ckron(σ[i, i], F₂₃)
     A₋ += ckron(σ[j, j], F₂₃)
 
-    F₂₄ = Fμν[2, 4, site]
+    F₂₄ = Fμν[5, site]
     σ = σ24(T)
     A₊ += ckron(σ[i, i], F₂₄)
     A₋ += ckron(σ[j, j], F₂₄)
 
-    F₃₄ = Fμν[3, 4, site]
+    F₃₄ = Fμν[6, site]
     σ = σ34(T)
     A₊ += ckron(σ[i, i], F₃₄)
     A₋ += ckron(σ[j, j], F₃₄)

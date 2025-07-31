@@ -22,8 +22,9 @@ A Wilson Dirac operator with gauge background is created by applying it to a `Ga
 - `C`: Boolean declaring whether the operator is clover improved or not
 - `BC`: Boundary Condition in time direction
 """
-struct WilsonDiracOperator{B,T,C,TF,TG,BC} <: AbstractDiracOperator{B,T}
+struct WilsonDiracOperator{B,T,C,TF,TG,BC,TT} <: AbstractDiracOperator{B,T}
     U::TG
+    Fμν::TT
     temp::TF # temp for storage of intermediate result for DdaggerD operator
     mass::Float64
     κ::Float64
@@ -31,9 +32,9 @@ struct WilsonDiracOperator{B,T,C,TF,TG,BC} <: AbstractDiracOperator{B,T}
     csw::Float64
     boundary_condition::BC # Only in time direction
     function WilsonDiracOperator(
-        U::TG, temp::TF, mass, κ, r, csw, ::Val{C}, bc::BC
-    ) where {B,T,C,TG<:Gaugefield{B,T},TF<:WilsonSpinorfield{B,T},BC}
-        return new{B,T,C,TF,TG,BC}(U, temp, mass, κ, r, csw, bc)
+        U::TG, Fμν::TT, temp::TF, mass, κ, r, csw, ::Val{C}, bc::BC
+    ) where {B,T,C,TG<:Gaugefield{B,T},TF<:WilsonSpinorfield{B,T},BC,TT}
+        return new{B,T,C,TF,TG,BC,TT}(U, Fμν, temp, mass, κ, r, csw, bc)
     end
 
     function WilsonDiracOperator(
@@ -44,12 +45,14 @@ struct WilsonDiracOperator{B,T,C,TF,TG,BC} <: AbstractDiracOperator{B,T}
         U = nothing
         C = csw == 0 ? false : true
         hw = C ? 2 : 1
+        Fμν = C ? Tensorfield(f; no_halo=true) : nothing
         temp = Spinorfield(f; hw=hw)
         boundary_condition = create_bc(bc_str, f.topology)
         TG = Nothing
         TF = typeof(temp)
         BC = typeof(boundary_condition)
-        return new{B,T,C,TF,TG,BC}(U, temp, mass, κ, r, csw, boundary_condition)
+        TT = typeof(Fμν)
+        return new{B,T,C,TF,TG,BC,TT}(U, Fμν, temp, mass, κ, r, csw, boundary_condition)
     end
 end
 
@@ -58,7 +61,8 @@ function add_gauge_background(
 ) where {B,T,C,TF}
     check_dims(U, D.temp)
     bc = D.boundary_condition
-    return WilsonDiracOperator(U, D.temp, D.mass, D.κ, D.r, D.csw, Val(C), bc)
+    C && fieldstrength_eachsite!(Clover(), D.Fμν, U)
+    return WilsonDiracOperator(U, D.Fμν, D.temp, D.mass, D.κ, D.r, D.csw, Val(C), bc)
 end
 
 @inline default_Nf(::WilsonDiracOperator) = 2
@@ -70,7 +74,9 @@ end
 function solve_dirac!(
     ψ, D::T, ϕ, temps...; tol=1e-16, maxiters=1000
 ) where {T<:WilsonDiracOperator}
-    return bicg_stab!(ψ, D, ϕ, temps...; tol=tol, maxiters=maxiters)
+    # return bicg_stab!(ψ, D, ϕ, temps...; tol=tol, maxiters=maxiters)
+    D_dagg = Daggered(D)
+    return cgnr!(ψ, D, D_dagg, ϕ, temps[1], temps[2], temps[3], temps[4]; tol, maxiters)
 end
 
 # We overload LinearAlgebra.mul! instead of Gaugefields.mul! so we dont have to import
@@ -81,62 +87,53 @@ function LinearAlgebra.mul!(
 ) where {B,T,M,C,TF<:WilsonSpinorfield{B,T,M},TG}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.U
+    Fμν = D.Fμν
     mass_term = T(8 + 2 * D.mass)
     csw = D.csw
     bc = D.boundary_condition
+    fac = T(-csw / 2)
 
-    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ)) do site, (U, ϕ, ψ)
-        ψ[site] = wilson_kernel(U, ϕ, site, mass_term, bc, T, Val(1))
-    end
-
-    if has_clover_term(D)
-        fac = T(-csw / 2)
-
-        parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (), (ψ,), (U, ϕ, ψ)) do site, (U, ϕ, ψ)
-            ψ[site] += clover_kernel(U, ϕ, site, fac, T)
-        end
+    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ, Fμν)) do site, (U, ϕ, ψ, Fμν)
+        ψ[site] = wilson_kernel(U, Fμν, ϕ, site, mass_term, fac, bc, T, Val(1), Val(C))
     end
 
     return nothing
 end
 
 function LinearAlgebra.mul!(
-    ψ::TF, D::Daggered{WilsonDiracOperator{B,T,C,TF,TG,BC}}, ϕ::TF
-) where {B,T,M,C,TF<:WilsonSpinorfield{B,T,M},TG,BC}
+    ψ::TF, D::Daggered{WilsonDiracOperator{B,T,C,TF,TG,BC,TT}}, ϕ::TF
+) where {B,T,M,C,TF<:WilsonSpinorfield{B,T,M},TG,BC,TT}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.parent.U
+    Fμν = D.parent.Fμν
     mass_term = T(8 + 2 * D.parent.mass)
     csw = D.parent.csw
     bc = D.parent.boundary_condition
+    fac = T(-csw / 2)
 
-    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ)) do site, (U, ϕ, ψ)
-        ψ[site] = wilson_kernel(U, ϕ, site, mass_term, bc, T, Val(-1))
-    end
-
-    if has_clover_term(D)
-        fac = T(-csw / 2)
-
-        parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (), (ψ,), (U, ϕ, ψ)) do site, (U, ϕ, ψ)
-            ψ[site] += clover_kernel(U, ϕ, site, fac, T)
-        end
+    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ, Fμν)) do site, (U, ϕ, ψ, Fμν)
+        ψ[site] = wilson_kernel(U, Fμν, ϕ, site, mass_term, fac, bc, T, Val(-1), Val(C))
     end
 
     return nothing
 end
 
 function LinearAlgebra.mul!(
-    ψ::TF, D::DdaggerD{WilsonDiracOperator{B,T,C,TF,TG,BC}}, ϕ::TF
-) where {B,T,C,TF,TG,BC}
+    ψ::TF, D::DdaggerD{WilsonDiracOperator{B,T,C,TF,TG,BC,TT}}, ϕ::TF
+) where {B,T,C,TF,TG,BC,TT}
     temp = D.parent.temp
     mul!(temp, D.parent, ϕ) # temp = Dϕ
     mul!(ψ, adjoint(D.parent), temp) # ψ = D†Dϕ
     return nothing
 end
 
-function wilson_kernel(U, ϕ, site, mass_term, bc, ::Type{T}, ::Val{dagg}) where {T,dagg}
+@inline function wilson_kernel(
+    U, Fμν, ϕ, site, mass_term, csw_fac, bc, ::Type{T}, ::Val{dagg}, ::Val{C}
+) where {T,dagg,C}
     # dagg can be 1 or -1; if it's -1 then we swap (1 - γᵨ) with (1 + γᵨ) and vice versa
     # We have to wrap in a Val for the same reason as in the next comment
-    ψₙ = mass_term * ϕ[site] # factor 1/2 is included at the end
+    ϕₙ = ϕ[site]
+    ψₙ = mass_term * ϕₙ # factor 1/2 is included at the end
     NT = size(U, 4)
 
     # use @nexprs here to statically generate the loop
@@ -150,38 +147,32 @@ function wilson_kernel(U, ϕ, site, mass_term, bc, ::Type{T}, ::Val{dagg}) where
         ψₙ -= cmvmul_spin_proj(U[μ, site], ϕ⁺, Val(-μ*dagg), Val(false));
         ψₙ -= cmvmul_spin_proj(U[μ, siteμ⁻], ϕ⁻, Val(μ*dagg), Val(true))
     )
-    return T(0.5) * ψₙ
+
+    if C
+        return T(0.5) * ψₙ + clover_kernel(Fμν, ϕₙ, site, csw_fac, T)
+    else
+        return T(0.5) * ψₙ
+    end
 end
 
-function clover_kernel(U, ϕ, site, fac, ::Type{T}) where {T}
-    # Observed that it makes a difference whether we only make F antihermitian or traceless
-    # antihermitian in the accuracy of the derivative --> TA makes it worse
-    # is most severe when U is unsmeared
-    ϕ_n = ϕ[site]
-    Cₙₘ = zero(ϕ_n)
+@inline function clover_kernel(Fμν, ϕ_n, site, fac, ::Type{T}) where {T}
+    # Observed that it makes a difference whether we only make F antihermitian or traceless antihermitian in the accuracy of the derivative --> TA makes it worse is most severe when U is unsmeared
+    F₁₂ = Fμν[1, site]
+    Cₙ = cmvmul_color(F₁₂, σμν_spin_mul(ϕ_n, Val(1), Val(2)))
 
-    C₁₂ = clover_1x1(U, 1, 2, site)
-    F₁₂ = C₁₂ - C₁₂'
-    Cₙₘ += cmvmul_color(F₁₂, σμν_spin_mul(ϕ_n, Val(1), Val(2)))
+    F₁₃ = Fμν[2, site]
+    Cₙ += cmvmul_color(F₁₃, σμν_spin_mul(ϕ_n, Val(1), Val(3)))
 
-    C₁₃ = clover_1x1(U, 1, 3, site)
-    F₁₃ = C₁₃ - C₁₃'
-    Cₙₘ += cmvmul_color(F₁₃, σμν_spin_mul(ϕ_n, Val(1), Val(3)))
+    F₁₄ = Fμν[3, site]
+    Cₙ += cmvmul_color(F₁₄, σμν_spin_mul(ϕ_n, Val(1), Val(4)))
 
-    C₁₄ = clover_1x1(U, 1, 4, site)
-    F₁₄ = C₁₄ - C₁₄'
-    Cₙₘ += cmvmul_color(F₁₄, σμν_spin_mul(ϕ_n, Val(1), Val(4)))
+    F₂₃ = Fμν[4, site]
+    Cₙ += cmvmul_color(F₂₃, σμν_spin_mul(ϕ_n, Val(2), Val(3)))
 
-    C₂₃ = clover_1x1(U, 2, 3, site)
-    F₂₃ = C₂₃ - C₂₃'
-    Cₙₘ += cmvmul_color(F₂₃, σμν_spin_mul(ϕ_n, Val(2), Val(3)))
+    F₂₄ = Fμν[5, site]
+    Cₙ += cmvmul_color(F₂₄, σμν_spin_mul(ϕ_n, Val(2), Val(4)))
 
-    C₂₄ = clover_1x1(U, 2, 4, site)
-    F₂₄ = C₂₄ - C₂₄'
-    Cₙₘ += cmvmul_color(F₂₄, σμν_spin_mul(ϕ_n, Val(2), Val(4)))
-
-    C₃₄ = clover_1x1(U, 3, 4, site)
-    F₃₄ = C₃₄ - C₃₄'
-    Cₙₘ += cmvmul_color(F₃₄, σμν_spin_mul(ϕ_n, Val(3), Val(4)))
-    return Complex{T}(fac * im / 8) * Cₙₘ
+    F₃₄ = Fμν[6, site]
+    Cₙ += cmvmul_color(F₃₄, σμν_spin_mul(ϕ_n, Val(3), Val(4)))
+    return T(fac) * Cₙ
 end

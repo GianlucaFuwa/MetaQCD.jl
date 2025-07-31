@@ -917,6 +917,19 @@ a `Val` and must be within the range `[1,4]` with `μ < ν`
     return SVector(σμν_spin_mul!(MVector{M,Complex{T}}(undef), MVector(x), Val(μ), Val(ν)))
 end
 
+# HACK:
+@inline function σμν_spin_mul(x::SVector{M,ComplexF16}, ::Val{1}, ::Val{3}) where {M}
+    return SVector{M,ComplexF16}(
+        σμν_spin_mul!(MVector{M,ComplexF32}(undef), MVector{M,ComplexF32}(x), Val(1), Val(3))
+    )
+end
+@inline function σμν_spin_mul(x::SVector{M,ComplexF16}, ::Val{2}, ::Val{4}) where {M}
+    return SVector{M,ComplexF16}(
+        σμν_spin_mul!(MVector{M,ComplexF32}(undef), MVector{M,ComplexF32}(x), Val(2), Val(4))
+    )
+end
+
+# FIXME: errors for some μ ν combinations when T=Float16
 @generated function σμν_spin_mul!(
     yc::MVector{M,Complex{T}}, xc::MVector{M,Complex{T}}, ::Val{μ}, ::Val{ν}
 ) where {T,M,μ,ν}

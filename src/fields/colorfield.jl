@@ -17,13 +17,13 @@ size `4 × NX × NY × NZ × NT` or a zero-initialized Colorfield of the same si
 """ Colorfield
 
 function Colorfield(
-    u::AbstractField{B,T,M}; no_halo=false, hw=get_halo_width(u)
-) where {B,T,M}
+    u::AbstractField{B,T,M}, ::Type{Tnew}=T; no_halo=false, hw=get_halo_width(u)
+) where {B,T,M,Tnew}
     u_out = if M
         ncart = get_numprocs_cart(u)
-        Colorfield{B,T}(size(u)...; numprocs_cart=ncart, halo_width=hw, no_halo=no_halo)
+        Colorfield{B,Tnew}(size(u)...; numprocs_cart=ncart, halo_width=hw, no_halo=no_halo)
     else
-        Colorfield{B,T}(size(u)...)
+        Colorfield{B,Tnew}(size(u)...)
     end
 
     return u_out

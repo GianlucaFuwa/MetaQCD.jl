@@ -19,7 +19,7 @@ import ..DiracOperators: mul_oe!, mul_eo!, mul_oo_inv!, get_mass_term
 import ..Fields: AbstractGaugeAction, Gaugefield, Colorfield, add!, get_global_dims
 import ..Fields: allindices, clear!, normalize!, fieldstrength_eachsite!, float_type
 import ..Fields: check_dims, even_odd, mul!, staple, staple_eachsite!, get_local_dims
-import ..Fields: parallelfor, gauge_action, is_distributed, update_halo!
+import ..Fields: parallelfor, gauge_action, is_distributed, update_halo!, get_tensor_index
 import ..Fields: AbstractField, Plaquette, Clover, Spinorfield, Tensorfield
 import ..Fields: Paulifield, MultiSpinorfield, gauge_action_deriv!, size
 import ..Smearing: AbstractSmearing, NoSmearing, StoutSmearing

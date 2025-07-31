@@ -64,7 +64,7 @@ function create_filetype(u, ::Type{T}) where {T}
     inner_len = if u isa Spinorfield || u isa SpinorfieldEO || u isa Paulifield
         1
     elseif u isa Tensorfield
-        16
+        6
     elseif u isa MultiSpinorfield
         u.numspinors
     else

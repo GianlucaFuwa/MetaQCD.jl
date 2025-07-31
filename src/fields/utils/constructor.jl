@@ -39,7 +39,7 @@ macro field_constructor(struct_name, kwargs...)
         end
         pauli_ldims, 0
     elseif struct_name == :Tensorfield
-        :(4, 4, topology.local_dims...), 4
+        :(6, topology.local_dims...), 6
     elseif struct_name == :MultiSpinorfield
         :(numspinors, topology.local_dims...), :numspinors
     else
@@ -48,8 +48,6 @@ macro field_constructor(struct_name, kwargs...)
             
     origin_q = if is_spinorfield
         :(OffsetArrays.Origin(topology.bulk_sites[1]))
-    elseif struct_name == :Tensorfield
-        :(OffsetArrays.Origin(1, 1, (topology.bulk_sites[1].I)...))
     elseif struct_name == :Paulifield
         quote
             ox, oy, oz, ot = topology.bulk_sites[1].I
@@ -65,8 +63,6 @@ macro field_constructor(struct_name, kwargs...)
     # Build halo creation (4D for spinors, 5D for others)
     halo_dims, halo_indices = if is_spinorfield || struct_name == :Paulifield
         :(size(halo_sites[i][j])...), :(halo_sites[i][j].indices...,)
-    elseif struct_name == :Tensorfield
-        :(4, 4, size(halo_sites[i][j])...), :(1:4, 1:4, halo_sites[i][j].indices...)
     else
         :($inner_len, size(halo_sites[i][j])...),
         :(1:$inner_len, halo_sites[i][j].indices...)
@@ -74,8 +70,6 @@ macro field_constructor(struct_name, kwargs...)
 
     sendbuf_dims = if is_spinorfield || struct_name == :Paulifield
         :(length(border_sites[i][j]))
-    elseif struct_name == :Tensorfield
-        :(4, 4, length(border_sites[i][j])...)
     else
         :($inner_len, length(border_sites[i][j])...)
     end

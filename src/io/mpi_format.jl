@@ -23,7 +23,7 @@ function load_field_mpi!(u::AbstractField{B,T,M}, filename) where {B,T,M}
     inner_len = if u isa Spinorfield || u isa SpinorfieldEO || u isa Paulifield
         1
     elseif u isa Tensorfield
-        16
+        6
     elseif u isa MultiSpinorfield
         u.numspinors
     else

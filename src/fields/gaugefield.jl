@@ -24,15 +24,15 @@ action `GA` or a zero-initialized copy of `U`
 """ Gaugefield
 
 function Gaugefield(
-    u::Gaugefield{B,T,M,GA}; no_halo=false, hw=get_halo_width(u)
-) where {B,T,M,GA}
+    u::Gaugefield{B,T,M,GA}, ::Type{Tnew}=T; no_halo=false, hw=get_halo_width(u)
+) where {B,T,M,GA,Tnew}
     u_out = if M
         ncart = get_numprocs_cart(u)
-        Gaugefield{B,T,GA}(
+        Gaugefield{B,Tnew,GA}(
             size(u)..., u.β, numprocs_cart=ncart, halo_width=hw, no_halo=no_halo
         )
     else
-        Gaugefield{B,T,GA}(size(u)..., u.β)
+        Gaugefield{B,Tnew,GA}(size(u)..., u.β)
     end
 
     return u_out

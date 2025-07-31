@@ -59,7 +59,9 @@ end
 function solve_dirac!(
     ψ, D::T, ϕ, temps...; tol=1e-14, maxiters=1000
 ) where {T<:StaggeredDiracOperator}
-    return bicg_stab!(ψ, D, ϕ, temps...; tol=tol, maxiters=maxiters)
+    # return bicg_stab!(ψ, D, ϕ, temps...; tol=tol, maxiters=maxiters)
+    D_dagg = Daggered(D)
+    cgnr!(ψ, D, D_dagg, ϕ, temps[1], temps[2], temps[3], temps[4]; tol, maxiters)
 end
 
 # We overload LinearAlgebra.mul! instead of Gaugefields.mul! so we dont have to import
@@ -74,7 +76,7 @@ function LinearAlgebra.mul!(
     bc = D.boundary_condition
 
     parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ)) do site, (U, ϕ, ψ)
-        ψ[site] = staggered_kernel(U, ϕ, site, mass, bc, T, false)
+        @inbounds ψ[site] = staggered_kernel(U, ϕ, site, mass, bc, T, false)
     end
 
     return nothing
@@ -89,7 +91,7 @@ function LinearAlgebra.mul!(
     bc = D.parent.boundary_condition
 
     parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ)) do site, (U, ϕ, ψ)
-        ψ[site] = staggered_kernel(U, ϕ, site, mass, bc, T, true)
+        @inbounds ψ[site] = staggered_kernel(U, ϕ, site, mass, bc, T, true)
     end
 
     return nothing
@@ -104,7 +106,7 @@ function LinearAlgebra.mul!(
     return nothing
 end
 
-function staggered_kernel(U, ϕ, site, mass, bc, ::Type{T}, dagg::Bool) where {T}
+@inline function staggered_kernel(U, ϕ, site, mass, bc, ::Type{T}, dagg::Bool) where {T}
     sgn = dagg ? -1 : 1
     NT = size(U, 4)
     ψₙ = 2mass * ϕ[site]

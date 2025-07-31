@@ -26,26 +26,27 @@ tune!(suite)
 results = run(suite)
 
 if mpi_amroot()
+    backend = BenchDirac.backend_str
+    fp = open("benchmark/results_$(backend)_$(mpi_size())procs.txt", "w+")
     for (op, flops) in FLOPS
         N = BenchDirac.N
-        backend = BenchDirac.backend_str
-        fp = open("benchmark/results_$(op)_$(N)_$(backend)_$(mpi_size())procs.txt", "w+")
-        println(fp, "==== $(op) ====")
-
-        for T in (Float64, Float32)
-            println("Benching $op $T")
+        println(fp, "==== $(op) (V = $N^4) ====")
+        for T in (Float64, Float32, Float16)
             mem = mem_per_site(op, T)
-            println(fp, "$T:")
-            println(fp, "   L = $(N)^4:")
+            println(fp, "$(string(T)):\t$(rpad("Max", 9))$(rpad("Avg", 9))")
             mintime = minimum(results.data[op]["$T"].times)
             avgtime = mean(results.data[op]["$T"].times)
-            println(fp, "   Max: $(N^4*flops / mintime) GFLOPS")
-            println(fp, "   Avg: $(N^4*flops / avgtime) GFLOPS")
-            println()
-            println(fp, "   Max: $(N^4*mem / mintime) GB/s")
-            println(fp, "   Avg: $(N^4*mem / avgtime) GB/s")
+            maxflops = N^4*flops / mintime
+            avgflops = N^4*flops / avgtime
+            print(fp, "\t\t$(rpad(round(maxflops, digits=3), 9))")
+            print(fp, "$(rpad(round(avgflops, digits=3), 9))")
+            println(fp,  "   GFLOPs")
+            maxmem = N^4*mem / mintime
+            avgmem = N^4*mem / avgtime
+            print(fp,"\t\t$(rpad(round(maxmem, digits=3), 9))")
+            print(fp,"$(rpad(round(avgmem, digits=3), 9))")
+            println(fp,  "   GB/s")
         end
-
-        close(fp)
     end
+    close(fp)
 end

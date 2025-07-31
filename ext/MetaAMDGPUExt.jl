@@ -23,13 +23,14 @@ function Fields.launch_foreachindex_global!(
     ::ROCBackend, f, captured, itr, groupsize, gridsize
 )
     if Fields.TUNE_KERNELS == Val(true)
-        if !haskey(Fields.KERNEL_CACHE, string(Symbol(f)))
+        f_str = "$(Symbol(f))_$(Fields.float_type(captured[1]))"
+        if !haskey(Fields.KERNEL_CACHE, f_str)
             kernel = @roc launch=false _foreachindex_global!(f, captured, itr)
             config = launch_configuration(kernel; max_block_size=min(length(itr), groupsize))
-            Fields.KERNEL_CACHE[string(Symbol(f))] = config.groupsize
+            Fields.KERNEL_CACHE[f_str] = config.groupsize
             groupsize = config.groupsize
         else
-            groupsize = Fields.KERNEL_CACHE[string(Symbol(f))]
+            groupsize = Fields.KERNEL_CACHE[f_str]
         end
 
         gridsize = cld(length(itr), groupsize)
@@ -46,7 +47,8 @@ function Fields.launch_foreachindex_reduce_global!(
     compute_shmem(items) = items * sizeof(typeof(out))
 
     if Fields.TUNE_KERNELS == Val(true)
-        if !haskey(Fields.KERNEL_CACHE, string(Symbol(f)))
+        f_str = "$(Symbol(f))_$(Fields.float_type(captured[1]))"
+        if !haskey(Fields.KERNEL_CACHE, f_str)
             # how many items do we want?
             wanted_items = nextpow(2, length(itr))
             # how many items can we launch?
@@ -61,9 +63,9 @@ function Fields.launch_foreachindex_reduce_global!(
             # determine the launch configuration
             groupsize = compute_items(kernel_config.groupsize)
             gridsize = cld(length(itr), groupsize)
-            Fields.KERNEL_CACHE[string(Symbol(f))] = groupsize
+            Fields.KERNEL_CACHE[f_str] = groupsize
         else
-            groupsize = Fields.KERNEL_CACHE[string(Symbol(f))]
+            groupsize = Fields.KERNEL_CACHE[f_str]
             gridsize = cld(length(itr), groupsize)
         end
     end
@@ -73,7 +75,7 @@ function Fields.launch_foreachindex_reduce_global!(
     @roc gridsize=gridsize groupsize=groupsize shmem=reduce_shmem _foreachindex_reduce_global!(
         out_vec, out, op, f, captured, itr
     ) 
-    return out_vec
+    return reduce(op, out_vec)
 end
 
 @inline Fields.threadidx() = workitemIdx().x

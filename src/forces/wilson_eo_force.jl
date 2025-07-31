@@ -154,38 +154,32 @@ function calc_Xμν_eo_kernel!(Xμν, X, Y, site, bulk)
     X₁₂ =
         spintrace(σμν_spin_mul(X[_site], Val(1), Val(2)), Y[_site]) +
         spintrace(σμν_spin_mul(Y[_site], Val(1), Val(2)), X[_site])
-    Xμν[1i32, 2i32, site] = X₁₂
-    Xμν[2i32, 1i32, site] = -X₁₂
+    Xμν[1, site] = X₁₂
 
     X₁₃ =
         spintrace(σμν_spin_mul(X[_site], Val(1), Val(3)), Y[_site]) +
         spintrace(σμν_spin_mul(Y[_site], Val(1), Val(3)), X[_site])
-    Xμν[1i32, 3i32, site] = X₁₃
-    Xμν[3i32, 1i32, site] = -X₁₃
+    Xμν[2, site] = X₁₃
 
     X₁₄ =
         spintrace(σμν_spin_mul(X[_site], Val(1), Val(4)), Y[_site]) +
         spintrace(σμν_spin_mul(Y[_site], Val(1), Val(4)), X[_site])
-    Xμν[1i32, 4i32, site] = X₁₄
-    Xμν[4i32, 1i32, site] = -X₁₄
+    Xμν[3, site] = X₁₄
 
     X₂₃ =
         spintrace(σμν_spin_mul(X[_site], Val(2), Val(3)), Y[_site]) +
         spintrace(σμν_spin_mul(Y[_site], Val(2), Val(3)), X[_site])
-    Xμν[2i32, 3i32, site] = X₂₃
-    Xμν[3i32, 2i32, site] = -X₂₃
+    Xμν[4, site] = X₂₃
 
     X₂₄ =
         spintrace(σμν_spin_mul(X[_site], Val(2), Val(4)), Y[_site]) +
         spintrace(σμν_spin_mul(Y[_site], Val(2), Val(4)), X[_site])
-    Xμν[2i32, 4i32, site] = X₂₄
-    Xμν[4i32, 2i32, site] = -X₂₄
+    Xμν[5, site] = X₂₄
 
     X₃₄ =
         spintrace(σμν_spin_mul(X[_site], Val(3), Val(4)), Y[_site]) +
         spintrace(σμν_spin_mul(Y[_site], Val(3), Val(4)), X[_site])
-    Xμν[3i32, 4i32, site] = X₃₄
-    Xμν[4i32, 3i32, site] = -X₃₄
+    Xμν[6, site] = X₃₄
     return nothing
 end
 
@@ -208,41 +202,24 @@ function calc_small_Xμν_kernel!(Xμν, D_oo_inv, site, ::Type{T}, bulk) where 
         Minv = D_oo_inv[_site]
 
         X₁₂ = spintrace_pauli(Minv, Val(1), Val(2))
-        Xμν[1i32, 2i32, site] = X₁₂
-        Xμν[2i32, 1i32, site] = -X₁₂
-
+        Xμν[1, site] = X₁₂
         X₁₃ = spintrace_pauli(Minv, Val(1), Val(3))
-        Xμν[1i32, 3i32, site] = X₁₃
-        Xμν[3i32, 1i32, site] = -X₁₃
-
+        Xμν[2, site] = X₁₃
         X₁₄ = spintrace_pauli(Minv, Val(1), Val(4))
-        Xμν[1i32, 4i32, site] = X₁₄
-        Xμν[4i32, 1i32, site] = -X₁₄
-
+        Xμν[3, site] = X₁₄
         X₂₃ = spintrace_pauli(Minv, Val(2), Val(3))
-        Xμν[2i32, 3i32, site] = X₂₃
-        Xμν[3i32, 2i32, site] = -X₂₃
-
+        Xμν[4, site] = X₂₃
         X₂₄ = spintrace_pauli(Minv, Val(2), Val(4))
-        Xμν[2i32, 4i32, site] = X₂₄
-        Xμν[4i32, 2i32, site] = -X₂₄
-
+        Xμν[5, site] = X₂₄
         X₃₄ = spintrace_pauli(Minv, Val(3), Val(4))
-        Xμν[3i32, 4i32, site] = X₃₄
-        Xμν[4i32, 3i32, site] = -X₃₄
+        Xμν[6, site] = X₃₄
     else
         X = zero3(T)
-        Xμν[1i32, 2i32, site] = X
-        Xμν[2i32, 1i32, site] = X
-        Xμν[1i32, 3i32, site] = X
-        Xμν[3i32, 1i32, site] = X
-        Xμν[1i32, 4i32, site] = X
-        Xμν[4i32, 1i32, site] = X
-        Xμν[2i32, 3i32, site] = X
-        Xμν[3i32, 2i32, site] = X
-        Xμν[2i32, 4i32, site] = X
-        Xμν[4i32, 2i32, site] = X
-        Xμν[3i32, 4i32, site] = X
-        Xμν[4i32, 3i32, site] = X
+        Xμν[1, site] = X
+        Xμν[2, site] = X
+        Xμν[3, site] = X
+        Xμν[4, site] = X
+        Xμν[5, site] = X
+        Xμν[6, site] = X
     end
 end

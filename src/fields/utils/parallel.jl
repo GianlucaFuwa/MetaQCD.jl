@@ -168,10 +168,10 @@ function _foreachindex_reduce_gpu(
     # GPU implementation
     @assert block_size > 0
     blocks = (length(itr) + block_size - 1) ÷ block_size
-    out_vec = launch_foreachindex_reduce_global!(
+    result = launch_foreachindex_reduce_global!(
         backend(), out, op, f, captured, itr, block_size, blocks
     )
-    return reduce(op, out_vec)
+    return result
 end
 
 function launch_foreachindex_reduce_global! end

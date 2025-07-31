@@ -69,13 +69,13 @@ include("stencils/staple.jl") # Definition of staple operator
 include("stencils/wilsonloop.jl") # Definition of arbitrary side length Wilson loops
 
 # XXX: Not sure why these are here, but whatever
-Base.similar(u::Gaugefield) = Gaugefield(u)
-Base.similar(u::Colorfield) = Colorfield(u)
-Base.similar(u::Expfield) = Expfield(u)
-Base.similar(u::Tensorfield) = Tensorfield(u)
-Base.similar(u::Spinorfield) = Spinorfield(u)
+Base.similar(u::Gaugefield{B,T}, ::Type{Tnew}=T) where {B,T,Tnew} = Gaugefield(u, Tnew)
+Base.similar(u::Colorfield{B,T}, ::Type{Tnew}=T) where {B,T,Tnew} = Colorfield(u, Tnew)
+Base.similar(u::Expfield{B,T}, ::Type{Tnew}=T) where {B,T,Tnew} = Expfield(u, Tnew)
+Base.similar(u::Tensorfield{B,T}, ::Type{Tnew}=T) where {B,T,Tnew} = Tensorfield(u, Tnew)
+Base.similar(u::Spinorfield{B,T}, ::Type{Tnew}=T) where {B,T,Tnew} = Spinorfield(u, Tnew)
+Base.similar(u::MultiSpinorfield{B,T}, ::Type{Tnew}=T) where {B,T,Tnew} = MultiSpinorfield(u, Tnew)
 Base.similar(u::SpinorfieldEO) = SpinorfieldEO(u.parent)
-Base.similar(u::MultiSpinorfield) = MultiSpinorfield(u)
 
 """
     to_backend(Backend_out, u::AbstractField{Backend_in,FloatType})
@@ -90,7 +90,7 @@ function to_backend(
     ::Type{Bout}, u::AbstractField{Bin,Tin,M}, ::Type{Tout}=Tin
 ) where {M,Bout,Tout,Bin,Tin}
     if Bout === Bin
-        u_out = similar(u)
+        u_out = similar(u, Tout)
         copy!(u_out, u)
         return u_out
     end
@@ -98,13 +98,13 @@ function to_backend(
     Fieldtype = eval(nameof(typeof(u)))
     AType = array_type(Bout)
     new_eltype = convert(Tout, eltype(u.U))
-    Uout = OffsetArray(AType{new_eltype}(u.U), eachindex(IndexCartesian(), u.U).indices...)
+    Uout = OffsetArray(AType{new_eltype}(u.U.parent), eachindex(IndexCartesian(), u.U).indices...)
     halos = if isnothing(u.halos)
         nothing
     else
         ntuple(Val(8)) do i
             OffsetArray(
-                AType{new_eltype}(u.halos[i]),
+                AType{new_eltype}(u.halos[i].parent),
                 eachindex(IndexCartesian(), u.halos[i]).indices...
             )
         end

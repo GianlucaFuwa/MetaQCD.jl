@@ -19,8 +19,8 @@ If `staggered=true`, the number of Dirac degrees of freedom (ND) is reduced to 1
 """ Spinorfield
 
 function Spinorfield(
-    u::AbstractField{B,T,M}; staggered=false, no_halo=false, hw=get_halo_width(u)
-) where {B,T,M}
+    u::AbstractField{B,T,M}, ::Type{Tnew}=T; staggered=false, no_halo=false, hw=get_halo_width(u)
+) where {B,T,M,Tnew}
     ND = if u isa Spinorfield || u isa SpinorfieldEO
         num_dirac(u)
     else
@@ -29,9 +29,9 @@ function Spinorfield(
 
     u_out = if M
         ncart = get_numprocs_cart(u)
-        Spinorfield{B,T,ND}(size(u)...; numprocs_cart=ncart, halo_width=hw, no_halo=no_halo)
+        Spinorfield{B,Tnew,ND}(size(u)...; numprocs_cart=ncart, halo_width=hw, no_halo=no_halo)
     else
-        Spinorfield{B,T,ND}(size(u)...)
+        Spinorfield{B,Tnew,ND}(size(u)...)
     end
 
     return u_out
