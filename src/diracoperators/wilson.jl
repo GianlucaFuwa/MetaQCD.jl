@@ -127,7 +127,7 @@ function LinearAlgebra.mul!(
     return nothing
 end
 
-@inline function wilson_kernel(
+function wilson_kernel(
     U, Fμν, ϕ, site, mass_term, csw_fac, bc, ::Type{T}, ::Val{dagg}, ::Val{C}
 ) where {T,dagg,C}
     # dagg can be 1 or -1; if it's -1 then we swap (1 - γᵨ) with (1 + γᵨ) and vice versa
@@ -155,24 +155,12 @@ end
     end
 end
 
-@inline function clover_kernel(Fμν, ϕ_n, site, fac, ::Type{T}) where {T}
+@inline function clover_kernel(Fμν, ϕₙ, site, fac, ::Type{T}) where {T}
     # Observed that it makes a difference whether we only make F antihermitian or traceless antihermitian in the accuracy of the derivative --> TA makes it worse is most severe when U is unsmeared
-    F₁₂ = Fμν[1, site]
-    Cₙ = cmvmul_color(F₁₂, σμν_spin_mul(ϕ_n, Val(1), Val(2)))
-
-    F₁₃ = Fμν[2, site]
-    Cₙ += cmvmul_color(F₁₃, σμν_spin_mul(ϕ_n, Val(1), Val(3)))
-
-    F₁₄ = Fμν[3, site]
-    Cₙ += cmvmul_color(F₁₄, σμν_spin_mul(ϕ_n, Val(1), Val(4)))
-
-    F₂₃ = Fμν[4, site]
-    Cₙ += cmvmul_color(F₂₃, σμν_spin_mul(ϕ_n, Val(2), Val(3)))
-
-    F₂₄ = Fμν[5, site]
-    Cₙ += cmvmul_color(F₂₄, σμν_spin_mul(ϕ_n, Val(2), Val(4)))
-
-    F₃₄ = Fμν[6, site]
-    Cₙ += cmvmul_color(F₃₄, σμν_spin_mul(ϕ_n, Val(3), Val(4)))
+    Cₙ = zero(ϕₙ)
+    @nexprs 6 i -> (
+        Fᵢ = Fμν[i, site];
+        Cₙ += cmvmul_color(Fᵢ, σμν_spin_mul(ϕₙ, Val(i)))
+    )
     return T(fac) * Cₙ
 end

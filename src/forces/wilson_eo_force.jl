@@ -150,36 +150,12 @@ end
 
 function calc_Xμν_eo_kernel!(Xμν, X, Y, site, bulk)
     _site = map_to_half(site, bulk)
-
-    X₁₂ =
-        spintrace(σμν_spin_mul(X[_site], Val(1), Val(2)), Y[_site]) +
-        spintrace(σμν_spin_mul(Y[_site], Val(1), Val(2)), X[_site])
-    Xμν[1, site] = X₁₂
-
-    X₁₃ =
-        spintrace(σμν_spin_mul(X[_site], Val(1), Val(3)), Y[_site]) +
-        spintrace(σμν_spin_mul(Y[_site], Val(1), Val(3)), X[_site])
-    Xμν[2, site] = X₁₃
-
-    X₁₄ =
-        spintrace(σμν_spin_mul(X[_site], Val(1), Val(4)), Y[_site]) +
-        spintrace(σμν_spin_mul(Y[_site], Val(1), Val(4)), X[_site])
-    Xμν[3, site] = X₁₄
-
-    X₂₃ =
-        spintrace(σμν_spin_mul(X[_site], Val(2), Val(3)), Y[_site]) +
-        spintrace(σμν_spin_mul(Y[_site], Val(2), Val(3)), X[_site])
-    Xμν[4, site] = X₂₃
-
-    X₂₄ =
-        spintrace(σμν_spin_mul(X[_site], Val(2), Val(4)), Y[_site]) +
-        spintrace(σμν_spin_mul(Y[_site], Val(2), Val(4)), X[_site])
-    Xμν[5, site] = X₂₄
-
-    X₃₄ =
-        spintrace(σμν_spin_mul(X[_site], Val(3), Val(4)), Y[_site]) +
-        spintrace(σμν_spin_mul(Y[_site], Val(3), Val(4)), X[_site])
-    Xμν[6, site] = X₃₄
+    @nexprs 6 i -> (
+        Xᵢ =
+            spintrace(σμν_spin_mul(X[_site], Val(i)), Y[_site]) +
+            spintrace(σμν_spin_mul(Y[_site], Val(i)), X[_site]);
+        Xμν[i, site] = Xᵢ
+    )
     return nothing
 end
 
@@ -200,19 +176,10 @@ function calc_small_Xμν_kernel!(Xμν, D_oo_inv, site, ::Type{T}, bulk) where 
     if isodd(site)
         _site = map_to_half(site, bulk)
         Minv = D_oo_inv[_site]
-
-        X₁₂ = spintrace_pauli(Minv, Val(1), Val(2))
-        Xμν[1, site] = X₁₂
-        X₁₃ = spintrace_pauli(Minv, Val(1), Val(3))
-        Xμν[2, site] = X₁₃
-        X₁₄ = spintrace_pauli(Minv, Val(1), Val(4))
-        Xμν[3, site] = X₁₄
-        X₂₃ = spintrace_pauli(Minv, Val(2), Val(3))
-        Xμν[4, site] = X₂₃
-        X₂₄ = spintrace_pauli(Minv, Val(2), Val(4))
-        Xμν[5, site] = X₂₄
-        X₃₄ = spintrace_pauli(Minv, Val(3), Val(4))
-        Xμν[6, site] = X₃₄
+        @nexprs 6 i -> (
+            Xᵢ = spintrace_pauli(Minv, Val(i));
+            Xμν[i, site] = Xᵢ
+        )
     else
         X = zero3(T)
         Xμν[1, site] = X

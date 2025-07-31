@@ -175,35 +175,12 @@ function calc_Xμν_wilson_eachsite!(
 end
 
 function calc_Xμν_wilson_kernel!(Xμν, X, Y, site)
-    X₁₂ =
-        spintrace(σμν_spin_mul(X[site], Val(1), Val(2)), Y[site]) +
-        spintrace(σμν_spin_mul(Y[site], Val(1), Val(2)), X[site])
-    Xμν[1, site] = X₁₂
-
-    X₁₃ =
-        spintrace(σμν_spin_mul(X[site], Val(1), Val(3)), Y[site]) +
-        spintrace(σμν_spin_mul(Y[site], Val(1), Val(3)), X[site])
-    Xμν[2, site] = X₁₃
-
-    X₁₄ =
-        spintrace(σμν_spin_mul(X[site], Val(1), Val(4)), Y[site]) +
-        spintrace(σμν_spin_mul(Y[site], Val(1), Val(4)), X[site])
-    Xμν[3, site] = X₁₄
-
-    X₂₃ =
-        spintrace(σμν_spin_mul(X[site], Val(2), Val(3)), Y[site]) +
-        spintrace(σμν_spin_mul(Y[site], Val(2), Val(3)), X[site])
-    Xμν[4, site] = X₂₃
-
-    X₂₄ =
-        spintrace(σμν_spin_mul(X[site], Val(2), Val(4)), Y[site]) +
-        spintrace(σμν_spin_mul(Y[site], Val(2), Val(4)), X[site])
-    Xμν[5, site] = X₂₄
-
-    X₃₄ =
-        spintrace(σμν_spin_mul(X[site], Val(3), Val(4)), Y[site]) +
-        spintrace(σμν_spin_mul(Y[site], Val(3), Val(4)), X[site])
-    Xμν[6, site] = X₃₄
+    @nexprs 6 i -> (
+        Xᵢ =
+            spintrace(σμν_spin_mul(X[site], Val(i)), Y[site]) +
+            spintrace(σμν_spin_mul(Y[site], Val(i)), X[site]);
+        Xμν[i, site] = Xᵢ
+    )
     return nothing
 end
 

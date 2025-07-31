@@ -907,32 +907,32 @@ end
 end
 
 """
-    σμν_spin_mul(x, ::Val{μ}, ::Val{ν})
+    σμν_spin_mul(x, ::Val{i})
 
 Return `σμν * x` where `σμν = i/2 * [γμ, γν]` with the gamma matrices in the Chiral basis
-and `x` is a 4xN component complex vector. The latter two arguments are μ and ν wrapped in
-a `Val` and must be within the range `[1,4]` with `μ < ν`
+and `x` is a 4xN component complex vector. The last argument specifies which of the 6 independent
+component of σμν to multiply with.
 """
-@inline function σμν_spin_mul(x::SVector{M,Complex{T}}, ::Val{μ}, ::Val{ν}) where {T,M,μ,ν}
-    return SVector(σμν_spin_mul!(MVector{M,Complex{T}}(undef), MVector(x), Val(μ), Val(ν)))
+@inline function σμν_spin_mul(x::SVector{M,Complex{T}}, ::Val{i}) where {T,M,i}
+    return SVector(σμν_spin_mul!(MVector{M,Complex{T}}(undef), MVector(x), Val(i)))
 end
 
 # HACK:
-@inline function σμν_spin_mul(x::SVector{M,ComplexF16}, ::Val{1}, ::Val{3}) where {M}
+@inline function σμν_spin_mul(x::SVector{M,ComplexF16}, ::Val{2}) where {M}
     return SVector{M,ComplexF16}(
-        σμν_spin_mul!(MVector{M,ComplexF32}(undef), MVector{M,ComplexF32}(x), Val(1), Val(3))
+        σμν_spin_mul!(MVector{M,ComplexF32}(undef), MVector{M,ComplexF32}(x), Val(2))
     )
 end
-@inline function σμν_spin_mul(x::SVector{M,ComplexF16}, ::Val{2}, ::Val{4}) where {M}
+@inline function σμν_spin_mul(x::SVector{M,ComplexF16}, ::Val{4}) where {M}
     return SVector{M,ComplexF16}(
-        σμν_spin_mul!(MVector{M,ComplexF32}(undef), MVector{M,ComplexF32}(x), Val(2), Val(4))
+        σμν_spin_mul!(MVector{M,ComplexF32}(undef), MVector{M,ComplexF32}(x), Val(4))
     )
 end
 
-# FIXME: errors for some μ ν combinations when T=Float16
+# FIXME: errors for some i's when T=Float16
 @generated function σμν_spin_mul!(
-    yc::MVector{M,Complex{T}}, xc::MVector{M,Complex{T}}, ::Val{μ}, ::Val{ν}
-) where {T,M,μ,ν}
+    yc::MVector{M,Complex{T}}, xc::MVector{M,Complex{T}}, ::Val{i}
+) where {T,M,i}
     if M % 4 != 0
         return :(throw(DimensionMismatch("length(x) must be a multiple of 4")))
     end
@@ -945,7 +945,7 @@ end
         x = reinterpret(reshape, $T, xc)
     end
 
-    inner_q = if μ === 1 && ν === 2
+    inner_q = if i == 1
         quote
             y[1, m] = -x[1, m]
             y[2, m] = -x[2, m]
@@ -956,7 +956,7 @@ end
             y[1, $(3N)+m] = x[1, $(3N)+m]
             y[2, $(3N)+m] = x[2, $(3N)+m]
         end
-    elseif μ === 1 && ν === 3
+    elseif i == 2
         quote
             y[1, m] = x[2, $N+m]
             y[2, m] = -x[1, $N+m]
@@ -967,7 +967,7 @@ end
             y[1, $(3N)+m] = -x[2, $(2N)+m]
             y[2, $(3N)+m] = x[1, $(2N)+m]
         end
-    elseif μ === 1 && ν === 4
+    elseif i == 3
         quote
             y[1, m] = x[1, $N+m]
             y[2, m] = x[2, $N+m]
@@ -978,7 +978,7 @@ end
             y[1, $(3N)+m] = -x[1, $(2N)+m]
             y[2, $(3N)+m] = -x[2, $(2N)+m]
         end
-    elseif μ === 2 && ν === 3
+    elseif i == 4
         quote
             y[1, m] = -x[1, $N+m]
             y[2, m] = -x[2, $N+m]
@@ -989,7 +989,7 @@ end
             y[1, $(3N)+m] = -x[1, $(2N)+m]
             y[2, $(3N)+m] = -x[2, $(2N)+m]
         end
-    elseif μ === 2 && ν === 4
+    elseif i == 5
         quote
             y[1, m] = x[2, $N+m]
             y[2, m] = -x[1, $N+m]
@@ -1000,7 +1000,7 @@ end
             y[1, $(3N)+m] = x[2, $(2N)+m]
             y[2, $(3N)+m] = -x[1, $(2N)+m]
         end
-    elseif μ === 3 && ν === 4
+    elseif i == 6
         quote
             y[1, m] = x[1, m]
             y[2, m] = x[2, m]
@@ -1028,13 +1028,9 @@ end
 end
 
 """
-    spintrace_pauli(P::PauliMatrix, ::Val{μ}, ::Val{ν})
+    spintrace_pauli(P::PauliMatrix, ::Val{i})
 """
-@generated function spintrace_pauli(
-    P::PauliMatrix{N,N²,T},
-    ::Val{μ},
-    ::Val{ν}
-) where {N,N²,T,μ,ν}
+@generated function spintrace_pauli(P::PauliMatrix{N,N²,T}, ::Val{ip}) where {N,N²,T,ip}
     q = quote
         $(Expr(:meta, :inline))
         A = P.upper
@@ -1044,17 +1040,17 @@ end
     i = SVector(1:3...)
     j = SVector(4:6...)
 
-    inner_q = if μ === 1 && ν === 2
+    inner_q = if ip == 1
         :(return -A[$i, $i] + A[$j, $j] - B[$i, $i] + B[$j, $j])
-    elseif μ === 1 && ν === 3
+    elseif ip == 2
         :(return im * (A[$i, $j] - A[$j, $i] + B[$i, $j] - B[$j, $i]))
-    elseif μ === 1 && ν === 4
+    elseif ip == 3
         :(return A[$j, $i] + A[$i, $j] - B[$j, $i] - B[$i, $j])
-    elseif μ === 2 && ν === 3
+    elseif ip == 4
         :(return -A[$j, $i] - A[$i, $j] - B[$j, $i] - B[$i, $j])
-    elseif μ === 2 && ν === 4
+    elseif ip == 5
         :(return im * (A[$i, $j] - A[$j, $i] - B[$i, $j] + B[$j, $i]))
-    elseif μ === 3 && ν === 4
+    elseif ip == 6
         :(return A[$i, $i] - A[$j, $j] - B[$i, $i] + B[$j, $j])
     else
         return :(throw(AssertionError("Invalid combination of μ and ν")))
