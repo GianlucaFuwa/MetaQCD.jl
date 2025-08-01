@@ -16,13 +16,15 @@ import StrideArraysCore: PtrArray, object_and_preserve # This is used to convert
 struct CPU end
 # When CUDA.jl or AMDGPU.jl are loaded, their backends are appended to this Dict
 const BACKENDS = Dict{String,Any}("cpu" => CPU)
+const DEVICE_ID = Base.RefValue{Int64}(-1)
 
 # We are going to need these if we want to transfer a field from one backend to another
 # For other backends, we overload this method in their respective extensions
-@inline array_type(::Type{CPU}) = Array
+array_type(::Type{CPU}) = Array
 bzeros(::CPU, args...) = zeros(args...)
 synchronize(::CPU) = nothing
 priority!(::CPU, priority) = nothing
+mpi_assign_device!(::CPU, id) = nothing
 
 # Define an abstract field super type that is parametrized by the backend, the precision and
 # the array type (Array, CuArray, ROCArray)

@@ -149,6 +149,7 @@ macro field_constructor(struct_name, kwargs...)
             topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
 
             # Create U array
+            mpi_assign_device!(B(), mpi_myrank())
             eltype_val = $eltype_q
             origin = $origin_q
             ldims = $ldims_q

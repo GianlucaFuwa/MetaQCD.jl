@@ -5,6 +5,7 @@ using AMDGPU: @roc, ROCBackend, ROCArray, launch_configuration, synchronize
 using AMDGPU: workitemIdx, workgroupIdx, workgroupDim, reduce_group
 import MetaQCD.Fields
 import MetaQCD.Fields: _foreachindex_global!, _foreachindex_reduce_global!
+import MetaQCD.Utils: mpi_myrank
 
 function __init__()
     Fields.BACKENDS["rocm"] = ROCBackend
@@ -18,6 +19,14 @@ Fields.array_type(::Type{ROCBackend}) = ROCArray
 Fields.bzeros(::ROCBackend, args...) = AMDGPU.zeros(args...)
 Fields.synchronize(::ROCBackend) = AMDGPU.synchronize()
 Fields.priority!(::ROCBackend, priority) = AMDGPU.priority!(priority)
+
+function Fields.mpi_assign_device!(::ROCBackend, id)
+    Fields.DEVICE_ID[] != -1 && return nothing
+    (0 <= id < AMDGPU.HIP.ndevices()) || throw(ArgumentError("Device id $id out of bounds."))
+    AMDGPU.device_id!(Int32(id) + 1)
+    Fields.DEVICE_ID[] = id
+    return nothing
+end
 
 function Fields.launch_foreachindex_global!(
     ::ROCBackend, f, captured, itr, groupsize, gridsize

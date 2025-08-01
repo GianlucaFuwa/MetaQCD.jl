@@ -22,6 +22,7 @@ function mpi_init()
         MPI_COMM_INSTANCE[] = MPI.COMM_WORLD
         MPI_COMM_SHARED[] = MPI.COMM_WORLD
         MPI_WORLD_SIZE[] = mpi_size(MPI.COMM_WORLD)
+        return nothing
     end
 end
 

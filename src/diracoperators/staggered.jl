@@ -61,7 +61,7 @@ function solve_dirac!(
 ) where {T<:StaggeredDiracOperator}
     # return bicg_stab!(ψ, D, ϕ, temps...; tol=tol, maxiters=maxiters)
     D_dagg = Daggered(D)
-    cgnr!(ψ, D, D_dagg, ϕ, temps[1], temps[2], temps[3], temps[4]; tol, maxiters)
+    return cgnr!(ψ, D, D_dagg, ϕ, temps[1], temps[2], temps[3], temps[4]; tol, maxiters)
 end
 
 # We overload LinearAlgebra.mul! instead of Gaugefields.mul! so we dont have to import
