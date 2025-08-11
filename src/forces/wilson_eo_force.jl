@@ -127,14 +127,14 @@ function calc_Xμν_eo_eachsite!(
     return nothing
 end
 
-@inline function calc_Xμν_eo_kernel!(Xμν, X, Y, site, bulk)
+function calc_Xμν_eo_kernel!(Xμν, X, Y, site, bulk)
     _site = map_to_half(site, bulk)
     @inbounds begin
+        Xn = X[_site]
+        Yn = Y[_site]
         @nexprs 6 i -> (
-            Xᵢ =
-                spintrace(σμν_spin_mul(X[_site], Val(i)), Y[_site]) +
-                spintrace(σμν_spin_mul(Y[_site], Val(i)), X[_site]);
-            Xμν[i, site] = Xᵢ
+            Xμν[i, site] = spintrace(σμν_spin_mul(Xn, Val(i)), Yn) +
+                spintrace(σμν_spin_mul(Yn, Val(i)), Xn);
         )
     end
 

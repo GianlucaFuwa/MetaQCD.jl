@@ -80,13 +80,15 @@ function add_wilson_derivative_kernel!(dU, U, X, Y, site, bc, fac)
     NT = size(dU, 4)
 
     @inbounds begin
+        Xn = X[site]
+        Yn = Y[site]
         @nexprs 4 μ -> (
             Nμ = axes(U, μ);
             siteμ⁺ = move(site, μ, 1, Nμ);
             X⁺ = apply_bc(X[siteμ⁺], bc, site, Val(1), NT, Val(μ));
             Y⁺ = apply_bc(Y[siteμ⁺], bc, site, Val(1), NT, Val(μ));
-            B = spintrace(spin_proj(X⁺, Val(-μ)), Y[site]);
-            C = spintrace(spin_proj(Y⁺, Val(μ)), X[site]);
+            B = spintrace(spin_proj(X⁺, Val(-μ)), Yn);
+            C = spintrace(spin_proj(Y⁺, Val(μ)), Xn);
             dU[μ, site] += fac * traceless_antihermitian(cmatmul_oo(U[μ, site], B + C))
         )
     end
@@ -144,13 +146,13 @@ function calc_Xμν_wilson_eachsite!(
     return nothing
 end
 
-@inline function calc_Xμν_wilson_kernel!(Xμν, X, Y, site)
+function calc_Xμν_wilson_kernel!(Xμν, X, Y, site)
     @inbounds begin
+        Xn = X[site]
+        Yn = Y[site]
         @nexprs 6 i -> (
-            Xᵢ =
-                spintrace(σμν_spin_mul(X[site], Val(i)), Y[site]) +
-                spintrace(σμν_spin_mul(Y[site], Val(i)), X[site]);
-            Xμν[i, site] = Xᵢ
+            Xμν[i, site] = spintrace(σμν_spin_mul(Xn, Val(i)), Yn) +
+                spintrace(σμν_spin_mul(Yn, Val(i)), Xn)
         )
     end
 
