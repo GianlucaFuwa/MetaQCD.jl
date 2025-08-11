@@ -141,8 +141,8 @@ struct PauliMatrix{N,N²,T<:AbstractFloat}
     upper::SU{N,N²,T}
     lower::SU{N,N²,T}
     function PauliMatrix(λ::UniformScaling{T}, ::Val{N}) where {N,T<:AbstractFloat}
-        upper = lower = @SMatrix(zeros(Complex{T}, N, N)) + λ
         N² = N^2
+        upper = lower = zeros(SMatrix{N,N,Complex{T},N²}) + λ
         return new{N,N²,T}(upper, lower)
     end
 
@@ -158,8 +158,8 @@ Base.one(::Type{PauliMatrix{N,N²,T}}) where {N,N²,T} =
 Base.eltype(::Type{PauliMatrix{N,N²,T}}) where {N,N²,T} = Complex{T}
 
 function Base.rand(::Type{PauliMatrix{N,N²,T}}) where {N,N²,T}
-    upper = hermitian(@SMatrix(rand(Complex{T}, N, N)))
-    lower = hermitian(@SMatrix(rand(Complex{T}, N, N)))
+    upper = hermitian(rand(SMatrix{N,N,Complex{T},N²}))
+    lower = hermitian(rand(SMatrix{N,N,Complex{T},N²}))
     return PauliMatrix(upper, lower)
 end
 

@@ -28,7 +28,7 @@ macro field_constructor(struct_name, kwargs...)
 
     is_spinorfield = struct_name == :Spinorfield
     ldims_q, inner_len = if is_spinorfield
-        :(topology.local_dims,), 0
+        :(topology.local_dims...,), 0
     elseif struct_name == :Paulifield
         pauli_ldims = quote
             if inverse
@@ -38,16 +38,16 @@ macro field_constructor(struct_name, kwargs...)
             end
         end
         pauli_ldims, 0
-    elseif struct_name == :Tensorfield
-        :(6, topology.local_dims...), 6
     elseif struct_name == :MultiSpinorfield
         :(numspinors, topology.local_dims...), :numspinors
-    else
-        :(4, topology.local_dims...), 4
+    elseif struct_name == :Tensorfield
+        :(topology.local_dims..., 6), 6
+    else # XXX:
+        :(topology.local_dims..., 4), 4
     end
             
     origin_q = if is_spinorfield
-        :(OffsetArrays.Origin(topology.bulk_sites[1]))
+        :(OffsetArrays.Origin((topology.bulk_sites[1].I)...,))
     elseif struct_name == :Paulifield
         quote
             ox, oy, oz, ot = topology.bulk_sites[1].I
@@ -56,22 +56,46 @@ macro field_constructor(struct_name, kwargs...)
             end
             OffsetArrays.Origin(ox, oy, oz, ot)
         end
-    else
-        :(OffsetArrays.Origin(1, (topology.bulk_sites[1].I)...))
+    else # XXX:
+        :(OffsetArrays.Origin((topology.bulk_sites[1].I)..., 1))
     end
+
+    U_construct = :(OffsetArray(bzeros(B(), eltype_val, ldims...), origin))
+    # U_construct = if struct_name == :Spinorfield
+    #     quote
+    #         if B == CPU
+    #             OffsetArray(bzeros(B(), eltype_val, ldims...), origin)
+    #         else
+    #             # ntuple(_ -> OffsetArray(bzeros(B(), Complex{T}, ldims...), origin), 3ND)
+    #             OffsetArray(bzeros(B(), Complex{T}, ldims...), origin)
+    #             # OffsetArray(bzeros(B(), eltype_val, ldims...), origin)
+    #         end
+    #     end
+    # elseif struct_name ∈ (:Gaugefield, :Tensorfield)
+    #     quote
+    #         if B == CPU
+    #             OffsetArray(bzeros(B(), eltype_val, ldims...), origin)
+    #         else
+    #             # ntuple(_ -> OffsetArray(bzeros(B(), Complex{T}, ldims...), origin), 9)
+    #             OffsetArray(bzeros(B(), Complex{T}, ldims...), origin)
+    #         end
+    #     end
+    # else
+    #     :(OffsetArray(bzeros(B(), eltype_val, ldims...), origin))
+    # end
     
     # Build halo creation (4D for spinors, 5D for others)
     halo_dims, halo_indices = if is_spinorfield || struct_name == :Paulifield
         :(size(halo_sites[i][j])...), :(halo_sites[i][j].indices...,)
     else
-        :($inner_len, size(halo_sites[i][j])...),
-        :(1:$inner_len, halo_sites[i][j].indices...)
+        :(size(halo_sites[i][j])..., $inner_len),
+        :(halo_sites[i][j].indices..., 1:$inner_len)
     end
 
     sendbuf_dims = if is_spinorfield || struct_name == :Paulifield
         :(length(border_sites[i][j]))
     else
-        :($inner_len, length(border_sites[i][j])...)
+        :(length(border_sites[i][j])..., $inner_len)
     end
 
     halo_check = if struct_name == :Gaugefield
@@ -153,7 +177,8 @@ macro field_constructor(struct_name, kwargs...)
             eltype_val = $eltype_q
             origin = $origin_q
             ldims = $ldims_q
-            U = OffsetArray(bzeros(B(), eltype_val, ldims...), origin)
+
+            U = $U_construct
             # Create halos and sendbuf
             halo_sites = topology.halo_sites
             border_sites = topology.border_sites

@@ -2,27 +2,15 @@ function calc_dSfdU!(
     dU, fermion_action::FermionAction{false,2,TD}, U, ϕ_eo::WilsonEOPreSpinorfield
 ) where {TD<:WilsonEOPreDiracOperator}
     clear!(dU)
-    cg_tol = fermion_action.cg_tol_md
-    cg_maxiters = fermion_action.cg_maxiters_md
-    X_eo, Y_eo, temp1, temp2 = fermion_action.cg_temps
+    X_eo, Y_eo, temp1, temp2 = fermion_action.temps[1:4]
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     bc = D.boundary_condition
+    solver_action = fermion_action.solver_action
+    tol, maxiters, datafile = get_info(solver_action)
 
     clear!(X_eo)
-    iters, res = solve_dirac!(X_eo, DdagD, ϕ_eo, Y_eo, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp LinearAlgebra.mul!(Y, D, X) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
-
-    cg_datafile = fermion_action.cg_datafile
-
-    if cg_datafile != ""
-        set_ext!(cg_datafile, MPI_INSTANCE[])
-        fp = fopen(cg_datafile, "a")
-        printf(fp, "%-11i", iters)
-        printf(fp, "%-25.15E", res)
-        printf(fp, "%s", "# force")
-        newline(fp)
-        fclose(fp)
-    end
+    solve_dirac!(X_eo, DdagD, ϕ_eo, Y_eo, temp1, temp2; tol, maxiters, datafile)
 
     LinearAlgebra.mul!(Y_eo, D, X_eo)
     mul_oe!(X_eo, U, X_eo, bc, true, Val(1))
@@ -47,17 +35,17 @@ function calc_dSfdU!(
     dU, fermion_action::FermionAction{true,1,TD}, U, ϕ_eo::WilsonEOPreSpinorfield
 ) where {TD<:WilsonEOPreDiracOperator}
     clear!(dU)
-    cg_tol = fermion_action.cg_tol_md
-    cg_maxiters = fermion_action.cg_maxiters_md
     rhmc = fermion_action.rhmc_info_md
     n = get_n_inverse(rhmc)
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     D_oo_inv = D.D_oo_inv
     bc = D.boundary_condition
-    Xs = fermion_action.rhmc_temps1
-    Ys = fermion_action.rhmc_temps2
-    temp1, temp2 = fermion_action.cg_temps
+    temp1, temp2 = fermion_action.temps[1:2]
+    Xs = fermion_action.temps[3:n+3]
+    Ys = fermion_action.temps[n+4:2n+4]
+    solver_action = fermion_action.solver_action
+    tol, maxiters, datafile = get_info(solver_action)
 
     for X in Xs
         clear!(X)
@@ -65,21 +53,9 @@ function calc_dSfdU!(
 
     shifts = get_β_inverse(rhmc)
     coeffs = get_α_inverse(rhmc)
-    iters, res = solve_dirac_multishift!(
-        Xs, shifts, DdagD, ϕ_eo, temp1, temp2, Ys, cg_tol, cg_maxiters
+    solve_dirac_multishift!(
+        Xs, shifts, DdagD, ϕ_eo, temp1, temp2, Ys; tol, maxiters, datafile
     )
-
-    cg_datafile = fermion_action.cg_datafile
-
-    if cg_datafile != ""
-        set_ext!(cg_datafile, MPI_INSTANCE[])
-        fp = fopen(cg_datafile, "a")
-        printf(fp, "%-11i", iters)
-        printf(fp, "%-25.15E", res)
-        printf(fp, "%s", "# force")
-        newline(fp)
-        fclose(fp)
-    end
 
     for i in 1:n
         LinearAlgebra.mul!(Ys[i+1], D, Xs[i+1]) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
@@ -117,20 +93,23 @@ function add_wilson_eo_derivative!(
     return nothing
 end
 
-function add_wilson_eo_derivative_kernel!(dU, U, X_eo, Y_eo, site, bc, fac, bulk)
+@inline function add_wilson_eo_derivative_kernel!(dU, U, X_eo, Y_eo, site, bc, fac, bulk)
     # sites that begin with a "_" are meant for indexing into the even-odd preconn'ed
     # fermion field
     NT = size(U, 4)
     _site = map_to_half(site, bulk)
-    @nexprs 4 μ -> (
-        Nμ = axes(U, μ);
-        _siteμ⁺ = map_to_half(move(site, μ, 1, Nμ), bulk);
-        X⁺ = apply_bc(X_eo[_siteμ⁺], bc, site, Val(1), NT, Val(μ));
-        Y⁺ = apply_bc(Y_eo[_siteμ⁺], bc, site, Val(1), NT, Val(μ));
-        B = spintrace(spin_proj(X⁺, Val(-μ)), Y_eo[_site]);
-        C = spintrace(spin_proj(Y⁺, Val(μ)), X_eo[_site]);
-        dU[μ, site] += fac * traceless_antihermitian(cmatmul_oo(U[μ, site], B + C))
-    )
+    @inbounds begin
+        @nexprs 4 μ -> (
+            Nμ = axes(U, μ);
+            _siteμ⁺ = map_to_half(move(site, μ, 1, Nμ), bulk);
+            X⁺ = apply_bc(X_eo[_siteμ⁺], bc, site, Val(1), NT, Val(μ));
+            Y⁺ = apply_bc(Y_eo[_siteμ⁺], bc, site, Val(1), NT, Val(μ));
+            B = spintrace(spin_proj(X⁺, Val(-μ)), Y_eo[_site]);
+            C = spintrace(spin_proj(Y⁺, Val(μ)), X_eo[_site]);
+            dU[μ, site] += fac * traceless_antihermitian(cmatmul_oo(U[μ, site], B + C))
+        )
+    end
+
     return nothing
 end
 
@@ -148,14 +127,17 @@ function calc_Xμν_eo_eachsite!(
     return nothing
 end
 
-function calc_Xμν_eo_kernel!(Xμν, X, Y, site, bulk)
+@inline function calc_Xμν_eo_kernel!(Xμν, X, Y, site, bulk)
     _site = map_to_half(site, bulk)
-    @nexprs 6 i -> (
-        Xᵢ =
-            spintrace(σμν_spin_mul(X[_site], Val(i)), Y[_site]) +
-            spintrace(σμν_spin_mul(Y[_site], Val(i)), X[_site]);
-        Xμν[i, site] = Xᵢ
-    )
+    @inbounds begin
+        @nexprs 6 i -> (
+            Xᵢ =
+                spintrace(σμν_spin_mul(X[_site], Val(i)), Y[_site]) +
+                spintrace(σμν_spin_mul(Y[_site], Val(i)), X[_site]);
+            Xμν[i, site] = Xᵢ
+        )
+    end
+
     return nothing
 end
 
@@ -172,21 +154,25 @@ function calc_small_Xμν_eachsite!(
     return nothing
 end
 
-function calc_small_Xμν_kernel!(Xμν, D_oo_inv, site, ::Type{T}, bulk) where {T}
-    if isodd(site)
-        _site = map_to_half(site, bulk)
-        Minv = D_oo_inv[_site]
-        @nexprs 6 i -> (
-            Xᵢ = spintrace_pauli(Minv, Val(i));
-            Xμν[i, site] = Xᵢ
-        )
-    else
-        X = zero3(T)
-        Xμν[1, site] = X
-        Xμν[2, site] = X
-        Xμν[3, site] = X
-        Xμν[4, site] = X
-        Xμν[5, site] = X
-        Xμν[6, site] = X
+@inline function calc_small_Xμν_kernel!(Xμν, D_oo_inv, site, ::Type{T}, bulk) where {T}
+    @inbounds begin
+        if isodd(site)
+            _site = map_to_half(site, bulk)
+            Minv = D_oo_inv[_site]
+            @nexprs 6 i -> (
+                Xᵢ = spintrace_pauli(Minv, Val(i));
+                Xμν[i, site] = Xᵢ
+            )
+        else
+            X = zero3(T)
+            Xμν[1, site] = X
+            Xμν[2, site] = X
+            Xμν[3, site] = X
+            Xμν[4, site] = X
+            Xμν[5, site] = X
+            Xμν[6, site] = X
+        end
     end
+
+    return nothing
 end

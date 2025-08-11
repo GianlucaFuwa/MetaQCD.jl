@@ -67,7 +67,7 @@ function apply_stout_smearing!(Uout::Gaugefield{B,T,M}, C, Q, U, ρ) where {B,T,
     parallelfor(itr, B, Val(M), (U,), (Uout, C, Q), (Uout, C, Q, U)) do site, (Uout, C, Q, U)
         for μ in 1:4
             Qμ = calc_stout_Q_kernel!(Q, C, U, site, μ, ρ)
-            Uout[μ, site] = cmatmul_oo(exp_iQ(Qμ), U[μ, site])
+            @inbounds Uout[μ, site] = cmatmul_oo(exp_iQ(Qμ), U[μ, site])
         end
     end
 
@@ -113,40 +113,44 @@ function stout_recursion_kernel!(Σ, Σ′, U, C, Q, Λ, site, μ, ρ)
     siteμ⁺ = move(site, μ, 1i32, Nμ)
     force_sum = zero3(float_type(U))
 
-    for ν in 1i32:4i32
-        if ν == μ
-            continue
+    @inbounds begin
+        for ν in 1i32:4i32
+            if ν == μ
+                continue
+            end
+
+            Nν = axes(Σ′, ν)
+            siteν⁺ = move(site, ν, 1i32, Nν)
+            siteν⁻ = move(site, ν, -1i32, Nν)
+            siteμ⁺ν⁻ = move(siteμ⁺, ν, -1i32, Nν)
+
+            # bring reused matrices up to cache (can also precalculate some products)
+            # Uνsiteμ⁺ = U[ν,siteμ⁺]
+            # Uμsiteμ⁺ = U[μ,siteν⁺]
+            # Uνsite = U[ν,site]
+            # Uνsiteμ⁺ν⁻ = U[ν,siteμ⁺ν⁻]
+            # Uμsiteν⁻ = U[μ,siteν⁻]
+            # Uνsiteν⁻ = U[ν,siteν⁻]
+
+            force_sum +=
+            cmatmul_oddo(U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site], Λ[ν, site]) +
+            cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], Λ[μ, siteν⁻], U[ν, siteν⁻]) +
+            cmatmul_dodo(U[ν, siteμ⁺ν⁻], Λ[ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻]) -
+            cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], Λ[ν, siteν⁻], U[ν, siteν⁻]) -
+            cmatmul_oodd(Λ[ν, siteμ⁺], U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site]) +
+            cmatmul_odod(U[ν, siteμ⁺], U[μ, siteν⁺], Λ[μ, siteν⁺], U[ν, site])
         end
 
-        Nν = axes(Σ′, ν)
-        siteν⁺ = move(site, ν, 1i32, Nν)
-        siteν⁻ = move(site, ν, -1i32, Nν)
-        siteμ⁺ν⁻ = move(siteμ⁺, ν, -1i32, Nν)
-
-        # bring reused matrices up to cache (can also precalculate some products)
-        # Uνsiteμ⁺ = U[ν,siteμ⁺]
-        # Uμsiteμ⁺ = U[μ,siteν⁺]
-        # Uνsite = U[ν,site]
-        # Uνsiteμ⁺ν⁻ = U[ν,siteμ⁺ν⁻]
-        # Uμsiteν⁻ = U[μ,siteν⁻]
-        # Uνsiteν⁻ = U[ν,siteν⁻]
-
-        force_sum +=
-        cmatmul_oddo(U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site], Λ[ν, site]) +
-        cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], Λ[μ, siteν⁻], U[ν, siteν⁻]) +
-        cmatmul_dodo(U[ν, siteμ⁺ν⁻], Λ[ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻]) -
-        cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], Λ[ν, siteν⁻], U[ν, siteν⁻]) -
-        cmatmul_oodd(Λ[ν, siteμ⁺], U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site]) +
-        cmatmul_odod(U[ν, siteμ⁺], U[μ, siteν⁺], Λ[μ, siteν⁺], U[ν, site])
+        link = U[μ, site]
+        expiQ_mat = exp_iQ(Q[μ, site])
+        Σ[μ, site] = traceless_antihermitian(
+            cmatmul_ooo(link, Σ′[μ, site], expiQ_mat) +
+            im * cmatmul_odo(link, C[μ, site], Λ[μ, site]) -
+            im * ρ * cmatmul_oo(link, force_sum),
+        )
     end
 
-    link = U[μ, site]
-    expiQ_mat = exp_iQ(Q[μ, site])
-    Σ[μ, site] = traceless_antihermitian(
-        cmatmul_ooo(link, Σ′[μ, site], expiQ_mat) +
-        im * cmatmul_odo(link, C[μ, site], Λ[μ, site]) -
-        im * ρ * cmatmul_oo(link, force_sum),
-    )
+    return nothing
 end
 
 function calc_stout_Λ!(Λ, Σ′, Q::Expfield{B}, U::Gaugefield{B,T,M}) where {B,T,M}
@@ -161,31 +165,35 @@ function calc_stout_Λ!(Λ, Σ′, Q::Expfield{B}, U::Gaugefield{B,T,M}) where {
     return nothing
 end
 
-function calc_stout_Λ_kernel!(Λ, Σ′, Q, U, site, μ)
-    q = Q[μ, site]
-    Qₘ = get_Q(q)
-    Q² = get_Q²(q)
-    UΣ′ = cmatmul_oo(U[μ, site], Σ′[μ, site])
+@inline function calc_stout_Λ_kernel!(Λ, Σ′, Q, U, site, μ)
+    @inbounds begin
+        q = Q[μ, site]
+        Qₘ = get_Q(q)
+        Q² = get_Q²(q)
+        UΣ′ = cmatmul_oo(U[μ, site], Σ′[μ, site])
 
-    B₁ = get_B₁(q)
-    B₂ = get_B₂(q)
+        B₁ = get_B₁(q)
+        B₂ = get_B₂(q)
 
-    Γ =
-        multr(B₁, UΣ′) * Qₘ +
-        multr(B₂, UΣ′) * Q² +
-        q.f₁ * UΣ′ +
-        q.f₂ * cmatmul_oo(Qₘ, UΣ′) +
-        q.f₂ * cmatmul_oo(UΣ′, Qₘ)
+        Γ =
+            multr(B₁, UΣ′) * Qₘ +
+            multr(B₂, UΣ′) * Q² +
+            q.f₁ * UΣ′ +
+            q.f₂ * cmatmul_oo(Qₘ, UΣ′) +
+            q.f₂ * cmatmul_oo(UΣ′, Qₘ)
 
-    Λ[μ, site] = traceless_hermitian(Γ)
+        Λ[μ, site] = traceless_hermitian(Γ)
+    end
+
+    return nothing
 end
 
-function calc_stout_Q_kernel!(Q, C, U, site, μ, ρ)
+@inline function calc_stout_Q_kernel!(Q, C, U, site, μ, ρ)
     Cμ = ρ * staple(WilsonGaugeAction(), U, μ, site)
-    C[μ, site] = Cμ
+    @inbounds C[μ, site] = Cμ
 
-    Ω = cmatmul_od(Cμ, U[μ, site])
+    @inbounds Ω = cmatmul_od(Cμ, U[μ, site])
     Qμ = exp_iQ_coeffs(-im * traceless_antihermitian(Ω))
-    Q[μ, site] = Qμ
+    @inbounds Q[μ, site] = Qμ
     return Qμ
 end

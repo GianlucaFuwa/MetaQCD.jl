@@ -82,9 +82,9 @@ end
 end
 
 function solve_dirac!(
-    ψ, D::T, ϕ, temps...; tol=1e-14, maxiters=1000
+    ψ, D::T, ϕ, temps...; tol=1e-14, maxiters=1000, datafile=""
 ) where {T<:StaggeredHoelblingDiracOperator}
-    return bicg_stab!(ψ, D, ϕ, temps...; tol=tol, maxiters=maxiters)
+    return bicg_stab!(ψ, D, ϕ, temps...; tol, maxiters, datafile)
 end
 
 # We overload LinearAlgebra.mul! instead of Gaugefields.mul! so we dont have to import
@@ -100,7 +100,7 @@ function LinearAlgebra.mul!(
     bc = D.boundary_condition
 
     parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ)) do site, (U, ϕ, ψ)
-        ψ[site] = staggered_hoelbling_kernel(U, ϕ, site, mass, bc, term, T, false)
+        @inbounds ψ[site] = staggered_hoelbling_kernel(U, ϕ, site, mass, bc, term, T, false)
     end
 
     return nothing
@@ -116,7 +116,7 @@ function LinearAlgebra.mul!(
     bc = D.parent.boundary_condition
 
     parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ)) do site, (U, ϕ, ψ)
-        ψ[site] = staggered_hoelbling_kernel(U, ϕ, site, mass, bc, term, T, true)
+        @inbounds ψ[site] = staggered_hoelbling_kernel(U, ϕ, site, mass, bc, term, T, true)
     end
 
     return nothing
@@ -135,22 +135,26 @@ function staggered_hoelbling_kernel(U, ϕ, site, mass, bc, term, ::Type{T}, dagg
     sgn = dagg ? -1 : 1
     _μ, _ν, _ρ, _σ = term
     NT = size(U, 4)
-    ψₙ = (2mass + 4) * ϕ[site] + (
-        hoelbling_mass(_μ, _ν, U, ϕ, site, bc, T) +
-        hoelbling_mass(_ρ, _σ, U, ϕ, site, bc, T)
-    )
 
-    # use @nexprs here to statically generate the loop
-    # this makes it so Val(i) is well defined at each iteration and no type-instabilities arise
-    @nexprs 4 μ -> (
-        Nμ = axes(U, μ);
-        siteμ⁺ = move(site, μ, 1, Nμ);
-        siteμ⁻ = move(site, μ, -1, Nμ);
-        η = sgn * staggered_η(Val(μ), site);
-        ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(μ));
-        ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(μ));
-        ψₙ += η * (cmvmul(U[μ, site], ϕ⁺) - cmvmul_d(U[μ, siteμ⁻], ϕ⁻))
-    )
+    @inbounds begin
+        ψₙ = (2mass + 4) * ϕ[site] + (
+            hoelbling_mass(_μ, _ν, U, ϕ, site, bc, T) +
+            hoelbling_mass(_ρ, _σ, U, ϕ, site, bc, T)
+        )
+
+        # use @nexprs here to statically generate the loop
+        # this makes it so Val(i) is well defined at each iteration and no type-instabilities arise
+        @nexprs 4 μ -> (
+            Nμ = axes(U, μ);
+            siteμ⁺ = move(site, μ, 1, Nμ);
+            siteμ⁻ = move(site, μ, -1, Nμ);
+            η = sgn * staggered_η(Val(μ), site);
+            ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(μ));
+            ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(μ));
+            ψₙ += η * (cmvmul(U[μ, site], ϕ⁺) - cmvmul_d(U[μ, siteμ⁻], ϕ⁻))
+        )
+    end
+
     return T(0.5) * ψₙ
 end
 
@@ -167,33 +171,36 @@ function hoelbling_mass(::Val{μ}, ::Val{ν}, U, ϕ, site, bc, ::Type{T}) where 
     siteμ⁻ν⁺ = move(siteμ⁻, ν, 1, Nν)
     siteμ⁻ν⁻ = move(siteμ⁻, ν, -1, Nν)
 
-    tmpϕ = apply_bc(
-        apply_bc(ϕ[siteμ⁺ν⁺], bc, site, Val(1), NT, Val(μ)),
-        bc, site, Val(1), NT, Val(ν)
-    )
-    tmp = cmatmul_oo(U[μ, site], U[ν, siteμ⁺]) + cmatmul_oo(U[ν, site], U[μ, siteν⁺])
-    Mμν = cmvmul(tmp, tmpϕ)
+    @inbounds begin
+        tmpϕ = apply_bc(
+            apply_bc(ϕ[siteμ⁺ν⁺], bc, site, Val(1), NT, Val(μ)),
+            bc, site, Val(1), NT, Val(ν)
+        )
+        tmp = cmatmul_oo(U[μ, site], U[ν, siteμ⁺]) + cmatmul_oo(U[ν, site], U[μ, siteν⁺])
+        Mμν = cmvmul(tmp, tmpϕ)
 
-    tmpϕ = apply_bc(
-        apply_bc(ϕ[siteμ⁺ν⁻], bc, site, Val(1), NT, Val(μ)),
-        bc, site, Val(-1), NT, Val(ν)
-    )
-    tmp = cmatmul_od(U[μ, site], U[ν, siteμ⁺ν⁻]) + cmatmul_do(U[ν, siteν⁻], U[μ, siteν⁻])
-    Mμν += cmvmul(tmp, tmpϕ)
+        tmpϕ = apply_bc(
+            apply_bc(ϕ[siteμ⁺ν⁻], bc, site, Val(1), NT, Val(μ)),
+            bc, site, Val(-1), NT, Val(ν)
+        )
+        tmp = cmatmul_od(U[μ, site], U[ν, siteμ⁺ν⁻]) + cmatmul_do(U[ν, siteν⁻], U[μ, siteν⁻])
+        Mμν += cmvmul(tmp, tmpϕ)
 
-    tmpϕ = apply_bc(
-        apply_bc(ϕ[siteμ⁻ν⁺], bc, site, Val(-1), NT, Val(μ)),
-        bc, site, Val(1), NT, Val(ν)
-    )
-    tmp = cmatmul_do(U[μ, siteμ⁻], U[ν, siteμ⁻]) + cmatmul_od(U[ν, site], U[μ, siteμ⁻ν⁺])
-    Mμν += cmvmul(tmp, tmpϕ)
+        tmpϕ = apply_bc(
+            apply_bc(ϕ[siteμ⁻ν⁺], bc, site, Val(-1), NT, Val(μ)),
+            bc, site, Val(1), NT, Val(ν)
+        )
+        tmp = cmatmul_do(U[μ, siteμ⁻], U[ν, siteμ⁻]) + cmatmul_od(U[ν, site], U[μ, siteμ⁻ν⁺])
+        Mμν += cmvmul(tmp, tmpϕ)
 
-    tmpϕ = apply_bc(
-        apply_bc(ϕ[siteμ⁻ν⁻], bc, site, Val(-1), NT, Val(μ)),
-        bc, site, Val(-1), NT, Val(ν)
-    )
-    tmp = cmatmul_dd(U[μ, siteμ⁻], U[ν, siteμ⁻ν⁻]) + cmatmul_dd(U[ν, siteν⁻], U[μ, siteμ⁻ν⁻])
-    Mμν += cmvmul(tmp, tmpϕ)
+        tmpϕ = apply_bc(
+            apply_bc(ϕ[siteμ⁻ν⁻], bc, site, Val(-1), NT, Val(μ)),
+            bc, site, Val(-1), NT, Val(ν)
+        )
+        tmp = cmatmul_dd(U[μ, siteμ⁻], U[ν, siteμ⁻ν⁻]) + cmatmul_dd(U[ν, siteν⁻], U[μ, siteμ⁻ν⁻])
+        Mμν += cmvmul(tmp, tmpϕ)
+    end
+
     return im * T(1/4 * staggered_ημν(Val(μ), Val(ν), site)) * Mμν # The extra factor 1/2 is contained in the kernel function
 end
 

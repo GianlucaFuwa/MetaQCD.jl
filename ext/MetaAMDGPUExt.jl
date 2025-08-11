@@ -3,9 +3,12 @@ module MetaAMDGPUExt
 using AMDGPU
 using AMDGPU: @roc, ROCBackend, ROCArray, launch_configuration, synchronize
 using AMDGPU: workitemIdx, workgroupIdx, workgroupDim, reduce_group
+using Preferences
 import MetaQCD.Fields
 import MetaQCD.Fields: _foreachindex_global!, _foreachindex_reduce_global!
 import MetaQCD.Utils: mpi_myrank
+
+const FORCE_SINGLE_GPU = Val(@load_preference("FORCE_SINGLE_GPU", false))
 
 function __init__()
     Fields.BACKENDS["rocm"] = ROCBackend
@@ -21,6 +24,7 @@ Fields.synchronize(::ROCBackend) = AMDGPU.synchronize()
 Fields.priority!(::ROCBackend, priority) = AMDGPU.priority!(priority)
 
 function Fields.mpi_assign_device!(::ROCBackend, id)
+    FORCE_SINGLE_GPU == Val(true) && (id = 0)
     Fields.DEVICE_ID[] != -1 && return nothing
     (0 <= id < AMDGPU.HIP.ndevices()) || throw(ArgumentError("Device id $id out of bounds."))
     AMDGPU.device_id!(Int32(id) + 1)
@@ -29,67 +33,86 @@ function Fields.mpi_assign_device!(::ROCBackend, id)
 end
 
 function Fields.launch_foreachindex_global!(
-    ::ROCBackend, f, captured, itr, groupsize, gridsize
+    ::ROCBackend, f, captured, itr::Tuple, groupsize
 )
     if Fields.TUNE_KERNELS == Val(true)
         f_str = "$(Symbol(f))_$(Fields.float_type(captured[1]))"
-        if !haskey(Fields.KERNEL_CACHE, f_str)
-            kernel = @roc launch=false _foreachindex_global!(f, captured, itr)
-            config = launch_configuration(kernel; max_block_size=min(length(itr), groupsize))
+        if !haskey(Fields.KERNEL_CACHE, f_str) && (length(itr) == 1)
+            # how many items do we want?
+            wanted_items = nextpow(2, length(itr[1]))
+            # how many items can we launch?
+            max_block_size = min(1024, length(itr[1]))
+            compute_items(max_items) = wanted_items > max_items ? prevpow(2, max_items) : wanted_items
+            kernel = @roc launch=false _foreachindex_global!(f, captured, itr[1])
+            config = launch_configuration(kernel; max_block_size)
             Fields.KERNEL_CACHE[f_str] = config.groupsize
             groupsize = config.groupsize
         else
-            groupsize = Fields.KERNEL_CACHE[f_str]
+            if haskey(Fields.KERNEL_CACHE, f_str)
+                groupsize = Fields.KERNEL_CACHE[f_str]
+            end
         end
-
-        gridsize = cld(length(itr), groupsize)
     end
 
-    @roc groupsize=groupsize gridsize=gridsize _foreachindex_global!(f, captured, itr) 
+    gridsize = ntuple(i -> cld(length(itr[i]), groupsize), length(itr))
+
+    for i in eachindex(itr)
+        @roc groupsize=groupsize gridsize=gridsize[i] _foreachindex_global!(
+            f, captured, itr[i]
+        ) 
+    end
+
     return nothing
 end
 
 function Fields.launch_foreachindex_reduce_global!(
-    ::ROCBackend, out, op, f, captured, itr, groupsize, gridsize
+    ::ROCBackend, out, op, f, captured, itr::Tuple, groupsize
 )
     length(itr) == 0 && return out
     compute_shmem(items) = items * sizeof(typeof(out))
 
     if Fields.TUNE_KERNELS == Val(true)
         f_str = "$(Symbol(f))_$(Fields.float_type(captured[1]))"
-        if !haskey(Fields.KERNEL_CACHE, f_str)
+        if !haskey(Fields.KERNEL_CACHE, f_str) && (length(itr) == 1)
             # how many items do we want?
-            wanted_items = nextpow(2, length(itr))
+            wanted_items = nextpow(2, length(itr[1]))
             # how many items can we launch?
-            max_block_size = 1024
+            max_block_size = min(1024, length(itr[1]))
             compute_items(max_items) = wanted_items > max_items ? prevpow(2, max_items) : wanted_items
             max_shmem = max_block_size |> compute_items |> compute_shmem
-            out_vec = AMDGPU.zeros(typeof(out), gridsize)
+            out_vec = AMDGPU.zeros(typeof(out), 256)
             kernel = @roc launch=false _foreachindex_reduce_global!(
-                out_vec, out, op, f, captured, itr
+                out_vec, out, op, f, captured, itr[1], UInt8(1)
             ) 
-            kernel_config = launch_configuration(kernel; shmem=max_shmem, max_block_size)
+            config = launch_configuration(kernel; shmem=max_shmem, max_block_size)
             # determine the launch configuration
-            groupsize = compute_items(kernel_config.groupsize)
-            gridsize = cld(length(itr), groupsize)
+            groupsize = compute_items(config.groupsize)
             Fields.KERNEL_CACHE[f_str] = groupsize
         else
-            groupsize = Fields.KERNEL_CACHE[f_str]
-            gridsize = cld(length(itr), groupsize)
+            if haskey(Fields.KERNEL_CACHE, f_str)
+                groupsize = Fields.KERNEL_CACHE[f_str]
+            end
         end
     end
+
+    gridsize = ntuple(i -> cld(length(itr[i]), groupsize), length(itr))
+
     # perform the actual reduction
-    out_vec = AMDGPU.zeros(typeof(out), groupsize)
+    out_vec = AMDGPU.fill(out, length(itr) * maximum(gridsize))
     reduce_shmem = compute_shmem(groupsize)
-    @roc gridsize=gridsize groupsize=groupsize shmem=reduce_shmem _foreachindex_reduce_global!(
-        out_vec, out, op, f, captured, itr
-    ) 
+    for i in eachindex(itr)
+        @roc gridsize=gridsize[i] groupsize=groupsize shmem=reduce_shmem _foreachindex_reduce_global!(
+            out_vec, out, op, f, captured, itr[i], UInt8(i)
+        ) 
+    end
+
     return reduce(op, out_vec)
 end
 
 @inline Fields.threadidx() = workitemIdx().x
 @inline Fields.groupidx() = workgroupIdx().x
 @inline Fields.groupdim() = workgroupDim().x
+@inline Fields.griddim() = gridGroupDim().x
 @inline Fields.groupreduce(op, val, neutral) = reduce_group(op, val, neutral)
 
 end

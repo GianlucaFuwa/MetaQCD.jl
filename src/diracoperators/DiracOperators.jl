@@ -146,9 +146,9 @@ Solve the Dirac equation `Dψ = ϕ` for `ψ`, where `D` is a Hermitian Dirac ope
 store the result in `ψ`.
 """
 function solve_dirac!(
-    ψ, D::T, ϕ, temp1, temp2, temp3, tol=1e-16, maxiters=1000
+    ψ, D::T, ϕ, temp1, temp2, temp3; tol=1e-16, maxiters=1000, datafile=""
 ) where {T<:DdaggerD}
-    return cg!(ψ, D, ϕ, temp1, temp2, temp3; tol=tol, maxiters=maxiters)
+    return cg!(ψ, D, ϕ, temp1, temp2, temp3; tol, maxiters, datafile)
 end
 
 """
@@ -158,9 +158,9 @@ Solve the equations `(D + s)ψ = ϕ` for `ψ` for each `s` in `shifts`, where `D
 Hermitian Dirac operator and store each result in `ψs`.
 """
 function solve_dirac_multishift!(
-    ψs, shifts, D::T, ϕ, temp1, temp2, ps, tol=1e-16, maxiters=1000
+    ψs, shifts, D::T, ϕ, temp1, temp2, ps; tol=1e-16, maxiters=1000, datafile=""
 ) where {T<:DdaggerD}
-    return mscg!(ψs, SVector(shifts), D, ϕ, temp1, temp2, ps; tol=tol, maxiters=maxiters)
+    return mscg!(ψs, SVector(shifts), D, ϕ, temp1, temp2, ps; tol, maxiters, datafile)
 end
 
 # So we don't print the entire array in the REPL...

@@ -61,7 +61,7 @@ end
 @inline is_staggered(::StaggeredEOPreDiracOperator) = true
 
 function solve_dirac!(
-    ψ_eo, D::T, ϕ_eo, temp1, temp2, temp3, temp4, temp5; tol=1e-14, maxiters=1000
+    ψ_eo, D::T, ϕ_eo, temp1, temp2, temp3, temp4, temp5; tol=1e-14, maxiters=1000, datafile=""
 ) where {T<:StaggeredEOPreDiracOperator}
     error("Not implemented yet")
     # TODO: CGNE
@@ -120,23 +120,26 @@ function mul_eo!(
     return nothing
 end
 
-function staggered_eo_kernel(U, ϕ, site, bc, ::Type{T}, dagg::Bool, bulk) where {T}
+@inline function staggered_eo_kernel(U, ϕ, site, bc, ::Type{T}, dagg::Bool, bulk) where {T}
     # sites that begin with a "_" are meant for indexing into the even-odd preconn'ed
     # fermion field 
     sgn = dagg ? -1 : 1
     NT = size(U, 4)
-    ψₙ = zero(ϕ[site])
+    @inbounds begin
+        ψₙ = zero(ϕ[site])
 
-    # use @nexprs here to statically generate the loop
-    # this makes it so Val(μ) is well defined at each iteration and no type-instabilities arise
-    @nexprs 4 μ -> (
-        Nμ = axes(U, μ);
-        _siteμ⁺ = map_to_half(move(site, μ, 1, Nμ), bulk);
-        siteμ⁻ = move(site, μ, -1, Nμ);
-        _siteμ⁻ = map_to_half(siteμ⁻, bulk);
-        η = sgn * staggered_η(Val(μ), site);
-        ψₙ += η * cmvmul(U[μ, site], apply_bc(ϕ[_siteμ⁺], bc, site, Val(1), NT, Val(μ)));
-        ψₙ -= η * cmvmul_d(U[μ, siteμ⁻], apply_bc(ϕ[_siteμ⁻], bc, site, Val(-1), NT, Val(μ)))
-    )
+        # use @nexprs here to statically generate the loop
+        # this makes it so Val(μ) is well defined at each iteration and no type-instabilities arise
+        @nexprs 4 μ -> (
+            Nμ = axes(U, μ);
+            _siteμ⁺ = map_to_half(move(site, μ, 1, Nμ), bulk);
+            siteμ⁻ = move(site, μ, -1, Nμ);
+            _siteμ⁻ = map_to_half(siteμ⁻, bulk);
+            η = sgn * staggered_η(Val(μ), site);
+            ψₙ += η * cmvmul(U[μ, site], apply_bc(ϕ[_siteμ⁺], bc, site, Val(1), NT, Val(μ)));
+            ψₙ -= η * cmvmul_d(U[μ, siteμ⁻], apply_bc(ϕ[_siteμ⁻], bc, site, Val(-1), NT, Val(μ)))
+        )
+    end
+
     return T(0.5) * ψₙ
 end

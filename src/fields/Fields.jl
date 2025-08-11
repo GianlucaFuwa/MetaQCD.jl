@@ -157,11 +157,11 @@ Base.strides(u::AbstractField) = strides(u.U)
 
 # Some useful functions that share geometry information about the fields
 get_backend(::AbstractField{B}) where B = B
-Base.length(u::AbstractField) = u.topology.global_volume
-Base.size(u::AbstractField) = u.topology.global_dims
-Base.size(u::AbstractField, μ) = u.topology.global_dims[μ]
-Base.axes(u::AbstractField) = u.topology.bulk_sites_padded.indices
-Base.axes(u::AbstractField, μ::Integer) = u.topology.bulk_sites_padded.indices[μ]
+@inline Base.length(u::AbstractField) = u.topology.global_volume
+@inline Base.size(u::AbstractField) = u.topology.global_dims
+@inline Base.size(u::AbstractField, μ) = u.topology.global_dims[μ]
+@inline Base.axes(u::AbstractField) = u.topology.bulk_sites_padded.indices
+@inline Base.axes(u::AbstractField, μ::Integer) = u.topology.bulk_sites_padded.indices[μ]
 # Base.axes(u::AbstractField, μ::Integer) = u.topology.bulk_sites.indices[μ]
 @inline float_type(::AbstractField{B,T}) where {B,T} = T
 @inline num_colors(u::AbstractField) = 3
@@ -229,27 +229,22 @@ end
 
 # overload get and set for the Abstractfields structs, so we dont have to do u.U[μ,x,y,z,t]:
 Base.@propagate_inbounds Base.getindex(u::AbstractField, i::Integer) = u.U[i]
-Base.@propagate_inbounds Base.getindex(u::AbstractField, μ, x, y, z, t) = u.U[μ, x, y, z, t]
-Base.@propagate_inbounds Base.getindex(u::AbstractField, μ, site::SiteCoords) = u.U[μ, site]
+Base.@propagate_inbounds Base.getindex(u::AbstractField, μ, x, y, z, t) = u.U[x, y, z, t, μ]
+Base.@propagate_inbounds Base.getindex(u::AbstractField, μ, site::SiteCoords) = u.U[site, μ]
 Base.@propagate_inbounds Base.getindex(u::AbstractField, μsite) = u.U[μsite]
 
 Base.@propagate_inbounds function Base.getindex(u::AbstractMPIField, μ, site::SiteCoords)
-    site in u.topology.bulk_sites && return u.U[μ, site]
+    site in u.topology.bulk_sites && return u.U[site, μ]
     ihalo = get_halo_index(site, u.topology.bulk_sites)
-    # return try
-    #     u.halos[ihalo][μ, site]
-    # catch _
-    #     @error("$(mpi_myrank()), $site, $ihalo, $(u.topology.bulk_sites)")
-    # end
-    return u.halos[ihalo][μ, site]
+    return u.halos[ihalo][site, μ]
 end
 
 Base.@propagate_inbounds Base.setindex!(u::AbstractField, v, i::Integer) =
     setindex!(u.U, v, i)
 Base.@propagate_inbounds Base.setindex!(u::AbstractField, v, μ, x, y, z, t) =
-    setindex!(u.U, v, μ, x, y, z, t)
+    setindex!(u.U, v, x, y, z, t, μ)
 Base.@propagate_inbounds Base.setindex!(u::AbstractField, v, μ, site::SiteCoords) =
-    setindex!(u.U, v, μ, site)
+    setindex!(u.U, v, site, μ)
 Base.@propagate_inbounds Base.setindex!(u::AbstractField, v, μsite) =
     setindex!(u.U, v, μsite)
 
@@ -257,10 +252,10 @@ Base.@propagate_inbounds function Base.setindex!(u::AbstractMPIField, v, μ, sit
     bulk = u.topology.bulk_sites
 
     if site in bulk
-        u.U[μ, site] = v
+        u.U[site, μ] = v
     else
         ihalo = get_halo_index(site, bulk)
-        u.halos[ihalo][μ, site] = v
+        u.halos[ihalo][site, μ] = v
     end
 
     return nothing

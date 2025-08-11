@@ -57,11 +57,10 @@ end
 @inline is_staggered(::StaggeredDiracOperator) = true
 
 function solve_dirac!(
-    ψ, D::T, ϕ, temps...; tol=1e-14, maxiters=1000
+    ψ, D::T, ϕ, temps...; tol=1e-14, maxiters=1000, datafile=""
 ) where {T<:StaggeredDiracOperator}
-    # return bicg_stab!(ψ, D, ϕ, temps...; tol=tol, maxiters=maxiters)
     D_dagg = Daggered(D)
-    return cgnr!(ψ, D, D_dagg, ϕ, temps[1], temps[2], temps[3], temps[4]; tol, maxiters)
+    return cgnr!(ψ, D, D_dagg, ϕ, temps[1], temps[2], temps[3], temps[4]; tol, maxiters, datafile)
 end
 
 # We overload LinearAlgebra.mul! instead of Gaugefields.mul! so we dont have to import
@@ -107,21 +106,23 @@ function LinearAlgebra.mul!(
 end
 
 @inline function staggered_kernel(U, ϕ, site, mass, bc, ::Type{T}, dagg::Bool) where {T}
-    sgn = dagg ? -1 : 1
-    NT = size(U, 4)
-    ψₙ = 2mass * ϕ[site]
+    @inbounds begin
+        sgn = dagg ? -1 : 1
+        NT = size(U, 4)
+        ψₙ = 2mass * ϕ[site]
 
-    # use @nexprs here to statically generate the loop
-    # this makes it so Val(i) is well defined at each iteration and no type-instabilities arise
-    @nexprs 4 μ -> (
-        Nμ = axes(U, μ);
-        siteμ⁺ = move(site, μ, 1, Nμ);
-        siteμ⁻ = move(site, μ, -1, Nμ);
-        η = sgn * staggered_η(Val(μ), site);
-        ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(μ));
-        ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(μ));
-        ψₙ += η * (cmvmul(U[μ, site], ϕ⁺) - cmvmul_d(U[μ, siteμ⁻], ϕ⁻))
-    )
+        # use @nexprs here to statically generate the loop
+        # this makes it so Val(i) is well defined at each iteration and no type-instabilities arise
+        @nexprs 4 μ -> (
+            Nμ = axes(U, μ);
+            siteμ⁺ = move(site, μ, 1, Nμ);
+            siteμ⁻ = move(site, μ, -1, Nμ);
+            η = sgn * staggered_η(Val(μ), site);
+            ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(μ));
+            ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(μ));
+            ψₙ += η * (cmvmul(U[μ, site], ϕ⁺) - cmvmul_d(U[μ, siteμ⁻], ϕ⁻))
+        )
+    end
     return T(0.5) * ψₙ
 end
 
@@ -135,10 +136,10 @@ end
     ifelse(iseven(site[μ] + site[ν]), 1, -1)
 
 @inline function ξ5(::Type{T}) where {T}
-    return @SArray [
-        Complex{T}(-1, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0)
-        Complex{T}(0, 0) Complex{T}(-1, 0) Complex{T}(0, 0) Complex{T}(0, 0)
-        Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(1, 0) Complex{T}(0, 0)
-        Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(0, 0) Complex{T}(1, 0)
-    ]
+    return SMatrix{4,4,Complex{T},16}(
+        Complex{T}(-1, 0), Complex{T}(0, 0), Complex{T}(0, 0), Complex{T}(0, 0),
+        Complex{T}(0, 0), Complex{T}(-1, 0), Complex{T}(0, 0), Complex{T}(0, 0),
+        Complex{T}(0, 0), Complex{T}(0, 0), Complex{T}(1, 0), Complex{T}(0, 0),
+        Complex{T}(0, 0), Complex{T}(0, 0), Complex{T}(0, 0), Complex{T}(1, 0)
+    )
 end

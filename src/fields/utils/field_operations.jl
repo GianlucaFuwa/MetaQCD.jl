@@ -6,7 +6,7 @@ end
 
 function Base.copy!(a::AbstractField{B,T,M}, b::AbstractField{B,T,M}) where {B,T,M}
     parallelfor(allindices(a, b), B, Val(M), (), (a,), (a, b)) do μsite, (a, b)
-        a[μsite] = b[μsite]
+        @inbounds a[μsite] = b[μsite]
     end
 
     return nothing

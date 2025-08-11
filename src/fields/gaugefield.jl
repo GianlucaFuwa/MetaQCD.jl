@@ -61,6 +61,65 @@ function Gaugefield(parameters)
     return U
 end
 
+# @inline allindices(u::Gaugefield{CPU}) = eachindex(IndexCartesian(), u.U) # all indices including halo regions
+# @inline allindices(u::Gaugefield{B}) where {B} = 
+#     CartesianIndices(ntuple(i -> ifelse(i == 5, axes(u.U, 6), axes(u.U, i)), Val(5)))
+#     # CartesianIndices(ntuple(i -> axes(u.U, i), Val(5)))
+#
+# Base.@propagate_inbounds Base.getindex(u::Gaugefield{CPU}, μ, site::SiteCoords) = u.U[site, μ]
+# Base.@propagate_inbounds Base.getindex(u::Gaugefield{CPU}, μsite) = u.U[μsite]
+#
+# Base.@propagate_inbounds function Base.getindex(
+#     f::Gaugefield{B,T}, μ, site::SiteCoords
+# ) where {B,T}
+#     @inbounds begin
+#         Base.Cartesian.@nexprs 9 i -> (
+#             c_i = f.U[site, i, μ]
+#         )
+#     end
+#     return SMatrix{3,3,Complex{T},9}(c_1, c_2, c_3, c_4, c_5, c_6, c_7, c_8, c_9)
+# end
+#
+# Base.@propagate_inbounds function Base.getindex(
+#     f::Gaugefield{B,T}, μsite
+# ) where {B,T}
+#     @inbounds begin
+#         x, y, z, t, μ = μsite.I
+#         Base.Cartesian.@nexprs 9 i -> (
+#             c_i = f.U[x, y, z, t, i, μ]
+#         )
+#     end
+#     return SMatrix{3,3,Complex{T},9}(c_1, c_2, c_3, c_4, c_5, c_6, c_7, c_8, c_9)
+# end
+#
+# Base.@propagate_inbounds Base.setindex!(f::Gaugefield{CPU}, v, μ, site::SiteCoords) =
+#     setindex!(f.U, v, site, μ)
+# Base.@propagate_inbounds Base.setindex!(f::Gaugefield{CPU}, v, μsite) =
+#     setindex!(f.U, v, μsite)
+#
+# Base.@propagate_inbounds function Base.setindex!(
+#     f::Gaugefield{B,T}, v, μ, site::SiteCoords
+# ) where {B,T}
+#     @inbounds begin
+#         Base.Cartesian.@nexprs 9 i -> (
+#             f.U[site, i, μ] = v[i];
+#         )
+#     end
+#     return nothing
+# end
+#
+# Base.@propagate_inbounds function Base.setindex!(
+#     f::Gaugefield{B,T}, v, μsite
+# ) where {B,T}
+#     @inbounds begin
+#         x, y, z, t, μ = μsite.I
+#         Base.Cartesian.@nexprs 9 i -> (
+#             f.U[x, y, z, t, i, μ] = v[i];
+#         )
+#     end
+#     return nothing
+# end
+
 @inline gauge_action(::Gaugefield{B,T,M,GA}) where {B,T,M,GA} = GA
 Base.eltype(::Type{Gaugefield}, ::Type{T}) where {T} = SMatrix{3,3,Complex{T},9}
 # Base.eltype(::Gaugefield{B,T}) where {B,T} = SMatrix{3,3,Complex{T},9}

@@ -69,8 +69,8 @@ function Base.eltype(::Type{MultiSpinorfield}, ::Type{T}, ::Val{ND}) where {T,ND
 end
 
 Base.@propagate_inbounds Base.getindex(f::MultiSpinorfield, i::Integer) = f.U[i]
-Base.@propagate_inbounds Base.getindex(f::MultiSpinorfield, s, x, y, z, t) = f.U[s, x, y, z, t]
-Base.@propagate_inbounds Base.getindex(f::MultiSpinorfield, s, site::SiteCoords) = f.U[s, site]
+Base.@propagate_inbounds Base.getindex(f::MultiSpinorfield, s, x, y, z, t) = f.U[x, y, z, t, s]
+Base.@propagate_inbounds Base.getindex(f::MultiSpinorfield, s, site::SiteCoords) = f.U[site, s]
 
 Base.@propagate_inbounds function Base.getindex(u::MPIMultiSpinorfield, is, site::SiteCoords)
     return _getindex_lat(u, is, site, u.topology.bulk_sites, u.topology.halo_width)
@@ -79,9 +79,9 @@ end
 Base.@propagate_inbounds Base.setindex!(f::MultiSpinorfield, v, i::Integer) =
     setindex!(f.U, v, i)
 Base.@propagate_inbounds Base.setindex!(f::MultiSpinorfield, v, s, x, y, z, t) =
-    setindex!(f.U, v, s, x, y, z, t)
+    setindex!(f.U, v, x, y, z, t, s)
 Base.@propagate_inbounds Base.setindex!(f::MultiSpinorfield, v, s, site::SiteCoords) =
-    setindex!(f.U, v, s, site)
+    setindex!(f.U, v, site, s)
 
 Base.@propagate_inbounds function Base.setindex!(u::MPIMultiSpinorfield, v, is, site::SiteCoords)
     return _setindex_lat!(u, v, is, site, u.topology.bulk_sites, u.topology.halo_width)

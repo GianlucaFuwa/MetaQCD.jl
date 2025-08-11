@@ -1,4 +1,4 @@
-function cg!(x, A, b, Ap, r, p; tol=1e-7, maxiters=1000)
+function cg!(x, A, b, Ap, r, p; tol=1e-7, maxiters=1000, datafile="")
     mul!(Ap, A, x)
     copy!(r, b)
     axpy!(-1, Ap, r)
@@ -7,6 +7,7 @@ function cg!(x, A, b, Ap, r, p; tol=1e-7, maxiters=1000)
 
     if sqrt(res) < tol
         @level3 "|  CG: converged at iter 0 with res = $(sqrt(res))"
+        print_solverdata(datafile, 0, sqrt(res))
         return 0, sqrt(res)
     end
 
@@ -22,6 +23,7 @@ function cg!(x, A, b, Ap, r, p; tol=1e-7, maxiters=1000)
 
         if sqrt(res_new) < tol
             @level3 "|  CG: converged at iter $(iter) with res = $(sqrt(res_new))"
+            print_solverdata(datafile, iter, sqrt(res_new))
             return iter, sqrt(res_new)
         end
 
@@ -30,13 +32,60 @@ function cg!(x, A, b, Ap, r, p; tol=1e-7, maxiters=1000)
         res = res_new
     end
 
-    # @level1 "|  CG: did not converge in $maxiters iterations"
+    print_solverdata(datafile, maxiters, sqrt(res))
     throw(AssertionError("CG did not converge in $maxiters iterations"))
     return maxiters, sqrt(res)
 end
 
+function cgnr!(x, A, A_dagg, b, Ap, r, g, p; tol=1e-12, maxiters=1000, datafile="")
+    mul!(Ap, A, x)
+    copy!(r, b)
+    axpy!(-1, Ap, r)
+
+    res = real(dot(r, r))
+    res_new = res
+    gres = res
+    gres_new = gres
+
+    for iter in 1:maxiters+1
+        @level4 "|  CGNR: residual $(iter-1) = $(sqrt(res_new))"
+
+        if sqrt(res_new) < tol
+            @level3 "|  CGNR: converged at iter $(iter-1) with res = $(sqrt(res_new))"
+            print_solverdata(datafile, iters-1, sqrt(res_new))
+            return iter, sqrt(res_new)
+        end
+
+        mul!(g, A_dagg, r)
+        gres_new = real(dot(g, g))
+
+        if iter == 1
+            copy!(p, g)
+        else
+            β = gres_new / gres
+            axpby!(1, g, β, p)
+        end
+
+        mul!(Ap, A, p)
+
+        α = gres_new / real(dot(Ap, Ap))
+        axpy!(α, p, x)
+        axpy!(-α, Ap, r)
+
+        res = res_new
+        gres = gres_new
+
+        res_new = real(dot(r, r))
+    end
+
+    print_solverdata(datafile, maxiters, sqrt(res_new))
+    throw(AssertionError("CGNR did not converge in $maxiters iterations"))
+    return maxiters, sqrt(res_new)
+end
+
 function mscg!(
-    x::NTuple{M,V}, shifts, A, b::V, Ap::V, r::V, p::NTuple{L,V}; tol=1e-7, maxiters=1000
+    x::NTuple{M,V}, shifts, A, b::V, Ap::V, r::V, p::NTuple{L,V};
+    tol=1e-7, maxiters=1000, datafile=""
 ) where {M,L,V} # multishift solver
     N = length(shifts) + 1
     @assert L ≥ M ≥ N
@@ -60,6 +109,7 @@ function mscg!(
 
     if sqrt(abs(res)) < tol
         @level3 "|  MultishiftCG: converged at iter 0 with res = $(sqrt(abs(res)))"
+        print_solverdata(datafile, 0, sqrt(abs(res)))
         return 0, sqrt(abs(res))
     end
 
@@ -92,6 +142,7 @@ function mscg!(
 
         if sqrt(res_max) < tol
             @level3 "|  MultishiftCG: converged at iter $(iter) with res = $(sqrt(res_max))"
+            print_solverdata(datafile, iter, sqrt(abs(res_max)))
             return iter, sqrt(res_max)
         end
 
@@ -105,12 +156,12 @@ function mscg!(
         res = res_new
     end
 
-    # @level1 "|  CG: did not converge in $maxiters iterations"
+    print_solverdata(datafile, maxiters, sqrt(abs(res)))
     throw(AssertionError("MultishiftCG did not converge in $maxiters iterations"))
     return maxiters, sqrt(abs(res))
 end
 
-function bicg!(x, A, b, Ap, r, p, Ap′, r′, p′; tol=1e-7, maxiters=1000)
+function bicg!(x, A, b, Ap, r, p, Ap′, r′, p′; tol=1e-7, maxiters=1000, datafile="")
     mul!(Ap, A, x)
     mul!(Ap′, adjoint(A), x)
     copy!(r, b)
@@ -124,6 +175,7 @@ function bicg!(x, A, b, Ap, r, p, Ap′, r′, p′; tol=1e-7, maxiters=1000)
 
     if sqrt(res) < tol
         @level3 "|  BiCG: converged at iter 0 with res = $(sqrt(res))"
+        print_solverdata(datafile, 0, sqrt(res))
         return 0, sqrt(res)
     end
 
@@ -142,6 +194,7 @@ function bicg!(x, A, b, Ap, r, p, Ap′, r′, p′; tol=1e-7, maxiters=1000)
 
         if res < tol
             @level3 "|  BiCG: converged at iter $(iter) with res = $(sqrt(res))"
+            print_solverdata(datafile, iter, sqrt(res))
             return iter, sqrt(res)
         end
 
@@ -151,12 +204,12 @@ function bicg!(x, A, b, Ap, r, p, Ap′, r′, p′; tol=1e-7, maxiters=1000)
         ρ = ρ_new
     end
 
-    # @level1 "|  BiCG: did not converge in $maxiters iterations"
+    print_solverdata(datafile, maxiters, sqrt(res))
     throw(AssertionError("BiCG did not converge in $maxiters iterations"))
     return maxiters, sqrt(res)
 end
 
-function bicg_stab!(x, A, b, v, r, p, r₀, t; tol=1e-7, maxiters=1000)
+function bicg_stab!(x, A, b, v, r, p, r₀, t; tol=1e-7, maxiters=1000, datafile="")
     mul!(v, A, x)
     copy!(r, b)
     axpy!(-1, v, r)
@@ -168,6 +221,7 @@ function bicg_stab!(x, A, b, v, r, p, r₀, t; tol=1e-7, maxiters=1000)
 
     if res < tol
         @level3 "|  BiCGStab: converged at iter 0 with res = $(sqrt(res))"
+        print_solverdata(datafile, 0, sqrt(res))
         return 0, sqrt(res)
     end
 
@@ -183,6 +237,7 @@ function bicg_stab!(x, A, b, v, r, p, r₀, t; tol=1e-7, maxiters=1000)
 
         if res < tol
             @level3 "|  BiCGStab: converged at iter $(iter).5 with res = $(sqrt(res))"
+            print_solverdata(datafile, iter, sqrt(res))
             return iter, sqrt(res)
         end
 
@@ -198,6 +253,7 @@ function bicg_stab!(x, A, b, v, r, p, r₀, t; tol=1e-7, maxiters=1000)
 
         if res < tol
             @level3 "|  BiCGStab: converged at iter $(iter) with res = $(sqrt(res))"
+            print_solverdata(datafile, iter, sqrt(res))
             return iter, sqrt(res)
         end
 
@@ -211,7 +267,7 @@ function bicg_stab!(x, A, b, v, r, p, r₀, t; tol=1e-7, maxiters=1000)
         ρ = ρ_new
     end
 
-    # @level1 "|  BiCGStab: did not converge in $maxiters iterations"
+    print_solverdata(datafile, maxiters, sqrt(res))
     throw(AssertionError("BiCGStab did not converge in $maxiters iterations"))
     return maxiters, sqrt(res)
 end

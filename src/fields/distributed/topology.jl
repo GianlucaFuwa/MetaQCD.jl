@@ -31,7 +31,7 @@ struct FieldTopology
     halo_sites::ContiguousExchangeSites
     # Sites in bulk that belong to border regions (forward and backward per dim)
     border_sites::ContiguousExchangeSites # one for each stencil size up to halo_width
-    flat_border_sites::Vector{CartesianIndex{4}} # unique and indexable
+    border_iterators::NTuple{8,CartesianIndices{4,NTuple{4,UnitRange{Int64}}}}
 
     global_volume::Int64 # Number of sites in global field
     local_volume::Int64 # Number of sites in local partition
@@ -64,19 +64,18 @@ struct FieldTopology
         end)
         halo_sites = calc_halo_sites(bulk_sites, local_dims, halo_width)
         border_sites = calc_border_sites(bulk_sites, local_dims, halo_width)
-        inner_bulk = if _unwrap_val(HIDE_COMMS)
-            shrink_bulk(bulk_sites, halo_width)
+        border_iterators = if _unwrap_val(HIDE_COMMS)
+            get_border_iterators(bulk_sites, halo_width)
         else
-            bulk_sites
+            ntuple(_ -> CartesianIndices((0, 0, 0, 0)), 8)
         end
-        flat_border_sites = sort!(collect(setdiff(bulk_sites, inner_bulk)))
 
         global_volume = prod(global_dims)
         local_volume = prod(local_dims)
         return new(
             comm_cart, numprocs, numprocs_cart, myrank_cart,
             halo_width, global_dims, local_dims,
-            origin, bulk_sites, bulk_sites_padded, halo_sites, border_sites, flat_border_sites,
+            origin, bulk_sites, bulk_sites_padded, halo_sites, border_sites, border_iterators,
             global_volume, local_volume,
         )
     end
@@ -168,3 +167,23 @@ function calc_border_sites(bulk_sites, local_dims, halo_width)
     return border_sites
 end
 
+function get_border_iterators(bulk_sites, hw)
+    ox, oy, oz, ot = bulk_sites[1].I
+    fx, fy, fz, ft = bulk_sites[end].I
+    # X-direction faces (full slabs)
+    xm_itr = CartesianIndices((ox:ox+hw, oy:fy, oz:fz, ot:ft))
+    xp_itr = CartesianIndices((fx-hw+1:fx, oy:fy, oz:fz, ot:ft))
+
+    # Y-direction faces (excluding x-boundaries to avoid double-counting)
+    ym_itr = CartesianIndices((hw+ox:fx-hw, oy:oy+hw, oz:fz, ot:ft))
+    yp_itr = CartesianIndices((hw+ox:fx-hw, fy-hw+1:fy, oz:fz, ot:ft))
+
+    # Z-direction faces
+    zm_itr = CartesianIndices((hw+ox:fx-hw, hw+oy:fy-hw, oz:oz+hw, ot:ft))
+    zp_itr = CartesianIndices((hw+ox:fx-hw, hw+oy:fy-hw, fz-hw+1:fz, ot:ft))
+
+    # T-direction faces  
+    tm_itr = CartesianIndices((hw+ox:fx-hw, hw+oy:fy-hw, hw+oz:fz-hw, ot:ot+hw))
+    tp_itr = CartesianIndices((hw+ox:fx-hw, hw+oy:fy-hw, hw+oz:fz-hw, ft-hw+1:ft))
+    return (xm_itr, xp_itr, ym_itr, yp_itr, zm_itr, zp_itr, tm_itr, tp_itr)
+end

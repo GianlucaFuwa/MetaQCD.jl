@@ -229,42 +229,44 @@ function top_charge_deriv!(
     fieldstrength_eachsite!(kind_of_charge, F, U) # halo update of U done here
 
     parallelfor(eachindex(dU, F, U), B, Val(M), (F,), (U,), (F, U)) do site, (F, U)
-        tmp1 = cmatmul_oo(
-            U[1, site],
-            (
-                ∇trFμνFρσ(kind_of_charge, U, F, 1, 2, 3, 4, site) -
-                ∇trFμνFρσ(kind_of_charge, U, F, 1, 3, 2, 4, site) +
-                ∇trFμνFρσ(kind_of_charge, U, F, 1, 4, 2, 3, site)
-            ),
-        )
-        dU[1, site] = c * traceless_antihermitian(tmp1)
-        tmp2 = cmatmul_oo(
-            U[2, site],
-            (
-                ∇trFμνFρσ(kind_of_charge, U, F, 2, 3, 1, 4, site) -
-                ∇trFμνFρσ(kind_of_charge, U, F, 2, 1, 3, 4, site) -
-                ∇trFμνFρσ(kind_of_charge, U, F, 2, 4, 1, 3, site)
-            ),
-        )
-        dU[2, site] = c * traceless_antihermitian(tmp2)
-        tmp3 = cmatmul_oo(
-            U[3, site],
-            (
-                ∇trFμνFρσ(kind_of_charge, U, F, 3, 1, 2, 4, site) -
-                ∇trFμνFρσ(kind_of_charge, U, F, 3, 2, 1, 4, site) +
-                ∇trFμνFρσ(kind_of_charge, U, F, 3, 4, 1, 2, site)
-            ),
-        )
-        dU[3, site] = c * traceless_antihermitian(tmp3)
-        tmp4 = cmatmul_oo(
-            U[4, site],
-            (
-                ∇trFμνFρσ(kind_of_charge, U, F, 4, 2, 1, 3, site) -
-                ∇trFμνFρσ(kind_of_charge, U, F, 4, 1, 2, 3, site) -
-                ∇trFμνFρσ(kind_of_charge, U, F, 4, 3, 1, 2, site)
-            ),
-        )
-        dU[4, site] = c * traceless_antihermitian(tmp4)
+        @inbounds begin
+            tmp1 = cmatmul_oo(
+                U[1, site],
+                (
+                    ∇trFμνFρσ(kind_of_charge, U, F, 1, 2, 3, 4, site) -
+                    ∇trFμνFρσ(kind_of_charge, U, F, 1, 3, 2, 4, site) +
+                    ∇trFμνFρσ(kind_of_charge, U, F, 1, 4, 2, 3, site)
+                ),
+            )
+            dU[1, site] = c * traceless_antihermitian(tmp1)
+            tmp2 = cmatmul_oo(
+                U[2, site],
+                (
+                    ∇trFμνFρσ(kind_of_charge, U, F, 2, 3, 1, 4, site) -
+                    ∇trFμνFρσ(kind_of_charge, U, F, 2, 1, 3, 4, site) -
+                    ∇trFμνFρσ(kind_of_charge, U, F, 2, 4, 1, 3, site)
+                ),
+            )
+            dU[2, site] = c * traceless_antihermitian(tmp2)
+            tmp3 = cmatmul_oo(
+                U[3, site],
+                (
+                    ∇trFμνFρσ(kind_of_charge, U, F, 3, 1, 2, 4, site) -
+                    ∇trFμνFρσ(kind_of_charge, U, F, 3, 2, 1, 4, site) +
+                    ∇trFμνFρσ(kind_of_charge, U, F, 3, 4, 1, 2, site)
+                ),
+            )
+            dU[3, site] = c * traceless_antihermitian(tmp3)
+            tmp4 = cmatmul_oo(
+                U[4, site],
+                (
+                    ∇trFμνFρσ(kind_of_charge, U, F, 4, 2, 1, 3, site) -
+                    ∇trFμνFρσ(kind_of_charge, U, F, 4, 1, 2, 3, site) -
+                    ∇trFμνFρσ(kind_of_charge, U, F, 4, 3, 1, 2, site)
+                ),
+            )
+            dU[4, site] = c * traceless_antihermitian(tmp4)
+        end
     end
 
     return nothing
@@ -283,7 +285,7 @@ function ∇trFμνFρσ(::Plaquette, U, F, μ, ν, ρ, σ, site)
     i = get_tensor_index(ρ, σ)
     sgn = ρ > σ ? -1 : 1
 
-    component =
+    @inbounds component =
         cmatmul_oddo(U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site], F[i, site]) +
         cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], F[i, siteν⁻], U[ν, siteν⁻])
 
@@ -312,7 +314,7 @@ function ∇trFμνFρσ(::Clover, U, F, μ, ν, ρ, σ, site)
     # Uμsiteν⁻ = U[μ,siteν⁻]
     # Uνsiteν⁻ = U[ν,siteν⁻]
 
-    component =
+    @inbounds component =
         cmatmul_oddo(U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site], F[i, site]) +
         cmatmul_odod(U[ν, siteμ⁺], U[μ, siteν⁺], F[i, siteν⁺], U[ν, site]) +
         cmatmul_oodd(U[ν, siteμ⁺], F[i, siteμ⁺ν⁺], U[μ, siteν⁺], U[ν, site]) +

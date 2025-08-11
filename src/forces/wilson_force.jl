@@ -2,29 +2,18 @@ function calc_dSfdU!(
     dU, fermion_action::FermionAction{false,2,TD}, U, ϕ::WilsonSpinorfield
 ) where {TD<:WilsonDiracOperator}
     clear!(dU)
-    cg_tol = fermion_action.cg_tol_md
-    cg_maxiters = fermion_action.cg_maxiters_md
-    X, Y, temp1, temp2 = fermion_action.cg_temps
+    X, Y, temp1, temp2 = fermion_action.temps[1:4]
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
+    bc = D.boundary_condition
+    solver_action = fermion_action.solver_action
+    tol, maxiters, datafile = get_info(solver_action)
 
     clear!(X)
-    iters, res = solve_dirac!(X, DdagD, ϕ, Y, temp1, temp2, cg_tol, cg_maxiters) # Y is used here merely as a temp LinearAlgebra.mul!(Y, D, X) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
-
-    cg_datafile = fermion_action.cg_datafile
-
-    if cg_datafile != ""
-        set_ext!(cg_datafile, MPI_INSTANCE[])
-        fp = fopen(cg_datafile, "a")
-        printf(fp, "%-11i", iters)
-        printf(fp, "%-25.15E", res)
-        printf(fp, "%s", "# force")
-        newline(fp)
-        fclose(fp)
-    end
+    solve_dirac!(X, DdagD, ϕ, Y, temp1, temp2; tol, maxiters, datafile)
 
     LinearAlgebra.mul!(Y, D, X) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
-    add_wilson_derivative!(dU, U, X, Y, D.boundary_condition)
+    add_wilson_derivative!(dU, U, X, Y, bc)
 
     if has_clover_term(D)
         Xμν = fermion_action.Xμν
@@ -39,16 +28,16 @@ function calc_dSfdU!(
     dU, fermion_action::FermionAction{true,1,TD}, U, ϕ::WilsonSpinorfield
 ) where {TD<:WilsonDiracOperator}
     clear!(dU)
-    cg_tol = fermion_action.cg_tol_md
-    cg_maxiters = fermion_action.cg_maxiters_md
     rhmc = fermion_action.rhmc_info_md
     n = get_n_inverse(rhmc)
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     bc = D.boundary_condition
-    Xs = fermion_action.rhmc_temps1
-    Ys = fermion_action.rhmc_temps2
-    temp1, temp2 = fermion_action.cg_temps
+    temp1, temp2 = fermion_action.temps[1:2]
+    Xs = fermion_action.temps[3:n+3]
+    Ys = fermion_action.temps[n+4:2n+4]
+    solver_action = fermion_action.solver_action
+    tol, maxiters, datafile = get_info(solver_action)
 
     for X in Xs
         clear!(X)
@@ -56,21 +45,9 @@ function calc_dSfdU!(
 
     shifts = get_β_inverse(rhmc)
     coeffs = get_α_inverse(rhmc)
-    iters, res = solve_dirac_multishift!(
-        Xs, shifts, DdagD, ϕ, temp1, temp2, Ys, cg_tol, cg_maxiters
+    solve_dirac_multishift!(
+        Xs, shifts, DdagD, ϕ, temp1, temp2, Ys; tol, maxiters, datafile
     )
-
-    cg_datafile = fermion_action.cg_datafile
-
-    if cg_datafile != ""
-        set_ext!(cg_datafile, MPI_INSTANCE[])
-        fp = fopen(cg_datafile, "a")
-        printf(fp, "%-11i", iters)
-        printf(fp, "%-25.15E", res)
-        printf(fp, "%s", "# force")
-        newline(fp)
-        fclose(fp)
-    end
 
     for i in 1:n
         LinearAlgebra.mul!(Ys[i+1], D, Xs[i+1]) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
@@ -102,25 +79,18 @@ end
 function add_wilson_derivative_kernel!(dU, U, X, Y, site, bc, fac)
     NT = size(dU, 4)
 
-    siteμ⁺ = move(site, 1, 1, axes(dU, 1))
-    B = spintrace(spin_proj(X[siteμ⁺], Val(-1)), Y[site])
-    C = spintrace(spin_proj(Y[siteμ⁺], Val(1)), X[site])
-    dU[1, site] += fac * traceless_antihermitian(cmatmul_oo(U[1, site], B + C))
+    @inbounds begin
+        @nexprs 4 μ -> (
+            Nμ = axes(U, μ);
+            siteμ⁺ = move(site, μ, 1, Nμ);
+            X⁺ = apply_bc(X[siteμ⁺], bc, site, Val(1), NT, Val(μ));
+            Y⁺ = apply_bc(Y[siteμ⁺], bc, site, Val(1), NT, Val(μ));
+            B = spintrace(spin_proj(X⁺, Val(-μ)), Y[site]);
+            C = spintrace(spin_proj(Y⁺, Val(μ)), X[site]);
+            dU[μ, site] += fac * traceless_antihermitian(cmatmul_oo(U[μ, site], B + C))
+        )
+    end
 
-    siteμ⁺ = move(site, 2, 1, axes(dU, 2))
-    B = spintrace(spin_proj(X[siteμ⁺], Val(-2)), Y[site])
-    C = spintrace(spin_proj(Y[siteμ⁺], Val(2)), X[site])
-    dU[2, site] += fac * traceless_antihermitian(cmatmul_oo(U[2, site], B + C))
-
-    siteμ⁺ = move(site, 3, 1, axes(dU, 3))
-    B = spintrace(spin_proj(X[siteμ⁺], Val(-3)), Y[site])
-    C = spintrace(spin_proj(Y[siteμ⁺], Val(3)), X[site])
-    dU[3, site] += fac * traceless_antihermitian(cmatmul_oo(U[3, site], B + C))
-
-    siteμ⁺ = move(site, 4, 1, axes(dU, 4))
-    B = spintrace(spin_proj(apply_bc(X[siteμ⁺], bc, site, Val(1), NT), Val(-4)), Y[site])
-    C = spintrace(spin_proj(apply_bc(Y[siteμ⁺], bc, site, Val(1), NT), Val(4)), X[site])
-    dU[4, site] += fac * traceless_antihermitian(cmatmul_oo(U[4, site], B + C))
     return nothing
 end
 
@@ -137,30 +107,30 @@ function add_clover_derivative!(
     return nothing
 end
 
-@inline function add_clover_derivative_kernel!(dU, U, Xμν, site, fac, ::Type{T}) where {T}
+function add_clover_derivative_kernel!(dU, U, Xμν, site, fac, ::Type{T}) where {T}
     tmp =
         Xμν∇Fμν(Xμν, U, 1, 2, site, T) +
         Xμν∇Fμν(Xμν, U, 1, 3, site, T) +
         Xμν∇Fμν(Xμν, U, 1, 4, site, T)
-    dU[1, site] += fac * traceless_antihermitian(cmatmul_oo(U[1, site], tmp))
+    @inbounds dU[1, site] += fac * traceless_antihermitian(cmatmul_oo(U[1, site], tmp))
 
     tmp =
         Xμν∇Fμν(Xμν, U, 2, 1, site, T) +
         Xμν∇Fμν(Xμν, U, 2, 3, site, T) +
         Xμν∇Fμν(Xμν, U, 2, 4, site, T)
-    dU[2, site] += fac * traceless_antihermitian(cmatmul_oo(U[2, site], tmp))
+    @inbounds dU[2, site] += fac * traceless_antihermitian(cmatmul_oo(U[2, site], tmp))
 
     tmp =
         Xμν∇Fμν(Xμν, U, 3, 1, site, T) +
         Xμν∇Fμν(Xμν, U, 3, 2, site, T) +
         Xμν∇Fμν(Xμν, U, 3, 4, site, T)
-    dU[3, site] += fac * traceless_antihermitian(cmatmul_oo(U[3, site], tmp))
+    @inbounds dU[3, site] += fac * traceless_antihermitian(cmatmul_oo(U[3, site], tmp))
 
     tmp =
         Xμν∇Fμν(Xμν, U, 4, 1, site, T) +
         Xμν∇Fμν(Xμν, U, 4, 2, site, T) +
         Xμν∇Fμν(Xμν, U, 4, 3, site, T)
-    dU[4, site] += fac * traceless_antihermitian(cmatmul_oo(U[4, site], tmp))
+    @inbounds dU[4, site] += fac * traceless_antihermitian(cmatmul_oo(U[4, site], tmp))
     return nothing
 end
 
@@ -174,13 +144,16 @@ function calc_Xμν_wilson_eachsite!(
     return nothing
 end
 
-function calc_Xμν_wilson_kernel!(Xμν, X, Y, site)
-    @nexprs 6 i -> (
-        Xᵢ =
-            spintrace(σμν_spin_mul(X[site], Val(i)), Y[site]) +
-            spintrace(σμν_spin_mul(Y[site], Val(i)), X[site]);
-        Xμν[i, site] = Xᵢ
-    )
+@inline function calc_Xμν_wilson_kernel!(Xμν, X, Y, site)
+    @inbounds begin
+        @nexprs 6 i -> (
+            Xᵢ =
+                spintrace(σμν_spin_mul(X[site], Val(i)), Y[site]) +
+                spintrace(σμν_spin_mul(Y[site], Val(i)), X[site]);
+            Xμν[i, site] = Xᵢ
+        )
+    end
+
     return nothing
 end
 
@@ -203,15 +176,17 @@ function Xμν∇Fμν(Xμν, U, μ, ν, site, ::Type{T}) where {T}
     # Uμsiteν⁻ = U[μ,siteν⁻]
     # Uνsiteν⁻ = U[ν,siteν⁻]
 
-    component =
-        cmatmul_oddo(U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site], Xμν[i, site]) +
-        cmatmul_odod(U[ν, siteμ⁺], U[μ, siteν⁺], Xμν[i, siteν⁺], U[ν, site]) +
-        cmatmul_oodd(U[ν, siteμ⁺], Xμν[i, siteμ⁺ν⁺], U[μ, siteν⁺], U[ν, site]) +
-        cmatmul_oodd(Xμν[i, siteμ⁺], U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site]) -
-        cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻], Xμν[i, site]) -
-        cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], Xμν[i, siteν⁻], U[ν, siteν⁻]) -
-        cmatmul_dodo(U[ν, siteμ⁺ν⁻], Xμν[i, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻]) -
-        cmatmul_oddo(Xμν[i, siteμ⁺], U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻])
+    @inbounds begin
+        component =
+            cmatmul_oddo(U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site], Xμν[i, site]) +
+            cmatmul_odod(U[ν, siteμ⁺], U[μ, siteν⁺], Xμν[i, siteν⁺], U[ν, site]) +
+            cmatmul_oodd(U[ν, siteμ⁺], Xμν[i, siteμ⁺ν⁺], U[μ, siteν⁺], U[ν, site]) +
+            cmatmul_oodd(Xμν[i, siteμ⁺], U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site]) -
+            cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻], Xμν[i, site]) -
+            cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], Xμν[i, siteν⁻], U[ν, siteν⁻]) -
+            cmatmul_dodo(U[ν, siteμ⁺ν⁻], Xμν[i, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻]) -
+            cmatmul_oddo(Xμν[i, siteμ⁺], U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻])
+    end
 
     return im * T(sgn / 8) * component
 end

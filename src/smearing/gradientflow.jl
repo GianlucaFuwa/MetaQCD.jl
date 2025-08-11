@@ -73,7 +73,7 @@ function updateU!(U::Gaugefield{B,T,M}, Z::Colorfield{B,T}, ϵ) where {B,T,M}
 
     parallelfor(eachindex(U), B, Val(M), (), (U,), (U, Z)) do site, (U, Z)
         for μ in 1:4
-            U[μ, site] = cmatmul_oo(exp_iQ(-im * ϵ * Z[μ, site]), U[μ, site])
+            @inbounds U[μ, site] = cmatmul_oo(exp_iQ(-im * ϵ * Z[μ, site]), U[μ, site])
         end
     end
 
@@ -86,8 +86,8 @@ function calcZ!(Z::Colorfield{B,T}, U::Gaugefield{B,T,M}, ϵ) where {B,T,M}
     parallelfor(eachindex(U), B, Val(M), (U,), (Z,), (U, Z)) do site, (U, Z)
         for μ in 1:4
             A = staple(WilsonGaugeAction(), U, μ, site)
-            AU = cmatmul_od(A, U[μ, site])
-            Z[μ, site] = ϵ * traceless_antihermitian(AU)
+            @inbounds AU = cmatmul_od(A, U[μ, site])
+            @inbounds Z[μ, site] = ϵ * traceless_antihermitian(AU)
         end
     end
 
@@ -101,8 +101,8 @@ function updateZ!(Z::Colorfield{B,T}, U::Gaugefield{B,T,M}, ϵ_old, ϵ_new) wher
     parallelfor(eachindex(U), B, Val(M), (U,), (Z,), (U, Z)) do site, (U, Z)
         for μ in 1:4
             A = staple(WilsonGaugeAction(), U, μ, site)
-            AU = cmatmul_od(A, U[μ, site])
-            Z[μ, site] = ϵ_old * Z[μ, site] + ϵ_new * traceless_antihermitian(AU)
+            @inbounds AU = cmatmul_od(A, U[μ, site])
+            @inbounds Z[μ, site] = ϵ_old * Z[μ, site] + ϵ_new * traceless_antihermitian(AU)
         end
     end
 

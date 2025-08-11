@@ -72,11 +72,10 @@ end
 @inline has_clover_term(::DdaggerD{W}) where {B,T,C,W<:WilsonDiracOperator{B,T,C}} = C
 
 function solve_dirac!(
-    ψ, D::T, ϕ, temps...; tol=1e-16, maxiters=1000
+    ψ, D::T, ϕ, temps...; tol=1e-16, maxiters=1000, datafile=""
 ) where {T<:WilsonDiracOperator}
-    # return bicg_stab!(ψ, D, ϕ, temps...; tol=tol, maxiters=maxiters)
     D_dagg = Daggered(D)
-    return cgnr!(ψ, D, D_dagg, ϕ, temps[1], temps[2], temps[3], temps[4]; tol, maxiters)
+    return cgnr!(ψ, D, D_dagg, ϕ, temps[1], temps[2], temps[3], temps[4]; tol, maxiters, datafile)
 end
 
 # We overload LinearAlgebra.mul! instead of Gaugefields.mul! so we dont have to import
@@ -130,23 +129,25 @@ end
 function wilson_kernel(
     U, Fμν, ϕ, site, mass_term, csw_fac, bc, ::Type{T}, ::Val{dagg}, ::Val{C}
 ) where {T,dagg,C}
-    # dagg can be 1 or -1; if it's -1 then we swap (1 - γᵨ) with (1 + γᵨ) and vice versa
-    # We have to wrap in a Val for the same reason as in the next comment
-    ϕₙ = ϕ[site]
-    ψₙ = mass_term * ϕₙ # factor 1/2 is included at the end
-    NT = size(U, 4)
+    @inbounds begin
+        # dagg can be 1 or -1; if it's -1 then we swap (1 - γᵨ) with (1 + γᵨ) and vice versa
+        # We have to wrap in a Val for the same reason as in the next comment
+        ϕₙ = ϕ[site]
+        ψₙ = mass_term * ϕₙ # factor 1/2 is included at the end
+        NT = size(U, 4)
 
-    # use @nexprs here to statically generate the loop
-    # this makes it so Val(μ) is well defined at each iteration and no type-instabilities arise
-    @nexprs 4 μ -> (
-        Nμ = axes(U, μ);
-        siteμ⁺ = move(site, μ, 1, Nμ);
-        siteμ⁻ = move(site, μ, -1, Nμ);
-        ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(μ));
-        ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(μ));
-        ψₙ -= cmvmul_spin_proj(U[μ, site], ϕ⁺, Val(-μ*dagg), Val(false));
-        ψₙ -= cmvmul_spin_proj(U[μ, siteμ⁻], ϕ⁻, Val(μ*dagg), Val(true))
-    )
+        # use @nexprs here to statically generate the loop
+        # this makes it so Val(μ) is well defined at each iteration and no type-instabilities arise
+        @nexprs 4 μ -> (
+            Nμ = axes(U, μ);
+            siteμ⁺ = move(site, μ, 1, Nμ);
+            siteμ⁻ = move(site, μ, -1, Nμ);
+            ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(μ));
+            ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(μ));
+            ψₙ -= cmvmul_spin_proj(U[μ, site], ϕ⁺, Val(-μ*dagg), Val(false));
+            ψₙ -= cmvmul_spin_proj(U[μ, siteμ⁻], ϕ⁻, Val(μ*dagg), Val(true))
+        )
+    end
 
     if C
         return T(0.5) * ψₙ + clover_kernel(Fμν, ϕₙ, site, csw_fac, T)
@@ -159,7 +160,7 @@ end
     # Observed that it makes a difference whether we only make F antihermitian or traceless antihermitian in the accuracy of the derivative --> TA makes it worse is most severe when U is unsmeared
     Cₙ = zero(ϕₙ)
     @nexprs 6 i -> (
-        Fᵢ = Fμν[i, site];
+        @inbounds Fᵢ = Fμν[i, site];
         Cₙ += cmvmul_color(Fᵢ, σμν_spin_mul(ϕₙ, Val(i)))
     )
     return T(fac) * Cₙ

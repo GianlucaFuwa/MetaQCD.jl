@@ -175,7 +175,7 @@ time slice in the vector `pion_corr`. \\
 We follow the procedure outlined in DOI: 10.1007/978-3-642-01850-3 (Gattringer) pages
 135-136 using a point source for each dirac and color index from the origin
 """
-function pion_correlators_avg!(pion_corr, D, ψ, cg_temps, cg_tol, cg_maxiters, cg_datafile)
+function pion_correlators_avg!(pion_corr, D, ψ, cg_temps, tol, maxiters, datafile)
     check_dims(D.U, ψ, cg_temps...)
     NX, NY, NZ, NT = size(ψ)
     my_NX, my_NY, my_NZ, my_NT = get_local_dims(ψ)
@@ -192,18 +192,9 @@ function pion_correlators_avg!(pion_corr, D, ψ, cg_temps, cg_tol, cg_maxiters, 
         for μ in 1:num_dirac(ψ)
             ones!(propagator)
             set_source!(ψ, source, a, μ)
-            iters, res = solve_dirac!(
-                propagator, D, ψ, temps...; tol=cg_tol, maxiters=cg_maxiters
+            solve_dirac!(
+                propagator, D, ψ, temps...; tol, maxiters, datafile
             )
-
-            if cg_datafile != ""
-                set_ext!(cg_datafile, MPI_INSTANCE[])
-                fp = fopen(cg_datafile, "a")
-                printf(fp, "%-11i", iters)
-                printf(fp, "%-25.15E", res)
-                newline(fp)
-                fclose(fp)
-            end
 
             for it in 1+halo_width[4]:my_NT+halo_width[4]
                 cit = 0.0

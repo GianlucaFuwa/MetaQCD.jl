@@ -11,10 +11,8 @@ function load_field!(::JLD2Format, U::Gaugefield{B,T,false}, filename::String) w
     end)
     @assert (size(Unew) == size(U.U)) "Size of supplied config is wrong"
 
-    parallelfor(eachindex(U), B, Val(false), (), (U,), (U,)) do site, (U,)
-        for μ in 1:4
-            U[μ, site] = SMatrix{3,3,Complex{T},9}(Unew[μ, site])
-        end
+    parallelfor(allindices(U), B, Val(false), (), (U,), (U,)) do μsite, (U,)
+        U[μsite] = SMatrix{3,3,Complex{T},9}(Unew[μsite])
     end
 
     return nothing

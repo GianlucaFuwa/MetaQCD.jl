@@ -1,13 +1,23 @@
 const HIDE_COMMS = Val(@load_preference("MPI_HIDE_COMMUNICATION", false))
 const TUNE_KERNELS = Val(@load_preference("TUNE_KERNELS", false))
 const KERNEL_CACHE::Dict{String,Int64} = Dict{String,Int64}() # function name => block size
-function groupreduce end
-function threadidx end
-function groupidx end
-function groupdim end
+function groupreduce end    #
+function threadidx end      #
+function groupidx end       # These functions need to be overwritten in the extension
+function groupdim end       # file of the GPU backends
+function griddim end        #
+function SharedMemory end   #
+
+# From KernelAbstractions.jl
+macro localmem(T, dims)
+    id = gensym("static_shmem")
+    return quote
+        $SharedMemory($(esc(T)), Val($(esc(dims))), Val($(QuoteNode(id))))
+    end
+end
 
 function parallelfor(
-    f,
+    f, # Kernel function (usually anonymous functions defined with "do" block)
     itr,
     ::Type{B}, # backend
     ::Val{M}, # whether field is mpi-distributed
@@ -43,8 +53,9 @@ function parallelfor(
         # wait for exchange to finish
         finalize_halo_update!(sendrecvtasks)
         # outer work
-        outer_bulk = to_validate[idx].topology.flat_border_sites
-        _parallelfor(f, captured, outer_bulk, B, new_block_size)
+        border_iterators = to_validate[idx].topology.border_iterators
+        new_block_size = min.(block_size, min.(256, length.(border_iterators)))
+        _parallelfor(f, captured, border_iterators, B, new_block_size)
     elseif M && !hide && length(to_validate) > 0
         update_halo!(to_validate)
         _parallelfor(f, captured, itr, B, block_size)
@@ -74,14 +85,15 @@ function _foreachindex_gpu(f, captured, itr, backend, block_size::Int=min(256, l
     # println(name)
     # GPU implementation
     @assert block_size > 0
-    blocks = (length(itr) + block_size - 1) ÷ block_size
-    launch_foreachindex_global!(backend, f, captured, itr, block_size, blocks)
+    itr_tup = itr isa Tuple ? itr : (itr,)
+    launch_foreachindex_global!(backend, f, captured, itr_tup, block_size)
     return nothing
 end
 
 function launch_foreachindex_global! end
 
-function _foreachindex_global!(f, captured, itr)
+# KERNEL:
+@inline function _foreachindex_global!(f, captured, itr)
     i = threadidx() + (groupidx() - 0x1) * groupdim()
 
     if i <= length(itr)
@@ -131,9 +143,8 @@ function parallelfor_sum(
         # wait for exchange to finish
         finalize_halo_update!(sendrecvtasks)
         # outer work
-        outer_bulk = to_validate[idx].topology.flat_border_sites
-        new_block_size = min(block_size, min(256, length(outer_bulk)))
-        result += _parallelfor_sum(f, captured, outer_bulk, init, B, new_block_size)
+        border_iterators = to_validate[idx].topology.border_iterators
+        result += _parallelfor_sum(f, captured, border_iterators, init, B, new_block_size)
     elseif M && !hide && length(to_validate) > 0
         update_halo!(to_validate)
         result = _parallelfor_sum(f, captured, itr, init, B, block_size)
@@ -163,20 +174,20 @@ end
 function _foreachindex_reduce_gpu(
     out, op, f, captured, itr, ::Type{backend}, block_size::Int=min(256, length(itr))
 ) where {backend}
-    # name = nameof(f)
-    # println(name)
     # GPU implementation
     @assert block_size > 0
-    blocks = (length(itr) + block_size - 1) ÷ block_size
+    itr_tup = itr isa Tuple ? itr : (itr,)
     result = launch_foreachindex_reduce_global!(
-        backend(), out, op, f, captured, itr, block_size, blocks
+        backend(), out, op, f, captured, itr_tup, block_size
     )
     return result
 end
 
 function launch_foreachindex_reduce_global! end
 
-function _foreachindex_reduce_global!(out, init, op, f, captured, itr)
+# KERNEL:
+@inline function _foreachindex_reduce_global!(out, init, op, f, captured, itr, itr_idx)
+    N = griddim()
     iblock = groupidx()
     ithread = threadidx()
     i = ithread + (iblock - 0x1) * groupdim()
@@ -189,8 +200,10 @@ function _foreachindex_reduce_global!(out, init, op, f, captured, itr)
 
     out_group = groupreduce(op, out_i, init)
 
+    # We need the size of the grid here, in case we are launching the same kernel over
+    # multiple iterators, since we still only use one out vector
     if ithread == 1
-        @inbounds out[iblock] = out_group
+        @inbounds out[iblock + N*(itr_idx-0x1)] = out_group
     end
 
     return nothing

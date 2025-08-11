@@ -91,10 +91,10 @@ function start_halo_update_single!(
                 priority!(backend(), :high)
                 wait(recv_req_prev)
                 synchronize(backend())
-                needs_copyto1 && copyto!(u.halos[2(dim-1) + 1], recv_buf_prev)
+                needs_copyto1 && copyto!(u.halos[2(dim-1) + 1].parent, recv_buf_prev)
                 wait(recv_req_next)
                 synchronize(backend())
-                needs_copyto2 && copyto!(u.halos[2(dim-1) + 2], recv_buf_next)
+                needs_copyto2 && copyto!(u.halos[2(dim-1) + 2].parent, recv_buf_next)
             end
 
             push!(all_recv_tasks, recv_task)

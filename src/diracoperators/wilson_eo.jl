@@ -100,24 +100,12 @@ function calc_fermion_action(
 )
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
-    ψ_eo, temp1, temp2, temp3 = fermion_action.cg_temps
-    cg_tol = fermion_action.cg_tol_action
-    cg_maxiters = fermion_action.cg_maxiters_action
+    ψ_eo, temp1, temp2, temp3 = fermion_action.temps[1:4]
+    solver_action = fermion_action.solver_action
+    tol, maxiters, datafile = get_info(solver_action)
 
     clear!(ψ_eo) # initial guess is zero
-    iters, res = solve_dirac!(ψ_eo, DdagD, ϕ_eo, temp1, temp2, temp3, cg_tol, cg_maxiters) # ψ = (D†D)⁻¹ϕ
-
-    cg_datafile = fermion_action.cg_datafile
-
-    if cg_datafile != ""
-        set_ext!(cg_datafile, MPI_INSTANCE[])
-        fp = fopen(cg_datafile, "a")
-        printf(fp, "%-11i", iters)
-        printf(fp, "%-25.15E", res)
-        printf(fp, "%s", "# action")
-        newline(fp)
-        fclose(fp)
-    end
+    solve_dirac!(ψ_eo, DdagD, ϕ_eo, temp1, temp2, temp3; tol, maxiters, datafile) # ψ = (D†D)⁻¹ϕ
 
     Sf = real(dot(ϕ_eo, ψ_eo)) - 2trlog(D.D_diag, D.mass)
     return Sf
@@ -128,15 +116,15 @@ function calc_fermion_action(
     U::Gaugefield,
     ϕ_eo::WilsonEOPreSpinorfield,
 )
-    cg_tol = fermion_action.cg_tol_action
-    cg_maxiters = fermion_action.cg_maxiters_action
     rhmc = fermion_action.rhmc_info_action
     n = get_n(rhmc)
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
-    ψs = fermion_action.rhmc_temps1[1:n+1]
-    ps = fermion_action.rhmc_temps2[1:n+1]
-    temp1, temp2 = fermion_action.cg_temps
+    temp1, temp2 = fermion_action.temps[1:2]
+    ψs = fermion_action.temps[3:n+3]
+    ps = fermion_action.temps[n+4:2n+4]
+    solver_action = fermion_action.solver_action
+    tol, maxiters, datafile = get_info(solver_action)
 
     for v_eo in ψs
         clear!(v_eo)
@@ -145,19 +133,7 @@ function calc_fermion_action(
     shifts = get_β_inverse(rhmc)
     coeffs = get_α_inverse(rhmc)
     α₀ = get_α0_inverse(rhmc)
-    iters, res = solve_dirac_multishift!(ψs, shifts, DdagD, ϕ_eo, temp1, temp2, ps, cg_tol, cg_maxiters)
-
-    cg_datafile = fermion_action.cg_datafile
-
-    if cg_datafile != ""
-        set_ext!(cg_datafile, MPI_INSTANCE[])
-        fp = fopen(cg_datafile, "a")
-        printf(fp, "%-11i", iters)
-        printf(fp, "%-25.15E", res)
-        printf(fp, "%s", "# action")
-        newline(fp)
-        fclose(fp)
-    end
+    solve_dirac_multishift!(ψs, shifts, DdagD, ϕ_eo, temp1, temp2, ps; tol, maxiters, datafile)
 
     ψ_eo = ψs[1]
     clear!(ψ_eo) # D⁻¹ϕ doesn't appear in the partial fraction decomp so we can use it to sum
@@ -173,9 +149,9 @@ function calc_fermion_action(
 end
 
 function solve_dirac!(
-    ψ_eo, D::T, ϕ_eo, temps...; tol=1e-14, maxiters=1000
+    ψ_eo, D::T, ϕ_eo, temps...; tol=1e-14, maxiters=1000, datafile=""
 ) where {T<:WilsonEOPreDiracOperator}
-    return bicg_stab!(ψ_eo, D, ϕ_eo, temps...; tol=tol, maxiters=maxiters)
+    return bicg_stab!(ψ_eo, D, ϕ_eo, temps...; tol, maxiters, datafile)
 end
 
 # We overload LinearAlgebra.mul! instead of Gaugefields.mul! so we dont have to import
@@ -235,7 +211,7 @@ function mul_oe!(
     parallelfor(itr, B, Val(M), (U, ϕ_eo), (ψ,), (U, ϕ, ψ)) do o_site, (U, ϕ, ψ)
         site = map_from_half(o_site, bulk)
         _site = into_odd ? o_site : switch_sides(o_site, bulk)
-        ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, bc, T, Val(dagg), bulk)
+        @inbounds ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, bc, T, Val(dagg), bulk)
     end
 
     return nothing
@@ -254,7 +230,7 @@ function mul_eo!(
     parallelfor(itr, B, Val(M), (U, ϕ_eo), (ψ,), (U, ϕ, ψ)) do e_site, (U, ϕ, ψ)
         site = map_from_half(e_site, bulk)
         _site = into_odd ? switch_sides(e_site, bulk) : e_site
-        ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, bc, T, Val(dagg), bulk)
+        @inbounds ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, bc, T, Val(dagg), bulk)
     end
 
     return nothing
@@ -263,21 +239,24 @@ end
 function wilson_eo_kernel(U, ϕ, site, bc, ::Type{T}, ::Val{dagg}, bulk) where {T,dagg}
     # sites that begin with a "_" are meant for indexing into the even-odd preconn'ed
     # fermion field 
-    ψₙ = zero(ϕ[site])
-    NT = size(U, 4)
+    @inbounds begin
+        ψₙ = zero(ϕ[site])
+        NT = size(U, 4)
 
-    # use @nexprs here to statically generate the loop
-    # this makes it so Val(i) is well defined at each iteration and no type-instabilities arise
-    @nexprs 4 μ -> (
-        Nμ = axes(U, μ);
-        _siteμ⁺ = map_to_half(move(site, μ, 1, Nμ), bulk);
-        siteμ⁻ = move(site, μ, -1, Nμ);
-        _siteμ⁻ = map_to_half(siteμ⁻, bulk);
-        ϕ⁺ = apply_bc(ϕ[_siteμ⁺], bc, site, Val(1), NT, Val(μ));
-        ϕ⁻ = apply_bc(ϕ[_siteμ⁻], bc, site, Val(-1), NT, Val(μ));
-        ψₙ += cmvmul_spin_proj(U[μ, site], ϕ⁺, Val(-μ*dagg), Val(false));
-        ψₙ += cmvmul_spin_proj(U[μ, siteμ⁻], ϕ⁻, Val(μ*dagg), Val(true))
-    )
+        # use @nexprs here to statically generate the loop
+        # this makes it so Val(i) is well defined at each iteration and no type-instabilities arise
+        @nexprs 4 μ -> (
+            Nμ = axes(U, μ);
+            _siteμ⁺ = map_to_half(move(site, μ, 1, Nμ), bulk);
+            siteμ⁻ = move(site, μ, -1, Nμ);
+            _siteμ⁻ = map_to_half(siteμ⁻, bulk);
+            ϕ⁺ = apply_bc(ϕ[_siteμ⁺], bc, site, Val(1), NT, Val(μ));
+            ϕ⁻ = apply_bc(ϕ[_siteμ⁻], bc, site, Val(-1), NT, Val(μ));
+            ψₙ += cmvmul_spin_proj(U[μ, site], ϕ⁺, Val(-μ*dagg), Val(false));
+            ψₙ += cmvmul_spin_proj(U[μ, siteμ⁻], ϕ⁻, Val(μ*dagg), Val(true))
+        )
+    end
+
     return T(0.5) * ψₙ
 end
 
@@ -292,11 +271,11 @@ function calc_diag!(
     parallelfor(itr, B, Val(M), (), (D_diag, D_oo_inv), (D_diag, D_oo_inv)) do site, (D_diag, D_oo_inv)
         _site = map_to_half(site, bulk)
         A = SMatrix{6,6,Complex{T},36}(mass_term * I)
-        D_diag[site] = PauliMatrix(A, A)
+        @inbounds D_diag[site] = PauliMatrix(A, A)
 
         if isodd(site)
             A_inv = SMatrix{6,6,Complex{T},36}(1/mass_term * I)
-            D_oo_inv[_site] = PauliMatrix(A_inv, A_inv)
+            @inbounds D_oo_inv[_site] = PauliMatrix(A_inv, A_inv)
         end
     end
 end
@@ -324,43 +303,47 @@ function calc_diag_csw_kernel!(
     i = SVector((1, 2))
     j = SVector((3, 4))
 
-    F₁₂ = Fμν[1, site]
-    σ = σ12(T)
-    A₊ = ckron(σ[i, i], F₁₂)
-    A₋ = ckron(σ[j, j], F₁₂)
+    @inbounds begin
+        F₁₂ = Fμν[1, site]
+        σ = σ12(T)
+        A₊ = ckron(σ[i, i], F₁₂)
+        A₋ = ckron(σ[j, j], F₁₂)
 
-    F₁₃ = Fμν[2, site]
-    σ = σ13(T)
-    A₊ += ckron(σ[i, i], F₁₃)
-    A₋ += ckron(σ[j, j], F₁₃)
+        F₁₃ = Fμν[2, site]
+        σ = σ13(T)
+        A₊ += ckron(σ[i, i], F₁₃)
+        A₋ += ckron(σ[j, j], F₁₃)
 
-    F₁₄ = Fμν[3, site]
-    σ = σ14(T)
-    A₊ += ckron(σ[i, i], F₁₄)
-    A₋ += ckron(σ[j, j], F₁₄)
+        F₁₄ = Fμν[3, site]
+        σ = σ14(T)
+        A₊ += ckron(σ[i, i], F₁₄)
+        A₋ += ckron(σ[j, j], F₁₄)
 
-    F₂₃ = Fμν[4, site]
-    σ = σ23(T)
-    A₊ += ckron(σ[i, i], F₂₃)
-    A₋ += ckron(σ[j, j], F₂₃)
+        F₂₃ = Fμν[4, site]
+        σ = σ23(T)
+        A₊ += ckron(σ[i, i], F₂₃)
+        A₋ += ckron(σ[j, j], F₂₃)
 
-    F₂₄ = Fμν[5, site]
-    σ = σ24(T)
-    A₊ += ckron(σ[i, i], F₂₄)
-    A₋ += ckron(σ[j, j], F₂₄)
+        F₂₄ = Fμν[5, site]
+        σ = σ24(T)
+        A₊ += ckron(σ[i, i], F₂₄)
+        A₋ += ckron(σ[j, j], F₂₄)
 
-    F₃₄ = Fμν[6, site]
-    σ = σ34(T)
-    A₊ += ckron(σ[i, i], F₃₄)
-    A₋ += ckron(σ[j, j], F₃₄)
+        F₃₄ = Fμν[6, site]
+        σ = σ34(T)
+        A₊ += ckron(σ[i, i], F₃₄)
+        A₋ += ckron(σ[j, j], F₃₄)
 
-    A₊ = fac * A₊ + M
-    A₋ = fac * A₋ + M
-    D_diag[_site] = PauliMatrix(A₊, A₋)
+        A₊ = fac * A₊ + M
+        A₋ = fac * A₋ + M
+        D_diag[_site] = PauliMatrix(A₊, A₋)
 
-    if isodd(site)
-        D_oo_inv[_site] = PauliMatrix(cinv(A₊), cinv(A₋))
+        if isodd(site)
+            D_oo_inv[_site] = PauliMatrix(cinv(A₊), cinv(A₋))
+        end
     end
+
+    return nothing
 end
 
 function mul_oo_inv!(
@@ -371,7 +354,7 @@ function mul_oo_inv!(
     itr = eachindex(odd_half, ϕ, D_oo_inv)
 
     parallelfor(itr, B, Val(M), (), (ϕ,), (ϕ, D_oo_inv)) do o_site, (ϕ, D_oo_inv)
-        ϕ[o_site] = cmvmul_block(D_oo_inv[o_site], ϕ[o_site])
+        @inbounds ϕ[o_site] = cmvmul_block(D_oo_inv[o_site], ϕ[o_site])
     end
 
     return nothing
@@ -386,7 +369,7 @@ function axmy!(
     itr = eachindex(even_half, ϕ, ψ, D_diag)
 
     parallelfor(itr, B, Val(M), (), (ϕ,), (ϕ, ψ, D_diag)) do e_site, (ϕ, ψ, D_diag)
-        ϕ[e_site] = cmvmul_block(D_diag[e_site], ψ[e_site]) - ϕ[e_site]
+        @inbounds ϕ[e_site] = cmvmul_block(D_diag[e_site], ψ[e_site]) - ϕ[e_site]
     end
 
     return nothing
