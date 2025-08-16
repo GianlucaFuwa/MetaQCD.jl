@@ -9,7 +9,7 @@ function clover_1x1(U::GaugeLikeField{B,T}, μ, ν, site) where {B,T}
     siteμ⁻ν⁻ = move(siteν⁻, μ, -1, Nμ)
     siteμ⁺ν⁻ = move(siteν⁻, μ, 1, Nμ)
 
-    @inbounds begin
+    # @inbounds begin
         # top right
         clover = cmatmul_oodd(U[μ, site], U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site])
         # top left
@@ -18,7 +18,7 @@ function clover_1x1(U::GaugeLikeField{B,T}, μ, ν, site) where {B,T}
         clover += cmatmul_ddoo(U[μ, siteμ⁻], U[ν, siteμ⁻ν⁻], U[μ, siteμ⁻ν⁻], U[ν, siteν⁻])
         # bottom right
         clover += cmatmul_dood(U[ν, siteν⁻], U[μ, siteν⁻], U[ν, siteμ⁺ν⁻], U[μ, site])
-    end
+    # end
 
     return clover
 end

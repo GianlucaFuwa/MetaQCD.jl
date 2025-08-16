@@ -68,7 +68,7 @@ struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO,BC} <: AbstractDiracOperator{B
     end
 end
 
-# FIXME:
+# FIXME: force with csw!=0 not right
 function add_gauge_background(
     D::WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO}, U::Gaugefield{B,T}
 ) where {B,T,C,TF,TG,TX,TO}

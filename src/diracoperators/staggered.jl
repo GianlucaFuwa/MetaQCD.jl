@@ -107,7 +107,7 @@ end
 
 @inline function staggered_kernel(U, ϕ, site, mass, bc, ::Type{T}, dagg::Bool) where {T}
     @inbounds begin
-        sgn = dagg ? -1 : 1
+        sgn = dagg ? T(-1) : T(1)
         NT = size(U, 4)
         ψₙ = 2mass * ϕ[site]
 
@@ -117,23 +117,24 @@ end
             Nμ = axes(U, μ);
             siteμ⁺ = move(site, μ, 1, Nμ);
             siteμ⁻ = move(site, μ, -1, Nμ);
-            η = sgn * staggered_η(Val(μ), site);
+            η = sgn * staggered_η(Val(μ), site, T);
             ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(μ));
             ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(μ));
-            ψₙ += η * (cmvmul(U[μ, site], ϕ⁺) - cmvmul_d(U[μ, siteμ⁻], ϕ⁻))
+            # ψₙ += η * (cmvmul(U[μ, site], ϕ⁺) - cmvmul_d(U[μ, siteμ⁻], ϕ⁻))
+            ψₙ += η * (U[μ, site] * ϕ⁺ - U[μ, siteμ⁻]' * ϕ⁻)
         )
     end
     return T(0.5) * ψₙ
 end
 
 # Use Val to reduce the amount of if-statements in the kernel
-@inline staggered_η(::Val{1}, site) = 1
-@inline staggered_η(::Val{2}, site) = ifelse(iseven(site[1]), 1, -1)
-@inline staggered_η(::Val{3}, site) = ifelse(iseven(site[1] + site[2]), 1, -1)
-@inline staggered_η(::Val{4}, site) = ifelse(iseven(site[1] + site[2] + site[3]), 1, -1)
-@inline staggered_η(::Val{5}, site) = ifelse(iseven(site[1] + site[3]), 1, -1)
+@inline staggered_η(::Val{1}, site, ::Type{T}) where {T} = T(1)
+@inline staggered_η(::Val{2}, site, ::Type{T}) where {T} = @inbounds ifelse(iseven(site[Int32(1)]), T(1), T(-1))
+@inline staggered_η(::Val{3}, site, ::Type{T}) where {T} = @inbounds ifelse(iseven(site[Int32(1)] + site[Int32(2)]), T(1), T(-1))
+@inline staggered_η(::Val{4}, site, ::Type{T}) where {T} = @inbounds ifelse(iseven(site[Int32(1)] + site[Int32(2)] + site[Int32(3)]), T(1), T(-1))
+@inline staggered_η(::Val{5}, site, ::Type{T}) where {T} = @inbounds ifelse(iseven(site[Int32(1)] + site[Int32(3)]), T(1), T(-1))
 @inline staggered_ϵμν(::Val{μ}, ::Val{ν}, site) where {μ,ν} =
-    ifelse(iseven(site[μ] + site[ν]), 1, -1)
+    @inbounds ifelse(iseven(site[μ] + site[ν]), 1, -1)
 
 @inline function ξ5(::Type{T}) where {T}
     return SMatrix{4,4,Complex{T},16}(

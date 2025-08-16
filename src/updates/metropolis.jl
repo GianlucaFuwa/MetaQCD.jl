@@ -1,10 +1,10 @@
 """
-    Metropolis(U::Gaugefield{B,T,GA}, eo, ϵ, numhits, target_acc, or_alg, numorelax) where {B,T,A,GA}
+    Metropolis(U::Gaugefield, eo, ϵ, numhits, target_acc, or_alg, numorelax) where {B,T,A,GA}
 
 Create a `Metropolis` object.
 
 # Arguments
-- `U::Gaugefield{B,T,GA}`: Gauge field object.
+- `U::Gaugefield`: Gauge field.
 - `eo`: Even-odd preconditioning.
 - `ϵ`: Step size for the update.
 - `numhits`: Number of Metropolis hits.

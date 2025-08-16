@@ -20,10 +20,10 @@ function update!(parity::ParityUpdate, U::Gaugefield{B,T,M}) where {B,T,M}
         iy_min_1 = mod(-iy - 1, NY) + 1
         iz_min_0 = mod(-iz, NZ) + 1
         iz_min_1 = mod(-iz - 1, NZ) + 1
-        U[1, ix, iy, iz, it] = U_bak[1, ix_min_1, iy_min_0, iz_min_0, it]'
-        U[2, ix, iy, iz, it] = U_bak[2, ix_min_0, iy_min_1, iz_min_0, it]'
-        U[3, ix, iy, iz, it] = U_bak[3, ix_min_0, iy_min_0, iz_min_1, it]'
-        U[4, ix, iy, iz, it] = U_bak[4, ix_min_0, iy_min_0, iz_min_0, it]
+        U[1, site] = U_bak[1, CartesianIndex(ix_min_1, iy_min_0, iz_min_0, it)]'
+        U[2, site] = U_bak[2, CartesianIndex(ix_min_0, iy_min_1, iz_min_0, it)]'
+        U[3, site] = U_bak[3, CartesianIndex(ix_min_0, iy_min_0, iz_min_1, it)]'
+        U[4, site] = U_bak[4, CartesianIndex(ix_min_0, iy_min_0, iz_min_0, it)]
     end
 
     return nothing

@@ -192,6 +192,18 @@
         return SMatrix{3,3,Complex{T},9}(tmp)
     end
 
+    @inline function reconstruct_su3(
+        col1_1::Complex{T}, col1_2::Complex{T}, col1_3::Complex{T},
+        col2_1::Complex{T}, col2_2::Complex{T}, col2_3::Complex{T}
+    ) where {T}
+        col3_1 = conj(col1_2 * col2_3 - col1_3 * col2_2)
+        col3_2 = conj(col1_3 * col2_1 - col1_1 * col2_3)
+        col3_3 = conj(col1_1 * col2_2 - col1_2 * col2_1)
+        return SMatrix{3,3,Complex{T},9}(
+            col1_1, col1_2, col1_3, col2_1, col2_2, col2_3, col3_1, col3_2, col3_3
+        )
+    end
+
     """
         kenney_laub(M::SMatrix{3,3,Complex{T},9}) where {T}
 

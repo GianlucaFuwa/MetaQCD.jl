@@ -3,6 +3,7 @@ module MetaIO
 using Dates
 using JLD2
 using LinearAlgebra
+using OffsetArrays
 using Polyester
 using Random
 using StaticArrays
@@ -10,9 +11,9 @@ using ..Parameters
 using ..Utils
 
 import ..Fields: AbstractField, Gaugefield, Spinorfield, SpinorfieldEO, Paulifield
-import ..Fields: Tensorfield, MultiSpinorfield, CPU, get_backend
+import ..Fields: Tensorfield, MultiSpinorfield, CPU, get_backend, bzeros
 import ..Fields: is_distributed, get_global_volume, get_global_dims, parallelfor
-import ..Fields: WilsonGaugeAction, array_type, to_backend, device_to_host, allindices
+import ..Fields: WilsonGaugeAction, array_type, convert_field, device_to_host, allindices
 
 export __GlobalLogger, MetaLogger, current_time, @level1, @level2, @level3, @level4
 export BMWFormat, BridgeFormat, Checkpointer, ConfigSaver, JLD2Format, set_global_logger!

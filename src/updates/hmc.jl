@@ -232,8 +232,7 @@ function HMC(
     elseif fermion_action ∈ ["staggered_h1234", "staggered_1342"]
         ϕ = ntuple(_ -> Spinorfield(U; staggered=true, hw=2), numfermions)
     elseif fermion_action == "wilson"
-        # TODO: differentiate between clover and non-clover in hw
-        ϕ = ntuple(_ -> Spinorfield(U; hw=2), numfermions)
+        ϕ = ntuple(_ -> Spinorfield(U; hw=1), numfermions)
     elseif fermion_action == "wilson_eo"
         ϕ = ntuple(_ -> even_odd(Spinorfield(U; hw=2)), numfermions)
     elseif fermion_action ∈ ["quenched", "none"]
@@ -374,8 +373,11 @@ function updateU!(
         ϵ = T(hmc.levels[level].Δτ * fac)
         P = hmc.P
 
-        parallelfor(allindices(U, P), B, Val(M), (), (U,), (U, P)) do μsite, (U, P)
-            @inbounds U[μsite] = cmatmul_oo(exp_iQ(-im * ϵ * P[μsite]), U[μsite])
+        parallelfor(eachindex(U, P), B, Val(M), (), (U,), (U, P)) do site, (U, P)
+            @inbounds U[1, site] = cmatmul_oo(exp_iQ(-im * ϵ * P[1, site]), U[1, site])
+            @inbounds U[2, site] = cmatmul_oo(exp_iQ(-im * ϵ * P[2, site]), U[2, site])
+            @inbounds U[3, site] = cmatmul_oo(exp_iQ(-im * ϵ * P[3, site]), U[3, site])
+            @inbounds U[4, site] = cmatmul_oo(exp_iQ(-im * ϵ * P[4, site]), U[4, site])
         end
     else
         evolve!(U, hmc, fermion_action, bias, therm, level-1)

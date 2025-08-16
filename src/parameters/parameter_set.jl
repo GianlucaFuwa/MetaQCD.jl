@@ -6,6 +6,7 @@ struct ParameterSet
     numtherm::Int64
     numsteps::Int64
     initial::String
+    su3_nfloats::Int64
 
     # mpi-related parameters
     numprocs_cart::NTuple{4,Int64}

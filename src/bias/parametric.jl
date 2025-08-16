@@ -81,10 +81,3 @@ function ∂V∂Q(p::Parametric, cv)
         return penalty
     end
 end
-
-function integral(p::Parametric, lb, ub) # XXX: Why does this function exist?
-    Q, A, Z = p.Q, p.A, p.Z
-    num = 3A * sinpi(Z*ub) + 2π*Q*Z*ub^3 - 3A * sinpi(Z*lb) - 2π*Q*Z*lb^3
-    denom = 6π * Z
-    return num / denom
-end

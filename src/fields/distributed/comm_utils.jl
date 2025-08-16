@@ -51,20 +51,6 @@ function cooperative_wait(task::Task)
     return nothing
 end
 
-function get_recv_task(::Type{backend}, recv_reqs::Vector{Utils.MPI.Request}) where {backend}
-    return Base.Threads.@spawn begin
-        # TODO:
-        KA.priority!(backend, :high)
-        Base.wait.(recv_reqs)
-        KA.synchronize(backend())
-    end
-end
-
-function get_send_task(::Type{backend}, send_reqs::Vector{Utils.MPI.Request}) where {backend}
-    return Base.Threads.@spawn begin
-    end
-end
-
 function next_div32(n::Integer)
     return ((n ÷ 32) + 1) * 32
 end

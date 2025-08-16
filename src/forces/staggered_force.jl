@@ -57,13 +57,13 @@ function add_staggered_derivative!(
     itr = eachindex(dU, U, X, Y)
 
     parallelfor(itr, B, Val(M), (X, Y), (dU,), (dU, U, X, Y)) do site, (dU, U, X, Y)
-        add_staggered_derivative_kernel!(dU, U, X, Y, site, bc, fac)
+        add_staggered_derivative_kernel!(dU, U, X, Y, site, bc, fac, T)
     end
 
     return nothing
 end
 
-@inline function add_staggered_derivative_kernel!(dU, U, X, Y, site, bc, fac)
+@inline function add_staggered_derivative_kernel!(dU, U, X, Y, site, bc, fac, ::Type{T}) where {T}
     NT = size(U, 4)
 
     # use @nexprs here to statically generate the loop
@@ -72,7 +72,7 @@ end
         @nexprs 4 μ -> (
             Nμ = axes(U, μ);
             siteμ⁺ = move(site, μ, 1, Nμ);
-            η = staggered_η(Val(μ), site);
+            η = staggered_η(Val(μ), site, T);
             B = ckron(apply_bc(X[siteμ⁺], bc, site, Val(1), NT, Val(μ)), Y[site]);
             C = ckron(apply_bc(Y[siteμ⁺], bc, site, Val(1), NT, Val(μ)), X[site]);
             dU[μ, site] += (fac * η) * traceless_antihermitian(cmatmul_oo(U[μ, site], B - C))

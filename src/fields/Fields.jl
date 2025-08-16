@@ -7,6 +7,7 @@ using OffsetArrays
 using Polyester # Used for the @batch macro, which enables multi threading
 using Preferences
 using Random
+using SIMD
 using StaticArrays # Used for the SU3 matrices
 using ..Utils # Contains utility functions, such as projections and the exponential map
 
@@ -17,6 +18,7 @@ struct CPU end
 # When CUDA.jl or AMDGPU.jl are loaded, their backends are appended to this Dict
 const BACKENDS = Dict{String,Any}("cpu" => CPU)
 const DEVICE_ID = Base.RefValue{Int64}(-1)
+const SU3_NUMFLOATS = Val(@load_preference("SU3_RECONSTRUCT", 18))
 
 # We are going to need these if we want to transfer a field from one backend to another
 # For other backends, we overload this method in their respective extensions
@@ -47,6 +49,8 @@ include("distributed/halo_update_async.jl")
 include("distributed/comm_utils.jl")
 
 include("utils/parallel.jl")
+include("utils/layout_cpu.jl")
+include("utils/layout_gpu.jl")
 include("utils/constructor.jl")
 include("utils/boundaries.jl") # boundary conditions in time direction for spinors
 include("gaugefield.jl") # Gaugefield, Colorfield and Expfield structs defined here
@@ -63,13 +67,6 @@ include("utils/adapt.jl")
 
 const GaugeLikeField{B,T,M} = Union{Gaugefield{B,T,M},Colorfield{B,T,M}}
 
-include("utils/field_operations.jl") # General operations on fields, like adding, copying etc.
-include("action.jl") # Gauge action methods
-include("stencils/plaquette.jl") # Definition of clover operator
-include("stencils/clover.jl") # Definition of clover operator
-include("stencils/staple.jl") # Definition of staple operator
-include("stencils/wilsonloop.jl") # Definition of arbitrary side length Wilson loops
-
 # XXX: Not sure why these are here, but whatever
 Base.similar(u::Gaugefield{B,T}, ::Type{Tnew}=T) where {B,T,Tnew} = Gaugefield(u, Tnew)
 Base.similar(u::Colorfield{B,T}, ::Type{Tnew}=T) where {B,T,Tnew} = Colorfield(u, Tnew)
@@ -80,64 +77,44 @@ Base.similar(u::MultiSpinorfield{B,T}, ::Type{Tnew}=T) where {B,T,Tnew} = MultiS
 Base.similar(u::SpinorfieldEO) = SpinorfieldEO(u.parent)
 
 """
-    to_backend(Backend_out, u::AbstractField{Backend_in,FloatType})
+    convert_field(Backend_out, u::AbstractField{CPU,FloatType_in}, ::Type{FloatType_out})
 
-Ports the AbstractField u to the backend `Backend_out`, maintaining all elements
+Ports the AbstractField u from CPU to `Backend_out`, maintaining all elements
 # Supported backends
 `CPU` \\
 `CUDABackend` \\
 `ROCBackend`
 """
-function to_backend(
-    ::Type{Bout}, u::AbstractField{Bin,Tin,M}, ::Type{Tout}=Tin
-) where {M,Bout,Tout,Bin,Tin}
-    if Bout === Bin
-        u_out = similar(u, Tout)
-        copy!(u_out, u)
-        return u_out
+function convert_field(
+    ::Type{Bout}, uin::AbstractField{CPU,Tin,M}, ::Type{Tout}=Tin
+) where {M,Bout,Tout,Tin}
+    # This version is only for Colorfield and Tensorfield
+    # the others are defined in their respective files
+    if Bout === CPU
+        uout = similar(uin, Tout)
+        copy!(uout, uin)
+        return uout
     end
 
-    Fieldtype = eval(nameof(typeof(u)))
-    AType = array_type(Bout)
-    new_eltype = convert(Tout, eltype(u.U))
-    Uout = OffsetArray(AType{new_eltype}(u.U.parent), eachindex(IndexCartesian(), u.U).indices...)
-    halos = if isnothing(u.halos)
-        nothing
-    else
-        ntuple(Val(8)) do i
-            OffsetArray(
-                AType{new_eltype}(u.halos[i].parent),
-                eachindex(IndexCartesian(), u.halos[i]).indices...
-            )
+    Fieldtype = eval(nameof(typeof(uin)))
+    NX, NY, NZ, NT = size(uin)
+    numprocs_cart = get_numprocs_cart(uin)
+    halo_width = get_halo_width(uin)
+    uout = Fieldtype{Bout,Tout}(NX, NY, NZ, NT; numprocs_cart, halo_width)
+    uarr = array_type(Bout)(uin.U)
+    inner_length = if uin isa Colorfield
+        4
+    elseif uin isa Tensorfield
+        6
+    end
+
+    parallelfor(eachindex(uout), Bout, Val(M), (uout,), (), (uout,)) do site, (uout,)
+        for i in 1:inner_length
+            uout[i, site] = uarr[i, site]
         end
     end
-    sendbuf = if isnothing(u.sendbuf)
-        nothing
-    else
-        ntuple(Val(8)) do i
-            bzeros(Bout(), new_eltype, size(u.sendbuf[i]))
-        end
-    end
 
-    ext = Base.RefValue{Bool}(halo_is_valid(u))
-
-    if u isa Gaugefield
-        GA = gauge_action(u)
-        return Gaugefield{Bout,Tout,M,GA}(Uout, halos, sendbuf, u.topology, u.β, ext)
-    elseif u isa Spinorfield
-        ND = num_dirac(u)
-        return Spinorfield{Bout,Tout,M,ND}(Uout, halos, sendbuf, u.topology, ext)
-    elseif u isa MultiSpinorfield
-        ND = num_dirac(u)
-        return MultiSpinorfield{Bout,Tout,M,ND}(
-            Uout, halos, sendbuf, u.topology, u.numspinors, ext
-        )
-    elseif u isa Paulifield
-        C = has_clover_term(u)
-        return Paulifield{Bout,Tout,M,C}(Uout, halos, sendbuf, u.topology, u.csw, ext)
-    else
-        return Fieldtype{Bout,Tout,M}(Uout, halos, sendbuf, u.topology, ext)
-    end
+    return uout
 end
 
 function device_to_host(x, ::Type{B}) where {B}
@@ -227,35 +204,40 @@ end
 
 @inline allindices(u::AbstractField) = eachindex(IndexCartesian(), u.U) # all indices including halo regions
 
-# overload get and set for the Abstractfields structs, so we dont have to do u.U[μ,x,y,z,t]:
 Base.@propagate_inbounds Base.getindex(u::AbstractField, i::Integer) = u.U[i]
-Base.@propagate_inbounds Base.getindex(u::AbstractField, μ, x, y, z, t) = u.U[x, y, z, t, μ]
-Base.@propagate_inbounds Base.getindex(u::AbstractField, μ, site::SiteCoords) = u.U[site, μ]
 Base.@propagate_inbounds Base.getindex(u::AbstractField, μsite) = u.U[μsite]
+Base.@propagate_inbounds Base.getindex(u::AbstractField{CPU}, μ, site) = u.U[μ, site]
+Base.@propagate_inbounds Base.getindex(u::AbstractField{B}, μ, site) where {B} = u.U[site, μ]
 
-Base.@propagate_inbounds function Base.getindex(u::AbstractMPIField, μ, site::SiteCoords)
-    site in u.topology.bulk_sites && return u.U[site, μ]
+Base.@propagate_inbounds function Base.getindex(u::AbstractMPIField{B}, μ, site) where {B}
+    if B !== CPU
+        μ, site = site, μ
+    end
+    site in u.topology.bulk_sites && return u.U[μ, site]
     ihalo = get_halo_index(site, u.topology.bulk_sites)
-    return u.halos[ihalo][site, μ]
+    return u.halos[ihalo][μ, site]
 end
 
 Base.@propagate_inbounds Base.setindex!(u::AbstractField, v, i::Integer) =
     setindex!(u.U, v, i)
-Base.@propagate_inbounds Base.setindex!(u::AbstractField, v, μ, x, y, z, t) =
-    setindex!(u.U, v, x, y, z, t, μ)
-Base.@propagate_inbounds Base.setindex!(u::AbstractField, v, μ, site::SiteCoords) =
-    setindex!(u.U, v, site, μ)
 Base.@propagate_inbounds Base.setindex!(u::AbstractField, v, μsite) =
     setindex!(u.U, v, μsite)
+Base.@propagate_inbounds Base.setindex!(u::AbstractField{CPU}, v, μ, site::SiteCoords) =
+    setindex!(u.U, v, μ, site)
+Base.@propagate_inbounds Base.setindex!(u::AbstractField{B}, v, μ, site::SiteCoords) where {B} =
+    setindex!(u.U, v, site, μ)
 
-Base.@propagate_inbounds function Base.setindex!(u::AbstractMPIField, v, μ, site::SiteCoords)
+Base.@propagate_inbounds function Base.setindex!(u::AbstractMPIField{B}, v, μ, site::SiteCoords) where {B}
+    if B == CPU
+        μ, site = site, μ
+    end
     bulk = u.topology.bulk_sites
 
     if site in bulk
-        u.U[site, μ] = v
+        u.U[μ, site] = v
     else
         ihalo = get_halo_index(site, bulk)
-        u.halos[ihalo][site, μ] = v
+        u.halos[ihalo][μ, site] = v
     end
 
     return nothing
@@ -281,7 +263,7 @@ function check_types(::Type{B}, ::Type{T}, U, halos, sendbuf) where {B,T}
     #     end
     # end
 
-    @assert eltype(eltype(U)) === Complex{T}
+    # @assert eltype(eltype(U)) === Complex{T}
     return nothing
 end
 
@@ -301,6 +283,13 @@ Check if all fields have the same dimensions. Throw an `AssertionError` otherwis
     q = Expr(:macrocall, Symbol("@assert"), :(), q_inner)
     return q
 end
+
+include("field_operations.jl") # General operations on fields, like adding, copying etc.
+include("action.jl") # Gauge action methods
+include("stencils/plaquette.jl") # Definition of clover operator
+include("stencils/clover.jl") # Definition of clover operator
+include("stencils/staple.jl") # Definition of staple operator
+include("stencils/wilsonloop.jl") # Definition of arbitrary side length Wilson loops
 
 # So we don't print the entire array in the REPL...
 function Base.show(io::IO, ::MIME"text/plain", u::AbstractField{B,T}) where {B,T}

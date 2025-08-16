@@ -2,7 +2,7 @@ function test_gradflow(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=1)
     Random.seed!(123)
     println("Smearing tests")
     NX = NY = NZ = NT = 4
-    U = Gaugefield{CPU,Float64,WilsonGaugeAction}(
+    U = Gaugefield{backend,Float64,WilsonGaugeAction,12}(
         NX, NY, NZ, NT, 6.0, numprocs_cart=nprocs_cart, halo_width=halo_width
     )
     numflow = 7
@@ -14,10 +14,6 @@ function test_gradflow(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=1)
     end
 
     load_field!(BridgeFormat(), U, filename)
-
-    if backend !== CPU
-        U = MetaQCD.to_backend(backend, U)
-    end
 
     mfac = 1 / (18 * length(U))
     plaq = plaquette_trace_sum(U) * mfac

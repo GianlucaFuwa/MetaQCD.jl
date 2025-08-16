@@ -23,14 +23,10 @@ function test_update(
     end
     @testset "$(str)" begin
         NX = NY = NZ = NT = 4
-        U = Gaugefield{CPU,Float64,gaction}(
+        U = Gaugefield{backend,Float64,gaction,12}(
             NX, NY, NZ, NT, 6.0, numprocs_cart=nprocs_cart, halo_width=halo_width
         )
         random_gauges!(U)
-
-        if backend !== CPU
-            U = MetaQCD.to_backend(backend, U)
-        end
 
         metro_ϵ = 0.2
         metro_numhits = 1

@@ -8,7 +8,7 @@ function test_checkpoint()
     mpi_amroot() && println("Checkpoint test")
     checkpointer = Checkpointer(pwd(), 1)
 
-    U = Gaugefield{CPU,Float64,WilsonGaugeAction}(4, 4, 4, 4, 6.0)
+    U = Gaugefield{CPU,Float64,WilsonGaugeAction,12}(4, 4, 4, 4, 6.0)
     Random.seed!(123)
     random_gauges!(U)
     univ = Univ(U, QuenchedFermionAction(), NoBias(), 1)

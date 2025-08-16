@@ -1,6 +1,8 @@
 const HIDE_COMMS = Val(@load_preference("MPI_HIDE_COMMUNICATION", false))
 const TUNE_KERNELS = Val(@load_preference("TUNE_KERNELS", false))
 const KERNEL_CACHE::Dict{String,Int64} = Dict{String,Int64}() # function name => block size
+const MAX_SHMEM = Base.RefValue{Int64}(0)
+
 function groupreduce end    #
 function threadidx end      #
 function groupidx end       # These functions need to be overwritten in the extension
@@ -94,8 +96,46 @@ function launch_foreachindex_global! end
 
 # KERNEL:
 @inline function _foreachindex_global!(f, captured, itr)
-    i = threadidx() + (groupidx() - 0x1) * groupdim()
+    i = threadidx().x + (groupidx().x - 0x1) * groupdim().x
 
+    if i <= length(itr)
+        @inbounds site = itr[i]
+        @inline f(site, captured)
+    end
+
+    return nothing
+end
+
+@inline function _foreachindex_global!(
+    f, captured, itr, block_dims,
+    Gx::Int, Gy::Int, Gz::Int, Gt::Int
+)
+    nx, ny, nz, nt = ntuple(i -> length(itr.indices[i]), Val(4))
+    Bx, By, Bz, _ = block_dims
+    tx = threadidx().x
+    ty = threadidx().y
+    tz = threadidx().z
+
+    pbx = groupidx().x
+    pby = groupidx().y
+    pbz = groupidx().z   # this is physical grid.z = Gz * Gt
+
+    # --- recover logical block coords: block_z in [1..Gz], block_t in [1..Gt]
+    # linear index (0-based) of the physical z-slab
+    pz_lin0 = pbz - 1
+    # block_z is pz_lin0 % Gz, block_t is pz_lin0 ÷ Gz
+    block_z = Int(mod(pz_lin0, Gz)) + 1
+    block_t = Int(pz_lin0 ÷ Gz) + 1
+
+    # --- compute global coords (1-based) ---
+    gx = (pbx - 1) * Bx + tx
+    gy = (pby - 1) * By + ty
+    gz = (block_z - 1) * Bz + tz
+    gt = block_t
+
+    # --- linear index in column-major (x fastest) ---
+    # ensure coords in bounds before converting
+    i = gx + (gy - 1) * nx + (gz - 1) * (nx * ny) + (gt - 1) * (nx * ny * nz)
     if i <= length(itr)
         @inbounds site = itr[i]
         @inline f(site, captured)
@@ -187,12 +227,12 @@ function launch_foreachindex_reduce_global! end
 
 # KERNEL:
 @inline function _foreachindex_reduce_global!(out, init, op, f, captured, itr, itr_idx)
-    N = griddim()
-    iblock = groupidx()
-    ithread = threadidx()
-    i = ithread + (iblock - 0x1) * groupdim()
+    N = griddim().x
+    iblock = groupidx().x
+    ithread = threadidx().x
+    i = ithread + (iblock - 0x1) * groupdim().x
 
-    if i <= length(itr)
+    if i <= Int32(length(itr))
         out_i = @inline f(init, itr[i], captured)
     else
         out_i = init
@@ -226,6 +266,3 @@ function parallelfor_max(
         return _foreachindex_reduce_gpu(init, max, f, captured, itr, backend, block_size)
     end
 end
-
-# TODO:
-simple_tune(itr, args...) = min(256, length(itr))

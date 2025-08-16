@@ -7,11 +7,100 @@ All structs have B, T as first two type parameters.
 # Examples:
 ```julia
 @field_constructor Colorfield                                   # -> Colorfield{B,T}(NX, NY, NZ, NT; numprocs_cart, halo_width)
-@field_constructor Gaugefield extra_types=GA extra_fields=β     # -> Gaugefield{B,T,GA}(NX, NY, NZ, NT, β; numprocs_cart, halo_width)
+@field_constructor Gaugefield extra_types=GA,N extra_fields=β   # -> Gaugefield{B,T,GA,N}(NX, NY, NZ, NT, β; numprocs_cart, halo_width)
 ...
 ```
 """
 macro field_constructor(struct_name, kwargs...)
+    extra_types, extra_args = extract_constructor_extras(kwargs...)
+    # Build final constructor call arguments
+    base_args = [:NX, :NY, :NZ, :NT, extra_args...]
+    final_args = [:U, :halos, :sendbuf, :topology, extra_args...]
+    additional_ex = struct_name == :Paulifield ? :(C = csw != 0) : :()
+
+    struct_def = quote
+        struct $(struct_name){B,T,M,$(extra_types...),AT,HT,BT,TT,HV} <: AbstractField{B,T,M}
+            U::AT
+            halos::HT
+            sendbuf::BT
+            topology::TT
+            $(extra_fields(struct_name))
+            halo_valid::HV
+            function $(struct_name){B,T,M,$(extra_types...)}(
+                U::AT, halos::HT, sendbuf::BT, topology::TT, $(extra_args...), halo_valid::HV
+            ) where {B,T,M,$(extra_types...),AT,HT,BT,TT,HV}
+                check_types(B, T, U, halos, sendbuf)
+                return new{B,T,M,$(extra_types...),AT,HT,BT,TT,HV}(
+                    U, halos, sendbuf, topology, $(extra_args...), halo_valid
+                )
+            end
+        end
+    end
+
+    constructor = []
+
+    for base_types in [[:CPU, :T, extra_types...], [:B, :T, extra_types...]]
+        struct_name == :Paulifield && (base_types = [base_types[1], :T])
+        var_types, (U_construct, halo_construct, sendbuf_construct) = if base_types[1] == :CPU
+            base_types[2:end], create_cpu_layout(struct_name)
+        else
+            base_types, create_gpu_layout(struct_name)
+        end
+
+        push!(
+            constructor,
+            quote
+                function $(struct_name){$(base_types...)}(
+                    $(base_args...);
+                    numprocs_cart=(1, 1, 1, 1), halo_width=0, no_halo=false, halo_valid=Ref(false)
+                ) where {$(var_types...)}
+                    numprocs = prod(numprocs_cart)
+                    M = numprocs > 1 && !no_halo
+                    M || (halo_width = 0)
+
+                    $(halo_check(struct_name)) # if Gaugefield, check that halo is wide enough for gauge action
+                    topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
+
+                    # Create U array
+                    mpi_assign_device!($(base_types[1])(), mpi_myrank())
+
+                    U = $U_construct
+                    # Create halos and sendbuf
+                    halo_sites = topology.halo_sites
+                    border_sites = topology.border_sites
+
+                    halos = if M
+                        tuple([$(halo_construct) for i in 1:4 for j in 1:2]...)
+                    else
+                        nothing
+                    end
+
+                    sendbuf = if M
+                        tuple([$(sendbuf_construct) for i in 1:4 for j in 1:2]...)
+                    else
+                        nothing
+                    end
+                    # Return constructed object
+                    $additional_ex
+                    return $(struct_name){$(base_types[1]),T,M,$(extra_types...)}(
+                        $(final_args...), halo_valid
+                    )
+                end
+            end
+        )
+    end
+
+    # Generate the complete constructor
+    constructor_expr = quote
+        $struct_def
+        $(constructor[1])
+        $(constructor[2])
+    end
+
+    return esc(constructor_expr)
+end
+
+function extract_constructor_extras(kwargs...)
     @assert length(kwargs) <= 2
     kwdict = Dict{Symbol,Any}(:extra_types => (), :extra_args => ())
     for el in kwargs
@@ -25,80 +114,11 @@ macro field_constructor(struct_name, kwargs...)
     end
     extra_types = kwdict[:extra_types]
     extra_args = kwdict[:extra_args]
+    return extra_types, extra_args
+end
 
-    is_spinorfield = struct_name == :Spinorfield
-    ldims_q, inner_len = if is_spinorfield
-        :(topology.local_dims...,), 0
-    elseif struct_name == :Paulifield
-        pauli_ldims = quote
-            if inverse
-                (topology.local_dims[1:3]..., topology.local_dims[4]÷2)
-            else
-                topology.local_dims
-            end
-        end
-        pauli_ldims, 0
-    elseif struct_name == :MultiSpinorfield
-        :(numspinors, topology.local_dims...), :numspinors
-    elseif struct_name == :Tensorfield
-        :(topology.local_dims..., 6), 6
-    else # XXX:
-        :(topology.local_dims..., 4), 4
-    end
-            
-    origin_q = if is_spinorfield
-        :(OffsetArrays.Origin((topology.bulk_sites[1].I)...,))
-    elseif struct_name == :Paulifield
-        quote
-            ox, oy, oz, ot = topology.bulk_sites[1].I
-            if inverse
-                ot += topology.local_dims[4] ÷ 2
-            end
-            OffsetArrays.Origin(ox, oy, oz, ot)
-        end
-    else # XXX:
-        :(OffsetArrays.Origin((topology.bulk_sites[1].I)..., 1))
-    end
-
-    U_construct = :(OffsetArray(bzeros(B(), eltype_val, ldims...), origin))
-    # U_construct = if struct_name == :Spinorfield
-    #     quote
-    #         if B == CPU
-    #             OffsetArray(bzeros(B(), eltype_val, ldims...), origin)
-    #         else
-    #             # ntuple(_ -> OffsetArray(bzeros(B(), Complex{T}, ldims...), origin), 3ND)
-    #             OffsetArray(bzeros(B(), Complex{T}, ldims...), origin)
-    #             # OffsetArray(bzeros(B(), eltype_val, ldims...), origin)
-    #         end
-    #     end
-    # elseif struct_name ∈ (:Gaugefield, :Tensorfield)
-    #     quote
-    #         if B == CPU
-    #             OffsetArray(bzeros(B(), eltype_val, ldims...), origin)
-    #         else
-    #             # ntuple(_ -> OffsetArray(bzeros(B(), Complex{T}, ldims...), origin), 9)
-    #             OffsetArray(bzeros(B(), Complex{T}, ldims...), origin)
-    #         end
-    #     end
-    # else
-    #     :(OffsetArray(bzeros(B(), eltype_val, ldims...), origin))
-    # end
-    
-    # Build halo creation (4D for spinors, 5D for others)
-    halo_dims, halo_indices = if is_spinorfield || struct_name == :Paulifield
-        :(size(halo_sites[i][j])...), :(halo_sites[i][j].indices...,)
-    else
-        :(size(halo_sites[i][j])..., $inner_len),
-        :(halo_sites[i][j].indices..., 1:$inner_len)
-    end
-
-    sendbuf_dims = if is_spinorfield || struct_name == :Paulifield
-        :(length(border_sites[i][j]))
-    else
-        :(length(border_sites[i][j])..., $inner_len)
-    end
-
-    halo_check = if struct_name == :Gaugefield
+function halo_check(struct_name)
+    return if struct_name == :Gaugefield
         quote
             if numprocs > 1 && !no_halo
                 @assert halo_width >= stencil_size(GA) """
@@ -109,15 +129,11 @@ macro field_constructor(struct_name, kwargs...)
     else
         Expr(:block)
     end
+end
 
-    eltype_q = if struct_name in (:Spinorfield, :MultiSpinorfield)
-        :(eltype($(struct_name), T, Val(ND)))
-    else
-        :(eltype($(struct_name), T))
-    end
-
+function extra_fields(struct_name)
     # additional struct fields
-    extra_fields = if struct_name == :Gaugefield
+    return if struct_name == :Gaugefield
         :(β::Float64)
     elseif struct_name == :MultiSpinorfield
         :(numspinors::Int64)
@@ -127,118 +143,6 @@ macro field_constructor(struct_name, kwargs...)
             inverse::Bool
         end
     else
-        Expr(:block)
+        Expr(:block) # empty block
     end
-    
-    # Build final constructor call arguments
-    base_args = [:NX, :NY, :NZ, :NT, extra_args...]
-    final_args = [:U, :halos, :sendbuf, :topology, extra_args...]
-    base_types, additional_ex = if struct_name == :Paulifield
-        [:B, :T], :(C = csw != 0)
-    else
-        [:B, :T, extra_types...], :()
-    end
-
-    # Generate the complete constructor
-    constructor_expr = quote
-        struct $(struct_name){B,T,M,$(extra_types...),AT,HT,BT,TT,HV} <: AbstractField{B,T,M}
-            U::AT
-            halos::HT
-            sendbuf::BT
-            topology::TT
-            $(extra_fields)
-            halo_valid::HV
-            function $(struct_name){B,T,M,$(extra_types...)}(
-                U::AT, halos::HT, sendbuf::BT, topology::TT, $(extra_args...), halo_valid::HV
-            ) where {B,T,M,$(extra_types...),AT,HT,BT,TT,HV}
-                check_types(B, T, U, halos, sendbuf)
-                return new{B,T,M,$(extra_types...),AT,HT,BT,TT,HV}(
-                    U, halos, sendbuf, topology, $(extra_args...), halo_valid
-                )
-            end
-        end
-
-        function $(struct_name){$(base_types...)}(
-            $(base_args...);
-            numprocs_cart=(1, 1, 1, 1), halo_width=0, no_halo=false, halo_valid=Ref(false)
-        ) where {$(base_types...)}
-            numprocs = prod(numprocs_cart)
-            M = numprocs > 1 && !no_halo
-
-            if !M
-                halo_width = 0
-            end
-
-            $halo_check
-            topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
-
-            # Create U array
-            mpi_assign_device!(B(), mpi_myrank())
-            eltype_val = $eltype_q
-            origin = $origin_q
-            ldims = $ldims_q
-
-            U = $U_construct
-            # Create halos and sendbuf
-            halo_sites = topology.halo_sites
-            border_sites = topology.border_sites
-
-            halos = if M
-                tuple([
-                    OffsetArray(
-                        bzeros(B(), eltype_val, $(halo_dims.args...)),
-                        $(halo_indices.args...)
-                    )
-                    for i in 1:4 for j in 1:2
-                ]...)
-            else
-                nothing
-            end
-
-            sendbuf = if M
-                tuple(
-                    [bzeros(B(), eltype_val, $(sendbuf_dims)) for i in 1:4 for j in 1:2]
-                    ...)
-            else
-                nothing
-            end
-            # Return constructed object
-            $additional_ex
-            return $(struct_name){B,T,M,$(extra_types...)}($(final_args...), halo_valid)
-        end
-    end
-
-    return esc(constructor_expr)
 end
-
-# XXX: Legacy
-# function Colorfield{B,T}(NX, NY, NZ, NT) where {B,T}
-#     U = KA.zeros(B(), SU{3,9,T}, 4, NX, NY, NZ, NT)
-#     halos = nothing
-#     numprocs_cart = (1, 1, 1, 1)
-#     halo_width = 0
-#     topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
-#     return Colorfield{B,T,false}(U, halos, topology)
-# end
-#
-# function Colorfield{B,T}(NX, NY, NZ, NT, numprocs_cart, halo_width; nohalo=false) where {B,T}
-#     if prod(numprocs_cart) == 1
-#         return Colorfield{B,T}(NX, NY, NZ, NT)
-#     end
-#
-#     topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
-#     ldims = nohalo ? topology.local_dims : topology.local_dims
-#     eltype = SMatrix{3,3,Complex{T},9}
-#
-#     origin = OffsetArrays.Origin((1, (topology.bulk_sites[1].I .- halo_width)...)...)
-#     U = OffsetArray(KA.zeros(B(), eltype, 4, ldims...), origin)
-#     halo_sites = topology.halo_sites
-#     halos = [
-#         OffsetArray(
-#             KA.zeros(B(), eltype, 4, size(halo_sites[i][j])...),
-#             1:4, halo_sites[i][j].indices...
-#         )
-#         for i in 1:4 for j in 1:2
-#     ]
-#     return Colorfield{B,T,true}(U, halos, topology)
-# end

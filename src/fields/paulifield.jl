@@ -41,7 +41,6 @@ Base.eltype(::Type{Paulifield}, ::Type{T}) where {T} = PauliMatrix{6,36,T}
 @inline has_clover_term(::Paulifield{B,T,M,C}) where {B,T,M,C} = C
 
 Base.@propagate_inbounds Base.getindex(p::Paulifield, i::Integer) = p.U[i]
-Base.@propagate_inbounds Base.getindex(p::Paulifield, x, y, z, t) = p.U[x, y, z, t]
 Base.@propagate_inbounds Base.getindex(p::Paulifield, site::SiteCoords) = p.U[site]
 
 Base.@propagate_inbounds function Base.getindex(u::MPIPaulifield, site::SiteCoords)
@@ -52,8 +51,6 @@ end
 
 Base.@propagate_inbounds Base.setindex!(p::Paulifield, v, i::Integer) =
     setindex!(p.U, v, i)
-Base.@propagate_inbounds Base.setindex!(p::Paulifield, v, x, y, z, t) =
-    setindex!(p.U, v, x, y, z, t)
 Base.@propagate_inbounds Base.setindex!(p::Paulifield, v, site::SiteCoords) =
     setindex!(p.U, v, site)
 
@@ -69,6 +66,83 @@ Base.@propagate_inbounds function Base.setindex!(u::MPIPaulifield, v, site::Site
 
     return nothing
 end
+
+# #### CPU Indexing ####
+# @inline allindices(u::Paulifield{CPU}) = eachindex(IndexCartesian(), u.U)
+# Base.@propagate_inbounds Base.getindex(u::Paulifield{CPU}, μ, site::SiteCoords) = u.U[μ, site]
+# Base.@propagate_inbounds Base.getindex(u::Paulifield{CPU}, μsite) = u.U[μsite]
+# Base.@propagate_inbounds Base.setindex!(u::Paulifield{CPU}, v, μ, site::SiteCoords) =
+#     setindex!(u.U, v, μ, site)
+# Base.@propagate_inbounds Base.setindex!(u::Paulifield{CPU}, v, μsite) =
+#     setindex!(u.U, v, μsite)
+# ######################
+#
+# #### GPU Indexing ####
+# @inline allindices(u::Paulifield{B}) where {B} = 
+#     range(Int32(1), Int32(length(u.U)))
+#
+# Base.@propagate_inbounds function Base.getindex(
+#     u::Paulifield{B,T}, ii::Integer
+# ) where {B,T}
+#     return u.U[ii]
+# end
+#
+# Base.@propagate_inbounds function Base.getindex(u::Paulifield{B,T}, site) where {B,T}
+#     return _getindex_mat(Val(72), u.U, site, T)
+# end
+#
+# Base.@propagate_inbounds function Base.setindex!(u::Paulifield{B}, v, ii::Integer) where {B}
+#     u.U[ii] = v
+#     return nothing
+# end
+#
+# Base.@propagate_inbounds function Base.setindex!(u::Paulifield{B,T}, v, site) where {B,T}
+#     return _setindex_mat!(Val(72), u.U, v, site, T)
+# end
+#
+# Base.@propagate_inbounds function Base.getindex(u::MPIColorfield{B,T}, site) where {B,T}
+#     site in u.topology.bulk_sites && return _getindex_mat(Val(72), u.U, site, T)
+#     ihalo = get_halo_index(site, u.topology.bulk_sites)
+#     return _getindex_mat(Val(72), u.halos[ihalo], site, T)
+# end
+#
+# Base.@propagate_inbounds function Base.setindex!(u::MPIColorfield{B,T}, v, site) where {B,T}
+#     bulk = u.topology.bulk_sites
+#
+#     if site in bulk
+#         _setindex_mat!(Val(72), u.U, v, site, T)
+#     else
+#         ihalo = get_halo_index(site, bulk)
+#         _setindex_mat!(Val(72), u.halos[ihalo], v, site, T)
+#     end
+#
+#     return nothing
+# end
+#
+# Base.@propagate_inbounds function _getindex_mat(
+#     ::Val{72}, arr, site, ::Type{T}
+# ) where {T}
+#     x, y, z, t = site.I
+#     Base.Cartesian.@nexprs 18 i -> (
+#         vec = arr[x, y, z, t, i];
+#         c_{2(i-1)+1} = Complex(vec[1], vec[2]);
+#         c_{2(i-1)+2} = Complex(vec[3], vec[4]);
+#     )
+#     return SMatrix{6,6,Complex{T},36}(Base.Cartesian.@ntuple 18 c)
+# end
+#
+# Base.@propagate_inbounds function _setindex_mat!(
+#     ::Val{72}, arr, v, site, ::Type{T}
+# ) where {T}
+#     x, y, z, t = site.I
+#     Base.Cartesian.@nexprs 18 i -> (
+#         v1 = v[2(i-1)+1];
+#         v2 = v[2(i-1)+2];
+#         arr[x, y, z, t, i] = SIMD.Vec{4,T}((v1.re, v1.im, v2.re, v2.im))
+#     )
+#     return nothing
+# end
+# ######################
 
 function create_sendbuf!(p::Paulifield{B,T,M}, sites, dim, dir) where {B,T,M}
     ibuf = dir + 2(dim - 1)

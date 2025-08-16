@@ -880,7 +880,7 @@ end
     end
 
     loop_q = quote
-        @turbo for m in Base.Slice(static(1):static($N))
+        @fastmath for m in Base.Slice(static(1):static($N))
             yₘ₁r = $(zero(T))
             yₘ₁i = $(zero(T))
             yₘ₂r = $(zero(T))
@@ -929,7 +929,6 @@ end
     )
 end
 
-# FIXME: errors for some i's when T=Float16
 @generated function σμν_spin_mul!(
     yc::MVector{M,Complex{T}}, xc::MVector{M,Complex{T}}, ::Val{i}
 ) where {T,M,i}

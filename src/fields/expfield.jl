@@ -31,3 +31,42 @@ function Expfield(
 end
 
 Base.eltype(::Type{Expfield}, ::Type{T}) where {T} = ExpiQCoeffs{T}
+
+#### CPU Indexing ####
+@inline allindices(u::Expfield{CPU}) = eachindex(IndexCartesian(), u.U)
+Base.@propagate_inbounds Base.getindex(u::Expfield{CPU}, μ, site::SiteCoords) = u.U[μ, site]
+Base.@propagate_inbounds Base.getindex(u::Expfield{CPU}, μsite) = u.U[μsite]
+Base.@propagate_inbounds Base.setindex!(u::Expfield{CPU}, v, μ, site::SiteCoords) =
+    setindex!(u.U, v, μ, site)
+Base.@propagate_inbounds Base.setindex!(u::Expfield{CPU}, v, μsite) =
+    setindex!(u.U, v, μsite)
+######################
+
+#### GPU Indexing ####
+@inline allindices(u::Expfield{B}) where {B} = 
+    range(Int32(1), Int32(length(u.U)))
+
+Base.@propagate_inbounds function Base.getindex(
+    u::Expfield{B,T}, ii::Integer
+) where {B,T}
+    return u.U[ii]
+end
+
+Base.@propagate_inbounds function Base.getindex(
+    u::Expfield{B,T}, μ, site::SiteCoords
+) where {B,T}
+    return u.U[site, μ]
+end
+
+Base.@propagate_inbounds function Base.setindex!(u::Expfield{B}, v, ii::Integer) where {B}
+    u.U[ii] = v
+    return nothing
+end
+
+Base.@propagate_inbounds function Base.setindex!(
+    u::Expfield{B,T}, v, μ, site::SiteCoords
+) where {B,T}
+    u.U[site, μ] = v
+    return nothing
+end
+######################

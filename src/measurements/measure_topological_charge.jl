@@ -229,7 +229,7 @@ function top_charge_deriv!(
     fieldstrength_eachsite!(kind_of_charge, F, U) # halo update of U done here
 
     parallelfor(eachindex(dU, F, U), B, Val(M), (F,), (U,), (F, U)) do site, (F, U)
-        @inbounds begin
+        # @inbounds begin
             tmp1 = cmatmul_oo(
                 U[1, site],
                 (
@@ -266,7 +266,7 @@ function top_charge_deriv!(
                 ),
             )
             dU[4, site] = c * traceless_antihermitian(tmp4)
-        end
+        # end
     end
 
     return nothing
@@ -285,7 +285,7 @@ function ∇trFμνFρσ(::Plaquette, U, F, μ, ν, ρ, σ, site)
     i = get_tensor_index(ρ, σ)
     sgn = ρ > σ ? -1 : 1
 
-    @inbounds component =
+    component =
         cmatmul_oddo(U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site], F[i, site]) +
         cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], F[i, siteν⁻], U[ν, siteν⁻])
 
@@ -314,7 +314,7 @@ function ∇trFμνFρσ(::Clover, U, F, μ, ν, ρ, σ, site)
     # Uμsiteν⁻ = U[μ,siteν⁻]
     # Uνsiteν⁻ = U[ν,siteν⁻]
 
-    @inbounds component =
+    component =
         cmatmul_oddo(U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site], F[i, site]) +
         cmatmul_odod(U[ν, siteμ⁺], U[μ, siteν⁺], F[i, siteν⁺], U[ν, site]) +
         cmatmul_oodd(U[ν, siteμ⁺], F[i, siteμ⁺ν⁺], U[μ, siteν⁺], U[ν, site]) +

@@ -30,7 +30,7 @@ function set_instanton!(U::Gaugefield{B,T,M}, Q) where {B,T,M}
         ix, iy, iz = xyz.I
         cit = cos(field_x * ix)
         sit = sin(field_x * ix)
-        U[4, ix, iy, iz, NT] = s_comp + cit * s_id - im * sit * s
+        U[4, CartesianIndex(ix, iy, iz, NT)] = s_comp + cit * s_id - im * sit * s
     end
 
     if Q == 0
@@ -58,7 +58,7 @@ function set_instanton!(U::Gaugefield{B,T,M}, Q) where {B,T,M}
         ix, iz, it = xzt.I
         cit = cos(field_z * iz)
         sit = sin(field_z * iz)
-        U[2, ix, NY, iz, it] = t_comp + cit * t_id - im * sit * t
+        U[2, CartesianIndex(ix, NY, iz, it)] = t_comp + cit * t_id - im * sit * t
     end
 
     return nothing

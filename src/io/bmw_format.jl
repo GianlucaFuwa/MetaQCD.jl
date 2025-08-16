@@ -25,9 +25,22 @@
 #+---------------------------------------------------------------------------------+
 
 function save_field(
-    ::BMWFormat, U::Gaugefield{B,T,false}, filename, parameters=nothing; override=false
+    ::BMWFormat, Uin::Gaugefield{B,T,false}, filename, parameters=nothing; override=true
 ) where {B,T}
-    @assert get_backend(U) == CPU
+    filename != "" || return nothing
+    U = if B == CPU
+        Uin
+    else
+        tmp = bzeros(B(), 4, size(Uin)...)
+        parallelfor(eachindex(Uin), B, Val(false), (), (), (Uin,)) do site, (U,)
+            tmp[1, site] = U[1, site]
+            tmp[2, site] = U[2, site]
+            tmp[3, site] = U[3, site]
+            tmp[4, site] = U[4, site]
+        end
+        Array(tmp)
+    end
+
     NX, NY, NZ, NT = size(U)
 
     if override == false
@@ -67,10 +80,8 @@ function save_field(
             "gauge_action: $(parameters.gauge_action)\n",
             "beta: $(U.β)\n",
             "fermion_action: $(parameters.fermion_action)\n",
-            "Nf: $(parameters.Nf)\n",
-            "input_masses: $(parameters.mass)\n",
             "boundary_condition_time: $(parameters.boundary_condition)\n",
-            "wilson_clover_csw: $(parameters.csw)\n",
+            "wilson_clover_csw: $(parameters.wilson_csw)\n",
             "update_algorithm: $(parameters.update_method)\n",
             "ptmetad: $(parameters.tempering_enabled)\n",
             "gauge_smearing: $(parameters.hmc_numsmear_gauge)stout x $(parameters.hmc_rhostout_gauge)\n",
@@ -100,8 +111,7 @@ function save_field(
     return nothing
 end
 
-function load_field!(::BMWFormat, U::Gaugefield{B,T,false}, filename) where {B,T}
-    @assert get_backend(U) == CPU
+function load_field!(::BMWFormat, U::Gaugefield{CPU,T,false}, filename) where {T}
     Udims = size(U)
     fp = open(filename, "r")
     header_bin = Vector{UInt8}(undef, 4096)
@@ -134,6 +144,14 @@ function load_field!(::BMWFormat, U::Gaugefield{B,T,false}, filename) where {B,T
     @assert checksum_read == checksum_calc.final """
     Checksums do not match (read: $checksum_read, calculated: $(checksum_calc.final))
     """
+    return nothing
+end
+
+function load_field!(::BMWFormat, U::Gaugefield{B,T,false,GA}, filename) where {B,T,GA}
+    Ucpu = Gaugefield{CPU,Float64,GA,18}(size(U)..., U.β)
+    load_field!(BMWFormat(), Ucpu, filename)
+    Ugpu = convert_field(B, Ucpu, T)
+    copy!(U, Ugpu)
     return nothing
 end
 

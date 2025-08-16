@@ -10,13 +10,45 @@ The maximum extent of the lattice in the direction `μ` is `lim`.
     return @set s[μ] = mod1(s[μ] + steps, lim)
 end
 
-@inline function move(s::SiteCoords, μ, steps, r::AbstractUnitRange)
+@inline @inbounds function move(s::SiteCoords, μ, steps, r::AbstractUnitRange)
     iold = s[μ]
     len = length(r)
     offset = first(r)
     inew = offset + mod(iold + steps - offset, len)
     # @assert inew in r "$mpi_myrank(), $s, $μ, $steps, $r, $inew"
     return @set s[μ] = inew
+end
+
+@inline @inbounds function move(s::SiteCoords, ::Val{1}, steps, r::AbstractUnitRange)
+    x, y, z, t = s.I
+    len = Int32(length(r))
+    offset = Int32(first(r))
+    xnew = offset + mod(Int32(x) + Int32(steps) - offset, len)
+    return SiteCoords(xnew, y, z, t)
+end
+
+@inline @inbounds function move(s::SiteCoords, ::Val{2}, steps, r::AbstractUnitRange)
+    x, y, z, t = s.I
+    len = Int32(length(r))
+    offset = Int32(first(r))
+    ynew = offset + mod(Int32(y) + Int32(steps) - offset, len)
+    return SiteCoords(x, ynew, z, t)
+end
+
+@inline @inbounds function move(s::SiteCoords, ::Val{3}, steps, r::AbstractUnitRange)
+    x, y, z, t = s.I
+    len = Int32(length(r))
+    offset = Int32(first(r))
+    znew = offset + mod(Int32(z) + Int32(steps) - offset, len)
+    return SiteCoords(x, y, znew, t)
+end
+
+@inline @inbounds function move(s::SiteCoords, ::Val{4}, steps, r::AbstractUnitRange)
+    x, y, z, t = s.I
+    len = Int32(length(r))
+    offset = Int32(first(r))
+    tnew = offset + mod(Int32(t) + Int32(steps) - offset, len)
+    return SiteCoords(x, y, z, tnew)
 end
 
 Base.iseven(s::SiteCoords) = iseven(sum(s.I))

@@ -23,21 +23,27 @@ const NAMES = (
     "Wilson-Clover",
 )
 
-function bench_mul!(::Type{B}, ϕ, D, ψ) where B
-    mul!(ψ, D, ϕ)
+function bench_mul!(::Type{B}, ϕ, D, ψ, nlaunches) where B
+    for _ in 1:nlaunches
+        mul!(ψ, D, ϕ)
+    end
     MetaQCD.Fields.synchronize(B())
     return nothing
 end
 
-function bench_copy!(::Type{B}, a, b) where B
-    copy!(a, b)
+function bench_copy!(::Type{B}, a, b, nlaunches) where B
+    for _ in 1:nlaunches
+        copy!(a, b)
+    end
     MetaQCD.Fields.synchronize(B())
     return nothing
 end
 
 function main()
+    nlaunches = 10
     B = ROCBackend
     GA = WilsonGaugeAction
+    N = 12
     global_dims = (32, 32, 32, 32)
     numprocs_cart = distribute_procs(global_dims, mpi_size())
     halo_width = 1
@@ -68,7 +74,7 @@ function main()
         opname = NAMES[i]
         for T in (Float16, Float32, Float64)
             tstring = lowercase(string(T))
-            U = Gaugefield{B,T,GA}(global_dims..., 6.0; numprocs_cart, halo_width)
+            U = Gaugefield{B,T,GA,N}(global_dims..., 6.0; numprocs_cart, halo_width)
             if opname == "Copy"
                 a = similar(U)
                 b = similar(U)
@@ -79,7 +85,7 @@ function main()
                 mpi_barrier()
 
                 println("Benchmarking $(opname) $(tstring) ($(mpi_myrank()))")
-                bench = @be _ $bench_copy!($B, $a, $b) mpi_barrier() evals=1 samples=100 seconds=5
+                bench = @be _ $bench_copy!($B, $a, $b, $nlaunches) mpi_barrier() evals=1 samples=100 seconds=5
             else
                 staggered = opname == "Staggered"
                 csw = opname == "Wilson-Clover" ? 1.78 : 0.0
@@ -87,24 +93,24 @@ function main()
                 ψ = Spinorfield(U; staggered)
                 D = operator(U, 0.01; csw=csw)
 
-                random_gauges!(U)
-                gaussian_pseudofermions!(ϕ)
+                # random_gauges!(U)
+                # gaussian_pseudofermions!(ϕ)
 
                 mul!(ψ, (D(U)), ϕ) # warmup
 
                 mpi_barrier()
 
                 println("Benchmarking $(opname) $(tstring) Operator ($(mpi_myrank()))")
-                bench = @be _ $bench_mul!($B, $ψ, $(D)($U), $ϕ) mpi_barrier() evals=1 samples=100 seconds=5
+                bench = @be _ $bench_mul!($B, $ψ, $(D)($U), $ϕ, $nlaunches) mpi_barrier() evals=2 samples=100 seconds=10
             end
 
             flops = prod(global_dims) * FLOPS[opname] / 1e9
-            mem = prod(global_dims) * mem_per_site(opname, T) / 1e9
+            mem = prod(global_dims) * mem_per_site(opname, T, N) / 1e9
 
-            mintime = minimum(s.time for s in bench.samples)
-            mediantime = median(s.time for s in bench.samples)
-            meantime = mean(s.time for s in bench.samples)
-            stdtime = std(s.time for s in bench.samples)
+            mintime = minimum(s.time for s in bench.samples) / nlaunches
+            mediantime = median(s.time for s in bench.samples) / nlaunches
+            meantime = mean(s.time for s in bench.samples) / nlaunches
+            stdtime = std(s.time for s in bench.samples) / nlaunches
 
             maxperf = flops / mintime
             medianperf = flops / mediantime
@@ -152,22 +158,22 @@ function distribute_procs(global_dims, numprocs)
     return (numprocs_cart...,)
 end
 
-function mem_per_site(op, ::Type{T}) where T
+function mem_per_site(op, ::Type{T}, nfloat) where T
     # 1 read fermion on site
     # 8 reads fermion neighbors in all μ-directions forward and backward
     # 1 write fermion on site
     # 8 reads gauge neighbors in all μ-directions forward and backward
     if op == "Staggered"
-        return sizeof(Complex{T}) * (10 * 3 + 8 * 9)
+        return sizeof(Complex{T}) * (10 * 3 + 8 * nfloat/2)
     elseif op == "Wilson"
-        return sizeof(Complex{T}) * (10 * 12 + 8 * 9)
+        return sizeof(Complex{T}) * (10 * 12 + 8 * nfloat/2)
     elseif op == "Wilson-Clover"
         # 1 read fermion on site
         # 1 write fermion on site
         # 6 x 16 read gauge for clover
-        return sizeof(Complex{T}) * (2 * 12 + 6 * (16 * 9))
+        return sizeof(Complex{T}) * (2 * 12 + 6 * (16 * nfloat/2))
     elseif op == "Copy"
-        return sizeof(Complex{T}) * (2 * 4 * 9)
+        return sizeof(Complex{T}) * (2 * 4 * nfloat/2)
         # return sizeof(Complex{T}) * (2 * 12)
     else
         error()

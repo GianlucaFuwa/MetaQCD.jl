@@ -87,10 +87,10 @@ function polyakov_traced(U::Gaugefield{B,T,M}) where {B,T,M}
     itr = CartesianIndices((xrange, yrange, zrange))
     P = parallelfor_sum(itr, 0.0+0.0im, B, Val(M), (), (), (U,)) do p, xyz, (U,)
         ix, iy, iz = xyz.I
-        @inbounds polymat = U[4, ix, iy, iz, 1]
+        @inbounds polymat = U[4, CartesianIndex(ix, iy, iz, 1)]
 
         for it in trange[2:end]
-            @inbounds polymat = cmatmul_oo(polymat, U[4, ix, iy, iz, it])
+            @inbounds polymat = cmatmul_oo(polymat, U[4, CartesianIndex(ix, iy, iz, it)])
         end
 
         p += tr(polymat)

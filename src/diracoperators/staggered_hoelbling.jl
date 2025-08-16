@@ -148,7 +148,7 @@ function staggered_hoelbling_kernel(U, ϕ, site, mass, bc, term, ::Type{T}, dagg
             Nμ = axes(U, μ);
             siteμ⁺ = move(site, μ, 1, Nμ);
             siteμ⁻ = move(site, μ, -1, Nμ);
-            η = sgn * staggered_η(Val(μ), site);
+            η = sgn * staggered_η(Val(μ), site, T);
             ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(μ));
             ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(μ));
             ψₙ += η * (cmvmul(U[μ, site], ϕ⁺) - cmvmul_d(U[μ, siteμ⁻], ϕ⁻))
@@ -200,13 +200,13 @@ function hoelbling_mass(::Val{μ}, ::Val{ν}, U, ϕ, site, bc, ::Type{T}) where 
         tmp = cmatmul_dd(U[μ, siteμ⁻], U[ν, siteμ⁻ν⁻]) + cmatmul_dd(U[ν, siteν⁻], U[μ, siteμ⁻ν⁻])
         Mμν += cmvmul(tmp, tmpϕ)
     end
-
-    return im * T(1/4 * staggered_ημν(Val(μ), Val(ν), site)) * Mμν # The extra factor 1/2 is contained in the kernel function
+    # The extra factor 1/2 is contained in the kernel function
+    return im * T(1/4 * staggered_ημν(Val(μ), Val(ν), site, T)) * Mμν
 end
 
 @generated function staggered_ημν(
-    ::Val{μ}, ::Val{ν}, site, ::Val{swap}=Val(false)
-) where {μ,ν,swap}
+    ::Val{μ}, ::Val{ν}, site, ::Type{T}, ::Val{swap}=Val(false)
+) where {μ,ν,T,swap}
     fac1 = (μ < ν) ? 1 : -1
     fac2 = swap ? -1 : 1
     fac = fac1 * fac2

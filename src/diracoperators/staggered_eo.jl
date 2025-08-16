@@ -135,7 +135,7 @@ end
             _siteμ⁺ = map_to_half(move(site, μ, 1, Nμ), bulk);
             siteμ⁻ = move(site, μ, -1, Nμ);
             _siteμ⁻ = map_to_half(siteμ⁻, bulk);
-            η = sgn * staggered_η(Val(μ), site);
+            η = sgn * staggered_η(Val(μ), site, T);
             ψₙ += η * cmvmul(U[μ, site], apply_bc(ϕ[_siteμ⁺], bc, site, Val(1), NT, Val(μ)));
             ψₙ -= η * cmvmul_d(U[μ, siteμ⁻], apply_bc(ϕ[_siteμ⁻], bc, site, Val(-1), NT, Val(μ)))
         )

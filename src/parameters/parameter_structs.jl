@@ -8,6 +8,7 @@ end
     float_type::String = "float64"
     randomseed::Union{UInt64,Vector{UInt64}} = 0x0000000000000000
     NC::Int64 = 3
+    su3_nfloats::Int64 = 18
     numprocs_cart::NTuple{4,Int64} = (1, 1, 1, 1)
     halo_width::Int64 = 0
     numtherm::Int64 = 10

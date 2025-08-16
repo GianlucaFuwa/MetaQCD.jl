@@ -22,25 +22,6 @@ function set_params_value!(value_Params, values)
     return nothing
 end
 
-function save_parameters(fp, parameters) # XXX: We already create a copy of the parameter file
-    for (key, value) in parameters
-        println(fp, "[$(key)]")
-
-        if key == "Measurement set"
-            for (key_i, value_i) in value
-                println(fp, "[$(key_i)]")
-                display(value_i)
-                println(fp, "\t")
-            end
-        else
-            display(value)
-            println(fp, "\t")
-        end
-    end
-
-    return nothing
-end
-
 function construct_params_from_toml(filename::String)
     parameters = TOML.parsefile(filename)
     inputfile = isabspath(filename) ? filename : joinpath(pwd(), filename)
@@ -439,22 +420,6 @@ function generate_dirname(parameters)
     catch _
         ""
     end
-    # FIXME:
-    # Nf_str = if fermion_str != ""
-    #     try
-    #         Nf = parameters["fermion_action"]["Nf"]
-    #         str = "_Nf"
-    #         for i in eachindex(Nf)
-    #             i == length(Nf) && continue
-    #             str *= "$(Nf[i])+"
-    #         end
-    #         str *= "$(Nf[end])"
-    #     catch _
-    #         error("Nf has to be defined in [\"Dynamical Fermion Settings\"]")
-    #     end
-    # else
-    #     ""
-    # end
     mass_str = if fermion_str != ""
         try
             mass = parameters["fermion_action"]["mass"]
@@ -471,8 +436,6 @@ function generate_dirname(parameters)
         ""
     end
 
-    # FIXME:
-    # dirname = "$(NX)x$(NY)x$(NZ)x$(NT)_$(gauge_str)_beta$(beta_str)_$(fermion_str)$(Nf_str)$(mass_str)"
     dirname = "$(NX)x$(NY)x$(NZ)x$(NT)_$(gauge_str)_beta$(beta_str)_$(fermion_str)$(mass_str)"
     return dirname * "_$(time_now)"
 end

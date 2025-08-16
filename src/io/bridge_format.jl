@@ -1,17 +1,29 @@
 function save_field(
     ::BridgeFormat, U::AbstractField{B,T,false}, filename, args...
 ) where {B,T}
-    @assert B == CPU
+    filename != "" || return nothing
     fp = open(filename, "w")
-    Utmp = to_backend(CPU, U)
+    Utmp = if B == CPU
+        U
+    else
+        tmp = bzeros(B(), SMatrix{3,3,ComplexF64,9}, 4, size(U)...)
+        parallelfor(eachindex(U), B, Val(false), (), (), (U,)) do site, (U,)
+            tmp[1, site] = U[1, site]
+            tmp[2, site] = U[2, site]
+            tmp[3, site] = U[3, site]
+            tmp[4, site] = U[4, site]
+        end
+        Array(tmp)
+    end
 
     for site in eachindex(Utmp)
         for μ in 1:4
+            Un = Utmp[μ, site]
             for a in 1:3
                 for b in 1:3
-                    rvalue = real(Utmp[μ, site][a, b])
+                    rvalue = real(Un[a, b])
                     println(fp, rvalue)
-                    ivalue = imag(Utmp[μ, site][a, b])
+                    ivalue = imag(Un[a, b])
                     println(fp, ivalue)
                 end
             end
@@ -25,15 +37,24 @@ end
 function save_field(
     ::BridgeFormat, f::Spinorfield{B,T,false,ND}, filename, args...
 ) where {B,T,ND}
-    @assert B == CPU
+    filename != "" || return nothing
     fp = open(filename, "w")
-    ftmp = to_backend(CPU, f)
+    ftmp = if B == CPU
+        f
+    else
+        tmp = bzeros(B(), SVector{3ND,ComplexF64}, size(f)...)
+        parallelfor(eachindex(f), B, Val(false), (), (), (f,)) do site, (f,)
+            tmp[site] = f[site]
+        end
+        Array(tmp)
+    end
 
     for site in eachindex(ftmp)
+        fn = ftmp[site]
         for a in 1:3ND
-            rvalue = real(ftmp[site][a])
+            rvalue = real(fn[a])
             println(fp, rvalue)
-            ivalue = imag(ftmp[site][a])
+            ivalue = imag(fn[a])
             println(fp, ivalue)
         end
     end
@@ -42,8 +63,7 @@ function save_field(
     return nothing
 end
 
-function load_field!(::BridgeFormat, U::Gaugefield{B,T,false}, filename) where {B,T}
-    @assert B == CPU "load_field! in bridge format not supported for GPU fields yet"
+function load_field!(::BridgeFormat, U::Gaugefield{CPU,T,false}, filename) where {T}
     fp = open(filename, "r")
     numdata = countlines(filename)
     @assert numdata == 4 * length(U) * 9 * 2 "data shape is wrong"
@@ -60,7 +80,7 @@ function load_field!(::BridgeFormat, U::Gaugefield{B,T,false}, filename) where {
                     link[a, b] = rvalue + im * ivalue
                 end
             end
-            U[μ, site] = SMatrix{3,3,ComplexF64,9}(link)
+            U[μ, site] = SMatrix{3,3,Complex{T},9}(link)
         end
     end
 
@@ -68,10 +88,17 @@ function load_field!(::BridgeFormat, U::Gaugefield{B,T,false}, filename) where {
     return nothing
 end
 
+function load_field!(::BridgeFormat, U::Gaugefield{B,T,false,GA,N}, filename) where {B,T,GA,N}
+    Ucpu = Gaugefield{CPU,Float64,GA,N}(size(U)..., U.β)
+    load_field!(BridgeFormat(), Ucpu, filename)
+    Ugpu = convert_field(B, Ucpu, T)
+    copy!(U, Ugpu)
+    return nothing
+end
+
 function load_field!(
-    ::BridgeFormat, f::Spinorfield{B,T,false,ND}, filename
-) where {B,T,ND}
-    @assert B == CPU "load_field! in bridge format not supported for GPU fields yet"
+    ::BridgeFormat, f::Spinorfield{CPU,T,false,ND}, filename
+) where {T,ND}
     fp = open(filename, "r")
     numdata = countlines(filename)
     @assert numdata == length(f) * 3ND * 2 "data shape is wrong"
@@ -85,9 +112,17 @@ function load_field!(
             ivalue = parse(T, u)
             link[a] = rvalue + im * ivalue
         end
-        f[site] = SVector{3ND,ComplexF64}(link)
+        f[site] = SVector{3ND,Complex{T}}(link)
     end
 
     close(fp)
+    return nothing
+end
+
+function load_field!(::BridgeFormat, f::Spinorfield{B,T,false,ND}, filename) where {B,T,ND}
+    fcpu = Spinorfield{CPU,Float64,ND}(size(f)...)
+    load_field!(BridgeFormat(), fcpu, filename)
+    fgpu = convert_field(B, fcpu, T)
+    copy!(f, fgpu)
     return nothing
 end

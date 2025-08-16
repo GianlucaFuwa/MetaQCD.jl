@@ -65,10 +65,10 @@ function apply_stout_smearing!(Uout::Gaugefield{B,T,M}, C, Q, U, ρ) where {B,T,
     itr = eachindex(Uout, C, Q, U)
 
     parallelfor(itr, B, Val(M), (U,), (Uout, C, Q), (Uout, C, Q, U)) do site, (Uout, C, Q, U)
-        for μ in 1:4
-            Qμ = calc_stout_Q_kernel!(Q, C, U, site, μ, ρ)
+        Base.Cartesian.@nexprs 4 μ -> (
+            Qμ = calc_stout_Q_kernel!(Q, C, U, site, μ, ρ);
             @inbounds Uout[μ, site] = cmatmul_oo(exp_iQ(Qμ), U[μ, site])
-        end
+        )
     end
 
     return nothing
@@ -100,9 +100,10 @@ function stout_recursion!(Σ, Σ′, U′, U::Gaugefield{B,T,M}, C, Q, Λ, ρ) w
     itr = eachindex(Σ, Σ′, U′, U, C, Q, Λ)
 
     parallelfor(itr, B, Val(M), (U, Λ), (Σ,), (Σ, Σ′, U, C, Q, Λ)) do site, (Σ, Σ′, U, C, Q, Λ)
-        for μ in 1:4
-            stout_recursion_kernel!(Σ, Σ′, U, C, Q, Λ, site, μ, ρ)
-        end
+        stout_recursion_kernel!(Σ, Σ′, U, C, Q, Λ, site, 1, ρ)
+        stout_recursion_kernel!(Σ, Σ′, U, C, Q, Λ, site, 2, ρ)
+        stout_recursion_kernel!(Σ, Σ′, U, C, Q, Λ, site, 3, ρ)
+        stout_recursion_kernel!(Σ, Σ′, U, C, Q, Λ, site, 4, ρ)
     end
 
     return nothing
@@ -157,9 +158,10 @@ function calc_stout_Λ!(Λ, Σ′, Q::Expfield{B}, U::Gaugefield{B,T,M}) where {
     itr = eachindex(Λ, Σ′, Q, U)
 
     parallelfor(itr, B, Val(M), (), (Λ,), (Λ, Σ′, Q, U)) do site, (Λ, Σ′, Q, U)
-        for μ in 1:4
-            calc_stout_Λ_kernel!(Λ, Σ′, Q, U, site, μ)
-        end
+        calc_stout_Λ_kernel!(Λ, Σ′, Q, U, site, 1)
+        calc_stout_Λ_kernel!(Λ, Σ′, Q, U, site, 2)
+        calc_stout_Λ_kernel!(Λ, Σ′, Q, U, site, 3)
+        calc_stout_Λ_kernel!(Λ, Σ′, Q, U, site, 4)
     end
 
     return nothing
@@ -169,7 +171,6 @@ end
     @inbounds begin
         q = Q[μ, site]
         Qₘ = get_Q(q)
-        Q² = get_Q²(q)
         UΣ′ = cmatmul_oo(U[μ, site], Σ′[μ, site])
 
         B₁ = get_B₁(q)
@@ -177,7 +178,7 @@ end
 
         Γ =
             multr(B₁, UΣ′) * Qₘ +
-            multr(B₂, UΣ′) * Q² +
+            multr(B₂, UΣ′) * cmatmul_oo(Qₘ, Qₘ) +
             q.f₁ * UΣ′ +
             q.f₂ * cmatmul_oo(Qₘ, UΣ′) +
             q.f₂ * cmatmul_oo(UΣ′, Qₘ)

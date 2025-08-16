@@ -2,6 +2,11 @@
 # kernels
 function adapt_structure(to, u::AbstractField{B,T,M}) where {B,T,M}
     U = adapt_structure(to, u.U)
+    # U = if u isa Spinorfield || u isa Colorfield || u isa Expfield
+    #     adapt_structure(to, u.U.parent)
+    # else
+    #     ntuple(i -> adapt_structure(to, u.U[i].parent), Val(4))
+    # end
     halos = if isnothing(u.halos)
         nothing
     else
@@ -21,7 +26,8 @@ function adapt_structure(to, u::AbstractField{B,T,M}) where {B,T,M}
 
     if u isa Gaugefield
         GA = gauge_action(u)
-        return Gaugefield{B,T,M,GA}(U, halos, sendbuf, topology, u.β, nothing)
+        N = nfloat(u)
+        return Gaugefield{B,T,M,GA,N}(U, halos, sendbuf, topology, u.β, nothing)
     elseif u isa Spinorfield
         ND = num_dirac(u)
         return Spinorfield{B,T,M,ND}(U, halos, sendbuf, topology, nothing)
@@ -87,7 +93,7 @@ end
 
     q_field = Expr(:(=), :u_ptr)
     qu = if TF <: Gaugefield
-        :(Gaugefield{CPU,T,M,gauge_action(u)}($objects...))
+        :(Gaugefield{CPU,T,M,gauge_action(u),nfloat(u)}($objects...))
     elseif TF <: Spinorfield || TF <: MultiSpinorfield
         :(Spinorfield{CPU,T,M,num_dirac(u)}($objects...))
     elseif TF <: Paulifield

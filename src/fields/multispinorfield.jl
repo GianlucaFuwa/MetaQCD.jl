@@ -39,7 +39,7 @@ end
 function MultiSpinorfield(
     u::AbstractField{B,T,M}, numspinors; staggered=false, no_halo=false, hw=get_halo_width(u)
 ) where {B,T,M}
-    ND = if u isa Spinorfield
+    ND = if u isa MultiSpinorfield
         num_dirac(u)
     else
         staggered ? 1 : 4
@@ -68,24 +68,39 @@ function Base.eltype(::Type{MultiSpinorfield}, ::Type{T}, ::Val{ND}) where {T,ND
     return SVector{3ND,Complex{T}}
 end
 
-Base.@propagate_inbounds Base.getindex(f::MultiSpinorfield, i::Integer) = f.U[i]
-Base.@propagate_inbounds Base.getindex(f::MultiSpinorfield, s, x, y, z, t) = f.U[x, y, z, t, s]
-Base.@propagate_inbounds Base.getindex(f::MultiSpinorfield, s, site::SiteCoords) = f.U[site, s]
-
-Base.@propagate_inbounds function Base.getindex(u::MPIMultiSpinorfield, is, site::SiteCoords)
-    return _getindex_lat(u, is, site, u.topology.bulk_sites, u.topology.halo_width)
-end
-
-Base.@propagate_inbounds Base.setindex!(f::MultiSpinorfield, v, i::Integer) =
+#### CPU Indexing ####
+@inline allindices(u::MultiSpinorfield{CPU}) = eachindex(IndexCartesian(), u.U) # all indices including halo regions
+@inline allindices(u::MultiSpinorfield{B}) where {B} = eachindex(IndexCartesian(), u.U) # all indices including halo regions
+Base.@propagate_inbounds Base.getindex(f::MultiSpinorfield{CPU}, i::Integer) = f.U[i]
+Base.@propagate_inbounds Base.getindex(f::MultiSpinorfield{CPU}, site::SiteCoords) = f.U[site]
+Base.@propagate_inbounds Base.setindex!(f::MultiSpinorfield{CPU}, v, i::Integer) =
     setindex!(f.U, v, i)
-Base.@propagate_inbounds Base.setindex!(f::MultiSpinorfield, v, s, x, y, z, t) =
-    setindex!(f.U, v, x, y, z, t, s)
-Base.@propagate_inbounds Base.setindex!(f::MultiSpinorfield, v, s, site::SiteCoords) =
-    setindex!(f.U, v, site, s)
+Base.@propagate_inbounds Base.setindex!(f::MultiSpinorfield{CPU}, v, site::SiteCoords) =
+    setindex!(f.U, v, site)
 
-Base.@propagate_inbounds function Base.setindex!(u::MPIMultiSpinorfield, v, is, site::SiteCoords)
-    return _setindex_lat!(u, v, is, site, u.topology.bulk_sites, u.topology.halo_width)
+Base.@propagate_inbounds function Base.getindex(f::MPIMultiSpinorfield{CPU}, is, site)
+    site in f.topology.bulk_sites && return f.U[is, site]
+    ihalo = get_halo_index(site, f.topology.bulk_sites)
+    return f.halos[ihalo][is, site]
 end
+
+Base.@propagate_inbounds function Base.setindex!(f::MPIMultiSpinorfield{CPU}, v, is, site)
+    bulk = f.topology.bulk_sites
+
+    if site in bulk
+        f.U[is, site] = v
+    else
+        ihalo = get_halo_index(site, bulk)
+        f.halos[ihalo][is, site] = v
+    end
+
+    return nothing
+end
+######################
+
+#### CPU Indexing ####
+# TODO:
+######################
 
 function ones!(ϕ::MultiSpinorfield{B,T,M}) where {B,T,M}
     numspinors = ϕ.numspinors
@@ -163,4 +178,29 @@ function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:MultiSpinor
     end
 
     return nothing
+end
+
+function convert_field(
+    ::Type{Bout}, fin::MultiSpinorfield{CPU,Tin,M,ND}, ::Type{Tout}=Tin
+) where {M,Bout,Tout,Tin,ND}
+    if Bout === CPU
+        fout = similar(fin, Tout)
+        copy!(fout, fin)
+        return fout
+    end
+
+    NX, NY, NZ, NT = size(fin)
+    numprocs_cart = get_numprocs_cart(fin)
+    halo_width = get_halo_width(fin)
+    numspinors = fin.numspinors
+    fout = Spinorfield{Bout,Tout,ND}(NX, NY, NZ, NT, numspinors; numprocs_cart, halo_width)
+    farr = array_type(Bout)(fin.U)
+
+    parallelfor(eachindex(fout), Bout, Val(M), (fout,), (), (fout,)) do site, (fout,)
+        for is in 1:numspinors
+            fout[is, site] = farr[is, site]
+        end
+    end
+
+    return fout
 end

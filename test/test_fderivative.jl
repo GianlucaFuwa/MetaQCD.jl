@@ -30,7 +30,7 @@ function test_fderivative(;
     @testset "$(name_str)$(csw_str) derivative" begin
         Random.seed!(123 * (mpi_myrank() + 1))
         NX = NY = NZ = NT = 4
-        Ucpu = Gaugefield{CPU,Float64,WilsonGaugeAction}(
+        Ucpu = Gaugefield{CPU,Float64,WilsonGaugeAction,12}(
             NX, NY, NZ, NT, 6.0, numprocs_cart=nprocs_cart, halo_width=halo_width
         )
         filename = if nprocs_cart != (1, 1, 1, 1)
@@ -42,7 +42,7 @@ function test_fderivative(;
         load_field!(BridgeFormat(), Ucpu, filename)
 
         if backend !== CPU
-            U = MetaQCD.to_backend(backend, Ucpu)
+            U = MetaQCD.convert_field(backend, Ucpu)
         else
             U = Ucpu
         end
@@ -105,7 +105,7 @@ function test_fderivative(;
             if site in eachindex(Ucpu)
                 Ufwdcpu[μ, site] = expλ(group_direction, ΔH) * Ufwdcpu[μ, site]
             end
-            Ufwd = to_backend(backend, Ufwdcpu)
+            Ufwd = convert_field(backend, Ufwdcpu)
             action_new_fwd = calc_fermion_action(action, Ufwd, ψ)
 
             # mpi_amroot() && println("$(group_direction) unsmeared bwd")
@@ -113,7 +113,7 @@ function test_fderivative(;
             if site in eachindex(Ucpu)
                 Ubwdcpu[μ, site] = expλ(group_direction, -ΔH) * Ubwdcpu[μ, site]
             end
-            Ubwd = to_backend(backend, Ubwdcpu)
+            Ubwd = convert_field(backend, Ubwdcpu)
             action_new_bwd = calc_fermion_action(action, Ubwd, ψ)
 
             # Smeared
@@ -141,6 +141,11 @@ function test_fderivative(;
             relerrors[group_direction, 1] = (symm_diff - daction_proj) / symm_diff
             relerrors[group_direction, 2] =
                 (symm_diff_smeared - daction_proj_smeared) / symm_diff_smeared
+
+            if group_direction == 1
+                @show daction_proj
+                @show symm_diff
+            end
 
             if mpi_amroot()
                 println("================= Group direction $(group_direction) =================")

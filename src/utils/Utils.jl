@@ -26,7 +26,7 @@ export mpi_isend, mpi_recv, mpi_irecv!, mpi_waitall, mpi_allreduce, mpi_allgathe
 export mpi_bcast, mpi_bcast!, mpi_buffer, mpi_bcast_isbits, mpi_write_at
 export PauliMatrix, exp_iQ, exp_iQ_coeffs, ExpiQCoeffs, get_B₁, get_B₂, get_Q, get_Q²
 export gen_SU3_matrix, is_special_unitary, is_traceless_antihermitian
-export kenney_laub, proj_onto_SU3, multr
+export kenney_laub, proj_onto_SU3, multr, reconstruct_su3
 export make_submatrix_12, make_submatrix_13, make_submatrix_23
 export embed_into_SU3_12, embed_into_SU3_13, embed_into_SU3_23
 export antihermitian, hermitian, traceless_antihermitian, traceless_hermitian, materialize_TA
@@ -169,22 +169,6 @@ end
 Calculate the trace of the product of two complex NxN matrices `A` and `B` of precision `T`.
 """
 @inline multr(A, B) = tr(cmatmul_oo(A, B))
-# XXX: causes problems on GPUs
-# @inline function multr(A::SU{N,N²,T}, B::SU{N,N²,T}) where {N,N²,T}
-#     # for some reason we have to convert A and B to MArrays, otherwise we get a dynamic
-#     # function invocation for reinterpret(...) on CUDA
-#     a = reinterpret(reshape, T, MMatrix(A))
-#     b = reinterpret(reshape, T, MMatrix(B))
-#     re = zero(T)
-#     im = zero(T)
-#
-#     @turbo for i in Base.Slice(static(1):static(N)), j in Base.Slice(static(1):static(N))
-#         re += a[1, i, j] * b[1, j, i] - a[2, i, j] * b[2, j, i]
-#         im += a[1, i, j] * b[2, j, i] + a[2, i, j] * b[1, j, i]
-#     end
-#
-#     return Complex{T}(re, im)
-# end
 
 """
     cinv(M)

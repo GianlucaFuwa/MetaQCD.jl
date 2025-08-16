@@ -35,9 +35,9 @@ import .DiracOperators: QuenchedFermionAction
 import .Fields: CPU, DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
 import .Fields: SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
 import .Fields: Expfield, Colorfield, Gaugefield, Paulifield
-import .Fields: calc_gauge_action, fieldstrength_eachsite!, identity_gauges!, to_backend
+import .Fields: calc_gauge_action, fieldstrength_eachsite!, identity_gauges!
 import .Fields: normalize!, plaquette, plaquette_trace_sum, random_gauges!
-import .Fields: staple, staple_eachsite!, wilsonloop, to_backend
+import .Fields: staple, staple_eachsite!, wilsonloop, convert_field
 import .Fields: Tensorfield, calc_kinetic_energy, gaussian_TA!
 import .Fields: Spinorfield, gaussian_pseudofermions!, update_halo!
 import .Forces: calc_dSdU_bare!, calc_dSfdU_bare!, calc_dVdU_bare!
@@ -57,7 +57,7 @@ export Bias, Metadynamics, NoBias, OPES, Parametric, calc_cv, update_bias!
 export CPU, DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
 export SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
 export Expfield, Colorfield, Gaugefield, Paulifield
-export calc_gauge_action, fieldstrength_eachsite!, identity_gauges!, to_backend
+export calc_gauge_action, fieldstrength_eachsite!, identity_gauges!, convert_field
 export normalize!, plaquette, plaquette_trace_sum, random_gauges!
 export staple, staple_eachsite!, wilsonloop
 export Tensorfield, calc_kinetic_energy, gaussian_TA!, update_halo!

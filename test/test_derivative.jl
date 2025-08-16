@@ -12,7 +12,7 @@ function test_derivative(; backend=CPU, GA=WilsonGaugeAction, nprocs_cart=(1, 1,
 
     @testset "Gauge derivative" begin
         NX = NY = NZ = NT = 4
-        Ucpu = Gaugefield{CPU,Float64,GA}(
+        Ucpu = Gaugefield{CPU,Float64,GA,12}(
             NX, NY, NZ, NT, 6.0, numprocs_cart=nprocs_cart, halo_width=halo_width
         )
         filename = if nprocs_cart != (1, 1, 1, 1)
@@ -24,7 +24,7 @@ function test_derivative(; backend=CPU, GA=WilsonGaugeAction, nprocs_cart=(1, 1,
         load_field!(BridgeFormat(), Ucpu, filename)
 
         if backend !== CPU
-            U = MetaQCD.to_backend(backend, Ucpu)
+            U = MetaQCD.convert_field(backend, Ucpu)
         else
             U = Ucpu
         end
@@ -54,7 +54,7 @@ function test_derivative(; backend=CPU, GA=WilsonGaugeAction, nprocs_cart=(1, 1,
             if site in eachindex(Ucpu)
                 Ufwdcpu[μ, site] = expλ(group_direction, ΔH) * Ufwdcpu[μ, site]
             end
-            Ufwd = to_backend(backend, Ufwdcpu)
+            Ufwd = convert_field(backend, Ufwdcpu)
             gaction_new_fwd = calc_gauge_action(Ufwd)
             topcharge_new_fwd = top_charge(Clover(), Ufwd)
 
@@ -62,7 +62,7 @@ function test_derivative(; backend=CPU, GA=WilsonGaugeAction, nprocs_cart=(1, 1,
             if site in eachindex(Ucpu)
                 Ubwdcpu[μ, site] = expλ(group_direction, -ΔH) * Ubwdcpu[μ, site]
             end
-            Ubwd = to_backend(backend, Ubwdcpu)
+            Ubwd = convert_field(backend, Ubwdcpu)
             gaction_new_bwd = calc_gauge_action(Ubwd)
             topcharge_new_bwd = top_charge(Clover(), Ubwd)
 

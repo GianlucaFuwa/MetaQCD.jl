@@ -1,5 +1,5 @@
 """
-    Heatbath(U::Gaugefield{B,T,GA}, MAXIT, numheatbath, or_alg, numorelax) where {B,T,GA}
+    Heatbath(U::Gaugefield, MAXIT, numheatbath, or_alg, numorelax) where {B,T,GA}
 
 Create a `Heatbath`` object.
 

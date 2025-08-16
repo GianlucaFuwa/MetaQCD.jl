@@ -27,7 +27,7 @@ function test_measurements(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=2
     else
         NX = NY = NZ = NT = 16
     end
-    U = Gaugefield{CPU,Float64,WilsonGaugeAction}(
+    U = Gaugefield{backend,Float64,WilsonGaugeAction,12}(
         NX, NY, NZ, NT, 6.0; numprocs_cart=nprocs_cart, halo_width=halo_width
     )
 
@@ -39,10 +39,6 @@ function test_measurements(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=2
     end
 
     load_field!(BridgeFormat(), U, filename)
-
-    if backend !== CPU
-        U = MetaQCD.to_backend(backend, U)
-    end
 
     m_plaq = PlaquetteMeasurement(U)
     plaq = measure(m_plaq, U)

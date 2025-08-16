@@ -69,7 +69,7 @@ function add_staggered_hoelbling_derivative!(
     itr = eachindex(dU, U, X, Y)
 
     parallelfor(itr, B, Val(M), (U, X, Y), (dU,), (dU, U, X, Y)) do site, (dU, U, X, Y)
-        add_staggered_derivative_kernel!(dU, U, X, Y, site, bc, fac1)
+        add_staggered_derivative_kernel!(dU, U, X, Y, site, bc, fac1, T)
         add_hoelbling_derivative_kernel!(dU, _μ, _ν, U, X, Y, site, bc, fac2)
         add_hoelbling_derivative_kernel!(dU, _ρ, _σ, U, X, Y, site, bc, fac2)
     end
@@ -102,9 +102,9 @@ function Y∇MμνX(X, Y, U, ::Val{μ}, ::Val{ν}, site, bc, ::Type{T}) where {�
 
     @inbounds begin
         # Start
-        η1 = im * T(1 / 8 * staggered_ημν(Val(μ), Val(ν), site, Val(true)))
-        η2 = im * T(1 / 8 * staggered_ημν(Val(μ), Val(ν), siteν⁺, Val(true)))
-        η3 = im * T(1 / 8 * staggered_ημν(Val(μ), Val(ν), siteν⁻, Val(true)))
+        η1 = im * T(1 / 8 * staggered_ημν(Val(μ), Val(ν), site, T, Val(true)))
+        η2 = im * T(1 / 8 * staggered_ημν(Val(μ), Val(ν), siteν⁺, T, Val(true)))
+        η3 = im * T(1 / 8 * staggered_ημν(Val(μ), Val(ν), siteν⁻, T, Val(true)))
         Y1 = η1 * Y[site]
         Y2 = η2 * apply_bc(Y[siteν⁺], bc, site, Val(1), NT, Val(ν))
         Y3 = η3 * apply_bc(Y[siteν⁻], bc, site, Val(-1), NT, Val(ν))

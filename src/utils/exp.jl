@@ -7,7 +7,6 @@ using Base.Math: isinf_real
     # convenient struct to store exponential coefficients
     struct ExpiQCoeffs{T}
         Q::SU{3,9,T}
-        Q²::SU{3,9,T}
         expiQ::SU{3,9,T}
         f₀::Complex{T}
         f₁::Complex{T}
@@ -22,18 +21,16 @@ using Base.Math: isinf_real
 
     function ExpiQCoeffs(::Type{T}) where {T}
         Q = zero3(T)
-        Q² = zero3(T)
         expiQ = zero3(T)
         T0 = zero(Complex{T})
-        return ExpiQCoeffs{T}(Q, Q², expiQ, T0, T0, T0, T0, T0, T0, T0, T0, T0)
+        return ExpiQCoeffs{T}(Q, expiQ, T0, T0, T0, T0, T0, T0, T0, T0, T0)
     end
 
     @inline function Base.convert(::Type{ExpiQCoeffs{Tout}}, e::ExpiQCoeffs) where {Tout}
         Q = SU{3,9,Tout}(e.Q)
-        Q² = SU{3,9,Tout}(e.Q²)
         expiQ = SU{3,9,Tout}(e.expiQ)
         vals = Complex{Tout}.((e.f₀, e.f₁, e.f₂, e.b₁₀, e.b₁₁, e.b₁₂, e.b₂₀, e.b₂₁, e.b₂₂))
-        return ExpiQCoeffs{Tout}(Q, Q², expiQ, vals...)
+        return ExpiQCoeffs{Tout}(Q, expiQ, vals...)
     end
 
     @inline function Base.convert(
@@ -57,9 +54,8 @@ using Base.Math: isinf_real
     Base.zero(::Type{ExpiQCoeffs{T}}) where {T} = ExpiQCoeffs(T)
     exp_iQ(e::ExpiQCoeffs{T}) where {T} = e.expiQ
     get_Q(e::ExpiQCoeffs{T}) where {T} = e.Q
-    get_Q²(e::ExpiQCoeffs{T}) where {T} = e.Q²
-    get_B₁(e::ExpiQCoeffs{T}) where {T} = e.b₁₀ * eye3(T) + e.b₁₁ * e.Q + e.b₁₂ * e.Q²
-    get_B₂(e::ExpiQCoeffs{T}) where {T} = e.b₂₀ * eye3(T) + e.b₂₁ * e.Q + e.b₂₂ * e.Q²
+    get_B₁(e::ExpiQCoeffs{T}) where {T} = e.b₁₀ * eye3(T) + e.b₁₁ * e.Q + e.b₁₂ * cmatmul_oo(e.Q, e.Q)
+    get_B₂(e::ExpiQCoeffs{T}) where {T} = e.b₂₀ * eye3(T) + e.b₂₁ * e.Q + e.b₂₂ * cmatmul_oo(e.Q, e.Q)
 
     """
         exp_iQ(Q::SU{3,9,T}) where {T}
@@ -84,9 +80,8 @@ using Base.Math: isinf_real
     """
     @inline function exp_iQ_coeffs(Q::SU{3,9,T}) where {T}
         f₀, f₁, f₂, b₁₀, b₁₁, b₁₂, b₂₀, b₂₁, b₂₂ = calc_coefficients(Q)
-        Q² = cmatmul_oo(Q, Q)
-        mat = f₀ * eye3(T) + f₁ * Q + f₂ * Q²
-        return ExpiQCoeffs(Q, Q², mat, f₀, f₁, f₂, b₁₀, b₁₁, b₁₂, b₂₀, b₂₁, b₂₂)
+        mat = f₀ * eye3(T) + f₁ * Q + f₂ * cmatmul_oo(Q, Q)
+        return ExpiQCoeffs(Q, mat, f₀, f₁, f₂, b₁₀, b₁₁, b₁₂, b₂₀, b₂₁, b₂₂)
     end
 
     function calc_coefficients(Q::SU{3,9,T}) where {T}

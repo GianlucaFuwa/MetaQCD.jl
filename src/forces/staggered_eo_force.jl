@@ -61,13 +61,15 @@ function add_staggered_eo_derivative!(
     itr = eachindex(dU, U, X, Y)
 
     parallelfor(itr, B, Val(M), (X_eo, Y_eo), (dU,), (dU, U, X, Y)) do site, (dU, U, X, Y)
-        add_staggered_eo_derivative_kernel!(dU, U, X, Y, site, bc, fac, bulk)
+        add_staggered_eo_derivative_kernel!(dU, U, X, Y, site, bc, fac, bulk, T)
     end
 
     return nothing
 end
 
-@inline function add_staggered_eo_derivative_kernel!(dU, U, X, Y, site, bc, fac, bulk)
+@inline function add_staggered_eo_derivative_kernel!(
+    dU, U, X, Y, site, bc, fac, bulk, ::Type{T}
+) where {T}
     # sites that begin with a "_" are meant for indexing into the even-odd preconn'ed
     # fermion field
     NT = size(U, 4)
@@ -79,7 +81,7 @@ end
         @nexprs 4 μ -> (
             Nμ = axes(U, μ);
             _siteμ⁺ = map_to_half(move(site, μ, 1, Nμ), bulk);
-            η = staggered_η(Val(μ), site);
+            η = staggered_η(Val(μ), site, T);
             B = ckron(apply_bc(X[_siteμ⁺], bc, site, Val(1), NT, Val(μ)), Y[_site]);
             C = ckron(apply_bc(Y[_siteμ⁺], bc, site, Val(1), NT, Val(μ)), X[_site]);
             dU[μ, site] += (fac * η) * traceless_antihermitian(cmatmul_oo(U[μ, site], B - C))

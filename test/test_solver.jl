@@ -36,7 +36,7 @@ function test_solver(
     # load_field!(BridgeFormat(), U, filename)
 
     if backend !== CPU
-        U = MetaQCD.to_backend(backend, U)
+        U = MetaQCD.convert_field(backend, U)
     end
 
     is_staggered = contains(dirac, "staggered")

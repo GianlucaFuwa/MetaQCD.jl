@@ -30,3 +30,66 @@ function Colorfield(
 end
 
 Base.eltype(::Type{Colorfield}, ::Type{T}) where {T} = SMatrix{3,3,Complex{T},9}
+
+const MPIColorfield{B,T,AT,HT,TT} = Colorfield{B,T,true,AT,HT,TT}
+
+#### CPU Indexing ####
+@inline allindices(u::Colorfield{CPU}) = eachindex(IndexCartesian(), u.U)
+Base.@propagate_inbounds Base.getindex(u::Colorfield{CPU}, μ, site::SiteCoords) = u.U[μ, site]
+Base.@propagate_inbounds Base.getindex(u::Colorfield{CPU}, μsite) = u.U[μsite]
+Base.@propagate_inbounds Base.setindex!(u::Colorfield{CPU}, v, μ, site::SiteCoords) =
+    setindex!(u.U, v, μ, site)
+Base.@propagate_inbounds Base.setindex!(u::Colorfield{CPU}, v, μsite) =
+    setindex!(u.U, v, μsite)
+######################
+
+#### GPU Indexing ####
+@inline allindices(u::Colorfield{B}) where {B} = 
+    range(Int32(1), Int32(length(u.U)))
+
+Base.@propagate_inbounds function Base.getindex(
+    u::Colorfield{B,T}, ii::Integer
+) where {B,T}
+    return u.U[ii]
+end
+
+Base.@propagate_inbounds function Base.getindex(
+    u::Colorfield{B,T}, μ, site::SiteCoords
+) where {B,T}
+    return _getindex_mat(Val(18), u.U, μ, site, T)
+end
+
+Base.@propagate_inbounds function Base.setindex!(u::Colorfield{B}, v, ii::Integer) where {B}
+    u.U[ii] = v
+    return nothing
+end
+
+Base.@propagate_inbounds function Base.setindex!(
+    u::Colorfield{B,T}, v, μ, site::SiteCoords
+) where {B,T}
+    return _setindex_mat!(Val(18), u.U, v, μ, site, T)
+end
+
+Base.@propagate_inbounds function Base.getindex(
+    u::MPIColorfield{B,T}, μ, site::SiteCoords
+) where {B,T}
+    site in u.topology.bulk_sites && return _getindex_mat(Val(18), u.U, μ, site, T)
+    ihalo = get_halo_index(site, u.topology.bulk_sites)
+    return _getindex_mat(Val(18), u.halos[ihalo], μ, site, T)
+end
+
+Base.@propagate_inbounds function Base.setindex!(
+    u::MPIColorfield{B,T}, v, μ, site::SiteCoords
+) where {B,T}
+    bulk = u.topology.bulk_sites
+
+    if site in bulk
+        _setindex_mat!(Val(18), u.U, v, μ, site, T)
+    else
+        ihalo = get_halo_index(site, bulk)
+        _setindex_mat!(Val(18), u.halos[ihalo], v, μ, site, T)
+    end
+
+    return nothing
+end
+######################

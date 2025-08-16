@@ -40,94 +40,62 @@ const MPITensorfield{B,T} = Tensorfield{B,T,true}
 
 Base.eltype(::Type{Tensorfield}, ::Type{T}) where {T} = SMatrix{3,3,Complex{T},9}
 
-### Indexing Start
-# @inline allindices(u::Tensorfield{CPU}) = eachindex(IndexCartesian(), u.U) # all indices including halo regions
-# @inline allindices(u::Tensorfield{B}) where {B} = 
-#     CartesianIndices(ntuple(i -> ifelse(i == 5, axes(u.U, 6), axes(u.U, i)), Val(5)))
-#     # CartesianIndices(ntuple(i -> axes(u.U, i), Val(5)))#eachindex(IndexCartesian(), u.U[1]) # all indices including halo regions
-# Base.@propagate_inbounds Base.getindex(u::Tensorfield{CPU}, j, site::SiteCoords) = u.U[site, j]
-# Base.@propagate_inbounds Base.getindex(u::Tensorfield{CPU}, jsite) = u.U[jsite]
-#
-# Base.@propagate_inbounds function Base.getindex(
-#     f::Tensorfield{B,T}, j, site::SiteCoords
-# ) where {B,T}
-#     @inbounds begin
-#         Base.Cartesian.@nexprs 9 i -> (
-#             c_i = f.U[site, i, j]
-#         )
-#     end
-#     return SMatrix{3,3,Complex{T},9}(c_1, c_2, c_3, c_4, c_5, c_6, c_7, c_8, c_9)
-# end
-#
-# Base.@propagate_inbounds function Base.getindex(
-#     f::Tensorfield{B,T}, jsite
-# ) where {B,T}
-#     @inbounds begin
-#         x, y, z, t, j = jsite.I
-#         Base.Cartesian.@nexprs 9 i -> (
-#             c_i = f.U[x, y, z, t, i, j]
-#         )
-#     end
-#     return SMatrix{3,3,Complex{T},9}(c_1, c_2, c_3, c_4, c_5, c_6, c_7, c_8, c_9)
-# end
-#
-# Base.@propagate_inbounds Base.setindex!(f::Tensorfield{CPU}, v, j, site::SiteCoords) =
-#     setindex!(f.U, v, site, j)
-# Base.@propagate_inbounds Base.setindex!(f::Tensorfield{CPU}, v, jsite) =
-#     setindex!(f.U, v, jsite)
-#
-# Base.@propagate_inbounds function Base.setindex!(
-#     f::Tensorfield{B,T}, v, j, site::SiteCoords
-# ) where {B,T}
-#     @inbounds begin
-#         Base.Cartesian.@nexprs 9 i -> (
-#             f.U[site, i, j] = v[i];
-#         )
-#     end
-#     return nothing
-# end
-#
-# Base.@propagate_inbounds function Base.setindex!(
-#     f::Tensorfield{B,T}, v, jsite
-# ) where {B,T}
-#     @inbounds begin
-#         x, y, z, t, j = jsite.I
-#         Base.Cartesian.@nexprs 9 i -> (
-#             f.U[x, y, z, t, i, j] = v[i];
-#         )
-#     end
-#     return nothing
-# end
+#### CPU Indexing ####
+@inline allindices(u::Tensorfield{CPU}) = eachindex(IndexCartesian(), u.U)
+Base.@propagate_inbounds Base.getindex(u::Tensorfield{CPU}, i, site::SiteCoords) = u.U[i, site]
+Base.@propagate_inbounds Base.getindex(u::Tensorfield{CPU}, isite) = u.U[isite]
+Base.@propagate_inbounds Base.setindex!(u::Tensorfield{CPU}, v, i, site::SiteCoords) =
+    setindex!(u.U, v, i, site)
+Base.@propagate_inbounds Base.setindex!(u::Tensorfield{CPU}, v, isite) =
+    setindex!(u.U, v, isite)
+######################
 
-Base.@propagate_inbounds Base.getindex(u::Tensorfield, i, x, y, z, t) =
-    u.U[x, y, z, t, i]
-Base.@propagate_inbounds Base.getindex(u::Tensorfield, i, site::SiteCoords) =
-    u.U[site, i]
+#### GPU Indexing ####
+@inline allindices(u::Tensorfield{B}) where {B} = 
+    range(Int32(1), Int32(length(u.U)))
 
-Base.@propagate_inbounds function Base.getindex(u::MPITensorfield, i, site::SiteCoords)
-    site in u.topology.bulk_sites && return u.U[site, i]
-    ihalo = get_halo_index(site, u.topology.bulk_sites)
-    return u.halos[ihalo][site, i]
+Base.@propagate_inbounds function Base.getindex(
+    u::Tensorfield{B,T}, ii::Integer
+) where {B,T}
+    return u.U[ii]
 end
 
-Base.@propagate_inbounds Base.setindex!(u::Tensorfield, v, i, x, y, z, t) =
-    setindex!(u.U, v, x, y, z, t, i)
-Base.@propagate_inbounds Base.setindex!(u::Tensorfield, v, i, site::SiteCoords) =
-    setindex!(u.U, v, site, i)
-### Indexing End
+Base.@propagate_inbounds function Base.getindex(
+    u::Tensorfield{B,T}, i, site::SiteCoords
+) where {B,T}
+    return _getindex_mat(Val(18), u.U, i, site, T)
+end
 
-Base.@propagate_inbounds function Base.setindex!(u::MPITensorfield, v, i, site::SiteCoords)
+Base.@propagate_inbounds function Base.setindex!(u::Tensorfield{B}, v, ii::Integer) where {B}
+    u.U[ii] = v
+    return nothing
+end
+
+Base.@propagate_inbounds function Base.setindex!(
+    u::Tensorfield{B,T}, v, i, site::SiteCoords
+) where {B,T}
+    return _setindex_mat!(Val(18), u.U, v, i, site, T)
+end
+
+Base.@propagate_inbounds function Base.getindex(u::MPITensorfield{B,T}, i, site) where {B,T}
+    site in u.topology.bulk_sites && return _getindex_mat(Val(18), u.U, i, site, T)
+    ihalo = get_halo_index(site, u.topology.bulk_sites)
+    return _getindex_mat(Val(18), u.halos[ihalo], i, site, T)
+end
+
+Base.@propagate_inbounds function Base.setindex!(u::MPITensorfield{B,T}, v, i, site) where {B,T}
     bulk = u.topology.bulk_sites
 
     if site in bulk
-        u.U[site, i] = v
+        _setindex_mat!(Val(18), u.U, v, i, site, T)
     else
         ihalo = get_halo_index(site, bulk)
-        u.halos[ihalo][site, i] = v
+        _setindex_mat!(Val(18), u.halos[ihalo], v, i, site, T)
     end
 
     return nothing
 end
+######################
 
 @inline function get_tensor_index(μ, ν)
     lo, hi = minmax(μ, ν)

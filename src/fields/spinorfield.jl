@@ -1,8 +1,8 @@
 @field_constructor Spinorfield extra_types=ND
 
 @doc raw"""
-Wrapper around a 4-dimensional dense array of statically sized 3xND vectors contatining
-information about the global MPI-topology.
+Wrapper around a dense array or arrays of spinor/vector objects containing information about
+the global MPI-topology.
 
     Spinorfield{B,T,ND}(NX, NY, NZ, NT)
     Spinorfield{B,T,ND}(NX, NY, NZ, NT; numprocs_cart, halo_width)
@@ -12,6 +12,12 @@ information about the global MPI-topology.
 Creates a Spinorfield on `B`, i.e. an array of link-variables (numcolors×ND complex vectors
 with `T` precision) of size `NX × NY × NZ × NT` or a zero-initialized copy of `ψ`.
 If `staggered=true`, the number of Dirac degrees of freedom (ND) is reduced to 1 instead of 4.
+
+The data layout of the field is dependent on the backend `B`:
+If `B = CPU`, then it is a 4D array of `SVector{3ND,Complex{T}}`
+else, it is a 5D array of `SIMD.Vec{L,N}` with `L = {2, 4}` for `ND = {1, 4}`
+with the component index being the slowest to improve coalescing on GPUs
+
 # Supported backends
 `CPU` \
 `CUDABackend` (provided CUDA.jl is loaded) \
@@ -45,87 +51,26 @@ function Base.eltype(::Type{Spinorfield}, ::Type{T}, ::Val{ND}) where {T,ND}
     return SVector{3ND,Complex{T}}
 end
 
-### Indexing Start
-# @inline allindices(u::Spinorfield{CPU}) = eachindex(IndexCartesian(), u.U) # all indices including halo regions
-# @inline allindices(u::Spinorfield{B}) where {B} = eachindex(IndexCartesian(), u.U) # all indices including halo regions
-#
-# Base.@propagate_inbounds Base.getindex(f::Spinorfield{CPU}, i::Integer) = f.U[i]
-# Base.@propagate_inbounds Base.getindex(f::Spinorfield{CPU}, x, y, z, t) = f.U[x, y, z, t]
-# Base.@propagate_inbounds Base.getindex(f::Spinorfield{CPU}, site::SiteCoords) = f.U[site]
-#
-# Base.@propagate_inbounds function Base.getindex(
-#     f::Spinorfield{B,T,M,1}, site::SiteCoords
-# ) where {B,T,M}
-#     @inbounds begin
-#         Base.Cartesian.@nexprs 3 i -> (
-#             c_i = f.U[site, i]
-#         )
-#     end
-#     return SVector{3,Complex{T}}(c_1, c_2, c_3)
-# end
-#
-# Base.@propagate_inbounds function Base.getindex(
-#     f::Spinorfield{B,T,M,4}, site::SiteCoords
-# ) where {B,T,M}
-#     @inbounds begin
-#         Base.Cartesian.@nexprs 12 i -> (
-#             c_i = f.U[site, i]
-#         )
-#     end
-#     return SVector{12,Complex{T}}(
-#         c_1, c_2, c_3, c_4, c_5, c_6, c_7, c_8, c_9, c_10, c_11, c_12
-#     )
-# end
-#
-# Base.@propagate_inbounds Base.setindex!(f::Spinorfield{CPU}, v, i::Integer) =
-#     setindex!(f.U, v, i)
-# Base.@propagate_inbounds Base.setindex!(f::Spinorfield{CPU}, v, x, y, z, t) =
-#     setindex!(f.U, v, x, y, z, t)
-# Base.@propagate_inbounds Base.setindex!(f::Spinorfield{CPU}, v, site::SiteCoords) =
-#     setindex!(f.U, v, site)
-#
-# Base.@propagate_inbounds function Base.setindex!(
-#     f::Spinorfield{B,T,M,1}, v, site::SiteCoords
-# ) where {B,T,M}
-#     @inbounds begin
-#         Base.Cartesian.@nexprs 3 i -> (
-#             f.U[site, i] = v[i]
-#         )
-#     end
-#     return nothing
-# end
-#
-# Base.@propagate_inbounds function Base.setindex!(
-#     f::Spinorfield{B,T,M,4}, v, site::SiteCoords
-# ) where {B,T,M}
-#     @inbounds begin
-#         Base.Cartesian.@nexprs 12 i -> (
-#             f.U[site, i] = v[i]
-#         )
-#     end
-#     return nothing
-# end
-@inline allindices(u::Spinorfield) = eachindex(IndexCartesian(), u.U) # all indices including halo regions
-
-Base.@propagate_inbounds Base.getindex(f::Spinorfield, i::Integer) = f.U[i]
-Base.@propagate_inbounds Base.getindex(f::Spinorfield, x, y, z, t) = f.U[x, y, z, t]
-Base.@propagate_inbounds Base.getindex(f::Spinorfield, site::SiteCoords) = f.U[site]
-
-Base.@propagate_inbounds Base.setindex!(f::Spinorfield, v, i::Integer) =
+#### CPU Indexing ####
+@inline allindices(u::Spinorfield{CPU}) = eachindex(IndexCartesian(), u.U) # all indices including halo regions
+@inline allindices(u::Spinorfield{B}) where {B} = eachindex(IndexCartesian(), u.U) # all indices including halo regions
+Base.@propagate_inbounds Base.getindex(f::Spinorfield{CPU}, i::Integer) = f.U[i]
+Base.@propagate_inbounds Base.getindex(f::Spinorfield{CPU}, x, y, z, t) = f.U[x, y, z, t]
+Base.@propagate_inbounds Base.getindex(f::Spinorfield{CPU}, site::SiteCoords) = f.U[site]
+Base.@propagate_inbounds Base.setindex!(f::Spinorfield{CPU}, v, i::Integer) =
     setindex!(f.U, v, i)
-Base.@propagate_inbounds Base.setindex!(f::Spinorfield, v, x, y, z, t) =
+Base.@propagate_inbounds Base.setindex!(f::Spinorfield{CPU}, v, x, y, z, t) =
     setindex!(f.U, v, x, y, z, t)
-Base.@propagate_inbounds Base.setindex!(f::Spinorfield, v, site::SiteCoords) =
+Base.@propagate_inbounds Base.setindex!(f::Spinorfield{CPU}, v, site::SiteCoords) =
     setindex!(f.U, v, site)
-### Indexing END
 
-Base.@propagate_inbounds function Base.getindex(u::MPISpinorfield, site::SiteCoords)
+Base.@propagate_inbounds function Base.getindex(u::MPISpinorfield{CPU}, site::SiteCoords)
     site in u.topology.bulk_sites && return u.U[site]
     ihalo = get_halo_index(site, u.topology.bulk_sites)
     return u.halos[ihalo][site]
 end
 
-Base.@propagate_inbounds function Base.setindex!(u::MPISpinorfield, v, site::SiteCoords)
+Base.@propagate_inbounds function Base.setindex!(u::MPISpinorfield{CPU}, v, site::SiteCoords)
     bulk = u.topology.bulk_sites
 
     if site in bulk
@@ -137,6 +82,81 @@ Base.@propagate_inbounds function Base.setindex!(u::MPISpinorfield, v, site::Sit
 
     return nothing
 end
+######################
+
+#### GPU Indexing ####
+Base.@propagate_inbounds function Base.getindex(
+    f::Spinorfield{B,T,M,ND}, site::SiteCoords
+) where {B,T,M,ND}
+    return _getindex_nd(Val(ND), f.U, site, T)
+end
+
+Base.@propagate_inbounds function Base.setindex!(
+    f::Spinorfield{B,T,M,ND}, v, site::SiteCoords
+) where {B,T,M,ND}
+    return _setindex_nd!(Val(ND), f.U, v, site, T)
+end
+
+Base.@propagate_inbounds function Base.getindex(u::MPISpinorfield{B,T,ND}, site) where {B,T,ND}
+    site in u.topology.bulk_sites && return _getindex_nd(Val(ND), u.U, site, T)
+    ihalo = get_halo_index(site, u.topology.bulk_sites)
+    return _getindex_nd(Val(ND), u.halos[ihalo], site, T)
+end
+
+Base.@propagate_inbounds function Base.setindex!(u::MPISpinorfield{B,T,ND}, v, site) where {B,T,ND}
+    bulk = u.topology.bulk_sites
+
+    if site in bulk
+        _setindex_nd!(Val(ND), u.U, v, site, T)
+        u.U[site] = v
+    else
+        ihalo = get_halo_index(site, bulk)
+        _setindex_nd!(Val(ND), u.halos[ihalo], v, site, T)
+    end
+
+    return nothing
+end
+
+Base.@propagate_inbounds function _getindex_nd(::Val{1}, arr, site::SiteCoords, ::Type{T}) where T
+    x, y, z, t = site.I
+    Base.Cartesian.@nexprs 3 i -> (
+        vec = arr[x, y, z, t, i];
+        c_i = Complex(vec[1], vec[2])
+    )
+    return SVector{3,Complex{T}}(c_1, c_2, c_3)
+end
+
+Base.@propagate_inbounds function _getindex_nd(::Val{4}, arr, site::SiteCoords, ::Type{T}) where T
+    x, y, z, t = site.I
+    Base.Cartesian.@nexprs 6 i -> (
+        vec = arr[x, y, z, t, i];
+        c_{2(i-1)+1} = Complex(vec[1], vec[2]);
+        c_{2(i-1)+2} = Complex(vec[3], vec[4])
+    )
+    return SVector{12,Complex{T}}(
+        c_1, c_2, c_3, c_4, c_5, c_6, c_7, c_8, c_9, c_10, c_11, c_12
+    )
+end
+
+Base.@propagate_inbounds function _setindex_nd!(::Val{1}, arr, v, site, ::Type{T}) where {T}
+    x, y, z, t = site.I
+    Base.Cartesian.@nexprs 3 i -> (
+        arr[x, y, z, t, i] = SIMD.Vec{2,T}((v[i].re, v[i].im));
+    )
+    return nothing
+end
+
+Base.@propagate_inbounds function _setindex_nd!(::Val{4}, arr, v, site, ::Type{T}) where {T}
+    x, y, z, t = site.I
+    arr[x, y, z, t, 1] = SIMD.Vec{4,T}((v[1].re, v[1].im, v[2].re, v[2].im))
+    arr[x, y, z, t, 2] = SIMD.Vec{4,T}((v[3].re, v[3].im, v[4].re, v[4].im))
+    arr[x, y, z, t, 3] = SIMD.Vec{4,T}((v[5].re, v[5].im, v[6].re, v[6].im))
+    arr[x, y, z, t, 4] = SIMD.Vec{4,T}((v[7].re, v[7].im, v[8].re, v[8].im))
+    arr[x, y, z, t, 5] = SIMD.Vec{4,T}((v[9].re, v[9].im, v[10].re, v[10].im))
+    arr[x, y, z, t, 6] = SIMD.Vec{4,T}((v[11].re, v[11].im, v[12].re, v[12].im))
+    return nothing
+end
+######################
 
 function ones!(ϕ::Spinorfield{B,T,M}) where {B,T,M}
     parallelfor(eachindex(ϕ), B, Val(M), (), (ϕ,), (ϕ,)) do site, (ϕ,)
@@ -240,3 +260,24 @@ function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:Spinorfield
     return nothing
 end
 
+function convert_field(
+    ::Type{Bout}, fin::Spinorfield{CPU,Tin,M,ND}, ::Type{Tout}=Tin
+) where {M,Bout,Tout,Tin,ND}
+    if Bout === CPU
+        fout = similar(fin, Tout)
+        copy!(fout, fin)
+        return fout
+    end
+
+    NX, NY, NZ, NT = size(fin)
+    numprocs_cart = get_numprocs_cart(fin)
+    halo_width = get_halo_width(fin)
+    fout = Spinorfield{Bout,Tout,ND}(NX, NY, NZ, NT; numprocs_cart, halo_width)
+    farr = array_type(Bout)(fin.U)
+
+    parallelfor(eachindex(fout), Bout, Val(M), (fout,), (), (fout,)) do site, (fout,)
+        fout[site] = farr[site]
+    end
+
+    return fout
+end

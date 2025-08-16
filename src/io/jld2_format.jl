@@ -1,20 +1,42 @@
 function save_field(
     ::JLD2Format, U::Gaugefield{B,T,false}, filename::String, args...
 ) where {B,T}
-    filename != "" && jldsave(filename; U=Array(U.U))
+    filename != "" || return nothing
+
+    if B == CPU
+        jldsave(filename; U=Array(U.U))
+    else
+        tmp = bzeros(B(), 4, size(U)...)
+        parallelfor(eachindex(U), B, Val(false), (), (), (U,)) do site, (U,)
+            tmp[1, site] = U[1, site]
+            tmp[2, site] = U[2, site]
+            tmp[3, site] = U[3, site]
+            tmp[4, site] = U[4, site]
+        end
+        jldsave(filename; U=Array(tmp))
+    end
+
     return nothing
 end
 
-function load_field!(::JLD2Format, U::Gaugefield{B,T,false}, filename::String) where {B,T}
-    Unew = array_type(B)(jldopen(filename, "r") do file
+function load_field!(::JLD2Format, U::Gaugefield{CPU,T,false}, filename::String) where {T}
+    Unew = jldopen(filename, "r") do file
         file["U"]
-    end)
+    end
     @assert (size(Unew) == size(U.U)) "Size of supplied config is wrong"
 
-    parallelfor(allindices(U), B, Val(false), (), (U,), (U,)) do μsite, (U,)
+    parallelfor(allindices(U), CPU, Val(false), (), (U,), (U,)) do μsite, (U,)
         U[μsite] = SMatrix{3,3,Complex{T},9}(Unew[μsite])
     end
 
+    return nothing
+end
+
+function load_field!(::JLD2Format, U::Gaugefield{B,T,false,GA}, filename) where {B,T,GA}
+    Ucpu = Gaugefield{CPU,Float64,GA,18}(size(U)..., U.β)
+    load_field!(JLD2Format(), Ucpu, filename)
+    Ugpu = convert_field(B, Ucpu, T)
+    copy!(U, Ugpu)
     return nothing
 end
 
