@@ -14,7 +14,7 @@ suite = BenchmarkGroup()
 s = suite["measurements"] = BenchmarkGroup()
 
 for T in (Float32, Float64)
-    U = Gaugefield{CPU,T,WilsonGaugeAction}(N, N, N, N, 6.0)
+    U = Gaugefield{CPU,T,WilsonGaugeAction,12}(N, N, N, N, 6.0)
     random_gauges!(U)
 
     m_plaq = PlaquetteMeasurement(U)

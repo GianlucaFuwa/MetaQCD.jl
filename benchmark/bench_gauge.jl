@@ -21,7 +21,7 @@ suite = BenchmarkGroup()
 for GA in actions
     s = suite["1HB + 4OR"] = BenchmarkGroup()
     for T in (Float32, Float64)
-        U = Gaugefield{CPU,T,GA}(N, N, N, N, 6.0)
+        U = Gaugefield{CPU,T,GA,12}(N, N, N, N, 6.0)
         hb = Heatbath(U, 100, 1, Subgroups, 4)
         random_gauges!(U)
 

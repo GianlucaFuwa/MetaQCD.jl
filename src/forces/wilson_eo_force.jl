@@ -12,18 +12,18 @@ function calc_dSfdU!(
     clear!(X_eo)
     solve_dirac!(X_eo, DdagD, ϕ_eo, Y_eo, temp1, temp2; tol, maxiters, datafile)
 
-    # LinearAlgebra.mul!(Y_eo, D, X_eo)
-    # mul_oe!(X_eo, U, X_eo, bc, true, Val(1))
-    # mul_oe!(Y_eo, U, Y_eo, bc, true, Val(-1))
-    # mul_oo_inv!(X_eo, D.D_oo_inv)
-    # mul_oo_inv!(Y_eo, D.D_oo_inv)
-    # add_wilson_eo_derivative!(dU, U, X_eo, Y_eo, bc)
+    LinearAlgebra.mul!(Y_eo, D, X_eo)
+    mul_oe!(X_eo, U, X_eo, bc, true, Val(1))
+    mul_oe!(Y_eo, U, Y_eo, bc, true, Val(-1))
+    mul_oo_inv!(X_eo, D.D_oo_inv)
+    mul_oo_inv!(Y_eo, D.D_oo_inv)
+    add_wilson_eo_derivative!(dU, U, X_eo, Y_eo, bc)
 
     if has_clover_term(D)
         Xμν = fermion_action.Xμν
         D_oo_inv = D.D_oo_inv
-        # calc_Xμν_eo_eachsite!(Xμν, X_eo, Y_eo)
-        # add_clover_derivative!(dU, U, Xμν, -D.csw)
+        calc_Xμν_eo_eachsite!(Xμν, X_eo, Y_eo)
+        add_clover_derivative!(dU, U, Xμν, -D.csw)
         calc_small_Xμν_eachsite!(Xμν, D_oo_inv)
         add_clover_derivative!(dU, U, Xμν, -2D.csw)
     end
