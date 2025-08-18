@@ -120,7 +120,7 @@ end
 Base.@propagate_inbounds function _getindex_nd(::Val{1}, arr, site::SiteCoords, ::Type{T}) where T
     x, y, z, t = site.I
     Base.Cartesian.@nexprs 3 i -> (
-        vec = arr[x, y, z, t, i];
+        vec = arr[i, x, y, z, t];
         c_i = Complex(vec[1], vec[2])
     )
     return SVector{3,Complex{T}}(c_1, c_2, c_3)
@@ -129,7 +129,7 @@ end
 Base.@propagate_inbounds function _getindex_nd(::Val{4}, arr, site::SiteCoords, ::Type{T}) where T
     x, y, z, t = site.I
     Base.Cartesian.@nexprs 6 i -> (
-        vec = arr[x, y, z, t, i];
+        vec = arr[i, x, y, z, t];
         c_{2(i-1)+1} = Complex(vec[1], vec[2]);
         c_{2(i-1)+2} = Complex(vec[3], vec[4])
     )
@@ -141,19 +141,18 @@ end
 Base.@propagate_inbounds function _setindex_nd!(::Val{1}, arr, v, site, ::Type{T}) where {T}
     x, y, z, t = site.I
     Base.Cartesian.@nexprs 3 i -> (
-        arr[x, y, z, t, i] = SIMD.Vec{2,T}((v[i].re, v[i].im));
+        arr[i, x, y, z, t] = SIMD.Vec{2,T}((v[i].re, v[i].im));
     )
     return nothing
 end
 
 Base.@propagate_inbounds function _setindex_nd!(::Val{4}, arr, v, site, ::Type{T}) where {T}
     x, y, z, t = site.I
-    arr[x, y, z, t, 1] = SIMD.Vec{4,T}((v[1].re, v[1].im, v[2].re, v[2].im))
-    arr[x, y, z, t, 2] = SIMD.Vec{4,T}((v[3].re, v[3].im, v[4].re, v[4].im))
-    arr[x, y, z, t, 3] = SIMD.Vec{4,T}((v[5].re, v[5].im, v[6].re, v[6].im))
-    arr[x, y, z, t, 4] = SIMD.Vec{4,T}((v[7].re, v[7].im, v[8].re, v[8].im))
-    arr[x, y, z, t, 5] = SIMD.Vec{4,T}((v[9].re, v[9].im, v[10].re, v[10].im))
-    arr[x, y, z, t, 6] = SIMD.Vec{4,T}((v[11].re, v[11].im, v[12].re, v[12].im))
+    Base.Cartesian.@nexprs 6 i -> (
+        arr[i, x, y, z, t] = SIMD.Vec{4,T}((
+            v[2(i-1)+1].re, v[2(i-1)+1].im,
+            v[2(i-1)+2].re, v[2(i-1)+2].im));
+    )
     return nothing
 end
 ######################

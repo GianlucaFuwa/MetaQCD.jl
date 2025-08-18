@@ -29,6 +29,8 @@ function Fields.mpi_assign_device!(::ROCBackend, id)
     (0 <= id < AMDGPU.HIP.ndevices()) || throw(ArgumentError("Device id $id out of bounds."))
     AMDGPU.device_id!(Int32(id) + 1)
     Fields.DEVICE_ID[] = id
+    dev = AMDGPU.device()
+    Fields.MAX_SHMEM[] = AMDGPU.HIP.properties(dev).maxSharedMemoryPerMultiProcessor
     return nothing
 end
 
@@ -109,10 +111,10 @@ function Fields.launch_foreachindex_reduce_global!(
     return reduce(op, out_vec)
 end
 
-@inline Fields.threadidx() = workitemIdx().x
-@inline Fields.groupidx() = workgroupIdx().x
-@inline Fields.groupdim() = workgroupDim().x
-@inline Fields.griddim() = gridGroupDim().x
+@inline Fields.threadidx() = workitemIdx()
+@inline Fields.groupidx() = workgroupIdx()
+@inline Fields.groupdim() = workgroupDim()
+@inline Fields.griddim() = gridGroupDim()
 @inline Fields.groupreduce(op, val, neutral) = reduce_group(op, val, neutral)
 
 end

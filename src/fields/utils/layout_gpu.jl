@@ -1,14 +1,14 @@
 function create_gpu_layout(struct_name)
     ldims, tuple_len = if struct_name == :Gaugefield
-        :(topology.local_dims..., N == 18 ? 9 : 3, 4), 4
+        :(N == 18 ? 9 : 3, topology.local_dims..., 4), 4
     elseif struct_name == :Spinorfield
-        :(topology.local_dims..., ND == 1 ? 3 : 6), 0
+        :(ND == 1 ? 3 : 6, topology.local_dims...,), 0
     elseif struct_name == :MultiSpinorfield
-        :(topology.local_dims..., ND == 1 ? 3 : 6, numspinors), :numspinors
+        :(ND == 1 ? 3 : 6, topology.local_dims..., numspinors), :numspinors
     elseif struct_name == :Tensorfield
-        :(topology.local_dims..., 9, 6), 6
+        :(9, topology.local_dims..., 6), 6
     elseif struct_name == :Colorfield
-        :(topology.local_dims..., 9, 4), 0
+        :(9, topology.local_dims..., 4), 0
     elseif struct_name == :Expfield
         :(topology.local_dims..., 4), 0
     elseif struct_name == :Paulifield
@@ -22,15 +22,15 @@ function create_gpu_layout(struct_name)
     end
             
     origin = if struct_name == :Gaugefield
-        :(OffsetArrays.Origin(topology.bulk_sites[1].I..., 1, 1))
+        :(OffsetArrays.Origin(1, topology.bulk_sites[1].I..., 1))
     elseif struct_name == :Spinorfield
-        :(OffsetArrays.Origin(topology.bulk_sites[1].I..., 1))
+        :(OffsetArrays.Origin(1, topology.bulk_sites[1].I...,))
     elseif struct_name == :MultiSpinorfield
-        :(OffsetArrays.Origin(topology.bulk_sites[1].I..., 1, 1))
+        :(OffsetArrays.Origin(1, topology.bulk_sites[1].I..., 1))
     elseif struct_name == :Tensorfield
-        :(OffsetArrays.Origin(topology.bulk_sites[1].I..., 1, 1))
+        :(OffsetArrays.Origin(1, topology.bulk_sites[1].I..., 1))
     elseif struct_name == :Colorfield
-        :(OffsetArrays.Origin(topology.bulk_sites[1].I..., 1, 1))
+        :(OffsetArrays.Origin(1, topology.bulk_sites[1].I..., 1))
     elseif struct_name == :Expfield
         :(OffsetArrays.Origin(topology.bulk_sites[1].I..., 1))
     elseif struct_name == :Paulifield
@@ -64,17 +64,20 @@ function create_gpu_layout(struct_name)
     
     # Build halo creation (4D for spinors, 5D for others)
     halo_dims, halo_indices = if struct_name == :Gaugefield
-        :(size(halo_sites[i][j])..., N == 18 ? 9 : 3, 4),
-        :(halo_sites[i][j].indices..., N == 18 ? 9 : 3, 4)
-    elseif struct_name in (:Spinorfield, :MultiSpinorfield)
-        :(size(halo_sites[i][j])..., ND == 1 ? 3 : 6),
-        :(halo_sites[i][j].indices..., ND == 1 ? 3 : 6)
+        :(N == 18 ? 9 : 3, size(halo_sites[i][j])..., 4),
+        :(N == 18 ? 9 : 3, halo_sites[i][j].indices..., 4)
+    elseif struct_name == :Spinorfield
+        :(ND == 1 ? 3 : 6, size(halo_sites[i][j])...,),
+        :(ND == 1 ? 3 : 6, halo_sites[i][j].indices...,)
+    elseif struct_name == :MultiSpinorfield
+        :(ND == 1 ? 3 : 6, size(halo_sites[i][j])..., numspinors),
+        :(ND == 1 ? 3 : 6, halo_sites[i][j].indices..., numspinors)
     elseif struct_name == :Tensorfield
-        :(size(halo_sites[i][j])..., 9, 6),
-        :(halo_sites[i][j].indices..., 9, 6)
+        :(9, size(halo_sites[i][j])..., 6),
+        :(9, halo_sites[i][j].indices..., 6)
     elseif struct_name == :Colorfield
-        :(size(halo_sites[i][j])..., 4, 9),
-        :(halo_sites[i][j].indices..., 4, 9)
+        :(9, size(halo_sites[i][j])..., 4),
+        :(9, halo_sites[i][j].indices..., 4)
     elseif struct_name == :Expfield
         :(size(halo_sites[i][j])..., 4),
         :(halo_sites[i][j].indices..., 4)
@@ -95,17 +98,19 @@ function create_gpu_layout(struct_name)
     # end
 
     sendbuf_dims = if struct_name == :Gaugefield
-        :(length(border_sites[i][j])..., N == 18 ? 9 : 3, 4)
-    elseif struct_name in (:Spinorfield, :MultiSpinorfield)
-        :(length(border_sites[i][j]), ND == 1 ? 3 : 6)
+        :(N == 18 ? 9 : 3, length(border_sites[i][j]), 4)
+    elseif struct_name == :Spinorfield
+        :(ND == 1 ? 3 : 6, length(border_sites[i][j]))
+    elseif struct_name == :MultiSpinorfield
+        :(ND == 1 ? 3 : 6, length(border_sites[i][j]), numspinors)
     elseif struct_name == :Tensorfield
-        :(length(border_sites[i][j])..., 9, 6)
+        :(9, length(border_sites[i][j]), 6)
     elseif struct_name == :Colorfield
-        :(length(border_sites[i][j])..., 9, 4)
+        :(9, length(border_sites[i][j]), 4)
     elseif struct_name == :Expfield
-        :(length(border_sites[i][j])..., 4)
+        :(length(border_sites[i][j]), 4)
     elseif struct_name == :Paulifield
-        :(length(border_sites[i][j])...,)
+        :(length(border_sites[i][j]))
     end
 
     sendbuf_construct = :(bzeros(B(), $eltype_val, $(sendbuf_dims)))

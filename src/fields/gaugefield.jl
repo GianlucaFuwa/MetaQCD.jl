@@ -136,7 +136,7 @@ Base.@propagate_inbounds function _getindex_mat(
 ) where {T}
     x, y, z, t = site.I
     Base.Cartesian.@nexprs 3 i -> (
-        vec = arr[x, y, z, t, i, μ];
+        vec = arr[i, x, y, z, t, μ];
         c1_i = Complex(vec[1], vec[2]);
         c2_i = Complex(vec[3], vec[4]);
     )
@@ -148,7 +148,7 @@ Base.@propagate_inbounds function _getindex_mat(
 ) where {T}
     x, y, z, t = site.I
     tup = ntuple(Val(9)) do i
-        vec = arr[x, y, z, t, i, μ];
+        vec = arr[i, x, y, z, t, μ];
         Complex(vec[1], vec[2])
     end
     return SMatrix{3,3,Complex{T},9}(tup)
@@ -158,9 +158,10 @@ Base.@propagate_inbounds function _setindex_mat!(
     ::Val{12}, arr, v, μ, site, ::Type{T}
 ) where {T}
     x, y, z, t = site.I
-    arr[x, y, z, t, 1, μ] = SIMD.Vec{4,T}((v[1, 1].re, v[1, 1].im, v[2, 1].re, v[2, 1].im))
-    arr[x, y, z, t, 2, μ] = SIMD.Vec{4,T}((v[3, 1].re, v[3, 1].im, v[1, 2].re, v[1, 2].im))
-    arr[x, y, z, t, 3, μ] = SIMD.Vec{4,T}((v[2, 2].re, v[2, 2].im, v[3, 2].re, v[3, 2].im))
+    Base.Cartesian.@nexprs 3 i -> (
+        arr[i, x, y, z, t, μ] = SIMD.Vec{4,T}((
+            v[2(i-1)+1].re, v[2(i-1)+1].im, v[2(i-1)+2].re, v[2(i-1)+2].im));
+    )
     return nothing
 end
 
@@ -169,7 +170,7 @@ Base.@propagate_inbounds function _setindex_mat!(
 ) where {T}
     x, y, z, t = site.I
     Base.Cartesian.@nexprs 9 i -> (
-        arr[x, y, z, t, i, μ] = SIMD.Vec{2,T}((v[i].re, v[i].im));
+        arr[i, x, y, z, t, μ] = SIMD.Vec{2,T}((v[i].re, v[i].im));
     )
     return nothing
 end

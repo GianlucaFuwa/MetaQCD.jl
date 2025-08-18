@@ -30,6 +30,8 @@ function Fields.mpi_assign_device!(::CUDABackend, id)
     (0 <= id < CUDA.ndevices()) || throw(ArgumentError("Device id $id out of bounds."))
     CUDA.device!(Int32(id))
     Fields.DEVICE_ID[] = id
+    dev = AMDGPU.device()
+    Fields.MAX_SHMEM[] = CUDA.attribute(dev, CUDA.DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK)
     return nothing
 end
 
@@ -66,7 +68,6 @@ function Fields.launch_foreachindex_global!(
     return nothing
 end
 
-# TODO: multiple iterators
 function Fields.launch_foreachindex_reduce_global!(
     ::CUDABackend, out, op, f, captured, itr::Tuple, threads, blocks
 )
@@ -111,10 +112,10 @@ function Fields.launch_foreachindex_reduce_global!(
     return reduce(op, out_vec)
 end
 
-@inline Fields.threadidx() = threadIdx().x
-@inline Fields.groupidx() = blockIdx().x
-@inline Fields.groupdim() = blockDim().x
-@inline Fields.griddim() = gridDim().x
+@inline Fields.threadidx() = threadIdx()
+@inline Fields.groupidx() = blockIdx()
+@inline Fields.groupdim() = blockDim()
+@inline Fields.griddim() = gridDim()
 @inline Fields.groupreduce(op, val, neutral) = reduce_block(op, val, neutral)
 
 end

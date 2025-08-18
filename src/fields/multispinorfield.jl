@@ -98,7 +98,7 @@ Base.@propagate_inbounds function Base.setindex!(f::MPIMultiSpinorfield{CPU}, v,
 end
 ######################
 
-#### CPU Indexing ####
+#### GPU Indexing ####
 # TODO:
 ######################
 
