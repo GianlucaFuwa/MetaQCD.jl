@@ -120,8 +120,7 @@ end
             η = sgn * staggered_η(Val(μ), site, T);
             ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(μ));
             ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(μ));
-            # ψₙ += η * (cmvmul(U[μ, site], ϕ⁺) - cmvmul_d(U[μ, siteμ⁻], ϕ⁻))
-            ψₙ += η * (U[μ, site] * ϕ⁺ - U[μ, siteμ⁻]' * ϕ⁻)
+            ψₙ += η * (cmvmul(U[μ, site], ϕ⁺) - cmvmul_d(U[μ, siteμ⁻], ϕ⁻))
         )
     end
     return T(0.5) * ψₙ
