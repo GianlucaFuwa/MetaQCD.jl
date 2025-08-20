@@ -880,7 +880,7 @@ end
     end
 
     loop_q = quote
-        @fastmath for m in Base.Slice(static(1):static($N))
+        @turbo for m in Base.Slice(static(1):static($N))
             yₘ₁r = $(zero(T))
             yₘ₁i = $(zero(T))
             yₘ₂r = $(zero(T))

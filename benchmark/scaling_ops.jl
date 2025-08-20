@@ -4,12 +4,16 @@ using AMDGPU
 
 const FLOPS = Dict(
     "Copy" => 0,
+    "Dot-Staggered" => 22,
+    "Dot-Wilson" => 94,
     "Staggered" => 587,
     "Wilson" => 1368,
     "Wilson-Clover" => 1368 + 1728
 )
 
 const OPERATORS = (
+    nothing,
+    nothing,
     nothing,
     StaggeredDiracOperator,
     WilsonDiracOperator,
@@ -18,6 +22,8 @@ const OPERATORS = (
 
 const NAMES = (
     "Copy",
+    "Dot-Staggered",
+    "Dot-Wilson",
     "Staggered",
     "Wilson",
     "Wilson-Clover",
@@ -78,28 +84,29 @@ function main()
             if opname == "Copy"
                 a = similar(U)
                 b = similar(U)
-                # a = Spinorfield(U)
-                # b = Spinorfield(U)
-
-                copy!(a, b) # warmup
+                # warmup
+                copy!(a, b)
                 mpi_barrier()
-
                 println("Benchmarking $(opname) $(tstring) ($(mpi_myrank()))")
                 bench = @be _ $bench_copy!($B, $a, $b, $nlaunches) mpi_barrier() evals=1 samples=100 seconds=5
+            elseif contains(opname, "Dot")
+                staggered = contains(opname, "Staggered")
+                a = Spinorfield(U; staggered)
+                b = Spinorfield(U; staggered)
+                # warmup
+                dot(a, b)
+                mpi_barrier()
+                println("Benchmarking $(opname) $(tstring) ($(mpi_myrank()))")
+                bench = @be _ dot($a, $b) mpi_barrier() evals=1 samples=100 seconds=5
             else
                 staggered = opname == "Staggered"
                 csw = opname == "Wilson-Clover" ? 1.78 : 0.0
                 ϕ = Spinorfield(U; staggered)
                 ψ = Spinorfield(U; staggered)
                 D = operator(U, 0.01; csw=csw)
-
-                # random_gauges!(U)
-                # gaussian_pseudofermions!(ϕ)
-
-                mul!(ψ, (D(U)), ϕ) # warmup
-
+                # warmup
+                mul!(ψ, (D(U)), ϕ)
                 mpi_barrier()
-
                 println("Benchmarking $(opname) $(tstring) Operator ($(mpi_myrank()))")
                 bench = @be _ $bench_mul!($B, $ψ, $(D)($U), $ϕ, $nlaunches) mpi_barrier() evals=2 samples=100 seconds=10
             end
@@ -175,6 +182,10 @@ function mem_per_site(op, ::Type{T}, nfloat) where T
     elseif op == "Copy"
         return sizeof(Complex{T}) * (2 * 4 * nfloat/2)
         # return sizeof(Complex{T}) * (2 * 12)
+    elseif op == "Dot-Staggered"
+        return sizeof(Complex{T}) * (2 * 3)
+    elseif op == "Dot-Wilson"
+        return sizeof(Complex{T}) * (2 * 12)
     else
         error()
     end
