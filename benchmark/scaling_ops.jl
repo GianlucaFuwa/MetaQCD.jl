@@ -1,6 +1,7 @@
 using MetaQCD, MetaQCD.Utils, MPI, LinearAlgebra, Chairmarks
 using Random, Statistics, Printf
 using AMDGPU
+using MetaQCD.DiracOperators: solve_dirac!
 
 const FLOPS = Dict(
     "Copy" => 0,
@@ -9,6 +10,8 @@ const FLOPS = Dict(
     "Staggered" => 587,
     "Wilson" => 1368,
     "Wilson-Clover" => 1368 + 1728
+    "Invert-Staggered" => 587 + 2*22 + 2*12 + 18, # op + 2dot + 2axpy + axpby
+    # "Invert-Wilson" => 1368 + 2*22 + 2*12 + 18, # op + 2dot + 2axpy + axpby
 )
 
 const OPERATORS = (
@@ -18,6 +21,8 @@ const OPERATORS = (
     StaggeredDiracOperator,
     WilsonDiracOperator,
     WilsonDiracOperator,
+    nothing,
+    # nothing,
 )
 
 const NAMES = (
@@ -27,6 +32,8 @@ const NAMES = (
     "Staggered",
     "Wilson",
     "Wilson-Clover",
+    "Invert-Staggered",
+    # "Invert-Wilson",
 )
 
 function bench_mul!(::Type{B}, ϕ, D, ψ, nlaunches) where B
@@ -40,6 +47,14 @@ end
 function bench_copy!(::Type{B}, a, b, nlaunches) where B
     for _ in 1:nlaunches
         copy!(a, b)
+    end
+    MetaQCD.Fields.synchronize(B())
+    return nothing
+end
+
+function bench_dot(::Type{B}, a, b, nlaunches) where B
+    for _ in 1:nlaunches
+        dot(a, b)
     end
     MetaQCD.Fields.synchronize(B())
     return nothing
@@ -97,7 +112,58 @@ function main()
                 dot(a, b)
                 mpi_barrier()
                 println("Benchmarking $(opname) $(tstring) ($(mpi_myrank()))")
-                bench = @be _ dot($a, $b) mpi_barrier() evals=1 samples=100 seconds=5
+                bench = @be _ $bench_dot($B, $a, $b, $nlaunches) mpi_barrier() evals=1 samples=100 seconds=5
+            elseif contains(opname, "Invert")
+                T == Float32 || continue
+                operator, staggered = if contains(opname, "Staggered")
+                    StaggeredDiracOperator, true
+                else
+                    WilsonDiracOperator, false
+                end
+                D = operator(U, 0.01; csw=1.78)
+                ϕ = Spinorfield(U; staggered)
+                ψ = Spinorfield(U; staggered)
+                random_gauges!(U)
+                g = GradientFlow(U; integrator="euler", numflow=5, steps=1, tf=0.12)
+                copy!(g.Uflow, U)
+                for _ in 1:g.numflow
+                    flow!(g)
+                end
+                copy!(U, g.Uflow)
+                gaussian_pseudofermions!(ϕ)
+                temp1, temp2, temp3 = ntuple(_ -> Spinorfield(U; staggered), Val(3))
+                tol = 1e-4
+                maxiters = 5000
+                DU = DdaggerD(D(U))
+                # warmup
+                solve_dirac!(ψ, DU, ϕ, temp1, temp2, temp3; tol, maxiters)
+                mpi_barrier()
+                println("Benchmarking $(opname) $(tstring) ($(mpi_myrank()))")
+                stats = @timed solve_dirac!(ψ, DU, ϕ, temp1, temp2, temp3; tol, maxiters)
+                iters, _ = stats.value
+                @show iters
+                flops = prod(global_dims) * FLOPS[opname] * iters / 1e9
+                mem = prod(global_dims) * mem_per_site(opname, T, 1) * iters / 1e9
+                _time = stats.time
+                perf = flops / _time
+                bw = mem / _time
+
+                if mpi_amroot()
+                    benchprint(fp, "$(opname) $(tstring)")
+                    str = @sprintf(
+                        "%-15s%-12.3f%-12s%-12s%-10s[GFLOPs]",
+                        "", perf, "-", "-", "-"
+                    )
+                    benchprint(fp, str)
+                    str = @sprintf(
+                        "%-15s%-12.3f%-12s%-12s%-10s[GB/s]",
+                        "", bw, "-", "-", "-"
+                    )
+                    benchprint(fp, str)
+                end
+
+                mpi_barrier()
+                continue
             else
                 staggered = opname == "Staggered"
                 csw = opname == "Wilson-Clover" ? 1.78 : 0.0
@@ -130,17 +196,17 @@ function main()
             stdbw = meanbw - (mem / (meantime+stdtime))
 
             if mpi_amroot()
-                println(fp, "$(opname) $(tstring)")
+                benchprint(fp, "$(opname) $(tstring)")
                 str = @sprintf(
                     "%-15s%-12.3f%-12.3f%-12.3f%-10.3f[GFLOPs]",
                     "", maxperf, medianperf, meanperf, stdperf
                 )
-                println(fp, str)
+                benchprint(fp, str)
                 str = @sprintf(
                     "%-15s%-12.3f%-12.3f%-12.3f%-10.3f[GB/s]",
                     "", maxbw, medianbw, meanbw, stdbw
                 )
-                println(fp, str)
+                benchprint(fp, str)
             end
 
             mpi_barrier()
@@ -186,9 +252,27 @@ function mem_per_site(op, ::Type{T}, nfloat) where T
         return sizeof(Complex{T}) * (2 * 3)
     elseif op == "Dot-Wilson"
         return sizeof(Complex{T}) * (2 * 12)
+    elseif op == "Invert-Staggered"
+        mem_op = sizeof(Complex{T}) * (10 * 3 + 8 * nfloat/2)
+        mem_axpy = 2sizeof(Complex{T}) * (2 * 3)
+        mem_axpby = sizeof(Complex{T}) * (2 * 3)
+        mem_dot = 2sizeof(Complex{T}) * (2 * 3)
+        return mem_op + mem_axpy + mem_axpby + mem_dot
+    elseif op == "Invert-Wilson"
+        mem_op = sizeof(Complex{T}) * (2 * 12 + 6 * (16 * nfloat/2))
+        mem_axpy = 2sizeof(Complex{T}) * (2 * 12)
+        mem_axpby = sizeof(Complex{T}) * (2 * 12)
+        mem_dot = 2sizeof(Complex{T}) * (2 * 12)
+        return mem_op + mem_axpy + mem_axpby + mem_dot
     else
         error()
     end
+end
+
+function benchprint(io, str)
+    println(io, str)
+    println(str)
+    return nothing
 end
 
 main()
