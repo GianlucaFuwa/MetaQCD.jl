@@ -9,7 +9,7 @@ const FLOPS = Dict(
     "Dot-Wilson" => 94,
     "Staggered" => 587,
     "Wilson" => 1368,
-    "Wilson-Clover" => 1368 + 1728
+    "Wilson-Clover" => 1368 + 1728,
     "Invert-Staggered" => 587 + 2*22 + 2*12 + 18, # op + 2dot + 2axpy + axpby
     # "Invert-Wilson" => 1368 + 2*22 + 2*12 + 18, # op + 2dot + 2axpy + axpby
 )

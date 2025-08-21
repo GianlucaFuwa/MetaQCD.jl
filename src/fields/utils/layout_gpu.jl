@@ -65,22 +65,22 @@ function create_gpu_layout(struct_name)
     # Build halo creation (4D for spinors, 5D for others)
     halo_dims, halo_indices = if struct_name == :Gaugefield
         :(N == 18 ? 9 : 3, size(halo_sites[i][j])..., 4),
-        :(N == 18 ? 9 : 3, halo_sites[i][j].indices..., 4)
+        :(1:(N == 18 ? 9 : 3), halo_sites[i][j].indices..., 1:4)
     elseif struct_name == :Spinorfield
         :(ND == 1 ? 3 : 6, size(halo_sites[i][j])...,),
-        :(ND == 1 ? 3 : 6, halo_sites[i][j].indices...,)
+        :(1:(ND == 1 ? 3 : 6), halo_sites[i][j].indices...,)
     elseif struct_name == :MultiSpinorfield
         :(ND == 1 ? 3 : 6, size(halo_sites[i][j])..., numspinors),
-        :(ND == 1 ? 3 : 6, halo_sites[i][j].indices..., numspinors)
+        :(1:(ND == 1 ? 3 : 6), halo_sites[i][j].indices..., 1:numspinors)
     elseif struct_name == :Tensorfield
         :(9, size(halo_sites[i][j])..., 6),
-        :(9, halo_sites[i][j].indices..., 6)
+        :(1:9, halo_sites[i][j].indices..., 1:6)
     elseif struct_name == :Colorfield
         :(9, size(halo_sites[i][j])..., 4),
-        :(9, halo_sites[i][j].indices..., 4)
+        :(1:9, halo_sites[i][j].indices..., 1:4)
     elseif struct_name == :Expfield
         :(size(halo_sites[i][j])..., 4),
-        :(halo_sites[i][j].indices..., 4)
+        :(halo_sites[i][j].indices..., 1:4)
     elseif struct_name == :Paulifield
         :(size(halo_sites[i][j])...,),
         :(halo_sites[i][j].indices...,)
