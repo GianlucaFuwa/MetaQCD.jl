@@ -112,13 +112,17 @@ Base.@propagate_inbounds function Base.setindex!(
     return _setindex_mat!(Val(N), u.U, v, μ, site, T)
 end
 
-Base.@propagate_inbounds function Base.getindex(u::MPIGaugefield{B,T,GA,N}, μ, site) where {B,T,GA,N}
+Base.@propagate_inbounds function Base.getindex(
+    u::MPIGaugefield{B,T,GA,N}, μ, site::SiteCoords
+) where {B,T,GA,N}
     site in u.topology.bulk_sites && return _getindex_mat(Val(N), u.U, μ, site, T)
     ihalo = get_halo_index(site, u.topology.bulk_sites)
     return _getindex_mat(Val(N), u.halos[ihalo], μ, site, T)
 end
 
-Base.@propagate_inbounds function Base.setindex!(u::MPIGaugefield{B,T,GA,N}, v, μ, site) where {B,T,GA,N}
+Base.@propagate_inbounds function Base.setindex!(
+    u::MPIGaugefield{B,T,GA,N}, v, μ, site::SiteCoords
+) where {B,T,GA,N}
     bulk = u.topology.bulk_sites
 
     if site in bulk
@@ -183,17 +187,37 @@ Base.eltype(::Gaugefield{CPU,T,M,GA,18}) where {T,M,GA} = SMatrix{3,3,Complex{T}
 Base.eltype(::Gaugefield{B,T,M,GA,12}) where {B,T,M,GA} = SIMD.Vec{4,T}
 Base.eltype(::Gaugefield{B,T,M,GA,18}) where {B,T,M,GA} = SIMD.Vec{2,T}
 
-function create_sendbuf!(u::AbstractField{B,T,M}, sites, dim, dir) where {B,T,M}
+function create_sendbuf!(u::AbstractField{CPU,T,M}, sites, dim, dir) where {T,M}
     ibuf = dir + 2(dim - 1)
     sendbuf = u.sendbuf[ibuf]
     itr = eachindex(IndexLinear(), sites)
 
-    parallelfor(itr, B, Val(M), (), (), (u,)) do i, (u,)
+    parallelfor(itr, CPU, Val(M), (), (), (u,)) do i, (u,)
         site = sites[i]
         sendbuf[1, i] = u[1, site]
         sendbuf[2, i] = u[2, site]
         sendbuf[3, i] = u[3, site]
         sendbuf[4, i] = u[4, site]
+    end
+
+    return mpi_make_transferrable(sendbuf)[1]
+end
+
+function create_sendbuf!(u::AbstractField{B,T,M}, sites, dim, dir) where {B,T,M}
+    ibuf = dir + 2(dim - 1)
+    sendbuf = u.sendbuf[ibuf]
+    itr = eachindex(IndexLinear(), sites)
+    N = u isa Gaugefield ? Val(nfloat(u)) : Val(18)
+
+    parallelfor(itr, B, Val(M), (), (), (u,)) do i, (U,)
+        site = sites[i]
+
+        for μ in 1:4
+            vecs = sarray_to_vecs(N, U[μ, site])
+            for ivec in 1:numvecs
+                sendbuf[ivec, i, μ] = vecs[ivec]
+            end
+        end
     end
 
     return mpi_make_transferrable(sendbuf)[1]

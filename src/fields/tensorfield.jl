@@ -174,12 +174,12 @@ function fieldstrength_eachsite!(
     return nothing
 end
 
-function create_sendbuf!(F::Tensorfield{B,T,M}, sites, dim, dir) where {B,T,M}
+function create_sendbuf!(F::Tensorfield{CPU,T,M}, sites, dim, dir) where {T,M}
     ibuf = dir + 2(dim - 1)
     sendbuf = F.sendbuf[ibuf]
     itr = eachindex(IndexLinear(), sites)
 
-    parallelfor(itr, B, Val(M), (), (), (F,)) do i, (F,)
+    parallelfor(itr, CPU, Val(M), (), (), (F,)) do i, (F,)
         site = sites[i]
         sendbuf[1, i] = F[1, site]
         sendbuf[2, i] = F[2, site]
@@ -187,6 +187,24 @@ function create_sendbuf!(F::Tensorfield{B,T,M}, sites, dim, dir) where {B,T,M}
         sendbuf[4, i] = F[4, site]
         sendbuf[5, i] = F[5, site]
         sendbuf[6, i] = F[6, site]
+    end
+
+    return mpi_make_transferrable(sendbuf)[1]
+end
+
+function create_sendbuf!(F::Tensorfield{B,T,M}, sites, dim, dir) where {B,T,M}
+    ibuf = dir + 2(dim - 1)
+    sendbuf = F.sendbuf[ibuf]
+    itr = eachindex(IndexLinear(), sites)
+
+    parallelfor(itr, B, Val(M), (), (), (F,)) do i, (F,)
+        site = sites[i]
+        for itens in 1:6
+            vecs = sarray_to_vecs(Val(18), F[itens, site])
+            for ivec in 1:9
+                sendbuf[ivec, i, itens] = vecs[ivec]
+            end
+        end
     end
 
     return mpi_make_transferrable(sendbuf)[1]

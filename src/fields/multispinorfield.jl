@@ -147,17 +147,38 @@ function gaussian_pseudofermions!(ϕ::MultiSpinorfield{B,T,M}) where {B,T,M}
     return nothing
 end
 
-function create_sendbuf!(ϕ::MultiSpinorfield{B,T,M}, sites, dim, dir) where {B,T,M}
+function create_sendbuf!(ϕ::MultiSpinorfield{CPU,T,M}, sites, dim, dir) where {T,M}
     ibuf = dir + 2(dim - 1)
     sendbuf = ϕ.sendbuf[ibuf]
     itr = eachindex(IndexLinear(), sites)
     numspinors = ϕ.numspinors
 
-    parallelfor(itr, B, Val(M), (), (), (ϕ,)) do i, (ϕ,)
+    parallelfor(itr, CPU, Val(M), (), (), (ϕ,)) do i, (ϕ,)
         site = sites[i]
 
         for is in 1:numspinors
             sendbuf[is, i] = ϕ[is, site]
+        end
+    end
+
+    return mpi_make_transferrable(sendbuf)[1]
+end
+
+function create_sendbuf!(ϕ::MultiSpinorfield{B,T,M,ND}, sites, dim, dir) where {B,T,M,ND}
+    ibuf = dir + 2(dim - 1)
+    sendbuf = u.sendbuf[ibuf]
+    itr = eachindex(IndexLinear(), sites)
+    numspinors = ϕ.numspinors
+    numvecs = ND == 1 ? 3 : 6
+
+    parallelfor(itr, B, Val(M), (), (), (u,)) do i, (U,)
+        site = sites[i]
+
+        for is in 1:numspinors
+            vecs = sarray_to_vecs(ϕ[is, site])
+            for ivec in 1:numvecs
+                sendbuf[ivec, i, is] = vecs[ivec]
+            end
         end
     end
 

@@ -30,7 +30,7 @@ struct FieldTopology
     # Sites in partition that belong to halo regions (forward and backward per dim)
     halo_sites::ContiguousExchangeSites
     # Sites in bulk that belong to border regions (forward and backward per dim)
-    border_sites::ContiguousExchangeSites # one for each stencil size up to halo_width
+    border_sites::ContiguousExchangeSites
     border_iterators::NTuple{8,CartesianIndices{4,NTuple{4,UnitRange{Int64}}}}
 
     global_volume::Int64 # Number of sites in global field

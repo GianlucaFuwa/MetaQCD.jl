@@ -127,15 +127,14 @@ function LinearAlgebra.mul!(
 end
 
 function wilson_kernel(
-    U, Fμν, ϕ, site, mass_term, csw_fac, bc, ::Type{T}, ::Val{dagg}, ::Val{C}
-) where {T,dagg,C}
+    U, ::Any, ϕ, site, mass_term, ::Any, bc, ::Type{T}, ::Val{dagg}, ::Val{false}
+) where {T,dagg}
     @inbounds begin
         # dagg can be 1 or -1; if it's -1 then we swap (1 - γᵨ) with (1 + γᵨ) and vice versa
         # We have to wrap in a Val for the same reason as in the next comment
         ϕₙ = ϕ[site]
         ψₙ = mass_term * ϕₙ # factor 1/2 is included at the end
         NT = size(U, 4)
-
         # use @nexprs here to statically generate the loop
         # this makes it so Val(μ) is well defined at each iteration and no type-instabilities arise
         @nexprs 4 μ -> (
@@ -149,19 +148,34 @@ function wilson_kernel(
         )
     end
 
-    if C
-        return T(0.5) * ψₙ + clover_kernel(Fμν, ϕₙ, site, csw_fac, T)
-    else
-        return T(0.5) * ψₙ
-    end
+    return T(0.5) * ψₙ
 end
 
-@inline function clover_kernel(Fμν, ϕₙ, site, fac, ::Type{T}) where {T}
-    # Observed that it makes a difference whether we only make F antihermitian or traceless antihermitian in the accuracy of the derivative --> TA makes it worse is most severe when U is unsmeared
-    Cₙ = zero(ϕₙ)
-    @nexprs 6 i -> (
-        @inbounds Fᵢ = Fμν[i, site];
-        Cₙ += cmvmul_color(Fᵢ, σμν_spin_mul(ϕₙ, Val(i)))
-    )
-    return T(fac) * Cₙ
+function wilson_kernel(
+    U, Fμν, ϕ, site, mass_term, csw_fac, bc, ::Type{T}, ::Val{dagg}, ::Val{true}
+) where {T,dagg}
+    @inbounds begin
+        # dagg can be 1 or -1; if it's -1 then we swap (1 - γᵨ) with (1 + γᵨ) and vice versa
+        # We have to wrap in a Val for the same reason as in the next comment
+        ϕₙ = ϕ[site]
+        ψₙ = mass_term * ϕₙ # factor 1/2 is included at the end
+        NT = size(U, 4)
+        # use @nexprs here to statically generate the loop
+        # this makes it so Val(μ) is well defined at each iteration and no type-instabilities arise
+        @nexprs 4 μ -> (
+            Nμ = axes(U, μ);
+            siteμ⁺ = move(site, μ, 1, Nμ);
+            siteμ⁻ = move(site, μ, -1, Nμ);
+            ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(μ));
+            ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(μ));
+            ψₙ -= cmvmul_spin_proj(U[μ, site], ϕ⁺, Val(-μ*dagg), Val(false));
+            ψₙ -= cmvmul_spin_proj(U[μ, siteμ⁻], ϕ⁻, Val(μ*dagg), Val(true))
+        )
+        Cₙ = zero(ϕₙ)
+        @nexprs 6 i -> (
+            Cₙ += cmvmul_color(Fμν[i, site], σμν_spin_mul(ϕₙ, Val(i)))
+        )
+    end
+
+    return T(0.5) * ψₙ + T(csw_fac) * Cₙ
 end

@@ -84,18 +84,24 @@ function main()
         )
     end
 
-    # for irank in 0:mpi_size()-1
-    #     if mpi_myrank() == irank
-    #         println("$(mpi_myrank()): device $(AMDGPU.device_id())")
-    #         mpi_barrier()
-    #     end
-    # end
+    deviceid_printed = false
 
     for (i, operator) in enumerate(OPERATORS)
         opname = NAMES[i]
         for T in (Float16, Float32, Float64)
             tstring = lowercase(string(T))
             U = Gaugefield{B,T,GA,N}(global_dims..., 6.0; numprocs_cart, halo_width)
+
+            if !deviceid_printed
+                for irank in 0:mpi_size()-1
+                    if mpi_myrank() == irank
+                        println("$(mpi_myrank()): device $(AMDGPU.device_id())")
+                        mpi_barrier()
+                    end
+                end
+                deviceid_printed = true
+            end
+
             if opname == "Copy"
                 a = similar(U)
                 b = similar(U)

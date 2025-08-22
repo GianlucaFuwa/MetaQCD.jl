@@ -97,18 +97,21 @@ Base.@propagate_inbounds function Base.setindex!(
     return _setindex_nd!(Val(ND), f.U, v, site, T)
 end
 
-Base.@propagate_inbounds function Base.getindex(u::MPISpinorfield{B,T,ND}, site) where {B,T,ND}
+Base.@propagate_inbounds function Base.getindex(
+    u::MPISpinorfield{B,T,ND}, site::SiteCoords
+) where {B,T,ND}
     site in u.topology.bulk_sites && return _getindex_nd(Val(ND), u.U, site, T)
     ihalo = get_halo_index(site, u.topology.bulk_sites)
     return _getindex_nd(Val(ND), u.halos[ihalo], site, T)
 end
 
-Base.@propagate_inbounds function Base.setindex!(u::MPISpinorfield{B,T,ND}, v, site) where {B,T,ND}
+Base.@propagate_inbounds function Base.setindex!(
+    u::MPISpinorfield{B,T,ND}, v, site::SiteCoords
+) where {B,T,ND}
     bulk = u.topology.bulk_sites
 
     if site in bulk
         _setindex_nd!(Val(ND), u.U, v, site, T)
-        u.U[site] = v
     else
         ihalo = get_halo_index(site, bulk)
         _setindex_nd!(Val(ND), u.halos[ihalo], v, site, T)
@@ -234,17 +237,45 @@ function LinearAlgebra.dot(ϕ::TF, ψ::TF) where {B,T,M,TF<:Spinorfield{B,T,M}}
     return distributed_reduce(res, +, ϕ)
 end
 
-function create_sendbuf!(ϕ::Spinorfield{B,T,M}, sites, dim, dir) where {B,T,M}
+function create_sendbuf!(ϕ::Spinorfield{CPU,T,M,ND}, sites, dim, dir) where {CPU,T,M,ND}
     ibuf = dir + 2(dim - 1)
     sendbuf = ϕ.sendbuf[ibuf]
     itr = eachindex(IndexLinear(), sites)
+    numvecs = ND == 1 ? 3 : 6
 
-    parallelfor(itr, B, Val(M), (), (), (ϕ,)) do i, (ϕ,)
+    parallelfor(itr, CPU, Val(M), (), (), (ϕ,)) do i, (ϕ,)
         site = sites[i]
         sendbuf[i] = ϕ[site]
     end
 
     return mpi_make_transferrable(sendbuf)[1]
+end
+
+function create_sendbuf!(ϕ::Spinorfield{B,T,M,ND}, sites, dim, dir) where {B,T,M,ND}
+    ibuf = dir + 2(dim - 1)
+    sendbuf = ϕ.sendbuf[ibuf]
+    itr = eachindex(IndexLinear(), sites)
+    numvecs = ND == 1 ? 3 : 6
+
+    parallelfor(itr, CPU, Val(M), (), (), (ϕ,)) do i, (ϕ,)
+        site = sites[i]
+        vecs = sarray_to_vecs(N, ϕ[site])
+        for ivec in 1:numvecs
+            sendbuf[ivec, i] = vecs[ivec]
+        end
+    end
+
+    return mpi_make_transferrable(sendbuf)[1]
+end
+
+@inline function setindex_sendbuf!(sendbuf, ϕ::Spinorfield, i, site, numvecs)
+    vecs = sarray_to_vecs(ϕ[site])
+
+    for ivec in 1:numvecs
+        sendbuf[ivec, i] = vecs[ivec]
+    end
+
+    return nothing
 end
 
 function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:Spinorfield{B,T,M}}

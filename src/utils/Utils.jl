@@ -12,6 +12,7 @@ using MuladdMacro: @muladd
 using Polyester
 using Preferences
 using Random
+using SIMD
 using StaticArrays
 using StaticTools
 # using PrecompileTools: PrecompileTools
@@ -64,7 +65,7 @@ export cdot, cmvmul, cmvmul_d, cvmmul, cvmmul_d, cmvmul_block
 export cmvmul_color, cmvmul_d_color, cvmmul_color, cvmmul_d_color
 export ckron, spintrace, cmvmul_spin_proj, spin_proj, σμν_spin_mul
 export _unwrap_val, SU, restore_last_col, restore_last_row, FLOAT_TYPE
-export cinv, i32, spintrace_pauli, struct2dict
+export cinv, i32, spintrace_pauli, struct2dict, sarray_to_vecs
 
 abstract type AbstractIterator end
 struct Sequential <: AbstractIterator end
@@ -226,5 +227,6 @@ include("generators.jl")
 include("exp.jl")
 include("algebra.jl")
 include("sitecoords.jl")
+include("vecs.jl")
 
 end

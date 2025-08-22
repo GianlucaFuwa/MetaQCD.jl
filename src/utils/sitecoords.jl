@@ -163,8 +163,6 @@ end
         halo_id = 2
     elseif x < x_min
         halo_id = 1
-    else
-        error("Site $site is not in bulk or any halo region")
     end
     # if x < x_min
     #     halo_id = 1
@@ -182,8 +180,6 @@ end
     #     halo_id = 7
     # elseif t > t_max
     #     halo_id = 8
-    # else
-    #     error("Site $site is not in bulk or any halo region")
     # end
     
     return halo_id
