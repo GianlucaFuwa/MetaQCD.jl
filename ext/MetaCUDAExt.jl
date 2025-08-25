@@ -3,12 +3,9 @@ module MetaCUDAExt
 using CUDA
 using CUDA: @cuda, CUDABackend, CuArray, launch_configuration, synchronize
 using CUDA: threadIdx, blockIdx, blockDim, reduce_block
-using Preferences
 import MetaQCD.Fields
 import MetaQCD.Fields: _foreachindex_global!, _foreachindex_reduce_global!
 import MetaQCD.Utils: mpi_myrank
-
-const FORCE_SINGLE_GPU = Val(@load_preference("FORCE_SINGLE_GPU", false))
 
 function __init__()
     Fields.BACKENDS["cuda"] = CUDABackend
@@ -25,7 +22,7 @@ function Fields.priority!(::CUDABackend, priority)
 end
 
 function Fields.mpi_assign_device!(::CUDABackend, id)
-    FORCE_SINGLE_GPU == Val(true) && (id = 0)
+    Fields.FORCE_SINGLE_GPU == Val(true) && (id = 0)
     Fields.DEVICE_ID[] != -1 && return nothing
     (0 <= id < CUDA.ndevices()) || throw(ArgumentError("Device id $id out of bounds."))
     CUDA.device!(Int32(id))

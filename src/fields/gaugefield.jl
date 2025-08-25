@@ -207,20 +207,39 @@ function create_sendbuf!(u::AbstractField{B,T,M}, sites, dim, dir) where {B,T,M}
     ibuf = dir + 2(dim - 1)
     sendbuf = u.sendbuf[ibuf]
     itr = eachindex(IndexLinear(), sites)
-    N = u isa Gaugefield ? Val(nfloat(u)) : Val(18)
 
-    parallelfor(itr, B, Val(M), (), (), (u,)) do i, (U,)
+    parallelfor(itr, B, Val(M), (), (), (u,)) do i, (u,)
         site = sites[i]
-
-        for μ in 1:4
-            vecs = sarray_to_vecs(N, U[μ, site])
-            for ivec in 1:numvecs
-                sendbuf[ivec, i, μ] = vecs[ivec]
-            end
-        end
+        setindex_sendbuf!(sendbuf, u, i, site)
     end
 
     return mpi_make_transferrable(sendbuf)[1]
+end
+
+Base.@propagate_inbounds function setindex_sendbuf!(
+    sendbuf, u::AbstractField{B,T,M}, i, site
+) where {B,T,M}
+    U = u.U
+    Base.Cartesian.@nexprs 9 j -> (
+        sendbuf[j, i, 1] = u[Base._to_linear_index(U, j, site.I..., 1)];
+        sendbuf[j, i, 2] = u[Base._to_linear_index(U, j, site.I..., 2)];
+        sendbuf[j, i, 3] = u[Base._to_linear_index(U, j, site.I..., 3)];
+        sendbuf[j, i, 4] = u[Base._to_linear_index(U, j, site.I..., 4)]
+    )
+    return nothing
+end
+
+Base.@propagate_inbounds function setindex_sendbuf!(
+    sendbuf, u::Gaugefield{B,T,M,GA,12}, i, site
+) where {B,T,M,GA}
+    U = u.U
+    Base.Cartesian.@nexprs 3 j -> (
+        sendbuf[j, i, 1] = u[Base._to_linear_index(U, j, site.I..., 1)];
+        sendbuf[j, i, 2] = u[Base._to_linear_index(U, j, site.I..., 2)];
+        sendbuf[j, i, 3] = u[Base._to_linear_index(U, j, site.I..., 3)];
+        sendbuf[j, i, 4] = u[Base._to_linear_index(U, j, site.I..., 4)]
+    )
+    return nothing
 end
 
 function get_recv_buf(u::AbstractField{B,T,M}, num) where {B,T,M}

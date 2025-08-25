@@ -237,11 +237,10 @@ function LinearAlgebra.dot(ϕ::TF, ψ::TF) where {B,T,M,TF<:Spinorfield{B,T,M}}
     return distributed_reduce(res, +, ϕ)
 end
 
-function create_sendbuf!(ϕ::Spinorfield{CPU,T,M,ND}, sites, dim, dir) where {CPU,T,M,ND}
+function create_sendbuf!(ϕ::Spinorfield{CPU,T,M,ND}, sites, dim, dir) where {T,M,ND}
     ibuf = dir + 2(dim - 1)
     sendbuf = ϕ.sendbuf[ibuf]
     itr = eachindex(IndexLinear(), sites)
-    numvecs = ND == 1 ? 3 : 6
 
     parallelfor(itr, CPU, Val(M), (), (), (ϕ,)) do i, (ϕ,)
         site = sites[i]
@@ -255,26 +254,35 @@ function create_sendbuf!(ϕ::Spinorfield{B,T,M,ND}, sites, dim, dir) where {B,T,
     ibuf = dir + 2(dim - 1)
     sendbuf = ϕ.sendbuf[ibuf]
     itr = eachindex(IndexLinear(), sites)
-    numvecs = ND == 1 ? 3 : 6
 
-    parallelfor(itr, CPU, Val(M), (), (), (ϕ,)) do i, (ϕ,)
+    parallelfor(itr, B, Val(M), (), (), (ϕ,)) do i, (ϕ,)
         site = sites[i]
-        vecs = sarray_to_vecs(N, ϕ[site])
-        for ivec in 1:numvecs
-            sendbuf[ivec, i] = vecs[ivec]
-        end
+        setindex_sendbuf!(sendbuf, ϕ, i, site)
     end
 
     return mpi_make_transferrable(sendbuf)[1]
 end
 
-@inline function setindex_sendbuf!(sendbuf, ϕ::Spinorfield, i, site, numvecs)
-    vecs = sarray_to_vecs(ϕ[site])
+Base.@propagate_inbounds function setindex_sendbuf!(
+    sendbuf, ϕ::Spinorfield{B,T,M,1}, i, site
+) where {B,T,M}
+    U = ϕ.U
+    sendbuf[1, i] = ϕ[Base._to_linear_index(U, 1, site.I...)]
+    sendbuf[2, i] = ϕ[Base._to_linear_index(U, 2, site.I...)]
+    sendbuf[3, i] = ϕ[Base._to_linear_index(U, 3, site.I...)]
+    return nothing
+end
 
-    for ivec in 1:numvecs
-        sendbuf[ivec, i] = vecs[ivec]
-    end
-
+Base.@propagate_inbounds function setindex_sendbuf!(
+    sendbuf, ϕ::Spinorfield{B,T,M,4}, i, site
+) where {B,T,M}
+    U = ϕ.U
+    sendbuf[1, i] = ϕ[Base._to_linear_index(U, 1, site.I...)]
+    sendbuf[2, i] = ϕ[Base._to_linear_index(U, 2, site.I...)]
+    sendbuf[3, i] = ϕ[Base._to_linear_index(U, 3, site.I...)]
+    sendbuf[4, i] = ϕ[Base._to_linear_index(U, 4, site.I...)]
+    sendbuf[5, i] = ϕ[Base._to_linear_index(U, 5, site.I...)]
+    sendbuf[6, i] = ϕ[Base._to_linear_index(U, 6, site.I...)]
     return nothing
 end
 

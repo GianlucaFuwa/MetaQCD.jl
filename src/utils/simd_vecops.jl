@@ -427,6 +427,18 @@ end
     return q
 end
 
+# @inline function LinearAlgebra.dot(v1::SIMD.Vec{2,T}, v2::SIMD.Vec{2,T}) where {T}
+#     re = v1[1] * v2[1] + v1[2] * v2[2] 
+#     im = v1[2] * v2[1] - v1[1] * v2[2] 
+#     return Complex(re, im)
+# end
+#
+# @inline function LinearAlgebra.dot(v1::SIMD.Vec{4,T}, v2::SIMD.Vec{4,T}) where {T}
+#     re = v1[1] * v2[1] + v1[2] * v2[2] + v1[3] * v2[3] + v1[4] * v2[4]
+#     im = v1[2] * v2[1] - v1[1] * v2[2] - v1[3] * v2[4] + v1[4] * v1[3]
+#     return Complex(re, im)
+# end
+
 """
     cdot(a, b)
 
@@ -716,7 +728,6 @@ in a `Val` and must be within the range [-4,4]. Its sign determines the sign in 
             MVector{M,Complex{T}}(undef),
             MMatrix(A),
             MVector(x),
-            MVector{2N,Complex{T}}(undef),
             Val(ρ),
             Val(is_adjoint),
         ),
@@ -731,10 +742,9 @@ end
     yc::MVector{M,Complex{T}},
     Ac::MMatrix{N,N,Complex{T},N2},
     xc::MVector{M,Complex{T}},
-    uc::MVector{L,Complex{T}},
     ::Val{ρ},
     ::Val{is_adjoint},
-) where {T,N,M,N2,L,ρ,is_adjoint}
+) where {T,N,M,N2,ρ,is_adjoint}
     # An important thing to note about generated functions is that no information about the
     # actual values of the inputs are known, only their types. This is fine, since we pass
     # the dimensions of the input matrices and vectors as type parameters and so we can use
@@ -749,7 +759,6 @@ end
         y = reinterpret(reshape, $T, yc)
         A = reinterpret(reshape, $T, Ac)
         x = reinterpret(reshape, $T, xc)
-        u = reinterpret(reshape, $T, uc)
     end
 
     # We pack calculations into expressions, which are basically just code snippets that

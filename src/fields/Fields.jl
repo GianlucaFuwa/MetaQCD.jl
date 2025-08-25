@@ -18,6 +18,7 @@ struct CPU end
 # When CUDA.jl or AMDGPU.jl are loaded, their backends are appended to this Dict
 const BACKENDS = Dict{String,Any}("cpu" => CPU)
 const DEVICE_ID = Base.RefValue{Int64}(-1)
+const FORCE_SINGLE_GPU = Val(@load_preference("FORCE_SINGLE_GPU", false))
 const SU3_NUMFLOATS = Val(@load_preference("SU3_RECONSTRUCT", 18))
 
 # We are going to need these if we want to transfer a field from one backend to another

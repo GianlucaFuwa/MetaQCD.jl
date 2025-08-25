@@ -3,12 +3,9 @@ module MetaAMDGPUExt
 using AMDGPU
 using AMDGPU: @roc, ROCBackend, ROCArray, launch_configuration, synchronize
 using AMDGPU: workitemIdx, workgroupIdx, workgroupDim, reduce_group
-using Preferences
 import MetaQCD.Fields
 import MetaQCD.Fields: _foreachindex_global!, _foreachindex_reduce_global!
 import MetaQCD.Utils: mpi_myrank
-
-const FORCE_SINGLE_GPU = Val(@load_preference("FORCE_SINGLE_GPU", false))
 
 function __init__()
     Fields.BACKENDS["rocm"] = ROCBackend
@@ -24,7 +21,7 @@ Fields.synchronize(::ROCBackend) = AMDGPU.synchronize()
 Fields.priority!(::ROCBackend, priority) = AMDGPU.priority!(priority)
 
 function Fields.mpi_assign_device!(::ROCBackend, id)
-    FORCE_SINGLE_GPU == Val(true) && (id = 0)
+    Fields.FORCE_SINGLE_GPU == Val(true) && (id = 0)
     Fields.DEVICE_ID[] != -1 && return nothing
     (0 <= id < AMDGPU.HIP.ndevices()) || throw(ArgumentError("Device id $id out of bounds."))
     AMDGPU.device_id!(Int32(id) + 1)
