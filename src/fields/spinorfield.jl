@@ -123,7 +123,7 @@ end
 Base.@propagate_inbounds function _getindex_nd(::Val{1}, arr, site::SiteCoords, ::Type{T}) where T
     x, y, z, t = site.I
     Base.Cartesian.@nexprs 3 i -> (
-        vec = arr[i, x, y, z, t];
+        vec = arr[x, y, z, t, i];
         c_i = Complex(vec[1], vec[2])
     )
     return SVector{3,Complex{T}}(c_1, c_2, c_3)
@@ -132,7 +132,7 @@ end
 Base.@propagate_inbounds function _getindex_nd(::Val{4}, arr, site::SiteCoords, ::Type{T}) where T
     x, y, z, t = site.I
     Base.Cartesian.@nexprs 6 i -> (
-        vec = arr[i, x, y, z, t];
+        vec = arr[x, y, z, t, i];
         c_{2(i-1)+1} = Complex(vec[1], vec[2]);
         c_{2(i-1)+2} = Complex(vec[3], vec[4])
     )
@@ -144,7 +144,7 @@ end
 Base.@propagate_inbounds function _setindex_nd!(::Val{1}, arr, v, site, ::Type{T}) where {T}
     x, y, z, t = site.I
     Base.Cartesian.@nexprs 3 i -> (
-        arr[i, x, y, z, t] = SIMD.Vec{2,T}((v[i].re, v[i].im));
+        arr[x, y, z, t, i] = SIMD.Vec{2,T}((v[i].re, v[i].im));
     )
     return nothing
 end
@@ -152,7 +152,7 @@ end
 Base.@propagate_inbounds function _setindex_nd!(::Val{4}, arr, v, site, ::Type{T}) where {T}
     x, y, z, t = site.I
     Base.Cartesian.@nexprs 6 i -> (
-        arr[i, x, y, z, t] = SIMD.Vec{4,T}((
+        arr[x, y, z, t, i] = SIMD.Vec{4,T}((
             v[2(i-1)+1].re, v[2(i-1)+1].im,
             v[2(i-1)+2].re, v[2(i-1)+2].im));
     )
@@ -260,29 +260,36 @@ function create_sendbuf!(ϕ::Spinorfield{B,T,M,ND}, sites, dim, dir) where {B,T,
         setindex_sendbuf!(sendbuf, ϕ, i, site)
     end
 
+    synchronize(B()) # make sure sendbuf is filled
     return mpi_make_transferrable(sendbuf)[1]
+end
+
+Base.@propagate_inbounds function getindex_sendbuf(
+    ϕ::Spinorfield{B,T,M}, site, ic
+) where {B,T,M}
+    site in ϕ.topology.bulk_sites && return ϕ.U[site, ic]
+    ihalo = get_halo_index(site, ϕ.topology.bulk_sites)
+    return ϕ.halos[ihalo][site, ic]
 end
 
 Base.@propagate_inbounds function setindex_sendbuf!(
     sendbuf, ϕ::Spinorfield{B,T,M,1}, i, site
 ) where {B,T,M}
-    U = ϕ.U
-    sendbuf[1, i] = ϕ[Base._to_linear_index(U, 1, site.I...)]
-    sendbuf[2, i] = ϕ[Base._to_linear_index(U, 2, site.I...)]
-    sendbuf[3, i] = ϕ[Base._to_linear_index(U, 3, site.I...)]
+    sendbuf[i, 1] = getindex_sendbuf(ϕ, site, 1)
+    sendbuf[i, 2] = getindex_sendbuf(ϕ, site, 2)
+    sendbuf[i, 3] = getindex_sendbuf(ϕ, site, 3)
     return nothing
 end
 
 Base.@propagate_inbounds function setindex_sendbuf!(
     sendbuf, ϕ::Spinorfield{B,T,M,4}, i, site
 ) where {B,T,M}
-    U = ϕ.U
-    sendbuf[1, i] = ϕ[Base._to_linear_index(U, 1, site.I...)]
-    sendbuf[2, i] = ϕ[Base._to_linear_index(U, 2, site.I...)]
-    sendbuf[3, i] = ϕ[Base._to_linear_index(U, 3, site.I...)]
-    sendbuf[4, i] = ϕ[Base._to_linear_index(U, 4, site.I...)]
-    sendbuf[5, i] = ϕ[Base._to_linear_index(U, 5, site.I...)]
-    sendbuf[6, i] = ϕ[Base._to_linear_index(U, 6, site.I...)]
+    sendbuf[i, 1] = getindex_sendbuf(ϕ, site, 1)
+    sendbuf[i, 2] = getindex_sendbuf(ϕ, site, 2)
+    sendbuf[i, 3] = getindex_sendbuf(ϕ, site, 3)
+    sendbuf[i, 4] = getindex_sendbuf(ϕ, site, 4)
+    sendbuf[i, 5] = getindex_sendbuf(ϕ, site, 5)
+    sendbuf[i, 6] = getindex_sendbuf(ϕ, site, 6)
     return nothing
 end
 

@@ -199,15 +199,33 @@ function create_sendbuf!(F::Tensorfield{B,T,M}, sites, dim, dir) where {B,T,M}
 
     parallelfor(itr, B, Val(M), (), (), (F,)) do i, (F,)
         site = sites[i]
-        for itens in 1:6
-            vecs = sarray_to_vecs(Val(18), F[itens, site])
-            for ivec in 1:9
-                sendbuf[ivec, i, itens] = vecs[ivec]
-            end
-        end
+        setindex_sendbuf!(sendbuf, F, i, site)
     end
 
+    synchronize(B()) # make sure sendbuf is filled
     return mpi_make_transferrable(sendbuf)[1]
+end
+
+Base.@propagate_inbounds function getindex_sendbuf(
+    F::Tensorfield{B,T,M}, site, ic, i
+) where {B,T,M}
+    site in F.topology.bulk_sites && return F.U[site, ic, i]
+    ihalo = get_halo_index(site, F.topology.bulk_sites)
+    return F.halos[ihalo][site, ic, i]
+end
+
+Base.@propagate_inbounds function setindex_sendbuf!(
+    sendbuf, u::Tensorfield{B,T,M}, i, site
+) where {B,T,M}
+    Base.Cartesian.@nexprs 9 j -> (
+        sendbuf[i, j, 1] = getindex_sendbuf(u, site, j, 1);
+        sendbuf[i, j, 2] = getindex_sendbuf(u, site, j, 2);
+        sendbuf[i, j, 3] = getindex_sendbuf(u, site, j, 3);
+        sendbuf[i, j, 4] = getindex_sendbuf(u, site, j, 4);
+        sendbuf[i, j, 5] = getindex_sendbuf(u, site, j, 5);
+        sendbuf[i, j, 6] = getindex_sendbuf(u, site, j, 6)
+    )
+    return nothing
 end
 
 function Base.copyto!(a::Tensorfield{B,T,M}, b::Tensorfield{B}, arange, brange) where {B,T,M}

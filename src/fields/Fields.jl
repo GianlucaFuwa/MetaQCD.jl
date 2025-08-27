@@ -244,6 +244,11 @@ Base.@propagate_inbounds function Base.setindex!(u::AbstractMPIField{B}, v, μ, 
     return nothing
 end
 
+function get_recv_buf(u::AbstractField{B,T,M}, num) where {B,T,M}
+    @assert 1 <= num <= 8 "halo index $num is out-of-bounds (must be in [1, 8])"
+    return mpi_make_transferrable(u.halos[num].parent)
+end
+
 function check_types(::Type{B}, ::Type{T}, U, halos, sendbuf) where {B,T}
     # some sanity checks
     # if !(U isa PtrArray)

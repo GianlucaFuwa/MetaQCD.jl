@@ -21,6 +21,7 @@ Fields.synchronize(::ROCBackend) = AMDGPU.synchronize()
 Fields.priority!(::ROCBackend, priority) = AMDGPU.priority!(priority)
 
 function Fields.mpi_assign_device!(::ROCBackend, id)
+    # TODO: remove this variable and just do id % numdevices
     Fields.FORCE_SINGLE_GPU == Val(true) && (id = 0)
     Fields.DEVICE_ID[] != -1 && return nothing
     (0 <= id < AMDGPU.HIP.ndevices()) || throw(ArgumentError("Device id $id out of bounds."))

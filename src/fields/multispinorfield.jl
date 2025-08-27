@@ -166,23 +166,47 @@ end
 
 function create_sendbuf!(ϕ::MultiSpinorfield{B,T,M,ND}, sites, dim, dir) where {B,T,M,ND}
     ibuf = dir + 2(dim - 1)
-    sendbuf = u.sendbuf[ibuf]
+    sendbuf = ϕ.sendbuf[ibuf]
     itr = eachindex(IndexLinear(), sites)
     numspinors = ϕ.numspinors
-    numvecs = ND == 1 ? 3 : 6
 
-    parallelfor(itr, B, Val(M), (), (), (u,)) do i, (U,)
+    parallelfor(itr, B, Val(M), (), (), (ϕ,)) do i, (ϕ,)
         site = sites[i]
-
         for is in 1:numspinors
-            vecs = sarray_to_vecs(ϕ[is, site])
-            for ivec in 1:numvecs
-                sendbuf[ivec, i, is] = vecs[ivec]
-            end
+            setindex_sendbuf!(sendbuf, ϕ, i, site, is)
         end
     end
 
     return mpi_make_transferrable(sendbuf)[1]
+end
+
+Base.@propagate_inbounds function getindex_sendbuf(
+    ϕ::MultiSpinorfield{B,T,M}, site, ic, is
+) where {B,T,M}
+    site in ϕ.topology.bulk_sites && return ϕ.U[site, ic, is]
+    ihalo = get_halo_index(site, ϕ.topology.bulk_sites)
+    return ϕ.halos[ihalo][site, ic, is]
+end
+
+Base.@propagate_inbounds function setindex_sendbuf!(
+    sendbuf, ϕ::MultiSpinorfield{B,T,M,1}, i, site, is
+) where {B,T,M}
+    sendbuf[i, 1, is] = getindex_sendbuf(ϕ, site, 1, is)
+    sendbuf[i, 2, is] = getindex_sendbuf(ϕ, site, 2, is)
+    sendbuf[i, 3, is] = getindex_sendbuf(ϕ, site, 3, is)
+    return nothing
+end
+
+Base.@propagate_inbounds function setindex_sendbuf!(
+    sendbuf, ϕ::MultiSpinorfield{B,T,M,4}, i, site, is
+) where {B,T,M}
+    sendbuf[i, 1, is] = getindex_sendbuf(ϕ, site, 1, is)
+    sendbuf[i, 2, is] = getindex_sendbuf(ϕ, site, 2, is)
+    sendbuf[i, 3, is] = getindex_sendbuf(ϕ, site, 3, is)
+    sendbuf[i, 4, is] = getindex_sendbuf(ϕ, site, 4, is)
+    sendbuf[i, 5, is] = getindex_sendbuf(ϕ, site, 5, is)
+    sendbuf[i, 6, is] = getindex_sendbuf(ϕ, site, 6, is)
+    return nothing
 end
 
 function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:MultiSpinorfield{B,T,M}}

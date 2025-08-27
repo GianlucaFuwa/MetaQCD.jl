@@ -768,6 +768,7 @@ end
     # are also executed at compile time, e.g., the $(3N) == $(3 * N) below
     # Note that all the if-else branches are generated at compile time, so only the
     # relevant branch is compiled into the final function
+    # TODO: move calc_hi outside of n-loop to make GPU friendlier?
     if ρ === 1
         calc_hi = quote
             xₙ₁r = x[1, n] + x[2, $(3N)+n]
