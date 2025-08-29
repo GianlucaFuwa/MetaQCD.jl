@@ -15,23 +15,23 @@ macro field_constructor(struct_name, kwargs...)
     extra_types, extra_args = extract_constructor_extras(kwargs...)
     # Build final constructor call arguments
     base_args = [:NX, :NY, :NZ, :NT, extra_args...]
-    final_args = [:U, :halos, :sendbuf, :topology, extra_args...]
+    final_args = [:U, :sendbuf, :recvbuf, :topology, extra_args...]
     additional_ex = struct_name == :Paulifield ? :(C = csw != 0) : :()
 
     struct_def = quote
-        struct $(struct_name){B,T,M,$(extra_types...),AT,HT,BT,TT,HV} <: AbstractField{B,T,M}
+        struct $(struct_name){B,T,M,$(extra_types...),AT,BT,TT,HV} <: AbstractField{B,T,M}
             U::AT
-            halos::HT
             sendbuf::BT
+            recvbuf::BT
             topology::TT
             $(extra_fields(struct_name))
             halo_valid::HV
             function $(struct_name){B,T,M,$(extra_types...)}(
-                U::AT, halos::HT, sendbuf::BT, topology::TT, $(extra_args...), halo_valid::HV
-            ) where {B,T,M,$(extra_types...),AT,HT,BT,TT,HV}
-                check_types(B, T, U, halos, sendbuf)
-                return new{B,T,M,$(extra_types...),AT,HT,BT,TT,HV}(
-                    U, halos, sendbuf, topology, $(extra_args...), halo_valid
+                U::AT, sendbuf::BT, recvbuf::BT, topology::TT, $(extra_args...), halo_valid::HV
+            ) where {B,T,M,$(extra_types...),AT,BT,TT,HV}
+                check_types(B, T, U, sendbuf, recvbuf)
+                return new{B,T,M,$(extra_types...),AT,BT,TT,HV}(
+                    U, sendbuf, recvbuf, topology, $(extra_args...), halo_valid
                 )
             end
         end
@@ -41,7 +41,7 @@ macro field_constructor(struct_name, kwargs...)
 
     for base_types in [[:CPU, :T, extra_types...], [:B, :T, extra_types...]]
         struct_name == :Paulifield && (base_types = [base_types[1], :T])
-        var_types, (U_construct, halo_construct, sendbuf_construct) = if base_types[1] == :CPU
+        var_types, (U_construct, sendrecvbuf_construct) = if base_types[1] == :CPU
             base_types[2:end], create_cpu_layout(struct_name)
         else
             base_types, create_gpu_layout(struct_name)
@@ -65,18 +65,18 @@ macro field_constructor(struct_name, kwargs...)
                     mpi_assign_device!($(base_types[1])(), mpi_myrank())
 
                     U = $U_construct
-                    # Create halos and sendbuf
+                    # Create send- and recvbuf
                     halo_sites = topology.halo_sites
                     border_sites = topology.border_sites
 
-                    halos = if M
-                        tuple([$(halo_construct) for i in 1:4 for j in 1:2]...)
+                    sendbuf = if M
+                        tuple([$(sendrecvbuf_construct) for i in 1:4 for j in 1:2]...)
                     else
                         nothing
                     end
 
-                    sendbuf = if M
-                        tuple([$(sendbuf_construct) for i in 1:4 for j in 1:2]...)
+                    recvbuf = if M
+                        tuple([$(sendrecvbuf_construct) for i in 1:4 for j in 1:2]...)
                     else
                         nothing
                     end

@@ -35,37 +35,15 @@ function Paulifield(
     return u_out
 end
 
-const MPIPaulifield{B,T} = Paulifield{B,T,true}
-
 Base.eltype(::Type{Paulifield}, ::Type{T}) where {T} = PauliMatrix{6,36,T}
 @inline has_clover_term(::Paulifield{B,T,M,C}) where {B,T,M,C} = C
 
 Base.@propagate_inbounds Base.getindex(p::Paulifield, i::Integer) = p.U[i]
 Base.@propagate_inbounds Base.getindex(p::Paulifield, site::SiteCoords) = p.U[site]
-
-Base.@propagate_inbounds function Base.getindex(u::MPIPaulifield, site::SiteCoords)
-    site in u.topology.bulk_sites && return u.U[site]
-    ihalo = get_halo_index(site, u.topology.bulk_sites)
-    return u.halos[ihalo][site]
-end
-
 Base.@propagate_inbounds Base.setindex!(p::Paulifield, v, i::Integer) =
     setindex!(p.U, v, i)
 Base.@propagate_inbounds Base.setindex!(p::Paulifield, v, site::SiteCoords) =
     setindex!(p.U, v, site)
-
-Base.@propagate_inbounds function Base.setindex!(u::MPIPaulifield, v, site::SiteCoords)
-    bulk = u.topology.bulk_sites
-
-    if site in bulk
-        u.U[site] = v
-    else
-        ihalo = get_halo_index(site, bulk)
-        u.halos[ihalo][site] = v
-    end
-
-    return nothing
-end
 
 # #### CPU Indexing ####
 # @inline allindices(u::Paulifield{CPU}) = eachindex(IndexCartesian(), u.U)
@@ -153,7 +131,7 @@ function create_sendbuf!(p::Paulifield{B,T,M}, sites, dim, dir) where {B,T,M}
         sendbuf[i] = p[sites[i]]
     end
 
-    return mpi_make_transferrable(sendbuf)[1]
+    return mpi_make_transferrable(sendbuf)
 end
 
 function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:Paulifield{B,T,M}}
@@ -163,6 +141,16 @@ function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:Paulifield{
         site_a = arange[i]
         site_b = brange[i]
         a[site_a] = b[site_b]
+    end
+
+    return nothing
+end
+
+function Base.copyto!(p::Paulifield{B,T,M}, recvbuf, siterange) where {B,T,M}
+    itr = eachindex(IndexLinear(), siterange)
+    parallelfor(itr, B, Val(M), (), (), (p, recvbuf)) do i, (p, recvbuf)
+        site = siterange[i]
+        p[site] = recvbuf[i]
     end
 
     return nothing

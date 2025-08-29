@@ -2,20 +2,15 @@
 # kernels
 function adapt_structure(to, u::AbstractField{B,T,M}) where {B,T,M}
     U = adapt_structure(to, u.U)
-    # U = if u isa Spinorfield || u isa Colorfield || u isa Expfield
-    #     adapt_structure(to, u.U.parent)
-    # else
-    #     ntuple(i -> adapt_structure(to, u.U[i].parent), Val(4))
-    # end
-    halos = if isnothing(u.halos)
-        nothing
-    else
-        ntuple(i -> adapt_structure(to, u.halos[i]), Val(8))
-    end
     sendbuf = if isnothing(u.sendbuf)
         nothing
     else
         ntuple(i -> adapt_structure(to, u.sendbuf[i]), Val(8))
+    end
+    recvbuf = if isnothing(u.recvbuf)
+        nothing
+    else
+        ntuple(i -> adapt_structure(to, u.recvbuf[i]), Val(8))
     end
     topology = (
         halo_width = u.topology.halo_width,
@@ -27,22 +22,22 @@ function adapt_structure(to, u::AbstractField{B,T,M}) where {B,T,M}
     if u isa Gaugefield
         GA = gauge_action(u)
         N = nfloat(u)
-        return Gaugefield{B,T,M,GA,N}(U, halos, sendbuf, topology, u.β, nothing)
+        return Gaugefield{B,T,M,GA,N}(U, sendbuf, recvbuf, topology, u.β, nothing)
     elseif u isa Spinorfield
         ND = num_dirac(u)
-        return Spinorfield{B,T,M,ND}(U, halos, sendbuf, topology, nothing)
+        return Spinorfield{B,T,M,ND}(U, sendbuf, recvbuf, topology, nothing)
     elseif u isa MultiSpinorfield
         ND = num_dirac(u)
-        return MultiSpinorfield{B,T,M,ND}(U, halos, sendbuf, topology, u.numspinors, nothing)
+        return MultiSpinorfield{B,T,M,ND}(U, sendbuf, recvbuf, topology, u.numspinors, nothing)
     elseif u isa Paulifield
         C = has_clover_term(u)
-        return Paulifield{B,T,M,C}(U, halos, sendbuf, topology, u.csw, u.inverse, nothing)
+        return Paulifield{B,T,M,C}(U, sendbuf, recvbuf, topology, u.csw, u.inverse, nothing)
     elseif u isa Colorfield
-        return Colorfield{B,T,M}(U, halos, sendbuf, topology, nothing)
+        return Colorfield{B,T,M}(U, sendbuf, recvbuf, topology, nothing)
     elseif u isa Expfield
-        return Expfield{B,T,M}(U, halos, sendbuf, topology, nothing)
+        return Expfield{B,T,M}(U, sendbuf, recvbuf, topology, nothing)
     elseif u isa Tensorfield
-        return Tensorfield{B,T,M}(U, halos, sendbuf, topology, nothing)
+        return Tensorfield{B,T,M}(U, sendbuf, recvbuf, topology, nothing)
     end
 end
 

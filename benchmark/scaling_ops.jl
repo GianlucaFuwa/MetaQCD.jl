@@ -5,34 +5,34 @@ using MetaQCD.DiracOperators: solve_dirac!
 
 const FLOPS = Dict(
     "Copy" => 0,
-    "Dot-Staggered" => 22,
-    "Dot-Wilson" => 94,
+    # "Dot-Staggered" => 22,
+    # "Dot-Wilson" => 94,
     "Staggered" => 587,
-    "Wilson" => 1368,
-    "Wilson-Clover" => 1368 + 1728,
-    "Invert-Staggered" => 587 + 2*22 + 2*12 + 18, # op + 2dot + 2axpy + axpby
+    # "Wilson" => 1368,
+    # "Wilson-Clover" => 1368 + 1728,
+    # "Invert-Staggered" => 587 + 2*22 + 2*12 + 18, # op + 2dot + 2axpy + axpby
     # "Invert-Wilson" => 1368 + 2*22 + 2*12 + 18, # op + 2dot + 2axpy + axpby
 )
 
 const OPERATORS = (
     nothing,
-    nothing,
-    nothing,
+    # nothing,
+    # nothing,
     StaggeredDiracOperator,
-    WilsonDiracOperator,
-    WilsonDiracOperator,
-    nothing,
+    # WilsonDiracOperator,
+    # WilsonDiracOperator,
+    # nothing,
     # nothing,
 )
 
 const NAMES = (
     "Copy",
-    "Dot-Staggered",
-    "Dot-Wilson",
+    # "Dot-Staggered",
+    # "Dot-Wilson",
     "Staggered",
-    "Wilson",
-    "Wilson-Clover",
-    "Invert-Staggered",
+    # "Wilson",
+    # "Wilson-Clover",
+    # "Invert-Staggered",
     # "Invert-Wilson",
 )
 
@@ -65,7 +65,7 @@ function main()
     B = ROCBackend
     GA = WilsonGaugeAction
     N = 12
-    global_dims = (32, 32, 32, 32)
+    global_dims = (64, 64, 64, 64)
     numprocs_cart = distribute_procs(global_dims, mpi_size())
     halo_width = 1
     result_dir = joinpath(@__DIR__, "scaling_results")

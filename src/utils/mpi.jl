@@ -155,8 +155,8 @@ end
 
 @inline function mpi_make_transferrable(x::AbstractArray)
     if x isa Array || MPI_IS_GPUAWARE == Val(true)
-        return x, false
+        return x
     else
-        return Array(x), true
+        return Array(x)
     end
 end

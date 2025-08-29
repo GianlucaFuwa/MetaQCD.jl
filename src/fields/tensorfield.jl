@@ -36,8 +36,6 @@ function Tensorfield(
     return u_out
 end
 
-const MPITensorfield{B,T} = Tensorfield{B,T,true}
-
 Base.eltype(::Type{Tensorfield}, ::Type{T}) where {T} = SMatrix{3,3,Complex{T},9}
 
 #### CPU Indexing ####
@@ -75,25 +73,6 @@ Base.@propagate_inbounds function Base.setindex!(
     u::Tensorfield{B,T}, v, i, site::SiteCoords
 ) where {B,T}
     return _setindex_mat!(Val(18), u.U, v, i, site, T)
-end
-
-Base.@propagate_inbounds function Base.getindex(u::MPITensorfield{B,T}, i, site) where {B,T}
-    site in u.topology.bulk_sites && return _getindex_mat(Val(18), u.U, i, site, T)
-    ihalo = get_halo_index(site, u.topology.bulk_sites)
-    return _getindex_mat(Val(18), u.halos[ihalo], i, site, T)
-end
-
-Base.@propagate_inbounds function Base.setindex!(u::MPITensorfield{B,T}, v, i, site) where {B,T}
-    bulk = u.topology.bulk_sites
-
-    if site in bulk
-        _setindex_mat!(Val(18), u.U, v, i, site, T)
-    else
-        ihalo = get_halo_index(site, bulk)
-        _setindex_mat!(Val(18), u.halos[ihalo], v, i, site, T)
-    end
-
-    return nothing
 end
 ######################
 
@@ -189,7 +168,7 @@ function create_sendbuf!(F::Tensorfield{CPU,T,M}, sites, dim, dir) where {T,M}
         sendbuf[6, i] = F[6, site]
     end
 
-    return mpi_make_transferrable(sendbuf)[1]
+    return mpi_make_transferrable(sendbuf)
 end
 
 function create_sendbuf!(F::Tensorfield{B,T,M}, sites, dim, dir) where {B,T,M}
@@ -203,15 +182,13 @@ function create_sendbuf!(F::Tensorfield{B,T,M}, sites, dim, dir) where {B,T,M}
     end
 
     synchronize(B()) # make sure sendbuf is filled
-    return mpi_make_transferrable(sendbuf)[1]
+    return mpi_make_transferrable(sendbuf)
 end
 
 Base.@propagate_inbounds function getindex_sendbuf(
     F::Tensorfield{B,T,M}, site, ic, i
 ) where {B,T,M}
-    site in F.topology.bulk_sites && return F.U[site, ic, i]
-    ihalo = get_halo_index(site, F.topology.bulk_sites)
-    return F.halos[ihalo][site, ic, i]
+    return F.U[site, ic, i]
 end
 
 Base.@propagate_inbounds function setindex_sendbuf!(
@@ -240,6 +217,36 @@ function Base.copyto!(a::Tensorfield{B,T,M}, b::Tensorfield{B}, arange, brange) 
         a[4, site_a] = b[4, site_b]
         a[5, site_a] = b[5, site_b]
         a[6, site_a] = b[6, site_b]
+    end
+
+    return nothing
+end
+
+function Base.copyto!(F::Tensorfield{CPU,T,M}, recvbuf, siterange) where {T,M}
+    itr = eachindex(IndexLinear(), siterange)
+    parallelfor(itr, CPU, Val(M), (), (), (F, recvbuf)) do i, (F, recvbuf)
+        site = siterange[i]
+        F[1, site] = recvbuf[1, i]
+        F[2, site] = recvbuf[2, i]
+        F[3, site] = recvbuf[3, i]
+        F[4, site] = recvbuf[4, i]
+        F[5, site] = recvbuf[5, i]
+        F[6, site] = recvbuf[6, i]
+    end
+
+    return nothing
+end
+
+function Base.copyto!(F::Tensorfield{B,T,M}, recvbuf, siterange) where {B,T,M}
+    itr = eachindex(IndexLinear(), siterange)
+    parallelfor(itr, B, Val(M), (), (), (F, recvbuf)) do i, (F, recvbuf)
+        site = siterange[i]
+        F[1, site] = _getindex_mat(Val(18), recvbuf, 1, i, T)
+        F[2, site] = _getindex_mat(Val(18), recvbuf, 2, i, T)
+        F[3, site] = _getindex_mat(Val(18), recvbuf, 3, i, T)
+        F[4, site] = _getindex_mat(Val(18), recvbuf, 4, i, T)
+        F[5, site] = _getindex_mat(Val(18), recvbuf, 5, i, T)
+        F[6, site] = _getindex_mat(Val(18), recvbuf, 6, i, T)
     end
 
     return nothing

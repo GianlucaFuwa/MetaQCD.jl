@@ -71,8 +71,6 @@ function Gaugefield(parameters)
     return U
 end
 
-const MPIGaugefield{B,T,GA,N,AT,HT,TT} = Gaugefield{B,T,true,GA,N,AT,HT,TT}
-
 #### CPU Indexing ####
 @inline allindices(u::Gaugefield{CPU}) = eachindex(IndexCartesian(), u.U) # all indices including halo regions
 Base.@propagate_inbounds Base.getindex(u::Gaugefield{CPU}, μ, site::SiteCoords) = u.U[μ, site]
@@ -81,25 +79,6 @@ Base.@propagate_inbounds Base.setindex!(u::Gaugefield{CPU}, v, μ, site::SiteCoo
     setindex!(u.U, v, μ, site)
 Base.@propagate_inbounds Base.setindex!(u::Gaugefield{CPU}, v, μsite) =
     setindex!(u.U, v, μsite)
-
-Base.@propagate_inbounds function Base.getindex(u::MPIGaugefield{CPU}, μ, site::SiteCoords)
-    site in u.topology.bulk_sites && return u.U[μ, site]
-    ihalo = get_halo_index(site, u.topology.bulk_sites)
-    return u.halos[ihalo][μ, site]
-end
-
-Base.@propagate_inbounds function Base.setindex!(u::MPIGaugefield{CPU}, v, μ, site::SiteCoords)
-    bulk = u.topology.bulk_sites
-
-    if site in bulk
-        u.U[μ, site] = v
-    else
-        ihalo = get_halo_index(site, bulk)
-        u.halos[ihalo][μ, site] = v
-    end
-
-    return nothing
-end
 ######################
 
 #### GPU Indexing ####
@@ -131,35 +110,11 @@ Base.@propagate_inbounds function Base.setindex!(
     return _setindex_mat!(Val(N), u.U, v, μ, site, T)
 end
 
-Base.@propagate_inbounds function Base.getindex(
-    u::MPIGaugefield{B,T,GA,N}, μ, site::SiteCoords
-) where {B,T,GA,N}
-    site in u.topology.bulk_sites && return _getindex_mat(Val(N), u.U, μ, site, T)
-    ihalo = get_halo_index(site, u.topology.bulk_sites)
-    return _getindex_mat(Val(N), u.halos[ihalo], μ, site, T)
-end
-
-Base.@propagate_inbounds function Base.setindex!(
-    u::MPIGaugefield{B,T,GA,N}, v, μ, site::SiteCoords
-) where {B,T,GA,N}
-    bulk = u.topology.bulk_sites
-
-    if site in bulk
-        _setindex_mat!(Val(N), u.U, v, μ, site, T)
-    else
-        ihalo = get_halo_index(site, bulk)
-        _setindex_mat!(Val(N), u.halos[ihalo], v, μ, site, T)
-    end
-
-    return nothing
-end
-
 Base.@propagate_inbounds function _getindex_mat(
     ::Val{12}, arr, μ, site, ::Type{T}
 ) where {T}
-    x, y, z, t = site.I
     Base.Cartesian.@nexprs 3 i -> (
-        vec = arr[x, y, z, t, i, μ];
+        vec = arr[i, site, μ];
         c1_i = Complex(vec[1], vec[2]);
         c2_i = Complex(vec[3], vec[4]);
     )
@@ -169,9 +124,8 @@ end
 Base.@propagate_inbounds function _getindex_mat(
     ::Val{18}, arr, μ, site, ::Type{T}
 ) where {T}
-    x, y, z, t = site.I
     tup = ntuple(Val(9)) do i
-        vec = arr[x, y, z, t, i, μ];
+        vec = arr[i, site, μ];
         Complex(vec[1], vec[2])
     end
     return SMatrix{3,3,Complex{T},9}(tup)
@@ -180,9 +134,8 @@ end
 Base.@propagate_inbounds function _setindex_mat!(
     ::Val{12}, arr, v, μ, site, ::Type{T}
 ) where {T}
-    x, y, z, t = site.I
     Base.Cartesian.@nexprs 3 i -> (
-        arr[x, y, z, t, i, μ] = SIMD.Vec{4,T}((
+        arr[i, site, μ] = SIMD.Vec{4,T}((
             v[2(i-1)+1].re, v[2(i-1)+1].im, v[2(i-1)+2].re, v[2(i-1)+2].im));
     )
     return nothing
@@ -191,9 +144,8 @@ end
 Base.@propagate_inbounds function _setindex_mat!(
     ::Val{18}, arr, v, μ, site, ::Type{T}
 ) where {T}
-    x, y, z, t = site.I
     Base.Cartesian.@nexprs 9 i -> (
-        arr[x, y, z, t, i, μ] = SIMD.Vec{2,T}((v[i].re, v[i].im));
+        arr[i, site, μ] = SIMD.Vec{2,T}((v[i].re, v[i].im));
     )
     return nothing
 end
@@ -206,22 +158,6 @@ Base.eltype(::Gaugefield{CPU,T,M,GA,18}) where {T,M,GA} = SMatrix{3,3,Complex{T}
 Base.eltype(::Gaugefield{B,T,M,GA,12}) where {B,T,M,GA} = SIMD.Vec{4,T}
 Base.eltype(::Gaugefield{B,T,M,GA,18}) where {B,T,M,GA} = SIMD.Vec{2,T}
 
-function create_sendbuf!(u::AbstractField{CPU,T,M}, sites, dim, dir) where {T,M}
-    ibuf = dir + 2(dim - 1)
-    sendbuf = u.sendbuf[ibuf]
-    itr = eachindex(IndexLinear(), sites)
-
-    parallelfor(itr, CPU, Val(M), (), (), (u,)) do i, (u,)
-        site = sites[i]
-        sendbuf[1, i] = u[1, site]
-        sendbuf[2, i] = u[2, site]
-        sendbuf[3, i] = u[3, site]
-        sendbuf[4, i] = u[4, site]
-    end
-
-    return mpi_make_transferrable(sendbuf)[1]
-end
-
 function create_sendbuf!(u::AbstractField{B,T,M}, sites, dim, dir) where {B,T,M}
     ibuf = dir + 2(dim - 1)
     sendbuf = u.sendbuf[ibuf]
@@ -229,41 +165,49 @@ function create_sendbuf!(u::AbstractField{B,T,M}, sites, dim, dir) where {B,T,M}
 
     parallelfor(itr, B, Val(M), (), (), (u,)) do i, (u,)
         site = sites[i]
-        setindex_sendbuf!(sendbuf, u, i, site)
+        setindex_buf!(sendbuf, u, i, site)
     end
 
     synchronize(B()) # make sure sendbuf is filled
-    return mpi_make_transferrable(sendbuf)[1]
+    return mpi_make_transferrable(sendbuf)
 end
 
-Base.@propagate_inbounds function getindex_sendbuf(
+Base.@propagate_inbounds function setindex_buf!(
+    buf, u::AbstractField{CPU,T,M}, ::Any, site
+) where {T,M}
+    buf[1, site] = u[1, site]
+    buf[2, site] = u[2, site]
+    buf[3, site] = u[3, site]
+    buf[4, site] = u[4, site]
+    return nothing
+end
+
+Base.@propagate_inbounds function getindex_buf(
     u::AbstractField{B,T,M}, site, ic, μ
 ) where {B,T,M}
-    site in u.topology.bulk_sites && return u.U[site, ic, μ]
-    ihalo = get_halo_index(site, u.topology.bulk_sites)
-    return u.halos[ihalo][site, ic, μ]
+    return u.U[ic, site, μ]
 end
 
-Base.@propagate_inbounds function setindex_sendbuf!(
-    sendbuf, u::AbstractField{B,T,M}, i, site
+Base.@propagate_inbounds function setindex_buf!(
+    buf, u::AbstractField{B,T,M}, i, site
 ) where {B,T,M}
     Base.Cartesian.@nexprs 9 j -> (
-        sendbuf[i, j, 1] = getindex_sendbuf(u, site, j, 1);
-        sendbuf[i, j, 2] = getindex_sendbuf(u, site, j, 2);
-        sendbuf[i, j, 3] = getindex_sendbuf(u, site, j, 3);
-        sendbuf[i, j, 4] = getindex_sendbuf(u, site, j, 4)
+        buf[j, i, 1] = getindex_buf(u, site, j, 1);
+        buf[j, i, 2] = getindex_buf(u, site, j, 2);
+        buf[j, i, 3] = getindex_buf(u, site, j, 3);
+        buf[j, i, 4] = getindex_buf(u, site, j, 4)
     )
     return nothing
 end
 
-Base.@propagate_inbounds function setindex_sendbuf!(
-    sendbuf, u::Gaugefield{B,T,M,GA,12}, i, site
+Base.@propagate_inbounds function setindex_buf!(
+    buf, u::Gaugefield{B,T,M,GA,12}, i, site
 ) where {B,T,M,GA}
     Base.Cartesian.@nexprs 3 j -> (
-        sendbuf[i, j, 1] = getindex_sendbuf(u, site, j, 1);
-        sendbuf[i, j, 2] = getindex_sendbuf(u, site, j, 2);
-        sendbuf[i, j, 3] = getindex_sendbuf(u, site, j, 3);
-        sendbuf[i, j, 4] = getindex_sendbuf(u, site, j, 4)
+        buf[j, i, 1] = getindex_buf(u, site, j, 1);
+        buf[j, i, 2] = getindex_buf(u, site, j, 2);
+        buf[j, i, 3] = getindex_buf(u, site, j, 3);
+        buf[j, i, 4] = getindex_buf(u, site, j, 4)
     )
     return nothing
 end
@@ -278,6 +222,33 @@ function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:AbstractFie
         a[2, site_a] = b[2, site_b]
         a[3, site_a] = b[3, site_b]
         a[4, site_a] = b[4, site_b]
+    end
+
+    return nothing
+end
+
+function Base.copyto!(u::AbstractField{CPU,T,M}, recvbuf, siterange) where {T,M}
+    itr = eachindex(IndexLinear(), siterange)
+    parallelfor(itr, CPU, Val(M), (), (), (u, recvbuf)) do i, (u, recvbuf)
+        site = siterange[i]
+        u[1, site] = recvbuf[1, i]
+        u[2, site] = recvbuf[2, i]
+        u[3, site] = recvbuf[3, i]
+        u[4, site] = recvbuf[4, i]
+    end
+
+    return nothing
+end
+
+function Base.copyto!(u::AbstractField{B,T,M}, recvbuf, siterange) where {B,T,M}
+    N = u isa Gaugefield ? Val(nfloat(u)) : Val(18)
+    itr = eachindex(IndexLinear(), siterange)
+    parallelfor(itr, B, Val(M), (), (), (u, recvbuf)) do i, (u, recvbuf)
+        site = siterange[i]
+        u[1, site] = _getindex_mat(N, recvbuf, 1, i, T)
+        u[2, site] = _getindex_mat(N, recvbuf, 2, i, T)
+        u[3, site] = _getindex_mat(N, recvbuf, 3, i, T)
+        u[4, site] = _getindex_mat(N, recvbuf, 4, i, T)
     end
 
     return nothing

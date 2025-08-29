@@ -58,8 +58,6 @@ function MultiSpinorfield(
     return u_out
 end
 
-const MPIMultiSpinorfield{B,T,ND,AT,HT,TT} = MultiSpinorfield{B,T,true,ND,AT,HT,TT}
-
 # Need to overload dims and size again, because we are using 4D arrays for fermions
 @inline num_dirac(::MultiSpinorfield{B,T,M,ND}) where {B,T,M,ND} = ND
 @inline num_spinors(f::MultiSpinorfield) = f.numspinors
@@ -77,25 +75,6 @@ Base.@propagate_inbounds Base.setindex!(f::MultiSpinorfield{CPU}, v, i::Integer)
     setindex!(f.U, v, i)
 Base.@propagate_inbounds Base.setindex!(f::MultiSpinorfield{CPU}, v, site::SiteCoords) =
     setindex!(f.U, v, site)
-
-Base.@propagate_inbounds function Base.getindex(f::MPIMultiSpinorfield{CPU}, is, site)
-    site in f.topology.bulk_sites && return f.U[is, site]
-    ihalo = get_halo_index(site, f.topology.bulk_sites)
-    return f.halos[ihalo][is, site]
-end
-
-Base.@propagate_inbounds function Base.setindex!(f::MPIMultiSpinorfield{CPU}, v, is, site)
-    bulk = f.topology.bulk_sites
-
-    if site in bulk
-        f.U[is, site] = v
-    else
-        ihalo = get_halo_index(site, bulk)
-        f.halos[ihalo][is, site] = v
-    end
-
-    return nothing
-end
 ######################
 
 #### GPU Indexing ####
@@ -161,7 +140,7 @@ function create_sendbuf!(ϕ::MultiSpinorfield{CPU,T,M}, sites, dim, dir) where {
         end
     end
 
-    return mpi_make_transferrable(sendbuf)[1]
+    return mpi_make_transferrable(sendbuf)
 end
 
 function create_sendbuf!(ϕ::MultiSpinorfield{B,T,M,ND}, sites, dim, dir) where {B,T,M,ND}
@@ -177,15 +156,13 @@ function create_sendbuf!(ϕ::MultiSpinorfield{B,T,M,ND}, sites, dim, dir) where 
         end
     end
 
-    return mpi_make_transferrable(sendbuf)[1]
+    return mpi_make_transferrable(sendbuf)
 end
 
 Base.@propagate_inbounds function getindex_sendbuf(
     ϕ::MultiSpinorfield{B,T,M}, site, ic, is
 ) where {B,T,M}
-    site in ϕ.topology.bulk_sites && return ϕ.U[site, ic, is]
-    ihalo = get_halo_index(site, ϕ.topology.bulk_sites)
-    return ϕ.halos[ihalo][site, ic, is]
+    return ϕ.U[site, ic, is]
 end
 
 Base.@propagate_inbounds function setindex_sendbuf!(
@@ -219,6 +196,32 @@ function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:MultiSpinor
 
         for is in 1:a.numspinors
             a[is, site_a] = b[is, site_b]
+        end
+    end
+
+    return nothing
+end
+
+function Base.copyto!(ϕ::MultiSpinorfield{CPU,T,M,ND}, recvbuf, siterange) where {T,M,ND}
+    numspinors = num_spinors(ϕ)
+    itr = eachindex(IndexLinear(), siterange)
+    parallelfor(itr, CPU, Val(M), (), (), (ϕ, recvbuf)) do i, (ϕ, recvbuf)
+        site = siterange[i]
+        for is in 1:numspinors
+            ϕ[is, site] = recvbuf[is, i]
+        end
+    end
+
+    return nothing
+end
+
+function Base.copyto!(ϕ::MultiSpinorfield{B,T,M,ND}, recvbuf, siterange) where {B,T,M,ND}
+    numspinors = num_spinors(ϕ)
+    itr = eachindex(IndexLinear(), siterange)
+    parallelfor(itr, B, Val(M), (), (), (ϕ, recvbuf)) do i, (ϕ, recvbuf)
+        site = siterange[i]
+        for is in 1:numspinors
+            ϕ[is, site] = _getindex_multind(Val(ND), recvbuf, is, i, T)
         end
     end
 

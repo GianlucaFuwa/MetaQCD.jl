@@ -56,7 +56,7 @@ function parallelfor(
         finalize_halo_update!(sendrecvtasks)
         # outer work
         border_iterators = to_validate[idx].topology.border_iterators
-        new_block_size = min.(block_size, min.(256, length.(border_iterators)))
+        new_block_size = min(block_size, min(256, length(border_iterators[1])))
         _parallelfor(f, captured, border_iterators, B, new_block_size)
     elseif M && !hide && length(to_validate) > 0
         update_halo!(to_validate)
@@ -184,6 +184,7 @@ function parallelfor_sum(
         finalize_halo_update!(sendrecvtasks)
         # outer work
         border_iterators = to_validate[idx].topology.border_iterators
+        new_block_size = min(block_size, min(256, length(border_iterators[1])))
         result += _parallelfor_sum(f, captured, border_iterators, init, B, new_block_size)
     elseif M && !hide && length(to_validate) > 0
         update_halo!(to_validate)

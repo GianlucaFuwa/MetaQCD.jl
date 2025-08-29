@@ -210,15 +210,6 @@ Base.@propagate_inbounds Base.getindex(u::AbstractField, μsite) = u.U[μsite]
 Base.@propagate_inbounds Base.getindex(u::AbstractField{CPU}, μ, site) = u.U[μ, site]
 Base.@propagate_inbounds Base.getindex(u::AbstractField{B}, μ, site) where {B} = u.U[site, μ]
 
-Base.@propagate_inbounds function Base.getindex(u::AbstractMPIField{B}, μ, site) where {B}
-    if B !== CPU
-        μ, site = site, μ
-    end
-    site in u.topology.bulk_sites && return u.U[μ, site]
-    ihalo = get_halo_index(site, u.topology.bulk_sites)
-    return u.halos[ihalo][μ, site]
-end
-
 Base.@propagate_inbounds Base.setindex!(u::AbstractField, v, i::Integer) =
     setindex!(u.U, v, i)
 Base.@propagate_inbounds Base.setindex!(u::AbstractField, v, μsite) =
@@ -228,39 +219,15 @@ Base.@propagate_inbounds Base.setindex!(u::AbstractField{CPU}, v, μ, site::Site
 Base.@propagate_inbounds Base.setindex!(u::AbstractField{B}, v, μ, site::SiteCoords) where {B} =
     setindex!(u.U, v, site, μ)
 
-Base.@propagate_inbounds function Base.setindex!(u::AbstractMPIField{B}, v, μ, site::SiteCoords) where {B}
-    if B == CPU
-        μ, site = site, μ
-    end
-    bulk = u.topology.bulk_sites
-
-    if site in bulk
-        u.U[μ, site] = v
-    else
-        ihalo = get_halo_index(site, bulk)
-        u.halos[ihalo][μ, site] = v
-    end
-
-    return nothing
-end
-
 function get_recv_buf(u::AbstractField{B,T,M}, num) where {B,T,M}
-    @assert 1 <= num <= 8 "halo index $num is out-of-bounds (must be in [1, 8])"
-    return mpi_make_transferrable(u.halos[num].parent)
+    @assert 1 <= num <= 8 "recvbuf index $num is out-of-bounds (must be in [1, 8])"
+    return mpi_make_transferrable(u.recvbuf[num])
 end
 
-function check_types(::Type{B}, ::Type{T}, U, halos, sendbuf) where {B,T}
+function check_types(::Type{B}, ::Type{T}, U, sendbuf, recvbuf) where {B,T}
     # some sanity checks
     # if !(U isa PtrArray)
     #     @assert get_backend(U) isa B
-    # end
-    #
-    # if !isnothing(halos)
-    #     for halo in halos
-    #         if !(halo isa PtrArray)
-    #             @assert get_backend(halo) isa B
-    #         end
-    #     end
     # end
     #
     # if !isnothing(sendbuf)
@@ -268,7 +235,11 @@ function check_types(::Type{B}, ::Type{T}, U, halos, sendbuf) where {B,T}
     #         @assert get_backend(sendbuf) isa B
     #     end
     # end
-
+    # if !isnothing(recvbuf)
+    #     if !(sendbuf isa PtrArray)
+    #         @assert get_backend(recvbuf) isa B
+    #     end
+    # end
     # @assert eltype(eltype(U)) === Complex{T}
     return nothing
 end
@@ -309,7 +280,7 @@ function Base.show(io::IO, ::MIME"text/plain", u::AbstractField{B,T}) where {B,T
     u isa MultiSpinorfield && println(io, "\tnumspinors:", " $(num_spinors(u))")
 
     for fieldname in fieldnames(typeof(u))
-        if fieldname in (:U, :halos, :sendbuf)
+        if fieldname in (:U, :sendbuf, :recvbuf)
             println(io, "\t", fieldname, ": $(nameof(typeof(getfield(u, fieldname))))")
         elseif fieldname == :topology
             println(io, "\t", fieldname, ": FieldTopology")
@@ -333,7 +304,7 @@ function Base.show(io::IO, u::AbstractField{B,T}) where {B,T}
     u isa MultiSpinorfield && println(io, "\tnumspinors:", " $(num_spinors(u))")
 
     for fieldname in fieldnames(typeof(u))
-        if fieldname in (:U, :halos, :sendbuf)
+        if fieldname in (:U, :sendbuf, :recvbuf)
             println(io, "\t", fieldname, ": $(nameof(typeof(getfield(u, fieldname))))")
         elseif fieldname == :topology
             println(io, "\t", fieldname, ": FieldTopology")

@@ -22,6 +22,7 @@ struct FieldTopology
     halo_width::Int64
     global_dims::NTuple{4,Int64} # Dimensions of global field
     local_dims::NTuple{4,Int64} # Dimensions of local bulk
+    local_dims_padded::NTuple{4,Int64} # Dimensions of entire local partition
 
     origin::CartesianIndex{4}
     # Sites in partition that belong to the bulk
@@ -50,6 +51,7 @@ struct FieldTopology
         myrank_cart = numprocs == 1 ? (0, 0, 0, 0) : (mpi_cart_coords(comm_cart)...,)
 
         local_dims = global_dims .÷ numprocs_cart
+        local_dims_padded = local_dims .+ 2halo_width
 
         global_sites = CartesianIndices(ntuple(Val(4)) do i
             (myrank_cart[i] * local_dims[i] + 1):((myrank_cart[i]+1) * local_dims[i])
@@ -74,7 +76,7 @@ struct FieldTopology
         local_volume = prod(local_dims)
         return new(
             comm_cart, numprocs, numprocs_cart, myrank_cart,
-            halo_width, global_dims, local_dims,
+            halo_width, global_dims, local_dims, local_dims_padded,
             origin, bulk_sites, bulk_sites_padded, halo_sites, border_sites, border_iterators,
             global_volume, local_volume,
         )
