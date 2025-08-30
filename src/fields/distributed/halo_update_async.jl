@@ -81,6 +81,11 @@ function start_halo_update_single!(
             send_buf_next = create_sendbuf!(u, next_sites_from, dim, 2)
             recv_buf_prev = get_recv_buf(u, 2(dim-1) + 1)
             recv_buf_next = get_recv_buf(u, 2(dim-1) + 2)
+            convert_fun = if MPI_IS_GPUAWARE == Val(false)
+                array_type(backend) 
+            else
+                identity
+            end
 
             # Start receives first (these must be started on main thread)
 
@@ -91,10 +96,10 @@ function start_halo_update_single!(
                 priority!(backend(), :high)
                 wait(recv_req_prev)
                 synchronize(backend())
-                copyto!(u, recv_buf_prev, prev_sites_to)
+                fill_halo!(u, convert_fun(recv_buf_prev), prev_sites_to)
                 wait(recv_req_next)
                 synchronize(backend())
-                copyto!(u, recv_buf_next, next_sites_to)
+                fill_halo!(u, convert_fun(recv_buf_next), next_sites_to)
             end
 
             push!(all_recv_tasks, recv_task)

@@ -55,7 +55,6 @@ Base.iseven(s::SiteCoords) = iseven(sum(s.I))
 Base.isodd(s::SiteCoords) = isodd(sum(s.I))
 
 @inline function map_to_half(site, irange) # XXX: Maybe write map_to_half(site, halo_range)
-    site in irange || return site
     origin = first(irange)
     nx, ny, nz, _ = size(irange)
     nv = length(irange)
@@ -63,20 +62,6 @@ Base.isodd(s::SiteCoords) = isodd(sum(s.I))
     offset = iseven(site) ? -fld(i, 2) : div(nv, 2) - fld(i, 2)
     i_new = i + offset
     return irange[i_new]
-end
-
-@inline map_to_half(site, irange, ::Nothing) = map_to_half(site, irange)
-
-@inline function map_to_half(site, bulk, halo_sites)
-    ihalo = get_halo_index(site, bulk)
-
-    if ihalo == 0
-        return map_to_half(site, bulk)
-    else
-        dim = cld(ihalo, 2)
-        side = mod1(rem(ihalo, 2), 2)
-        return map_to_half(site, halo_sites[dim][side])
-    end
 end
 
 @inline function map_to_half_switch(site, irange)

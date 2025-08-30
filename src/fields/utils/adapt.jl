@@ -2,16 +2,17 @@
 # kernels
 function adapt_structure(to, u::AbstractField{B,T,M}) where {B,T,M}
     U = adapt_structure(to, u.U)
-    sendbuf = if isnothing(u.sendbuf)
-        nothing
-    else
-        ntuple(i -> adapt_structure(to, u.sendbuf[i]), Val(8))
-    end
-    recvbuf = if isnothing(u.recvbuf)
-        nothing
-    else
-        ntuple(i -> adapt_structure(to, u.recvbuf[i]), Val(8))
-    end
+    # sendbuf = if isnothing(u.sendbuf)
+    #     nothing
+    # else
+    #     ntuple(i -> adapt_structure(to, u.sendbuf[i]), Val(8))
+    # end
+    # recvbuf = if isnothing(u.recvbuf)
+    #     nothing
+    # else
+    #     ntuple(i -> adapt_structure(to, u.recvbuf[i]), Val(8))
+    # end
+    sendbuf = recvbuf = nothing
     topology = (
         halo_width = u.topology.halo_width,
         bulk_sites = u.topology.bulk_sites,

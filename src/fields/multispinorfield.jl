@@ -62,9 +62,10 @@ end
 @inline num_dirac(::MultiSpinorfield{B,T,M,ND}) where {B,T,M,ND} = ND
 @inline num_spinors(f::MultiSpinorfield) = f.numspinors
 LinearAlgebra.checksquare(f::MultiSpinorfield) = length(f) * num_dirac(f) * num_colors(f)
-function Base.eltype(::Type{MultiSpinorfield}, ::Type{T}, ::Val{ND}) where {T,ND}
-    return SVector{3ND,Complex{T}}
-end
+Base.eltype(::Type{MultiSpinorfield}, ::Type{T}, ::Val{ND}) where {T,ND} = SVector{3ND,Complex{T}}
+# Base.eltype(::MultiSpinorfield{CPU,T,M,ND}) where {T,M,ND} = SVector{3ND,Complex{T}}
+# Base.eltype(::MultiSpinorfield{B,T,M,1}) where {B,T,M} = SIMD.Vec{2,T}
+# Base.eltype(::MultiSpinorfield{B,T,M,4}) where {B,T,M} = SIMD.Vec{4,T}
 
 #### CPU Indexing ####
 @inline allindices(u::MultiSpinorfield{CPU}) = eachindex(IndexCartesian(), u.U) # all indices including halo regions
@@ -126,23 +127,6 @@ function gaussian_pseudofermions!(ϕ::MultiSpinorfield{B,T,M}) where {B,T,M}
     return nothing
 end
 
-function create_sendbuf!(ϕ::MultiSpinorfield{CPU,T,M}, sites, dim, dir) where {T,M}
-    ibuf = dir + 2(dim - 1)
-    sendbuf = ϕ.sendbuf[ibuf]
-    itr = eachindex(IndexLinear(), sites)
-    numspinors = ϕ.numspinors
-
-    parallelfor(itr, CPU, Val(M), (), (), (ϕ,)) do i, (ϕ,)
-        site = sites[i]
-
-        for is in 1:numspinors
-            sendbuf[is, i] = ϕ[is, site]
-        end
-    end
-
-    return mpi_make_transferrable(sendbuf)
-end
-
 function create_sendbuf!(ϕ::MultiSpinorfield{B,T,M,ND}, sites, dim, dir) where {B,T,M,ND}
     ibuf = dir + 2(dim - 1)
     sendbuf = ϕ.sendbuf[ibuf]
@@ -152,38 +136,52 @@ function create_sendbuf!(ϕ::MultiSpinorfield{B,T,M,ND}, sites, dim, dir) where 
     parallelfor(itr, B, Val(M), (), (), (ϕ,)) do i, (ϕ,)
         site = sites[i]
         for is in 1:numspinors
-            setindex_sendbuf!(sendbuf, ϕ, i, site, is)
+            setindex_buf!(sendbuf, ϕ, i, site, is)
         end
     end
 
     return mpi_make_transferrable(sendbuf)
 end
 
-Base.@propagate_inbounds function getindex_sendbuf(
-    ϕ::MultiSpinorfield{B,T,M}, site, ic, is
-) where {B,T,M}
-    return ϕ.U[site, ic, is]
+Base.@propagate_inbounds function setindex_buf!(
+    sendbuf, ϕ::MultiSpinorfield{CPU,T,M,1}, i, site, is
+) where {T,M}
+    sendbuf[i, is] = ϕ[is, site]
+    return nothing
 end
 
-Base.@propagate_inbounds function setindex_sendbuf!(
+Base.@propagate_inbounds function setindex_buf!(
+    sendbuf, ϕ::MultiSpinorfield{CPU,T,M,4}, i, site, is
+) where {T,M}
+    sendbuf[i, is] = ϕ[is, site]
+    return nothing
+end
+
+Base.@propagate_inbounds function setindex_buf!(
     sendbuf, ϕ::MultiSpinorfield{B,T,M,1}, i, site, is
 ) where {B,T,M}
-    sendbuf[i, 1, is] = getindex_sendbuf(ϕ, site, 1, is)
-    sendbuf[i, 2, is] = getindex_sendbuf(ϕ, site, 2, is)
-    sendbuf[i, 3, is] = getindex_sendbuf(ϕ, site, 3, is)
+    sendbuf[1, i, is] = getindex_buf(ϕ, site, 1, is)
+    sendbuf[2, i, is] = getindex_buf(ϕ, site, 2, is)
+    sendbuf[3, i, is] = getindex_buf(ϕ, site, 3, is)
     return nothing
 end
 
-Base.@propagate_inbounds function setindex_sendbuf!(
+Base.@propagate_inbounds function setindex_buf!(
     sendbuf, ϕ::MultiSpinorfield{B,T,M,4}, i, site, is
 ) where {B,T,M}
-    sendbuf[i, 1, is] = getindex_sendbuf(ϕ, site, 1, is)
-    sendbuf[i, 2, is] = getindex_sendbuf(ϕ, site, 2, is)
-    sendbuf[i, 3, is] = getindex_sendbuf(ϕ, site, 3, is)
-    sendbuf[i, 4, is] = getindex_sendbuf(ϕ, site, 4, is)
-    sendbuf[i, 5, is] = getindex_sendbuf(ϕ, site, 5, is)
-    sendbuf[i, 6, is] = getindex_sendbuf(ϕ, site, 6, is)
+    sendbuf[1, i, is] = getindex_buf(ϕ, site, 1, is)
+    sendbuf[2, i, is] = getindex_buf(ϕ, site, 2, is)
+    sendbuf[3, i, is] = getindex_buf(ϕ, site, 3, is)
+    sendbuf[4, i, is] = getindex_buf(ϕ, site, 4, is)
+    sendbuf[5, i, is] = getindex_buf(ϕ, site, 5, is)
+    sendbuf[6, i, is] = getindex_buf(ϕ, site, 6, is)
     return nothing
+end
+
+Base.@propagate_inbounds function getindex_buf(
+    ϕ::MultiSpinorfield{B,T,M}, site, ic, is
+) where {B,T,M}
+    return ϕ.U[ic, site, is]
 end
 
 function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:MultiSpinorfield{B,T,M}}

@@ -89,14 +89,14 @@ function mul_oe!(
 ) where {B,T,M,TF<:SpinorfieldEO{B,T,M}}
     ψ = ψ_eo.parent
     ϕ = ϕ_eo.parent
-    bulk = eachindex(ψ)
     odd_half = false
     itr = eachindex(odd_half, ψ, ϕ, U)
+    padded_bulk = ψ.topology.bulk_sites_padded
 
     parallelfor(itr, B, Val(M), (U, ϕ_eo), (ψ,), (U, ϕ, ψ)) do o_site, (U, ϕ, ψ)
-        site = map_from_half(o_site, bulk)
-        _site = into_odd ? o_site : switch_sides(o_site, bulk)
-        ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, bc, T, dagg, bulk)
+        site = map_from_half(o_site, padded_bulk)
+        _site = into_odd ? o_site : switch_sides(o_site, padded_bulk)
+        ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, bc, T, dagg, padded_bulk)
     end
 
     return nothing
@@ -107,20 +107,22 @@ function mul_eo!(
 ) where {B,T,M,TF<:SpinorfieldEO{B,T,M}}
     ψ = ψ_eo.parent
     ϕ = ϕ_eo.parent
-    bulk = eachindex(ψ)
     even_half = true
     itr = eachindex(even_half, ψ, ϕ, U)
+    padded_bulk = ψ.topology.bulk_sites_padded
 
     parallelfor(itr, B, Val(M), (U, ϕ_eo), (ψ,), (U, ϕ, ψ)) do e_site, (U, ϕ, ψ)
-        site = map_from_half(e_site, bulk)
-        _site = into_odd ? switch_sides(e_site, bulk) : e_site
-        ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, bc, T, dagg, bulk)
+        site = map_from_half(e_site, padded_bulk)
+        _site = into_odd ? switch_sides(e_site, padded_bulk) : e_site
+        ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, bc, T, dagg, padded_bulk)
     end
 
     return nothing
 end
 
-@inline function staggered_eo_kernel(U, ϕ, site, bc, ::Type{T}, dagg::Bool, bulk) where {T}
+@inline function staggered_eo_kernel(
+    U, ϕ, site, bc, ::Type{T}, dagg::Bool, padded_bulk
+) where {T}
     # sites that begin with a "_" are meant for indexing into the even-odd preconn'ed
     # fermion field 
     sgn = dagg ? -1 : 1
@@ -132,9 +134,9 @@ end
         # this makes it so Val(μ) is well defined at each iteration and no type-instabilities arise
         @nexprs 4 μ -> (
             Nμ = axes(U, μ);
-            _siteμ⁺ = map_to_half(move(site, μ, 1, Nμ), bulk);
+            _siteμ⁺ = map_to_half(move(site, μ, 1, Nμ), padded_bulk);
             siteμ⁻ = move(site, μ, -1, Nμ);
-            _siteμ⁻ = map_to_half(siteμ⁻, bulk);
+            _siteμ⁻ = map_to_half(siteμ⁻, padded_bulk);
             η = sgn * staggered_η(Val(μ), site, T);
             ψₙ += η * cmvmul(U[μ, site], apply_bc(ϕ[_siteμ⁺], bc, site, Val(1), NT, Val(μ)));
             ψₙ -= η * cmvmul_d(U[μ, siteμ⁻], apply_bc(ϕ[_siteμ⁻], bc, site, Val(-1), NT, Val(μ)))

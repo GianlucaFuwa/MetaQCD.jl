@@ -57,30 +57,30 @@ function add_staggered_eo_derivative!(
     X = X_eo.parent
     Y = Y_eo.parent
     fac = T(-0.5coeff)
-    bulk = eachindex(dU)
     itr = eachindex(dU, U, X, Y)
+    padded_bulk = dU.topology.bulk_sites_padded
 
     parallelfor(itr, B, Val(M), (X_eo, Y_eo), (dU,), (dU, U, X, Y)) do site, (dU, U, X, Y)
-        add_staggered_eo_derivative_kernel!(dU, U, X, Y, site, bc, fac, bulk, T)
+        add_staggered_eo_derivative_kernel!(dU, U, X, Y, site, bc, fac, padded_bulk, T)
     end
 
     return nothing
 end
 
 @inline function add_staggered_eo_derivative_kernel!(
-    dU, U, X, Y, site, bc, fac, bulk, ::Type{T}
+    dU, U, X, Y, site, bc, fac, padded_bulk, ::Type{T}
 ) where {T}
     # sites that begin with a "_" are meant for indexing into the even-odd preconn'ed
     # fermion field
     NT = size(U, 4)
-    _site = map_to_half(site, bulk)
+    _site = map_to_half(site, padded_bulk)
 
     # use @nexprs here to statically generate the loop
     # this makes it so Val(μ) is well defined at each iteration and no type-instabilities arise
     @inbounds begin
         @nexprs 4 μ -> (
             Nμ = axes(U, μ);
-            _siteμ⁺ = map_to_half(move(site, μ, 1, Nμ), bulk);
+            _siteμ⁺ = map_to_half(move(site, μ, 1, Nμ), padded_bulk);
             η = staggered_η(Val(μ), site, T);
             B = ckron(apply_bc(X[_siteμ⁺], bc, site, Val(1), NT, Val(μ)), Y[_site]);
             C = ckron(apply_bc(Y[_siteμ⁺], bc, site, Val(1), NT, Val(μ)), X[_site]);

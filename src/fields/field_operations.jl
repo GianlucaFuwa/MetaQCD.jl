@@ -4,8 +4,8 @@ function Base.deepcopy(u::AbstractField{B,T,M}) where {B,T,M}
     return ucopy
 end
 
-function Base.copy!(a::TF, b::TF) where {B,T,M,TF<:AbstractField{B,T,M}}
-    parallelfor(allindices(a, b), B, Val(M), (), (a,), (a, b)) do μsite, (a, b)
+function Base.copy!(a::AbstractField{B,T}, b::AbstractField{B,T}) where {B,T}
+    parallelfor(allindices(a, b), B, Val(false), (), (a,), (a, b)) do μsite, (a, b)
         @inbounds a[μsite] = b[μsite]
     end
 
@@ -88,8 +88,8 @@ function LinearAlgebra.norm(u::GaugeLikeField{B,T,M}, ::Val{Inf}) where {B,T,M}
     return distributed_reduce(normsup, max, u)
 end
 
-function add!(a::TF, b::TF, fac) where {B,T,M,TF<:AbstractField{B,T,M}}
-    parallelfor(allindices(a, b), B, Val(M), (), (a,), (a, b)) do μsite, (a, b)
+function add!(a::AbstractField{B,T}, b::AbstractField{B,T}, fac) where {B,T}
+    parallelfor(allindices(a, b), B, Val(false), (), (a,), (a, b)) do μsite, (a, b)
         a[μsite] += T(fac) * b[μsite]
     end
 
@@ -104,8 +104,8 @@ function mul!(a::AbstractField{B,T,M}, α::Number) where {B,T,M}
     return nothing
 end
 
-function leftmul!(a::GaugeLikeField{B,T,M}, b::GaugeLikeField{B,T,M}) where {B,T,M}
-    parallelfor(eachindex(a, b), B, Val(M), (), (a,), (a, b)) do site, (a, b)
+function leftmul!(a::GaugeLikeField{B,T}, b::GaugeLikeField{B,T}) where {B,T}
+    parallelfor(eachindex(a, b), B, Val(false), (), (a,), (a, b)) do site, (a, b)
         a[1, site] = cmatmul_oo(b[1, site], a[1, site])
         a[2, site] = cmatmul_oo(b[2, site], a[2, site])
         a[3, site] = cmatmul_oo(b[3, site], a[3, site])
@@ -115,8 +115,8 @@ function leftmul!(a::GaugeLikeField{B,T,M}, b::GaugeLikeField{B,T,M}) where {B,T
     return nothing
 end
 
-function leftmul_dagg!(a::GaugeLikeField{B,T,M}, b::GaugeLikeField{B,T,M}) where {B,T,M}
-    parallelfor(eachindex(a, b), B, Val(M), (), (a,), (a, b)) do site, (a, b)
+function leftmul_dagg!(a::GaugeLikeField{B,T}, b::GaugeLikeField{B,T}) where {B,T}
+    parallelfor(eachindex(a, b), B, Val(false), (), (a,), (a, b)) do site, (a, b)
         a[1, site] = cmatmul_do(b[1, site], a[1, site])
         a[2, site] = cmatmul_do(b[2, site], a[2, site])
         a[3, site] = cmatmul_do(b[3, site], a[3, site])
@@ -126,8 +126,8 @@ function leftmul_dagg!(a::GaugeLikeField{B,T,M}, b::GaugeLikeField{B,T,M}) where
     return nothing
 end
 
-function rightmul!(a::GaugeLikeField{B,T,M}, b::GaugeLikeField{B,T,M}) where {B,T,M}
-    parallelfor(eachindex(a, b), B, Val(M), (), (a,), (a, b)) do site, (a, b)
+function rightmul!(a::GaugeLikeField{B,T}, b::GaugeLikeField{B,T}) where {B,T}
+    parallelfor(eachindex(a, b), B, Val(false), (), (a,), (a, b)) do site, (a, b)
         a[1, site] = cmatmul_oo(a[1, site], b[1, site])
         a[2, site] = cmatmul_oo(a[2, site], b[2, site])
         a[3, site] = cmatmul_oo(a[3, site], b[3, site])
@@ -137,8 +137,8 @@ function rightmul!(a::GaugeLikeField{B,T,M}, b::GaugeLikeField{B,T,M}) where {B,
     return nothing
 end
 
-function rightmul_dagg!(a::GaugeLikeField{B,T,M}, b::GaugeLikeField{B,T,M}) where {B,T,M}
-    parallelfor(eachindex(a, b), B, Val(M), (), (a,), (a, b)) do site, (a, b)
+function rightmul_dagg!(a::GaugeLikeField{B,T}, b::GaugeLikeField{B,T}) where {B,T}
+    parallelfor(eachindex(a, b), B, Val(false), (), (a,), (a, b)) do site, (a, b)
         a[1, site] = cmatmul_od(a[1, site], b[1, site])
         a[2, site] = cmatmul_od(a[2, site], b[2, site])
         a[3, site] = cmatmul_od(a[3, site], b[3, site])

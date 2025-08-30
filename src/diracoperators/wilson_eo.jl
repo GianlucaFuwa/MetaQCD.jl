@@ -204,14 +204,14 @@ function mul_oe!(
 ) where {B,T,M,TF<:WilsonEOPreSpinorfield{B,T,M},dagg}
     ψ = ψ_eo.parent
     ϕ = ϕ_eo.parent
-    bulk = eachindex(ψ)
     odd_half = false
     itr = eachindex(odd_half, ψ, ϕ, U)
+    padded_bulk = ψ.topology.bulk_sites_padded
 
     parallelfor(itr, B, Val(M), (U, ϕ_eo), (ψ,), (U, ϕ, ψ)) do o_site, (U, ϕ, ψ)
-        site = map_from_half(o_site, bulk)
-        _site = into_odd ? o_site : switch_sides(o_site, bulk)
-        @inbounds ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, bc, T, Val(dagg), bulk)
+        site = map_from_half(o_site, padded_bulk)
+        _site = into_odd ? o_site : switch_sides(o_site, padded_bulk)
+        @inbounds ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, bc, T, Val(dagg), padded_bulk)
     end
 
     return nothing
@@ -223,20 +223,20 @@ function mul_eo!(
     check_dims(ψ_eo, ϕ_eo, U)
     ψ = ψ_eo.parent
     ϕ = ϕ_eo.parent
-    bulk = eachindex(ψ)
     even_half = true
     itr = eachindex(even_half, ψ, ϕ, U)
+    padded_bulk = ψ.topology.bulk_sites_padded
 
     parallelfor(itr, B, Val(M), (U, ϕ_eo), (ψ,), (U, ϕ, ψ)) do e_site, (U, ϕ, ψ)
-        site = map_from_half(e_site, bulk)
-        _site = into_odd ? switch_sides(e_site, bulk) : e_site
-        @inbounds ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, bc, T, Val(dagg), bulk)
+        site = map_from_half(e_site, padded_bulk)
+        _site = into_odd ? switch_sides(e_site, padded_bulk) : e_site
+        @inbounds ψ[_site] = fac * wilson_eo_kernel(U, ϕ, site, bc, T, Val(dagg), padded_bulk)
     end
 
     return nothing
 end
 
-function wilson_eo_kernel(U, ϕ, site, bc, ::Type{T}, ::Val{dagg}, bulk) where {T,dagg}
+function wilson_eo_kernel(U, ϕ, site, bc, ::Type{T}, ::Val{dagg}, padded_bulk) where {T,dagg}
     # sites that begin with a "_" are meant for indexing into the even-odd preconn'ed
     # fermion field 
     @inbounds begin
@@ -247,9 +247,9 @@ function wilson_eo_kernel(U, ϕ, site, bc, ::Type{T}, ::Val{dagg}, bulk) where {
         # this makes it so Val(i) is well defined at each iteration and no type-instabilities arise
         @nexprs 4 μ -> (
             Nμ = axes(U, μ);
-            _siteμ⁺ = map_to_half(move(site, μ, 1, Nμ), bulk);
+            _siteμ⁺ = map_to_half(move(site, μ, 1, Nμ), padded_bulk);
             siteμ⁻ = move(site, μ, -1, Nμ);
-            _siteμ⁻ = map_to_half(siteμ⁻, bulk);
+            _siteμ⁻ = map_to_half(siteμ⁻, padded_bulk);
             ϕ⁺ = apply_bc(ϕ[_siteμ⁺], bc, site, Val(1), NT, Val(μ));
             ϕ⁻ = apply_bc(ϕ[_siteμ⁻], bc, site, Val(-1), NT, Val(μ));
             ψₙ += cmvmul_spin_proj(U[μ, site], ϕ⁺, Val(-μ*dagg), Val(false));
@@ -265,11 +265,11 @@ function calc_diag!(
 ) where {B,T,M,TW<:Paulifield{B,T,M,false}}
     check_dims(D_diag, D_oo_inv, U)
     mass_term = Complex{T}(4 + mass)
-    bulk = eachindex(U)
     itr = eachindex(D_diag, D_oo_inv, U)
+    padded_bulk = U.topology.bulk_sites_padded
 
     parallelfor(itr, B, Val(M), (), (D_diag, D_oo_inv), (D_diag, D_oo_inv)) do site, (D_diag, D_oo_inv)
-        _site = map_to_half(site, bulk)
+        _site = map_to_half(site, padded_bulk)
         A = SMatrix{6,6,Complex{T},36}(mass_term * I)
         @inbounds D_diag[site] = PauliMatrix(A, A)
 
@@ -285,20 +285,20 @@ function calc_diag!(
 ) where {B,T,M,TW<:Paulifield{B,T,M,true}} # With clover term
     mass_term = Complex{T}(4 + mass)
     fac = Complex{T}(D_diag.csw / 2)
-    bulk = eachindex(U)
     itr = eachindex(D_diag, D_oo_inv, Fμν, U)
+    padded_bulk = U.topology.bulk_sites_padded
 
     fieldstrength_eachsite!(Clover(), Fμν, U)
 
     parallelfor(itr, B, Val(M), (), (D_diag, D_oo_inv), (D_diag, D_oo_inv, Fμν)) do site, (D_diag, D_oo_inv, Fμν)
-        calc_diag_csw_kernel!(D_diag, D_oo_inv, Fμν, mass_term, site, fac, T, bulk)
+        calc_diag_csw_kernel!(D_diag, D_oo_inv, Fμν, mass_term, site, fac, T, padded_bulk)
     end
 end
 
 function calc_diag_csw_kernel!(
-    D_diag, D_oo_inv, Fμν, mass_term, site, fac, ::Type{T}, bulk
+    D_diag, D_oo_inv, Fμν, mass_term, site, fac, ::Type{T}, padded_bulk
 ) where {T}
-    _site = map_to_half(site, bulk)
+    _site = map_to_half(site, padded_bulk)
     M = SMatrix{6,6,Complex{T},36}(mass_term * I)
     i = SVector((1, 2))
     j = SVector((3, 4))

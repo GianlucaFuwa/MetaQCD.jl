@@ -45,9 +45,10 @@ end
 
 @inline num_dirac(::Spinorfield{B,T,M,ND}) where {B,T,M,ND} = ND
 LinearAlgebra.checksquare(f::Spinorfield) = length(f) * num_dirac(f) * num_colors(f)
-function Base.eltype(::Type{Spinorfield}, ::Type{T}, ::Val{ND}) where {T,ND}
-    return SVector{3ND,Complex{T}}
-end
+Base.eltype(::Type{Spinorfield}, ::Type{T}, ::Val{ND}) where {T,ND} = SVector{3ND,Complex{T}}
+# Base.eltype(::Spinorfield{CPU,T,M,ND}) where {T,M,ND} = SVector{3ND,Complex{T}}
+# Base.eltype(::Spinorfield{B,T,M,1}) where {B,T,M} = SIMD.Vec{2,T}
+# Base.eltype(::Spinorfield{B,T,M,4}) where {B,T,M} = SIMD.Vec{4,T}
 
 #### CPU Indexing ####
 @inline allindices(u::Spinorfield{CPU}) = eachindex(IndexCartesian(), u.U) # all indices including halo regions
@@ -76,7 +77,7 @@ Base.@propagate_inbounds function Base.setindex!(
     return _setindex_nd!(Val(ND), f.U, v, site, T)
 end
 
-Base.@propagate_inbounds function _getindex_nd(::Val{1}, arr, site::SiteCoords, ::Type{T}) where T
+Base.@propagate_inbounds function _getindex_nd(::Val{1}, arr, site, ::Type{T}) where T
     Base.Cartesian.@nexprs 3 i -> (
         vec = arr[i, site];
         c_i = Complex(vec[1], vec[2])
@@ -84,7 +85,7 @@ Base.@propagate_inbounds function _getindex_nd(::Val{1}, arr, site::SiteCoords, 
     return SVector{3,Complex{T}}(c_1, c_2, c_3)
 end
 
-Base.@propagate_inbounds function _getindex_nd(::Val{4}, arr, site::SiteCoords, ::Type{T}) where T
+Base.@propagate_inbounds function _getindex_nd(::Val{4}, arr, site, ::Type{T}) where T
     Base.Cartesian.@nexprs 6 i -> (
         vec = arr[i, site];
         c_{2(i-1)+1} = Complex(vec[1], vec[2]);
@@ -191,25 +192,12 @@ function LinearAlgebra.dot(ϕ::TF, ψ::TF) where {B,T,M,TF<:Spinorfield{B,T,M}}
     return distributed_reduce(res, +, ϕ)
 end
 
-function create_sendbuf!(ϕ::Spinorfield{CPU,T,M,ND}, sites, dim, dir) where {T,M,ND}
-    ibuf = dir + 2(dim - 1)
-    sendbuf = ϕ.sendbuf[ibuf]
-    itr = eachindex(IndexLinear(), sites)
-
-    parallelfor(itr, CPU, Val(M), (), (), (ϕ,)) do i, (ϕ,)
-        site = sites[i]
-        sendbuf[i] = ϕ[site]
-    end
-
-    return mpi_make_transferrable(sendbuf)
-end
-
 function create_sendbuf!(ϕ::Spinorfield{B,T,M,ND}, sites, dim, dir) where {B,T,M,ND}
     ibuf = dir + 2(dim - 1)
     sendbuf = ϕ.sendbuf[ibuf]
     itr = eachindex(IndexLinear(), sites)
 
-    parallelfor(itr, B, Val(M), (), (), (ϕ,)) do i, (ϕ,)
+    parallelfor(itr, B, Val(M), Val(false), (), (), (ϕ,)) do i, (ϕ,)
         site = sites[i]
         setindex_buf!(sendbuf, ϕ, i, site)
     end
@@ -218,10 +206,18 @@ function create_sendbuf!(ϕ::Spinorfield{B,T,M,ND}, sites, dim, dir) where {B,T,
     return mpi_make_transferrable(sendbuf)
 end
 
-Base.@propagate_inbounds function getindex_buf(
-    ϕ::Spinorfield{B,T,M}, site, ic
-) where {B,T,M}
-    return ϕ.U[ic, site]
+Base.@propagate_inbounds function setindex_buf!(
+    sendbuf, ϕ::Spinorfield{CPU,T,M,1}, i, site
+) where {T,M}
+    sendbuf[i] = ϕ[site]
+    return nothing
+end
+
+Base.@propagate_inbounds function setindex_buf!(
+    sendbuf, ϕ::Spinorfield{CPU,T,M,4}, i, site
+) where {T,M}
+    sendbuf[i] = ϕ[site]
+    return nothing
 end
 
 Base.@propagate_inbounds function setindex_buf!(
@@ -245,6 +241,12 @@ Base.@propagate_inbounds function setindex_buf!(
     return nothing
 end
 
+Base.@propagate_inbounds function getindex_buf(
+    ϕ::Spinorfield{B,T,M}, site, ic
+) where {B,T,M}
+    return ϕ.U[ic, site]
+end
+
 function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:Spinorfield{B,T,M}}
     @assert length(arange) == length(brange) "send buffer and recv buffer arent of same size"
 
@@ -257,7 +259,7 @@ function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:Spinorfield
     return nothing
 end
 
-function Base.copyto!(ϕ::Spinorfield{CPU,T,M,ND}, recvbuf, siterange) where {T,M,ND}
+function fill_halo!(ϕ::Spinorfield{CPU,T,M,ND}, recvbuf, siterange) where {T,M,ND}
     itr = eachindex(IndexLinear(), siterange)
     parallelfor(itr, CPU, Val(M), (), (), (ϕ, recvbuf)) do i, (ϕ, recvbuf)
         site = siterange[i]
@@ -267,7 +269,7 @@ function Base.copyto!(ϕ::Spinorfield{CPU,T,M,ND}, recvbuf, siterange) where {T,
     return nothing
 end
 
-function Base.copyto!(ϕ::Spinorfield{B,T,M,ND}, recvbuf, siterange) where {B,T,M,ND}
+function fill_halo!(ϕ::Spinorfield{B,T,M,ND}, recvbuf, siterange) where {B,T,M,ND}
     itr = eachindex(IndexLinear(), siterange)
     parallelfor(itr, B, Val(M), (), (), (ϕ, recvbuf)) do i, (ϕ, recvbuf)
         site = siterange[i]

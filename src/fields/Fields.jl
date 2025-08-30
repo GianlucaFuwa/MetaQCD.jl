@@ -218,6 +218,24 @@ Base.@propagate_inbounds Base.setindex!(u::AbstractField{CPU}, v, μ, site::Site
     setindex!(u.U, v, μ, site)
 Base.@propagate_inbounds Base.setindex!(u::AbstractField{B}, v, μ, site::SiteCoords) where {B} =
     setindex!(u.U, v, site, μ)
+Base.@propagate_inbounds function setindex_buf!(buf, u::AbstractField{CPU}, i, site)
+    buf[1, i] = u[1, site]
+    buf[2, i] = u[2, site]
+    buf[3, i] = u[3, site]
+    buf[4, i] = u[4, site]
+    return nothing
+end
+Base.@propagate_inbounds function setindex_buf!(
+    buf, u::AbstractField{B,T,M}, i, site
+) where {B,T,M}
+    Base.Cartesian.@nexprs 9 ic -> (
+        buf[ic, i, 1] = getindex_buf(u, site, ic, 1);
+        buf[ic, i, 2] = getindex_buf(u, site, ic, 2);
+        buf[ic, i, 3] = getindex_buf(u, site, ic, 3);
+        buf[ic, i, 4] = getindex_buf(u, site, ic, 4)
+    )
+    return nothing
+end
 
 function get_recv_buf(u::AbstractField{B,T,M}, num) where {B,T,M}
     @assert 1 <= num <= 8 "recvbuf index $num is out-of-bounds (must be in [1, 8])"

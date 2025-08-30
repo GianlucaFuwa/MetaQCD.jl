@@ -154,16 +154,16 @@ end
 @inline gauge_action(::Gaugefield{B,T,M,GA}) where {B,T,M,GA} = GA
 @inline nfloat(::Gaugefield{B,T,M,GA,N}) where {B,T,M,GA,N} = N
 Base.eltype(::Type{Gaugefield}, ::Type{T}) where {T} = SMatrix{3,3,Complex{T},9}
-Base.eltype(::Gaugefield{CPU,T,M,GA,18}) where {T,M,GA} = SMatrix{3,3,Complex{T},9}
-Base.eltype(::Gaugefield{B,T,M,GA,12}) where {B,T,M,GA} = SIMD.Vec{4,T}
-Base.eltype(::Gaugefield{B,T,M,GA,18}) where {B,T,M,GA} = SIMD.Vec{2,T}
+# Base.eltype(::Gaugefield{CPU,T,M,GA,N}) where {T,M,GA,N} = SMatrix{3,3,Complex{T},9}
+# Base.eltype(::Gaugefield{B,T,M,GA,12}) where {B,T,M,GA} = SIMD.Vec{4,T}
+# Base.eltype(::Gaugefield{B,T,M,GA,18}) where {B,T,M,GA} = SIMD.Vec{2,T}
 
 function create_sendbuf!(u::AbstractField{B,T,M}, sites, dim, dir) where {B,T,M}
     ibuf = dir + 2(dim - 1)
     sendbuf = u.sendbuf[ibuf]
     itr = eachindex(IndexLinear(), sites)
 
-    parallelfor(itr, B, Val(M), (), (), (u,)) do i, (u,)
+    parallelfor(itr, B, Val(M), Val(false), (), (), (u,)) do i, (u,)
         site = sites[i]
         setindex_buf!(sendbuf, u, i, site)
     end
@@ -173,29 +173,33 @@ function create_sendbuf!(u::AbstractField{B,T,M}, sites, dim, dir) where {B,T,M}
 end
 
 Base.@propagate_inbounds function setindex_buf!(
-    buf, u::AbstractField{CPU,T,M}, ::Any, site
-) where {T,M}
-    buf[1, site] = u[1, site]
-    buf[2, site] = u[2, site]
-    buf[3, site] = u[3, site]
-    buf[4, site] = u[4, site]
+    buf, u::Gaugefield{CPU,T,M,GA,18}, i, site
+) where {T,M,GA}
+    buf[1, i] = u[1, site]
+    buf[2, i] = u[2, site]
+    buf[3, i] = u[3, site]
+    buf[4, i] = u[4, site]
     return nothing
 end
 
-Base.@propagate_inbounds function getindex_buf(
-    u::AbstractField{B,T,M}, site, ic, μ
-) where {B,T,M}
-    return u.U[ic, site, μ]
+Base.@propagate_inbounds function setindex_buf!(
+    buf, u::Gaugefield{CPU,T,M,GA,12}, i, site
+) where {T,M,GA}
+    buf[1, i] = u[1, site]
+    buf[2, i] = u[2, site]
+    buf[3, i] = u[3, site]
+    buf[4, i] = u[4, site]
+    return nothing
 end
 
 Base.@propagate_inbounds function setindex_buf!(
-    buf, u::AbstractField{B,T,M}, i, site
-) where {B,T,M}
-    Base.Cartesian.@nexprs 9 j -> (
-        buf[j, i, 1] = getindex_buf(u, site, j, 1);
-        buf[j, i, 2] = getindex_buf(u, site, j, 2);
-        buf[j, i, 3] = getindex_buf(u, site, j, 3);
-        buf[j, i, 4] = getindex_buf(u, site, j, 4)
+    buf, u::Gaugefield{B,T,M,GA,18}, i, site
+) where {B,T,M,GA}
+    Base.Cartesian.@nexprs 9 ic -> (
+        buf[ic, i, 1] = getindex_buf(u, site, ic, 1);
+        buf[ic, i, 2] = getindex_buf(u, site, ic, 2);
+        buf[ic, i, 3] = getindex_buf(u, site, ic, 3);
+        buf[ic, i, 4] = getindex_buf(u, site, ic, 4)
     )
     return nothing
 end
@@ -203,13 +207,19 @@ end
 Base.@propagate_inbounds function setindex_buf!(
     buf, u::Gaugefield{B,T,M,GA,12}, i, site
 ) where {B,T,M,GA}
-    Base.Cartesian.@nexprs 3 j -> (
-        buf[j, i, 1] = getindex_buf(u, site, j, 1);
-        buf[j, i, 2] = getindex_buf(u, site, j, 2);
-        buf[j, i, 3] = getindex_buf(u, site, j, 3);
-        buf[j, i, 4] = getindex_buf(u, site, j, 4)
+    Base.Cartesian.@nexprs 3 ic -> (
+        buf[ic, i, 1] = getindex_buf(u, site, ic, 1);
+        buf[ic, i, 2] = getindex_buf(u, site, ic, 2);
+        buf[ic, i, 3] = getindex_buf(u, site, ic, 3);
+        buf[ic, i, 4] = getindex_buf(u, site, ic, 4)
     )
     return nothing
+end
+
+Base.@propagate_inbounds function getindex_buf(
+    u::AbstractField{B,T,M}, site, ic, μ
+) where {B,T,M}
+    return u.U[ic, site, μ]
 end
 
 function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:AbstractField{B,T,M}}
@@ -227,7 +237,7 @@ function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:AbstractFie
     return nothing
 end
 
-function Base.copyto!(u::AbstractField{CPU,T,M}, recvbuf, siterange) where {T,M}
+function fill_halo!(u::AbstractField{CPU,T,M}, recvbuf, siterange) where {T,M}
     itr = eachindex(IndexLinear(), siterange)
     parallelfor(itr, CPU, Val(M), (), (), (u, recvbuf)) do i, (u, recvbuf)
         site = siterange[i]
@@ -240,7 +250,7 @@ function Base.copyto!(u::AbstractField{CPU,T,M}, recvbuf, siterange) where {T,M}
     return nothing
 end
 
-function Base.copyto!(u::AbstractField{B,T,M}, recvbuf, siterange) where {B,T,M}
+function fill_halo!(u::AbstractField{B,T,M}, recvbuf, siterange) where {B,T,M}
     N = u isa Gaugefield ? Val(nfloat(u)) : Val(18)
     itr = eachindex(IndexLinear(), siterange)
     parallelfor(itr, B, Val(M), (), (), (u, recvbuf)) do i, (u, recvbuf)

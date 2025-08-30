@@ -178,31 +178,40 @@ function create_sendbuf!(F::Tensorfield{B,T,M}, sites, dim, dir) where {B,T,M}
 
     parallelfor(itr, B, Val(M), (), (), (F,)) do i, (F,)
         site = sites[i]
-        setindex_sendbuf!(sendbuf, F, i, site)
+        setindex_buf!(sendbuf, F, i, site)
     end
 
     synchronize(B()) # make sure sendbuf is filled
     return mpi_make_transferrable(sendbuf)
 end
 
-Base.@propagate_inbounds function getindex_sendbuf(
-    F::Tensorfield{B,T,M}, site, ic, i
-) where {B,T,M}
-    return F.U[site, ic, i]
-end
-
-Base.@propagate_inbounds function setindex_sendbuf!(
-    sendbuf, u::Tensorfield{B,T,M}, i, site
-) where {B,T,M}
-    Base.Cartesian.@nexprs 9 j -> (
-        sendbuf[i, j, 1] = getindex_sendbuf(u, site, j, 1);
-        sendbuf[i, j, 2] = getindex_sendbuf(u, site, j, 2);
-        sendbuf[i, j, 3] = getindex_sendbuf(u, site, j, 3);
-        sendbuf[i, j, 4] = getindex_sendbuf(u, site, j, 4);
-        sendbuf[i, j, 5] = getindex_sendbuf(u, site, j, 5);
-        sendbuf[i, j, 6] = getindex_sendbuf(u, site, j, 6)
+Base.@propagate_inbounds function setindex_buf!(
+    sendbuf, u::Tensorfield{CPU,T,M}, i, site
+) where {T,M}
+    Base.Cartesian.@nexprs 6 itens -> (
+        sendbuf[itens, i] = u[itens, site]
     )
     return nothing
+end
+
+Base.@propagate_inbounds function setindex_buf!(
+    sendbuf, u::Tensorfield{B,T,M}, i, site
+) where {B,T,M}
+    Base.Cartesian.@nexprs 9 ic -> (
+        sendbuf[ic, i, 1] = getindex_buf(u, site, ic, 1);
+        sendbuf[ic, i, 2] = getindex_buf(u, site, ic, 2);
+        sendbuf[ic, i, 3] = getindex_buf(u, site, ic, 3);
+        sendbuf[ic, i, 4] = getindex_buf(u, site, ic, 4);
+        sendbuf[ic, i, 5] = getindex_buf(u, site, ic, 5);
+        sendbuf[ic, i, 6] = getindex_buf(u, site, ic, 6)
+    )
+    return nothing
+end
+
+Base.@propagate_inbounds function getindex_buf(
+    F::Tensorfield{B,T,M}, site, ic, i
+) where {B,T,M}
+    return F.U[ic, site, i]
 end
 
 function Base.copyto!(a::Tensorfield{B,T,M}, b::Tensorfield{B}, arange, brange) where {B,T,M}
@@ -222,7 +231,7 @@ function Base.copyto!(a::Tensorfield{B,T,M}, b::Tensorfield{B}, arange, brange) 
     return nothing
 end
 
-function Base.copyto!(F::Tensorfield{CPU,T,M}, recvbuf, siterange) where {T,M}
+function fill_halo!(F::Tensorfield{CPU,T,M}, recvbuf, siterange) where {T,M}
     itr = eachindex(IndexLinear(), siterange)
     parallelfor(itr, CPU, Val(M), (), (), (F, recvbuf)) do i, (F, recvbuf)
         site = siterange[i]
@@ -237,7 +246,7 @@ function Base.copyto!(F::Tensorfield{CPU,T,M}, recvbuf, siterange) where {T,M}
     return nothing
 end
 
-function Base.copyto!(F::Tensorfield{B,T,M}, recvbuf, siterange) where {B,T,M}
+function fill_halo!(F::Tensorfield{B,T,M}, recvbuf, siterange) where {B,T,M}
     itr = eachindex(IndexLinear(), siterange)
     parallelfor(itr, B, Val(M), (), (), (F, recvbuf)) do i, (F, recvbuf)
         site = siterange[i]

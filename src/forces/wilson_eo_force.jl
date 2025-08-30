@@ -83,25 +83,25 @@ function add_wilson_eo_derivative!(
     fac = T(0.5coeff)
     X = X_eo.parent
     Y = Y_eo.parent
-    bulk = eachindex(U)
     itr = eachindex(dU, U, X, Y)
+    padded_bulk = dU.topology.bulk_sites_padded
 
     parallelfor(itr, B, Val(M), (X_eo, Y_eo), (dU,), (dU, U, X, Y)) do site, (dU, U, X, Y)
-        add_wilson_eo_derivative_kernel!(dU, U, X, Y, site, bc, fac, bulk)
+        add_wilson_eo_derivative_kernel!(dU, U, X, Y, site, bc, fac, padded_bulk)
     end
 
     return nothing
 end
 
-function add_wilson_eo_derivative_kernel!(dU, U, X_eo, Y_eo, site, bc, fac, bulk)
+function add_wilson_eo_derivative_kernel!(dU, U, X_eo, Y_eo, site, bc, fac, padded_bulk)
     # sites that begin with a "_" are meant for indexing into the even-odd preconn'ed
     # fermion field
     NT = size(U, 4)
-    _site = map_to_half(site, bulk)
+    _site = map_to_half(site, padded_bulk)
     @inbounds begin
         @nexprs 4 μ -> (
             Nμ = axes(U, μ);
-            _siteμ⁺ = map_to_half(move(site, μ, 1, Nμ), bulk);
+            _siteμ⁺ = map_to_half(move(site, μ, 1, Nμ), padded_bulk);
             X⁺ = apply_bc(X_eo[_siteμ⁺], bc, site, Val(1), NT, Val(μ));
             Y⁺ = apply_bc(Y_eo[_siteμ⁺], bc, site, Val(1), NT, Val(μ));
             B = spintrace(spin_proj(X⁺, Val(-μ)), Y_eo[_site]);
@@ -118,17 +118,17 @@ function calc_Xμν_eo_eachsite!(
 ) where {B,T,M,TF<:WilsonEOPreSpinorfield{B,T,M}}
     X = X_eo.parent
     Y = Y_eo.parent
-    bulk = eachindex(X)
+    padded_bulk = X.topology.bulk_sites_padded
 
     parallelfor(eachindex(Xμν), B, Val(M), () , (Xμν,), (Xμν, X, Y)) do site, (Xμν, X, Y)
-        calc_Xμν_eo_kernel!(Xμν, X, Y, site, bulk)
+        calc_Xμν_eo_kernel!(Xμν, X, Y, site, padded_bulk)
     end
 
     return nothing
 end
 
-function calc_Xμν_eo_kernel!(Xμν, X, Y, site, bulk)
-    _site = map_to_half(site, bulk)
+function calc_Xμν_eo_kernel!(Xμν, X, Y, site, padded_bulk)
+    _site = map_to_half(site, padded_bulk)
     @inbounds begin
         Xn = X[_site]
         Yn = Y[_site]
@@ -144,20 +144,20 @@ end
 function calc_small_Xμν_eachsite!(
     Xμν::Tensorfield{B,T}, D_oo_inv::Paulifield{B,T,M,true}
 ) where {B,T,M}
-    bulk = eachindex(Xμν)
     itr = eachindex(Xμν, D_oo_inv)
+    padded_bulk = Xμν.topology.bulk_sites_padded
 
     parallelfor(itr, B, Val(M), (), (Xμν,), (Xμν, D_oo_inv)) do site, (Xμν, D_oo_inv)
-        calc_small_Xμν_kernel!(Xμν, D_oo_inv, site, T, bulk)
+        calc_small_Xμν_kernel!(Xμν, D_oo_inv, site, T, padded_bulk)
     end
 
     return nothing
 end
 
-@inline function calc_small_Xμν_kernel!(Xμν, D_oo_inv, site, ::Type{T}, bulk) where {T}
+@inline function calc_small_Xμν_kernel!(Xμν, D_oo_inv, site, ::Type{T}, padded_bulk) where {T}
     @inbounds begin
         if isodd(site)
-            _site = map_to_half(site, bulk)
+            _site = map_to_half(site, padded_bulk)
             Minv = D_oo_inv[_site]
             @nexprs 6 i -> (
                 Xᵢ = spintrace_pauli(Minv, Val(i));

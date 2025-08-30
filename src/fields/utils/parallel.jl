@@ -69,16 +69,17 @@ function parallelfor(
     return nothing
 end
 
-function _parallelfor(f, captured, itr, ::Type{backend}, block_size) where {backend}
-    if backend == CPU
-        @batch for i in eachindex(IndexLinear(), itr)
-            @inbounds site = itr[i]
-            @inline f(site, captured)
-        end
-    else
-        _foreachindex_gpu(f, captured, itr, backend(), block_size)
+function _parallelfor(f, captured, itr, ::Type{CPU}, block_size)
+    @batch for i in eachindex(IndexLinear(), itr)
+        @inbounds site = itr[i]
+        @inline f(site, captured)
     end
 
+    return nothing
+end
+
+function _parallelfor(f, captured, itr, ::Type{backend}, block_size) where {backend}
+    _foreachindex_gpu(f, captured, itr, backend(), block_size)
     return nothing
 end
 
@@ -197,19 +198,19 @@ function parallelfor_sum(
     return result
 end
 
-function _parallelfor_sum(f, captured, itr, init, ::Type{backend}, block_size) where {backend}
-    if backend == CPU
-        result = init
+function _parallelfor_sum(f, captured, itr, init, ::Type{CPU}, block_size)
+    result = init
 
-        @batch reduction = (+, result) for i in eachindex(IndexLinear(), itr)
-            @inbounds site = itr[i]
-            result += @inline f(init, site, captured)
-        end
-
-        return result
-    else
-        return _foreachindex_reduce_gpu(init, +, f, captured, itr, backend, block_size)
+    @batch reduction = (+, result) for i in eachindex(IndexLinear(), itr)
+        @inbounds site = itr[i]
+        result += @inline f(init, site, captured)
     end
+
+    return result
+end
+
+function _parallelfor_sum(f, captured, itr, init, ::Type{backend}, block_size) where {backend}
+    return _foreachindex_reduce_gpu(init, +, f, captured, itr, backend, block_size)
 end
 
 function _foreachindex_reduce_gpu(

@@ -181,13 +181,12 @@ function create_sendbuf!(ϕ_eo::SpinorfieldEO{B,T,M}, sites, dim, dir) where {B,
     ϕ = ϕ_eo.parent
     ibuf = dir + 2(dim - 1)
     sendbuf = ϕ.sendbuf[ibuf]
-    bulk = eachindex(ϕ)
     itr = eachindex(IndexLinear(), sites)
+    padded_bulk = ϕ.topology.bulk_sites_padded
 
     parallelfor(itr, B, Val(M), (), (), (ϕ,)) do i, (ϕ,)
-        site = sites[i]
-        _site = map_to_half(site, bulk)
-        sendbuf[i] = ϕ[_site]
+        _site = map_to_half(sites[i], padded_bulk)
+        setindex_buf!(sendbuf, ϕ, i, _site)
     end
 
     return mpi_make_transferrable(sendbuf)
@@ -198,17 +197,37 @@ function Base.copyto!(
 ) where {B,T,M,TF<:SpinorfieldEO{B,T,M}}
     @assert length(arange) == length(brange) "send buffer and recv buffer arent of same size"
     a, b = a_eo.parent, b_eo.parent
-    bulk_a = eachindex(a)
-    bulk_b = eachindex(b)
-    halo_a = a_eo.topology.halo_sites
-    halo_b = b_eo.topology.halo_sites
+    @assert eachindex(a) == eachindex(b)
+    padded_bulk = a.topology.bulk_sites_padded
 
     parallelfor(eachindex(IndexLinear(), arange), B, Val(M), (), (), (a, b)) do i, (a, b)
         site_a = arange[i]
         site_b = brange[i]
-        _site_a = map_to_half(site_a, bulk_a, halo_a)
-        _site_b = map_to_half(site_b, bulk_b, halo_b)
+        _site_a = map_to_half(site_a, padded_bulk)
+        _site_b = map_to_half(site_b, padded_bulk)
         a[_site_a] = b[_site_b]
+    end
+
+    return nothing
+end
+
+function fill_halo!(ϕ::SpinorfieldEO{CPU,T,M,ND}, recvbuf, siterange) where {T,M,ND}
+    itr = eachindex(IndexLinear(), siterange)
+    padded_bulk = ϕ.topology.bulk_sites_padded
+    parallelfor(itr, CPU, Val(M), (), (), (ϕ, recvbuf)) do i, (ϕ, recvbuf)
+        _site = map_to_half(siterange[i], padded_bulk)
+        ϕ[_site] = recvbuf[i]
+    end
+
+    return nothing
+end
+
+function fill_halo!(ϕ::SpinorfieldEO{B,T,M,ND}, recvbuf, siterange) where {B,T,M,ND}
+    itr = eachindex(IndexLinear(), siterange)
+    padded_bulk = ϕ.topology.bulk_sites_padded
+    parallelfor(itr, B, Val(M), (), (), (ϕ, recvbuf)) do i, (ϕ, recvbuf)
+        _site = map_to_half(siterange[i], padded_bulk)
+        ϕ[_site] = _getindex_nd(Val(ND), recvbuf, i, T)
     end
 
     return nothing
