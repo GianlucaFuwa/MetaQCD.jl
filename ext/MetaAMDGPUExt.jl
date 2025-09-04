@@ -102,7 +102,7 @@ function Fields.launch_foreachindex_reduce_global!(
     reduce_shmem = compute_shmem(groupsize)
     for i in eachindex(itr)
         @roc gridsize=gridsize[i] groupsize=groupsize shmem=reduce_shmem _foreachindex_reduce_global!(
-            out_vec, out, op, f, captured, itr[i], UInt8(i)
+            out_vec, out, op, f, captured, itr[i],
         ) 
     end
 

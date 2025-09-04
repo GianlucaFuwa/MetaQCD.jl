@@ -69,7 +69,7 @@ function parallelfor(
     return nothing
 end
 
-function _parallelfor(f, captured, itr, ::Type{CPU}, block_size)
+function _parallelfor(f, captured, itr, ::Type{CPU}, ::Int)
     @batch for i in eachindex(IndexLinear(), itr)
         @inbounds site = itr[i]
         @inline f(site, captured)
@@ -78,18 +78,23 @@ function _parallelfor(f, captured, itr, ::Type{CPU}, block_size)
     return nothing
 end
 
-function _parallelfor(f, captured, itr, ::Type{backend}, block_size) where {backend}
-    _foreachindex_gpu(f, captured, itr, backend(), block_size)
+function _parallelfor(f, captured, itrs::Tuple, ::Type{CPU}, ::Int)
+    for itr in itrs
+        @batch for i in eachindex(IndexLinear(), itr)
+            @inbounds site = itr[i]
+            @inline f(site, captured)
+        end
+    end
+
     return nothing
 end
 
-function _foreachindex_gpu(f, captured, itr, backend, block_size::Int=min(256, length(itr)))
-    # name = nameof(f)
-    # println(name)
-    # GPU implementation
+function _parallelfor(
+    f, captured, itr, ::Type{backend}, block_size::Int=min(256, length(itr))
+) where {backend}
     @assert block_size > 0
     itr_tup = itr isa Tuple ? itr : (itr,)
-    launch_foreachindex_global!(backend, f, captured, itr_tup, block_size)
+    launch_foreachindex_global!(backend(), f, captured, itr_tup, block_size)
     return nothing
 end
 
@@ -99,44 +104,6 @@ function launch_foreachindex_global! end
 @inline function _foreachindex_global!(f, captured, itr)
     i = threadidx().x + (groupidx().x - 0x1) * groupdim().x
 
-    if i <= length(itr)
-        @inbounds site = itr[i]
-        @inline f(site, captured)
-    end
-
-    return nothing
-end
-
-@inline function _foreachindex_global!(
-    f, captured, itr, block_dims,
-    Gx::Int, Gy::Int, Gz::Int, Gt::Int
-)
-    nx, ny, nz, nt = ntuple(i -> length(itr.indices[i]), Val(4))
-    Bx, By, Bz, _ = block_dims
-    tx = threadidx().x
-    ty = threadidx().y
-    tz = threadidx().z
-
-    pbx = groupidx().x
-    pby = groupidx().y
-    pbz = groupidx().z   # this is physical grid.z = Gz * Gt
-
-    # --- recover logical block coords: block_z in [1..Gz], block_t in [1..Gt]
-    # linear index (0-based) of the physical z-slab
-    pz_lin0 = pbz - 1
-    # block_z is pz_lin0 % Gz, block_t is pz_lin0 ÷ Gz
-    block_z = Int(mod(pz_lin0, Gz)) + 1
-    block_t = Int(pz_lin0 ÷ Gz) + 1
-
-    # --- compute global coords (1-based) ---
-    gx = (pbx - 1) * Bx + tx
-    gy = (pby - 1) * By + ty
-    gz = (block_z - 1) * Bz + tz
-    gt = block_t
-
-    # --- linear index in column-major (x fastest) ---
-    # ensure coords in bounds before converting
-    i = gx + (gy - 1) * nx + (gz - 1) * (nx * ny) + (gt - 1) * (nx * ny * nz)
     if i <= length(itr)
         @inbounds site = itr[i]
         @inline f(site, captured)
@@ -198,7 +165,7 @@ function parallelfor_sum(
     return result
 end
 
-function _parallelfor_sum(f, captured, itr, init, ::Type{CPU}, block_size)
+function _parallelfor_sum(f, captured, itr, init, ::Type{CPU}, ::Int)
     result = init
 
     @batch reduction = (+, result) for i in eachindex(IndexLinear(), itr)
@@ -209,18 +176,26 @@ function _parallelfor_sum(f, captured, itr, init, ::Type{CPU}, block_size)
     return result
 end
 
-function _parallelfor_sum(f, captured, itr, init, ::Type{backend}, block_size) where {backend}
-    return _foreachindex_reduce_gpu(init, +, f, captured, itr, backend, block_size)
+function _parallelfor_sum(f, captured, itrs::Tuple, init, ::Type{CPU}, ::Int)
+    result = init
+
+    for itr in itrs
+        @batch reduction = (+, result) for i in eachindex(IndexLinear(), itr)
+            @inbounds site = itr[i]
+            result += @inline f(init, site, captured)
+        end
+    end
+
+    return result
 end
 
-function _foreachindex_reduce_gpu(
-    out, op, f, captured, itr, ::Type{backend}, block_size::Int=min(256, length(itr))
+function _parallelfor_sum(
+    f, captured, itr, init, ::Type{backend}, block_size::Int=min(256, length(itr))
 ) where {backend}
-    # GPU implementation
     @assert block_size > 0
     itr_tup = itr isa Tuple ? itr : (itr,)
     result = launch_foreachindex_reduce_global!(
-        backend(), out, op, f, captured, itr_tup, block_size
+        backend(), init, +, f, captured, itr_tup, block_size
     )
     return result
 end
@@ -228,8 +203,7 @@ end
 function launch_foreachindex_reduce_global! end
 
 # KERNEL:
-@inline function _foreachindex_reduce_global!(out, init, op, f, captured, itr, itr_idx)
-    N = griddim().x
+@inline function _foreachindex_reduce_global!(out, init, op, f, captured, itr)
     iblock = groupidx().x
     ithread = threadidx().x
     i = ithread + (iblock - 0x1) * groupdim().x
@@ -245,7 +219,7 @@ function launch_foreachindex_reduce_global! end
     # We need the size of the grid here, in case we are launching the same kernel over
     # multiple iterators, since we still only use one out vector
     if ithread == 1
-        @inbounds out[iblock + N*(itr_idx-0x1)] = out_group
+        @inbounds out[iblock] = op(out_group, out[iblock])
     end
 
     return nothing

@@ -173,19 +173,19 @@ function get_border_iterators(bulk_sites, hw)
     ox, oy, oz, ot = bulk_sites[1].I
     fx, fy, fz, ft = bulk_sites[end].I
     # X-direction faces (full slabs)
-    xm_itr = CartesianIndices((ox:ox+hw, oy:fy, oz:fz, ot:ft))
+    xm_itr = CartesianIndices((ox:ox+hw-1, oy:fy, oz:fz, ot:ft))
     xp_itr = CartesianIndices((fx-hw+1:fx, oy:fy, oz:fz, ot:ft))
 
     # Y-direction faces (excluding x-boundaries to avoid double-counting)
-    ym_itr = CartesianIndices((hw+ox:fx-hw, oy:oy+hw, oz:fz, ot:ft))
+    ym_itr = CartesianIndices((hw+ox:fx-hw, oy:oy+hw-1, oz:fz, ot:ft))
     yp_itr = CartesianIndices((hw+ox:fx-hw, fy-hw+1:fy, oz:fz, ot:ft))
 
     # Z-direction faces
-    zm_itr = CartesianIndices((hw+ox:fx-hw, hw+oy:fy-hw, oz:oz+hw, ot:ft))
+    zm_itr = CartesianIndices((hw+ox:fx-hw, hw+oy:fy-hw, oz:oz+hw-1, ot:ft))
     zp_itr = CartesianIndices((hw+ox:fx-hw, hw+oy:fy-hw, fz-hw+1:fz, ot:ft))
 
     # T-direction faces  
-    tm_itr = CartesianIndices((hw+ox:fx-hw, hw+oy:fy-hw, hw+oz:fz-hw, ot:ot+hw))
+    tm_itr = CartesianIndices((hw+ox:fx-hw, hw+oy:fy-hw, hw+oz:fz-hw, ot:ot+hw-1))
     tp_itr = CartesianIndices((hw+ox:fx-hw, hw+oy:fy-hw, hw+oz:fz-hw, ft-hw+1:ft))
     return (xm_itr, xp_itr, ym_itr, yp_itr, zm_itr, zp_itr, tm_itr, tp_itr)
 end

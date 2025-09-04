@@ -103,7 +103,7 @@ function Fields.launch_foreachindex_reduce_global!(
     reduce_shmem = compute_shmem(threads)
     for i in eachindex(itr)
         @cuda blocks=_blocks[i] threads=threads shmem=reduce_shmem _foreachindex_reduce_global!(
-            out_vec, out, op, f, captured, itr[i], UInt8(i)
+            out_vec, out, op, f, captured, itr[i],
         ) 
     end
 

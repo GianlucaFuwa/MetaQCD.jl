@@ -15,9 +15,9 @@ const EXP4 = Dict(
 const EXP16 = Dict(
     "plaq" => 0.5943106319764989,
     "poly" => 0.004036670632078757 + 0.009469086655463761im,
-    "topo_plaq" => -14.1372,
-    "topo_clov" => 1.73549,
-    "topo_imp" => 2.61387,
+    "topo_plaq" => -14.13722570213623,
+    "topo_clov" => 1.7354903168411089,
+    "topo_imp" => 2.613871310127444,
 )
 
 function test_measurements(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=2)
@@ -59,7 +59,7 @@ function test_measurements(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=2
         mpi_amroot() && println("==========")
     end
 
-    TC_methods  = if mpi_size() > 1
+    TC_methods  = if mpi_size() <= 1
         ["plaquette", "clover"]
     else
         ["plaquette", "clover", "improved"]
@@ -88,9 +88,9 @@ function test_measurements(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=2
         @testset "Gauge observables" begin
             @test isapprox(expvalues["plaq"], plaq)
             nprocs_cart[4] == 1 && (@test isapprox(expvalues["poly"], poly)) # FIXME: for now U cannot be partitioned in time dimension
-            # @test isapprox(expvalues["topo_plaq"], topo["plaquette"])
-            # @test isapprox(expvalues["topo_clov"], topo["clover"])
-            # @test isapprox(expvalues["topo_imp"], topo["improved"])
+            @test isapprox(expvalues["topo_plaq"], topo["plaquette"])
+            @test isapprox(expvalues["topo_clov"], topo["clover"])
+            halo_width >= 2 && (@test isapprox(expvalues["topo_imp"], topo["improved"]))
             if nprocs_cart == (1, 1, 1, 1)
                 @test isapprox(expvalues["plaq"], wilsonloop[1, 1])
             end

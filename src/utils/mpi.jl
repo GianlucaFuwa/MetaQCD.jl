@@ -153,10 +153,8 @@ end
     return MPI.File.write_at(fp, offset, data)
 end
 
-@inline function mpi_make_transferrable(x::AbstractArray)
-    if x isa Array || MPI_IS_GPUAWARE == Val(true)
-        return x
-    else
-        return Array(x)
-    end
-end
+@inline mpi_make_transferrable(x) = mpi_make_transferrable(x, MPI_IS_GPUAWARE)
+@inline mpi_make_transferrable(x::Array, ::Val{false}) = x # CPU
+@inline mpi_make_transferrable(x::Array, ::Val{true}) = x
+@inline mpi_make_transferrable(x, ::Val{false}) = Array(x) # GPU
+@inline mpi_make_transferrable(x, ::Val{true}) = x
