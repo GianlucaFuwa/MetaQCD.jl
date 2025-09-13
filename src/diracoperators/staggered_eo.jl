@@ -96,7 +96,7 @@ function mul_oe!(
     parallelfor(itr, B, Val(M), (U, ϕ_eo), (ψ,), (U, ϕ, ψ)) do o_site, (U, ϕ, ψ)
         site = map_from_half(o_site, padded_bulk)
         _site = into_odd ? o_site : switch_sides(o_site, padded_bulk)
-        ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, bc, T, dagg, padded_bulk)
+        ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, bc, dagg, padded_bulk)
     end
 
     return nothing
@@ -114,21 +114,21 @@ function mul_eo!(
     parallelfor(itr, B, Val(M), (U, ϕ_eo), (ψ,), (U, ϕ, ψ)) do e_site, (U, ϕ, ψ)
         site = map_from_half(e_site, padded_bulk)
         _site = into_odd ? switch_sides(e_site, padded_bulk) : e_site
-        ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, bc, T, dagg, padded_bulk)
+        ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, bc, dagg, padded_bulk)
     end
 
     return nothing
 end
 
 @inline function staggered_eo_kernel(
-    U, ϕ, site, bc, ::Type{T}, dagg::Bool, padded_bulk
-) where {T}
+    U, ϕ::Spinorfield{B,T,M,ND}, site, bc, dagg::Bool, padded_bulk
+) where {B,T,M,ND}
     # sites that begin with a "_" are meant for indexing into the even-odd preconn'ed
     # fermion field 
     sgn = dagg ? -1 : 1
     NT = size(U, 4)
     @inbounds begin
-        ψₙ = zero(ϕ[site])
+        ψₙ = zero(SVector{3ND,Complex{T}})
 
         # use @nexprs here to statically generate the loop
         # this makes it so Val(μ) is well defined at each iteration and no type-instabilities arise

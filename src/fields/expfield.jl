@@ -33,7 +33,6 @@ end
 Base.eltype(::Type{Expfield}, ::Type{T}) where {T} = ExpiQCoeffs{T}
 
 #### CPU Indexing ####
-@inline allindices(u::Expfield{CPU}) = eachindex(IndexCartesian(), u.U)
 Base.@propagate_inbounds Base.getindex(u::Expfield{CPU}, μ, site::SiteCoords) = u.U[μ, site]
 Base.@propagate_inbounds Base.getindex(u::Expfield{CPU}, μsite) = u.U[μsite]
 Base.@propagate_inbounds Base.setindex!(u::Expfield{CPU}, v, μ, site::SiteCoords) =
@@ -43,9 +42,6 @@ Base.@propagate_inbounds Base.setindex!(u::Expfield{CPU}, v, μsite) =
 ######################
 
 #### GPU Indexing ####
-@inline allindices(u::Expfield{B}) where {B} = 
-    range(Int32(1), Int32(length(u.U)))
-
 Base.@propagate_inbounds function Base.getindex(
     u::Expfield{B,T}, ii::Integer
 ) where {B,T}

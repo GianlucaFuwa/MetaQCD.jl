@@ -46,7 +46,7 @@ function create_cpu_layout(struct_name)
     sendrecvbuf_dims = if struct_name in (:Spinorfield, :Paulifield)
         :(length(border_sites[i][j]))
     else
-        :($inner_len, length(border_sites[i][j])...)
+        :($inner_len * length(border_sites[i][j])...,)
     end
 
     sendrecvbuf_construct = :(zeros($eltype_val, $(sendrecvbuf_dims)))

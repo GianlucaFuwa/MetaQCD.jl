@@ -76,7 +76,7 @@ function runtests(; backend=CPU, nprocs_cart=(1, 1, 1, 1))
             csw=0,
         )
 
-        # wilson-clover derivative
+        wilson-clover derivative
         test_fderivative(;
             backend,
             nprocs_cart,
@@ -109,19 +109,19 @@ function runtests(; backend=CPU, nprocs_cart=(1, 1, 1, 1))
             eoprec=true,
             csw=0,
         )
-        #
-        # # FIXME: wilson-clover eo-pre derivative
-        # test_fderivative(;
-        #     backend,
-        #     nprocs_cart,
-        #     halo_width=2, # INFO: Halo width has to be 2 here
-        #     dirac="wilson",
-        #     mass=0.01,
-        #     single_flavor=false,
-        #     eoprec=true,
-        #     csw=1.78,
-        # )
-        #
+
+        # FIXME: wilson-clover eo-pre derivative
+        test_fderivative(;
+            backend,
+            nprocs_cart,
+            halo_width=2, # INFO: Halo width has to be 2 here
+            dirac="wilson",
+            mass=0.01,
+            single_flavor=false,
+            eoprec=true,
+            csw=1.78,
+        )
+
         test_gradflow(; backend, nprocs_cart, halo_width=1)
 
         if mpi_size() == 1 # INFO: Local updates only without distributed fields
@@ -134,15 +134,14 @@ function runtests(; backend=CPU, nprocs_cart=(1, 1, 1, 1))
         test_update(backend; update_method="hmc", hmc_integrator="OMF4")
 
         # Run a short simulation as final test (doesnt work on github actions)
-        if backend == CPU
-            @testset "simulation" begin
-                if mpi_size() == 1 # INFO: Local updates only without distributed fields
-                    run_sim(joinpath(pkgdir(MetaQCD, "test", "parameters_test.toml")))
-                elseif mpi_size() == 2
-                    run_sim(joinpath(pkgdir(MetaQCD, "test", "parameters_test_mpi.toml")))
-                end
-                @test true
+        @testset "simulation" begin
+            ext = backend == CPU ? "" : "_gpu"
+            if mpi_size() == 1 # INFO: Local updates only without distributed fields
+                run_sim(joinpath(pkgdir(MetaQCD, "test", "parameters_test$ext.toml")))
+            elseif mpi_size() == 2
+                run_sim(joinpath(pkgdir(MetaQCD, "test", "parameters_test_mpi$ext.toml")))
             end
+            @test true
         end
     end
 end
@@ -167,10 +166,11 @@ redirect_stdout(sout) do
     runtests(; nprocs_cart=(1, 1, 1, mpi_size()))
 end
 
-# using AMDGPU, AMDGPU: allowscalar
-# using CUDA, CUDA: allowscalar
-
-# runtests(; backend=ROCBackend)
+# using AMDGPU
+# using AMDGPU: @allowscalar
+# using CUDA
+# using CUDA: allowscalar
+# @allowscalar runtests(; backend=ROCBackend, nprocs_cart=(1, 1, 1, mpi_size()))
 
 # if mpi_amroot() && mpi_size() == 1
 #     if VERSION >= v"1.9"
@@ -178,8 +178,8 @@ end
 #     end
 # end
 
-# if mpi_size() == 1
-#     cmd = Base.julia_cmd()
-#     path = joinpath(@__DIR__, "runtests.jl")
-#     run(`$(Utils.MPI.mpiexec()) -n 2 $(cmd) --project --startup-file=no $(path)`)
-# end
+if mpi_size() == 1
+    cmd = Base.julia_cmd()
+    path = joinpath(@__DIR__, "runtests.jl")
+    run(`$(Utils.MPI.mpiexec()) -n 2 $(cmd) --project --startup-file=no $(path)`)
+end

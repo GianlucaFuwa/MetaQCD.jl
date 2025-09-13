@@ -26,7 +26,7 @@ If `do_edges = Val(true)` edges and corners are also transferred via an extended
 propagation scheme. This means that after every dimension the requests have to be
 completed and communication cannot be hidden behind computation.
 """
-start_halo_update!(args...; kwargs...) = nothing
+start_halo_update!(args...; kwargs...) = ()
 
 function start_halo_update!(
     fields::NTuple{N,AbstractMPIField}; do_edges::Val{DO_EDGES}=Val(false)
@@ -35,7 +35,7 @@ function start_halo_update!(
         if halo_is_valid(fields[i])
             [Task(() -> nothing)], [Task(() -> nothing)]
         else
-            start_halo_update_single!(fields[i], do_edges)
+            start_halo_update_single!(fields[i], do_edges; tag_base=i)
         end
     end
 
@@ -43,12 +43,17 @@ function start_halo_update!(
 end
 
 function start_halo_update_single!(
-    u::AbstractMPIField{backend}, ::Val{do_edges}=Val(false)
+    u::AbstractMPIField{backend}, ::Val{do_edges}=Val(false); tag_base::Int=1
 ) where {backend,do_edges}
     topology = u.topology
     comm_cart = topology.comm_cart
     halo_sites = topology.halo_sites
     border_sites = topology.border_sites
+    convert_fun = if MPI_IS_GPUAWARE == Val(false)
+        array_type(backend) 
+    else
+        identity
+    end
 
     all_recv_tasks = Task[]
     all_send_tasks = Task[]
@@ -58,7 +63,10 @@ function start_halo_update_single!(
         prev_sites_from, next_sites_from = border_sites[dim]
         prev_sites_to, next_sites_to = halo_sites[dim]
 
-        # If edges matter, wait for previous dimension
+        # tags for this dimension (unique within this call, offset by tag_base)
+        tag_prev = 8tag_base + (2*(dim-1) + 1)
+        tag_next = 8tag_base + (2*(dim-1) + 2)
+
         if do_edges && dim > 1
             # Wait for all tasks from previous dimensions
             for task in all_recv_tasks
@@ -73,41 +81,37 @@ function start_halo_update_single!(
             empty!(all_send_tasks)
         end
 
-        if prev_nbr == next_nbr == mpi_myrank(comm_cart)
+        if topology.numprocs_cart[dim] == 1
+        elseif prev_nbr == next_nbr == mpi_myrank(comm_cart)
             copyto!(u, u, next_sites_to, prev_sites_from)
             copyto!(u, u, prev_sites_to, next_sites_from)
         else
-            send_buf_prev = create_sendbuf!(u, prev_sites_from, dim, 1)
-            send_buf_next = create_sendbuf!(u, next_sites_from, dim, 2)
             recv_buf_prev = get_recv_buf(u, 2(dim-1) + 1)
             recv_buf_next = get_recv_buf(u, 2(dim-1) + 2)
-            convert_fun = if MPI_IS_GPUAWARE == Val(false)
-                array_type(backend) 
-            else
-                identity
-            end
 
             # Start receives first (these must be started on main thread)
 
             # Create receive tasks
-            recv_req_prev = mpi_irecv!(recv_buf_prev, comm_cart; source=prev_nbr, tag=1+2(dim-1))
-            recv_req_next = mpi_irecv!(recv_buf_next, comm_cart; source=next_nbr, tag=2+2(dim-1))
+            recv_req_prev = mpi_irecv!(recv_buf_prev, comm_cart; source=prev_nbr, tag=tag_prev)
+            recv_req_next = mpi_irecv!(recv_buf_next, comm_cart; source=next_nbr, tag=tag_next)
             recv_task = Base.Threads.@spawn :interactive begin
                 priority!(backend(), :high)
                 wait(recv_req_prev)
-                synchronize(backend())
-                fill_halo!(u, convert_fun(recv_buf_prev), prev_sites_to)
                 wait(recv_req_next)
-                synchronize(backend())
+                fill_halo!(u, convert_fun(recv_buf_prev), prev_sites_to)
                 fill_halo!(u, convert_fun(recv_buf_next), next_sites_to)
+                synchronize(backend())
             end
 
             push!(all_recv_tasks, recv_task)
 
             send_task = Base.Threads.@spawn :interactive begin
-                send_req_prev = mpi_isend(send_buf_prev, comm_cart; dest=prev_nbr, tag=2+2(dim-1))
+                send_buf_prev = create_sendbuf!(u, prev_sites_from, dim, 1)
+                send_buf_next = create_sendbuf!(u, next_sites_from, dim, 2)
+                synchronize(backend())
+                send_req_prev = mpi_isend(send_buf_prev, comm_cart; dest=prev_nbr, tag=tag_next)
+                send_req_next = mpi_isend(send_buf_next, comm_cart; dest=next_nbr, tag=tag_prev)
                 wait(send_req_prev)
-                send_req_next = mpi_isend(send_buf_next, comm_cart; dest=next_nbr, tag=1+2(dim-1))
                 wait(send_req_next)
             end
 
@@ -124,9 +128,9 @@ end
 
 Wait on all started halo updates in `reqs` to finish.
 """
-finalize_halo_update!(args...) = nothing
+finalize_halo_update!(::Tuple{}) = nothing
 
-function finalize_halo_update!(reqs::Vararg{Tuple{Vector{Task},Vector{Task}},N}) where N
+function finalize_halo_update!(reqs::NTuple{N,Tuple{Vector{Task},Vector{Task}}}) where N
     for i in 1:N
         finalize_halo_update!(reqs[i])
     end
@@ -138,14 +142,28 @@ function finalize_halo_update!(tasks::Tuple{Vector{Task},Vector{Task}})
     recvtasks = tasks[1]
     sendtasks = tasks[2]
 
-    for recvtask in recvtasks
-        cooperative_wait(recvtask)
-    end
-
     for sendtask in sendtasks
         cooperative_wait(sendtask)
+    end
+
+    for recvtask in recvtasks
+        cooperative_wait(recvtask)
     end
 
     return nothing
 end
 
+function cooperative_wait(task::Task)
+    while !Base.istaskdone(task)
+        try
+            Utils.MPI.Iprobe(mpi_comm())
+        catch e
+            println("error in iprobe: $e")
+            rethrow()
+        end
+        yield()
+    end
+
+    wait(task)
+    return nothing
+end

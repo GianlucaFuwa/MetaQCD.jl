@@ -3,6 +3,7 @@ using MetaQCD.Utils
 using Test
 using LinearAlgebra
 using Random
+# using AMDGPU
 
 const EXP4 = Dict(
     "plaq" => 0.587818337847024,
@@ -59,7 +60,7 @@ function test_measurements(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=2
         mpi_amroot() && println("==========")
     end
 
-    TC_methods  = if mpi_size() <= 1
+    TC_methods  = if mpi_size() > 1 && halo_width < 2
         ["plaquette", "clover"]
     else
         ["plaquette", "clover", "improved"]
@@ -69,7 +70,7 @@ function test_measurements(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=2
 
     mpi_amroot() && println("==========")
 
-    ED_methods  = if mpi_size() > 1
+    ED_methods  = if mpi_size() > 1 && halo_width < 2
         ["plaquette", "clover"]
     else
         ["plaquette", "clover", "improved"]
@@ -101,7 +102,6 @@ function test_measurements(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=2
     return nothing
 end
 
-# test_measurements(nprocs_cart=(1, 1, 2, 2))
 # test_measurements(nprocs_cart=(1, 2, 1, 2))
 # test_measurements(nprocs_cart=(2, 1, 1, 2))
 # test_measurements(nprocs_cart=(1, 2, 2, 1))

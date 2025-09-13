@@ -17,7 +17,7 @@ function mpi_init()
     if MPI.Initialized()
         return nothing
     else
-        MPI.Init(finalize_atexit=true)
+        MPI.Init(; threadlevel=:funneled, finalize_atexit=true)
         MPI_COMM_WORLD[] = MPI.COMM_WORLD
         MPI_COMM_INSTANCE[] = MPI.COMM_WORLD
         MPI_COMM_SHARED[] = MPI.COMM_WORLD

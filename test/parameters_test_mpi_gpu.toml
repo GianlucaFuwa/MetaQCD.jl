@@ -1,18 +1,20 @@
 [data]
 float_type = "single"
 backend = "rocm"
-ensemble_dir = "/home/runner/work/MetaQCD.jl/MetaQCD.jl/nonmpi_gpu"
+ensemble_dir = "/home/runner/work/MetaQCD.jl/MetaQCD.jl/mpi_gpu"
 randomseed = 0
 overwrite = true
 verboselevel = 1
 log_to_console = true
 
 [ensemble]
-L = [4, 4, 4, 4]
+L = [8, 8, 8, 8]
 numtherm = 10
 numsteps = 10
 initial = "cold"
 update_method = "hmc"
+numprocs_cart = [1, 1, 1, 2]
+halo_width = 2
 tempering_enabled = true
 numinstances = 2
 swap_every = 1
@@ -20,8 +22,8 @@ non_metadynamics_updates = 1
 measure_on_all = true
 
 [gauge_action]
-beta = 1.25
-gauge_action = "dbw2"
+beta = 6.0
+gauge_action = "wilson"
 
 [fermion_action]
 fermion_action = "staggered"
@@ -38,7 +40,7 @@ rhmc_spectral_bound = [0.0001, 6.0]
 
 [bias]
 rhostout_for_cv = 0.12
-weight_type = ["branduardi"]
+kinds_of_weights = ["branduardi"]
 [[bias.biases]]
 type = "metad"
 kind_of_cv = "topcharge_clover"

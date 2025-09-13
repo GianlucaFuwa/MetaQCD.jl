@@ -22,24 +22,24 @@ function create_gpu_layout(struct_name)
     end
             
     origin = if struct_name == :Gaugefield
-        :(OffsetArrays.Origin(1, topology.bulk_sites[1].I.-halo_width..., 1))
+        :(OffsetArrays.Origin(1, topology.bulk_sites[1].I.-eff_halo_width..., 1))
     elseif struct_name == :Spinorfield
-        :(OffsetArrays.Origin(1, topology.bulk_sites[1].I.-halo_width...))
+        :(OffsetArrays.Origin(1, topology.bulk_sites[1].I.-eff_halo_width...))
     elseif struct_name == :MultiSpinorfield
-        :(OffsetArrays.Origin(1, topology.bulk_sites[1].I.-halo_width..., 1))
+        :(OffsetArrays.Origin(1, topology.bulk_sites[1].I.-eff_halo_width..., 1))
     elseif struct_name == :Tensorfield
-        :(OffsetArrays.Origin(1, topology.bulk_sites[1].I.-halo_width..., 1))
+        :(OffsetArrays.Origin(1, topology.bulk_sites[1].I.-eff_halo_width..., 1))
     elseif struct_name == :Colorfield
-        :(OffsetArrays.Origin(1, topology.bulk_sites[1].I.-halo_width..., 1))
+        :(OffsetArrays.Origin(1, topology.bulk_sites[1].I.-eff_halo_width..., 1))
     elseif struct_name == :Expfield
-        :(OffsetArrays.Origin(topology.bulk_sites[1].I.-halo_width..., 1))
+        :(OffsetArrays.Origin(topology.bulk_sites[1].I.-eff_halo_width..., 1))
     elseif struct_name == :Paulifield
         quote
             ox, oy, oz, ot = topology.bulk_sites[1].I
             if inverse
                 ot += topology.local_dims[4] ÷ 2
             end
-            OffsetArrays.Origin((ox, oy, oz, ot).-halo_width...,)
+            OffsetArrays.Origin((ox, oy, oz, ot).-eff_halo_width...,)
         end
     end
 
@@ -58,19 +58,19 @@ function create_gpu_layout(struct_name)
     U_construct = :(OffsetArray(bzeros(B(), $eltype_val, $ldims...), $origin))
 
     sendrecvbuf_dims = if struct_name == :Gaugefield
-        :(N == 18 ? 9 : 3, length(border_sites[i][j]), 4)
+        :(N == 18 ? 9 : 3, 4length(border_sites[i][j]),)
     elseif struct_name == :Spinorfield
-        :(ND == 1 ? 3 : 6, length(border_sites[i][j]))
+        :(ND == 1 ? 3 : 6, length(border_sites[i][j]),)
     elseif struct_name == :MultiSpinorfield
-        :(ND == 1 ? 3 : 6, length(border_sites[i][j]), numspinors)
+        :(ND == 1 ? 3 : 6, numspinors*length(border_sites[i][j]),)
     elseif struct_name == :Tensorfield
-        :(9, length(border_sites[i][j]), 6)
+        :(9, 6length(border_sites[i][j]),)
     elseif struct_name == :Colorfield
-        :(9, length(border_sites[i][j]), 4)
+        :(9, 4length(border_sites[i][j]),)
     elseif struct_name == :Expfield
-        :(length(border_sites[i][j]), 4)
+        :(4length(border_sites[i][j]),)
     elseif struct_name == :Paulifield
-        :(length(border_sites[i][j]))
+        :(length(border_sites[i][j]),)
     end
 
     sendrecvbuf_construct = :(bzeros(B(), $eltype_val, $(sendrecvbuf_dims)))

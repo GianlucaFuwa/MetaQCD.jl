@@ -39,7 +39,10 @@ end
 Base.eltype(::Type{Tensorfield}, ::Type{T}) where {T} = SMatrix{3,3,Complex{T},9}
 
 #### CPU Indexing ####
-@inline allindices(u::Tensorfield{CPU}) = eachindex(IndexCartesian(), u.U)
+@inline function add_directional_indices(::Tensorfield{CPU}, siterange::CartesianIndices)
+    return CartesianIndices((6, siterange.indices...))
+end
+
 Base.@propagate_inbounds Base.getindex(u::Tensorfield{CPU}, i, site::SiteCoords) = u.U[i, site]
 Base.@propagate_inbounds Base.getindex(u::Tensorfield{CPU}, isite) = u.U[isite]
 Base.@propagate_inbounds Base.setindex!(u::Tensorfield{CPU}, v, i, site::SiteCoords) =
@@ -49,8 +52,9 @@ Base.@propagate_inbounds Base.setindex!(u::Tensorfield{CPU}, v, isite) =
 ######################
 
 #### GPU Indexing ####
-@inline allindices(u::Tensorfield{B}) where {B} = 
-    range(Int32(1), Int32(length(u.U)))
+@inline function add_directional_indices(::Tensorfield{B}, siterange::CartesianIndices) where {B}
+    return CartesianIndices((siterange.indices..., 6))
+end
 
 Base.@propagate_inbounds function Base.getindex(
     u::Tensorfield{B,T}, ii::Integer
@@ -64,6 +68,12 @@ Base.@propagate_inbounds function Base.getindex(
     return _getindex_mat(Val(18), u.U, i, site, T)
 end
 
+Base.@propagate_inbounds function Base.getindex(
+    u::Tensorfield{B,T}, isite
+) where {B,T}
+    return _getindex_mat(Val(18), u.U, isite, T)
+end
+
 Base.@propagate_inbounds function Base.setindex!(u::Tensorfield{B}, v, ii::Integer) where {B}
     u.U[ii] = v
     return nothing
@@ -73,6 +83,12 @@ Base.@propagate_inbounds function Base.setindex!(
     u::Tensorfield{B,T}, v, i, site::SiteCoords
 ) where {B,T}
     return _setindex_mat!(Val(18), u.U, v, i, site, T)
+end
+
+Base.@propagate_inbounds function Base.setindex!(
+    u::Tensorfield{B,T}, v, isite
+) where {B,T}
+    return _setindex_mat!(Val(18), u.U, v, isite, T)
 end
 ######################
 
@@ -153,79 +169,66 @@ function fieldstrength_eachsite!(
     return nothing
 end
 
-function create_sendbuf!(F::Tensorfield{CPU,T,M}, sites, dim, dir) where {T,M}
-    ibuf = dir + 2(dim - 1)
-    sendbuf = F.sendbuf[ibuf]
-    itr = eachindex(IndexLinear(), sites)
-
-    parallelfor(itr, CPU, Val(M), (), (), (F,)) do i, (F,)
-        site = sites[i]
-        sendbuf[1, i] = F[1, site]
-        sendbuf[2, i] = F[2, site]
-        sendbuf[3, i] = F[3, site]
-        sendbuf[4, i] = F[4, site]
-        sendbuf[5, i] = F[5, site]
-        sendbuf[6, i] = F[6, site]
-    end
-
-    return mpi_make_transferrable(sendbuf)
-end
-
 function create_sendbuf!(F::Tensorfield{B,T,M}, sites, dim, dir) where {B,T,M}
     ibuf = dir + 2(dim - 1)
     sendbuf = F.sendbuf[ibuf]
-    itr = eachindex(IndexLinear(), sites)
+    isites = add_directional_indices(F, sites)
+    itr = eachindex(IndexLinear(), isites)
 
-    parallelfor(itr, B, Val(M), (), (), (F,)) do i, (F,)
-        site = sites[i]
-        setindex_buf!(sendbuf, F, i, site)
+    parallelfor(itr, B, Val(M), Val(false), (), (), (F, sendbuf)) do i, (F, sendbuf)
+        isite = isites[i]
+        setindex_buf!(sendbuf, F, i, isite)
     end
 
-    synchronize(B()) # make sure sendbuf is filled
     return mpi_make_transferrable(sendbuf)
 end
 
 Base.@propagate_inbounds function setindex_buf!(
-    sendbuf, u::Tensorfield{CPU,T,M}, i, site
+    sendbuf, u::Tensorfield{CPU,T,M}, i, isite
 ) where {T,M}
-    Base.Cartesian.@nexprs 6 itens -> (
-        sendbuf[itens, i] = u[itens, site]
-    )
+    itens = isite.I[1]
+    sendbuf[itens, i] = u[isite]
     return nothing
 end
 
 Base.@propagate_inbounds function setindex_buf!(
-    sendbuf, u::Tensorfield{B,T,M}, i, site
+    sendbuf, u::Tensorfield{B,T,M}, i, isite
 ) where {B,T,M}
     Base.Cartesian.@nexprs 9 ic -> (
-        sendbuf[ic, i, 1] = getindex_buf(u, site, ic, 1);
-        sendbuf[ic, i, 2] = getindex_buf(u, site, ic, 2);
-        sendbuf[ic, i, 3] = getindex_buf(u, site, ic, 3);
-        sendbuf[ic, i, 4] = getindex_buf(u, site, ic, 4);
-        sendbuf[ic, i, 5] = getindex_buf(u, site, ic, 5);
-        sendbuf[ic, i, 6] = getindex_buf(u, site, ic, 6)
+        sendbuf[ic, i] = getindex_buf(u, isite, ic);
     )
     return nothing
 end
 
 Base.@propagate_inbounds function getindex_buf(
-    F::Tensorfield{B,T,M}, site, ic, i
+    F::Tensorfield{B,T,M}, isite, ic
 ) where {B,T,M}
-    return F.U[ic, site, i]
+    return F.U[ic, isite]
 end
 
-function Base.copyto!(a::Tensorfield{B,T,M}, b::Tensorfield{B}, arange, brange) where {B,T,M}
+function Base.copyto!(a::TF, b::TF, arange, brange) where {T,M,TF<:Tensorfield{CPU,T,M}}
     @assert length(arange) == length(brange) "send buffer and recv buffer arent of same size"
 
-    parallelfor(eachindex(IndexLinear(), arange), B, Val(M), (), (), (a, b)) do i, (a, b)
+    parallelfor(eachindex(IndexLinear(), arange), CPU, Val(M), Val(false), (), (), (a, b)) do i, (a, b)
         site_a = arange[i]
         site_b = brange[i]
-        a[1, site_a] = b[1, site_b]
-        a[2, site_a] = b[2, site_b]
-        a[3, site_a] = b[3, site_b]
-        a[4, site_a] = b[4, site_b]
-        a[5, site_a] = b[5, site_b]
-        a[6, site_a] = b[6, site_b]
+        for itens in 1:6
+            a[itens, site_a] = b[itens, site_b]
+        end
+    end
+
+    return nothing
+end
+
+function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:Tensorfield{B,T,M}}
+    @assert length(arange) == length(brange) "send buffer and recv buffer arent of same size"
+    iarange = add_directional_indices(a, arange)
+    ibrange = add_directional_indices(b, arange)
+
+    parallelfor(eachindex(IndexLinear(), iarange), B, Val(M), Val(false), (), (), (a, b)) do i, (a, b)
+        isite_a = iarange[i]
+        isite_b = ibrange[i]
+        a[isite_a] = b[isite_b]
     end
 
     return nothing
@@ -233,29 +236,23 @@ end
 
 function fill_halo!(F::Tensorfield{CPU,T,M}, recvbuf, siterange) where {T,M}
     itr = eachindex(IndexLinear(), siterange)
-    parallelfor(itr, CPU, Val(M), (), (), (F, recvbuf)) do i, (F, recvbuf)
+    parallelfor(itr, CPU, Val(M), Val(false), (), (), (F, recvbuf)) do i, (F, recvbuf)
         site = siterange[i]
-        F[1, site] = recvbuf[1, i]
-        F[2, site] = recvbuf[2, i]
-        F[3, site] = recvbuf[3, i]
-        F[4, site] = recvbuf[4, i]
-        F[5, site] = recvbuf[5, i]
-        F[6, site] = recvbuf[6, i]
+        for itens in 1:6
+            F[itens, site] = recvbuf[itens, i]
+        end
     end
 
     return nothing
 end
 
 function fill_halo!(F::Tensorfield{B,T,M}, recvbuf, siterange) where {B,T,M}
-    itr = eachindex(IndexLinear(), siterange)
-    parallelfor(itr, B, Val(M), (), (), (F, recvbuf)) do i, (F, recvbuf)
-        site = siterange[i]
-        F[1, site] = _getindex_mat(Val(18), recvbuf, 1, i, T)
-        F[2, site] = _getindex_mat(Val(18), recvbuf, 2, i, T)
-        F[3, site] = _getindex_mat(Val(18), recvbuf, 3, i, T)
-        F[4, site] = _getindex_mat(Val(18), recvbuf, 4, i, T)
-        F[5, site] = _getindex_mat(Val(18), recvbuf, 5, i, T)
-        F[6, site] = _getindex_mat(Val(18), recvbuf, 6, i, T)
+    isiterange = add_directional_indices(F, siterange)
+    itr = eachindex(IndexLinear(), isiterange)
+
+    parallelfor(itr, B, Val(M), Val(false), (), (), (F, recvbuf)) do i, (F, recvbuf)
+        isite = isiterange[i]
+        F[isite] = _getindex_mat(Val(18), recvbuf, i, T)
     end
 
     return nothing

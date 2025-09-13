@@ -45,8 +45,9 @@ Base.@propagate_inbounds Base.setindex!(p::Paulifield, v, i::Integer) =
 Base.@propagate_inbounds Base.setindex!(p::Paulifield, v, site::SiteCoords) =
     setindex!(p.U, v, site)
 
+@inline allindices(p::Paulifield) = eachindex(p.U)
+
 # #### CPU Indexing ####
-# @inline allindices(u::Paulifield{CPU}) = eachindex(IndexCartesian(), u.U)
 # Base.@propagate_inbounds Base.getindex(u::Paulifield{CPU}, μ, site::SiteCoords) = u.U[μ, site]
 # Base.@propagate_inbounds Base.getindex(u::Paulifield{CPU}, μsite) = u.U[μsite]
 # Base.@propagate_inbounds Base.setindex!(u::Paulifield{CPU}, v, μ, site::SiteCoords) =
@@ -56,9 +57,6 @@ Base.@propagate_inbounds Base.setindex!(p::Paulifield, v, site::SiteCoords) =
 # ######################
 #
 # #### GPU Indexing ####
-# @inline allindices(u::Paulifield{B}) where {B} = 
-#     range(Int32(1), Int32(length(u.U)))
-#
 # Base.@propagate_inbounds function Base.getindex(
 #     u::Paulifield{B,T}, ii::Integer
 # ) where {B,T}
@@ -127,7 +125,7 @@ function create_sendbuf!(p::Paulifield{B,T,M}, sites, dim, dir) where {B,T,M}
     sendbuf = p.sendbuf[ibuf]
     itr = eachindex(IndexLinear(), sites)
 
-    parallelfor(itr, B, Val(M), (), (), (p,)) do i, (p,)
+    parallelfor(itr, B, Val(M), (), (), (p, sendbuf)) do i, (p, sendbuf)
         sendbuf[i] = p[sites[i]]
     end
 
@@ -146,8 +144,9 @@ function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:Paulifield{
     return nothing
 end
 
-function Base.copyto!(p::Paulifield{B,T,M}, recvbuf, siterange) where {B,T,M}
+function fill_halo!(p::Paulifield{B,T,M}, recvbuf, siterange) where {B,T,M}
     itr = eachindex(IndexLinear(), siterange)
+
     parallelfor(itr, B, Val(M), (), (), (p, recvbuf)) do i, (p, recvbuf)
         site = siterange[i]
         p[site] = recvbuf[i]

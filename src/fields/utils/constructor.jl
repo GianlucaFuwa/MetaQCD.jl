@@ -60,6 +60,7 @@ macro field_constructor(struct_name, kwargs...)
 
                     $(halo_check(struct_name)) # if Gaugefield, check that halo is wide enough for gauge action
                     topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
+                    eff_halo_width = halo_width .* (numprocs_cart.>1)
 
                     # Create U array
                     mpi_assign_device!($(base_types[1])(), mpi_myrank())

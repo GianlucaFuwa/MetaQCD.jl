@@ -41,14 +41,29 @@ end
     return CartesianIndices((first_range, new_ranges...))
 end
 
-function cooperative_wait(task::Task)
-    while !Base.istaskdone(task)
-        Utils.MPI.Iprobe(mpi_comm_instance())
-        yield()
+@inline function shrink_bulk(bulk::CartesianIndices{4}, stencil_radius, numprocs_cart)
+    new_ranges = ntuple(Val(4)) do i
+        irange = bulk.indices[i]
+        new_first = first(irange) + stencil_radius * (numprocs_cart[i]>1)
+        new_last = last(irange) - stencil_radius * (numprocs_cart[i]>1)
+        @assert new_first <= new_last
+        range(new_first, new_last)
     end
 
-    wait(task)
-    return nothing
+    return CartesianIndices(new_ranges)
+end
+
+@inline function shrink_bulk(bulk::CartesianIndices{5}, stencil_radius, numprocs_cart)
+    new_ranges = ntuple(Val(4)) do i
+        irange = bulk.indices[i]
+        new_first = first(irange) + stencil_radius * (numprocs_cart[i]>1)
+        new_last = last(irange) - stencil_radius * (numprocs_cart[i]>1)
+        @assert new_first <= new_last
+        range(new_first, new_last)
+    end
+
+    first_range = bulk.indices[1]
+    return CartesianIndices((first_range, new_ranges...))
 end
 
 function next_div32(n::Integer)

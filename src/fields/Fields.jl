@@ -18,8 +18,8 @@ struct CPU end
 # When CUDA.jl or AMDGPU.jl are loaded, their backends are appended to this Dict
 const BACKENDS = Dict{String,Any}("cpu" => CPU)
 const DEVICE_ID = Base.RefValue{Int64}(-1)
+const HOSTNAME = Val(Symbol(gethostname()))
 const FORCE_SINGLE_GPU = Val(@load_preference("FORCE_SINGLE_GPU", false))
-const SU3_NUMFLOATS = Val(@load_preference("SU3_RECONSTRUCT", 18))
 
 # We are going to need these if we want to transfer a field from one backend to another
 # For other backends, we overload this method in their respective extensions
@@ -203,7 +203,7 @@ end
     return allindices(u)
 end
 
-@inline allindices(u::AbstractField) = eachindex(IndexCartesian(), u.U) # all indices including halo regions
+@inline allindices(u::AbstractField{B}) where {B} = add_directional_indices(u, eachindex(u))
 
 Base.@propagate_inbounds Base.getindex(u::AbstractField, i::Integer) = u.U[i]
 Base.@propagate_inbounds Base.getindex(u::AbstractField, μsite) = u.U[μsite]
@@ -218,24 +218,6 @@ Base.@propagate_inbounds Base.setindex!(u::AbstractField{CPU}, v, μ, site::Site
     setindex!(u.U, v, μ, site)
 Base.@propagate_inbounds Base.setindex!(u::AbstractField{B}, v, μ, site::SiteCoords) where {B} =
     setindex!(u.U, v, site, μ)
-Base.@propagate_inbounds function setindex_buf!(buf, u::AbstractField{CPU}, i, site)
-    buf[1, i] = u[1, site]
-    buf[2, i] = u[2, site]
-    buf[3, i] = u[3, site]
-    buf[4, i] = u[4, site]
-    return nothing
-end
-Base.@propagate_inbounds function setindex_buf!(
-    buf, u::AbstractField{B,T,M}, i, site
-) where {B,T,M}
-    Base.Cartesian.@nexprs 9 ic -> (
-        buf[ic, i, 1] = getindex_buf(u, site, ic, 1);
-        buf[ic, i, 2] = getindex_buf(u, site, ic, 2);
-        buf[ic, i, 3] = getindex_buf(u, site, ic, 3);
-        buf[ic, i, 4] = getindex_buf(u, site, ic, 4)
-    )
-    return nothing
-end
 
 function get_recv_buf(u::AbstractField{B,T,M}, num) where {B,T,M}
     @assert 1 <= num <= 8 "recvbuf index $num is out-of-bounds (must be in [1, 8])"

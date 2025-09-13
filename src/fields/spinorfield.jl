@@ -49,10 +49,9 @@ Base.eltype(::Type{Spinorfield}, ::Type{T}, ::Val{ND}) where {T,ND} = SVector{3N
 # Base.eltype(::Spinorfield{CPU,T,M,ND}) where {T,M,ND} = SVector{3ND,Complex{T}}
 # Base.eltype(::Spinorfield{B,T,M,1}) where {B,T,M} = SIMD.Vec{2,T}
 # Base.eltype(::Spinorfield{B,T,M,4}) where {B,T,M} = SIMD.Vec{4,T}
+@inline allindices(f::Spinorfield) = eachindex(f)
 
 #### CPU Indexing ####
-@inline allindices(u::Spinorfield{CPU}) = eachindex(IndexCartesian(), u.U) # all indices including halo regions
-@inline allindices(u::Spinorfield{B}) where {B} = eachindex(IndexCartesian(), u.U) # all indices including halo regions
 Base.@propagate_inbounds Base.getindex(f::Spinorfield{CPU}, i::Integer) = f.U[i]
 Base.@propagate_inbounds Base.getindex(f::Spinorfield{CPU}, x, y, z, t) = f.U[x, y, z, t]
 Base.@propagate_inbounds Base.getindex(f::Spinorfield{CPU}, site::SiteCoords) = f.U[site]
@@ -97,7 +96,6 @@ Base.@propagate_inbounds function _getindex_nd(::Val{4}, arr, site, ::Type{T}) w
 end
 
 Base.@propagate_inbounds function _setindex_nd!(::Val{1}, arr, v, site, ::Type{T}) where {T}
-    x, y, z, t = site.I
     Base.Cartesian.@nexprs 3 i -> (
         arr[i, site] = SIMD.Vec{2,T}((v[i].re, v[i].im));
     )
@@ -105,7 +103,6 @@ Base.@propagate_inbounds function _setindex_nd!(::Val{1}, arr, v, site, ::Type{T
 end
 
 Base.@propagate_inbounds function _setindex_nd!(::Val{4}, arr, v, site, ::Type{T}) where {T}
-    x, y, z, t = site.I
     Base.Cartesian.@nexprs 6 i -> (
         arr[i, site] = SIMD.Vec{4,T}((
             v[2(i-1)+1].re, v[2(i-1)+1].im,
@@ -197,12 +194,11 @@ function create_sendbuf!(ϕ::Spinorfield{B,T,M,ND}, sites, dim, dir) where {B,T,
     sendbuf = ϕ.sendbuf[ibuf]
     itr = eachindex(IndexLinear(), sites)
 
-    parallelfor(itr, B, Val(M), Val(false), (), (), (ϕ,)) do i, (ϕ,)
+    parallelfor(itr, B, Val(M), Val(false), (), (), (ϕ, sendbuf)) do i, (ϕ, sendbuf)
         site = sites[i]
         setindex_buf!(sendbuf, ϕ, i, site)
     end
 
-    synchronize(B()) # make sure sendbuf is filled
     return mpi_make_transferrable(sendbuf)
 end
 
@@ -250,7 +246,7 @@ end
 function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:Spinorfield{B,T,M}}
     @assert length(arange) == length(brange) "send buffer and recv buffer arent of same size"
 
-    parallelfor(eachindex(IndexLinear(), arange), B, Val(M), (), (), (a, b)) do i, (a, b)
+    parallelfor(eachindex(IndexLinear(), arange), B, Val(M), Val(false), (), (), (a, b)) do i, (a, b)
         site_a = arange[i]
         site_b = brange[i]
         a[site_a] = b[site_b]
@@ -261,7 +257,7 @@ end
 
 function fill_halo!(ϕ::Spinorfield{CPU,T,M,ND}, recvbuf, siterange) where {T,M,ND}
     itr = eachindex(IndexLinear(), siterange)
-    parallelfor(itr, CPU, Val(M), (), (), (ϕ, recvbuf)) do i, (ϕ, recvbuf)
+    parallelfor(itr, CPU, Val(M), Val(false), (), (), (ϕ, recvbuf)) do i, (ϕ, recvbuf)
         site = siterange[i]
         ϕ[site] = recvbuf[i]
     end
@@ -271,7 +267,7 @@ end
 
 function fill_halo!(ϕ::Spinorfield{B,T,M,ND}, recvbuf, siterange) where {B,T,M,ND}
     itr = eachindex(IndexLinear(), siterange)
-    parallelfor(itr, B, Val(M), (), (), (ϕ, recvbuf)) do i, (ϕ, recvbuf)
+    parallelfor(itr, B, Val(M), Val(false), (), (), (ϕ, recvbuf)) do i, (ϕ, recvbuf)
         site = siterange[i]
         ϕ[site] = _getindex_nd(Val(ND), recvbuf, i, T)
     end
@@ -292,7 +288,7 @@ function convert_field(
     numprocs_cart = get_numprocs_cart(fin)
     halo_width = get_halo_width(fin)
     fout = Spinorfield{Bout,Tout,ND}(NX, NY, NZ, NT; numprocs_cart, halo_width)
-    farr = array_type(Bout)(fin.U)
+    farr = OffsetArray(array_type(Bout)(fin.U.parent), OffsetArrays.Origin(fin.U))
 
     parallelfor(eachindex(fout), Bout, Val(M), (fout,), (), (fout,)) do site, (fout,)
         fout[site] = farr[site]

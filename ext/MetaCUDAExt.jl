@@ -83,7 +83,7 @@ function Fields.launch_foreachindex_reduce_global!(
             max_shmem = max_block_size |> compute_items |> compute_shmem
             out_vec = CUDA.zeros(typeof(out), 256)
             kernel = @cuda launch=false _foreachindex_reduce_global!(
-                out_vec, out, op, f, captured, itr[1], UInt(8)
+                out_vec, out, op, f, captured, itr[1]
             ) 
             config = launch_configuration(kernel; shmem=max_shmem, max_block_size)
             # determine the launch configuration
@@ -103,7 +103,7 @@ function Fields.launch_foreachindex_reduce_global!(
     reduce_shmem = compute_shmem(threads)
     for i in eachindex(itr)
         @cuda blocks=_blocks[i] threads=threads shmem=reduce_shmem _foreachindex_reduce_global!(
-            out_vec, out, op, f, captured, itr[i],
+            out_vec, out, op, f, captured, itr[i]
         ) 
     end
 

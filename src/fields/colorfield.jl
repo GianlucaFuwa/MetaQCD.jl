@@ -32,7 +32,6 @@ end
 Base.eltype(::Type{Colorfield}, ::Type{T}) where {T} = SMatrix{3,3,Complex{T},9}
 
 #### CPU Indexing ####
-@inline allindices(u::Colorfield{CPU}) = eachindex(IndexCartesian(), u.U)
 Base.@propagate_inbounds Base.getindex(u::Colorfield{CPU}, μ, site::SiteCoords) = u.U[μ, site]
 Base.@propagate_inbounds Base.getindex(u::Colorfield{CPU}, μsite) = u.U[μsite]
 Base.@propagate_inbounds Base.setindex!(u::Colorfield{CPU}, v, μ, site::SiteCoords) =
@@ -42,9 +41,6 @@ Base.@propagate_inbounds Base.setindex!(u::Colorfield{CPU}, v, μsite) =
 ######################
 
 #### GPU Indexing ####
-@inline allindices(u::Colorfield{B}) where {B} = 
-    range(Int32(1), Int32(length(u.U)))
-
 Base.@propagate_inbounds function Base.getindex(
     u::Colorfield{B,T}, ii::Integer
 ) where {B,T}
@@ -57,6 +53,12 @@ Base.@propagate_inbounds function Base.getindex(
     return _getindex_mat(Val(18), u.U, μ, site, T)
 end
 
+Base.@propagate_inbounds function Base.getindex(
+    u::Colorfield{B,T}, μsite
+) where {B,T}
+    return _getindex_mat(Val(18), u.U, μsite, T)
+end
+
 Base.@propagate_inbounds function Base.setindex!(u::Colorfield{B}, v, ii::Integer) where {B}
     u.U[ii] = v
     return nothing
@@ -67,4 +69,45 @@ Base.@propagate_inbounds function Base.setindex!(
 ) where {B,T}
     return _setindex_mat!(Val(18), u.U, v, μ, site, T)
 end
+
+Base.@propagate_inbounds function Base.setindex!(
+    u::Colorfield{B,T}, v, μsite
+) where {B,T}
+    return _setindex_mat!(Val(18), u.U, v, μsite, T)
+end
 ######################
+
+function create_sendbuf!(u::Colorfield{B,T,M}, sites, dim, dir) where {B,T,M}
+    ibuf = dir + 2(dim - 1)
+    sendbuf = u.sendbuf[ibuf]
+    μsites = add_directional_indices(u, sites)
+    itr = eachindex(IndexLinear(), μsites)
+
+    parallelfor(itr, B, Val(M), Val(false), (), (), (u, sendbuf)) do i, (u, sendbuf)
+        μsite = μsites[i]
+        setindex_buf!(sendbuf, u, i, μsite)
+    end
+
+    return mpi_make_transferrable(sendbuf)
+end
+
+Base.@propagate_inbounds function setindex_buf!(buf, u::Colorfield{CPU}, i, μsite)
+    μ = μsite[1]
+    buf[μ, i] = u[μsite]
+    return nothing
+end
+
+Base.@propagate_inbounds function setindex_buf!(
+    buf, u::Colorfield{B,T,M}, i, μsite
+) where {B,T,M}
+    Base.Cartesian.@nexprs 9 ic -> (
+        buf[ic, i] = getindex_buf(u, μsite, ic);
+    )
+    return nothing
+end
+
+Base.@propagate_inbounds function getindex_buf(
+    u::Colorfield{B,T,M}, μsite, ic
+) where {B,T,M}
+    return u.U[ic, μsite]
+end

@@ -47,7 +47,7 @@ function parallelfor(
     if M && hide && length(to_validate) > 0
         sendrecvtasks = start_halo_update!(to_validate; do_edges=Val(true))
         hw, idx = findmin(get_halo_width, to_validate)
-        inner_bulk = shrink_bulk(itr, hw)
+        inner_bulk = shrink_bulk(itr, hw, to_validate[1].topology.numprocs_cart)
         new_block_size = min(block_size, min(256, length(inner_bulk)))
 
         # inner work
@@ -141,11 +141,10 @@ function parallelfor_sum(
     block_size=min(256, length(itr))
 ) where {B,M,hide}
     if M && hide && length(to_validate) > 0
-        sendrecvtasks = start_halo_update!(to_validate; do_edges=Val(true))
+        sendrecvtasks = start_halo_update!(to_validate; do_edges=Val(false))
         hw, idx = findmin(get_halo_width, to_validate)
-        inner_bulk = shrink_bulk(itr, hw)
+        inner_bulk = shrink_bulk(itr, hw, to_validate[1].topology.numprocs_cart)
         new_block_size = min(block_size, min(256, length(inner_bulk)))
-
         # inner work
         result = _parallelfor_sum(f, captured, inner_bulk, init, B, new_block_size)
         # wait for exchange to finish
@@ -239,6 +238,8 @@ function parallelfor_max(
 
         return result
     else
-        return _foreachindex_reduce_gpu(init, max, f, captured, itr, backend, block_size)
+        return launch_foreachindex_reduce_global!(
+            backend(), init, max, f, captured, (itr,), block_size
+        )
     end
 end

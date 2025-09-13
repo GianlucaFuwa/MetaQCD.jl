@@ -184,7 +184,7 @@ function create_sendbuf!(ϕ_eo::SpinorfieldEO{B,T,M}, sites, dim, dir) where {B,
     itr = eachindex(IndexLinear(), sites)
     padded_bulk = ϕ.topology.bulk_sites_padded
 
-    parallelfor(itr, B, Val(M), (), (), (ϕ,)) do i, (ϕ,)
+    parallelfor(itr, B, Val(M), Val(false), (), (), (ϕ, sendbuf)) do i, (ϕ, sendbuf)
         _site = map_to_half(sites[i], padded_bulk)
         setindex_buf!(sendbuf, ϕ, i, _site)
     end
@@ -200,21 +200,20 @@ function Base.copyto!(
     @assert eachindex(a) == eachindex(b)
     padded_bulk = a.topology.bulk_sites_padded
 
-    parallelfor(eachindex(IndexLinear(), arange), B, Val(M), (), (), (a, b)) do i, (a, b)
-        site_a = arange[i]
-        site_b = brange[i]
-        _site_a = map_to_half(site_a, padded_bulk)
-        _site_b = map_to_half(site_b, padded_bulk)
+    parallelfor(eachindex(IndexLinear(), arange), B, Val(M), Val(false), (), (), (a, b)) do i, (a, b)
+        _site_a = map_to_half(arange[i], padded_bulk)
+        _site_b = map_to_half(brange[i], padded_bulk)
         a[_site_a] = b[_site_b]
     end
 
     return nothing
 end
 
-function fill_halo!(ϕ::SpinorfieldEO{CPU,T,M,ND}, recvbuf, siterange) where {T,M,ND}
+function fill_halo!(ϕ_eo::SpinorfieldEO{CPU,T,M,ND}, recvbuf, siterange) where {T,M,ND}
+    ϕ = ϕ_eo.parent
     itr = eachindex(IndexLinear(), siterange)
     padded_bulk = ϕ.topology.bulk_sites_padded
-    parallelfor(itr, CPU, Val(M), (), (), (ϕ, recvbuf)) do i, (ϕ, recvbuf)
+    parallelfor(itr, CPU, Val(M), Val(false), (), (), (ϕ, recvbuf)) do i, (ϕ, recvbuf)
         _site = map_to_half(siterange[i], padded_bulk)
         ϕ[_site] = recvbuf[i]
     end
@@ -222,10 +221,11 @@ function fill_halo!(ϕ::SpinorfieldEO{CPU,T,M,ND}, recvbuf, siterange) where {T,
     return nothing
 end
 
-function fill_halo!(ϕ::SpinorfieldEO{B,T,M,ND}, recvbuf, siterange) where {B,T,M,ND}
+function fill_halo!(ϕ_eo::SpinorfieldEO{B,T,M,ND}, recvbuf, siterange) where {B,T,M,ND}
+    ϕ = ϕ_eo.parent
     itr = eachindex(IndexLinear(), siterange)
     padded_bulk = ϕ.topology.bulk_sites_padded
-    parallelfor(itr, B, Val(M), (), (), (ϕ, recvbuf)) do i, (ϕ, recvbuf)
+    parallelfor(itr, B, Val(M), Val(false), (), (), (ϕ, recvbuf)) do i, (ϕ, recvbuf)
         _site = map_to_half(siterange[i], padded_bulk)
         ϕ[_site] = _getindex_nd(Val(ND), recvbuf, i, T)
     end

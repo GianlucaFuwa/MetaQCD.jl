@@ -82,7 +82,7 @@ function Fields.launch_foreachindex_reduce_global!(
             max_shmem = max_block_size |> compute_items |> compute_shmem
             out_vec = AMDGPU.zeros(typeof(out), 256)
             kernel = @roc launch=false _foreachindex_reduce_global!(
-                out_vec, out, op, f, captured, itr[1], UInt8(1)
+                out_vec, out, op, f, captured, itr[1]
             ) 
             config = launch_configuration(kernel; shmem=max_shmem, max_block_size)
             # determine the launch configuration

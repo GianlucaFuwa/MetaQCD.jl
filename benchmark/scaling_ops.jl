@@ -2,38 +2,18 @@ using MetaQCD, MetaQCD.Utils, MPI, LinearAlgebra, Chairmarks
 using Random, Statistics, Printf
 using AMDGPU
 using MetaQCD.DiracOperators: solve_dirac!
+using MetaQCD.Fields: update_halo!
 
 const FLOPS = Dict(
     "Copy" => 0,
-    # "Dot-Staggered" => 22,
-    # "Dot-Wilson" => 94,
+    "Dot-Staggered" => 22,
+    "Dot-Wilson" => 94,
     "Staggered" => 587,
-    # "Wilson" => 1368,
-    # "Wilson-Clover" => 1368 + 1728,
-    # "Invert-Staggered" => 587 + 2*22 + 2*12 + 18, # op + 2dot + 2axpy + axpby
-    # "Invert-Wilson" => 1368 + 2*22 + 2*12 + 18, # op + 2dot + 2axpy + axpby
-)
-
-const OPERATORS = (
-    nothing,
-    # nothing,
-    # nothing,
-    StaggeredDiracOperator,
-    # WilsonDiracOperator,
-    # WilsonDiracOperator,
-    # nothing,
-    # nothing,
-)
-
-const NAMES = (
-    "Copy",
-    # "Dot-Staggered",
-    # "Dot-Wilson",
-    "Staggered",
-    # "Wilson",
-    # "Wilson-Clover",
-    # "Invert-Staggered",
-    # "Invert-Wilson",
+    "Wilson" => 1368,
+    "Wilson-Clover" => 1368 + 1728,
+    "Invert-Staggered" => 587 + 2*22 + 2*12 + 18, # op + 2dot + 2axpy + axpby
+    "Invert-Wilson" => 1368 + 2*22 + 2*12 + 18, # op + 2dot + 2axpy + axpby
+    "Halo-Exchange" => 0,
 )
 
 function bench_mul!(::Type{B}, ϕ, D, ψ, nlaunches) where B
@@ -60,12 +40,21 @@ function bench_dot(::Type{B}, a, b, nlaunches) where B
     return nothing
 end
 
+function bench_exchange(::Type{B}, u, nlaunches) where B
+    for _ in 1:nlaunches
+        update_halo!((u,))
+    end
+    MetaQCD.Fields.synchronize(B())
+    return nothing
+end
+
 function main()
+    MetaQCD.MetaIO.set_global_logger!(4, nothing)
     nlaunches = 10
     B = ROCBackend
     GA = WilsonGaugeAction
     N = 12
-    global_dims = (64, 64, 64, 64)
+    global_dims = (32, 32, 32, 32)
     numprocs_cart = distribute_procs(global_dims, mpi_size())
     halo_width = 1
     result_dir = joinpath(@__DIR__, "scaling_results")
@@ -86,8 +75,7 @@ function main()
 
     deviceid_printed = false
 
-    for (i, operator) in enumerate(OPERATORS)
-        opname = NAMES[i]
+    for opname in keys(FLOPS)
         for T in (Float16, Float32, Float64)
             tstring = lowercase(string(T))
             U = Gaugefield{B,T,GA,N}(global_dims..., 6.0; numprocs_cart, halo_width)
@@ -110,6 +98,13 @@ function main()
                 mpi_barrier()
                 println("Benchmarking $(opname) $(tstring) ($(mpi_myrank()))")
                 bench = @be _ $bench_copy!($B, $a, $b, $nlaunches) mpi_barrier() evals=1 samples=100 seconds=5
+            elseif opname == "Halo-Exchange"
+                f = Spinorfield(U; staggered=true)
+                # warmup
+                update_halo!((f,))
+                mpi_barrier()
+                println("Benchmarking $(opname) $(tstring) ($(mpi_myrank()))")
+                bench = @be _ $bench_exchange($B, $f, $nlaunches) mpi_barrier() evals=1 samples=100 seconds=5
             elseif contains(opname, "Dot")
                 staggered = contains(opname, "Staggered")
                 a = Spinorfield(U; staggered)
@@ -120,7 +115,7 @@ function main()
                 println("Benchmarking $(opname) $(tstring) ($(mpi_myrank()))")
                 bench = @be _ $bench_dot($B, $a, $b, $nlaunches) mpi_barrier() evals=1 samples=100 seconds=5
             elseif contains(opname, "Invert")
-                T == Float32 || continue
+                T == Float64 || continue
                 operator, staggered = if contains(opname, "Staggered")
                     StaggeredDiracOperator, true
                 else
@@ -130,12 +125,14 @@ function main()
                 ϕ = Spinorfield(U; staggered)
                 ψ = Spinorfield(U; staggered)
                 random_gauges!(U)
-                g = GradientFlow(U; integrator="euler", numflow=5, steps=1, tf=0.12)
+                g = GradientFlow(U; integrator="euler", numflow=6, steps=1, tf=0.12)
                 copy!(g.Uflow, U)
                 for _ in 1:g.numflow
                     flow!(g)
                 end
                 copy!(U, g.Uflow)
+                @show plaquette_trace_sum(g.Uflow)
+                @show plaquette_trace_sum(U)
                 gaussian_pseudofermions!(ϕ)
                 temp1, temp2, temp3 = ntuple(_ -> Spinorfield(U; staggered), Val(3))
                 tol = 1e-4
@@ -143,6 +140,7 @@ function main()
                 DU = DdaggerD(D(U))
                 # warmup
                 solve_dirac!(ψ, DU, ϕ, temp1, temp2, temp3; tol, maxiters)
+                MetaQCD.Fields.clear!(ψ)
                 mpi_barrier()
                 println("Benchmarking $(opname) $(tstring) ($(mpi_myrank()))")
                 stats = @timed solve_dirac!(ψ, DU, ϕ, temp1, temp2, temp3; tol, maxiters)
@@ -252,6 +250,9 @@ function mem_per_site(op, ::Type{T}, nfloat) where T
         # 6 x 16 read gauge for clover
         return sizeof(Complex{T}) * (2 * 12 + 6 * (16 * nfloat/2))
     elseif op == "Copy"
+        return sizeof(Complex{T}) * (2 * 4 * nfloat/2)
+        # return sizeof(Complex{T}) * (2 * 12)
+    elseif op == "Halo-Exchange"
         return sizeof(Complex{T}) * (2 * 4 * nfloat/2)
         # return sizeof(Complex{T}) * (2 * 12)
     elseif op == "Dot-Staggered"

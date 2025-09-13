@@ -1,16 +1,16 @@
 function test_gradflow(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=1)
     Random.seed!(123)
     println("Smearing tests")
-    NX = NY = NZ = NT = 4
+    NX = NY = NZ = NT = 16
     U = Gaugefield{backend,Float64,WilsonGaugeAction,12}(
         NX, NY, NZ, NT, 6.0, numprocs_cart=nprocs_cart, halo_width=halo_width
     )
     numflow = 7
 
     filename = if nprocs_cart != (1, 1, 1, 1)
-        pkgdir(MetaQCD, "test", "testconf_mpi")
+        pkgdir(MetaQCD, "test", "testconf_16_mpi")
     else
-        pkgdir(MetaQCD, "test", "testconf.txt")
+        pkgdir(MetaQCD, "test", "testconf_16.txt")
     end
 
     load_field!(BridgeFormat(), U, filename)
