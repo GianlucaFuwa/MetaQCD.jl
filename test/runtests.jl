@@ -76,7 +76,7 @@ function runtests(; backend=CPU, nprocs_cart=(1, 1, 1, 1))
             csw=0,
         )
 
-        wilson-clover derivative
+        # wilson-clover derivative
         test_fderivative(;
             backend,
             nprocs_cart,
