@@ -55,7 +55,7 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT,T1} <: AbstractMeasurement
             throw(ArgumentError("Dirac operator \"$dirac_type\" is not supported"))
         end
 
-        if !isnothing(filename) && filename != ""
+        if !isnothing(filename) && filename != "" && mpi_amroot(mpi_comm_instance())
             rpath = StaticString(filename)
 
             if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
@@ -139,29 +139,27 @@ function measure(
     )
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
-    if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
-        if T !== Nothing
-            filename = if mpi_multi_sim
-                set_ext!(m.filename)
-            else
-                m.filename
-            end
-
-            fp = fopen(filename, "a")
-            printf(fp, "%-11i", itrj)
-
-            if !isnothing(flow)
-                printf(fp, "%-7i", iflow)
-                printf(fp, "%-9.5f", τ)
-            end
-
-            for value in m.pion_corr
-                printf(fp, "%+-25.15E", value)
-            end
-
-            printf(fp, "\n")
-            fclose(fp)
+    if T !== Nothing
+        filename = if mpi_multi_sim
+            set_ext!(m.filename)
+        else
+            m.filename
         end
+
+        fp = fopen(filename, "a")
+        printf(fp, "%-11i", itrj)
+
+        if !isnothing(flow)
+            printf(fp, "%-7i", iflow)
+            printf(fp, "%-9.5f", τ)
+        end
+
+        for value in m.pion_corr
+            printf(fp, "%+-25.15E", value)
+        end
+
+        printf(fp, "\n")
+        fclose(fp)
     end
 
     return m.pion_corr

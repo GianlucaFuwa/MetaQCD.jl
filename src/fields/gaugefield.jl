@@ -231,16 +231,14 @@ end
 Base.@propagate_inbounds function setindex_buf!(
     buf, u::Gaugefield{CPU,T,M,GA,18}, i, μsite
 ) where {T,M,GA}
-    μ = μsite[1]
-    buf[μ, i] = u[μsite]
+    buf[i] = u[μsite]
     return nothing
 end
 
 Base.@propagate_inbounds function setindex_buf!(
     buf, u::Gaugefield{CPU,T,M,GA,12}, i, μsite
 ) where {T,M,GA}
-    μ = μsite[1]
-    buf[μ, i] = u[μsite]
+    buf[i] = u[μsite]
     return nothing
 end
 
@@ -270,27 +268,25 @@ end
 
 function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:AbstractField{B,T,M}}
     @assert length(arange) == length(brange) "send buffer and recv buffer arent of same size"
+    iarange = add_directional_indices(a, arange)
+    ibrange = add_directional_indices(b, arange)
 
-    parallelfor(eachindex(IndexLinear(), arange), B, Val(M), Val(false), (), (), (a, b)) do i, (a, b)
-        site_a = arange[i]
-        site_b = brange[i]
-        a[1, site_a] = b[1, site_b]
-        a[2, site_a] = b[2, site_b]
-        a[3, site_a] = b[3, site_b]
-        a[4, site_a] = b[4, site_b]
+    parallelfor(eachindex(IndexLinear(), iarange), B, Val(M), Val(false), (), (), (a, b)) do i, (a, b)
+        isite_a = iarange[i]
+        isite_b = ibrange[i]
+        a[isite_a] = b[isite_b]
     end
 
     return nothing
 end
 
 function fill_halo!(u::AbstractField{CPU,T,M}, recvbuf, siterange) where {T,M}
-    itr = eachindex(IndexLinear(), siterange)
+    μsiterange = add_directional_indices(u, siterange)
+    itr = eachindex(IndexLinear(), μsiterange)
+
     parallelfor(itr, CPU, Val(M), Val(false), (), (), (u, recvbuf)) do i, (u, recvbuf)
-        site = siterange[i]
-        u[1, site] = recvbuf[1, i]
-        u[2, site] = recvbuf[2, i]
-        u[3, site] = recvbuf[3, i]
-        u[4, site] = recvbuf[4, i]
+        μsite = μsiterange[i]
+        u[μsite] = recvbuf[i]
     end
 
     return nothing

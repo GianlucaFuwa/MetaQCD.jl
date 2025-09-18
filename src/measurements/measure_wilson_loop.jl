@@ -11,7 +11,7 @@ struct WilsonLoopMeasurement{T} <: AbstractMeasurement
         @level1("|    @info: Wilson loop measurements are not printed to console")
         WL = zeros(Rmax, Tmax)
 
-        if !isnothing(filename) && filename != ""
+        if !isnothing(filename) && filename != "" && mpi_amroot(mpi_comm_instance())
             rpath = StaticString(filename)
 
             if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
@@ -68,31 +68,29 @@ function measure(
         end
     end
 
-    if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
-        if T !== Nothing
-            filename = if mpi_multi_sim
-                set_ext!(m.filename)
-            else
-                m.filename
-            end
-
-            fp = fopen(filename, "a")
-            printf(fp, "%-11i", itrj)
-
-            if !isnothing(flow)
-                printf(fp, "%-7i\t", iflow)
-                printf(fp, "%-9.5f\t", τ)
-            end
-
-            for iT in 1:(m.Tmax)
-                for iR in 1:(m.Rmax)
-                    printf(fp, "%+-25.15E", m.WL[iR, iT]::Float64)
-                end
-            end
-
-            printf(fp, "\n")
-            fclose(fp)
+    if T !== Nothing
+        filename = if mpi_multi_sim
+            set_ext!(m.filename)
+        else
+            m.filename
         end
+
+        fp = fopen(filename, "a")
+        printf(fp, "%-11i", itrj)
+
+        if !isnothing(flow)
+            printf(fp, "%-7i\t", iflow)
+            printf(fp, "%-9.5f\t", τ)
+        end
+
+        for iT in 1:(m.Tmax)
+            for iR in 1:(m.Rmax)
+                printf(fp, "%+-25.15E", m.WL[iR, iT]::Float64)
+            end
+        end
+
+        printf(fp, "\n")
+        fclose(fp)
     end
 
     return m.WL

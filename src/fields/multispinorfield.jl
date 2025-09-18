@@ -98,6 +98,12 @@ Base.@propagate_inbounds function Base.setindex!(
     return _setindex_nd!(Val(ND), f.U, v, is, site, T)
 end
 
+Base.@propagate_inbounds function Base.setindex!(
+    f::Spinorfield{B,T,M,ND}, v, ssite
+) where {B,T,M,ND}
+    return _setindex_nd!(Val(ND), f.U, v, ssite, T)
+end
+
 Base.@propagate_inbounds function _getindex_nd(::Val{1}, arr, is, site, ::Type{T}) where T
     Base.Cartesian.@nexprs 3 i -> (
         vec = arr[i, site, is];
@@ -182,58 +188,56 @@ end
 function create_sendbuf!(ϕ::MultiSpinorfield{B,T,M,ND}, sites, dim, dir) where {B,T,M,ND}
     ibuf = dir + 2(dim - 1)
     sendbuf = ϕ.sendbuf[ibuf]
-    itr = eachindex(IndexLinear(), sites)
-    numspinors = ϕ.numspinors
+    ssites = add_directional_indices(ϕ, sites)
+    itr = eachindex(IndexLinear(), ssites)
 
     parallelfor(itr, B, Val(M), (), (), (ϕ,)) do i, (ϕ,)
-        site = sites[i]
-        for is in 1:numspinors
-            setindex_buf!(sendbuf, ϕ, i, site, is)
-        end
+        ssite = ssites[i]
+        setindex_buf!(sendbuf, ϕ, i, ssite)
     end
 
     return mpi_make_transferrable(sendbuf)
 end
 
 Base.@propagate_inbounds function setindex_buf!(
-    sendbuf, ϕ::MultiSpinorfield{CPU,T,M,1}, i, site, is
+    sendbuf, ϕ::MultiSpinorfield{CPU,T,M,1}, i, ssite
 ) where {T,M}
-    sendbuf[i, is] = ϕ[is, site]
+    sendbuf[i] = ϕ[ssite]
     return nothing
 end
 
 Base.@propagate_inbounds function setindex_buf!(
-    sendbuf, ϕ::MultiSpinorfield{CPU,T,M,4}, i, site, is
+    sendbuf, ϕ::MultiSpinorfield{CPU,T,M,4}, i, ssite
 ) where {T,M}
-    sendbuf[i, is] = ϕ[is, site]
+    sendbuf[i] = ϕ[ssite]
     return nothing
 end
 
 Base.@propagate_inbounds function setindex_buf!(
-    sendbuf, ϕ::MultiSpinorfield{B,T,M,1}, i, site, is
+    sendbuf, ϕ::MultiSpinorfield{B,T,M,1}, i, ssite
 ) where {B,T,M}
-    sendbuf[1, i, is] = getindex_buf(ϕ, site, 1, is)
-    sendbuf[2, i, is] = getindex_buf(ϕ, site, 2, is)
-    sendbuf[3, i, is] = getindex_buf(ϕ, site, 3, is)
+    sendbuf[1, i] = getindex_buf(ϕ, ssite, 1)
+    sendbuf[2, i] = getindex_buf(ϕ, ssite, 2)
+    sendbuf[3, i] = getindex_buf(ϕ, ssite, 3)
     return nothing
 end
 
 Base.@propagate_inbounds function setindex_buf!(
-    sendbuf, ϕ::MultiSpinorfield{B,T,M,4}, i, site, is
+    sendbuf, ϕ::MultiSpinorfield{B,T,M,4}, i, ssite
 ) where {B,T,M}
-    sendbuf[1, i, is] = getindex_buf(ϕ, site, 1, is)
-    sendbuf[2, i, is] = getindex_buf(ϕ, site, 2, is)
-    sendbuf[3, i, is] = getindex_buf(ϕ, site, 3, is)
-    sendbuf[4, i, is] = getindex_buf(ϕ, site, 4, is)
-    sendbuf[5, i, is] = getindex_buf(ϕ, site, 5, is)
-    sendbuf[6, i, is] = getindex_buf(ϕ, site, 6, is)
+    sendbuf[1, i] = getindex_buf(ϕ, ssite, 1)
+    sendbuf[2, i] = getindex_buf(ϕ, ssite, 2)
+    sendbuf[3, i] = getindex_buf(ϕ, ssite, 3)
+    sendbuf[4, i] = getindex_buf(ϕ, ssite, 4)
+    sendbuf[5, i] = getindex_buf(ϕ, ssite, 5)
+    sendbuf[6, i] = getindex_buf(ϕ, ssite, 6)
     return nothing
 end
 
 Base.@propagate_inbounds function getindex_buf(
-    ϕ::MultiSpinorfield{B,T,M}, site, ic, is
+    ϕ::MultiSpinorfield{B,T,M}, ssite, ic
 ) where {B,T,M}
-    return ϕ.U[ic, site, is]
+    return ϕ.U[ic, ssite]
 end
 
 function Base.copyto!(a::TF, b::TF, arange, brange) where {T,M,TF<:MultiSpinorfield{CPU,T,M}}

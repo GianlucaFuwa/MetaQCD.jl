@@ -186,8 +186,7 @@ end
 Base.@propagate_inbounds function setindex_buf!(
     sendbuf, u::Tensorfield{CPU,T,M}, i, isite
 ) where {T,M}
-    itens = isite.I[1]
-    sendbuf[itens, i] = u[isite]
+    sendbuf[i] = u[isite]
     return nothing
 end
 
@@ -206,20 +205,6 @@ Base.@propagate_inbounds function getindex_buf(
     return F.U[ic, isite]
 end
 
-function Base.copyto!(a::TF, b::TF, arange, brange) where {T,M,TF<:Tensorfield{CPU,T,M}}
-    @assert length(arange) == length(brange) "send buffer and recv buffer arent of same size"
-
-    parallelfor(eachindex(IndexLinear(), arange), CPU, Val(M), Val(false), (), (), (a, b)) do i, (a, b)
-        site_a = arange[i]
-        site_b = brange[i]
-        for itens in 1:6
-            a[itens, site_a] = b[itens, site_b]
-        end
-    end
-
-    return nothing
-end
-
 function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:Tensorfield{B,T,M}}
     @assert length(arange) == length(brange) "send buffer and recv buffer arent of same size"
     iarange = add_directional_indices(a, arange)
@@ -235,12 +220,12 @@ function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:Tensorfield
 end
 
 function fill_halo!(F::Tensorfield{CPU,T,M}, recvbuf, siterange) where {T,M}
-    itr = eachindex(IndexLinear(), siterange)
+    isiterange = add_directional_indices(F, siterange)
+    itr = eachindex(IndexLinear(), isiterange)
+
     parallelfor(itr, CPU, Val(M), Val(false), (), (), (F, recvbuf)) do i, (F, recvbuf)
-        site = siterange[i]
-        for itens in 1:6
-            F[itens, site] = recvbuf[itens, i]
-        end
+        isite = isiterange[i]
+        F[isite] = recvbuf[i]
     end
 
     return nothing

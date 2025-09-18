@@ -1,6 +1,4 @@
-@inline distributed_reduce(var, ::Any, ::AbstractField) = var
-
-@inline function distributed_reduce(var, op, u::AbstractMPIField)
+@inline function distributed_reduce(var, op, u::AbstractField)
     return mpi_allreduce(var, op, u.topology.comm_cart)
 end
 

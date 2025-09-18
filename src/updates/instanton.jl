@@ -26,20 +26,17 @@ function set_instanton!(U::Gaugefield{B,T,M}, Q) where {B,T,M}
 
     itr = CartesianIndices((xrange, yrange, zrange))
 
-    parallelfor(itr, B, Val(M), (), (U,), (U,)) do xyz, (U,)
-        ix, iy, iz = xyz.I
-        cit = cos(field_x * ix)
-        sit = sin(field_x * ix)
-        U[4, CartesianIndex(ix, iy, iz, NT)] = s_comp + cit * s_id - im * sit * s
+    if NT in trange
+        parallelfor(itr, B, Val(M), (), (U,), (U,)) do xyz, (U,)
+            ix, iy, iz = xyz.I
+            cit = cos(field_x * ix)
+            sit = sin(field_x * ix)
+            U[4, CartesianIndex(ix, iy, iz, NT)] = s_comp + cit * s_id - im * sit * s
+        end
     end
 
-    if Q == 0
-        field_y = T(0)
-        field_z = T(0)
-    else
-        field_y = T(-2π * Q / (abs(Q) * NY * NZ))
-        field_z = T(-2π * Q / (abs(Q) * NZ))
-    end
+    field_y::T = Q == 0 ? T(0.0) : T(-2π * Q / (abs(Q) * NY * NZ))
+    field_z::T = Q == 0 ? T(0.0) : T(-2π * Q / (abs(Q) * NZ))
 
     t = tau(T)
     t_comp = tau_comp(T)
@@ -54,13 +51,16 @@ function set_instanton!(U::Gaugefield{B,T,M}, Q) where {B,T,M}
 
     itr = CartesianIndices((xrange, zrange, trange))
 
-    parallelfor(itr, B, Val(M), (), (U,), (U,)) do xzt, (U,)
-        ix, iz, it = xzt.I
-        cit = cos(field_z * iz)
-        sit = sin(field_z * iz)
-        U[2, CartesianIndex(ix, NY, iz, it)] = t_comp + cit * t_id - im * sit * t
+    if NY in yrange
+        parallelfor(itr, B, Val(M), (), (U,), (U,)) do xzt, (U,)
+            ix, iz, it = xzt.I
+            cit = cos(field_z * iz)
+            sit = sin(field_z * iz)
+            U[2, CartesianIndex(ix, NY, iz, it)] = t_comp + cit * t_id - im * sit * t
+        end
     end
-
+    
+    mpi_barrier(mpi_comm_instance())
     return nothing
 end
 

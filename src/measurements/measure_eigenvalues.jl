@@ -184,25 +184,23 @@ function measure(m::EigenvaluesMeasurement{T}, U, itrj, flow=nothing) where {T}
         end
     end
 
-    if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
-        if T !== Nothing
-            filename = set_ext!(m.filename)
-            fp = fopen(filename, "a")
-            printf(fp, "%-11i", itrj)
+    if T !== Nothing
+        filename = set_ext!(m.filename)
+        fp = fopen(filename, "a")
+        printf(fp, "%-11i", itrj)
 
-            if !isnothing(flow)
-                printf(fp, "%-7i", iflow)
-                printf(fp, "%-9.5f", τ)
-            end
-
-            for value in vals
-                printf(fp, "%+-25.15E", real(value))
-                printf(fp, "%+-25.15E", imag(value))
-            end
-
-            newline(fp)
-            fclose(fp)
+        if !isnothing(flow)
+            printf(fp, "%-7i", iflow)
+            printf(fp, "%-9.5f", τ)
         end
+
+        for value in vals
+            printf(fp, "%+-25.15E", real(value))
+            printf(fp, "%+-25.15E", imag(value))
+        end
+
+        newline(fp)
+        fclose(fp)
     end
 
     return vals

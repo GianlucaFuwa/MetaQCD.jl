@@ -92,8 +92,7 @@ function create_sendbuf!(u::Colorfield{B,T,M}, sites, dim, dir) where {B,T,M}
 end
 
 Base.@propagate_inbounds function setindex_buf!(buf, u::Colorfield{CPU}, i, μsite)
-    μ = μsite[1]
-    buf[μ, i] = u[μsite]
+    buf[i] = u[μsite]
     return nothing
 end
 

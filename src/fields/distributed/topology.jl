@@ -70,7 +70,7 @@ struct FieldTopology{TI}
         border_iterators = if _unwrap_val(HIDE_COMMS)
             get_border_iterators(bulk_sites, halo_width, is_partitioned)
         else
-            ntuple(_ -> CartesianIndices((0, 0, 0, 0)), 8)
+            ntuple(_ -> CartesianIndices((0, 0, 0, 0)), 0)
         end
 
         global_volume = prod(global_dims)

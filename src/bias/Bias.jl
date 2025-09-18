@@ -97,13 +97,8 @@ function Bias(p, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, bui
 
     bias = ntuple(num_cv) do i
         @level1("|")
-        bias_parameters = bias_parameters_from_dict(biases[i], instance)
+        bias_parameters = bias_parameters_from_dict(biases[i], instance; build)
         name = bias_parameters.kind_of_cv
-
-        if name == "topcharge_clover"
-            is_distributed(U) && @assert(U.topology.halo_width>=2)
-        end
-
         numsmears = bias_parameters.numsmears_for_cv
         cv_numsmears[i] = numsmears
         @level1("|  Bias $i: $(bias_parameters.type)")

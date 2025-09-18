@@ -24,7 +24,7 @@ struct TopologicalChargeMeasurement{T} <: AbstractMeasurement
             end
         end
 
-        if !isnothing(filename) && filename != ""
+        if !isnothing(filename) && filename != "" && mpi_amroot(mpi_comm_instance())
             rpath = StaticString(filename)
 
             if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
@@ -78,39 +78,37 @@ function measure(
         TC_dict[method] = top_charge(U, method)
     end
 
-    if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
+    for method in keys(TC_dict)
+        Q = TC_dict[method]
+
+        if !isnothing(flow)
+            @level1("$itrj\t$Q # topcharge_$(method)$(fstr)_$(τ)")
+        else
+            @level1("$itrj\t$Q # topcharge_$(method)")
+        end
+    end
+
+    if T !== Nothing
+        filename = if mpi_multi_sim
+            set_ext!(m.filename)
+        else
+            m.filename
+        end
+
+        fp = fopen(filename, "a")
+        printf(fp, "%-11i", itrj)
+
+        if !isnothing(flow)
+            printf(fp, "%-7i", iflow)
+            printf(fp, "%-9.5f", τ)
+        end
+
         for method in keys(TC_dict)
-            Q = TC_dict[method]
-
-            if !isnothing(flow)
-                @level1("$itrj\t$Q # topcharge_$(method)$(fstr)_$(τ)")
-            else
-                @level1("$itrj\t$Q # topcharge_$(method)")
-            end
+            printf(fp, "%+-25.15E", TC_dict[method])
         end
 
-        if T !== Nothing
-            filename = if mpi_multi_sim
-                set_ext!(m.filename)
-            else
-                m.filename
-            end
-
-            fp = fopen(filename, "a")
-            printf(fp, "%-11i", itrj)
-
-            if !isnothing(flow)
-                printf(fp, "%-7i", iflow)
-                printf(fp, "%-9.5f", τ)
-            end
-
-            for method in keys(TC_dict)
-                printf(fp, "%+-25.15E", TC_dict[method])
-            end
-
-            newline(fp)
-            fclose(fp)
-        end
+        newline(fp)
+        fclose(fp)
     end
 
     return TC_dict

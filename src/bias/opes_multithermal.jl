@@ -76,14 +76,14 @@ function OPESmultithermal(
     sum_weights2 = zero(λ)
     current_weight = zero(λ)
 
-    if (0 < instance <= length(p.usebiases) && !dummy)
-        usebias = p.usebiases[instance+1]
+    if (0 < instance <= length(p.load_bias) && !dummy)
+        load_bias = p.load_bias[instance+1]
         is_first_step = false
-        counter, rct, β, λ, ΔF = opesmt_from_file!(counter, rct, β, λ, ΔF, usebias)
-    elseif build && (length(p.usebiases) != 0)
-        usebias = p.usebiases[1]
+        counter, rct, β, λ, ΔF = opesmt_from_file!(counter, rct, β, λ, ΔF, load_bias)
+    elseif build && (length(p.load_bias) != 0)
+        load_bias = p.load_bias[1]
         is_first_step = false
-        counter, rct, β, λ, ΔF = opesmt_from_file!(counter, rct, β, λ, ΔF, usebias)
+        counter, rct, β, λ, ΔF = opesmt_from_file!(counter, rct, β, λ, ΔF, load_bias)
     end
     
     write_bias_every = if p.write_bias_every <= stride
@@ -234,13 +234,13 @@ function write_to_file(o::OPESmultithermal, filename::String)
     return nothing
 end
 
-function opesmt_from_file!(counter, rct, beta, lambda, deltaF, usebias)
-    if usebias == ""
+function opesmt_from_file!(counter, rct, beta, lambda, deltaF, load_bias)
+    if load_bias == ""
         return counter, rct, beta, lambda, deltaF
     else
-        @level1("|  Getting state from $(usebias)")
+        @level1("|  Getting state from $(load_bias)")
         # state is stored in header, which is always read as a string so we have to parse it
-        kernel_data, state_data = readdlm(usebias; comments=true, header=true)
+        kernel_data, state_data = readdlm(load_bias; comments=true, header=true)
         counter = parse(Int64, state_data[1])
         rct = parse(Float64, state_data[1])
 
@@ -258,7 +258,7 @@ function create_buffer(o::OPESmultithermal)
     # old_Z, old_KDEnorm, nker, nδker, write_bias_every (5)
     # kernels, δkernels
     # all others are the same between ranks
-    return Vector{Float64}(undef, 14+3length(o.kernels)+3length(o.δkernels))
+    return Vector{Float64}(undef, 8+length(o.ΔF))
 end
 
 function pack_buffer!(buf, o::OPESmultithermal)
@@ -270,7 +270,7 @@ function pack_buffer!(buf, o::OPESmultithermal)
     buf[6] = o.sum_weights
     buf[7] = o.sum_weights2
     buf[8] = Float64(o.write_bias_every)
-    buf[9:end] .= o.ΔF
+    view(buf, 9:length(buf)) .= o.ΔF
     return nothing
 end
 

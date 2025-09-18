@@ -2,7 +2,7 @@ function create_cpu_layout(struct_name)
     ldims, inner_len = if struct_name == :Gaugefield
         :(4, topology.local_dims.+2halo_width...,), 4
     elseif struct_name == :Spinorfield
-        :(topology.local_dims.+2halo_width...,), 0
+        :(topology.local_dims.+2halo_width...,), 1
     elseif struct_name == :MultiSpinorfield
         :(numspinors, topology.local_dims.+2halo_width...,), :numspinors
     elseif struct_name == :Tensorfield
@@ -18,7 +18,7 @@ function create_cpu_layout(struct_name)
             else
                 topology.local_dims
             end
-        end, 0
+        end, 1
     end
             
     origin = if struct_name == :Spinorfield
@@ -43,11 +43,7 @@ function create_cpu_layout(struct_name)
 
     U_construct = :(OffsetArray(zeros($eltype_val, $ldims...), $origin))
 
-    sendrecvbuf_dims = if struct_name in (:Spinorfield, :Paulifield)
-        :(length(border_sites[i][j]))
-    else
-        :($inner_len * length(border_sites[i][j])...,)
-    end
+    sendrecvbuf_dims = :($inner_len * length(border_sites[i][j])...,)
 
     sendrecvbuf_construct = :(zeros($eltype_val, $(sendrecvbuf_dims)))
     return U_construct, sendrecvbuf_construct

@@ -199,7 +199,7 @@ end
 end
 
 @inline function allindices(u::AbstractField, fields...)
-    check_dims(u, fields...)
+    @assert all(x -> allindices(x) == allindices(u), fields)
     return allindices(u)
 end
 

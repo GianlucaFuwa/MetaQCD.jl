@@ -14,6 +14,7 @@ struct HMCLevel{NC,TI,TF,TFP}
         hmc_logging=true,
         logdir="",
         instance=mpi_myrank(),
+        numcv=0,
         distributed=false,
     ) where {NC,TI<:AbstractIntegrator}
         comm_instance = mpi_comm_instance()
@@ -30,8 +31,10 @@ struct HMCLevel{NC,TI,TF,TFP}
                 force_fp = fopen(_forcefile, "w")
 
                 if Val(0) ∈ forces
-                    printf(force_fp, "%-25s", "avg||F_V||")
-                    printf(force_fp, "%-25s", "sup||F_V||")
+                    for icv in 1:numcv
+                        printf(force_fp, "%-25s", "avg||F_V$(icv)||")
+                        printf(force_fp, "%-25s", "sup||F_V$(icv)||")
+                    end
                 end
 
                 if Val(1) ∈ forces

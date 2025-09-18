@@ -2,7 +2,7 @@ struct PlaquetteMeasurement{T} <: AbstractMeasurement
     factor::Float64 # 1 / (6*length(U)*NC)
     filename::T
     function PlaquetteMeasurement(U::Gaugefield; filename="", flow=NoSmearing())
-        if !isnothing(filename) && filename != ""
+        if !isnothing(filename) && filename != "" && mpi_amroot(mpi_comm_instance())
             rpath = StaticString(filename)
 
             if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
@@ -43,32 +43,30 @@ function measure(
     plaq = plaquette_trace_sum(U) * m.factor
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
-    if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
-        if !isnothing(flow)
-            @level1("$itrj\t$plaq # plaq$(fstr)_$(τ)")
+    if !isnothing(flow)
+        @level1("$itrj\t$plaq # plaq$(fstr)_$(τ)")
+    else
+        @level1("$itrj\t$plaq # plaq")
+    end
+
+    if T !== Nothing
+        filename = if mpi_multi_sim
+            set_ext!(m.filename)
         else
-            @level1("$itrj\t$plaq # plaq")
+            m.filename
         end
 
-        if T !== Nothing
-            filename = if mpi_multi_sim
-                set_ext!(m.filename)
-            else
-                m.filename
-            end
+        fp = fopen(filename, "a")
+        printf(fp, "%-11i", itrj)
 
-            fp = fopen(filename, "a")
-            printf(fp, "%-11i", itrj)
-
-            if !isnothing(flow)
-                printf(fp, "%-7i", iflow)
-                printf(fp, "%-9.5f", τ)
-            end
-
-            printf(fp, "%+-25.15E", plaq)
-            newline(fp)
-            fclose(fp)
+        if !isnothing(flow)
+            printf(fp, "%-7i", iflow)
+            printf(fp, "%-9.5f", τ)
         end
+
+        printf(fp, "%+-25.15E", plaq)
+        newline(fp)
+        fclose(fp)
     end
 
     return plaq

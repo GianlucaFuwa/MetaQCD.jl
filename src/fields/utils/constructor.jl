@@ -69,15 +69,16 @@ macro field_constructor(struct_name, kwargs...)
                     # Create send- and recvbuf
                     halo_sites = topology.halo_sites
                     border_sites = topology.border_sites
+                    numpart = 4
 
                     sendbuf = if M
-                        tuple([$(sendrecvbuf_construct) for i in 1:4 for j in 1:2]...)
+                        tuple([$(sendrecvbuf_construct) for i in 1:numpart for j in 1:2]...)
                     else
                         nothing
                     end
 
                     recvbuf = if M
-                        tuple([$(sendrecvbuf_construct) for i in 1:4 for j in 1:2]...)
+                        tuple([$(sendrecvbuf_construct) for i in 1:numpart for j in 1:2]...)
                     else
                         nothing
                     end

@@ -21,8 +21,8 @@ function Fields.priority!(::CUDABackend, priority)
     return nothing
 end
 
-function Fields.mpi_assign_device!(::CUDABackend, id)
-    # TODO: remove this variable and just do id % numdevices
+function Fields.mpi_assign_device!(::CUDABackend, _id)
+    id = mod(_id, CUDA.ndevices())
     Fields.FORCE_SINGLE_GPU == Val(true) && (id = 0)
     Fields.DEVICE_ID[] != -1 && return nothing
     (0 <= id < CUDA.ndevices()) || throw(ArgumentError("Device id $id out of bounds."))

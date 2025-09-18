@@ -5,7 +5,7 @@ struct PolyakovMeasurement{T} <: AbstractMeasurement
             @assert U.topology.numprocs_cart[4] == 1 "Field cannot be decomposed in time direction for polykov loop calculation"
         end
 
-        if !isnothing(filename) && filename != ""
+        if !isnothing(filename) && filename != "" && mpi_amroot(mpi_comm_instance())
             rpath = StaticString(filename)
 
             if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
@@ -46,33 +46,31 @@ function measure(
     poly = polyakov_traced(U)
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
-    if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
-        if !isnothing(flow)
-            @level1("$itrj\t$(real(poly)) + $(imag(poly))im # poly$(fstr)_$(τ)")
+    if !isnothing(flow)
+        @level1("$itrj\t$(real(poly)) + $(imag(poly))im # poly$(fstr)_$(τ)")
+    else
+        @level1("$itrj\t$(real(poly)) + $(imag(poly))im # poly")
+    end
+
+    if T !== Nothing
+        filename = if mpi_multi_sim
+            set_ext!(m.filename)
         else
-            @level1("$itrj\t$(real(poly)) + $(imag(poly))im # poly")
+            m.filename
         end
 
-        if T !== Nothing
-            filename = if mpi_multi_sim
-                set_ext!(m.filename)
-            else
-                m.filename
-            end
+        fp = fopen(filename, "a")
+        printf(fp, "%-11i", itrj)
 
-            fp = fopen(filename, "a")
-            printf(fp, "%-11i", itrj)
-
-            if !isnothing(flow)
-                printf(fp, "%-7i", iflow)
-                printf(fp, "%-9.5f", τ)
-            end
-
-            printf(fp, "%-25.15E", real(poly))
-            printf(fp, "%-25.15E", imag(poly))
-            printf(fp, "\n")
-            fclose(fp)
+        if !isnothing(flow)
+            printf(fp, "%-7i", iflow)
+            printf(fp, "%-9.5f", τ)
         end
+
+        printf(fp, "%-25.15E", real(poly))
+        printf(fp, "%-25.15E", imag(poly))
+        printf(fp, "\n")
+        fclose(fp)
     end
 
     return poly

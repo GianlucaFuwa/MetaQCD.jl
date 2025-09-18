@@ -18,7 +18,7 @@ include("hmc_levels.jl")
         numfermions=0,
         numcv=0,
         logdir="",
-        instance=mpi_myrank(),
+        instance=MPI_INSTANCE[],
     )
 
 Create an `HMC` object, that can be used as an update algorithm.
@@ -141,7 +141,7 @@ function HMC(
     numfermions=0,
     numcv=0,
     logdir="",
-    instance=mpi_myrank(),
+    instance=MPI_INSTANCE[],
 )
     P = Colorfield(U; no_halo=true)
     gaussian_TA!(P, 0)
@@ -176,10 +176,11 @@ function HMC(
             lvl.numsteps,
             Δτ,
             forces;
-            numchildren=numchildren,
-            hmc_logging=hmc_logging,
-            logdir=logdir,
-            instance=instance,
+            numchildren,
+            hmc_logging,
+            logdir,
+            instance,
+            numcv,
             distributed=is_distributed(U),
         )
     end
@@ -250,12 +251,12 @@ function HMC(
         for ii in instance
             _logfile = joinpath(logdir, "hmc_acc_logs_$(lpad(ii, 3, "0")).txt")
             fp = fopen(_logfile, "w")
-            printf(fp, "%-25s", "ΔP²")
+            printf(fp, "%-25s", "ΔP2")
             printf(fp, "%-25s", "ΔSg")
             printf(fp, "%-25s", "ΔSf")
             printf(fp, "%-25s", "ΔV")
             printf(fp, "%-25s", "ΔH")
-            printf(fp, "%-25s", "S")
+            printf(fp, "%-25s", "Total Action")
             printf(fp, "%-8s", "Accepted")
             newline(fp)
             fclose(fp)
@@ -294,7 +295,7 @@ function update!(
     bias::TB=NoBias(),
     metro_test::Bool=true,
     therm::Val{THERM}=Val(false),
-    instance=MPI_INSTANCE[],
+    instance::Int64=MPI_INSTANCE[],
 ) where {TF,TB,THERM}
     if TF !== QuenchedFermionAction
         @assert TF <: Tuple "fermion_action must be nothing or a tuple of fermion actions"
@@ -373,11 +374,8 @@ function updateU!(
         ϵ = T(hmc.levels[level].Δτ * fac)
         P = hmc.P
 
-        parallelfor(eachindex(U, P), B, Val(M), (), (U,), (U, P)) do site, (U, P)
-            @inbounds U[1, site] = cmatmul_oo(exp_iQ(-im * ϵ * P[1, site]), U[1, site])
-            @inbounds U[2, site] = cmatmul_oo(exp_iQ(-im * ϵ * P[2, site]), U[2, site])
-            @inbounds U[3, site] = cmatmul_oo(exp_iQ(-im * ϵ * P[3, site]), U[3, site])
-            @inbounds U[4, site] = cmatmul_oo(exp_iQ(-im * ϵ * P[4, site]), U[4, site])
+        parallelfor(allindices(U, P), B, Val(M), (), (U,), (U, P)) do μsite, (U, P)
+            U[μsite] = cmatmul_oo(exp_iQ(-im * ϵ * P[μsite]), U[μsite])
         end
     else
         evolve!(U, hmc, fermion_action, bias, therm, level-1)
@@ -416,14 +414,23 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level)
                     force, (fieldstrength, staples), U, temp_force, bias, i, is_smeared
                 )
 
+                force_avg = norm(force, Val(2))
+                force_sup = norm(force, Val(Inf))
                 if !isnothing(fp)
-                    norm2 = norm(force, Val(2))
-                    normsup = norm(force, Val(Inf))
-                    printf(fp, "%+-25.15E", norm2)
-                    printf(fp, "%+-25.15E", normsup)
+                    # print(fp, cfmt("%+-25.15E", force_avg))
+                    # print(fp, cfmt("%+-25.15E", force_sup))
+                    printf(fp, "%+-25.15E", force_avg)
+                    printf(fp, "%+-25.15E", force_sup)
                 end
 
                 add!(P, force, ϵ)
+            end
+        else
+            if !isnothing(fp)
+                # print(fp, cfmt("%+-25.15E", 0.0))
+                # print(fp, cfmt("%+-25.15E", 0.0))
+                printf(fp, "%+-25.15E", 0.0)
+                printf(fp, "%+-25.15E", 0.0)
             end
         end
     end
@@ -431,11 +438,13 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level)
     if Val(1) ∈ forces
         calc_dSdU_bare!(force, staples, U, temp_force, smearing_gauge)
 
+        force_avg = norm(force, Val(2))
+        force_sup = norm(force, Val(Inf))
         if !isnothing(fp)
-            norm2 = norm(force, Val(2))
-            normsup = norm(force, Val(Inf))
-            printf(fp, "%-25.15E", norm2) # FIXME: bugs out sometimes
-            printf(fp, "%-25.15E", normsup)
+            # print(fp, cfmt("%+-25.15E", force_avg))
+            # print(fp, cfmt("%+-25.15E", force_sup))
+            printf(fp, "%+-25.15E", force_avg)
+            printf(fp, "%+-25.15E", force_sup)
         end
 
         add!(P, force, ϵ)
@@ -444,7 +453,7 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level)
     if fermion_action !== QuenchedFermionAction()
         iforce = 0
         for i in forces
-            i ∈ (Val(0), Val(1)) && continue # if bias or gauge force, go to next iteration
+            (i == Val(0) || i == Val(1)) && continue # if bias or gauge force, go to next iteration
             iforce += 1
 
             is_smeared = (shared_smearing && Val(0) ∈ forces) || iforce > 1
@@ -458,11 +467,13 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level)
                 is_smeared,
             )
 
+            force_avg = norm(force, Val(2))
+            force_sup = norm(force, Val(Inf))
             if !isnothing(fp)
-                norm2 = norm(force, Val(2))
-                normsup = norm(force, Val(Inf))
-                printf(fp, "%-25.15E", norm2)
-                printf(fp, "%-25.15E", normsup)
+                # print(fp, cfmt("%+-25.15E", force_avg))
+                # print(fp, cfmt("%+-25.15E", force_sup))
+                printf(fp, "%+-25.15E", force_avg)
+                printf(fp, "%+-25.15E", force_sup)
             end
 
             add!(P, force, ϵ)
@@ -472,6 +483,8 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level)
     if !isnothing(fp)
         newline(fp)
         fclose(fp)
+        # print(fp, "\n")
+        # close(fp)
     end
 
     return nothing
@@ -553,12 +566,12 @@ end
 
 @inline function print_hmc_data(logfile, ΔP², ΔSg, ΔSf, ΔV, ΔH, S, accept)
     fp = fopen(logfile, "a")
-    printf(fp, "%+-25.15E", ΔP²)
-    printf(fp, "%+-25.15E", ΔSg)
-    printf(fp, "%+-25.15E", ΔSf)
-    printf(fp, "%+-25.15E", ΔV)
-    printf(fp, "%+-25.15E", ΔH)
-    printf(fp, "%+-25.15E", S)
+    printf(fp, "%+-24.15E", ΔP²)
+    printf(fp, "%+-24.15E", ΔSg)
+    printf(fp, "%+-24.15E", ΔSf)
+    printf(fp, "%+-24.15E", ΔV)
+    printf(fp, "%+-24.15E", ΔH)
+    printf(fp, "%+-24.15E", S)
     printf(fp, "%-i", Int64(accept))
     newline(fp)
     fclose(fp)

@@ -55,7 +55,7 @@ end
 
 function LinearAlgebra.norm(u::GaugeLikeField{B,T,M}, ::Val{2}) where {B,T,M}# avg 2-norm
     norm2 = parallelfor_sum(allindices(u), 0.0, B, Val(M), (), (), (u,)) do n2, μsite, (U,)
-        n2 = norm(U[μsite], 2)
+        n2 += norm(U[μsite], 2)
     end
 
     norm2 /= 4length(u)

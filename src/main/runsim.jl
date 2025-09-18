@@ -38,9 +38,8 @@ function run_sim(parameterfile::String)
         """
     end
 
-    num_mpiinstances = multi_sim ? 1 : num_instances
-    mpi_split(mpi_comm(); color=mpi_myrank()÷num_mpiinstances)
-    MPI_NUMINSTANCES[] = num_mpiinstances
+    mpi_split(mpi_comm(); color=instance_from_rank(mpi_myrank(), num_instances))
+    MPI_NUMINSTANCES[] = num_instances
 
     # set random seed if provided, otherwise generate one
     if parameters.randomseed != 0

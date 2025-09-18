@@ -22,7 +22,7 @@ function build_bias(parameterfile::String)
     @assert !parameters.tempering_enabled "Tempering must not be enabled in build"
     num_instances = parameters.numinstances
     starting_Q = parameters.starting_Q
-    @assert isnothing(starting_Q) || (length(starting_Q) == num_instances)
+    @assert isnothing(starting_Q) || (length(starting_Q) >= num_instances)
     num_dist = prod(parameters.numprocs_cart)
 
     multi_sim = if num_instances != 1
@@ -35,7 +35,8 @@ function build_bias(parameterfile::String)
     end
 
     @assert mpi_size() == num_instances * num_dist "MPI comm size must be = numinstances*prod(numprocs_cart)"
-    mpi_split(mpi_comm(); color=mpi_myrank()÷num_instances)
+    color = instance_from_rank(mpi_myrank(), num_instances)
+    mpi_split(mpi_comm(); color)
     MPI_NUMINSTANCES[] = num_instances # change global consant defined in utils/mpi.jl
 
     if mpi_amroot()

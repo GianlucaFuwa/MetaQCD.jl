@@ -1,7 +1,8 @@
 [data]
 float_type = "double"
+backend = "rocm"
 ensemble_dir = "/home/gialu/data/MetaQCD/test_build"
-randomseed = 0
+randomseed = 123
 overwrite = true
 verboselevel = 1
 log_to_console = true
@@ -9,10 +10,12 @@ log_to_console = true
 [ensemble]
 L = [4, 4, 4, 4]
 numtherm = 20
-numsteps = 20
+numsteps = 10
+numprocs_cart = [1, 1, 1, 2]
+halo_width = 1
 initial = "cold"
 update_method = "hmc"
-numinstances = 8
+numinstances = 2
 
 [gauge_action]
 beta = 6.0
@@ -20,9 +23,9 @@ gauge_action = "wilson"
 
 [bias]
 rhostout_for_cv = 0.12 # rho is the same for all CVs
-starting_Q = [1]
+starting_Q = [1, 0]
 [[bias.biases]]
-kind_of_bias = "metad"
+type = "metad"
 kind_of_cv = "topcharge_clover"
 numsmears_for_cv = 4
 static = false
@@ -38,7 +41,7 @@ sigma_0 = 0.0
 bin_width = 0.01
 meta_weight = 0.1
 [[bias.biases]]
-kind_of_bias = "opesmt"
+type = "opesmt"
 beta_min_max = [5.2, 5.7]
 beta_num = 100
 numsmears_for_cv = 0
@@ -60,15 +63,15 @@ flow_tf = 0.12 # total flow time is flow_num * flow_tf
 flow_measure_every = [1, 2, 5, 10, 20, 30]
 
 [measurements.Plaquette]
-measure_every = 10
+measure_every = 1
 
 [measurements.Topological_charge]
-measure_every = 10
+measure_every = 1
 type = ["plaquette", "clover"]
 
 [measurements_with_flow.Plaquette]
-measure_every = 10
+measure_every = 1
 
 [measurements_with_flow.Topological_charge]
-measure_every = 10
+measure_every = 1
 type = ["plaquette", "clover"]

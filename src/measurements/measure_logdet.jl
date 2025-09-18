@@ -71,7 +71,7 @@ struct LogDetMeasurement{T,TD,TF} <: AbstractMeasurement
             similar(fermion_action[i].D.temp)
         end
 
-        if !isnothing(filename) && filename != ""
+        if !isnothing(filename) && filename != "" && mpi_amroot(mpi_comm_instance())
             if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
                 fp = fopen(filename, "w")
                 printf(fp, "%-11s", "itrj")
@@ -137,39 +137,37 @@ function measure(
         LD_dict[method] = calc_fermion_action(ferm[i], U, temp[i])
     end
 
-    if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
+    for method in keys(LD_dict)
+        Sf = LD_dict[method]
+
+        if !isnothing(flow)
+            @level1("$itrj\t$Sf # logdet_$(method)$(fstr)_$(τ)")
+        else
+            @level1("$itrj\t$Sf # logdet_$(method)")
+        end
+    end
+
+    if T !== Nothing
+        filename = if mpi_multi_sim
+            set_ext!(m.filename)
+        else
+            m.filename
+        end
+
+        fp = fopen(filename, "a")
+        printf(fp, "%-11i", itrj)
+
+        if !isnothing(flow)
+            printf(fp, "%-7i", iflow)
+            printf(fp, "%-9.5f", τ)
+        end
+
         for method in keys(LD_dict)
-            Sf = LD_dict[method]
-
-            if !isnothing(flow)
-                @level1("$itrj\t$Sf # logdet_$(method)$(fstr)_$(τ)")
-            else
-                @level1("$itrj\t$Sf # logdet_$(method)")
-            end
+            printf(fp, "%+-25.15E", LD_dict[method])
         end
 
-        if T !== Nothing
-            filename = if mpi_multi_sim
-                set_ext!(m.filename)
-            else
-                m.filename
-            end
-
-            fp = fopen(filename, "a")
-            printf(fp, "%-11i", itrj)
-
-            if !isnothing(flow)
-                printf(fp, "%-7i", iflow)
-                printf(fp, "%-9.5f", τ)
-            end
-
-            for method in keys(LD_dict)
-                printf(fp, "%+-25.15E", LD_dict[method])
-            end
-
-            printf(fp, "\n")
-            fclose(fp)
-        end
+        printf(fp, "\n")
+        fclose(fp)
     end
 
     return LD_dict

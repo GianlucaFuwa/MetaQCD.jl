@@ -158,3 +158,11 @@ end
 @inline mpi_make_transferrable(x::Array, ::Val{true}) = x
 @inline mpi_make_transferrable(x, ::Val{false}) = Array(x) # GPU
 @inline mpi_make_transferrable(x, ::Val{true}) = x
+
+function instance_from_rank(mpi_rank::Int, numinstances::Int)
+    @assert mod(mpi_size(), numinstances) == 0 "ranks not evenly assignable to instances"
+    # Calculate how many ranks per instance
+    ranks_per_instance = div(mpi_size(), numinstances)
+    # Calculate which instance this rank belongs to
+    return div(mpi_rank, ranks_per_instance)
+end

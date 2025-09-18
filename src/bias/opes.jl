@@ -144,9 +144,9 @@ function OPES(p::OPESParameters; instance=1, dummy=false, build=false, mpi_multi
         :penalty => penalty,
     )
 
-    if (0 < instance <= length(p.usebiases) && !dummy) || (build && (length(p.usebiases) != 0))
+    if (0 < instance <= length(p.load_bias) && !dummy) || (build && (length(p.load_bias) != 0))
         idx = build ? 1 : instance+1
-        kernels, nker = opes_from_file!(state, p.usebiases[idx])
+        kernels, nker = opes_from_file!(state, p.load_bias[idx])
         is_first_step = false
         explore = state[:explore]
         counter = Int64(state[:counter])
@@ -440,14 +440,14 @@ function write_to_file(o::OPES, filename::AbstractString)
     return nothing
 end
 
-function opes_from_file!(dict, usebias)
-    if usebias == ""
+function opes_from_file!(dict, load_bias)
+    if load_bias == ""
         kernels = Vector{Kernel}(undef, 0)
         return kernels, 0
     else
-        @level1("|  Getting state from $(usebias)")
+        @level1("|  Getting state from $(load_bias)")
         # state is stored in header, which is always read as a string so we have to parse it
-        kernel_data, state_data = readdlm(usebias; comments=true, header=true)
+        kernel_data, state_data = readdlm(load_bias; comments=true, header=true)
         state_parse = [parse(Float64, state_param) for state_param in state_data]
 
         for i in eachindex(opes_state_vars)

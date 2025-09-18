@@ -1,5 +1,6 @@
 module Updates
 
+using Format: cfmt
 using LinearAlgebra
 using StaticArrays
 using Polyester: @batch
@@ -35,7 +36,7 @@ include("./parity.jl")
 include("./tempering.jl")
 include("./instanton.jl")
 
-function Updatemethod(parameters::ParameterSet, U; instance=mpi_myrank())
+function Updatemethod(parameters::ParameterSet, U; instance=MPI_INSTANCE[])
     updatemethod = Updatemethod(
         U,
         parameters.update_method,
@@ -87,7 +88,7 @@ function Updatemethod(
     numheatbath=1,
     or_algorithm="subgroups",
     numorelax=4,
-    instance=mpi_myrank(),
+    instance=MPI_INSTANCE[],
 )
     if lowercase(update_method) == "hmc"
         updatemethod = HMC(

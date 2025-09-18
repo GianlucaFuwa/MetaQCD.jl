@@ -1,6 +1,6 @@
 abstract type BiasParameters end
 
-function bias_parameters_from_dict(input::Dict, instance=mpi_rank())
+function bias_parameters_from_dict(input::Dict, instance=mpi_rank(); build=false)
     type = input["type"]
     bias_params = initialize_bias_parameters(type)
     bias_dict = struct2dict(bias_params)
@@ -11,7 +11,8 @@ function bias_parameters_from_dict(input::Dict, instance=mpi_rank())
         if haskey(bias_dict, key_i)
             if !isnothing(value_i)
                 if key_i == "static"
-                    setfield!(bias_params, :static, Bool(value_i[instance+1]))
+                    idx = build ? 1 : instance+1
+                    setfield!(bias_params, :static, Bool(value_i[idx]))
                 elseif key_i == "load_bias"
                     setfield!(bias_params, :load_bias, String[value_i...])
                 else

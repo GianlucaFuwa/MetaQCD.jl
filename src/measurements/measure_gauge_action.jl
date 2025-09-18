@@ -12,7 +12,7 @@ struct GaugeActionMeasurement{T} <: AbstractMeasurement
             GA_dict[method] = 0.0
         end
 
-        if !isnothing(filename) && filename != ""
+        if !isnothing(filename) && filename != "" && mpi_amroot(mpi_comm_instance())
             rpath = StaticString(filename)
 
             if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
@@ -65,39 +65,37 @@ function measure(
         GA_dict[method] = calc_gauge_action(U, method) * m.factor
     end
 
-    if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
+    for method in keys(GA_dict)
+        S = GA_dict[method]
+
+        if !isnothing(flow)
+            @level1("$itrj\t$S # gaction_$(method)$(fstr)_$(τ)")
+        else
+            @level1("$itrj\t$S # gaction_$(method)")
+        end
+    end
+
+    if T !== Nothing
+        filename = if mpi_multi_sim
+            set_ext!(m.filename)
+        else
+            m.filename
+        end
+
+        fp = fopen(filename, "a")
+        printf(fp, "%-11i", itrj)
+
+        if !isnothing(flow)
+            printf(fp, "%-7i", iflow)
+            printf(fp, "%-9.5f", τ)
+        end
+
         for method in keys(GA_dict)
-            S = GA_dict[method]
-
-            if !isnothing(flow)
-                @level1("$itrj\t$S # gaction_$(method)$(fstr)_$(τ)")
-            else
-                @level1("$itrj\t$S # gaction_$(method)")
-            end
+            printf(fp, "%+-25.15E", GA_dict[method])
         end
 
-        if T !== Nothing
-            filename = if mpi_multi_sim
-                set_ext!(m.filename)
-            else
-                m.filename
-            end
-
-            fp = fopen(filename, "a")
-            printf(fp, "%-11i", itrj)
-
-            if !isnothing(flow)
-                printf(fp, "%-7i", iflow)
-                printf(fp, "%-9.5f", τ)
-            end
-
-            for method in keys(GA_dict)
-                printf(fp, "%+-25.15E", GA_dict[method])
-            end
-
-            printf(fp, "\n")
-            fclose(fp)
-        end
+        printf(fp, "\n")
+        fclose(fp)
     end
 
     return GA_dict
