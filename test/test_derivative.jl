@@ -149,5 +149,3 @@ function top_charge_deriv_bare!(kind_of_charge, dU, F, U, temp_force, smearing)
 
     return nothing
 end
-
-test_derivative(; nprocs_cart=(1, 1, 1, 2))

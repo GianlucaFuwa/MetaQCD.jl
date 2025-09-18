@@ -163,5 +163,3 @@ function test_fderivative(;
     mpi_barrier()
     return relerrors
 end
-
-# test_fderivative(nprocs_cart=(1, 1, 2, 1), single_flavor=true, halo_width=1)
