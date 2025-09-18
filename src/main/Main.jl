@@ -23,7 +23,7 @@ import ..Updates: set_instanton!
 
 export build_bias, run_sim
 
-const PACKAGE_VERSION = "2.0.0"
+const PACKAGE_VERSION = "2.1.0"
 
 function print_acceptance_rates(numaccepts, itrj)
     for (i, value) in enumerate(numaccepts)

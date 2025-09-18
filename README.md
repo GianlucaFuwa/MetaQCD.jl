@@ -7,7 +7,7 @@ Inspired by the [LatticeQCD.jl](https://github.com/akio-tomiya/LatticeQCD.jl/tre
 
 For detailed information on how to use this package, see the [docs](https://gianlucafuwa.github.io/MetaQCD.jl/dev/).
 
-## Features:
+## Features
 - [x] Simulations of 4D-SU(3) Yang-Mills (Pure Gauge) theory
 - [x] Simulations of full lattice QCD with arbitrary number of flavours (Staggered, Wilson-Clover)
 - [x] [Metadynamics](https://www.researchgate.net/publication/224908601_Metadynamics_A_method_to_simulate_rare_events_and_reconstruct_the_free_energy_in_biophysics_chemistry_and_material_science)
@@ -26,7 +26,7 @@ For detailed information on how to use this package, see the [docs](https://gian
 - [x] Full support for GPU Backends (CUDA and ROCm for now)
 - [x] Multi-node parallelism using MPI
 
-## Installation:
+## Installation
 First make sure you have Julia version **1.9.4 or above** installed. You can use [juliaup](https://github.com/JuliaLang/juliaup) for that or just install the release from the [Julia website](https://julialang.org/downloads/oldreleases).
 > The particular version you want is ultimately determined by the GPU you want to use.
 Newer GPUs need more recent versions of Julia for compatibility.
@@ -54,7 +54,7 @@ pkg> instantiate
 
 If you want to use a GPU (still experimental), make sure you not only have CUDA.jl or AMDGPU.jl installed, but also a fairly recent version of the CUDA Toolkit or ROCm.
 
-## Quick Start:
+## Quick Start
 1. Set parameters using one of the templates in template folder
 2. From shell, do:
 ```
@@ -80,7 +80,7 @@ To use another backend, add the `-backend` flag like:
 julia --threads=auto metaqcd.jl -mode=sim -backend=cuda parameters.toml
 ```
 
-## Build a Bias:
+## Build a Bias
 1. Set parameters using the "parameters_build.toml" example in template folder
 2. From shell, do:
 ```
@@ -102,7 +102,7 @@ using MetaQCD
 build_bias("parameters.toml")
 ```
 
-## Visualization:
+## Visualization
 We include the ability to visualize your data. For that, you just have to pass the directory where your ensemble lives:
 ```julia
 ] activate MetaAnalysis/
