@@ -266,10 +266,9 @@ function calc_diag!(
     check_dims(D_diag, D_oo_inv, U)
     mass_term = Complex{T}(4 + mass)
     itr = eachindex(D_diag, D_oo_inv, U)
-    padded_bulk = U.topology.bulk_sites_padded
 
     parallelfor(itr, B, Val(M), (), (D_diag, D_oo_inv), (D_diag, D_oo_inv)) do site, (D_diag, D_oo_inv)
-        _site = map_to_half(site, padded_bulk)
+        _site = map_to_half(site, itr)
         A = SMatrix{6,6,Complex{T},36}(mass_term * I)
         @inbounds D_diag[site] = PauliMatrix(A, A)
 
@@ -286,19 +285,18 @@ function calc_diag!(
     mass_term = Complex{T}(4 + mass)
     fac = Complex{T}(D_diag.csw / 2)
     itr = eachindex(D_diag, D_oo_inv, Fμν, U)
-    padded_bulk = U.topology.bulk_sites_padded
 
     fieldstrength_eachsite!(Clover(), Fμν, U)
 
     parallelfor(itr, B, Val(M), (), (D_diag, D_oo_inv), (D_diag, D_oo_inv, Fμν)) do site, (D_diag, D_oo_inv, Fμν)
-        calc_diag_csw_kernel!(D_diag, D_oo_inv, Fμν, mass_term, site, fac, T, padded_bulk)
+        calc_diag_csw_kernel!(D_diag, D_oo_inv, Fμν, mass_term, site, fac, T, itr)
     end
 end
 
 function calc_diag_csw_kernel!(
-    D_diag, D_oo_inv, Fμν, mass_term, site, fac, ::Type{T}, padded_bulk
+    D_diag, D_oo_inv, Fμν, mass_term, site, fac, ::Type{T}, bulk
 ) where {T}
-    _site = map_to_half(site, padded_bulk)
+    _site = map_to_half(site, bulk)
     M = SMatrix{6,6,Complex{T},36}(mass_term * I)
     i = SVector((1, 2))
     j = SVector((3, 4))

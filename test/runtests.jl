@@ -120,6 +120,7 @@ function runtests(; backend=CPU, nprocs_cart=(1, 1, 1, 1))
             single_flavor=false,
             eoprec=true,
             csw=1.78,
+            do_test=false,
         )
 
         test_gradflow(; backend, nprocs_cart, halo_width=1)

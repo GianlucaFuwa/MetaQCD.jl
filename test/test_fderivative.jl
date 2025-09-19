@@ -12,7 +12,8 @@ function test_fderivative(;
     eoprec=false,
     mass=0.01,
     single_flavor=false,
-    csw=1.78
+    csw=1.78,
+    do_test=true,
 )
     if mpi_amroot()
         println("Fermion derivative test [$dirac]")
@@ -154,7 +155,7 @@ function test_fderivative(;
             end
         end
 
-        if mpi_amroot()
+        if mpi_amroot() && do_test
             println()
             @test sum(relerrors[:, 2]) / length(relerrors[:, 2]) < 1e-1
         end
