@@ -37,7 +37,10 @@ function calc_gauge_action(U::Gaugefield, methodname::String)
     return Sg
 end
 
-calc_gauge_action(U::Gaugefield{B,T,M,GA}) where {B,T,M,GA} = calc_gauge_action(GA(), U)
+function calc_gauge_action(U::Gaugefield{B,T,M,GA}) where {B,T,M,GA}
+    Uhigh = convert_field(B, U, Float64)
+    return calc_gauge_action(GA(), Uhigh)
+end
 
 function calc_gauge_action(::WilsonGaugeAction, U::Gaugefield)
     P = plaquette_trace_sum(U)
@@ -83,8 +86,8 @@ function calc_gauge_action(::DBW2GaugeAction, U::Gaugefield)
 end
 
 function gauge_action_deriv!(
-    dU::Colorfield{B,T}, staples::Colorfield{B,T}, U::Gaugefield{B,T,M}, fac=1
-) where {B,T,M}
+    dU::Colorfield{B,T}, staples::Colorfield{B,T}, U::Gaugefield{B,TU,M}, fac=1
+) where {B,T,M,TU}
     mβover6 = T(-U.β*fac / 6)
     gaction = gauge_action(U)()
     itr = eachindex(dU, staples, U)

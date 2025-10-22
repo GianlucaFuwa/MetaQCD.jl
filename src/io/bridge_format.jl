@@ -6,14 +6,7 @@ function save_field(
     Utmp = if B == CPU
         U
     else
-        tmp = bzeros(B(), SMatrix{3,3,ComplexF64,9}, 4, size(U)...)
-        parallelfor(eachindex(U), B, Val(false), (), (), (U,)) do site, (U,)
-            tmp[1, site] = U[1, site]
-            tmp[2, site] = U[2, site]
-            tmp[3, site] = U[3, site]
-            tmp[4, site] = U[4, site]
-        end
-        Array(tmp)
+        convert_field(CPU, U)
     end
 
     for site in eachindex(Utmp)
@@ -21,9 +14,9 @@ function save_field(
             Un = Utmp[μ, site]
             for a in 1:3
                 for b in 1:3
-                    rvalue = real(Un[a, b])
+                    rvalue = Float64(real(Un[a, b]))
                     println(fp, rvalue)
-                    ivalue = imag(Un[a, b])
+                    ivalue = Float64(imag(Un[a, b]))
                     println(fp, ivalue)
                 end
             end
@@ -42,19 +35,15 @@ function save_field(
     ftmp = if B == CPU
         f
     else
-        tmp = bzeros(B(), SVector{3ND,ComplexF64}, size(f)...)
-        parallelfor(eachindex(f), B, Val(false), (), (), (f,)) do site, (f,)
-            tmp[site] = f[site]
-        end
-        Array(tmp)
+        convert_field(CPU, f)
     end
 
     for site in eachindex(ftmp)
         fn = ftmp[site]
         for a in 1:3ND
-            rvalue = real(fn[a])
+            rvalue = Float64(real(fn[a]))
             println(fp, rvalue)
-            ivalue = imag(fn[a])
+            ivalue = Float64(imag(fn[a]))
             println(fp, ivalue)
         end
     end

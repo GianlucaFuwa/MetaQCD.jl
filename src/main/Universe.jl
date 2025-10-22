@@ -8,7 +8,7 @@ using ..Utils
 
 import ..DiracOperators: FermionAction, QuenchedFermionAction, init_fermion_action
 import ..Fields: Gaugefield, WilsonGaugeAction, IwasakiGaugeAction, DBW2GaugeAction
-import ..Fields: SymanzikTreeGaugeAction, get_global_dims
+import ..Fields: SymanzikTreeGaugeAction, get_global_dims, num_floats
 import ..BiasModule: Bias, NoBias
 import ..Parameters: ParameterSet
 
@@ -34,6 +34,7 @@ struct Univ{TG,TF,TB}
         @level1("|  BACKEND: $(string(BACKEND))")
         @level1("|  FP PREC: $(string(T))")
         @level1("|  L: $(NX)x$(NY)x$(NZ)x$(NT)")
+        @level1("|  SU3 NUMFLOATS: $(num_floats(U))")
         @level1("|  GAUGE ACTION: $(string(GA))")
         @level1("|  BETA: $(Float64(U.β))")
 

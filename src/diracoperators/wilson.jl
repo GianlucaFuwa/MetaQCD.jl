@@ -91,9 +91,10 @@ function LinearAlgebra.mul!(
     csw = D.csw
     bc = D.boundary_condition
     fac = T(-csw / 2)
+    do_edges = C ? Val(true) : Val(false)
 
-    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ, Fμν)) do site, (U, ϕ, ψ, Fμν)
-        ψ[site] = wilson_kernel(U, Fμν, ϕ, site, mass_term, fac, bc, T, Val(1), Val(C))
+    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ, Fμν); do_edges) do site, (U, ϕ, ψ, Fμν)
+        @inbounds ψ[site] = wilson_kernel(U, Fμν, ϕ, site, mass_term, fac, bc, T, Val(1), Val(C))
     end
 
     return nothing
@@ -109,9 +110,10 @@ function LinearAlgebra.mul!(
     csw = D.parent.csw
     bc = D.parent.boundary_condition
     fac = T(-csw / 2)
+    do_edges = C ? Val(true) : Val(false)
 
-    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ, Fμν)) do site, (U, ϕ, ψ, Fμν)
-        ψ[site] = wilson_kernel(U, Fμν, ϕ, site, mass_term, fac, bc, T, Val(-1), Val(C))
+    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ, Fμν); do_edges) do site, (U, ϕ, ψ, Fμν)
+        @inbounds ψ[site] = wilson_kernel(U, Fμν, ϕ, site, mass_term, fac, bc, T, Val(-1), Val(C))
     end
 
     return nothing
@@ -132,8 +134,7 @@ function wilson_kernel(
     @inbounds begin
         # dagg can be 1 or -1; if it's -1 then we swap (1 - γᵨ) with (1 + γᵨ) and vice versa
         # We have to wrap in a Val for the same reason as in the next comment
-        ϕₙ = ϕ[site]
-        ψₙ = mass_term * ϕₙ # factor 1/2 is included at the end
+        ψₙ = mass_term * ϕ[site] # factor 1/2 is included at the end
         NT = size(U, 4)
         # use @nexprs here to statically generate the loop
         # this makes it so Val(μ) is well defined at each iteration and no type-instabilities arise

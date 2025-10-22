@@ -72,6 +72,10 @@ Base.eltype(::Type{MultiSpinorfield}, ::Type{T}, ::Val{ND}) where {T,ND} = SVect
     return CartesianIndices((ϕ.numspinors, siterange.indices...))
 end
 
+@inline function add_all_indices(ϕ::MultiSpinorfield{CPU}, siterange::CartesianIndices)
+    return CartesianIndices((ϕ.numspinors, siterange.indices...))
+end
+
 Base.@propagate_inbounds Base.getindex(f::MultiSpinorfield{CPU}, i::Integer) = f.U[i]
 Base.@propagate_inbounds Base.getindex(f::MultiSpinorfield{CPU}, site::SiteCoords) = f.U[site]
 Base.@propagate_inbounds Base.setindex!(f::MultiSpinorfield{CPU}, v, i::Integer) =
@@ -84,6 +88,14 @@ Base.@propagate_inbounds Base.setindex!(f::MultiSpinorfield{CPU}, v, site::SiteC
 # TODO:
 @inline function add_directional_indices(ϕ::MultiSpinorfield{B}, siterange::CartesianIndices) where {B}
     return CartesianIndices((siterange.indices..., ϕ.numspinors))
+end
+
+@inline function add_all_indices(ϕ::MultiSpinorfield{B,T,M,1}, siterange::CartesianIndices) where {B,T,M}
+    return CartesianIndices((3, siterange.indices..., ϕ.numspinors))
+end
+
+@inline function add_all_indices(ϕ::MultiSpinorfield{B,T,M,4}, siterange::CartesianIndices) where {B,T,M}
+    return CartesianIndices((6, siterange.indices..., ϕ.numspinors))
 end
 
 Base.@propagate_inbounds function Base.getindex(
@@ -180,114 +192,6 @@ function gaussian_pseudofermions!(ϕ::MultiSpinorfield{B,T,M}) where {B,T,M}
         for is in 1:ϕ.numspinors
             ϕ[is, site] = randn(SVector{3ND,Complex{T}}) # σ = 0.5
         end
-    end
-
-    return nothing
-end
-
-function create_sendbuf!(ϕ::MultiSpinorfield{B,T,M,ND}, sites, dim, dir) where {B,T,M,ND}
-    ibuf = dir + 2(dim - 1)
-    sendbuf = ϕ.sendbuf[ibuf]
-    ssites = add_directional_indices(ϕ, sites)
-    itr = eachindex(IndexLinear(), ssites)
-
-    parallelfor(itr, B, Val(M), (), (), (ϕ,)) do i, (ϕ,)
-        ssite = ssites[i]
-        setindex_buf!(sendbuf, ϕ, i, ssite)
-    end
-
-    return mpi_make_transferrable(sendbuf)
-end
-
-Base.@propagate_inbounds function setindex_buf!(
-    sendbuf, ϕ::MultiSpinorfield{CPU,T,M,1}, i, ssite
-) where {T,M}
-    sendbuf[i] = ϕ[ssite]
-    return nothing
-end
-
-Base.@propagate_inbounds function setindex_buf!(
-    sendbuf, ϕ::MultiSpinorfield{CPU,T,M,4}, i, ssite
-) where {T,M}
-    sendbuf[i] = ϕ[ssite]
-    return nothing
-end
-
-Base.@propagate_inbounds function setindex_buf!(
-    sendbuf, ϕ::MultiSpinorfield{B,T,M,1}, i, ssite
-) where {B,T,M}
-    sendbuf[1, i] = getindex_buf(ϕ, ssite, 1)
-    sendbuf[2, i] = getindex_buf(ϕ, ssite, 2)
-    sendbuf[3, i] = getindex_buf(ϕ, ssite, 3)
-    return nothing
-end
-
-Base.@propagate_inbounds function setindex_buf!(
-    sendbuf, ϕ::MultiSpinorfield{B,T,M,4}, i, ssite
-) where {B,T,M}
-    sendbuf[1, i] = getindex_buf(ϕ, ssite, 1)
-    sendbuf[2, i] = getindex_buf(ϕ, ssite, 2)
-    sendbuf[3, i] = getindex_buf(ϕ, ssite, 3)
-    sendbuf[4, i] = getindex_buf(ϕ, ssite, 4)
-    sendbuf[5, i] = getindex_buf(ϕ, ssite, 5)
-    sendbuf[6, i] = getindex_buf(ϕ, ssite, 6)
-    return nothing
-end
-
-Base.@propagate_inbounds function getindex_buf(
-    ϕ::MultiSpinorfield{B,T,M}, ssite, ic
-) where {B,T,M}
-    return ϕ.U[ic, ssite]
-end
-
-function Base.copyto!(a::TF, b::TF, arange, brange) where {T,M,TF<:MultiSpinorfield{CPU,T,M}}
-    @assert length(arange) == length(brange) "send buffer and recv buffer arent of same size"
-    @assert a.numspinors == b.numspinors
-
-    parallelfor(eachindex(IndexLinear(), arange), CPU, Val(M), (), (), (a, b)) do i, (a, b)
-        site_a = arange[i]
-        site_b = brange[i]
-        for itens in 1:a.numspinors
-            a[itens, site_a] = b[itens, site_b]
-        end
-    end
-
-    return nothing
-end
-
-function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:MultiSpinorfield{B,T,M}}
-    @assert length(arange) == length(brange) "send buffer and recv buffer arent of same size"
-    iarange = add_directional_indices(a, arange)
-    ibrange = add_directional_indices(b, arange)
-
-    parallelfor(eachindex(IndexLinear(), iarange), B, Val(M), (), (), (a, b)) do i, (a, b)
-        isite_a = iarange[i]
-        isite_b = ibrange[i]
-        a[isite_a] = b[isite_b]
-    end
-
-    return nothing
-end
-
-function fill_halo!(ϕ::MultiSpinorfield{CPU,T,M}, recvbuf, siterange) where {T,M}
-    itr = eachindex(IndexLinear(), siterange)
-    parallelfor(itr, CPU, Val(M), (), (), (ϕ, recvbuf)) do i, (ϕ, recvbuf)
-        site = siterange[i]
-        for is in 1:ϕ.numspinors
-            ϕ[is, site] = recvbuf[is, i]
-        end
-    end
-
-    return nothing
-end
-
-function fill_halo!(ϕ::MultiSpinorfield{B,T,M}, recvbuf, siterange) where {B,T,M}
-    isiterange = add_directional_indices(ϕ, siterange)
-    itr = eachindex(IndexLinear(), isiterange)
-
-    parallelfor(itr, B, Val(M), (), (), (ϕ, recvbuf)) do i, (ϕ, recvbuf)
-        isite = isiterange[i]
-        ϕ[isite] = _getindex_nd(Val(18), recvbuf, i, T)
     end
 
     return nothing

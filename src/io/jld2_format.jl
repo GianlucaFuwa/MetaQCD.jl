@@ -6,14 +6,8 @@ function save_field(
     if B == CPU
         jldsave(filename; U=Array(U.U))
     else
-        tmp = bzeros(B(), 4, size(U)...)
-        parallelfor(eachindex(U), B, Val(false), (), (), (U,)) do site, (U,)
-            tmp[1, site] = U[1, site]
-            tmp[2, site] = U[2, site]
-            tmp[3, site] = U[3, site]
-            tmp[4, site] = U[4, site]
-        end
-        jldsave(filename; U=Array(tmp))
+        tmp = convert_field(CPU, U, Float64)
+        jldsave(filename; U=Array(tmp.U))
     end
 
     return nothing

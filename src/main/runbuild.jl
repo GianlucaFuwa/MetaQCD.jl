@@ -1,4 +1,4 @@
-function build_bias(parameterfile::String)
+function run_build(parameterfile::String)
     # When using MPI we make sure that only rank 0 prints to the console
     if mpi_amroot()
         ext = splitext(parameterfile)[end]
@@ -7,8 +7,10 @@ function build_bias(parameterfile::String)
         """
     end
 
-    # load parameters from toml file
-    parameters = construct_params_from_toml(parameterfile)
+    return run_build(construct_params_from_toml(parameterfile))
+end
+
+function run_build(parameters)
     if parameters.backend == "cuda"
         @assert "cuda" in keys(BACKENDS) """
         In order to use the CUDA Backend, CUDA.jl has to be loaded
@@ -118,6 +120,13 @@ function build_bias!(univ, parameters, updatemethod; mpi_multi_sim=false)
         )
     end
 
+    # initialize functor responsible for saving gaugefield configurations
+    config_saver = ConfigSaver(
+        parameters.save_config_format,
+        parameters.save_config_dir,
+        parameters.save_config_every,
+    )
+
     checkpointer = Checkpointer(
         parameters.ensemble_dir, parameters.save_checkpoint_every
     )
@@ -130,6 +139,7 @@ function build_bias!(univ, parameters, updatemethod; mpi_multi_sim=false)
         gflow,
         measurements,
         measurements_with_flow,
+        config_saver,
         checkpointer,
         mpi_multi_sim,
     )
@@ -143,6 +153,7 @@ function metabuild!(
     gflow,
     measurements,
     measurements_with_flow,
+    config_saver,
     checkpointer,
     mpi_multi_sim,
 )
@@ -169,6 +180,8 @@ function metabuild!(
         fclose(fp)
     end
 
+    load_field!(U, parameters)
+
     @level1("- Thermalization:")
     _, runtime_therm = @timed begin
         !isnothing(starting_Q) && set_instanton!(U, starting_Q[myinstance+1])
@@ -181,7 +194,7 @@ function metabuild!(
                     U;
                     fermion_action=fermion_action,
                     bias=NoBias(),
-                    metro_test=itrj>10, # So we dont get stuck at the beginning
+                    metro_test=itrj>20, # So we dont get stuck at the beginning
                     therm=Val(true),
                 )
 
@@ -256,6 +269,7 @@ function metabuild!(
             acceptances = mpi_allgather(numaccepts::Float64, comm_shared) # XXX: should use MPI.gather?
             print_acceptance_rates(acceptances, itrj)
 
+            save_field(config_saver, U, itrj, parameters)
             create_checkpoint(checkpointer, univ, updatemethod, nothing, itrj)
 
             calc_measurements(measurements, U, itrj; mpi_multi_sim=mpi_multi_sim)

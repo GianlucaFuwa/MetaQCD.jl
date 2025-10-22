@@ -128,7 +128,7 @@ function energy_density(U, methodname::String)
 end
 
 function energy_density(::Plaquette, U::Gaugefield{B,T,M}) where {B,T,M}
-    E = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (U,), (), (U,)) do e, site, (U,)
+    E = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (U,), (), (U,); do_edges=Val(true)) do e, site, (U,)
         for μ in 1:3
             for ν in (μ+1):4
                 Cμν = plaquette(U, μ, ν, site)
@@ -145,7 +145,7 @@ end
 function energy_density(::Clover, U::Gaugefield{B,T,M}) where {B,T,M}
     fac = im * T(1/4)
 
-    E = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (U,), (), (U,)) do e, site, (U,)
+    E = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (U,), (), (U,); do_edges=Val(true)) do e, site, (U,)
         for μ in 1:3
             for ν in (μ+1):4
                 Cμν = clover_1x1(U, μ, ν, site)
@@ -169,7 +169,7 @@ end
 function energy_density_rect(U::Gaugefield{B,T,M}) where {B,T,M}
     fac = im * T(1/8)
 
-    E = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (U,), (), (U,)) do e, site, (U,)
+    E = parallelfor_sum(eachindex(U), 0.0, B, Val(M), (U,), (), (U,); do_edges=Val(true)) do e, site, (U,)
         for μ in 1:3
             for ν in (μ+1):4
                 Cμν = clover_2x1(U, μ, ν, site) + clover_1x2(U, μ, ν, site)

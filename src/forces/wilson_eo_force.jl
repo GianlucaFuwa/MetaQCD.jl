@@ -6,8 +6,8 @@ function calc_dSfdU!(
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     bc = D.boundary_condition
-    solver_action = fermion_action.solver_action
-    tol, maxiters, datafile = get_info(solver_action)
+    solver_md = fermion_action.solver_md
+    tol, maxiters, datafile = get_info(solver_md)
 
     clear!(X_eo)
     solve_dirac!(X_eo, DdagD, ϕ_eo, Y_eo, temp1, temp2; tol, maxiters, datafile)
@@ -44,8 +44,8 @@ function calc_dSfdU!(
     temp1, temp2 = fermion_action.temps[1:2]
     Xs = fermion_action.temps[3:n+3]
     Ys = fermion_action.temps[n+4:2n+4]
-    solver_action = fermion_action.solver_action
-    tol, maxiters, datafile = get_info(solver_action)
+    solver_md = fermion_action.solver_md
+    tol, maxiters, datafile = get_info(solver_md)
 
     for X in Xs
         clear!(X)
@@ -78,8 +78,8 @@ function calc_dSfdU!(
 end
 
 function add_wilson_eo_derivative!(
-    dU::Colorfield{B,T}, U::Gaugefield{B,T,M}, X_eo::TF, Y_eo::TF, bc; coeff=1
-) where {B,T,M,TF<:WilsonEOPreSpinorfield{B,T,M}}
+    dU::Colorfield{B,T}, U::Gaugefield{B,TU,M}, X_eo::TF, Y_eo::TF, bc; coeff=1
+) where {B,T,M,TU,TF<:WilsonEOPreSpinorfield{B,TU,M}}
     fac = T(0.5coeff)
     X = X_eo.parent
     Y = Y_eo.parent
@@ -115,7 +115,7 @@ end
 
 function calc_Xμν_eo_eachsite!(
     Xμν::Tensorfield{B,T}, X_eo::TF, Y_eo::TF
-) where {B,T,M,TF<:WilsonEOPreSpinorfield{B,T,M}}
+) where {B,T,M,TU,TF<:WilsonEOPreSpinorfield{B,TU,M}}
     X = X_eo.parent
     Y = Y_eo.parent
     padded_bulk = X.topology.bulk_sites_padded
@@ -142,8 +142,8 @@ function calc_Xμν_eo_kernel!(Xμν, X, Y, site, padded_bulk)
 end
 
 function calc_small_Xμν_eachsite!(
-    Xμν::Tensorfield{B,T}, D_oo_inv::Paulifield{B,T,M,true}
-) where {B,T,M}
+    Xμν::Tensorfield{B,T}, D_oo_inv::Paulifield{B,TU,M,true}
+) where {B,T,M,TU}
     itr = eachindex(Xμν, D_oo_inv)
     padded_bulk = Xμν.topology.bulk_sites_padded
 

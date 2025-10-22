@@ -71,8 +71,18 @@ function Gaugefield(parameters)
     return U
 end
 
+@inline num_floats(::Gaugefield{B,T,M,GA,N}) where {B,T,M,GA,N} = N
+
 #### CPU Indexing ####
 @inline function add_directional_indices(::AbstractField{CPU}, siterange::CartesianIndices)
+    return CartesianIndices((4, siterange.indices...))
+end
+
+@inline function add_all_indices(::AbstractField{CPU}, siterange::CartesianIndices)
+    return CartesianIndices((4, siterange.indices...))
+end
+
+@inline function add_all_indices(::Gaugefield{CPU,T,M,GA,12}, siterange::CartesianIndices) where {T,M,GA}
     return CartesianIndices((4, siterange.indices...))
 end
 
@@ -87,6 +97,14 @@ Base.@propagate_inbounds Base.setindex!(u::Gaugefield{CPU}, v, μsite) =
 #### GPU Indexing ####
 @inline function add_directional_indices(::AbstractField{B}, siterange::CartesianIndices) where {B}
     return CartesianIndices((siterange.indices..., 4))
+end
+
+@inline function add_all_indices(::AbstractField{B}, siterange::CartesianIndices) where {B}
+    return CartesianIndices((9, siterange.indices..., 4))
+end
+
+@inline function add_all_indices(::Gaugefield{B,T,M,GA,12}, siterange::CartesianIndices) where {B,T,M,GA}
+    return CartesianIndices((3, siterange.indices..., 4))
 end
 
 Base.@propagate_inbounds function Base.getindex(
@@ -214,92 +232,45 @@ Base.eltype(::Type{Gaugefield}, ::Type{T}) where {T} = SMatrix{3,3,Complex{T},9}
 # Base.eltype(::Gaugefield{B,T,M,GA,12}) where {B,T,M,GA} = SIMD.Vec{4,T}
 # Base.eltype(::Gaugefield{B,T,M,GA,18}) where {B,T,M,GA} = SIMD.Vec{2,T}
 
-function create_sendbuf!(u::Gaugefield{B,T,M}, sites, dim, dir) where {B,T,M}
+function create_sendbuf!(u::AbstractField{B,T,M}, sites, dim, dir; stream=default_stream(B())) where {B,T,M}
     ibuf = dir + 2(dim - 1)
     sendbuf = u.sendbuf[ibuf]
-    μsites = add_directional_indices(u, sites)
-    itr = eachindex(IndexLinear(), μsites)
+    _sites = add_all_indices(u, sites)
+    itr = eachindex(IndexLinear(), _sites)
 
-    parallelfor(itr, B, Val(M), Val(false), (), (), (u, sendbuf)) do i, (u, sendbuf)
-        μsite = μsites[i]
-        setindex_buf!(sendbuf, u, i, μsite)
+    parallelfor(itr, B, Val(M), Val(false), (), (), (u, sendbuf); stream) do i, (u, sendbuf)
+        @inbounds begin
+            j = linear_index(u, _sites[i])
+            sendbuf[i] = u[j]
+        end
     end
 
     return mpi_make_transferrable(sendbuf)
 end
 
-Base.@propagate_inbounds function setindex_buf!(
-    buf, u::Gaugefield{CPU,T,M,GA,18}, i, μsite
-) where {T,M,GA}
-    buf[i] = u[μsite]
-    return nothing
-end
+function fill_halo!(u::AbstractField{B,T,M}, recvbuf, siterange; stream=default_stream(B())) where {B,T,M}
+    _siterange = add_all_indices(u, siterange)
+    itr = eachindex(IndexLinear(), _siterange)
 
-Base.@propagate_inbounds function setindex_buf!(
-    buf, u::Gaugefield{CPU,T,M,GA,12}, i, μsite
-) where {T,M,GA}
-    buf[i] = u[μsite]
-    return nothing
-end
+    parallelfor(itr, B, Val(M), Val(false), (), (), (u, recvbuf); stream) do i, (u, recvbuf)
+        @inbounds begin
+            j = linear_index(u, _siterange[i])
+            u[j] = recvbuf[i]
+        end
+    end
 
-Base.@propagate_inbounds function setindex_buf!(
-    buf, u::Gaugefield{B,T,M,GA,18}, i, μsite
-) where {B,T,M,GA}
-    Base.Cartesian.@nexprs 9 ic -> (
-        buf[ic, i] = getindex_buf(u, μsite, ic);
-    )
     return nothing
-end
-
-Base.@propagate_inbounds function setindex_buf!(
-    buf, u::Gaugefield{B,T,M,GA,12}, i, μsite
-) where {B,T,M,GA}
-    Base.Cartesian.@nexprs 3 ic -> (
-        buf[ic, i] = getindex_buf(u, μsite, ic);
-    )
-    return nothing
-end
-
-Base.@propagate_inbounds function getindex_buf(
-    u::Gaugefield{B,T,M}, μsite, ic
-) where {B,T,M}
-    return u.U[ic, μsite]
 end
 
 function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:AbstractField{B,T,M}}
     @assert length(arange) == length(brange) "send buffer and recv buffer arent of same size"
-    iarange = add_directional_indices(a, arange)
-    ibrange = add_directional_indices(b, arange)
+    _arange = add_all_indices(a, arange)
+    _brange = add_all_indices(b, arange)
 
-    parallelfor(eachindex(IndexLinear(), iarange), B, Val(M), Val(false), (), (), (a, b)) do i, (a, b)
-        isite_a = iarange[i]
-        isite_b = ibrange[i]
-        a[isite_a] = b[isite_b]
-    end
-
-    return nothing
-end
-
-function fill_halo!(u::AbstractField{CPU,T,M}, recvbuf, siterange) where {T,M}
-    μsiterange = add_directional_indices(u, siterange)
-    itr = eachindex(IndexLinear(), μsiterange)
-
-    parallelfor(itr, CPU, Val(M), Val(false), (), (), (u, recvbuf)) do i, (u, recvbuf)
-        μsite = μsiterange[i]
-        u[μsite] = recvbuf[i]
-    end
-
-    return nothing
-end
-
-function fill_halo!(u::AbstractField{B,T,M}, recvbuf, siterange) where {B,T,M}
-    N = u isa Gaugefield ? Val(nfloat(u)) : Val(18)
-    μsiterange = add_directional_indices(u, siterange)
-    itr = eachindex(IndexLinear(), μsiterange)
-
-    parallelfor(itr, B, Val(M), Val(false), (), (), (u, recvbuf)) do i, (u, recvbuf)
-        μsite = μsiterange[i]
-        u[μsite] = _getindex_mat(N, recvbuf, i, T)
+    parallelfor(eachindex(IndexLinear(), _arange), B, Val(M), Val(false), (), (), (a, b)) do i, (a, b)
+        j_a = linear_index(a, _arange[i])
+        j_b = linear_index(b, _brange[i])
+        a[j_a] = b[j_b]
     end
 
     return nothing
@@ -325,6 +296,31 @@ function convert_field(
         Uout[2, site] = Uarr[2, site] 
         Uout[3, site] = Uarr[3, site] 
         Uout[4, site] = Uarr[4, site] 
+    end
+
+    return Uout
+end
+
+function convert_field(
+    ::Type{Bout}, Uin::Gaugefield{Bin,Tin,M,GA,N}, ::Type{Tout}=Tin
+) where {M,Bout,Tout,Bin,Tin,GA,N}
+    if Bout === Bin
+        Uout = similar(Uin, Tout)
+        copy!(Uout, Uin)
+        return Uout
+    end
+
+    NX, NY, NZ, NT = size(Uin)
+    numprocs_cart = get_numprocs_cart(Uin)
+    halo_width = get_halo_width(Uin)
+    Uout = Gaugefield{Bout,Tout,GA,N}(NX, NY, NZ, NT, Uin.β; numprocs_cart, halo_width)
+    Uarr = OffsetArray(array_type(Bout)(Uin.U.parent), OffsetArrays.Origin(Uin.U))
+
+    parallelfor(eachindex(Uout), Bout, Val(M), (Uout,), (), (Uout,)) do site, (Uout,)
+        Uout[1, site] = _getindex_mat(Val(N), Uarr, 1, site, Tout)
+        Uout[2, site] = _getindex_mat(Val(N), Uarr, 2, site, Tout)
+        Uout[3, site] = _getindex_mat(Val(N), Uarr, 3, site, Tout)
+        Uout[4, site] = _getindex_mat(Val(N), Uarr, 4, site, Tout)
     end
 
     return Uout

@@ -15,6 +15,7 @@ function __latmap(
     C == 0 && return nothing
 
     for _ in 1:C
+        update_halo!(U)
         parallelfor(eachindex(U), B, Val(M), (U,), (U,), (U,)) do site, (U,)
             for μ in 1:4
                 f!(U, μ, site, GA, fac)
@@ -34,6 +35,7 @@ function __latmap(
     itr = CartesianIndices((yrange, zrange, trange))
 
     for _ in 1:C
+        update_halo!(U)
         for μ in 1:4
             for pass in 1:2
                 parallelfor(itr, B, Val(M), (U,), (U,), (U,)) do yzt, (U,)
@@ -55,6 +57,7 @@ function __latmap(
     C == 0 && return nothing
 
     for _ in 1:C
+        update_halo!(U)
         for μ in 1:4
             for pass in 1:4
                 parallelfor(eachindex(U), B, Val(M), (U,), (U,), (U,)) do site, (U,)
@@ -88,6 +91,7 @@ function __latsum(
     out = 0.0
 
     for _ in 1:C
+        update_halo!(U)
         out += parallelfor_sum(itr, 0.0, B, Val(M), (U,), (U,), (U,)) do outi, site, (U,)
             for μ in 1:4
                 outi += f!(U, μ, site, GA, fac)
@@ -109,6 +113,7 @@ function __latsum(
     out = 0.0
 
     for _ in 1:C
+        update_halo!(U)
         for μ in 1:4
             for pass in 1:2
                 out += parallelfor_sum(itr, 0.0, B, Val(M), (U,), (U,), (U,)) do outi, yzt, (U,)
@@ -133,6 +138,7 @@ function __latsum(
     out = 0.0
 
     for _ in 1:C
+        update_halo!(U)
         for μ in 1:4
             for pass in 1:4
                 out += parallelfor_sum(itr, 0.0, B, Val(M), (U,), (U,), (U,)) do outi, site, (U,)

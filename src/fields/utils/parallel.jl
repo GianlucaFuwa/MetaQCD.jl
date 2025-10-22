@@ -1,5 +1,6 @@
 const HIDE_COMMS = Val(@load_preference("MPI_HIDE_COMMUNICATION", false))
 const TUNE_KERNELS = Val(@load_preference("TUNE_KERNELS", false))
+
 const KERNEL_CACHE::Dict{String,Int64} = Dict{String,Int64}() # function name => block size
 const MAX_SHMEM = Base.RefValue{Int64}(0)
 
@@ -26,10 +27,13 @@ function parallelfor(
     to_validate::Tuple,
     invalidated::Tuple,
     captured::Tuple;
-    block_size=min(256, length(itr))
-) where {B,M}
+    block_size=min(256, length(itr)),
+    do_edges::Val{E}=Val(false),
+    stream=default_stream(B())
+) where {B,M,E}
     return parallelfor(
-        f, itr, B, Val(M), HIDE_COMMS, to_validate, invalidated, captured; block_size
+        f, itr, B, Val(M), HIDE_COMMS, to_validate, invalidated, captured;
+        block_size, do_edges, stream
     )
 end
 
@@ -42,34 +46,40 @@ function parallelfor(
     to_validate::Tuple,
     invalidated::Tuple,
     captured::Tuple;
-    block_size=min(256, length(itr))
-) where {B,M,hide}
+    block_size=min(256, length(itr)),
+    do_edges::Val{E}=Val(false),
+    stream=default_stream(B())
+) where {B,M,hide,E}
     if M && hide && length(to_validate) > 0
-        sendrecvtasks = start_halo_update!(to_validate; do_edges=Val(true))
+        tasks = start_halo_update!(to_validate; do_edges)
         hw, idx = findmin(get_halo_width, to_validate)
         inner_bulk = shrink_bulk(itr, hw, to_validate[1].topology.numprocs_cart)
         new_block_size = min(block_size, min(256, length(inner_bulk)))
-
         # inner work
-        _parallelfor(f, captured, inner_bulk, B, new_block_size)
+        _parallelfor(f, captured, inner_bulk, B, new_block_size; stream=get_stream(B(), 1))
         # wait for exchange to finish
-        finalize_halo_update!(sendrecvtasks)
+        finalize_halo_update!(tasks)
         # outer work
         border_iterators = to_validate[idx].topology.border_iterators
         new_block_size = min(block_size, min(256, length(border_iterators[1])))
         _parallelfor(f, captured, border_iterators, B, new_block_size)
+
+        synchronize(B(), get_stream(B(), 1))
+        # for i in eachindex(border_iterators)
+        #     synchronize(B(), get_priority_stream(B(), i+1))
+        # end
     elseif M && !hide && length(to_validate) > 0
-        update_halo!(to_validate)
-        _parallelfor(f, captured, itr, B, block_size)
+        update_halo!(to_validate; do_edges)
+        _parallelfor(f, captured, itr, B, block_size; stream)
     else
-        _parallelfor(f, captured, itr, B, block_size)
+        _parallelfor(f, captured, itr, B, block_size; stream)
     end
 
     invalidate_halo!.(invalidated)
     return nothing
 end
 
-function _parallelfor(f, captured, itr, ::Type{CPU}, ::Int)
+function _parallelfor(f, captured, itr, ::Type{CPU}, ::Int; kwargs...)
     @batch for i in eachindex(IndexLinear(), itr)
         @inbounds site = itr[i]
         @inline f(site, captured)
@@ -78,7 +88,7 @@ function _parallelfor(f, captured, itr, ::Type{CPU}, ::Int)
     return nothing
 end
 
-function _parallelfor(f, captured, itrs::Tuple, ::Type{CPU}, ::Int)
+function _parallelfor(f, captured, itrs::Tuple, ::Type{CPU}, ::Int; kwargs...)
     for itr in itrs
         @batch for i in eachindex(IndexLinear(), itr)
             @inbounds site = itr[i]
@@ -90,11 +100,12 @@ function _parallelfor(f, captured, itrs::Tuple, ::Type{CPU}, ::Int)
 end
 
 function _parallelfor(
-    f, captured, itr, ::Type{backend}, block_size::Int=min(256, length(itr))
+    f, captured, itr, ::Type{backend}, block_size::Int=min(256, length(itr));
+    stream=default_stream(backend())
 ) where {backend}
     @assert block_size > 0
     itr_tup = itr isa Tuple ? itr : (itr,)
-    launch_foreachindex_global!(backend(), f, captured, itr_tup, block_size)
+    launch_foreachindex_global!(backend(), f, captured, itr_tup, block_size, stream)
     return nothing
 end
 
@@ -102,7 +113,7 @@ function launch_foreachindex_global! end
 
 # KERNEL:
 @inline function _foreachindex_global!(f, captured, itr)
-    i = threadidx().x + (groupidx().x - 0x1) * groupdim().x
+    i = threadidx().x + (groupidx().x - Int32(1)) * groupdim().x
 
     if i <= length(itr)
         @inbounds site = itr[i]
@@ -121,10 +132,13 @@ function parallelfor_sum(
     to_validate::Tuple,
     invalidated::Tuple,
     captured::Tuple;
-    block_size=min(256, length(itr))
-) where {B,M}
+    block_size=min(256, length(itr)),
+    do_edges::Val{E}=Val(false),
+    stream=default_stream(B())
+) where {B,M,E}
     return parallelfor_sum(
-        f, itr, init, B, Val(M), HIDE_COMMS, to_validate, invalidated, captured; block_size
+        f, itr, init, B, Val(M), HIDE_COMMS, to_validate, invalidated, captured;
+        block_size, do_edges, stream
     )
 end
 
@@ -138,33 +152,35 @@ function parallelfor_sum(
     to_validate::Tuple,
     invalidated::Tuple,
     captured::Tuple;
-    block_size=min(256, length(itr))
-) where {B,M,hide}
+    block_size=min(256, length(itr)),
+    do_edges::Val{E}=Val(false),
+    stream=default_stream(B())
+) where {B,M,hide,E}
     if M && hide && length(to_validate) > 0
-        sendrecvtasks = start_halo_update!(to_validate; do_edges=Val(false))
+        tasks = start_halo_update!(to_validate; do_edges)
         hw, idx = findmin(get_halo_width, to_validate)
         inner_bulk = shrink_bulk(itr, hw, to_validate[1].topology.numprocs_cart)
         new_block_size = min(block_size, min(256, length(inner_bulk)))
         # inner work
-        result = _parallelfor_sum(f, captured, inner_bulk, init, B, new_block_size)
+        result = _parallelfor_sum(f, captured, inner_bulk, init, B, new_block_size)#, stream=get_stream(B(), 1))
         # wait for exchange to finish
-        finalize_halo_update!(sendrecvtasks)
+        finalize_halo_update!(tasks)#, to_validate, B)
         # outer work
         border_iterators = to_validate[idx].topology.border_iterators
         new_block_size = min(block_size, min(256, length(border_iterators[1])))
         result += _parallelfor_sum(f, captured, border_iterators, init, B, new_block_size)
     elseif M && !hide && length(to_validate) > 0
-        update_halo!(to_validate)
-        result = _parallelfor_sum(f, captured, itr, init, B, block_size)
+        update_halo!(to_validate; do_edges)
+        result = _parallelfor_sum(f, captured, itr, init, B, block_size; stream)
     else
-        result = _parallelfor_sum(f, captured, itr, init, B, block_size)
+        result = _parallelfor_sum(f, captured, itr, init, B, block_size; stream)
     end
 
     invalidate_halo!.(invalidated)
     return result
 end
 
-function _parallelfor_sum(f, captured, itr, init, ::Type{CPU}, ::Int)
+function _parallelfor_sum(f, captured, itr, init, ::Type{CPU}, ::Int; kwargs...)
     result = init
 
     @batch reduction = (+, result) for i in eachindex(IndexLinear(), itr)
@@ -175,7 +191,7 @@ function _parallelfor_sum(f, captured, itr, init, ::Type{CPU}, ::Int)
     return result
 end
 
-function _parallelfor_sum(f, captured, itrs::Tuple, init, ::Type{CPU}, ::Int)
+function _parallelfor_sum(f, captured, itrs::Tuple, init, ::Type{CPU}, ::Int; kwargs...)
     result = init
 
     for itr in itrs
@@ -189,12 +205,13 @@ function _parallelfor_sum(f, captured, itrs::Tuple, init, ::Type{CPU}, ::Int)
 end
 
 function _parallelfor_sum(
-    f, captured, itr, init, ::Type{backend}, block_size::Int=min(256, length(itr))
+    f, captured, itr, init, ::Type{backend}, block_size::Int=min(256, length(itr));
+    stream=default_stream(backend())
 ) where {backend}
     @assert block_size > 0
     itr_tup = itr isa Tuple ? itr : (itr,)
     result = launch_foreachindex_reduce_global!(
-        backend(), init, +, f, captured, itr_tup, block_size
+        backend(), init, +, f, captured, itr_tup, block_size, stream
     )
     return result
 end
@@ -205,9 +222,9 @@ function launch_foreachindex_reduce_global! end
 @inline function _foreachindex_reduce_global!(out, init, op, f, captured, itr)
     iblock = groupidx().x
     ithread = threadidx().x
-    i = ithread + (iblock - 0x1) * groupdim().x
+    i = ithread + (iblock - Int32(1)) * groupdim().x
 
-    if i <= Int32(length(itr))
+    if i <= length(itr)
         out_i = @inline f(init, itr[i], captured)
     else
         out_i = init

@@ -126,6 +126,8 @@ function construct_params_from_toml(parameters, inputfile)
     value_Params[poss] = save_config_dir
     value_Params[posb] = bias_dir
 
+    mpi_barrier()
+
     # Make sure every process can see the new directories
     ensemble_dir_exists = isdir(ensemble_dir)
     log_dir_exists = isdir(log_dir)
@@ -296,24 +298,26 @@ function check_parameters(p::ParameterSet)
         """
     end
 
-    @assert lowercase(p.save_config_format) ∈ ["", "bmw", "bridge", "jld", "jld2"] """
+    @assert lowercase(p.save_config_format) ∈ ["", "bmw", "bridge", "jld", "jld2", "mpi"] """
     save_config_format in [\"data\"]: \"$(p.save_config_format)\" \
     is not supported.
     Supported methods are:
     Bridge
     JLD or JLD2 (both use JLD2)
     BMW
+    MPI
     """
 
     if p.load_config_fromfile
         @assert isfile(p.load_config_path) "Your load_config_path doesn't exist"
-        @assert lowercase(p.load_config_format) ∈ ["bmw", "bridge", "jld", "jld2"] """
-        loadU_format in [\"data\"]: \"$(p.load_config_format)\" \
+        @assert lowercase(p.load_config_format) ∈ ["bmw", "bridge", "jld", "jld2", "mpi"] """
+        load_config_format in [\"data\"]: \"$(p.load_config_format)\" \
         is not supported.
         Supported methods are:
         Bridge
         JLD or JLD2 (both use JLD2)
         BMW
+        MPI
         """
     end
 

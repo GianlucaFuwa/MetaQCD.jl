@@ -8,7 +8,7 @@ using ..Utils
 
 import ..Fields: AbstractGaugeAction, Expfield, Colorfield, Gaugefield, WilsonGaugeAction
 import ..Fields: check_dims, leftmul_dagg!, staple, staple_eachsite!, update_halo!, size
-import ..Fields: AbstractField, get_local_dims, float_type, gauge_action, parallelfor
+import ..Fields: AbstractField, get_local_dims, float_type, gauge_action, parallelfor, allindices
 
 abstract type AbstractSmearing end
 

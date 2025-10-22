@@ -164,14 +164,14 @@ redirect_stdout(sout) do
         end
     end
 
-    runtests(; nprocs_cart=(1, 1, 1, mpi_size()))
+    # runtests(; nprocs_cart=(1, 1, 1, mpi_size()))
 end
 
-# using AMDGPU
-# using AMDGPU: @allowscalar
+using AMDGPU
+using AMDGPU: @allowscalar
 # using CUDA
 # using CUDA: allowscalar
-# @allowscalar runtests(; backend=ROCBackend, nprocs_cart=(1, 1, 1, mpi_size()))
+@allowscalar runtests(; backend=ROCBackend, nprocs_cart=(1, 1, 1, mpi_size()))
 
 # if mpi_amroot() && mpi_size() == 1
 #     if VERSION >= v"1.9"

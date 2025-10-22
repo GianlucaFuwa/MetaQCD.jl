@@ -2,7 +2,7 @@ function create_gpu_layout(struct_name)
     ldims, tuple_len = if struct_name == :Gaugefield
         :(N == 18 ? 9 : 3, topology.local_dims_padded..., 4), 4
     elseif struct_name == :Spinorfield
-        :(ND == 1 ? 3 : 6, topology.local_dims_padded...), 0
+        :(ND == 1 ? 3 : 6, topology.local_dims_padded...,), 0
     elseif struct_name == :MultiSpinorfield
         :(ND == 1 ? 3 : 6, topology.local_dims_padded..., numspinors), :numspinors
     elseif struct_name == :Tensorfield
@@ -24,7 +24,7 @@ function create_gpu_layout(struct_name)
     origin = if struct_name == :Gaugefield
         :(OffsetArrays.Origin(1, topology.bulk_sites[1].I.-eff_halo_width..., 1))
     elseif struct_name == :Spinorfield
-        :(OffsetArrays.Origin(1, topology.bulk_sites[1].I.-eff_halo_width...))
+        :(OffsetArrays.Origin(1, topology.bulk_sites[1].I.-eff_halo_width...,))
     elseif struct_name == :MultiSpinorfield
         :(OffsetArrays.Origin(1, topology.bulk_sites[1].I.-eff_halo_width..., 1))
     elseif struct_name == :Tensorfield
@@ -58,15 +58,15 @@ function create_gpu_layout(struct_name)
     U_construct = :(OffsetArray(bzeros(B(), $eltype_val, $ldims...), $origin))
 
     sendrecvbuf_dims = if struct_name == :Gaugefield
-        :(N == 18 ? 9 : 3, 4length(border_sites[i][j]),)
+        :((N == 18 ? 9 : 3) * 4length(border_sites[i][j]),)
     elseif struct_name == :Spinorfield
-        :(ND == 1 ? 3 : 6, length(border_sites[i][j]),)
+        :((ND == 1 ? 3 : 6) * length(border_sites[i][j]),)
     elseif struct_name == :MultiSpinorfield
-        :(ND == 1 ? 3 : 6, numspinors*length(border_sites[i][j]),)
+        :((ND == 1 ? 3 : 6) * numspinors*length(border_sites[i][j]),)
     elseif struct_name == :Tensorfield
-        :(9, 6length(border_sites[i][j]),)
+        :(9 * 6length(border_sites[i][j]),)
     elseif struct_name == :Colorfield
-        :(9, 4length(border_sites[i][j]),)
+        :(9 * 4length(border_sites[i][j]),)
     elseif struct_name == :Expfield
         :(4length(border_sites[i][j]),)
     elseif struct_name == :Paulifield

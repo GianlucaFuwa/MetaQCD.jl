@@ -8,7 +8,6 @@ module AlgRemez
 
 using AlgRemez_jll
 using LinearAlgebra
-using ..Utils
 
 struct AlgRemezCoeffs{N}
     α0::Float64
@@ -48,15 +47,15 @@ The parameters `y` and `z` must be positive, the approximation to f(x) = x^(-y/z
 the inverse of the approximation to f(x) = x^(y/z).
 """
 function calc_coefficients(y::Int, z::Int, n::Int, lambda_low, lambda_high; precision=42)
-    mpi_amroot() && (@assert y > 0 && z > 0 "Inputs y and z need to be positive")
+    @assert y > 0 && z > 0 "Inputs y and z need to be positive"
     # Save and reuse already calcuatated approximations
-    dirname = pkgdir(AlgRemez, "src/rhmc/")
+    dirname = @__DIR__
     filename = "approx_$(y)_$(z)_$(n)_$(lambda_low)_$(lambda_high)_$precision.dat"
     filename_err = "error_$(y)_$(z)_$(n)_$(lambda_low)_$(lambda_high)_$precision.dat"
     pathname = joinpath(dirname, filename)
 
     # If we are using MPI, we only want rank 0 to calculate the coefficients
-    if !(filename in readdir(dirname)) && mpi_amroot()
+    if !(filename in readdir(dirname))
         try
             run(`$(algremez()) $y $z $n $n $lambda_low $lambda_high $precision`)
         catch _
@@ -69,46 +68,39 @@ function calc_coefficients(y::Int, z::Int, n::Int, lambda_low, lambda_high; prec
         mv("error.dat", joinpath(dirname, filename_err))
     end
 
-    if mpi_amroot()
-        datas = readlines(pathname)
-        icount = 3
-        αplus0 = parse(Float64, split(datas[icount], "=")[2])
-        αplus = zeros(Float64, n)
-        βplus = zeros(Float64, n)
+    datas = readlines(pathname)
+    icount = 3
+    αplus0 = parse(Float64, split(datas[icount], "=")[2])
+    αplus = zeros(Float64, n)
+    βplus = zeros(Float64, n)
 
-        for i in 1:n
-            icount += 1
-            u = split(datas[icount], ",")
-            αplus[i] = parse(Float64, split(u[1], "=")[2])
-            βplus[i] = parse(Float64, split(u[2], "=")[2])
-        end
-
-        αplus_tup = tuple(αplus...)
-        βplus_tup = tuple(βplus...)
-        icount += 4
-        αminus0 = parse(Float64, split(datas[icount], "=")[2])
-        αminus = zeros(Float64, n)
-        βminus = zeros(Float64, n)
-
-        for i in 1:n
-            icount += 1
-            u = split(datas[icount], ",")
-            αminus[i] = parse(Float64, split(u[1], "=")[2])
-            βminus[i] = parse(Float64, split(u[2], "=")[2])
-        end
-
-        αminus_tup = tuple(αminus...)
-        βminus_tup = tuple(βminus...)
-
-        coeff_plus = AlgRemezCoeffs(αplus0, αplus_tup, βplus_tup, n) # x^(y/z)
-        coeff_minus = AlgRemezCoeffs(αminus0, αminus_tup, βminus_tup, n) # x^(-y/z)
-    else
-        coeff_plus = nothing
-        coeff_minus = nothing
+    for i in 1:n
+        icount += 1
+        u = split(datas[icount], ",")
+        αplus[i] = parse(Float64, split(u[1], "=")[2])
+        βplus[i] = parse(Float64, split(u[2], "=")[2])
     end
 
-    coeff_plus = mpi_bcast_isbits(coeff_plus)
-    coeff_minus = mpi_bcast_isbits(coeff_minus)
+    αplus_tup = tuple(αplus...)
+    βplus_tup = tuple(βplus...)
+    icount += 4
+    αminus0 = parse(Float64, split(datas[icount], "=")[2])
+    αminus = zeros(Float64, n)
+    βminus = zeros(Float64, n)
+
+    for i in 1:n
+        icount += 1
+        u = split(datas[icount], ",")
+        αminus[i] = parse(Float64, split(u[1], "=")[2])
+        βminus[i] = parse(Float64, split(u[2], "=")[2])
+    end
+
+    αminus_tup = tuple(αminus...)
+    βminus_tup = tuple(βminus...)
+
+    coeff_plus = AlgRemezCoeffs(αplus0, αplus_tup, βplus_tup, n) # x^(y/z)
+    coeff_minus = AlgRemezCoeffs(αminus0, αminus_tup, βminus_tup, n) # x^(-y/z)
+
     return coeff_plus, coeff_minus
 end
 

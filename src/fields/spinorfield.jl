@@ -52,6 +52,14 @@ Base.eltype(::Type{Spinorfield}, ::Type{T}, ::Val{ND}) where {T,ND} = SVector{3N
 @inline allindices(f::Spinorfield) = eachindex(f)
 
 #### CPU Indexing ####
+@inline function add_all_indices(::Spinorfield{CPU,T,M,1}, siterange::CartesianIndices) where {T,M}
+    return siterange
+end
+
+@inline function add_all_indices(::Spinorfield{CPU,T,M,4}, siterange::CartesianIndices) where {T,M}
+    return siterange
+end
+
 Base.@propagate_inbounds Base.getindex(f::Spinorfield{CPU}, i::Integer) = f.U[i]
 Base.@propagate_inbounds Base.getindex(f::Spinorfield{CPU}, x, y, z, t) = f.U[x, y, z, t]
 Base.@propagate_inbounds Base.getindex(f::Spinorfield{CPU}, site::SiteCoords) = f.U[site]
@@ -64,10 +72,29 @@ Base.@propagate_inbounds Base.setindex!(f::Spinorfield{CPU}, v, site::SiteCoords
 ######################
 
 #### GPU Indexing ####
+@inline function add_all_indices(::Spinorfield{B,T,M,1}, siterange::CartesianIndices) where {B,T,M}
+    return CartesianIndices((3, siterange.indices...))
+end
+
+@inline function add_all_indices(::Spinorfield{B,T,M,4}, siterange::CartesianIndices) where {B,T,M}
+    return CartesianIndices((6, siterange.indices...))
+end
+
+Base.@propagate_inbounds function Base.getindex(f::Spinorfield{B}, ii::Integer) where {B}
+    return f.U[ii]
+end
+
 Base.@propagate_inbounds function Base.getindex(
     f::Spinorfield{B,T,M,ND}, site::SiteCoords
 ) where {B,T,M,ND}
     return _getindex_nd(Val(ND), f.U, site, T)
+end
+
+Base.@propagate_inbounds function Base.setindex!(
+    f::Spinorfield{B}, v, ii::Integer
+) where {B}
+    f.U[ii] = v
+    return nothing
 end
 
 Base.@propagate_inbounds function Base.setindex!(
@@ -105,8 +132,8 @@ end
 Base.@propagate_inbounds function _setindex_nd!(::Val{4}, arr, v, site, ::Type{T}) where {T}
     Base.Cartesian.@nexprs 6 i -> (
         arr[i, site] = SIMD.Vec{4,T}((
-            v[2(i-1)+1].re, v[2(i-1)+1].im,
-            v[2(i-1)+2].re, v[2(i-1)+2].im));
+            v[2(i-1)+1].re, v[2(i-1)+1].im, v[2(i-1)+2].re, v[2(i-1)+2].im
+        ));
     )
     return nothing
 end
@@ -146,7 +173,7 @@ function gaussian_pseudofermions!(ϕ::Spinorfield{B,T,M,ND}) where {B,T,M,ND}
     return nothing
 end
 
-function LinearAlgebra.mul!(ψ::TF, ϕ::TF, α) where {B,T,M,TF<:Spinorfield{B,T,M}}
+function LinearAlgebra.mul!(ψ::Spinorfield{B,T,M}, ϕ::Spinorfield{B}, α) where {B,T,M}
     α = T(α)
 
     parallelfor(eachindex(ϕ, ψ), B, Val(M), (), (ψ,), (ψ, ϕ)) do site, (ψ, ϕ)
@@ -156,7 +183,7 @@ function LinearAlgebra.mul!(ψ::TF, ϕ::TF, α) where {B,T,M,TF<:Spinorfield{B,T
     return nothing
 end
 
-function LinearAlgebra.axpy!(α, ϕ::TF, ψ::TF) where {B,T,M,TF<:Spinorfield{B,T,M}}
+function LinearAlgebra.axpy!(α, ϕ::Spinorfield{B}, ψ::Spinorfield{B,T,M}) where {B,T,M}
     α = Complex{T}(α)
 
     parallelfor(eachindex(ϕ, ψ), B, Val(M), (), (ψ,), (ψ, ϕ)) do site, (ψ, ϕ)
@@ -166,7 +193,7 @@ function LinearAlgebra.axpy!(α, ϕ::TF, ψ::TF) where {B,T,M,TF<:Spinorfield{B,
     return nothing
 end
 
-function LinearAlgebra.axpby!(α, ϕ::TF, β, ψ::TF) where {B,T,M,TF<:Spinorfield{B,T,M}}
+function LinearAlgebra.axpby!(α, ϕ::Spinorfield{B}, β, ψ::Spinorfield{B,T,M}) where {B,T,M}
     α = Complex{T}(α)
     β = Complex{T}(β)
 
@@ -189,92 +216,6 @@ function LinearAlgebra.dot(ϕ::TF, ψ::TF) where {B,T,M,TF<:Spinorfield{B,T,M}}
     return distributed_reduce(res, +, ϕ)
 end
 
-function create_sendbuf!(ϕ::Spinorfield{B,T,M,ND}, sites, dim, dir) where {B,T,M,ND}
-    ibuf = dir + 2(dim - 1)
-    sendbuf = ϕ.sendbuf[ibuf]
-    itr = eachindex(IndexLinear(), sites)
-
-    parallelfor(itr, B, Val(M), Val(false), (), (), (ϕ, sendbuf)) do i, (ϕ, sendbuf)
-        site = sites[i]
-        setindex_buf!(sendbuf, ϕ, i, site)
-    end
-
-    return mpi_make_transferrable(sendbuf)
-end
-
-Base.@propagate_inbounds function setindex_buf!(
-    sendbuf, ϕ::Spinorfield{CPU,T,M,1}, i, site
-) where {T,M}
-    sendbuf[i] = ϕ[site]
-    return nothing
-end
-
-Base.@propagate_inbounds function setindex_buf!(
-    sendbuf, ϕ::Spinorfield{CPU,T,M,4}, i, site
-) where {T,M}
-    sendbuf[i] = ϕ[site]
-    return nothing
-end
-
-Base.@propagate_inbounds function setindex_buf!(
-    sendbuf, ϕ::Spinorfield{B,T,M,1}, i, site
-) where {B,T,M}
-    sendbuf[1, i] = getindex_buf(ϕ, site, 1)
-    sendbuf[2, i] = getindex_buf(ϕ, site, 2)
-    sendbuf[3, i] = getindex_buf(ϕ, site, 3)
-    return nothing
-end
-
-Base.@propagate_inbounds function setindex_buf!(
-    sendbuf, ϕ::Spinorfield{B,T,M,4}, i, site
-) where {B,T,M}
-    sendbuf[1, i] = getindex_buf(ϕ, site, 1)
-    sendbuf[2, i] = getindex_buf(ϕ, site, 2)
-    sendbuf[3, i] = getindex_buf(ϕ, site, 3)
-    sendbuf[4, i] = getindex_buf(ϕ, site, 4)
-    sendbuf[5, i] = getindex_buf(ϕ, site, 5)
-    sendbuf[6, i] = getindex_buf(ϕ, site, 6)
-    return nothing
-end
-
-Base.@propagate_inbounds function getindex_buf(
-    ϕ::Spinorfield{B,T,M}, site, ic
-) where {B,T,M}
-    return ϕ.U[ic, site]
-end
-
-function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:Spinorfield{B,T,M}}
-    @assert length(arange) == length(brange) "send buffer and recv buffer arent of same size"
-
-    parallelfor(eachindex(IndexLinear(), arange), B, Val(M), Val(false), (), (), (a, b)) do i, (a, b)
-        site_a = arange[i]
-        site_b = brange[i]
-        a[site_a] = b[site_b]
-    end
-
-    return nothing
-end
-
-function fill_halo!(ϕ::Spinorfield{CPU,T,M,ND}, recvbuf, siterange) where {T,M,ND}
-    itr = eachindex(IndexLinear(), siterange)
-    parallelfor(itr, CPU, Val(M), Val(false), (), (), (ϕ, recvbuf)) do i, (ϕ, recvbuf)
-        site = siterange[i]
-        ϕ[site] = recvbuf[i]
-    end
-
-    return nothing
-end
-
-function fill_halo!(ϕ::Spinorfield{B,T,M,ND}, recvbuf, siterange) where {B,T,M,ND}
-    itr = eachindex(IndexLinear(), siterange)
-    parallelfor(itr, B, Val(M), Val(false), (), (), (ϕ, recvbuf)) do i, (ϕ, recvbuf)
-        site = siterange[i]
-        ϕ[site] = _getindex_nd(Val(ND), recvbuf, i, T)
-    end
-
-    return nothing
-end
-
 function convert_field(
     ::Type{Bout}, fin::Spinorfield{CPU,Tin,M,ND}, ::Type{Tout}=Tin
 ) where {M,Bout,Tout,Tin,ND}
@@ -292,6 +233,31 @@ function convert_field(
 
     parallelfor(eachindex(fout), Bout, Val(M), (fout,), (), (fout,)) do site, (fout,)
         fout[site] = farr[site]
+    end
+
+    return fout
+end
+
+function convert_field(
+    ::Type{Bout}, fin::Spinorfield{Bin,Tin,M,ND}, ::Type{Tout}=Tin
+) where {M,Bout,Tout,Bin,Tin,ND}
+    if Bout === Bin
+        fout = similar(fin, Tout)
+        copy!(fout, fin)
+        return fout
+    end
+
+    NX, NY, NZ, NT = size(fin)
+    numprocs_cart = get_numprocs_cart(fin)
+    halo_width = get_halo_width(fin)
+    fout = Spinorfield{Bout,Tout,ND}(NX, NY, NZ, NT; numprocs_cart, halo_width)
+    farr = OffsetArray(array_type(Bout)(fin.U.parent), OffsetArrays.Origin(fin.U))
+
+    parallelfor(eachindex(fout), Bout, Val(M), (fout,), (), (fout,)) do site, (fout,)
+        fout[site] = _getindex_nd(Val(ND), farr, site, Tout)
+        fout[site] = _getindex_nd(Val(ND), farr, site, Tout)
+        fout[site] = _getindex_nd(Val(ND), farr, site, Tout)
+        fout[site] = _getindex_nd(Val(ND), farr, site, Tout)
     end
 
     return fout

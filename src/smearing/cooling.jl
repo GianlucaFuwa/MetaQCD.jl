@@ -52,7 +52,7 @@ end
 function cool!(Uflow::Gaugefield{B,T,M}) where {B,T,M}
     GA = WilsonGaugeAction()
 
-    parallelfor(eachindex(Uflow), B, Val(M), (), (Uflow,), (Uflow,)) do site, (Uflow,)
+    parallelfor(eachindex(Uflow), B, Val(M), (), (Uflow,), (Uflow,); do_edges=Val(true)) do site, (Uflow,)
         for μ in 1:4
             old_link = Uflow[μ, site]
             A_adj = staple(GA, Uflow, μ, site)'

@@ -7,8 +7,10 @@ function run_sim(parameterfile::String)
         """
     end
 
-    # load parameters from toml file
-    parameters = construct_params_from_toml(parameterfile)
+    return run_sim(construct_params_from_toml(parameterfile))
+end
+
+function run_sim(parameters)
     if parameters.backend == "cuda"
         @assert "cuda" in keys(BACKENDS) """
         In order to use the CUDA Backend, CUDA.jl has to be loaded
@@ -326,7 +328,7 @@ function metaqcd!(
                     U;
                     fermion_action=fermion_action,
                     bias=NoBias(),
-                    metro_test=itrj>10, # So we dont get stuck at the beginning
+                    metro_test=itrj>20, # So we dont get stuck at the beginning
                     therm=Val(true),
                 )
             end

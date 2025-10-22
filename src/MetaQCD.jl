@@ -24,7 +24,7 @@ using LinearAlgebra
 
 export BMWFormat, BridgeFormat, JLD2Format, load_field!, save_field
 export MetaLogger, current_time, @level1, @level2, @level3, set_global_logger!
-export run_sim, build_bias
+export run_sim, run_build
 
 import .BiasModule: Bias, Metadynamics, NoBias, OPES, Parametric, calc_cv, update_bias!
 import .DiracOperators: AbstractDiracOperator, Daggered, DdaggerD, calc_fermion_action

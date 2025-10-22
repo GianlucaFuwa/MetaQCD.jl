@@ -43,6 +43,10 @@ Base.eltype(::Type{Tensorfield}, ::Type{T}) where {T} = SMatrix{3,3,Complex{T},9
     return CartesianIndices((6, siterange.indices...))
 end
 
+@inline function add_all_indices(::Tensorfield{CPU}, siterange::CartesianIndices)
+    return CartesianIndices((6, siterange.indices...))
+end
+
 Base.@propagate_inbounds Base.getindex(u::Tensorfield{CPU}, i, site::SiteCoords) = u.U[i, site]
 Base.@propagate_inbounds Base.getindex(u::Tensorfield{CPU}, isite) = u.U[isite]
 Base.@propagate_inbounds Base.setindex!(u::Tensorfield{CPU}, v, i, site::SiteCoords) =
@@ -54,6 +58,10 @@ Base.@propagate_inbounds Base.setindex!(u::Tensorfield{CPU}, v, isite) =
 #### GPU Indexing ####
 @inline function add_directional_indices(::Tensorfield{B}, siterange::CartesianIndices) where {B}
     return CartesianIndices((siterange.indices..., 6))
+end
+
+@inline function add_all_indices(::Tensorfield{B}, siterange::CartesianIndices) where {B}
+    return CartesianIndices((9, siterange.indices..., 6))
 end
 
 Base.@propagate_inbounds function Base.getindex(
@@ -124,11 +132,11 @@ function fieldstrength_eachsite!(F::Tensorfield, U, kind_of_fs::String)
 end
 
 function fieldstrength_eachsite!(
-    ::Plaquette, F::Tensorfield{B,T}, U::Gaugefield{B,T,M}
-) where {B,T,M}
+    ::Plaquette, F::Tensorfield{B,T}, U::Gaugefield{B,TU,M}
+) where {B,T,M,TU}
     fac = Complex{T}(im)
 
-    parallelfor(eachindex(U, F), B, Val(M), (U,), (F,), (U, F)) do site, (U, F)
+    parallelfor(eachindex(U, F), B, Val(M), (U,), (F,), (U, F); do_edges=Val(true)) do site, (U, F)
         C12 = plaquette(U, 1, 2, site)
         F[1, site] = fac * (C12 - C12')
         C13 = plaquette(U, 1, 3, site)
@@ -147,11 +155,11 @@ function fieldstrength_eachsite!(
 end
 
 function fieldstrength_eachsite!(
-    ::Clover, F::Tensorfield{B,T}, U::Gaugefield{B,T,M}
-) where {B,T,M}
+    ::Clover, F::Tensorfield{B,T}, U::Gaugefield{B,TU,M}
+) where {B,T,M,TU}
     fac = Complex{T}(im / 8)
 
-    parallelfor(eachindex(U, F), B, Val(M), (U,), (F,), (U, F)) do site, (U, F)
+    parallelfor(eachindex(U, F), B, Val(M), (U,), (F,), (U, F); do_edges=Val(true)) do site, (U, F)
         C12 = clover_1x1(U, 1, 2, site)
         F[1, site] = fac * (C12 - C12')
         C13 = clover_1x1(U, 1, 3, site)
@@ -164,80 +172,6 @@ function fieldstrength_eachsite!(
         F[5, site] = fac * (C24 - C24')
         C34 = clover_1x1(U, 3, 4, site)
         F[6, site] = fac * (C34 - C34')
-    end
-
-    return nothing
-end
-
-function create_sendbuf!(F::Tensorfield{B,T,M}, sites, dim, dir) where {B,T,M}
-    ibuf = dir + 2(dim - 1)
-    sendbuf = F.sendbuf[ibuf]
-    isites = add_directional_indices(F, sites)
-    itr = eachindex(IndexLinear(), isites)
-
-    parallelfor(itr, B, Val(M), Val(false), (), (), (F, sendbuf)) do i, (F, sendbuf)
-        isite = isites[i]
-        setindex_buf!(sendbuf, F, i, isite)
-    end
-
-    return mpi_make_transferrable(sendbuf)
-end
-
-Base.@propagate_inbounds function setindex_buf!(
-    sendbuf, u::Tensorfield{CPU,T,M}, i, isite
-) where {T,M}
-    sendbuf[i] = u[isite]
-    return nothing
-end
-
-Base.@propagate_inbounds function setindex_buf!(
-    sendbuf, u::Tensorfield{B,T,M}, i, isite
-) where {B,T,M}
-    Base.Cartesian.@nexprs 9 ic -> (
-        sendbuf[ic, i] = getindex_buf(u, isite, ic);
-    )
-    return nothing
-end
-
-Base.@propagate_inbounds function getindex_buf(
-    F::Tensorfield{B,T,M}, isite, ic
-) where {B,T,M}
-    return F.U[ic, isite]
-end
-
-function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:Tensorfield{B,T,M}}
-    @assert length(arange) == length(brange) "send buffer and recv buffer arent of same size"
-    iarange = add_directional_indices(a, arange)
-    ibrange = add_directional_indices(b, arange)
-
-    parallelfor(eachindex(IndexLinear(), iarange), B, Val(M), Val(false), (), (), (a, b)) do i, (a, b)
-        isite_a = iarange[i]
-        isite_b = ibrange[i]
-        a[isite_a] = b[isite_b]
-    end
-
-    return nothing
-end
-
-function fill_halo!(F::Tensorfield{CPU,T,M}, recvbuf, siterange) where {T,M}
-    isiterange = add_directional_indices(F, siterange)
-    itr = eachindex(IndexLinear(), isiterange)
-
-    parallelfor(itr, CPU, Val(M), Val(false), (), (), (F, recvbuf)) do i, (F, recvbuf)
-        isite = isiterange[i]
-        F[isite] = recvbuf[i]
-    end
-
-    return nothing
-end
-
-function fill_halo!(F::Tensorfield{B,T,M}, recvbuf, siterange) where {B,T,M}
-    isiterange = add_directional_indices(F, siterange)
-    itr = eachindex(IndexLinear(), isiterange)
-
-    parallelfor(itr, B, Val(M), Val(false), (), (), (F, recvbuf)) do i, (F, recvbuf)
-        isite = isiterange[i]
-        F[isite] = _getindex_mat(Val(18), recvbuf, i, T)
     end
 
     return nothing

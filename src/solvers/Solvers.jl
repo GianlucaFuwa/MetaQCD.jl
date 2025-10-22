@@ -6,7 +6,8 @@ using StaticArrays
 using ..Utils
 using ..MetaIO
 
-export SolverInfo, bicg!, bicg_stab!, cg!, cgnr!, mscg!, get_info
+export SolverInfo, get_info
+export bicg!, bicg_stab!, cg!, cgnr!, mscg!, cg_mixed!, mscg_mixed!
 
 struct SolverInfo{F,S}
     solver::F
@@ -26,7 +27,35 @@ end
         fp = fopen(datafile, "a")
         printf(fp, "%-11i", iters)
         printf(fp, "%-25.15E", res)
-        printf(fp, "%s", "action")
+        newline(fp)
+        fclose(fp)
+    end
+
+    return nothing
+end
+
+@inline function print_solverdata(datafile, iters, res, elapsed_time)
+    if datafile != ""
+        set_ext!(datafile, MPI_INSTANCE[])
+        fp = fopen(datafile, "a")
+        printf(fp, "%-11i", iters)
+        printf(fp, "%-25.15E", res)
+        printf(fp, "%-25.6E", elapsed_time)
+        newline(fp)
+        fclose(fp)
+    end
+
+    return nothing
+end
+
+@inline function print_solverdata(datafile, outer_iters, inner_iters, res, elapsed_time)
+    if datafile != ""
+        set_ext!(datafile, MPI_INSTANCE[])
+        fp = fopen(datafile, "a")
+        printf(fp, "%-11i", outer_iters)
+        printf(fp, "%-11i", inner_iters)
+        printf(fp, "%-25.15E", res)
+        printf(fp, "%-25.6E", elapsed_time)
         newline(fp)
         fclose(fp)
     end
@@ -35,5 +64,6 @@ end
 end
 
 include("cg.jl")
+include("cg_mixed.jl")
 
 end

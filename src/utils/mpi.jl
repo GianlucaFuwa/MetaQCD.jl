@@ -17,7 +17,7 @@ function mpi_init()
     if MPI.Initialized()
         return nothing
     else
-        MPI.Init(; threadlevel=:funneled, finalize_atexit=true)
+        MPI.Init(; finalize_atexit=true)
         MPI_COMM_WORLD[] = MPI.COMM_WORLD
         MPI_COMM_INSTANCE[] = MPI.COMM_WORLD
         MPI_COMM_SHARED[] = MPI.COMM_WORLD
@@ -117,8 +117,16 @@ end
     return MPI.Irecv!(args...; kwargs...)
 end
 
+@inline function mpi_wait!(args...)
+    return MPI.Wait!(args...)
+end
+
 @inline function mpi_waitall(args...)
     return MPI.Waitall(args...)
+end
+
+@inline function mpi_waitall!(args...)
+    return MPI.Waitall!(args...)
 end
 
 @inline function mpi_allreduce(sendbuf::T, op, comm) where {T}

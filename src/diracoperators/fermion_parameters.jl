@@ -27,14 +27,16 @@ end
     Nf::Int64 = 0
     mass::Union{Float64,Vector{Float64}} = [0.0]
     precon::String = "none"
-    cg_tol_action::Float64 = 1e-12
-    cg_tol_md::Float64 = 1e-14
-    cg_maxiters_action::Int64 = 1000
-    cg_maxiters_md::Int64 = 1000
-    rhmc_spectral_bound::NTuple{2,Float64} = (0.0, 64.0)
+    cg_tol_action::Float64 = 1e-10
+    cg_tol_md::Float64 = 1e-7
+    cg_maxiters_action::Int64 = 5000
+    cg_maxiters_md::Int64 = 5000
+    rhmc_spectral_bound::NTuple{2,Float64} = (1e-6, 64.0)
     rhmc_recalc_spectral_bound::Bool = false
     rhmc_order_action::Int64 = 15
-    rhmc_order_md::Int64 = 10
-    rhmc_prec_action::Int64 = 42
-    rhmc_prec_md::Int64 = 42
+    rhmc_order_md::Int64 = 15
+    rhmc_prec_action::Int64 = 64
+    rhmc_prec_md::Int64 = 64
+    rhmc_tol_action::Float64 = 1e-7
+    rhmc_tol_md::Float64 = 1e-6
 end

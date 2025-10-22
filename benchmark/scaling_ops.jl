@@ -3,24 +3,27 @@ using Random, Statistics, Printf
 using AMDGPU
 using MetaQCD.DiracOperators: solve_dirac!
 using MetaQCD.Fields: update_halo!
+using DelimitedFiles
 
-const FLOPS = Dict(
-    "Copy" => 0,
-    "Dot-Staggered" => 22,
-    "Dot-Wilson" => 94,
-    "Staggered" => 587,
-    "Wilson" => 1368,
-    "Wilson-Clover" => 1368 + 1728,
-    "Invert-Staggered" => 587 + 2*22 + 2*12 + 18, # op + 2dot + 2axpy + axpby
-    "Invert-Wilson" => 1368 + 2*22 + 2*12 + 18, # op + 2dot + 2axpy + axpby
-    "Halo-Exchange" => 0,
-)
+const FLOPS = [
+    # "Copy-Gauge" 0
+    # "Copy-Staggered" 0
+    # "Copy-Wilson" 0
+    # "Dot-Staggered" 22
+    # "Dot-Wilson" 94
+    "Staggered" 587
+    # "Wilson" 1368
+    # "Wilson-Clover" 1368 + 1728
+    # "Invert-Staggered" 587 + 2*22 + 2*12 + 18 # op + 2dot + 2axpy + axpby
+    # "Invert-Wilson" 1368 + 2*22 + 2*12 + 18 # op + 2dot + 2axpy + axpby
+    # "Halo-Exchange" 0
+]
 
 function bench_mul!(::Type{B}, ϕ, D, ψ, nlaunches) where B
     for _ in 1:nlaunches
         mul!(ψ, D, ϕ)
     end
-    MetaQCD.Fields.synchronize(B())
+    MetaQCD.Fields.device_synchronize(B())
     return nothing
 end
 
@@ -48,21 +51,39 @@ function bench_exchange(::Type{B}, u, nlaunches) where B
     return nothing
 end
 
-function main()
-    MetaQCD.MetaIO.set_global_logger!(4, nothing)
+function main(; strong=false)
+    MetaQCD.MetaIO.set_global_logger!(1, nothing)
     nlaunches = 10
     B = ROCBackend
     GA = WilsonGaugeAction
     N = 12
-    global_dims = (32, 32, 32, 32)
-    numprocs_cart = distribute_procs(global_dims, mpi_size())
     halo_width = 1
-    result_dir = joinpath(@__DIR__, "scaling_results")
-    bstring = lowercase(string(B))
-    filename = "$(prod(numprocs_cart))procs_$(bstring).txt" 
+    extra_dir = ""
+    result_dir = joinpath(@__DIR__, "scaling_results", extra_dir)
+    time_dir = joinpath(@__DIR__, "scaling_results", extra_dir, "timings")
+
+    if strong
+        global_dims = (64, 64, 64, 128)
+        numprocs_cart = distribute_procs(global_dims, mpi_size())
+    else
+        numprocs_cart = distribute_procs_capped(16, mpi_size())
+        global_dims = (64, 64, 64, 64) .* numprocs_cart
+    end
 
     if mpi_amroot()
-        fp = open(joinpath(result_dir, filename), "w+")
+        @show global_dims, numprocs_cart
+    end
+    mpi_barrier()
+    bstring = lowercase(string(B))
+    pstring = string(numprocs_cart...)
+    hstring = MetaQCD.Fields.HIDE_COMMS == Val(true) ? "_hide" : ""
+    sstring = strong ? "_strong" : "_weak"
+    filename = "$(bstring)_$(prod(numprocs_cart))procs_$(pstring)$(hstring)$(sstring).txt" 
+    timingname = joinpath(time_dir, "$(bstring)_$(prod(numprocs_cart))procs_$(pstring)$(hstring)$(sstring)")
+
+    if mpi_amroot()
+        # fp = open(joinpath(result_dir, "0410", filename), "w")
+        fp = open(joinpath(result_dir, filename), "w")
         println(
             fp,
             rpad("", 15),
@@ -72,10 +93,13 @@ function main()
             rpad("std", 10),
         )
     end
+    mpi_barrier()
 
     deviceid_printed = false
 
-    for opname in keys(FLOPS)
+    for iop in axes(FLOPS, 1)
+        opname = FLOPS[iop, 1]
+        timings = []
         for T in (Float16, Float32, Float64)
             tstring = lowercase(string(T))
             U = Gaugefield{B,T,GA,N}(global_dims..., 6.0; numprocs_cart, halo_width)
@@ -90,30 +114,51 @@ function main()
                 deviceid_printed = true
             end
 
-            if opname == "Copy"
+            if opname == "Copy-Gauge"
                 a = similar(U)
                 b = similar(U)
                 # warmup
                 copy!(a, b)
+                MetaQCD.Fields.synchronize(B())
                 mpi_barrier()
                 println("Benchmarking $(opname) $(tstring) ($(mpi_myrank()))")
-                bench = @be _ $bench_copy!($B, $a, $b, $nlaunches) mpi_barrier() evals=1 samples=100 seconds=5
+                bench = @be _ $bench_copy!($B, $a, $b, $nlaunches) mpi_barrier() evals=1 samples=100 seconds=10
+            elseif opname == "Copy-Staggered"
+                a = Spinorfield(U; staggered=true)
+                b = Spinorfield(U; staggered=true)
+                # warmup
+                copy!(a, b)
+                MetaQCD.Fields.synchronize(B())
+                mpi_barrier()
+                println("Benchmarking $(opname) $(tstring) ($(mpi_myrank()))")
+                bench = @be _ $bench_copy!($B, $a, $b, $nlaunches) mpi_barrier() evals=1 samples=100 seconds=10
+            elseif opname == "Copy-Wilson"
+                a = Spinorfield(U)
+                b = Spinorfield(U)
+                # warmup
+                copy!(a, b)
+                MetaQCD.Fields.synchronize(B())
+                mpi_barrier()
+                println("Benchmarking $(opname) $(tstring) ($(mpi_myrank()))")
+                bench = @be _ $bench_copy!($B, $a, $b, $nlaunches) mpi_barrier() evals=1 samples=100 seconds=10
             elseif opname == "Halo-Exchange"
                 f = Spinorfield(U; staggered=true)
                 # warmup
                 update_halo!((f,))
+                MetaQCD.Fields.synchronize(B())
                 mpi_barrier()
                 println("Benchmarking $(opname) $(tstring) ($(mpi_myrank()))")
-                bench = @be _ $bench_exchange($B, $f, $nlaunches) mpi_barrier() evals=1 samples=100 seconds=5
+                bench = @be _ $bench_exchange($B, $f, $nlaunches) mpi_barrier() evals=1 samples=100 seconds=10
             elseif contains(opname, "Dot")
                 staggered = contains(opname, "Staggered")
                 a = Spinorfield(U; staggered)
                 b = Spinorfield(U; staggered)
                 # warmup
                 dot(a, b)
+                MetaQCD.Fields.synchronize(B())
                 mpi_barrier()
                 println("Benchmarking $(opname) $(tstring) ($(mpi_myrank()))")
-                bench = @be _ $bench_dot($B, $a, $b, $nlaunches) mpi_barrier() evals=1 samples=100 seconds=5
+                bench = @be _ $bench_dot($B, $a, $b, $nlaunches) mpi_barrier() evals=1 samples=100 seconds=10
             elseif contains(opname, "Invert")
                 T == Float64 || continue
                 operator, staggered = if contains(opname, "Staggered")
@@ -141,6 +186,7 @@ function main()
                 # warmup
                 solve_dirac!(ψ, DU, ϕ, temp1, temp2, temp3; tol, maxiters)
                 MetaQCD.Fields.clear!(ψ)
+                MetaQCD.Fields.synchronize(B())
                 mpi_barrier()
                 println("Benchmarking $(opname) $(tstring) ($(mpi_myrank()))")
                 stats = @timed solve_dirac!(ψ, DU, ϕ, temp1, temp2, temp3; tol, maxiters)
@@ -165,24 +211,33 @@ function main()
                     )
                     benchprint(fp, str)
                 end
-
                 mpi_barrier()
                 continue
             else
                 staggered = opname == "Staggered"
                 csw = opname == "Wilson-Clover" ? 1.78 : 0.0
+                operator = opname == "Staggered" ? StaggeredDiracOperator : WilsonDiracOperator
                 ϕ = Spinorfield(U; staggered)
                 ψ = Spinorfield(U; staggered)
                 D = operator(U, 0.01; csw=csw)
                 # warmup
-                mul!(ψ, (D(U)), ϕ)
+                bench_mul!(B, ψ, (D(U)), ϕ, 1)
                 mpi_barrier()
                 println("Benchmarking $(opname) $(tstring) Operator ($(mpi_myrank()))")
-                bench = @be _ $bench_mul!($B, $ψ, $(D)($U), $ϕ, $nlaunches) mpi_barrier() evals=2 samples=100 seconds=10
+                bench = @be _ $bench_mul!($B, $ψ, $(D)($U), $ϕ, $nlaunches) mpi_barrier() evals=1 samples=50 seconds=100
             end
 
-            flops = prod(global_dims) * FLOPS[opname] / 1e9
+            flops = prod(global_dims) * FLOPS[iop, 2] / 1e9
             mem = prod(global_dims) * mem_per_site(opname, T, N) / 1e9
+            if mpi_amroot()
+                push!(timings, [s.time for s in bench.samples])
+                if T == Float64 
+                    open(timingname*"_$(opname)", "w") do io
+                        writedlm(io, zip(timings...), '\t')
+                    end
+                end
+            end
+            mpi_barrier()
 
             mintime = minimum(s.time for s in bench.samples) / nlaunches
             mediantime = median(s.time for s in bench.samples) / nlaunches
@@ -211,9 +266,8 @@ function main()
                     "", maxbw, medianbw, meanbw, stdbw
                 )
                 benchprint(fp, str)
+                flush(fp)
             end
-
-            mpi_barrier()
         end
     end
 
@@ -230,7 +284,26 @@ function distribute_procs(global_dims, numprocs)
         numprocs_cart[dim] *= 2
         @assert global_dims[dim] / numprocs_cart[dim] > 4 "too many procs"
         procsleft /= 2
-        dim = dim == 2 ? 4 : dim - 1
+
+        if global_dims[dim] / numprocs_cart[dim] <= 8
+            dim = dim == 2 ? 4 : dim - 1
+        end
+    end
+    return (numprocs_cart...,)
+end
+
+function distribute_procs_capped(cap, numprocs)
+    procsleft = numprocs
+    numprocs_cart = [1, 1, 1, 1]
+    dim = 4
+    while procsleft > 1
+        numprocs_cart[dim] *= 2
+        @assert numprocs_cart[dim] <= cap
+        procsleft = procsleft ÷ 2
+
+        if numprocs_cart[dim] == cap
+            dim = dim == 1 ? 4 : dim - 1
+        end
     end
     return (numprocs_cart...,)
 end
@@ -248,10 +321,15 @@ function mem_per_site(op, ::Type{T}, nfloat) where T
         # 1 read fermion on site
         # 1 write fermion on site
         # 6 x 16 read gauge for clover
-        return sizeof(Complex{T}) * (2 * 12 + 6 * (16 * nfloat/2))
-    elseif op == "Copy"
+        clover_part = 6 * (16 * nfloat/2)
+        wilson_part = 10 * 12 + 8 * nfloat/2 + 6 * 9 # last is the reads of the 6 fieldstrengthtensor entries per site
+        return sizeof(Complex{T}) * (wilson_part + clover_part)
+    elseif op == "Copy-Gauge"
         return sizeof(Complex{T}) * (2 * 4 * nfloat/2)
-        # return sizeof(Complex{T}) * (2 * 12)
+    elseif op == "Copy-Staggered"
+        return sizeof(Complex{T}) * (2 * 3)
+    elseif op == "Copy-Wilson"
+        return sizeof(Complex{T}) * (2 * 12)
     elseif op == "Halo-Exchange"
         return sizeof(Complex{T}) * (2 * 4 * nfloat/2)
         # return sizeof(Complex{T}) * (2 * 12)
@@ -282,5 +360,4 @@ function benchprint(io, str)
     return nothing
 end
 
-main()
-
+main(strong=false)

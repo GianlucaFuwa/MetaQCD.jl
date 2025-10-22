@@ -1,5 +1,6 @@
 Base.show(io::IO, ::MIME"text/plain", int::AbstractIntegrator) = print(io, "$(typeof(int))")
 Base.show(io::IO, int::AbstractIntegrator) = print(io, "$(typeof(int))")
+using Base: normalize_typevars
 
 function evolve!(U, hmc::HMC, fermion_action, bias, therm=Val(false), level=1)
     @assert level >= 1 && level <= _unwrap_val(hmc.numlevels) """

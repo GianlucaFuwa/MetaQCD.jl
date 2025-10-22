@@ -180,14 +180,14 @@ using Base.Math: isinf_real
     end
 
     function set_uw(Q::SU{3,9,T}) where {T}
-        oneover3 = T(1 / 3)
+        oneover3 = T(1/3)
         c₀_bare = real(det(Q))
-        signflip = c₀_bare < zero(T)
+        signflip = c₀_bare < 0
         c₀ = abs(c₀_bare)
         c₁ = T(0.5) * real(multr(Q, Q))
         c₁_3r = sqrt(c₁ * oneover3)
         c₀ᵐᵃˣ = 2(c₁_3r * c₁_3r * c₁_3r)
-        Θ = isnan(c₀ / c₀ᵐᵃˣ) ? acos(one(T)) : acos(min(one(T), c₀ / c₀ᵐᵃˣ))
+        Θ = isnan(c₀ / c₀ᵐᵃˣ) ? acos(T(1)) : acos(min(T(1), c₀ / c₀ᵐᵃˣ))
 
         u = c₁_3r * cos(Θ * oneover3)
         w = sqrt(c₁) * sin(Θ * oneover3)

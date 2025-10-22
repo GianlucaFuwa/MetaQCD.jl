@@ -6,8 +6,8 @@ function calc_dSfdU!(
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     bc = D.boundary_condition
-    solver_action = fermion_action.solver_action
-    tol, maxiters, datafile = get_info(solver_action)
+    solver_md = fermion_action.solver_md
+    tol, maxiters, datafile = get_info(solver_md)
 
     clear!(X_eo) # initial guess is zero
     solve_dirac!(X_eo, DdagD, ϕ_eo, Y_eo, temp1, temp2; tol, maxiters, datafile)
@@ -30,8 +30,8 @@ function calc_dSfdU!(
     temp1, temp2 = fermion_action.temps[1:2]
     Xs = fermion_action.temps[3:n+3]
     Ys = fermion_action.temps[n+4:2n+4]
-    solver_action = fermion_action.solver_action
-    tol, maxiters, datafile = get_info(solver_action)
+    solver_md = fermion_action.solver_md
+    tol, maxiters, datafile = get_info(solver_md)
 
     for X in Xs
         clear!(X)
@@ -52,8 +52,8 @@ function calc_dSfdU!(
 end
 
 function add_staggered_eo_derivative!(
-    dU::Colorfield{B,T}, U::Gaugefield{B,T,M}, X_eo::TF, Y_eo::TF, bc; coeff=1
-) where {B,T,M,TF<:StaggeredEOPreSpinorfield{B,T,M}}
+    dU::Colorfield{B,T}, U::Gaugefield{B,TU,M}, X_eo::TF, Y_eo::TF, bc; coeff=1
+) where {B,T,M,TU,TF<:StaggeredEOPreSpinorfield{B,TU,M}}
     X = X_eo.parent
     Y = Y_eo.parent
     fac = T(-0.5coeff)

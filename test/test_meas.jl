@@ -3,7 +3,7 @@ using MetaQCD.Utils
 using Test
 using LinearAlgebra
 using Random
-# using AMDGPU
+using AMDGPU
 
 const EXP4 = Dict(
     "plaq" => 0.587818337847024,
@@ -102,6 +102,7 @@ function test_measurements(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=2
     return nothing
 end
 
+test_measurements(; backend=ROCBackend, nprocs_cart=(1, 1, 1, mpi_size()))
 # test_measurements(nprocs_cart=(1, 2, 1, 2))
 # test_measurements(nprocs_cart=(2, 1, 1, 2))
 # test_measurements(nprocs_cart=(1, 2, 2, 1))

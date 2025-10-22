@@ -67,7 +67,7 @@ function apply_stout_smearing!(Uout::Gaugefield{B,T,M}, C, Q, U, ρ) where {B,T,
     parallelfor(itr, B, Val(M), (U,), (Uout, C, Q), (Uout, C, Q, U)) do site, (Uout, C, Q, U)
         Base.Cartesian.@nexprs 4 μ -> (
             Qμ = calc_stout_Q_kernel!(Q, C, U, site, μ, ρ);
-            @inbounds Uout[μ, site] = cmatmul_oo(exp_iQ(Qμ), U[μ, site])
+            @inbounds Uout[μ, site] = proj_onto_SU3(cmatmul_oo(exp_iQ(Qμ), U[μ, site]))
         )
     end
 
@@ -100,10 +100,9 @@ function stout_recursion!(Σ, Σ′, U′, U::Gaugefield{B,T,M}, C, Q, Λ, ρ) w
     itr = eachindex(Σ, Σ′, U′, U, C, Q, Λ)
 
     parallelfor(itr, B, Val(M), (U, Λ), (Σ,), (Σ, Σ′, U, C, Q, Λ)) do site, (Σ, Σ′, U, C, Q, Λ)
-        stout_recursion_kernel!(Σ, Σ′, U, C, Q, Λ, site, 1, ρ)
-        stout_recursion_kernel!(Σ, Σ′, U, C, Q, Λ, site, 2, ρ)
-        stout_recursion_kernel!(Σ, Σ′, U, C, Q, Λ, site, 3, ρ)
-        stout_recursion_kernel!(Σ, Σ′, U, C, Q, Λ, site, 4, ρ)
+        for μ in 1:4
+            stout_recursion_kernel!(Σ, Σ′, U, C, Q, Λ, site, μ, ρ)
+        end
     end
 
     return nothing
@@ -111,19 +110,19 @@ end
 
 function stout_recursion_kernel!(Σ, Σ′, U, C, Q, Λ, site, μ, ρ)
     Nμ = axes(Σ′, μ)
-    siteμ⁺ = move(site, μ, 1i32, Nμ)
+    siteμ⁺ = move(site, μ, 1, Nμ)
     force_sum = zero3(float_type(U))
 
     @inbounds begin
-        for ν in 1i32:4i32
+        for ν in 1:4
             if ν == μ
                 continue
             end
 
             Nν = axes(Σ′, ν)
-            siteν⁺ = move(site, ν, 1i32, Nν)
-            siteν⁻ = move(site, ν, -1i32, Nν)
-            siteμ⁺ν⁻ = move(siteμ⁺, ν, -1i32, Nν)
+            siteν⁺ = move(site, ν, 1, Nν)
+            siteν⁻ = move(site, ν, -1, Nν)
+            siteμ⁺ν⁻ = move(siteμ⁺, ν, -1, Nν)
 
             # bring reused matrices up to cache (can also precalculate some products)
             # Uνsiteμ⁺ = U[ν,siteμ⁺]

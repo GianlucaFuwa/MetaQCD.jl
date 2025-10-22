@@ -140,27 +140,70 @@ function has_clover_term(::AbstractDiracOperator)
 end
 
 """
-    solve_dirac!(ψ, D, ϕ, temp1, temp2, temp3, tol=1e-16, maxiters=1000)
+    solve_dirac!(ψ, D, ϕ, temps; tol=1e-16, maxiters=1000)
+
+Solve the Dirac equation `Dψ = ϕ` for `ψ`, where `D` is a Hermitian Dirac operator and
+store the result in `ψ`. Needs 3 extra Spinorfields in `temp`
+"""
+function solve_dirac!(
+    ψ, D::T, ϕ, temps; tol=1e-12, maxiters=1000, datafile=""
+) where {T<:DdaggerD}
+    @assert length(temps) == 3 "Need 3 temporary Spinorfields for cg, provided $(length(temps))"
+    return cg!(ψ, D, ϕ, temps...; tol, maxiters, datafile)
+end
+
+""" # TODO:
+    solve_dirac_mixed!(ψ, D, D_low, ϕ, temp1, temp2, temp3, temps_low...; tol=1e-16, maxiters=1000)
 
 Solve the Dirac equation `Dψ = ϕ` for `ψ`, where `D` is a Hermitian Dirac operator and
 store the result in `ψ`.
 """
-function solve_dirac!(
-    ψ, D::T, ϕ, temp1, temp2, temp3; tol=1e-16, maxiters=1000, datafile=""
-) where {T<:DdaggerD}
-    return cg!(ψ, D, ϕ, temp1, temp2, temp3; tol, maxiters, datafile)
+function solve_dirac_mixed!(
+    ψ, D::T, D_low::Tl, ϕ, temps, temps_low;
+    delta=0.1, tol=1e-8, maxiters=1000, datafile=""
+) where {T<:DdaggerD,Tl<:DdaggerD}
+    @assert length(temps) == 2 "Need 2 high precision Spinorfields for mixed cg, provided $(length(temps))"
+    @assert length(temps_low) == 5 "Need 5 low precision Spinorfields for mixed cg, provided $(length(temps_low))"
+    return cg_mixed!(ψ, D, D_low, ϕ, temps..., temps_low...; delta, tol, maxiters, datafile)
 end
 
 """
-    solve_dirac_multishift!(ψs, shifts, D, ϕ, temps...)
+    solve_dirac_multishift!(ψs, shifts, D, ϕ, temps)
 
 Solve the equations `(D + s)ψ = ϕ` for `ψ` for each `s` in `shifts`, where `D` is a
 Hermitian Dirac operator and store each result in `ψs`.
 """
 function solve_dirac_multishift!(
-    ψs, shifts, D::T, ϕ, temp1, temp2, ps; tol=1e-16, maxiters=1000, datafile=""
+    ψs, shifts, D::T, ϕ, temps, ps; tol=1e-12, maxiters=1000, datafile=""
 ) where {T<:DdaggerD}
-    return mscg!(ψs, SVector(shifts), D, ϕ, temp1, temp2, ps; tol, maxiters, datafile)
+    N = length(shifts)
+    @assert length(ψs) == N+1 "Need N+1 solution Spinorfields for multishift cg with N shifts, provided $(length(ψs))"
+    @assert length(ps) == N+1 "Need N+1 gradient Spinorfields for multishift cg with N shifts, provided $(length(ps))"
+    @assert length(temps) == 2 "Need exactly 2 additional Spinorfields for multishift cg, provided $(length(temps))"
+    return mscg!(ψs, SVector(shifts), D, ϕ, temps..., ps; tol, maxiters, datafile)
+end
+
+""" # TODO:
+    solve_dirac_multishift_mixed!(ψs_high, shifts, D, D_low, ϕ, temps)
+
+Solve the equations `(D + s)ψ = ϕ` for `ψ` for each `s` in `shifts`, where `D` is a
+Hermitian Dirac operator and store each result in `ψs`.
+"""
+function solve_dirac_multishift_mixed!(
+    ψs, shifts, D::T, D_low::Tl, ϕ, temps,
+    ψs_low, ps_low, temps_low;
+    tol=1e-12, maxiters=1000, datafile="", delta=0.1
+) where {T<:DdaggerD,Tl<:DdaggerD}
+    N = length(shifts)
+    @assert length(ψs) == N+1 "Need high N+1 solution Spinorfields for multishift cg with N shifts, provided $(length(ψs))"
+    @assert length(ψs_low) == N+1 "Need low prec N+1 solution Spinorfields for multishift cg with N shifts, provided $(length(ψs_low))"
+    @assert length(ps_low) == N+1 "Need low prec N+1 gradient Spinorfields for multishift cg with N shifts, provided $(length(ps_low))"
+    @assert length(temps) == 2 "Need exactly 2 additional high prec Spinorfields for multishift cg, provided $(length(temps))"
+    @assert length(temps_low) == 3 "Need exactly 3 additional low prec Spinorfields for multishift cg, provided $(length(temps_low))"
+    return mscg_mixed!(
+        ψs, SVector(shifts), D, D_low, ϕ, temps..., ψs_low, ps_low, temps_low...;
+        tol, maxiters, datafile, delta
+    )
 end
 
 # So we don't print the entire array in the REPL...

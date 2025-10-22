@@ -6,8 +6,8 @@ function calc_dSfdU!(
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     bc = D.boundary_condition
-    solver_action = fermion_action.solver_action
-    tol, maxiters, datafile = get_info(solver_action)
+    solver_md = fermion_action.solver_md
+    tol, maxiters, datafile = get_info(solver_md)
 
     clear!(X)
     solve_dirac!(X, DdagD, ϕ, Y, temp1, temp2; tol, maxiters, datafile)
@@ -36,8 +36,8 @@ function calc_dSfdU!(
     temp1, temp2 = fermion_action.temps[1:2]
     Xs = fermion_action.temps[3:n+3]
     Ys = fermion_action.temps[n+4:2n+4]
-    solver_action = fermion_action.solver_action
-    tol, maxiters, datafile = get_info(solver_action)
+    solver_md = fermion_action.solver_md
+    tol, maxiters, datafile = get_info(solver_md)
 
     for X in Xs
         clear!(X)
@@ -64,8 +64,8 @@ function calc_dSfdU!(
 end
 
 function add_wilson_derivative!(
-    dU::Colorfield{B,T}, U::Gaugefield{B,T,M}, X::TF, Y::TF, bc; coeff=1
-) where {B,T,M,TF<:WilsonSpinorfield{B,T,M}}
+    dU::Colorfield{B,T}, U::Gaugefield{B,TU,M}, X::TF, Y::TF, bc; coeff=1
+) where {B,T,M,TU,TF<:WilsonSpinorfield{B,TU,M}}
     fac = T(0.5coeff)
     itr = eachindex(dU, U, X, Y)
 
@@ -102,7 +102,7 @@ function add_clover_derivative!(
     fac = T(csw * coeff / 2)
     itr = eachindex(dU, U, Xμν)
 
-    parallelfor(itr, B, Val(M), (U, Xμν), (dU,), (dU, U, Xμν)) do site, (dU, U, Xμν)
+    parallelfor(itr, B, Val(M), (U, Xμν), (dU,), (dU, U, Xμν); do_edges=Val(true)) do site, (dU, U, Xμν)
         add_clover_derivative_kernel!(dU, U, Xμν, site, fac, T)
     end
 

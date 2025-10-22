@@ -15,6 +15,7 @@ import ..DiracOperators: StaggeredHoelblingDiracOperator, WilsonDiracOperator
 import ..DiracOperators: WilsonEOPreDiracOperator, FermionAction, has_clover_term
 import ..DiracOperators: Daggered, DdaggerD, Spinorfield, SpinorfieldEO, apply_bc
 import ..DiracOperators: staggered_η, staggered_ημν, solve_dirac!, solve_dirac_multishift!
+import ..DiracOperators: solve_dirac_mixed!, solve_dirac_multishift_mixed!
 import ..DiracOperators: mul_oe!, mul_eo!, mul_oo_inv!, get_mass_term, get_info
 import ..Fields: AbstractGaugeAction, Gaugefield, Colorfield, add!, get_global_dims
 import ..Fields: allindices, clear!, normalize!, fieldstrength_eachsite!, float_type

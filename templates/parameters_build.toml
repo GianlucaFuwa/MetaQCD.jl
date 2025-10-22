@@ -1,29 +1,51 @@
 [data]
 float_type = "double"
+solver_float_type = "single"
 backend = "rocm"
-ensemble_dir = "/home/gialu/data/MetaQCD/test_build"
+ensemble_dir = "/zhome/academic/HLRS/xnw/xnwgfuwa/projects/MetaQCD.jl/ensembles/weakscale_walkers_16"
 randomseed = 123
 overwrite = true
 verboselevel = 1
 log_to_console = true
+# save_config_format = "bridge"
+# save_config_every = 1
+load_config_fromfile = true
+load_config_path = "/zhome/academic/HLRS/xnw/xnwgfuwa/projects/MetaQCD.jl/ensembles/config_00000001.txt"
+load_config_format = "bridge"
 
 [ensemble]
-L = [4, 4, 4, 4]
-numtherm = 20
-numsteps = 10
-numprocs_cart = [1, 1, 1, 2]
+numinstances = 16
+L = [32, 32, 32, 32]
+numtherm = 0
+numsteps = 3
+numprocs_cart = [1, 1, 1, 1]
 halo_width = 1
 initial = "cold"
 update_method = "hmc"
-numinstances = 2
+su3_nfloats = 12
+mode = "build"
 
 [gauge_action]
-beta = 6.0
-gauge_action = "wilson"
+beta = 1.05
+gauge_action = "dbw2"
+
+[fermion_action]
+fermion_action = "staggered"
+[[fermion_action.fermions]]
+precon = "none"
+Nf = 2
+mass = 0.04
+cg_tol_action = 1e-7
+cg_tol_md = 1e-5
+cg_maxiters_action = 5000
+cg_maxiters_md = 5000
+rhmc_order_action = 15
+rhmc_order_md = 10
+rhmc_spectral_bound = [0.0016, 6.0]
 
 [bias]
 rhostout_for_cv = 0.12 # rho is the same for all CVs
-starting_Q = [1, 0]
+# starting_Q = [0, 0]
 [[bias.biases]]
 type = "metad"
 kind_of_cv = "topcharge_clover"
@@ -39,19 +61,14 @@ barrier = 10.0
 sigma_0 = 0.0
 # metad specific parameters
 bin_width = 0.01
-meta_weight = 0.1
-[[bias.biases]]
-type = "opesmt"
-beta_min_max = [5.2, 5.7]
-beta_num = 100
-numsmears_for_cv = 0
-static = false
-stride = 1
+meta_weight = 0.000001
 
 [hmc]
 hmc_trajectory = 1
+hmc_numsmear_fermion = 4
+hmc_rhostout_fermion = 0.125
 [[hmc.levels]]
-forces = [0, 1]
+forces = [0, 1, 2]
 integrator = "OMF4"
 numsteps = 5
 
@@ -60,18 +77,18 @@ flow_integrator = "euler"
 flow_num = 30
 flow_steps = 1
 flow_tf = 0.12 # total flow time is flow_num * flow_tf
-flow_measure_every = [1, 2, 5, 10, 20, 30]
+flow_measure_every = [10, 20, 30]
 
 [measurements.Plaquette]
-measure_every = 1
+measure_every = 10
 
 [measurements.Topological_charge]
-measure_every = 1
-type = ["plaquette", "clover"]
+measure_every = 10
+type = ["clover"]
 
 [measurements_with_flow.Plaquette]
-measure_every = 1
+measure_every = 10
 
 [measurements_with_flow.Topological_charge]
-measure_every = 1
-type = ["plaquette", "clover"]
+measure_every = 10
+type = ["clover"]

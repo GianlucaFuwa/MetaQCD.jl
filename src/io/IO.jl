@@ -176,13 +176,13 @@ end
 
 function load_field!(U, parameters)
     parameters.load_config_fromfile || return false
-    filename = parameters.loadU_dir * "/" * parameters.load_config_filename
+    filename = parameters.load_config_path
     format = parameters.load_config_format
 
     try
         load_field!(FORMATS[parameters.load_config_format](), U, filename)
     catch _
-        error("loadU_format \"$(format)\" not supported.")
+        error("load_config_format \"$(format)\" not supported.")
     end
 
     @level1("[ Config loaded from $(filename)")

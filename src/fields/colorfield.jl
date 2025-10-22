@@ -75,38 +75,3 @@ Base.@propagate_inbounds function Base.setindex!(
 ) where {B,T}
     return _setindex_mat!(Val(18), u.U, v, μsite, T)
 end
-######################
-
-function create_sendbuf!(u::Colorfield{B,T,M}, sites, dim, dir) where {B,T,M}
-    ibuf = dir + 2(dim - 1)
-    sendbuf = u.sendbuf[ibuf]
-    μsites = add_directional_indices(u, sites)
-    itr = eachindex(IndexLinear(), μsites)
-
-    parallelfor(itr, B, Val(M), Val(false), (), (), (u, sendbuf)) do i, (u, sendbuf)
-        μsite = μsites[i]
-        setindex_buf!(sendbuf, u, i, μsite)
-    end
-
-    return mpi_make_transferrable(sendbuf)
-end
-
-Base.@propagate_inbounds function setindex_buf!(buf, u::Colorfield{CPU}, i, μsite)
-    buf[i] = u[μsite]
-    return nothing
-end
-
-Base.@propagate_inbounds function setindex_buf!(
-    buf, u::Colorfield{B,T,M}, i, μsite
-) where {B,T,M}
-    Base.Cartesian.@nexprs 9 ic -> (
-        buf[ic, i] = getindex_buf(u, μsite, ic);
-    )
-    return nothing
-end
-
-Base.@propagate_inbounds function getindex_buf(
-    u::Colorfield{B,T,M}, μsite, ic
-) where {B,T,M}
-    return u.U[ic, μsite]
-end

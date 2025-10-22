@@ -1,3 +1,7 @@
+function save_field(::MPIFormat, u::AbstractField{B,T}, filename) where {B,T}
+    return save_field_mpi(u, filename)
+end
+
 function save_field(::BridgeFormat, u::AbstractField{B,T,true}, filename) where {B,T}
     return save_field_mpi(u, filename)
 end
@@ -9,22 +13,18 @@ function save_field_mpi(u::Gaugefield{B,T}, filename, args...) where {B,T}
     U = if B == CPU
         u.U.parent
     else
-        tmp = bzeros(B(), etype, 4, u.topology.local_volume)
-        sites = eachindex(u)
-        parallelfor(1:length(sites), B, Val(false), (), (), (u,)) do i, (u,)
-            site = sites[i]
-            tmp[1, i] = u[1, site]
-            tmp[2, i] = u[2, site]
-            tmp[3, i] = u[3, site]
-            tmp[4, i] = u[4, site]
-        end
-        Array(tmp)
+        tmp = convert_field(CPU, u, Float64)
+        tmp.U.parent
     end
     set_view!(fp, u, etype)
     Utils.MPI.File.write_all(fp, U)
     Utils.MPI.File.close(fp)
     mpi_barrier(u.topology.comm_cart)
     return nothing
+end
+
+function load_field!(::MPIFormat, u::AbstractField{B,T}, filename) where {B,T}
+    return load_field_mpi!(u, filename)
 end
 
 function load_field!(::BridgeFormat, u::AbstractField{B,T,true}, filename) where {B,T}

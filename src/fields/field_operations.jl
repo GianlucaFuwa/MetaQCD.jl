@@ -4,7 +4,7 @@ function Base.deepcopy(u::AbstractField{B,T,M}) where {B,T,M}
     return ucopy
 end
 
-function Base.copy!(a::AbstractField{B,T}, b::AbstractField{B,T}) where {B,T}
+function Base.copy!(a::AbstractField{B}, b::AbstractField{B}) where {B}
     parallelfor(allindices(a, b), B, Val(false), (), (a,), (a, b)) do μsite, (a, b)
         a[μsite] = b[μsite]
     end
@@ -36,6 +36,8 @@ function clear!(u::AbstractField{B,T,M}) where {B,T,M} # set all link variables 
     return nothing
 end
 
+Base.empty!(u::AbstractField) = clear!(u)
+
 function normalize!(u::Gaugefield{B,T,M}) where {B,T,M}
     parallelfor(allindices(u), B, Val(M), (), (u,), (u,)) do μsite, (u,)
         u[μsite] = proj_onto_SU3(u[μsite])
@@ -46,7 +48,7 @@ end
 
 function LinearAlgebra.tr(u::GaugeLikeField{B,T,M}) where {B,T,M}
     trace = parallelfor_sum(allindices(u), 0.0, B, Val(M), (), (), (u,)) do t, μsite, (u,)
-        t = tr(u[μsite])
+        t += real(tr(u[μsite]))
     end
 
     trace /= 4length(u)

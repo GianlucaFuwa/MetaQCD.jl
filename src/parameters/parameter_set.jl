@@ -1,4 +1,6 @@
 struct ParameterSet
+    mode::String
+
     L::NTuple{4,Int64}
     beta::Float64
     gauge_action::String
@@ -65,6 +67,7 @@ struct ParameterSet
     # system settings
     backend::String
     float_type::String
+    solver_float_type::String
     verboselevel::Int64
     save_config_format::String
     save_config_every::Int64

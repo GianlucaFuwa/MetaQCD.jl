@@ -26,8 +26,16 @@ const FORCE_SINGLE_GPU = Val(@load_preference("FORCE_SINGLE_GPU", false))
 array_type(::Type{CPU}) = Array
 bzeros(::CPU, args...) = zeros(args...)
 synchronize(::CPU) = nothing
+synchronize(::CPU, stream) = nothing
+device_synchronize(::CPU) = nothing
 priority!(::CPU, priority) = nothing
 mpi_assign_device!(::CPU, id) = nothing
+allocate_commstreams!(::CPU, args...) = nothing
+default_stream(::CPU) = nothing
+get_readstream(::CPU, args...) = nothing
+get_sendstream(::CPU, args...) = nothing
+get_stream(::CPU, args...) = nothing
+get_priority_stream(::CPU, args...) = nothing
 
 # Define an abstract field super type that is parametrized by the backend, the precision and
 # the array type (Array, CuArray, ROCArray)
@@ -46,6 +54,7 @@ end
 # utility functions for MPI-distributed fields
 include("distributed/topology.jl")
 include("distributed/halo_update_async.jl")
+# include("distributed/halo_update_async_gpu.jl")
 # include("distributed/hide_communication.jl")
 include("distributed/comm_utils.jl")
 
@@ -204,6 +213,23 @@ end
 end
 
 @inline allindices(u::AbstractField{B}) where {B} = add_directional_indices(u, eachindex(u))
+
+@inline function linear_index(u::AbstractField, idx::CartesianIndex{N}) where N
+    U = u.U
+    axs = axes(U)
+    sz = size(U)
+    lin_idx = 1
+    stride = 1
+
+    for i in 1:N
+        # Normalize index to 1-based
+        norm_idx = idx[i] - first(axs[i]) + 1
+        lin_idx += (norm_idx - 1) * stride
+        stride *= sz[i]
+    end
+
+    return lin_idx
+end
 
 Base.@propagate_inbounds Base.getindex(u::AbstractField, i::Integer) = u.U[i]
 Base.@propagate_inbounds Base.getindex(u::AbstractField, μsite) = u.U[μsite]

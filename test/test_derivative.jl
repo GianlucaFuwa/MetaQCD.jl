@@ -3,6 +3,7 @@ using MetaQCD
 using MetaQCD.Utils
 using MetaQCD.Measurements: top_charge_deriv!
 using Test
+using AMDGPU
 
 function test_derivative(; backend=CPU, GA=WilsonGaugeAction, nprocs_cart=(1, 1, 1, 1), halo_width=1)
     Random.seed!(123)
@@ -11,14 +12,15 @@ function test_derivative(; backend=CPU, GA=WilsonGaugeAction, nprocs_cart=(1, 1,
     relerrors = Matrix{Float64}(undef, 8, 4)
 
     @testset "Gauge derivative" begin
-        NX = NY = NZ = NT = 4
+        NX = NY = NZ = NT = 16
         Ucpu = Gaugefield{CPU,Float64,GA,12}(
             NX, NY, NZ, NT, 6.0, numprocs_cart=nprocs_cart, halo_width=halo_width
         )
+
         filename = if nprocs_cart != (1, 1, 1, 1)
-            pkgdir(MetaQCD, "test", "testconf_mpi")
+            pkgdir(MetaQCD, "test", NX==4 ? "testconf_mpi" : "testconf_16_mpi")
         else
-            pkgdir(MetaQCD, "test", "testconf.txt")
+            pkgdir(MetaQCD, "test", NX==4 ? "testconf.txt" : "testconf_16.txt")
         end
 
         load_field!(BridgeFormat(), Ucpu, filename)
@@ -80,12 +82,24 @@ function test_derivative(; backend=CPU, GA=WilsonGaugeAction, nprocs_cart=(1, 1,
             top_charge_deriv_bare!(Clover(), dQdU, fieldstrength, U, nothing, NoSmearing())
             top_charge_deriv_bare!(Clover(), dQdU_smeared, fieldstrength, U, temp_force, smearing)
 
-            dgaction_proj = real(multr(im * λ[group_direction], dSdU[μ, site]))
-            dtopcharge_proj = real(multr(im * λ[group_direction], dQdU[μ, site]))
-            dgaction_proj_smeared = real(multr(im * λ[group_direction], dSdU_smeared[μ, site]))
-            dtopcharge_proj_smeared = real(
-                multr(im * λ[group_direction], dQdU_smeared[μ, site])
-            )
+            if site in eachindex(U)
+                dgaction_proj = real(multr(im * λ[group_direction], dSdU[μ, site]))
+                dtopcharge_proj = real(multr(im * λ[group_direction], dQdU[μ, site]))
+                dgaction_proj_smeared = real(multr(im * λ[group_direction], dSdU_smeared[μ, site]))
+                dtopcharge_proj_smeared = real(
+                    multr(im * λ[group_direction], dQdU_smeared[μ, site])
+                )
+            else
+                dgaction_proj = 1.0
+                dtopcharge_proj = 1.0
+                dgaction_proj_smeared = 1.0
+                dtopcharge_proj_smeared = 1.0
+            end
+
+            # if group_direction == 8
+            #     @show gaction_new_fwd_smeared, dgaction_proj_smeared
+            #     @show topcharge_new_fwd_smeared, dtopcharge_proj_smeared
+            # end
 
             ga_symm_diff = (gaction_new_fwd - gaction_new_bwd) / 2ΔH
             tc_symm_diff = (topcharge_new_fwd - topcharge_new_bwd) / 2ΔH
@@ -149,3 +163,5 @@ function top_charge_deriv_bare!(kind_of_charge, dU, F, U, temp_force, smearing)
 
     return nothing
 end
+
+AMDGPU.@allowscalar test_derivative(; backend=ROCBackend, nprocs_cart=(1, 1, 1, mpi_size()))

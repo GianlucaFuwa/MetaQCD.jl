@@ -108,9 +108,8 @@ end
 @inline function staggered_kernel(U, ϕ, site, mass, bc, ::Type{T}, dagg::Bool) where {T}
     @inbounds begin
         sgn = dagg ? T(-1) : T(1)
-        NT = size(U, 4)
         ψₙ = 2mass * ϕ[site]
-
+        NT = size(U, 4)
         # use @nexprs here to statically generate the loop
         # this makes it so Val(i) is well defined at each iteration and no type-instabilities arise
         @nexprs 4 μ -> (
@@ -123,6 +122,7 @@ end
             ψₙ += η * (cmvmul(U[μ, site], ϕ⁺) - cmvmul_d(U[μ, siteμ⁻], ϕ⁻))
         )
     end
+
     return T(0.5) * ψₙ
 end
 

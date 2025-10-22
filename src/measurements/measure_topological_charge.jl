@@ -131,7 +131,7 @@ end
 
 function top_charge(::Plaquette, U::Gaugefield{B,T,M}) where {B,T,M}
     itr = eachindex(U)
-    Q = parallelfor_sum(itr, 0.0, B, Val(M), (U,), (), (U,)) do q, site, (U,)
+    Q = parallelfor_sum(itr, 0.0, B, Val(M), (U,), (), (U,); do_edges=Val(true)) do q, site, (U,)
         q += top_charge_density_plaq(U, site)
     end
 
@@ -140,7 +140,7 @@ end
 
 function top_charge(::Clover, U::Gaugefield{B,T,M}) where {B,T,M}
     itr = eachindex(U)
-    Q = parallelfor_sum(itr, 0.0, B, Val(M), (U,), (), (U,)) do q, site, (U,)
+    Q = parallelfor_sum(itr, 0.0, B, Val(M), (U,), (), (U,); do_edges=Val(true)) do q, site, (U,)
         q += top_charge_density_clover(U, site, Float64)
     end
 
@@ -152,7 +152,7 @@ function top_charge(::Improved, U::Gaugefield{B,T,M}) where {B,T,M}
     c₀ = T(5/3)
     c₁ = T(-2/12)
     itr = eachindex(U)
-    Q = parallelfor_sum(itr, 0.0, B, Val(M), (U,), (), (U,); block_size=256) do q, site, (U,)
+    Q = parallelfor_sum(itr, 0.0, B, Val(M), (U,), (), (U,); do_edges=Val(true)) do q, site, (U,)
         q += top_charge_density_imp(U, site, c₀, c₁, T)
     end
 
@@ -221,12 +221,12 @@ end
 end
 
 function top_charge_deriv!(
-    dU::Colorfield{B,T}, F::Tensorfield{B,T,M}, U::Gaugefield{B,T}, kind_of_charge, fac=1.0
-) where {B,T,M}
+    dU::Colorfield{B,T}, F::Tensorfield{B,TF,M}, U::Gaugefield{B,TU}, kind_of_charge, fac=1.0
+) where {B,T,M,TF,TU}
     c = T(fac / 4π^2)
     fieldstrength_eachsite!(kind_of_charge, F, U) # halo update of U done here
 
-    parallelfor(eachindex(dU, F, U), B, Val(M), (F,), (U,), (F, U)) do site, (F, U)
+    parallelfor(eachindex(dU, F, U), B, Val(M), (F,), (U,), (F, U); do_edges=Val(true)) do site, (F, U)
         # @inbounds begin
             tmp1 = cmatmul_oo(
                 U[1, site],

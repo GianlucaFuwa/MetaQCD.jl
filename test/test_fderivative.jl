@@ -3,6 +3,7 @@ using MetaQCD.Utils
 using LinearAlgebra
 using Random
 using Test
+using AMDGPU
 
 function test_fderivative(;
     backend=CPU,
@@ -30,14 +31,14 @@ function test_fderivative(;
 
     @testset "$(name_str)$(csw_str) derivative" begin
         Random.seed!(123 * (mpi_myrank() + 1))
-        NX = NY = NZ = NT = 4
+        NX = NY = NZ = NT = 16
         Ucpu = Gaugefield{CPU,Float64,WilsonGaugeAction,12}(
             NX, NY, NZ, NT, 6.0, numprocs_cart=nprocs_cart, halo_width=halo_width
         )
         filename = if nprocs_cart != (1, 1, 1, 1)
-            pkgdir(MetaQCD, "test", "testconf_mpi")
+            pkgdir(MetaQCD, "test", NX==4 ? "testconf_mpi" : "testconf_16_mpi")
         else
-            pkgdir(MetaQCD, "test", "testconf.txt")
+            pkgdir(MetaQCD, "test", NX==4 ? "testconf.txt" : "testconf_16.txt")
         end
 
         load_field!(BridgeFormat(), Ucpu, filename)
@@ -94,7 +95,7 @@ function test_fderivative(;
         dSfdU_smeared = Colorfield(U)
         temp_force = Colorfield(U)
 
-        coord = (2, 3, 1, 2)
+        coord = (2, 3, 1, 1)
         site = SiteCoords(coord...)
         μ = 3
         ΔH = 0.000001
@@ -133,8 +134,13 @@ function test_fderivative(;
             calc_dSfdU_bare!(dSfdU, action, U, ψ, nothing, NoSmearing())
             calc_dSfdU_bare!(dSfdU_smeared, action, U, ψ, temp_force, smearing)
 
-            daction_proj = real(multr(im * λ[group_direction], dSfdU[μ, site]))
-            daction_proj_smeared = real(multr(im * λ[group_direction], dSfdU_smeared[μ, site]))
+            if site in eachindex(U)
+                daction_proj = real(multr(im * λ[group_direction], dSfdU[μ, site]))
+                daction_proj_smeared = real(multr(im * λ[group_direction], dSfdU_smeared[μ, site]))
+            else
+                daction_proj = 1.0
+                daction_proj_smeared = 1.0
+            end
 
             symm_diff = (action_new_fwd - action_new_bwd) / 2ΔH
             symm_diff_smeared = (action_new_fwd_smeared - action_new_bwd_smeared) / 2ΔH
@@ -164,3 +170,7 @@ function test_fderivative(;
     mpi_barrier()
     return relerrors
 end
+
+AMDGPU.@allowscalar test_fderivative(;
+    single_flavor=true, backend=ROCBackend, nprocs_cart=(1, 1, 1, mpi_size())
+)

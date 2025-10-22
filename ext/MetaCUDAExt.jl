@@ -15,6 +15,7 @@ end
 Fields.array_type(::Type{CUDABackend}) = CuArray
 Fields.bzeros(::CUDABackend, args...) = CUDA.zeros(args...)
 Fields.synchronize(::CUDABackend) = CUDA.synchronize()
+Fields.device_synchronize(::CUDABackend) = CUDA.device_synchronize()
 
 function Fields.priority!(::CUDABackend, priority)
     CUDA.KernelAbstractions.priority!(CUDABackend(), priority)

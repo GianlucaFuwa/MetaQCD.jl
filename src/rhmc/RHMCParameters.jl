@@ -3,6 +3,7 @@ module RHMCParameters
 
 using LinearAlgebra
 using RationalFunctionApproximation
+using ..Utils
 
 # import ..AlgRemez: AlgRemezCoeffs, calc_coefficients
 
@@ -27,7 +28,7 @@ function Base.display(x::AlgRemezCoeffs)
     return println("β: $(x.β)")
 end
 
-function fittedfunction(coeff::AlgRemezCoeffs)
+function fittedfunction(coeff)
     function func(x)
         value = coeff.α0
         for i in 1:coeff.n
@@ -54,7 +55,8 @@ struct RHMCParams{N1,N2}
     y::Int64
     z::Int64
     function RHMCParams(
-        power, fun=x -> x; n_max=10, lambda_low=0.0004, lambda_high=64, tol=1000eps(Float64)
+        power, fun=x -> x;
+        n_max=10, lambda_low=0.0004, lambda_high=64, precision=42, tol=1000eps(Float64)
     )
         num = numerator(power)
         den = denominator(power)
@@ -63,32 +65,13 @@ struct RHMCParams{N1,N2}
         @assert num * den != 1 "power should not be 1!"
 
         # suppress warnings from RationalFunctionApproximation.jl here
-        coeffs, coeffs_inv, err, err_inv, n, n_inv = redirect_stderr(devnull) do
-            calc_coefficients(num, den, n_max, lambda_low, lambda_high, fun; tol=tol)
+        my_out = mpi_amroot() ? stdout : stdout
+        coeffs, coeffs_inv, err, err_inv, n, n_inv = redirect_stderr(my_out) do
+            calc_coefficients(num, den, n_max+1, lambda_low, lambda_high, precision, fun; tol)
         end
         maxerr = (err, err_inv)
         return new{n,n_inv}(coeffs, coeffs_inv, lambda_low, lambda_high, maxerr, num, den)
     end
-end
-
-function Base.show(io::IO, ::MIME"text/plain", rhmc::RHMCParams{N1,N2}) where {N1,N2}
-    print(
-        io,
-        "Order: $(N1), $(N2) (inverse), ",
-        "Range: [$(rhmc.lambda_low), $(rhmc.lambda_high)], ",
-        "Maxerr: $(rhmc.maxerr[1]), $(rhmc.maxerr[2]) (inverse)",
-    )
-    return nothing
-end
-
-function Base.show(io::IO, rhmc::RHMCParams{N1,N2}) where {N1,N2}
-    print(
-        io,
-        "Order: $(N1), $(N2) (inverse), ",
-        "Range: [$(rhmc.lambda_low), $(rhmc.lambda_high)], ",
-        "Maxerr: $(rhmc.maxerr[1]), $(rhmc.maxerr[2]) (inverse)",
-    )
-    return nothing
 end
 
 get_n(::RHMCParams{N1,N2}) where {N1,N2} = N1
@@ -101,19 +84,21 @@ get_α0_inverse(x::RHMCParams) = x.coeffs_inverse.α0
 get_β_inverse(x::RHMCParams) = x.coeffs_inverse.β
 
 function calc_coefficients(
-    y, z, n_max, lambda_low, lambda_high, fun::Function=x -> x; tol=1000 * eps(Float64)
+    y, z, n_max, lambda_low, lambda_high, precision, fun::Function=x -> x; tol=1000 * eps(Float64)
 )
     @assert y > 0 && z > 0 "Inputs y and z need to be positive"
     f(x) = fun(x)^(y//z)
-    g(x) = 1 / f(x)
-    itvl = interval(lambda_low, lambda_high, Float64)
+    g(x) = fun(x)^(-y//z)
+    itvl = interval(lambda_low, lambda_high, precision)
 
-    r_p = approximate(f, itvl; max_iter=n_max, tol=tol)
-    err_p = maximum([abs(r_p(x) - f(x)) for x in lambda_low:0.00001:lambda_high])
+    r_p = approximate(f, itvl; max_iter=n_max, tol=tol, refinement=100, stagnation=100)
+    # r_p = minimax(r_p, 20)
+    err_p = maximum(check(r_p, quiet=true, refinement=100)[2])
     n_p = degree(r_p)
 
-    r_m = approximate(g, itvl; max_iter=n_max, tol=tol)
-    err_m = maximum([abs(r_m(x) - g(x)) for x in lambda_low:0.00001:lambda_high])
+    r_m = approximate(g, itvl; max_iter=n_max, tol=tol, refinement=100, stagnation=100)
+    # r_m = minimax(r_m, 20)
+    err_m = maximum(check(r_m, quiet=true, refinement=100)[2])
     n_m = degree(r_m)
 
     β_p = -Float64.(poles(r_p))
@@ -149,8 +134,29 @@ function calc_coefficients(
     return acoeffs_p, acoeffs_m, err_p, err_m, n_p, n_m
 end
 
-@inline function interval(a, b, ::Type{T}=Float64) where {T}
-    return RationalFunctionApproximation.Segment(a, b)
+@inline function interval(a, b, precision=42)
+    return RationalFunctionApproximation.Segment(BigFloat(a; precision), BigFloat(b; precision))
+    # return RationalFunctionApproximation.Segment(Float64(a), Float64(b))
+end
+
+function Base.show(io::IO, ::MIME"text/plain", rhmc::RHMCParams{N1,N2}) where {N1,N2}
+    print(
+        io,
+        "Order: $(N1), $(N2) (inverse), ",
+        "Range: [$(rhmc.lambda_low), $(rhmc.lambda_high)], ",
+        "Maxerr: $(rhmc.maxerr[1]), $(rhmc.maxerr[2]) (inverse)",
+    )
+    return nothing
+end
+
+function Base.show(io::IO, rhmc::RHMCParams{N1,N2}) where {N1,N2}
+    print(
+        io,
+        "Order: $(N1), $(N2) (inverse), ",
+        "Range: [$(rhmc.lambda_low), $(rhmc.lambda_high)], ",
+        "Maxerr: $(rhmc.maxerr[1]), $(rhmc.maxerr[2]) (inverse)",
+    )
+    return nothing
 end
 
 end

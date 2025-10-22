@@ -31,14 +31,7 @@ function save_field(
     U = if B == CPU
         Uin
     else
-        tmp = bzeros(B(), 4, size(Uin)...)
-        parallelfor(eachindex(Uin), B, Val(false), (), (), (Uin,)) do site, (U,)
-            tmp[1, site] = U[1, site]
-            tmp[2, site] = U[2, site]
-            tmp[3, site] = U[3, site]
-            tmp[4, site] = U[4, site]
-        end
-        Array(tmp)
+        convert_field(CPU, Uin)
     end
 
     NX, NY, NZ, NT = size(U)

@@ -188,16 +188,16 @@ function HMC(
     allforces = collect(Iterators.flatten([lvl.forces for lvl in levels]))
     fail = false
 
-    if Val(1) ∉ allforces
-        @error("Gauge force not included in any level")
-        fail = true
-    end
-
     if numcv > 0
         if Val(0) ∉ allforces
-            @error("Bias force not included in any level")
+            @error("Bias force (i.e., force 0) not included in any level")
             fail = true
         end
+    end
+
+    if Val(1) ∉ allforces
+        @error("Gauge force (i.e., force 1) not included in any level")
+        fail = true
     end
 
     for ipf in 1:numfermions
@@ -376,7 +376,9 @@ function updateU!(
 
         parallelfor(allindices(U, P), B, Val(M), (), (U,), (U, P)) do μsite, (U, P)
             U[μsite] = cmatmul_oo(exp_iQ(-im * ϵ * P[μsite]), U[μsite])
+            # U[μsite] = proj_onto_SU3(cmatmul_oo(exp_iQ(-im * ϵ * P[μsite]), U[μsite]))
         end
+        normalize!(U)
     else
         evolve!(U, hmc, fermion_action, bias, therm, level-1)
     end

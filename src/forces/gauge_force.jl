@@ -18,8 +18,8 @@ function calc_dSdU_bare!(dU, staples, U, temp_force, smearing)
 end
 
 function calc_dSdU!(
-    dU::Colorfield{B,T}, staples::Colorfield{B,T}, U::Gaugefield{B,T},
-) where {B,T}
+    dU::Colorfield{B}, staples::Colorfield{B}, U::Gaugefield{B},
+) where {B}
     gauge_action_deriv!(dU, staples, U)
     return nothing
 end

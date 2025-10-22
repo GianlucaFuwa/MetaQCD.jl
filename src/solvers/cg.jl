@@ -52,7 +52,7 @@ function cgnr!(x, A, A_dagg, b, Ap, r, g, p; tol=1e-12, maxiters=1000, datafile=
 
         if sqrt(res_new) < tol
             @level3 "|  CGNR: converged at iter $(iter-1) with res = $(sqrt(res_new))"
-            print_solverdata(datafile, iters-1, sqrt(res_new))
+            print_solverdata(datafile, iter-1, sqrt(res_new))
             return iter, sqrt(res_new)
         end
 

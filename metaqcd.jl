@@ -1,34 +1,20 @@
-using Pkg
-Pkg.activate(@__DIR__(); io=devnull)
-
+# using Pkg
+# Pkg.activate(@__DIR__(); io=devnull)
+#
 using MetaQCD.Utils
-using MetaQCD: @level1, build_bias, run_sim
+using MetaQCD: @level1, run_build, run_sim, construct_params_from_toml
+using AMDGPU
 
 function parse_args(args)
     parameterfile = args[end]
-    @assert length(args) >= 2 && isfile(parameterfile) """
-    An existing parameter file has to be given as the last input, e.g.:
-    julia metaqcd.jl -mode=sim parameters.toml
+    @assert length(args) >= 1 && isfile(parameterfile) """
+    An existing parameter file has to be given as an input, e.g.:
+    julia metaqcd.jl parameters.toml
 
     You either did not provide a file or the file you provided does not exist.
     """
-
-    @assert count(x -> occursin("-mode", x), args) == 1 """
-    The flag \"-mode\" has to be set before the parameter file.
-    Options are:
-
-    \"-mode=sim\"   to run a simulation with or without Metadynamics or
-    \"-mode=build\" for building a bias potential with possibly multiple walkers
-    """
-
-    mode = split(args[findfirst(x -> occursin("-mode", x), args)], "=")[2]
-    backend = try
-        split(args[findfirst(x -> occursin("-backend", x), args)], "=")[2]
-    catch _
-        "cpu"
-    end
-
-    return parameterfile, mode, backend
+    parameters = construct_params_from_toml(parameterfile)
+    return parameters, parameters.mode, parameters.backend
 end
 
 parameterfile, mode, backend = parse_args(ARGS)
@@ -66,17 +52,16 @@ end
 mpi_parallel() && @level1("[ $(mpi_size()) MPI processes are being used")
 
 if mode == "sim"
-    @assert mpi_size() < 10 "At max 9 MPI processes can be used in parallel tempering for now"
     run_sim(parameterfile)
 elseif mode == "build"
-    build_bias(parameterfile)
+    run_build(parameterfile)
 else
     throw(ArgumentError(
         """
-        The supplied \"-mode\" is invalid. The two options are:
+        The supplied \"mode\" in the parameter file is invalid. The two options are:
 
-        \"-mode=sim\"   to run a simulation with or without Metadynamics or
-        \"-mode=build\" for building a bias potential with possibly multiple walkers
+        \"sim\"   to run a simulation with or without Metadynamics or
+        \"build\" for building a bias potential with possibly multiple walkers
 
         Your input was \"$(mode)\"
         """

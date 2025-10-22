@@ -3,9 +3,11 @@ function struct2dict(x::T) where {T}
 end
 
 @kwdef mutable struct EnsembleParameters
+    mode::String = "sim"
     L::NTuple{4,Int64} = (4, 4, 4, 4)
     backend::String = "cpu"
     float_type::String = "float64"
+    solver_float_type::String = "float64"
     randomseed::Union{UInt64,Vector{UInt64}} = 0x0000000000000000
     NC::Int64 = 3
     su3_nfloats::Int64 = 18

@@ -21,9 +21,32 @@ import ..Universe: Univ
 import ..Updates: HMC, ParityUpdate, Updatemethod, update!, temper!, integrator_from_str
 import ..Updates: set_instanton!
 
-export build_bias, run_sim
+export run_build, run_sim, metaqcd
 
 const PACKAGE_VERSION = "2.1.0"
+
+function metaqcd(parameterfile::String)
+    # When using MPI we make sure that only rank 0 prints to the console
+    if mpi_amroot()
+        ext = splitext(parameterfile)[end]
+        @assert (ext == ".toml") """
+            input file format \"$ext\" not supported. Use TOML format
+        """
+    end
+
+    parameters = construct_params_from_toml(parameterfile)
+    @level1 "[ Mode: $(parameters.mode)\n"
+
+    if parameters.mode == "build"
+        run_build(parameters)
+    elseif parameters.mode == "sim"
+        run_sim(parameters)
+    else
+        error("\"mode\" in parameter file has to be either \"sim\" or \"build\"")
+    end
+
+    return nothing
+end
 
 function print_acceptance_rates(numaccepts, itrj)
     for (i, value) in enumerate(numaccepts)

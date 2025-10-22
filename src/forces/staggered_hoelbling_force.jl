@@ -10,8 +10,8 @@ function calc_dSfdU!( # Force for unrooted Staggered-Hoelbling Action (Nf=2)
     DdagD = DdaggerD(D)
     term = get_mass_term(D)
     bc = D.boundary_condition
-    solver_action = fermion_action.solver_action
-    tol, maxiters, datafile = get_info(solver_action)
+    solver_md = fermion_action.solver_md
+    tol, maxiters, datafile = get_info(solver_md)
 
     clear!(X) # initial guess is zero
     solve_dirac!(X, DdagD, ϕ, Y, temp1, temp2; tol, maxiters, datafile)
@@ -37,8 +37,8 @@ function calc_dSfdU!( # Force for single flavor Staggered-Hoelbling Action (Nf=2
     temp1, temp2 = fermion_action.temps[1:2]
     Xs = fermion_action.temps[3:n+3]
     Ys = fermion_action.temps[n+4:2n+4]
-    solver_action = fermion_action.solver_action
-    tol, maxiters, datafile = get_info(solver_action)
+    solver_md = fermion_action.solver_md
+    tol, maxiters, datafile = get_info(solver_md)
 
     for X in Xs
         clear!(X)
@@ -61,14 +61,14 @@ function calc_dSfdU!( # Force for single flavor Staggered-Hoelbling Action (Nf=2
 end
 
 function add_staggered_hoelbling_derivative!(
-    dU::Colorfield{B,T}, U::Gaugefield{B,T,M}, X::TF, Y::TF, bc, term; coeff=1
-) where {B,T,M,TF<:StaggeredSpinorfield{B,T,M}}
+    dU::Colorfield{B,T}, U::Gaugefield{B,TU,M}, X::TF, Y::TF, bc, term; coeff=1
+) where {B,T,M,TU,TF<:StaggeredSpinorfield{B,TU,M}}
     fac1 = T(-0.5coeff)
     fac2 = T(coeff)
     _μ, _ν, _ρ, _σ = term
     itr = eachindex(dU, U, X, Y)
 
-    parallelfor(itr, B, Val(M), (U, X, Y), (dU,), (dU, U, X, Y)) do site, (dU, U, X, Y)
+    parallelfor(itr, B, Val(M), (U, X, Y), (dU,), (dU, U, X, Y); do_edges=Val(true)) do site, (dU, U, X, Y)
         add_staggered_derivative_kernel!(dU, U, X, Y, site, bc, fac1, T)
         add_hoelbling_derivative_kernel!(dU, _μ, _ν, U, X, Y, site, bc, fac2)
         add_hoelbling_derivative_kernel!(dU, _ρ, _σ, U, X, Y, site, bc, fac2)
