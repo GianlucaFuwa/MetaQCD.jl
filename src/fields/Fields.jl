@@ -54,7 +54,7 @@ end
 # utility functions for MPI-distributed fields
 include("distributed/topology.jl")
 include("distributed/halo_update_async.jl")
-# include("distributed/halo_update_async_gpu.jl")
+include("distributed/halo_update_async_gpu.jl")
 # include("distributed/hide_communication.jl")
 include("distributed/comm_utils.jl")
 
@@ -168,7 +168,7 @@ end
 
 @inline function validate_halo!(u::AbstractField)
     if u.halo_valid isa Base.RefValue{Bool}
-        u.halo_valid[] = false
+        u.halo_valid[] = true
     end
 
     return nothing

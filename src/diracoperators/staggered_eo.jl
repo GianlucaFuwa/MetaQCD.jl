@@ -71,75 +71,89 @@ end
 # The Gaugefields module into CG.jl, which also allows us to use the solvers for 
 # for arbitrary arrays, not just fermion fields and dirac operators (good for testing)
 function LinearAlgebra.mul!(
-    ψ_eo::TF, D::DdaggerD{StaggeredEOPreDiracOperator{B,T,TF,TG,BC}}, ϕ_eo::TF
+    ψ_eo::TF, D::StaggeredEOPreDiracOperator{B,T,TG,BC}, ϕ_eo::TF
+) where {B,T,TF,TG,BC}
+    @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
+    U = D.U
+    mass = D.mass
+    bc = D.boundary_condition
+
+    mul_eo!(ψ_eo, U, ϕ_eo, -mass, bc, true, false)
+    return nothing
+end
+
+# TODO: Daggered
+
+function LinearAlgebra.mul!(
+    ψ_eo::TF, D::DdaggerD{StaggeredEOPreDiracOperator{B,T,TG,BC}}, ϕ_eo::TF
 ) where {B,T,TF,TG,BC}
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.parent.U
     mass = T(D.parent.mass)
     bc = D.parent.boundary_condition
 
-    mul_oe!(ψ_eo, U, ϕ_eo, bc, true, false) # ψₒ = Dₒₑϕₑ
-    mul_eo!(ψ_eo, U, ψ_eo, bc, false, false) # ψₑ = DₑₒDₒₑϕₑ
-    axpby!(mass^2, ϕ_eo, -1, ψ_eo) # ψₑ = m²ϕₑ - DₑₒDₒₑϕₑ
+    mul_oe!(ψ_eo, U, ϕ_eo, -mass, bc, true, false) # ψₒ = Dₒₑϕₑ
+    mul_eo!(ψ_eo, U, ψ_eo, -mass, bc, false, false; fac=-1) # ψₑ = DₑₒDₒₑϕₑ
+    # axpby!(mass^2, ϕ_eo, -1, ψ_eo) # ψₑ = m²ϕₑ - DₑₒDₒₑϕₑ
     return nothing
 end
 
 function mul_oe!(
-    ψ_eo::TF, U::Gaugefield{B,T,M}, ϕ_eo::TF, bc, into_odd, dagg::Bool; fac=1
-) where {B,T,M,TF<:SpinorfieldEO{B,T,M}}
-    ψ = ψ_eo.parent
-    ϕ = ϕ_eo.parent
+    ψ_eo::TF, U::Gaugefield{B,T,M}, ϕ_eo::TF, mass, bc, into_odd, dagg::Bool; fac=1
+) where {B,T,M,TF}
+    ψ = ψ_eo#.parent
+    ϕ = ϕ_eo#.parent
     odd_half = false
-    itr = eachindex(odd_half, ψ, ϕ, U)
+    itr = eachindex(true, U)
     padded_bulk = ψ.topology.bulk_sites_padded
 
     parallelfor(itr, B, Val(M), (U, ϕ_eo), (ψ,), (U, ϕ, ψ)) do o_site, (U, ϕ, ψ)
         site = map_from_half(o_site, padded_bulk)
-        _site = into_odd ? o_site : switch_sides(o_site, padded_bulk)
-        ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, bc, dagg, padded_bulk)
+        ψ[o_site] = fac * staggered_eo_kernel(U, ϕ, site, T(mass), bc, dagg, padded_bulk)
     end
 
     return nothing
 end
 
 function mul_eo!(
-    ψ_eo::TF, U::Gaugefield{B,T,M}, ϕ_eo::TF, bc, into_odd, dagg::Bool; fac=1
-) where {B,T,M,TF<:SpinorfieldEO{B,T,M}}
-    ψ = ψ_eo.parent
-    ϕ = ϕ_eo.parent
+    ψ_eo::TF, U::Gaugefield{B,T,M}, ϕ_eo::TF, mass, bc, into_odd, dagg::Bool; fac=1
+) where {B,T,M,TF}
+    ψ = ψ_eo#.parent
+    ϕ = ϕ_eo#.parent
     even_half = true
-    itr = eachindex(even_half, ψ, ϕ, U)
-    padded_bulk = ψ.topology.bulk_sites_padded
+    itr = eachindex(even_half, U)
+    padded_bulk = U.topology.bulk_sites_padded
 
     parallelfor(itr, B, Val(M), (U, ϕ_eo), (ψ,), (U, ϕ, ψ)) do e_site, (U, ϕ, ψ)
-        site = map_from_half(e_site, padded_bulk)
-        _site = into_odd ? switch_sides(e_site, padded_bulk) : e_site
-        ψ[_site] = fac * staggered_eo_kernel(U, ϕ, site, bc, dagg, padded_bulk)
+        # site = map_from_half(e_site, padded_bulk)
+        @inbounds ψ[e_site] = fac * staggered_eo_kernel(U, ϕ, e_site, T(mass), bc, dagg, padded_bulk)
     end
 
     return nothing
 end
 
 @inline function staggered_eo_kernel(
-    U, ϕ::Spinorfield{B,T,M,ND}, site, bc, dagg::Bool, padded_bulk
-) where {B,T,M,ND}
+    U, ϕ::Spinorfield{B,T,M,1}, site, mass, bc, dagg::Bool, padded_bulk
+) where {B,T,M}
     # sites that begin with a "_" are meant for indexing into the even-odd preconn'ed
     # fermion field 
-    sgn = dagg ? -1 : 1
-    NT = size(U, 4)
     @inbounds begin
-        ψₙ = zero(SVector{3ND,Complex{T}})
-
+        _site = map_to_half(site, padded_bulk);
+        sgn = dagg ? T(-1) : T(1)
+        ψₙ = 2mass * ϕ[site]
+        NT = size(U, 4)
         # use @nexprs here to statically generate the loop
         # this makes it so Val(μ) is well defined at each iteration and no type-instabilities arise
         @nexprs 4 μ -> (
             Nμ = axes(U, μ);
-            _siteμ⁺ = map_to_half(move(site, μ, 1, Nμ), padded_bulk);
+            siteμ⁺ = move(site, μ, 1, Nμ);
+            _siteμ⁺ = map_to_half_switch(siteμ⁺, padded_bulk);
             siteμ⁻ = move(site, μ, -1, Nμ);
-            _siteμ⁻ = map_to_half(siteμ⁻, padded_bulk);
+            _siteμ⁻ = map_to_half_switch(siteμ⁻, padded_bulk);
             η = sgn * staggered_η(Val(μ), site, T);
-            ψₙ += η * cmvmul(U[μ, site], apply_bc(ϕ[_siteμ⁺], bc, site, Val(1), NT, Val(μ)));
-            ψₙ -= η * cmvmul_d(U[μ, siteμ⁻], apply_bc(ϕ[_siteμ⁻], bc, site, Val(-1), NT, Val(μ)))
+            ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(μ));
+            ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(μ));
+            ψₙ += η * (cmvmul(U[μ, _site], ϕ⁺) - cmvmul_d(U[μ, _siteμ⁻], ϕ⁻))
         )
     end
 

@@ -2,7 +2,7 @@ using MetaQCD, MetaQCD.Utils, MPI, LinearAlgebra, Chairmarks
 using Random, Statistics, Printf
 using AMDGPU
 using MetaQCD.DiracOperators: solve_dirac!
-using MetaQCD.Fields: update_halo!
+using MetaQCD.Fields: update_halo!, validate_halo!
 using DelimitedFiles
 
 const FLOPS = [
@@ -12,6 +12,7 @@ const FLOPS = [
     # "Dot-Staggered" 22
     # "Dot-Wilson" 94
     "Staggered" 587
+    # "Staggered-EO" 587/2
     # "Wilson" 1368
     # "Wilson-Clover" 1368 + 1728
     # "Invert-Staggered" 587 + 2*22 + 2*12 + 18 # op + 2dot + 2axpy + axpby
@@ -58,13 +59,14 @@ function main(; strong=false)
     GA = WilsonGaugeAction
     N = 12
     halo_width = 1
-    extra_dir = ""
+    extra_dir = "0711-overlap"
     result_dir = joinpath(@__DIR__, "scaling_results", extra_dir)
     time_dir = joinpath(@__DIR__, "scaling_results", extra_dir, "timings")
 
     if strong
         global_dims = (64, 64, 64, 128)
         numprocs_cart = distribute_procs(global_dims, mpi_size())
+        # numprocs_cart = (1, 2, 2, 4)
     else
         numprocs_cart = distribute_procs_capped(16, mpi_size())
         global_dims = (64, 64, 64, 64) .* numprocs_cart
@@ -82,7 +84,6 @@ function main(; strong=false)
     timingname = joinpath(time_dir, "$(bstring)_$(prod(numprocs_cart))procs_$(pstring)$(hstring)$(sstring)")
 
     if mpi_amroot()
-        # fp = open(joinpath(result_dir, "0410", filename), "w")
         fp = open(joinpath(result_dir, filename), "w")
         println(
             fp,
@@ -103,6 +104,7 @@ function main(; strong=false)
         for T in (Float16, Float32, Float64)
             tstring = lowercase(string(T))
             U = Gaugefield{B,T,GA,N}(global_dims..., 6.0; numprocs_cart, halo_width)
+            validate_halo!(U)
 
             if !deviceid_printed
                 for irank in 0:mpi_size()-1
@@ -214,12 +216,23 @@ function main(; strong=false)
                 mpi_barrier()
                 continue
             else
-                staggered = opname == "Staggered"
-                csw = opname == "Wilson-Clover" ? 1.78 : 0.0
-                operator = opname == "Staggered" ? StaggeredDiracOperator : WilsonDiracOperator
-                ϕ = Spinorfield(U; staggered)
-                ψ = Spinorfield(U; staggered)
-                D = operator(U, 0.01; csw=csw)
+                if opname == "Staggered"
+                    D = StaggeredDiracOperator(U, 0.01)
+                    ϕ = Spinorfield(U; staggered=true)
+                    ψ = Spinorfield(U; staggered=true)
+                elseif opname == "Staggered-EO"
+                    D = StaggeredEOPreDiracOperator(U, 0.0)
+                    NX, NY, NZ, NT = global_dims
+                    ϕ = Spinorfield(U; staggered=true)
+                    ψ = Spinorfield(U; staggered=true)
+                    # ϕ = Spinorfield{B,T,1}(NX, NY, NZ, NT÷2)
+                    # ψ = Spinorfield{B,T,1}(NX, NY, NZ, NT÷2)
+                else
+                    csw = opname == "Wilson-Clover" ? 1.78 : 0.0
+                    D = WilsonDiracOperator(U, 0.01; csw=csw)
+                    ϕ = Spinorfield(U)
+                    ψ = Spinorfield(U)
+                end
                 # warmup
                 bench_mul!(B, ψ, (D(U)), ϕ, 1)
                 mpi_barrier()
@@ -315,6 +328,8 @@ function mem_per_site(op, ::Type{T}, nfloat) where T
     # 8 reads gauge neighbors in all μ-directions forward and backward
     if op == "Staggered"
         return sizeof(Complex{T}) * (10 * 3 + 8 * nfloat/2)
+    elseif op == "Staggered-EO"
+        return sizeof(Complex{T}) * (10 * 3 + 8 * nfloat/2) / 2
     elseif op == "Wilson"
         return sizeof(Complex{T}) * (10 * 12 + 8 * nfloat/2)
     elseif op == "Wilson-Clover"
@@ -360,4 +375,4 @@ function benchprint(io, str)
     return nothing
 end
 
-main(strong=false)
+main(strong=true)

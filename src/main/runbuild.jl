@@ -182,11 +182,17 @@ function metabuild!(
 
     load_field!(U, parameters)
 
+    last_updatetime = 0.0 # look at last update time to determine whether we are going past the time limit
+
     @level1("- Thermalization:")
     _, runtime_therm = @timed begin
         !isnothing(starting_Q) && set_instanton!(U, starting_Q[myinstance+1])
 
         for itrj in 1:(parameters.numtherm)
+            if (last_updatetime + time() + TIME_BUFFER - LOAD_TIME) > JOB_TIME_LIMIT
+                break
+            end
+
             @level1("|  itrj = $itrj")
             _, updatetime = @timed begin
                 update!(
@@ -197,9 +203,10 @@ function metabuild!(
                     metro_test=itrj>20, # So we dont get stuck at the beginning
                     therm=Val(true),
                 )
-
                 mpi_barrier()
             end
+
+            last_updatetime = updatetime
 
             if mpi_amroot(mpi_comm_instance())
                 fp = fopen(logtimepath, "a")
@@ -236,6 +243,10 @@ function metabuild!(
     _, runtime_prod = @timed begin
         numaccepts = 0.0
         for itrj in 1:(parameters.numsteps)
+            if (last_updatetime + time() + TIME_BUFFER - LOAD_TIME) > JOB_TIME_LIMIT
+                break
+            end
+
             @level1("|  itrj = $itrj")
 
             _, updatetime = @timed begin
@@ -247,9 +258,10 @@ function metabuild!(
                     metro_test=true,
                 )
                 numaccepts += accepted
+                mpi_barrier()
             end
 
-            mpi_barrier()
+            last_updatetime = updatetime
 
             if mpi_amroot(mpi_comm_instance())
                 fp = fopen(logtimepath, "a")
@@ -260,11 +272,15 @@ function metabuild!(
 
             @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")
             # all procs send their CVs to all other procs and update their copy of the bias
-            CVs = mpi_allgather(tuple(bias.CV...)::NTuple{num_cv,Float64}, comm_shared)
-            accepteds = mpi_allgather(accepted::Bool, comm_shared)
-            accepted_CVs = CVs[findall(accepteds)] # update only on those CVs that were accepted
-
-            update_bias!(bias, accepted_CVs, itrj; mpi_multi_sim=mpi_multi_sim)
+            if parameters.recycle && updatemethod isa HMC
+                sCVs = updatemethod.substep_CVs
+                all_CVs = [bias.CV, view(sCVs, 2:length(sCVs))...]
+                CVs = mpi_allgather(all_CVs, comm_shared)
+                update_bias!(bias, CVs, itrj; mpi_multi_sim=mpi_multi_sim)
+            else
+                CVs = mpi_allgather(tuple(bias.CV...)::NTuple{num_cv,Float64}, comm_shared)
+                update_bias!(bias, CVs, itrj; mpi_multi_sim=mpi_multi_sim)
+            end
 
             acceptances = mpi_allgather(numaccepts::Float64, comm_shared) # XXX: should use MPI.gather?
             print_acceptance_rates(acceptances, itrj)
@@ -285,5 +301,6 @@ function metabuild!(
     flush(stdout)
     close(MetaIO.__GlobalLogger[])
     isinteractive() && set_global_logger!(1) # Reset logger if run from REPL
+    mpi_barrier()
     return nothing
 end

@@ -50,25 +50,24 @@ function parallelfor(
     do_edges::Val{E}=Val(false),
     stream=default_stream(B())
 ) where {B,M,hide,E}
-    if M && hide && length(to_validate) > 0
-        tasks = start_halo_update!(to_validate; do_edges)
+        if M && (hide && B!=CPU) && length(to_validate) > 0
+        # launch inner comp (async)
         hw, idx = findmin(get_halo_width, to_validate)
         inner_bulk = shrink_bulk(itr, hw, to_validate[1].topology.numprocs_cart)
         new_block_size = min(block_size, min(256, length(inner_bulk)))
-        # inner work
         _parallelfor(f, captured, inner_bulk, B, new_block_size; stream=get_stream(B(), 1))
-        # wait for exchange to finish
-        finalize_halo_update!(tasks)
-        # outer work
+
+        # do exchange 
+        start_halo_update!(to_validate; do_edges)
+
+        # finish inner comp (to avoid resource contention)
+        synchronize(B(), get_stream(B(), 1))
+
+        # launch outer comp
         border_iterators = to_validate[idx].topology.border_iterators
         new_block_size = min(block_size, min(256, length(border_iterators[1])))
         _parallelfor(f, captured, border_iterators, B, new_block_size)
-
-        synchronize(B(), get_stream(B(), 1))
-        # for i in eachindex(border_iterators)
-        #     synchronize(B(), get_priority_stream(B(), i+1))
-        # end
-    elseif M && !hide && length(to_validate) > 0
+    elseif M && (!hide || B==CPU) && length(to_validate) > 0
         update_halo!(to_validate; do_edges)
         _parallelfor(f, captured, itr, B, block_size; stream)
     else
@@ -123,6 +122,19 @@ function launch_foreachindex_global! end
     return nothing
 end
 
+@inline function _foreachindex_global!(f, captured, itr...)
+    ithread = threadidx().x + (groupidx().x - Int32(1)) * groupdim().x
+    itr_lengths = length.(itr)
+
+    if ithread <= sum(itr_lengths)
+        iitr, i = get_iterator_index(ithread, itr_lengths)
+        @inbounds site = itr[iitr][i]
+        @inline f(site, captured)
+    end
+
+    return nothing
+end
+
 function parallelfor_sum(
     f,
     itr,
@@ -156,20 +168,20 @@ function parallelfor_sum(
     do_edges::Val{E}=Val(false),
     stream=default_stream(B())
 ) where {B,M,hide,E}
-    if M && hide && length(to_validate) > 0
-        tasks = start_halo_update!(to_validate; do_edges)
+    if M && (hide && B!=CPU) && length(to_validate) > 0
+        # inner work
         hw, idx = findmin(get_halo_width, to_validate)
         inner_bulk = shrink_bulk(itr, hw, to_validate[1].topology.numprocs_cart)
         new_block_size = min(block_size, min(256, length(inner_bulk)))
-        # inner work
         result = _parallelfor_sum(f, captured, inner_bulk, init, B, new_block_size)#, stream=get_stream(B(), 1))
-        # wait for exchange to finish
-        finalize_halo_update!(tasks)#, to_validate, B)
+
+        start_halo_update!(to_validate; do_edges)
+
         # outer work
         border_iterators = to_validate[idx].topology.border_iterators
         new_block_size = min(block_size, min(256, length(border_iterators[1])))
         result += _parallelfor_sum(f, captured, border_iterators, init, B, new_block_size)
-    elseif M && !hide && length(to_validate) > 0
+    elseif M && (!hide || B==CPU) && length(to_validate) > 0
         update_halo!(to_validate; do_edges)
         result = _parallelfor_sum(f, captured, itr, init, B, block_size; stream)
     else
@@ -259,4 +271,19 @@ function parallelfor_max(
             backend(), init, max, f, captured, (itr,), block_size
         )
     end
+end
+
+@inline function get_iterator_index(ithread, itr_lengths)
+    cumsums = (0, cumsum(itr_lengths)...)
+
+    for i in 1:(length(itr_lengths))
+        if ithread <= cumsums[i+1]
+            iter_idx = i
+            local_index = ithread - cumsums[i]
+            return iter_idx, local_index
+        end
+    end
+
+    throw(AssertionError("Out of Index in get_iterator_index"))
+    return 0, 0
 end

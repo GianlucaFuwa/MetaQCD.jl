@@ -28,7 +28,7 @@ end
     A = reinterpret(reshape, T, Ac)
     x = reinterpret(reshape, T, xc)
 
-    @turbo for m in Base.Slice(static(1):static(M))
+    @fastmath for m in Base.Slice(static(1):static(M))
         yre = zero(T)
         yim = zero(T)
         for n in Base.Slice(static(1):static(N))
@@ -60,7 +60,7 @@ end
     A = reinterpret(reshape, T, Ac)
     x = reinterpret(reshape, T, xc)
 
-    @turbo for m in Base.Slice(static(1):static(M))
+    @fastmath for m in Base.Slice(static(1):static(M))
         yre = zero(T)
         yim = zero(T)
         for n in Base.Slice(static(1):static(N))
@@ -166,7 +166,7 @@ end
     end
 
     loop_q = quote
-        @turbo for m in Base.Slice(static(1):static($N))
+        @fastmath for m in Base.Slice(static(1):static($N))
             yₘ₁r = $(zero(T))
             yₘ₁i = $(zero(T))
             yₘ₂r = $(zero(T))
@@ -890,7 +890,7 @@ end
     end
 
     loop_q = quote
-        @turbo for m in Base.Slice(static(1):static($N))
+        @fastmath for m in Base.Slice(static(1):static($N))
             yₘ₁r = $(zero(T))
             yₘ₁i = $(zero(T))
             yₘ₂r = $(zero(T))
@@ -1025,7 +1025,7 @@ end
     end
 
     loop_q = quote
-        @turbo for m in Base.Slice(static(1):static($N))
+        @fastmath for m in Base.Slice(static(1):static($N))
             $inner_q
         end
 

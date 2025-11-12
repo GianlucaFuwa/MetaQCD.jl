@@ -74,9 +74,24 @@ function LinearAlgebra.mul!(
     mass = T(D.mass)
     bc = D.boundary_condition
 
-    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ)) do site, (U, ϕ, ψ)
-        @inbounds ψ[site] = staggered_kernel(U, ϕ, site, mass, bc, T, false)
-    end
+    # if T == Float64
+    #     parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ)) do site, (U, ϕ, ψ)
+    #         @inbounds ψ[site] = staggered_kernel(U, ϕ, site, mass, Val(1), bc, T, false)
+    #     end
+    #     parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ)) do site, (U, ϕ, ψ)
+    #         @inbounds ψ[site] += staggered_kernel(U, ϕ, site, Val(2), bc, T, false)
+    #     end
+    #     parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ)) do site, (U, ϕ, ψ)
+    #         @inbounds ψ[site] += staggered_kernel(U, ϕ, site, Val(3), bc, T, false)
+    #     end
+    #     parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ)) do site, (U, ϕ, ψ)
+    #         @inbounds ψ[site] += staggered_kernel(U, ϕ, site, Val(4), bc, T, false)
+    #     end
+    # else
+        parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ)) do site, (U, ϕ, ψ)
+            @inbounds ψ[site] = staggered_kernel(U, ϕ, site, mass, bc, T, false)
+        end
+    # end
 
     return nothing
 end
@@ -103,6 +118,39 @@ function LinearAlgebra.mul!(
     mul!(temp, D.parent, ϕ) # temp = Dϕ
     mul!(ψ, adjoint(D.parent), temp) # ψ = D†Dϕ
     return nothing
+end
+
+@inline function staggered_kernel(U, ϕ, site, mass, ::Val{μ}, bc, ::Type{T}, dagg::Bool) where {T,μ}
+    @inbounds begin
+        sgn = dagg ? T(-1) : T(1)
+        NT = size(U, 4)
+        Nμ = axes(U, μ);
+        siteμ⁺ = move(site, μ, 1, Nμ);
+        siteμ⁻ = move(site, μ, -1, Nμ);
+        η = sgn * staggered_η(Val(μ), site, T);
+        ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(μ));
+        ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(μ));
+        ψₙ = 2mass * ϕ[site]
+        ψₙ += η * (cmvmul(U[μ, site], ϕ⁺) - cmvmul_d(U[μ, siteμ⁻], ϕ⁻))
+    end
+
+    return T(0.5) * ψₙ
+end
+
+@inline function staggered_kernel(U, ϕ, site, ::Val{μ}, bc, ::Type{T}, dagg::Bool) where {T,μ}
+    @inbounds begin
+        sgn = dagg ? T(-1) : T(1)
+        NT = size(U, 4)
+        Nμ = axes(U, μ);
+        siteμ⁺ = move(site, μ, 1, Nμ);
+        siteμ⁻ = move(site, μ, -1, Nμ);
+        η = sgn * staggered_η(Val(μ), site, T);
+        ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(μ));
+        ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(μ));
+        ψₙ = η * (cmvmul(U[μ, site], ϕ⁺) - cmvmul_d(U[μ, siteμ⁻], ϕ⁻))
+    end
+
+    return T(0.5) * ψₙ
 end
 
 @inline function staggered_kernel(U, ϕ, site, mass, bc, ::Type{T}, dagg::Bool) where {T}

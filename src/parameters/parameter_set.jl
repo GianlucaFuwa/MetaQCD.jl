@@ -22,6 +22,7 @@ struct ParameterSet
     boundary_condition::String
 
     # bias parameters
+    recycle::Bool
     rhostout_for_cv::Float64
     weight_type::Vector{String}
     starting_Q::Union{Nothing,Vector{Int64}}

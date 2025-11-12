@@ -15,7 +15,7 @@ function calc_dVdU_bare!(dU, F, U, temp_force, bias, icv, is_smeared)
     bias_derivative = ∂V∂Q(bias, cv, icv)
     smearing = bias.smearing
     calc_cv_deriv_bare!(dU, bias, F, U, temp_force, smearing, icv, bias_derivative)
-    return nothing
+    return cv
 end
 
 function calc_cv_deriv_bare!(dU, bias, F, U, ::Any, ::NoSmearing, icv, fac=1)

@@ -24,7 +24,7 @@ function create_gpu_layout(struct_name)
     origin = if struct_name == :Gaugefield
         :(OffsetArrays.Origin(1, topology.bulk_sites[1].I.-eff_halo_width..., 1))
     elseif struct_name == :Spinorfield
-        :(OffsetArrays.Origin(1, topology.bulk_sites[1].I.-eff_halo_width...,))
+        :(OffsetArrays.Origin(1, topology.bulk_sites[1].I.-eff_halo_width...))
     elseif struct_name == :MultiSpinorfield
         :(OffsetArrays.Origin(1, topology.bulk_sites[1].I.-eff_halo_width..., 1))
     elseif struct_name == :Tensorfield

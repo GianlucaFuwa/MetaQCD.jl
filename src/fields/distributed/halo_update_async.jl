@@ -4,7 +4,7 @@
 Perform a complete halo exchange. Use this function when communication cannot be hidden.
 """
 function update_halo!(
-    fields::NTuple{N,AbstractMPIField}; do_edges::Val{DO_EDGES}=Val(false)
+    fields::NTuple{N,AbstractMPIField{CPU}}; do_edges::Val{DO_EDGES}=Val(false)
 ) where {N,DO_EDGES}
     sendrecvtasks = start_halo_update!(fields; do_edges)
     # sendrecvtasks is a Tuple{N} of Tuple{Vector{Task},Vector{Task}} 
@@ -27,7 +27,7 @@ completed and communication cannot be hidden behind computation.
 start_halo_update!(args...; kwargs...) = ()
 
 function start_halo_update!(
-    fields::NTuple{N,AbstractMPIField}; do_edges::Val{DO_EDGES}=Val(false)
+    fields::NTuple{N,AbstractMPIField{CPU}}; do_edges::Val{DO_EDGES}=Val(false)
 ) where {N,DO_EDGES}
     sendrecv_tasks = ntuple(Val(N)) do i
         if halo_is_valid(fields[i])
@@ -139,11 +139,9 @@ function finalize_halo_update!(tasks::Tuple{Vector{Task},Vector{Task}})
     recvtasks = tasks[1]
     sendtasks = tasks[2]
 
-    @sync for i in eachindex(recvtasks, sendtasks)
-        @async begin
-            cooperative_wait(recvtasks[i])
-            cooperative_wait(sendtasks[i])
-        end
+    for i in eachindex(recvtasks, sendtasks)
+        cooperative_wait(recvtasks[i])
+        cooperative_wait(sendtasks[i])
     end
 
     return nothing
@@ -177,8 +175,8 @@ function start_halo_update_single!(
         identity
     end
 
-    all_recv_tasks = Vector{Task}(undef, sum(topology.numprocs_cart .> 1))
-    all_send_tasks = Vector{Task}(undef, sum(topology.numprocs_cart .> 1))
+    all_recv_tasks = Vector{Task}(undef, 2sum(topology.numprocs_cart .> 1))
+    all_send_tasks = Vector{Task}(undef, 2sum(topology.numprocs_cart .> 1))
     itask = 0
 
     for dim in 1:4
@@ -198,31 +196,43 @@ function start_halo_update_single!(
             # Create receive tasks
             recv_req_prev = mpi_irecv!(recv_buf_prev, comm_cart; source=prev_nbr, tag=tag_prev)
             recv_req_next = mpi_irecv!(recv_buf_next, comm_cart; source=next_nbr, tag=tag_next)
-            recv_task = @task begin
+            recv_task_prev = @task begin
                 priority!(backend(), :high)
                 wait(recv_req_prev)
-                wait(recv_req_next)
                 fill_halo!(u, convert_fun(recv_buf_prev), prev_sites_to)
+                synchronize(backend())
+            end
+            recv_task_next = @task begin
+                priority!(backend(), :high)
+                wait(recv_req_next)
                 fill_halo!(u, convert_fun(recv_buf_next), next_sites_to)
                 synchronize(backend())
             end
 
-            schedule(recv_task)
-            all_recv_tasks[itask] = recv_task
+            schedule(recv_task_prev)
+            schedule(recv_task_next)
+            all_recv_tasks[2(itask-1) + 1] = recv_task_prev
+            all_recv_tasks[2(itask-1) + 2] = recv_task_next
 
-            send_task = @task begin
+            send_task_prev = @task begin
                 priority!(backend(), :high)
                 send_buf_prev = create_sendbuf!(u, prev_sites_from, dim, 1)
-                send_buf_next = create_sendbuf!(u, next_sites_from, dim, 2)
                 synchronize(backend())
                 send_req_prev = mpi_isend(send_buf_prev, comm_cart; dest=prev_nbr, tag=tag_next)
-                send_req_next = mpi_isend(send_buf_next, comm_cart; dest=next_nbr, tag=tag_prev)
                 wait(send_req_prev)
+            end
+            send_task_next = @task begin
+                priority!(backend(), :high)
+                send_buf_next = create_sendbuf!(u, next_sites_from, dim, 2)
+                synchronize(backend())
+                send_req_next = mpi_isend(send_buf_next, comm_cart; dest=next_nbr, tag=tag_prev)
                 wait(send_req_next)
             end
 
-            schedule(send_task)
-            all_send_tasks[itask] = send_task
+            schedule(send_task_prev)
+            schedule(send_task_next)
+            all_send_tasks[2(itask-1) + 1] = send_task_prev
+            all_send_tasks[2(itask-1) + 2] = send_task_next
         end
     end
 

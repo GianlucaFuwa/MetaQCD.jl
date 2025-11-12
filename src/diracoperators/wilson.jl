@@ -87,14 +87,41 @@ function LinearAlgebra.mul!(
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.U
     Fμν = D.Fμν
-    mass_term = T(8 + 2 * D.mass)
-    csw = D.csw
+    mass_term = T(4 + D.mass)
+    csw= D.csw
     bc = D.boundary_condition
     fac = T(-csw / 2)
     do_edges = C ? Val(true) : Val(false)
 
-    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ, Fμν); do_edges) do site, (U, ϕ, ψ, Fμν)
-        @inbounds ψ[site] = wilson_kernel(U, Fμν, ϕ, site, mass_term, fac, bc, T, Val(1), Val(C))
+    # if T == Float16
+        parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ, Fμν); do_edges) do site, (U, ϕ, ψ)
+            @inbounds ψ[site] = wilson_kernel(U, ϕ, site, bc, T, Val(1))
+        end
+    # else
+    #     parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ, Fμν); do_edges) do site, (U, ϕ, ψ)
+    #         @inbounds ψ[site] = wilson_kernel(U, ϕ, site, Val(1), bc, T, Val(1))
+    #     end
+    #     parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ, Fμν); do_edges) do site, (U, ϕ, ψ)
+    #         @inbounds ψ[site] += wilson_kernel(U, ϕ, site, Val(2), bc, T, Val(1))
+    #     end
+    #     parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ, Fμν); do_edges) do site, (U, ϕ, ψ)
+    #         @inbounds ψ[site] += wilson_kernel(U, ϕ, site, Val(3), bc, T, Val(1))
+    #     end
+    #     parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ, Fμν); do_edges) do site, (U, ϕ, ψ)
+    #         @inbounds ψ[site] += wilson_kernel(U, ϕ, site, Val(4), bc, T, Val(1))
+    #     end
+    # end
+
+    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (), (ψ,), (ψ, ϕ)) do site, (ψ, ϕ)
+        @inbounds ψ[site] += mass_term .* ϕ[site]
+    end
+
+    if C
+        @nexprs 6 i -> (
+            parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (ϕ,), (ψ,), (ϕ, ψ, Fμν); do_edges) do site, (ϕ, ψ, Fμν)
+                @inbounds ψ[site] += clover_kernel(ϕ, Fμν, site, Val(i), fac, T)
+            end
+        )
     end
 
     return nothing
@@ -128,13 +155,54 @@ function LinearAlgebra.mul!(
     return nothing
 end
 
-function wilson_kernel(
-    U, ::Any, ϕ, site, mass_term, ::Any, bc, ::Type{T}, ::Val{dagg}, ::Val{false}
+@inline function wilson_kernel(
+    U, ϕ, site, mass_term, bc, ::Type{T}, ::Val{dagg}
 ) where {T,dagg}
     @inbounds begin
         # dagg can be 1 or -1; if it's -1 then we swap (1 - γᵨ) with (1 + γᵨ) and vice versa
         # We have to wrap in a Val for the same reason as in the next comment
-        ψₙ = mass_term * ϕ[site] # factor 1/2 is included at the end
+        ψₙ = zero(SVector{12,Complex{T}}) # factor 1/2 is included at the end
+        NT = size(U, 4)
+        @nexprs 4 μ -> (
+            Nμ = axes(U, μ);
+            siteμ⁺ = move(site, μ, 1, Nμ);
+            siteμ⁻ = move(site, μ, -1, Nμ);
+            ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(μ));
+            ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(μ));
+            ψₙ -= cmvmul_spin_proj(U[μ, site], ϕ⁺, Val(-μ*dagg), Val(false));
+            ψₙ -= cmvmul_spin_proj(U[μ, siteμ⁻], ϕ⁻, Val(μ*dagg), Val(true))
+        )
+    end
+
+    return T(0.5) * ψₙ
+end
+
+@inline function wilson_kernel(
+    U, ϕ, site, ::Val{μ}, mass_term, bc, ::Type{T}, ::Val{dagg}
+) where {T,dagg,μ}
+    @inbounds begin
+        # dagg can be 1 or -1; if it's -1 then we swap (1 - γᵨ) with (1 + γᵨ) and vice versa
+        # We have to wrap in a Val for the same reason as in the next comment
+        NT = size(U, 4)
+        Nμ = axes(U, μ);
+        siteμ⁺ = move(site, μ, 1, Nμ);
+        siteμ⁻ = move(site, μ, -1, Nμ);
+        ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(μ));
+        ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(μ));
+        ψₙ = cmvmul_spin_proj(U[μ, site], ϕ⁺, Val(-μ*dagg), Val(false));
+        ψₙ += cmvmul_spin_proj(U[μ, siteμ⁻], ϕ⁻, Val(μ*dagg), Val(true))
+    end
+
+    return T(-0.5) * ψₙ
+end
+
+@inline function wilson_kernel(
+    U, ϕ, site, bc, ::Type{T}, ::Val{dagg}
+) where {T,dagg}
+    @inbounds begin
+        # dagg can be 1 or -1; if it's -1 then we swap (1 - γᵨ) with (1 + γᵨ) and vice versa
+        # We have to wrap in a Val for the same reason as in the next comment
+        ψₙ = zero(SVector{12,Complex{T}}) # factor 1/2 is included at the end
         NT = size(U, 4)
         # use @nexprs here to statically generate the loop
         # this makes it so Val(μ) is well defined at each iteration and no type-instabilities arise
@@ -152,31 +220,10 @@ function wilson_kernel(
     return T(0.5) * ψₙ
 end
 
-function wilson_kernel(
-    U, Fμν, ϕ, site, mass_term, csw_fac, bc, ::Type{T}, ::Val{dagg}, ::Val{true}
-) where {T,dagg}
+@inline function clover_kernel(ϕ, Fμν, site, ::Val{i}, csw_fac, ::Type{T}) where {T,i}
     @inbounds begin
-        # dagg can be 1 or -1; if it's -1 then we swap (1 - γᵨ) with (1 + γᵨ) and vice versa
-        # We have to wrap in a Val for the same reason as in the next comment
         ϕₙ = ϕ[site]
-        ψₙ = mass_term * ϕₙ # factor 1/2 is included at the end
-        NT = size(U, 4)
-        # use @nexprs here to statically generate the loop
-        # this makes it so Val(μ) is well defined at each iteration and no type-instabilities arise
-        @nexprs 4 μ -> (
-            Nμ = axes(U, μ);
-            siteμ⁺ = move(site, μ, 1, Nμ);
-            siteμ⁻ = move(site, μ, -1, Nμ);
-            ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(μ));
-            ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(μ));
-            ψₙ -= cmvmul_spin_proj(U[μ, site], ϕ⁺, Val(-μ*dagg), Val(false));
-            ψₙ -= cmvmul_spin_proj(U[μ, siteμ⁻], ϕ⁻, Val(μ*dagg), Val(true))
-        )
-        Cₙ = zero(ϕₙ)
-        @nexprs 6 i -> (
-            Cₙ += cmvmul_color(Fμν[i, site], σμν_spin_mul(ϕₙ, Val(i)))
-        )
+        Cₙ = cmvmul_color(Fμν[i, site], σμν_spin_mul(ϕₙ, Val(i)))
     end
-
-    return T(0.5) * ψₙ + T(csw_fac) * Cₙ
+    return Complex{T}(csw_fac) * Cₙ
 end

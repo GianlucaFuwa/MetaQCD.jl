@@ -3,6 +3,7 @@ module Main
 using Dates
 using DelimitedFiles
 using LinearAlgebra
+using Preferences
 using Random
 using Statistics
 using StaticTools: StaticString
@@ -24,6 +25,9 @@ import ..Updates: set_instanton!
 export run_build, run_sim, metaqcd
 
 const PACKAGE_VERSION = "2.1.0"
+const LOAD_TIME = time() # Used for cluster job termination when there is a time limit
+const TIME_BUFFER = 30 * 60 # 20 Minute buffer for job termination
+const JOB_TIME_LIMIT = @load_preference("JOB_TIME_LIMIT", Inf) * 60 # should be given in minutes in LocalPreferences.toml
 
 function metaqcd(parameterfile::String)
     # When using MPI we make sure that only rank 0 prints to the console

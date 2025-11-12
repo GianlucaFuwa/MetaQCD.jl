@@ -318,9 +318,15 @@ function metaqcd!(
     # load in config and recalculate gauge action if given
     load_field!(U, parameters)
 
+    last_updatetime = 0.0
+
     @level1("- Thermalization:")
     _, runtime_therm = @timed begin
         for itrj in 1:(parameters.numtherm)
+            if (last_updatetime + time() + TIME_BUFFER - LOAD_TIME) > JOB_TIME_LIMIT
+                break
+            end
+
             @level1("|  itrj = $itrj")
             _, updatetime = @timed begin # time each update iteration
                 update!(
@@ -331,9 +337,10 @@ function metaqcd!(
                     metro_test=itrj>20, # So we dont get stuck at the beginning
                     therm=Val(true),
                 )
+                mpi_barrier()
             end
 
-            mpi_barrier()
+            last_updatetime = updatetime
 
             if mpi_amroot(mpi_comm_instance())
                 if !isnothing(timing_datafile)
@@ -357,6 +364,10 @@ function metaqcd!(
     _, runtime_prod = @timed begin
         numaccepts = 0.0
         for itrj in 1:(parameters.numsteps)
+            if (last_updatetime + time() + TIME_BUFFER - LOAD_TIME) > JOB_TIME_LIMIT
+                break
+            end
+
             @level1("|  itrj = $itrj")
             _, updatetime = @timed begin
                 accepted = update!(
@@ -373,9 +384,10 @@ function metaqcd!(
 
                 accepted>0 && update_bias!(bias, itrj; mpi_multi_sim=mpi_multi_sim)
                 numaccepts += accepted
+                mpi_barrier()
             end
 
-            mpi_barrier()
+            last_updatetime = updatetime
 
             if mpi_amroot(mpi_comm_instance())
                 if !isnothing(timing_datafile)
@@ -425,6 +437,7 @@ function metaqcd!(
     flush(stdout)
     close(MetaIO.__GlobalLogger[])
     isinteractive() && set_global_logger!(1) # Reset logger if run from REPL
+    mpi_barrier()
     return nothing
 end
 

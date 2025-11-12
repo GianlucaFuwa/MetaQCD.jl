@@ -68,6 +68,8 @@ struct HMC{TL,NL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF} <: AbstractUpdate
     smearing_gauge::TSG
     smearing_fermion::TSF
 
+    substep_CVs::Vector{Vector{Float64}}
+
     logfile::TLF
     function HMC(
         levels,
@@ -83,6 +85,7 @@ struct HMC{TL,NL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF} <: AbstractUpdate
         fieldstrength,
         smearing_gauge,
         smearing_fermion,
+        substep_CVs,
         logfile,
     )
         @level1("- Constructing HMC...")
@@ -121,6 +124,7 @@ struct HMC{TL,NL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF} <: AbstractUpdate
             fieldstrength,
             smearing_gauge,
             smearing_fermion,
+            substep_CVs,
             logfile,
         )
     end
@@ -184,6 +188,8 @@ function HMC(
             distributed=is_distributed(U),
         )
     end
+
+    substep_CVs = Vector{Float64}[]
 
     allforces = collect(Iterators.flatten([lvl.forces for lvl in levels]))
     fail = false
@@ -282,6 +288,7 @@ function HMC(
         fieldstrength,
         smearing_gauge,
         smearing_fermion,
+        substep_CVs,
         logfile,
     )
 end
@@ -410,11 +417,13 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level)
 
     if Val(0) ∈ forces
         if bias isa Bias
+            substep_cv = Vector{Float64}(undef, length(bias))
             for i in 1:length(bias)
                 is_smeared = i > 1
-                calc_dVdU_bare!(
+                cv = calc_dVdU_bare!(
                     force, (fieldstrength, staples), U, temp_force, bias, i, is_smeared
                 )
+                substep_cv[i] = cv
 
                 force_avg = norm(force, Val(2))
                 force_sup = norm(force, Val(Inf))
@@ -427,6 +436,7 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level)
 
                 add!(P, force, ϵ)
             end
+            push!(hmc.substep_CVs, substep_cv)
         else
             if !isnothing(fp)
                 # print(fp, cfmt("%+-25.15E", 0.0))
