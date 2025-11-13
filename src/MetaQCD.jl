@@ -26,7 +26,7 @@ export BMWFormat, BridgeFormat, JLD2Format, load_field!, save_field
 export MetaLogger, current_time, @level1, @level2, @level3, set_global_logger!
 export run_sim, run_build
 
-import .BiasModule: Bias, Metadynamics, NoBias, OPES, Parametric, calc_cv, update_bias!
+import .BiasModule: Bias, Metadynamics, NoBias, OPES, VES, calc_cv, update_bias!
 import .DiracOperators: AbstractDiracOperator, Daggered, DdaggerD, calc_fermion_action
 import .DiracOperators: StaggeredDiracOperator, StaggeredEOPreDiracOperator, even_odd
 import .DiracOperators: WilsonDiracOperator, WilsonEOPreDiracOperator, sample_pseudofermions!
@@ -53,7 +53,7 @@ import .Updates: Leapfrog, LeapfrogRA, OMF2, OMF2Slow, OMF4, OMF4RA, OMF4Slow
 import .Updates: Overrelaxation, Subgroups, KenneyLaub
 import .Universe: Univ
 
-export Bias, Metadynamics, NoBias, OPES, Parametric, calc_cv, update_bias!
+export Bias, Metadynamics, NoBias, OPES, VES, calc_cv, update_bias!
 export CPU, DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
 export SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
 export Expfield, Colorfield, Gaugefield, Paulifield

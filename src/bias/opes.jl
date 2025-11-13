@@ -162,7 +162,7 @@ function OPES(p::OPESParameters; instance=1, dummy=false, build=false, mpi_multi
         penalty = state[:penalty]
     end
 
-    KDEnorm = explore ? counter : sum_weights
+    KDEnorm = explore ? Float64(counter) : sum_weights
 
     write_bias_every = if p.write_bias_every <= stride
         stride
@@ -277,13 +277,20 @@ function update!(o::OPES, cv, itrj)
     o.sum_weights += symm_factor * sum(height)
     o.sum_weights2 += symm_factor^2 * sum(height .* height)
     neff = (1 + o.sum_weights)^2 / (1 + o.sum_weights2)
-    o.KDEnorm = o.sum_weights
+
+    if o.explore
+        o.KDEnorm = o.counter
+        height .= 1.0
+    else
+        o.KDEnorm = o.sum_weights
+    end
 
     # if needed rescale sigma and height
     σ = o.sigma0
 
     if !o.fixed_σ
-        s_rescaling = (3neff / 4)^(-1 / 5)
+        sz = o.explore ? o.counter : neff
+        s_rescaling = (sz / 4)^(-1 / 5)
         σ *= s_rescaling
         σ = max(σ, o.σ_min)
     end
@@ -404,9 +411,9 @@ const opes_state_vars = [
     :penalty,
 ]
 
-write_to_file(::OPES, ::Nothing) = nothing
+write_to_file(::OPES, ::Nothing, args...) = nothing
 
-function write_to_file(o::OPES, filename::AbstractString)
+function write_to_file(o::OPES, filename::AbstractString, args...)
     filename=="" && return nothing
     tmppath = tempname()
     tmpio = fopen(tmppath, "w")
@@ -418,9 +425,17 @@ function write_to_file(o::OPES, filename::AbstractString)
 
     newline(tmpio)
 
-    for var in opes_state_vars
-        printf(tmpio, "%-25.15E", getproperty(o, var))
-    end
+    printf(tmpio, "%-25i", o.counter::Int64)
+    printf(tmpio, "%-25.15f", o.biasfactor::Float64)
+    printf(tmpio, "%-25.15f", o.sigma0::Float64)
+    printf(tmpio, "%-25.15f", o.epsilon::Float64)
+    printf(tmpio, "%-25.15f", o.sum_weights::Float64)
+    printf(tmpio, "%-25.15f", o.sum_weights2::Float64)
+    printf(tmpio, "%-25.15f", o.KDEnorm::Float64)
+    printf(tmpio, "%-25.15f", o.Z::Float64)
+    printf(tmpio, "%-25.15f", o.threshold::Float64)
+    printf(tmpio, "%-25.15f", o.cutoff2::Float64)
+    printf(tmpio, "%-25.15f", o.penalty::Float64)
 
     newline(tmpio)
     printf(tmpio, "%-25s", "#height")

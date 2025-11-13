@@ -34,8 +34,8 @@ function initialize_bias_parameters(type)
         method = OPESParameters()
     elseif lowercase(type) == "opesmt"
         method = OPESmultithermalParameters()
-    elseif lowercase(type) == "parametric"
-        method = ParametricParameters()
+    elseif lowercase(type) == "ves"
+        method = VESParameters()
     else
         error("$(type) is not implemented")
     end
@@ -94,17 +94,19 @@ end
     beta_num::Int64 = 2
 end
 
-@kwdef mutable struct ParametricParameters <: BiasParameters
-    type::String = "parametric"
+@kwdef mutable struct VESParameters <: BiasParameters
+    type::String = "ves"
     kind_of_cv::String = "topcharge_clover"
     load_bias::Vector{String} = String[]
     static::Bool = true
     numsmears_for_cv::Int64 = 4
     cvlims::Vector{Float64} = [-3.0, 3.0]
     penalty_weight::Float64 = 100
-    Q::Float64 = 0.0
-    A::Float64 = 0.0
-    Z::Float64 = 0.0
+    step_size::Float64 = 0.1
+    nbasis::Int64 = 20
+    batch_size::Int64 = 50
+    alpha::Vector{Float64} = []
+    write_bias_every::Int64 = batch_size
 end
 
 function get_cvinfo_from_parameters(p::BiasParameters)

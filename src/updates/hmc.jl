@@ -309,6 +309,8 @@ function update!(
         @assert !isnothing(hmc.ϕ) "fermion_action passed but not activated in HMC"
     end
 
+    empty!(hmc.substep_CVs)
+
     set_ext!(hmc.logfile, instance)
     for lvl in hmc.levels
         set_ext!(lvl.forcefile, instance)

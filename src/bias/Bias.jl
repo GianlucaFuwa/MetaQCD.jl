@@ -48,7 +48,7 @@ Container for bias potential and metadata.
 
 Create a Bias that holds general parameters of bias enhanced sampling, like the kind of CV,
 its smearing and filenames relevant to the bias. Also holds the specific kind
-of bias (`Metadynamics`, `OPES` or `Parametric` for now).
+of bias (`Metadynamics`, `OPES` or `VES` for now).
 
 The `instance` keyword is used in case of PT-MetaD and multiple walkers to assign the
 correct `usebias` to each stream.
@@ -118,10 +118,10 @@ function Bias(p, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, bui
                 bias_parameters, p.beta;
                 instance=instance, dummy=dummy, mpi_multi_sim=mpi_multi_sim, build=build
             )
-        elseif biases[i]["type"] == "parametric"
-            Parametric(bias_parameters; dummy=dummy)
+        elseif biases[i]["type"] == "ves"
+            VES(bias_parameters; dummy=dummy)
         else
-            error("type $(p[i]["type"]) not supported. Try metad, opes, opesmt or parametric")
+            error("type $(p[i]["type"]) not supported. Try metad, opes, opesmt or ves")
         end
     end
 
@@ -179,7 +179,7 @@ function Bias(p, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, bui
     if mpi_amroot(mpi_comm_instance())
         for i in eachindex(bias)
             @level1("$(biasfile[i])")
-            write_to_file(bias[i], biasfile[i])
+            write_to_file(bias[i], biasfile[i], true)
         end
     end
 
@@ -226,7 +226,7 @@ include("bias_parameters.jl")
 include("metadynamics.jl")
 include("opes.jl")
 include("opes_multithermal.jl")
-include("parametric.jl")
+include("ves.jl")
 
 function update_bias!(b::Bias{N}, itrj; mpi_multi_sim=false) where {N}
     return update_bias!(b, b.CV, itrj; mpi_multi_sim=mpi_multi_sim)

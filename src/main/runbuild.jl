@@ -249,7 +249,7 @@ function metabuild!(
 
             @level1("|  itrj = $itrj")
 
-            _, updatetime = @timed begin
+            acc, updatetime = @timed begin
                 accepted = update!(
                     updatemethod,
                     U;
@@ -259,6 +259,7 @@ function metabuild!(
                 )
                 numaccepts += accepted
                 mpi_barrier()
+                accepted
             end
 
             last_updatetime = updatetime
@@ -273,10 +274,21 @@ function metabuild!(
             @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")
             # all procs send their CVs to all other procs and update their copy of the bias
             if parameters.recycle && updatemethod isa HMC
-                sCVs = updatemethod.substep_CVs
-                all_CVs = [bias.CV, view(sCVs, 2:length(sCVs))...]
-                CVs = mpi_allgather(all_CVs, comm_shared)
-                update_bias!(bias, CVs, itrj; mpi_multi_sim=mpi_multi_sim)
+                all_accepted = mpi_allgather(acc::Bool, comm_shared)
+                if all(all_accepted)
+                    sCVs = updatemethod.substep_CVs
+                    all_CVs = Vector{NTuple{num_cv,Float64}}(undef, length(sCVs)-1)
+
+                    for i in 1:length(sCVs)-1
+                        all_CVs[i] = tuple(sCVs[i+1]...)
+                    end
+
+                    CVs = mpi_allgather(all_CVs, comm_shared)
+                    update_bias!(bias, CVs, itrj; mpi_multi_sim=mpi_multi_sim)
+                else
+                    CVs = mpi_allgather(tuple(bias.CV...)::NTuple{num_cv,Float64}, comm_shared)
+                    update_bias!(bias, CVs, itrj; mpi_multi_sim=mpi_multi_sim)
+                end
             else
                 CVs = mpi_allgather(tuple(bias.CV...)::NTuple{num_cv,Float64}, comm_shared)
                 update_bias!(bias, CVs, itrj; mpi_multi_sim=mpi_multi_sim)

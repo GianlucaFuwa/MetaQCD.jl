@@ -187,7 +187,7 @@ kind_of_bias = "opesmt"
 ```
 Parameters that all bias types have, are:
 - `kind_of_bias`: Type of bias as a string (e.g, `kind_of_bias = "metad"`)
-> Supported bias types: `"metad"`, `"opes"`, `"opesmt"` (Multithermal OPES), `"parametric"`
+> Supported bias types: `"metad"`, `"opes"`, `"opesmt"` (Multithermal OPES), `"ves"` (Variationally Enhanced Sampling)
 - `kind_of_cv`: Collective variable to be used as a string (e.g, `kind_of_cv = "topcharge_clover"`)
 > Supported cv types: `"topcharge_plaquette"`, `"topcharge_clover"`, `"multithermal"` (== gauge action, is default of `"opesmt"`)
 - `numsmears_for_cv`: Number of smearing steps for the cv as an integer (e.g, `numsmears_for_cv = 4`)

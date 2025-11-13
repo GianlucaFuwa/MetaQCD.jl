@@ -203,9 +203,9 @@ const opesmt_state_vars = [
     :ΔF,
 ]
 
-write_to_file(::OPESmultithermal, ::Nothing) = nothing
+write_to_file(::OPESmultithermal, ::Nothing, args...) = nothing
 
-function write_to_file(o::OPESmultithermal, filename::String)
+function write_to_file(o::OPESmultithermal, filename::String, args...)
     filename=="" && return nothing
     (tmppath, tmpio) = mktemp()
     print(tmpio, rpad("#counter", 25))

@@ -72,7 +72,7 @@ function calc_weights(
     return nothing
 end
 
-function calc_weight(p::Parametric, cv, args...)
+function calc_weight(p::VES, cv, args...)
     return exp(p(cv))
 end
 

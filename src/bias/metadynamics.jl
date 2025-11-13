@@ -183,9 +183,9 @@ function clear!(m::Metadynamics)
     return nothing
 end
 
-write_to_file(::Metadynamics, ::Nothing) = nothing
+write_to_file(::Metadynamics, ::Nothing, args...) = nothing
 
-function write_to_file(m::Metadynamics, filename::AbstractString)
+function write_to_file(m::Metadynamics, filename::AbstractString, args...)
     filename == "" && return nothing
     (tmppath, tmpio) = mktemp() # open temporary file at arbitrary location in storage
     println(tmpio, "$(rpad("CV", 7))\t$(rpad("V(CV)", 7))")

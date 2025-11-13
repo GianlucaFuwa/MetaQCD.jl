@@ -1,11 +1,18 @@
 # Full Parameter list (= default):
 ```julia
-@kwdef mutable struct PhysicalParameters
-    # gauge parameters
+function struct2dict(x::T) where {T}
+    return Dict{String,Any}(string(fn) => getfield(x, fn) for fn in fieldnames(T))
+end
+
+@kwdef mutable struct EnsembleParameters
+    mode::String = "sim"
     L::NTuple{4,Int64} = (4, 4, 4, 4)
-    beta::Float64 = 5.7
+    backend::String = "cpu"
+    float_type::String = "float64"
+    solver_float_type::String = "float64"
+    randomseed::Union{UInt64,Vector{UInt64}} = 0x0000000000000000
     NC::Int64 = 3
-    gauge_action::String = "wilson"
+    su3_nfloats::Int64 = 18
     numprocs_cart::NTuple{4,Int64} = (1, 1, 1, 1)
     halo_width::Int64 = 0
     numtherm::Int64 = 10
@@ -23,58 +30,43 @@
     parity_update::Bool = false
 end
 
-@kwdef mutable struct DynamicalFermionParameters
+@kwdef mutable struct DataParameters
+    ensemble_dir::String = ""
+    log_to_console::Bool = true
+    verboselevel::Int64 = 1
+    save_config_format::String = ""
+    save_config_every::Int64 = 0
+    save_checkpoint_format::String = ""
+    save_checkpoint_every::Int64 = 0
+    load_config_fromfile::Bool = false
+    load_config_format::String = ""
+    load_config_path::String = ""
+    load_checkpoint_fromfile::Bool = false
+    load_checkpoint_format::String = "jld2"
+    load_checkpoint_path::String = ""
+    overwrite::Bool = false
+end
+
+@kwdef mutable struct GaugeActionParameters
+    beta::Float64 = 5.7
+    gauge_action::String = "wilson"
+end
+
+@kwdef mutable struct FermionActionParameters
     fermion_action::String = "none"
-    Nf::Union{Int,Vector{Int}} = 0
-    mass::Union{Float64,Vector{Float64}} = 0.0
+    boundary_condition::String = "antiperiodic"
     wilson_r::Float64 = 1.0
     wilson_csw::Float64 = 0.0
-    boundary_condition::String = "antiperiodic"
-    cg_tol_action::Float64 = 1e-12
-    cg_tol_md::Float64 = 1e-14
-    cg_maxiters_action::Int64 = 1000
-    cg_maxiters_md::Int64 = 1000
-    rhmc_spectral_bound::NTuple{2,Float64} = (0.0, 64.0)
-    rhmc_recalc_spectral_bound::Bool = false
-    rhmc_order_action::Int64 = 15
-    rhmc_order_md::Int64 = 10
-    rhmc_prec_action::Int64 = 42
-    rhmc_prec_md::Int64 = 42
-    eo_precon::Bool = false
+    fermions::Vector{Dict} = Dict[]
 end
 
 @kwdef mutable struct BiasParameters
-    kind_of_bias::String = "none"
-    kind_of_cv::String = "clover"
-    numsmears_for_cv::Int64 = 4
-    rhostout_for_cv::Float64 = 0.125
-    is_static::Union{Bool,Vector{Bool}} = false
-    symmetric::Bool = false
-    stride::Int64 = 1
-    cvlims::NTuple{2,Float64} = (-7, 7)
-    biasfactor::Float64 = Inf
-    kinds_of_weights::Vector{String} = ["tiwari"]
-    usebiases::Vector{String} = [""]
-    write_bias_every::Int64 = 1
+    biases::Vector{Dict} = Dict[]
+    recycle::Bool = true
+    rhostout_for_cv::Float64 = 0.12
+    weight_type::Vector{String} = ["tiwari"]
     starting_Q::Union{Nothing,Vector{Int64}} = nothing
-    # metadynamics specific
-    bin_width::Float64 = 1e-2
-    meta_weight::Float64 = 1e-3
-    penalty_weight::Float64 = 1000.0
-    # opes specific
-    explore::Bool = false
-    barrier::Float64 = 0.0
-    sigma0::Float64 = 0.1
-    sigma_min::Float64 = 1e-6
-    fixed_sigma::Bool = false
-    no_Z::Bool = false
-    opes_epsilon::Float64 = 0.0
-    threshold::Float64 = 1.0
-    cutoff::Float64 = 0.0
-    # for parametric
-    bias_Q::Float64 = 0.0
-    bias_A::Float64 = 0.0
-    bias_Z::Float64 = 0.0
+    usebiases::Vector{String} = [""]
     # tempering specific
     tempering_enabled::Bool = false
     numinstances::Int64 = 1
@@ -84,11 +76,10 @@ end
 end
 
 @kwdef mutable struct HMCParameters
+    levels::Vector{Dict} = Dict[]
     hmc_trajectory::Float64 = 1
-    hmc_steps::Int64 = 10
     hmc_friction::Float64 = 0.0
-    hmc_integrator::String = "Leapfrog"
-    hmc_rafriction::Float64 = 0.0
+    hmc_rafriction::Float64 = 1.0
     hmc_numsmear_gauge::Int64 = 0
     hmc_numsmear_fermion::Int64 = 0
     hmc_rhostout_gauge::Float64 = 0.0
@@ -104,27 +95,8 @@ end
     flow_measure_every::Union{Int64,Vector{Int64}} = 1
 end
 
-@kwdef mutable struct SystemParameters
-    backend::String = "cpu"
-    float_type::String = "float64"
-    ensemble_dir::String = ""
-    log_to_console::Bool = true
-    verboselevel::Int64 = 1
-    save_config_format::String = ""
-    save_config_every::Int64 = 0
-    save_checkpoint_format::String = ""
-    save_checkpoint_every::Int64 = 0
-    load_config_fromfile::Bool = false
-    load_config_format::String = ""
-    load_config_path::String = ""
-    load_checkpoint_fromfile::Bool = false
-    load_checkpoint_format::String = "jld2"
-    load_checkpoint_path::String = ""
-    randomseed::Union{UInt64,Vector{UInt64}} = 0x0000000000000000
-    overwrite::Bool = false
-end
-
 @kwdef mutable struct MeasurementParameters
-    measurement_method::Vector{Dict} = Dict[]
+    measurements::Vector{Dict} = Dict[]
+    measurements_with_flow::Vector{Dict} = Dict[]
 end
 ```

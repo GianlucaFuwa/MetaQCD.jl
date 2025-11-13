@@ -1,0 +1,129 @@
+[data]
+float_type = "double"
+solver_float_type = "double"
+backend = "rocm"
+ensemble_dir = "/home/gialu/projects/MetaQCD.jl/ensembles/bonanno_bench_double"
+randomseed = 111
+overwrite = true
+verboselevel = 3
+log_to_console = true
+# save_config_format = "bridge"
+# save_config_every = 1
+# load_config_fromfile = true
+# load_config_path = "/zhome/academic/HLRS/xnw/xnwgfuwa/projects/MetaQCD.jl/ensembles/config_bonanno_64_16_therm50"
+# load_config_format = "mpi"
+
+[ensemble]
+mode = "build"
+L = [8, 8, 8, 8]
+numtherm = 4
+numsteps = 4
+numprocs_cart = [1, 1, 1, 1]
+halo_width = 1
+initial = "cold"
+update_method = "hmc"
+numinstances = 1
+su3_nfloats = 12
+
+[gauge_action]
+beta = 4.798
+gauge_action = "symanzik_tree"
+
+[fermion_action]
+fermion_action = "staggered"
+[[fermion_action.fermions]]
+precon = "heavy"
+Nf = 2
+mass = [0.00028348134, 0.00798]
+cg_tol_action = 1e-10
+cg_tol_md = 1e-5
+cg_maxiters_action = 5000
+cg_maxiters_md = 5000
+rhmc_order_action = 15
+rhmc_order_md = 15
+rhmc_spectral_bound = [0.00025, 6.0]
+[[fermion_action.fermions]]
+precon = "none"
+Nf = 1
+mass = 0.00798
+cg_tol_action = 1e-10
+cg_tol_md = 1e-5
+cg_maxiters_action = 5000
+cg_maxiters_md = 5000
+rhmc_order_action = 30
+rhmc_order_md = 15
+rhmc_spectral_bound = [0.000064, 6.0]
+[[fermion_action.fermions]]
+precon = "none"
+Nf = 1
+mass = 0.00798
+cg_tol_action = 1e-10
+cg_tol_md = 1e-5
+cg_maxiters_action = 5000
+cg_maxiters_md = 5000
+rhmc_order_action = 30
+rhmc_order_md = 15
+rhmc_spectral_bound = [0.000064, 6.0]
+[[fermion_action.fermions]]
+precon = "none"
+Nf = 1
+mass = 0.00798
+cg_tol_action = 1e-10
+cg_tol_md = 1e-5
+cg_maxiters_action = 5000
+cg_maxiters_md = 5000
+rhmc_order_action = 30
+rhmc_order_md = 15
+rhmc_spectral_bound = [0.000064, 6.0]
+
+[bias]
+rhostout_for_cv = 0.12 # rho is the same for all CVs
+# starting_Q = [0, 0]
+[[bias.biases]]
+type = "metad"
+kind_of_cv = "topcharge_clover"
+numsmears_for_cv = 4
+static = false
+symmetric = true
+stride = 1
+cvlims = [-2.0, 2.0]
+biasfactor = inf
+penalty_weight = 100.0
+# opes specific parameters
+barrier = 10.0
+sigma_0 = 0.0
+# metad specific parameters
+bin_width = 0.01
+meta_weight = 0.000001
+
+[hmc]
+hmc_trajectory = 1
+hmc_numsmear_fermion = 2
+hmc_rhostout_fermion = 0.15
+[[hmc.levels]]
+forces = [0, 1, 2, 3, 4, 5]
+integrator = "OMF4"
+numsteps = 5
+
+[gradient_flow]
+flow_integrator = "euler"
+flow_num = 30
+flow_steps = 1
+flow_tf = 0.12 # total flow time is flow_num * flow_tf
+flow_measure_every = [10, 20, 30]
+
+[measurements.Plaquette]
+measure_every = 10
+
+[measurements.Topological_charge]
+measure_every = 10
+type = ["clover"]
+
+[measurements_with_flow.Plaquette]
+measure_every = 10
+
+[measurements_with_flow.Topological_charge]
+measure_every = 10
+type = ["clover"]
+
+
