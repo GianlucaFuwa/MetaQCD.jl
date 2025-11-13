@@ -3,7 +3,7 @@ using MetaQCD.Utils
 using LinearAlgebra
 using Random
 using Test
-using AMDGPU
+# using AMDGPU
 
 function test_fderivative(;
     backend=CPU,
@@ -171,6 +171,6 @@ function test_fderivative(;
     return relerrors
 end
 
-AMDGPU.@allowscalar test_fderivative(;
-    single_flavor=true, backend=ROCBackend, nprocs_cart=(1, 1, 1, mpi_size())
-)
+# AMDGPU.@allowscalar test_fderivative(;
+#     single_flavor=true, backend=ROCBackend, nprocs_cart=(1, 1, 1, mpi_size())
+# )

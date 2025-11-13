@@ -3,7 +3,7 @@ using MetaQCD.Utils
 using Test
 using LinearAlgebra
 using Random
-using AMDGPU
+# using AMDGPU
 
 function test_gradflow(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=1)
     Random.seed!(123)
@@ -71,4 +71,4 @@ function test_gradflow(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=1)
     return isapprox(p_stout, p_flow[end])
 end
 
-test_gradflow(; backend=ROCBackend, nprocs_cart=(1, 1, 1, mpi_size()))
+# test_gradflow(; backend=ROCBackend, nprocs_cart=(1, 1, 1, mpi_size()))

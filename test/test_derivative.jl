@@ -3,7 +3,7 @@ using MetaQCD
 using MetaQCD.Utils
 using MetaQCD.Measurements: top_charge_deriv!
 using Test
-using AMDGPU
+# using AMDGPU
 
 function test_derivative(; backend=CPU, GA=WilsonGaugeAction, nprocs_cart=(1, 1, 1, 1), halo_width=1)
     Random.seed!(123)
@@ -164,4 +164,4 @@ function top_charge_deriv_bare!(kind_of_charge, dU, F, U, temp_force, smearing)
     return nothing
 end
 
-AMDGPU.@allowscalar test_derivative(; backend=ROCBackend, nprocs_cart=(1, 1, 1, mpi_size()))
+# AMDGPU.@allowscalar test_derivative(; backend=ROCBackend, nprocs_cart=(1, 1, 1, mpi_size()))

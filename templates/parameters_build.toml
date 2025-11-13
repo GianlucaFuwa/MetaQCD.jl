@@ -1,76 +1,83 @@
 [data]
 float_type = "double"
 solver_float_type = "single"
-backend = "rocm"
-ensemble_dir = "/zhome/academic/HLRS/xnw/xnwgfuwa/projects/MetaQCD.jl/ensembles/weakscale_walkers_16"
+backend = "cpu"
+ensemble_dir = "/home/gialu/projects/MetaQCD.jl/ensembles/recycling_test_1"
 randomseed = 123
 overwrite = true
 verboselevel = 1
 log_to_console = true
-# save_config_format = "bridge"
-# save_config_every = 1
-load_config_fromfile = true
-load_config_path = "/zhome/academic/HLRS/xnw/xnwgfuwa/projects/MetaQCD.jl/ensembles/config_00000001.txt"
-load_config_format = "bridge"
 
 [ensemble]
-numinstances = 16
-L = [32, 32, 32, 32]
-numtherm = 0
-numsteps = 3
+numinstances = 1
+L = [6, 6, 6, 6]
+numtherm = 20
+numsteps = 1000
 numprocs_cart = [1, 1, 1, 1]
 halo_width = 1
 initial = "cold"
 update_method = "hmc"
-su3_nfloats = 12
+su3_nfloats = 18
 mode = "build"
 
 [gauge_action]
-beta = 1.05
+beta = 0.95
 gauge_action = "dbw2"
 
-[fermion_action]
-fermion_action = "staggered"
-[[fermion_action.fermions]]
-precon = "none"
-Nf = 2
-mass = 0.04
-cg_tol_action = 1e-7
-cg_tol_md = 1e-5
-cg_maxiters_action = 5000
-cg_maxiters_md = 5000
-rhmc_order_action = 15
-rhmc_order_md = 10
-rhmc_spectral_bound = [0.0016, 6.0]
-
 [bias]
+recycle = true
 rhostout_for_cv = 0.12 # rho is the same for all CVs
-# starting_Q = [0, 0]
+starting_Q = [0, 1]
 [[bias.biases]]
-type = "metad"
+type = "opes"
 kind_of_cv = "topcharge_clover"
-numsmears_for_cv = 4
+numsmears_for_cv = 2
 static = false
 symmetric = true
 stride = 1
 cvlims = [-2.0, 2.0]
-biasfactor = inf
+biasfactor = 5
 penalty_weight = 100.0
 # opes specific parameters
 barrier = 10.0
 sigma_0 = 0.0
+explore = false
 # metad specific parameters
 bin_width = 0.01
-meta_weight = 0.000001
+meta_weight = 0.05
+# ves specific parameters
+batch_size = 20
+step_size = 0.2
+alpha = [
+  9.0,
+  7.0,
+ -1.0,
+  1.0,
+  0.0,
+  0.0,
+  2.0,
+  2.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+]
 
 [hmc]
-hmc_trajectory = 1
-hmc_numsmear_fermion = 4
-hmc_rhostout_fermion = 0.125
+hmc_trajectory = 4
 [[hmc.levels]]
-forces = [0, 1, 2]
+forces = [0, 1]
 integrator = "OMF4"
-numsteps = 5
+numsteps = 20
 
 [gradient_flow]
 flow_integrator = "euler"
@@ -80,15 +87,15 @@ flow_tf = 0.12 # total flow time is flow_num * flow_tf
 flow_measure_every = [10, 20, 30]
 
 [measurements.Plaquette]
-measure_every = 10
+measure_every = 100
 
 [measurements.Topological_charge]
-measure_every = 10
+measure_every = 100
 type = ["clover"]
 
 [measurements_with_flow.Plaquette]
-measure_every = 10
+measure_every = 100
 
 [measurements_with_flow.Topological_charge]
-measure_every = 10
+measure_every = 100
 type = ["clover"]
