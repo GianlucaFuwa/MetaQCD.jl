@@ -11,7 +11,7 @@ module Measurements
 using LinearAlgebra
 using Polyester
 using StaticTools: StaticString
-using ..MetaIO
+using ..Logs
 using ..Utils
 
 import ..DiracOperators: Daggered, DdaggerD, StaggeredDiracOperator, WilsonDiracOperator

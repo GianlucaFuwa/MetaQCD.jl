@@ -7,6 +7,7 @@ using Preferences
 using Random
 using Statistics
 using StaticTools: StaticString
+using ..Logs
 using ..MetaIO
 using ..Utils
 using ..Fields: BACKENDS

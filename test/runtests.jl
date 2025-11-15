@@ -164,7 +164,7 @@ redirect_stdout(sout) do
         end
     end
 
-    # runtests(; nprocs_cart=(1, 1, 1, mpi_size()))
+    runtests(; nprocs_cart=(1, 1, 1, mpi_size()))
 end
 
 # using AMDGPU

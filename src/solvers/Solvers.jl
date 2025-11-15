@@ -3,8 +3,8 @@ module Solvers
 using Accessors
 using LinearAlgebra
 using StaticArrays
+using ..Logs
 using ..Utils
-using ..MetaIO
 
 export SolverInfo, get_info
 export bicg!, bicg_stab!, cg!, cgnr!, mscg!, cg_mixed!, mscg_mixed!

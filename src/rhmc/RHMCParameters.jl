@@ -65,7 +65,7 @@ struct RHMCParams{N1,N2}
         @assert num * den != 1 "power should not be 1!"
 
         # suppress warnings from RationalFunctionApproximation.jl here
-        my_out = mpi_amroot() ? stdout : stdout
+        my_out = mpi_amroot() ? stdout : devnull
         coeffs, coeffs_inv, err, err_inv, n, n_inv = redirect_stderr(my_out) do
             calc_coefficients(num, den, n_max+1, lambda_low, lambda_high, precision, fun; tol)
         end

@@ -6,7 +6,7 @@ using Polyester: @batch
 using StaticArrays
 using StaticTools: StaticString
 using Statistics
-using ..MetaIO
+using ..Logs
 using ..Parameters: ParameterSet
 using ..Utils
 
@@ -44,7 +44,7 @@ ext_length(::AbstractBias) = Val(0) # Determine length of file extension statica
 
 Container for bias potential and metadata.
 
-    Bias(p::ParameterSet, U::Gaugefield; instance=0, dummy=false, build=false)
+    Bias(p::ParameterSet, U::Gaugefield; mpi_multi_sim=false, instance=0, dummy=false, build=false, bias=nothing)
 
 Create a Bias that holds general parameters of bias enhanced sampling, like the kind of CV,
 its smearing and filenames relevant to the bias. Also holds the specific kind
@@ -53,10 +53,16 @@ of bias (`Metadynamics`, `OPES` or `VES` for now).
 The `instance` keyword is used in case of PT-MetaD and multiple walkers to assign the
 correct `usebias` to each stream.
 
+If `mpi_multi_sim=true` the program assumes that there are multiple simulation streams
+running in parallel via MPI, which is necessary information for correct file names 
+
 If `dummy=true` the bias is static and set to zero as for the measurement stream in PT-MetaD
 
 If `build=true` certain things are made more convenient for the building of the bias, like
 only the root rank printing its bias to file etc.
+
+The kwarg `bias` is there for loading checkpoints, since checkpoints only keep track of the
+`bias` field and therefore all other information is gathered from the parameter file as usual
 """
 mutable struct Bias{N,TB,TS,TW,T1,T2,T3}
     cv_numsmears::Vector{Int64}
@@ -68,17 +74,21 @@ mutable struct Bias{N,TB,TS,TW,T1,T2,T3}
     buffers::T3
     CV::Vector{Float64}
     function Bias(
-        cv_numsmears, bias::TB, smearing::TS, weights::TW, bfile::T1, dfile::T2, buffers::T3
-    ) where {TB,TS,TW,T1,T2,T3}
+        U, cv_numsmears, rho, bias::TB, weights::TW, bfile::T1, dfile::T2, buffers::T3
+    ) where {TB,TW,T1,T2,T3}
         N = length(bias)
         CV = zeros(Float64, N)
+        smearing = StoutSmearing(U; numlayers=maximum(cv_numsmears), rho)
+        TS = typeof(smearing)
         return new{N,TB,TS,TW,T1,T2,T3}(
             cv_numsmears, bias, smearing, weights, bfile, dfile, buffers, CV
         )
     end
 end
 
-function Bias(p, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, build=false)
+function Bias(
+    p, U; bias=nothing, mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, build=false
+)
     inum = if dummy
         0
     elseif mpi_multi_sim
@@ -94,42 +104,48 @@ function Bias(p, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, bui
     num_cv = length(biases)
     (num_cv == 0) && return NoBias()
     cv_numsmears = zeros(Int64, num_cv)
-
-    bias = ntuple(num_cv) do i
-        @level1("|")
-        bias_parameters = bias_parameters_from_dict(biases[i], instance; build)
-        name = bias_parameters.kind_of_cv
-        numsmears = bias_parameters.numsmears_for_cv
-        cv_numsmears[i] = numsmears
-        @level1("|  Bias $i: $(bias_parameters.type)")
-        @level1("|  CV$i: $(name) with $(numsmears)x$(rho) Stout smearing")
-        if biases[i]["type"] ∈ ["metad", "metadynamics"]
-            Metadynamics(
-                bias_parameters;
-                instance=instance, dummy=dummy, mpi_multi_sim=mpi_multi_sim, build=build
-            )
-        elseif biases[i]["type"] == "opes"
-            OPES(
-                bias_parameters;
-                instance=instance, dummy=dummy, mpi_multi_sim=mpi_multi_sim, build=build
-            )
-        elseif biases[i]["type"] == "opesmt"
-            OPESmultithermal(
-                bias_parameters, p.beta;
-                instance=instance, dummy=dummy, mpi_multi_sim=mpi_multi_sim, build=build
-            )
-        elseif biases[i]["type"] == "ves"
-            VES(bias_parameters; dummy=dummy)
-        else
-            error("type $(p[i]["type"]) not supported. Try metad, opes, opesmt or ves")
+    
+    if isnothing(bias)
+        bias = ntuple(num_cv) do i
+            @level1("|")
+            bias_parameters = bias_parameters_from_dict(biases[i], instance; build)
+            name = bias_parameters.kind_of_cv
+            numsmears = bias_parameters.numsmears_for_cv
+            cv_numsmears[i] = numsmears
+            @level1("|  Bias $i: $(bias_parameters.type)")
+            @level1("|  CV$i: $(name) with $(numsmears)x$(rho) Stout smearing")
+            if biases[i]["type"] ∈ ["metad", "metadynamics"]
+                Metadynamics(
+                    bias_parameters;
+                    instance=instance, dummy=dummy, mpi_multi_sim=mpi_multi_sim, build=build
+                )
+            elseif biases[i]["type"] == "opes"
+                OPES(
+                    bias_parameters;
+                    instance=instance, dummy=dummy, mpi_multi_sim=mpi_multi_sim, build=build
+                )
+            elseif biases[i]["type"] == "opesmt"
+                OPESmultithermal(
+                    bias_parameters, p.beta;
+                    instance=instance, dummy=dummy, mpi_multi_sim=mpi_multi_sim, build=build
+                )
+            elseif biases[i]["type"] == "ves"
+                VES(bias_parameters; dummy=dummy)
+            else
+                error("type $(p[i]["type"]) not supported. Try metad, opes, opesmt or ves")
+            end
+        end
+    else
+        for i in 1:num_cv
+            bias_parameters = bias_parameters_from_dict(biases[i], instance; build)
+            numsmears = bias_parameters.numsmears_for_cv
+            cv_numsmears[i] = numsmears
         end
     end
 
     buffers = ntuple(length(bias)) do i
         create_buffer(bias[i])
     end
-
-    smearing = StoutSmearing(U; numlayers=maximum(cv_numsmears), rho=rho)
 
     kinds_of_weights = if any(x -> !(x isa Metadynamics), bias)
         ["branduardi"]
@@ -187,9 +203,10 @@ function Bias(p, U; mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, bui
     @level1("-")
     @level1("")
     return Bias(
+        U,
         cv_numsmears,
+        rho,
         bias,
-        smearing,
         kinds_of_weights,
         biasfile,
         datafile,
@@ -331,41 +348,47 @@ include("weights.jl")
 # custom serialization, because saving and loading IOStreams doesn't work
 using JLD2
 
-struct BiasSerialization{N,TB,TS,TW,T1,T2}
+struct BiasSerialization{N,TB,TW,T1,T2,T3}
     cv_numsmears::Vector{Int64}
     bias::TB
-    smearing::TS
+    rho::Float64
     kinds_of_weights::TW
     biasfile::T1
     datafile::T2
+    buffers::T3
+    CV::Vector{Float64}
 end
 
-function JLD2.writeas(::Type{<:Bias{CV,TS,TB,TW}}) where {CV,TS,TB,TW}
-    return BiasSerialization{CV,TS,TB,TW}
+function JLD2.writeas(::Type{<:Bias{N,TB,TS,TW,T1,T2,T3}}) where {N,TB,TS,TW,T1,T2,T3}
+    return BiasSerialization{N,TB,TW,T1,T2,T3}
 end
 
-function Base.convert(::Type{<:BiasSerialization}, b::Bias)
-    out = BiasSerialization(
+function Base.convert(
+    ::Type{<:BiasSerialization}, b::Bias{N,TB,TS,TW,T1,T2,T3}
+) where {N,TB,TS,TW,T1,T2,T3}
+    out = BiasSerialization{N,TB,TW,T1,T2,T3}(
         b.cv_numsmears,
-        b.bias,
-        b.smearing,
+        deepcopy(b.bias),
+        b.smearing.ρ,
         b.kinds_of_weights,
         b.biasfile,
         b.datafile,
+        deepcopy(b.buffers),
+        deepcopy(b.CV),
     )
     return out
 end
 
 function Base.convert(::Type{<:Bias}, b::BiasSerialization)
-    fp = open(b.datafile, "a")
     out = Bias(
         b.cv_numsmears,
         b.bias,
-        b.smearing,
+        b.rho,
         b.kinds_of_weights,
         b.biasfile,
         b.datafile,
-        fp,
+        b.buffers,
+        b.CV,
     )
     return out
 end

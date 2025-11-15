@@ -3,7 +3,7 @@ module Universe
 using Dates
 using LinearAlgebra
 using TOML: parsefile
-using ..MetaIO
+using ..Logs
 using ..Utils
 
 import ..DiracOperators: FermionAction, QuenchedFermionAction, init_fermion_action

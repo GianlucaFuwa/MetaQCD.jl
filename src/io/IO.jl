@@ -7,21 +7,20 @@ using OffsetArrays
 using Polyester
 using Random
 using StaticArrays
+using ..Logs
 using ..Parameters
 using ..Utils
 
+import ..BiasModule: Bias, BiasSerialization, calc_cv, recalc_cv!
 import ..Fields: AbstractField, Gaugefield, Spinorfield, SpinorfieldEO, Paulifield
-import ..Fields: Tensorfield, MultiSpinorfield, CPU, get_backend, bzeros
+import ..Fields: Tensorfield, MultiSpinorfield, CPU, get_backend, bzeros, BACKENDS
 import ..Fields: is_distributed, get_global_volume, get_global_dims, parallelfor
 import ..Fields: WilsonGaugeAction, array_type, convert_field, device_to_host, allindices
+import ..Universe: init_fermion_actions
+import ..Updates: Updatemethod
 
-export __GlobalLogger, MetaLogger, current_time, @level1, @level2, @level3, @level4
-export BMWFormat, BridgeFormat, Checkpointer, ConfigSaver, JLD2Format, set_global_logger!
-export fclose, fopen, printf, prints_to_console, newline
+export BMWFormat, BridgeFormat, Checkpointer, ConfigSaver, JLD2Format
 export create_checkpoint, load_checkpoint, load_field!, save_field
-
-include("printf.jl")
-include("verbose.jl")
 
 abstract type AbstractFormat end
 struct BMWFormat <: AbstractFormat end
@@ -86,8 +85,6 @@ include("bridge_format.jl")
 include("jld2_format.jl")
 include("mpi_format.jl")
 
-@inline current_time() = Dates.now(UTC)
-
 struct Checkpointer{T}
     checkpoint_dir::String
     checkpoint_every::Int64
@@ -109,29 +106,26 @@ struct Checkpointer{T}
 end
 
 function create_checkpoint(
-    cp::Checkpointer{T}, univ, updatemethod, updatemethod_pt, itrj; instance=mpi_myrank()
+    cp::Checkpointer{T}, univ, updatemethod, updatemethod_pt, itrj; rank=mpi_myrank()
 ) where {T}
     T ≡ Nothing && return nothing
+    instance = MPI_INSTANCE[]
 
     if itrj % cp.checkpoint_every == 0
-        filename = cp.checkpoint_dir * "/checkpoint_$(instance).jld2"
+        filename = joinpath(cp.checkpoint_dir, "checkpoint_$(instance)_$(rank).jld2")
         create_checkpoint(T(), univ, updatemethod, updatemethod_pt, itrj, filename)
         @level1("|")
-        @level1("|  Checkpoint created in $(filename)")
+        @level1("|  Checkpoint created in $(cp.checkpoint_dir)")
         @level1("|")
     end
 
     return nothing
 end
 
-function load_checkpoint(checkpoint_path; instance=mpi_myrank())
+function load_checkpoint(parameters; rank=mpi_myrank(), mpi_multi_sim=false, build=false)
+    checkpoint_path = parameters.load_checkpoint_path
     @level1("[ Checkpoint loaded from $(checkpoint_path)\n")
-    if mpi_size() > 1
-        checkpoint_file = checkpoint_path * "_$(instance).jld2"
-    else
-        checkpoint_file = checkpoint_path * ".jld2"
-    end
-    return load_checkpoint(JLD2Format(), checkpoint_file)
+    return load_checkpoint(JLD2Format(), parameters; rank, mpi_multi_sim, build)
 end
 
 struct ConfigSaver{T}

@@ -16,7 +16,7 @@ using LinearAlgebra
 using Polyester
 using StaticArrays
 using StaticTools: StaticString
-using ..MetaIO
+using ..Logs
 using ..RHMCParameters
 using ..Solvers
 using ..Utils

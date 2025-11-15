@@ -99,6 +99,7 @@ function construct_params_from_toml(parameters, inputfile)
     log_dir = joinpath(ensemble_dir, "logs/")
     measure_dir = joinpath(ensemble_dir, "measurements/")
     save_config_dir = joinpath(ensemble_dir, "configs/")
+    checkpoint_dir = joinpath(ensemble_dir, "checkpoint/")
     bias_dir = joinpath(ensemble_dir, "biaspotentials/")
 
     if !isdir(log_dir) && mpi_amroot()
@@ -111,6 +112,10 @@ function construct_params_from_toml(parameters, inputfile)
 
     if !isdir(save_config_dir) && mpi_amroot()
         mkpath(save_config_dir)
+    end
+
+    if !isdir(checkpoint_dir) && mpi_amroot()
+        mkpath(checkpoint_dir)
     end
 
     if !isdir(bias_dir) && mpi_amroot()
@@ -133,12 +138,13 @@ function construct_params_from_toml(parameters, inputfile)
     log_dir_exists = isdir(log_dir)
     measure_dir_exists = isdir(measure_dir)
     config_dir_exists = isdir(save_config_dir)
+    checkpoint_dir_exists = isdir(checkpoint_dir)
     bias_dir_exists = isdir(bias_dir)
     itimer = 0
 
     while !(
-        ensemble_dir_exists && log_dir_exists &&
-        measure_dir_exists && config_dir_exists && bias_dir_exists
+        ensemble_dir_exists && log_dir_exists && measure_dir_exists &&
+        config_dir_exists && checkpoint_dir_exists && bias_dir_exists
     )
         itimer == 50 && error("Rank $(mpi_myrank()) could not find all directories")
         sleep(0.1)
@@ -146,6 +152,7 @@ function construct_params_from_toml(parameters, inputfile)
         log_dir_exists = isdir(log_dir)
         measure_dir_exists = isdir(measure_dir)
         config_dir_exists = isdir(save_config_dir)
+        checkpoint_dir_exists = isdir(checkpoint_dir_exists)
         bias_dir_exists = isdir(bias_dir)
         itimer += 1
     end

@@ -47,7 +47,12 @@ function run_sim(parameters)
     # set random seed if provided, otherwise generate one
     if parameters.randomseed != 0
         seed = parameters.randomseed
-        Random.seed!((seed * (mpi_myrank() + 1)) % UInt64)
+        if seed isa Vector
+            my_local_rank = mpi_myrank(mpi_comm_instance())
+            Random.seed!(((seed[MPI_INSTANCE[]+1]) * my_local_rank) % UInt64)
+        else
+            Random.seed!((seed * (mpi_myrank() + 1)) % UInt64)
+        end
     else
         seed = rand(UInt64)
         Random.seed!(seed)
@@ -65,24 +70,29 @@ function run_sim(parameters)
 
     @level1("# Working directory: $(pwd()) @ $(string(current_time()))")
     @level1("[ Running MetaQCD.jl version $(PACKAGE_VERSION)\n")
-    @level1("[ Random seed is: $seed\n")
 
     if parameters.load_checkpoint_fromfile
-        univ_args..., updatemethod, updatemethod_pt, _ = load_checkpoint(
-            parameters.load_checkpoint_path
-        )
+        rank = mpi_myrank(mpi_comm_instance())
+        univ_args..., updatemethod, _, itrj = load_checkpoint(parameters; rank)
         univ = Univ(univ_args...)
     else
+        itrj = nothing
         univ = Univ(parameters; mpi_multi_sim=multi_sim)
         updatemethod = updatemethod_pt = nothing
     end
 
+    @level1("[ Random seed is: $(string(copy(Random.default_rng())))\n")
     run_sim!(univ, parameters, updatemethod, updatemethod_pt, multi_sim)
     return nothing
 end
 
 function run_sim!(
-    univ::Univ, parameters::ParameterSet, updatemethod, updatemethod_pt, mpi_multi_sim=false
+    univ::Univ, 
+    parameters::ParameterSet,
+    updatemethod,
+    updatemethod_pt,
+    mpi_multi_sim=false,
+    itrj=nothing,
 )
     U = univ.U
 
@@ -242,7 +252,7 @@ function run_sim!(
     )
 
     checkpointer = Checkpointer(
-        parameters.ensemble_dir, parameters.save_checkpoint_every
+        joinpath(parameters.ensemble_dir, "checkpoint"), parameters.save_checkpoint_every
     )
 
     # INFO: Log times per update in seconds
@@ -253,6 +263,8 @@ function run_sim!(
     else
         nothing
     end
+
+    mpi_barrier()
 
     if parameters.tempering_enabled && !mpi_multi_sim
         metaqcd_PT!(
@@ -281,6 +293,7 @@ function run_sim!(
             timing_datafile,
             mpi_multi_sim,
             Val(parameters.tempering_enabled),
+            itrj,
         )
     end
 
@@ -300,6 +313,7 @@ function metaqcd!(
     timing_datafile,
     mpi_multi_sim::Bool,
     ::Val{tempering_enabled},
+    starting_itrj=nothing,
 ) where {tempering_enabled}
     U = univ.U
     fermion_action = univ.fermion_action
@@ -320,55 +334,68 @@ function metaqcd!(
 
     last_updatetime = 0.0
 
-    @level1("- Thermalization:")
-    _, runtime_therm = @timed begin
-        for itrj in 1:(parameters.numtherm)
-            if (last_updatetime + time() + TIME_BUFFER - LOAD_TIME) > JOB_TIME_LIMIT
-                break
-            end
-
-            @level1("|  itrj = $itrj")
-            _, updatetime = @timed begin # time each update iteration
-                update!(
-                    updatemethod,
-                    U;
-                    fermion_action=fermion_action,
-                    bias=NoBias(),
-                    metro_test=itrj>20, # So we dont get stuck at the beginning
-                    therm=Val(true),
-                )
-                mpi_barrier()
-            end
-
-            last_updatetime = updatetime
-
-            if mpi_amroot(mpi_comm_instance())
-                if !isnothing(timing_datafile)
-                    fp = fopen(timing_datafile, "a")
-                    printf(fp, "%-.10E", updatetime)
-                    newline(fp)
-                    fclose(fp)
+    if isnothing(starting_itrj)
+        @level1("- Thermalization:")
+        _, runtime_therm = @timed begin
+            for itrj in 1:(parameters.numtherm)
+                if (last_updatetime + time() + TIME_BUFFER - LOAD_TIME) > JOB_TIME_LIMIT
+                    break
                 end
-            end
 
-            @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))\n-")
+                @level1("|  itrj = $itrj")
+                _, updatetime = @timed begin # time each update iteration
+                    update!(
+                        updatemethod,
+                        U;
+                        fermion_action=fermion_action,
+                        bias=NoBias(),
+                        metro_test=itrj>20, # So we dont get stuck at the beginning
+                        therm=Val(true),
+                    )
+                    mpi_barrier()
+                end
+
+                last_updatetime = updatetime
+
+                if mpi_amroot(mpi_comm_instance())
+                    if !isnothing(timing_datafile)
+                        fp = fopen(timing_datafile, "a")
+                        printf(fp, "%-.10E", updatetime)
+                        newline(fp)
+                        fclose(fp)
+                    end
+                end
+
+                @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))\n-")
+            end
         end
+
+        @level1("-- Thermalization elapsed time:\t$(runtime_therm) [s]\n")
+        recalc_cv!(U, bias) # need to recalc cv since it was not updated during therm
+    else
+        runtime_therm = 0.0
     end
 
-    @level1("-- Thermalization elapsed time:\t$(runtime_therm) [s]\n")
-    recalc_cv!(U, bias) # need to recalc cv since it was not updated during therm
-
     mpi_barrier()
+
+    itrj_range = if isnothing(starting_itrj)
+        1:parameters.numsteps
+    else
+        1+starting_itrj:(parameters.numsteps)+starting_itrj
+    end
 
     @level1("- Production:")
     _, runtime_prod = @timed begin
         numaccepts = 0.0
-        for itrj in 1:(parameters.numsteps)
+        numitrj = 0
+        for itrj in itrj_range
             if (last_updatetime + time() + TIME_BUFFER - LOAD_TIME) > JOB_TIME_LIMIT
                 break
             end
 
+            numitrj += 1
             @level1("|  itrj = $itrj")
+
             _, updatetime = @timed begin
                 accepted = update!(
                     updatemethod,
@@ -385,6 +412,7 @@ function metaqcd!(
                 accepted>0 && update_bias!(bias, itrj; mpi_multi_sim=mpi_multi_sim)
                 numaccepts += accepted
                 mpi_barrier()
+                accepted
             end
 
             last_updatetime = updatetime
@@ -415,7 +443,7 @@ function metaqcd!(
             end
 
             save_field(config_saver, U, itrj, parameters)
-            create_checkpoint(checkpointer, univ, updatemethod, nothing, itrj)
+            create_checkpoint(checkpointer, univ, updatemethod, nothing, itrj; rank)
 
             _, mtime = @timed calc_measurements(
                 measurements, U, itrj; mpi_multi_sim=mpi_multi_sim
@@ -426,6 +454,7 @@ function metaqcd!(
                     mpi_multi_sim=mpi_multi_sim
                 )
             end
+
             calc_weights(bias, itrj; mpi_multi_sim=mpi_multi_sim)
             @level1("|  Meas. elapsed time:     $(mtime)  [s]")
             @level1("|  FlowMeas. elapsed time: $(fmtime) [s]\n-")
@@ -533,7 +562,7 @@ function metaqcd_PT!(
             temper!(U, bias, numaccepts_temper, swap_every, itrj; recalc=true)
 
             save_field(config_saver, U[1], itrj, parameters)
-            create_checkpoint(checkpointer, univ, updatemethod, updatemethod_pt, itrj)
+            create_checkpoint(checkpointer, univ, updatemethod, updatemethod_pt, itrj; rank)
 
             _, mtime = @timed calc_measurements(measurements, U, itrj, measure_on_all)
             _, fmtime = @timed for i in eachindex(gflow)

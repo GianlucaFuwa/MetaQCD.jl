@@ -6,7 +6,7 @@ using StaticArrays
 using Polyester: @batch
 using Random: rand, default_rng
 using StaticTools: StaticString
-using ..MetaIO
+using ..Logs
 using ..RHMCParameters
 using ..Utils
 

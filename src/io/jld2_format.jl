@@ -37,36 +37,49 @@ end
 function create_checkpoint(
     ::JLD2Format, univ, updatemethod, updatemethod_pt, itrj::Int, filename::String
 )
-    # TODO: GPU support
     if univ.U isa Vector
-        @assert get_backend(univ.U[1]) == CPU
+        Uout = [convert_field(CPU, univ.U[i]) for i in eachindex(univ.U)]
     else
-        @assert get_backend(univ.U) == CPU
+        Uout = convert_field(CPU, univ.U)
     end
+
     state = get_rng_state()
+
     if filename != ""
-        jldsave(
-            filename; 
-            U=univ.U,
-            fermion_action=univ.fermion_action,
-            bias=univ.bias,
-            numinstances=univ.numinstances,
-            updatemethod=updatemethod,
-            updatemethod_pt=updatemethod_pt,
-            rngstate=state,
-            itrj=itrj,
-        )
+        redirect_stderr(devnull) do
+            jldsave(
+                filename; 
+                U=Uout,
+                bias=univ.bias.bias,
+                numinstances=univ.numinstances,
+                itrj=itrj,
+                rngstate=state,
+            )
+        end
     end
+
     return nothing
 end
 
-function load_checkpoint(::JLD2Format, filename::String)
-    U, fermion_action, bias, numinstances, updatemethod, updatemethod_pt, rngstate, itrj =
-        jldopen(filename, "r") do file
-        file["U"], file["fermion_action"], file["bias"], file["numinstances"],
-        file["updatemethod"], file["updatemethod_pt"], file["rngstate"], file["itrj"]
+function load_checkpoint(
+    ::JLD2Format, parameters; rank=mpi_myrank(), mpi_multi_sim=false, build=false
+)
+    checkpoint_path = parameters.load_checkpoint_path
+    instance = MPI_INSTANCE[]
+    filename = joinpath(checkpoint_path, "checkpoint_$(instance)_$(rank).jld2")
+    backend = parameters.backend
+    B = BACKENDS[backend]
+    U, _bias, numinst, itrj, rngstate = jldopen(filename, "r") do file
+        convert_field(B, file["U"]), file["bias"], file["numinstances"],
+        file["itrj"], file["rngstate"]
     end
 
+    dummy = parameters.tempering_enabled && mpi_multi_sim ? (instance==0) : false
+    bias = Bias(parameters, U; bias=_bias, dummy, mpi_multi_sim, build)
+    recalc_cv!(U, bias)
+    faction = init_fermion_actions(parameters, U)
+    updatemethod = Updatemethod(parameters, U)
+    updatemethod_pt = nothing # TODO: support this case (serialize HMC and make method that takes P_old and U only)
     copy!(Random.default_rng(), rngstate)
-    return U, fermion_action, bias, numinstances, updatemethod, updatemethod_pt, itrj
+    return U, faction, bias, numinst, updatemethod, updatemethod_pt, itrj
 end

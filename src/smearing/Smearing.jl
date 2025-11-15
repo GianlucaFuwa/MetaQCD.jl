@@ -3,7 +3,7 @@ module Smearing
 using LinearAlgebra
 using Polyester: @batch
 using StaticArrays
-using ..MetaIO
+using ..Logs
 using ..Utils
 
 import ..Fields: AbstractGaugeAction, Expfield, Colorfield, Gaugefield, WilsonGaugeAction

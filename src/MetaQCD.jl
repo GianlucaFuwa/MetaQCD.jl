@@ -3,7 +3,7 @@ module MetaQCD
 include("./utils/Utils.jl")
 include("./parameters/Parameters.jl")
 include("./fields/Fields.jl")
-include("./io/IO.jl")
+include("./io/Logs.jl")
 include("./solvers/Solvers.jl")
 # include("./rhmc/AlgRemez.jl")
 include("./rhmc/RHMCParameters.jl")
@@ -14,8 +14,10 @@ include("./bias/Bias.jl")
 include("./forces/Forces.jl")
 include("./main/Universe.jl")
 include("./updates/Updates.jl")
+include("./io/IO.jl")
 include("./main/Main.jl")
 
+using .Logs
 using .MetaIO
 using .Utils
 using .Main
