@@ -105,7 +105,7 @@ function add_staggered_eo_derivative!(
     return nothing
 end
 
-@inline function add_staggered_eo_derivative_kernel!(
+#= @inline  =#function add_staggered_eo_derivative_kernel!(
     dU, U, X, Y, site, bc, fac, padded_bulk, ::Type{T}
 ) where {T}
     # sites that begin with a "_" are meant for indexing into the even-odd preconn'ed

@@ -101,7 +101,7 @@ function add_staggered_derivative!(
     return nothing
 end
 
-@inline function add_staggered_derivative_kernel!(dU, U, X, Y, site, bc, fac, ::Type{T}) where {T}
+#= @inline  =#function add_staggered_derivative_kernel!(dU, U, X, Y, site, bc, fac, ::Type{T}) where {T}
     NT = size(U, 4)
 
     # use @nexprs here to statically generate the loop

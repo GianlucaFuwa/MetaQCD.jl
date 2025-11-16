@@ -137,7 +137,7 @@ end
     return T(0.5) * ψₙ
 end
 
-@inline function staggered_kernel(U, ϕ, site, ::Val{μ}, bc, ::Type{T}, dagg::Bool) where {T,μ}
+#= @inline  =#function staggered_kernel(U, ϕ, site, ::Val{μ}, bc, ::Type{T}, dagg::Bool) where {T,μ}
     @inbounds begin
         sgn = dagg ? T(-1) : T(1)
         NT = size(U, 4)
@@ -153,7 +153,7 @@ end
     return T(0.5) * ψₙ
 end
 
-@inline function staggered_kernel(U, ϕ, site, mass, bc, ::Type{T}, dagg::Bool) where {T}
+#= @inline  =#function staggered_kernel(U, ϕ, site, mass, bc, ::Type{T}, dagg::Bool) where {T}
     @inbounds begin
         sgn = dagg ? T(-1) : T(1)
         ψₙ = 2mass * ϕ[site]

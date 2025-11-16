@@ -167,7 +167,7 @@ function LinearAlgebra.mul!(
     return nothing
 end
 
-@inline function wilson_kernel(
+#= @inline  =#function wilson_kernel(
     U, ϕ, site, mass_term, bc, ::Type{T}, ::Val{dagg}
 ) where {T,dagg}
     @inbounds begin
@@ -189,7 +189,7 @@ end
     return T(0.5) * ψₙ
 end
 
-@inline function wilson_kernel(
+#= @inline  =#function wilson_kernel(
     U, ϕ, site, ::Val{μ}, mass_term, bc, ::Type{T}, ::Val{dagg}
 ) where {T,dagg,μ}
     @inbounds begin
@@ -208,7 +208,7 @@ end
     return T(-0.5) * ψₙ
 end
 
-@inline function wilson_kernel(
+#= @inline  =#function wilson_kernel(
     U, ϕ, site, bc, ::Type{T}, ::Val{dagg}
 ) where {T,dagg}
     @inbounds begin
@@ -232,7 +232,7 @@ end
     return T(0.5) * ψₙ
 end
 
-@inline function clover_kernel(ϕ, Fμν, site, ::Val{i}, csw_fac, ::Type{T}) where {T,i}
+#= @inline  =#function clover_kernel(ϕ, Fμν, site, ::Val{i}, csw_fac, ::Type{T}) where {T,i}
     @inbounds begin
         ϕₙ = ϕ[site]
         Cₙ = cmvmul_color(Fμν[i, site], σμν_spin_mul(ϕₙ, Val(i)))

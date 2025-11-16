@@ -134,7 +134,7 @@ function mul_eo!(
     return nothing
 end
 
-@inline function staggered_eo_kernel(
+#= @inline  =#function staggered_eo_kernel(
     U, ϕ::Spinorfield{B,T,M,1}, site, bc, dagg::Bool, padded_bulk
 ) where {B,T,M}
     # sites that begin with a "_" are meant for indexing into the even-odd preconn'ed

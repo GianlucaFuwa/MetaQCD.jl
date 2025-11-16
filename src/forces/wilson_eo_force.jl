@@ -192,7 +192,7 @@ function calc_small_Xμν_eachsite!(
     return nothing
 end
 
-@inline function calc_small_Xμν_kernel!(Xμν, D_oo_inv, site, ::Type{T}, padded_bulk) where {T}
+#= @inline  =#function calc_small_Xμν_kernel!(Xμν, D_oo_inv, site, ::Type{T}, padded_bulk) where {T}
     @inbounds begin
         if isodd(site)
             _site = map_to_half(site, padded_bulk)
