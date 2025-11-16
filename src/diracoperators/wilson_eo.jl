@@ -94,20 +94,33 @@ end
 
 # INFO: Need to explicitly define fermion action here, because of the small determinant
 function calc_fermion_action(
-    fermion_action::FermionAction{true,2,WilsonEOPreDiracOperator},
-    U::Gaugefield,
+    fermion_action::FermionAction{false,2,TD},
+    U::Gaugefield{B,T},
     ϕ_eo::WilsonEOPreSpinorfield,
-)
+) where {B,T,TD<:WilsonEOPreDiracOperator}
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
-    ψ_eo, temp1, temp2, temp3 = fermion_action.temps[1:4]
     solver_action = fermion_action.solver_action
     tol, maxiters, datafile = get_info(solver_action)
 
-    clear!(ψ_eo) # initial guess is zero
-    solve_dirac!(ψ_eo, DdagD, ϕ_eo, temp1, temp2, temp3; tol, maxiters, datafile) # ψ = (D†D)⁻¹ϕ
+    if isnothing(fermion_action.D_low)
+        ψ, temps... = fermion_action.temps[1:4]
+        clear!(ψ) # initial guess is zero
+        solve_dirac!(ψ, DdagD, ϕ_eo, temps; tol, maxiters, datafile)
+    else
+        # TODO: delta = solver_action.delta
+        ψ, temps... = fermion_action.temps[1:3]
+        clear!(ψ) # initial guess is zero
+        U_low, temps_low... = fermion_action.temps_low[1:6]
+        copy!(U_low, U)
+        D_low = fermion_action.D_low(U_low)
+        DdagD_low = DdaggerD(D_low)
+        solve_dirac_mixed!(
+            ψ, DdagD, DdagD_low, ϕ_eo, temps, temps_low; tol, maxiters, datafile
+        )
+    end
 
-    Sf = real(dot(ϕ_eo, ψ_eo)) - 2trlog(D.D_diag, D.mass)
+    Sf = real(dot(ϕ_eo, ψ)) - 2trlog(D.D_diag, D.mass)
     return Sf
 end
 
