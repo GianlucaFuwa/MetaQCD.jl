@@ -2,27 +2,40 @@ function calc_dSfdU!(
     dU, fermion_action::FermionAction{false,2,TD}, U, ϕ_eo::WilsonEOPreSpinorfield
 ) where {TD<:WilsonEOPreDiracOperator}
     clear!(dU)
-    X_eo, Y_eo, temp1, temp2 = fermion_action.temps[1:4]
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     bc = D.boundary_condition
     solver_md = fermion_action.solver_md
     tol, maxiters, datafile = get_info(solver_md)
 
-    clear!(X_eo)
-    solve_dirac!(X_eo, DdagD, ϕ_eo, Y_eo, temp1, temp2; tol, maxiters, datafile)
+    if isnothing(fermion_action.D_low)
+        X, temps... = fermion_action.temps[1:4]
+        clear!(X)
+        solve_dirac!(X, DdagD, ϕ_eo, temps; tol, maxiters, datafile)
+    else
+        # TODO: delta = solver_action.delta
+        X, temps... = fermion_action.temps[1:3]
+        clear!(X)
+        U_low, temps_low... = fermion_action.temps_low[1:6]
+        copy!(U_low, U)
+        D_low = fermion_action.D_low(U_low)
+        DdagD_low = DdaggerD(D_low)
+        solve_dirac_mixed!(
+            X, DdagD, DdagD_low, ϕ_eo, temps, temps_low; tol, maxiters, datafile
+        )
+    end
 
-    LinearAlgebra.mul!(Y_eo, D, X_eo)
-    mul_oe!(X_eo, U, X_eo, bc, true, Val(1))
-    mul_oe!(Y_eo, U, Y_eo, bc, true, Val(-1))
-    mul_oo_inv!(X_eo, D.D_oo_inv)
-    mul_oo_inv!(Y_eo, D.D_oo_inv)
-    add_wilson_eo_derivative!(dU, U, X_eo, Y_eo, bc)
+    LinearAlgebra.mul!(temps[1], D, X)
+    mul_oe!(X, U, X, bc, true, Val(1))
+    mul_oe!(temps[1], U, temps[1], bc, true, Val(-1))
+    mul_oo_inv!(X, D.D_oo_inv)
+    mul_oo_inv!(temps[1], D.D_oo_inv)
+    add_wilson_eo_derivative!(dU, U, X, temps[1], bc)
 
     if has_clover_term(D)
         Xμν = fermion_action.Xμν
         D_oo_inv = D.D_oo_inv
-        calc_Xμν_eo_eachsite!(Xμν, X_eo, Y_eo)
+        calc_Xμν_eo_eachsite!(Xμν, X, temps[1])
         add_clover_derivative!(dU, U, Xμν, -D.csw)
         calc_small_Xμν_eachsite!(Xμν, D_oo_inv)
         add_clover_derivative!(dU, U, Xμν, -2D.csw)
@@ -41,33 +54,58 @@ function calc_dSfdU!(
     DdagD = DdaggerD(D)
     D_oo_inv = D.D_oo_inv
     bc = D.boundary_condition
-    temp1, temp2 = fermion_action.temps[1:2]
-    Xs = fermion_action.temps[3:n+3]
-    Ys = fermion_action.temps[n+4:2n+4]
     solver_md = fermion_action.solver_md
     tol, maxiters, datafile = get_info(solver_md)
 
-    for X in Xs
-        clear!(X)
-    end
-
     shifts = get_β_inverse(rhmc)
     coeffs = get_α_inverse(rhmc)
-    solve_dirac_multishift!(
-        Xs, shifts, DdagD, ϕ_eo, temp1, temp2, Ys; tol, maxiters, datafile
-    )
+
+    if isnothing(fermion_action.D_low)
+        Xs = fermion_action.temps[1:n+1]
+        Ys = fermion_action.temps[n+2:2n+2]
+        temps = fermion_action.temps[2n+3:2n+4]
+
+        for X in Xs
+            clear!(X)
+        end
+
+        solve_dirac_multishift!(
+            Xs, shifts, DdagD, ϕ_eo, temps, Ys; tol, maxiters, datafile
+        )
+    else
+        # TODO: delta = solver_action.delta
+        Xs = fermion_action.temps[1:n+1]
+        temps = fermion_action.temps[n+2:n+3]
+        U_low = fermion_action.temps_low[1]
+        Xs_low = fermion_action.temps_low[2:n+2]
+        ps_low = fermion_action.temps_low[n+3:2n+3]
+        temps_low = fermion_action.temps_low[2n+4:2n+6]
+        copy!(U_low, U)
+        D_low = fermion_action.D_low(U_low)
+        DdagD_low = DdaggerD(D_low)
+
+        for X in Xs
+            clear!(X)
+        end
+
+        solve_dirac_multishift_mixed!(
+            Xs, shifts, DdagD, DdagD_low, ϕ_eo, temps,
+            Xs_low, ps_low, temps_low;
+            tol, maxiters, datafile
+        )
+    end
 
     for i in 1:n
-        LinearAlgebra.mul!(Ys[i+1], D, Xs[i+1]) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
+        LinearAlgebra.mul!(temps[1], D, Xs[i+1]) # Need to prefix with LinearAlgebra to avoid ambiguity with Gaugefields.mul!
         mul_oe!(Xs[i+1], U, Xs[i+1], bc, true, Val(1))
-        mul_oe!(Ys[i+1], U, Ys[i+1], bc, true, Val(-1))
+        mul_oe!(temps[1], U, temps[1], bc, true, Val(-1))
         mul_oo_inv!(Xs[i+1], D_oo_inv)
-        mul_oo_inv!(Ys[i+1], D_oo_inv)
-        add_wilson_derivative!(dU, U, Xs[i+1], Ys[i+1], bc; coeff=coeffs[i])
+        mul_oo_inv!(temps[1], D_oo_inv)
+        add_wilson_derivative!(dU, U, Xs[i+1], temps[1], bc; coeff=coeffs[i])
 
         if has_clover_term(D)
             Xμν = D.Xμν
-            calc_Xμν_eo_eachsite!(Xμν, Xs[i+1], Ys[i+1])
+            calc_Xμν_eo_eachsite!(Xμν, Xs[i+1], temps[1])
             add_clover_derivative!(dU, U, Xμν, -D.csw; coeff=coeffs[i])
             calc_small_Xμν_eachsite!(Xμν, D_oo_inv)
             add_clover_derivative!(dU, U, Xμν, -2D.csw; coeff=coeffs[i])

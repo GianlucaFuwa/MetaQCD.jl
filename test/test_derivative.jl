@@ -5,14 +5,21 @@ using MetaQCD.Measurements: top_charge_deriv!
 using Test
 # using AMDGPU
 
-function test_derivative(; backend=CPU, GA=WilsonGaugeAction, nprocs_cart=(1, 1, 1, 1), halo_width=1)
+function test_derivative(
+    ; backend=CPU,
+    GA=WilsonGaugeAction,
+    nprocs_cart=(1, 1, 1, 1),
+    halo_width=1,
+    N=4
+)
     Random.seed!(123)
     mpi_amroot() && println("Gauge and Clover derivative test")
+    @assert N in (4, 16)
 
     relerrors = Matrix{Float64}(undef, 8, 4)
 
     @testset "Gauge derivative" begin
-        NX = NY = NZ = NT = 16
+        NX = NY = NZ = NT = N
         Ucpu = Gaugefield{CPU,Float64,GA,12}(
             NX, NY, NZ, NT, 6.0, numprocs_cart=nprocs_cart, halo_width=halo_width
         )

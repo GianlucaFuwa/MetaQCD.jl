@@ -32,8 +32,9 @@ function runtests(; backend=CPU, nprocs_cart=(1, 1, 1, 1))
             error("mpi_size has to be 1, 2, 4 or 8 in tests")
         end
 
+        N = mpi_size() == 1 ? 4 : 16
         # gauge derivative
-        test_derivative(; backend, nprocs_cart, halo_width=2)
+        test_derivative(; backend, nprocs_cart, halo_width=2, N)
 
         # staggered derivative
         test_fderivative(; 
@@ -43,6 +44,7 @@ function runtests(; backend=CPU, nprocs_cart=(1, 1, 1, 1))
             dirac="staggered",
             mass=0.01,
             single_flavor=true,
+            N
         )
 
         # staggered-hoelbling1234 derivative
@@ -53,6 +55,7 @@ function runtests(; backend=CPU, nprocs_cart=(1, 1, 1, 1))
             dirac="staggered_h1234",
             mass=0.01,
             single_flavor=true,
+            N
         )
 
         # staggered-hoelbling1342 derivative
@@ -63,6 +66,7 @@ function runtests(; backend=CPU, nprocs_cart=(1, 1, 1, 1))
             dirac="staggered_h1342",
             mass=0.01,
             single_flavor=true,
+            N
         )
 
         # wilson derivative
@@ -74,6 +78,7 @@ function runtests(; backend=CPU, nprocs_cart=(1, 1, 1, 1))
             mass=0.01,
             single_flavor=true,
             csw=0,
+            N
         )
 
         # wilson-clover derivative
@@ -85,6 +90,7 @@ function runtests(; backend=CPU, nprocs_cart=(1, 1, 1, 1))
             mass=0.01,
             single_flavor=true,
             csw=1.78,
+            N
         )
 
         # staggered eo-pre derivative
@@ -96,6 +102,7 @@ function runtests(; backend=CPU, nprocs_cart=(1, 1, 1, 1))
             mass=0.01,
             single_flavor=true,
             eoprec=true,
+            N
         )
 
         # wilson eo-pre derivative
@@ -108,6 +115,7 @@ function runtests(; backend=CPU, nprocs_cart=(1, 1, 1, 1))
             single_flavor=false,
             eoprec=true,
             csw=0,
+            N
         )
 
         # FIXME: wilson-clover eo-pre derivative
@@ -121,6 +129,7 @@ function runtests(; backend=CPU, nprocs_cart=(1, 1, 1, 1))
             eoprec=true,
             csw=1.78,
             do_test=false,
+            N
         )
 
         test_gradflow(; backend, nprocs_cart, halo_width=1)
@@ -179,8 +188,8 @@ end
 #     end
 # end
 
-if mpi_size() == 1
-    cmd = Base.julia_cmd()
-    path = joinpath(@__DIR__, "runtests.jl")
-    run(`$(Utils.MPI.mpiexec()) -n 2 $(cmd) --project --startup-file=no $(path)`)
-end
+# if mpi_size() == 1
+#     cmd = Base.julia_cmd()
+#     path = joinpath(@__DIR__, "runtests.jl")
+#     run(`$(Utils.MPI.mpiexec()) -n 2 $(cmd) --project --startup-file=no $(path)`)
+# end

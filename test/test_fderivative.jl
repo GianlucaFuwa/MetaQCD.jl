@@ -9,6 +9,7 @@ function test_fderivative(;
     backend=CPU,
     nprocs_cart=(1, 1, 1, 1),
     halo_width=1,
+    N=4,
     dirac="staggered",
     eoprec=false,
     mass=0.01,
@@ -19,6 +20,7 @@ function test_fderivative(;
     if mpi_amroot()
         println("Fermion derivative test [$dirac]")
     end
+    @assert N in (4, 16)
 
     relerrors = Matrix{Float64}(undef, 8, 2)
     csw_str = if dirac == "wilson"
@@ -31,7 +33,7 @@ function test_fderivative(;
 
     @testset "$(name_str)$(csw_str) derivative" begin
         Random.seed!(123 * (mpi_myrank() + 1))
-        NX = NY = NZ = NT = 16
+        NX = NY = NZ = NT = N
         Ucpu = Gaugefield{CPU,Float64,WilsonGaugeAction,12}(
             NX, NY, NZ, NT, 6.0, numprocs_cart=nprocs_cart, halo_width=halo_width
         )
@@ -174,3 +176,4 @@ end
 # AMDGPU.@allowscalar test_fderivative(;
 #     single_flavor=true, backend=ROCBackend, nprocs_cart=(1, 1, 1, mpi_size())
 # )
+test_fderivative(; dirac="wilson", nprocs_cart=(1, 1, 1, mpi_size()), csw=1.0)

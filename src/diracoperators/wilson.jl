@@ -133,14 +133,26 @@ function LinearAlgebra.mul!(
     @assert TG !== Nothing "Dirac operator has no gauge background, do `D(U)`"
     U = D.parent.U
     Fμν = D.parent.Fμν
-    mass_term = T(8 + 2 * D.parent.mass)
+    mass_term = T(4 + D.parent.mass)
     csw = D.parent.csw
     bc = D.parent.boundary_condition
     fac = T(-csw / 2)
     do_edges = C ? Val(true) : Val(false)
 
-    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ, Fμν); do_edges) do site, (U, ϕ, ψ, Fμν)
-        @inbounds ψ[site] = wilson_kernel(U, Fμν, ϕ, site, mass_term, fac, bc, T, Val(-1), Val(C))
+    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ, Fμν); do_edges) do site, (U, ϕ, ψ)
+        @inbounds ψ[site] = wilson_kernel(U, ϕ, site, bc, T, Val(-1))
+    end
+
+    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (), (ψ,), (ψ, ϕ)) do site, (ψ, ϕ)
+        @inbounds ψ[site] += mass_term .* ϕ[site]
+    end
+
+    if C
+        @nexprs 6 i -> (
+            parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (ϕ,), (ψ,), (ϕ, ψ, Fμν); do_edges) do site, (ϕ, ψ, Fμν)
+                @inbounds ψ[site] += clover_kernel(ϕ, Fμν, site, Val(i), fac, T)
+            end
+        )
     end
 
     return nothing
@@ -161,7 +173,7 @@ end
     @inbounds begin
         # dagg can be 1 or -1; if it's -1 then we swap (1 - γᵨ) with (1 + γᵨ) and vice versa
         # We have to wrap in a Val for the same reason as in the next comment
-        ψₙ = zero(SVector{12,Complex{T}}) # factor 1/2 is included at the end
+        ψₙ = mass_term * ϕ[site] # factor 1/2 is included at the end
         NT = size(U, 4)
         @nexprs 4 μ -> (
             Nμ = axes(U, μ);

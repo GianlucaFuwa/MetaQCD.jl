@@ -120,7 +120,7 @@ function LinearAlgebra.mul!(
     return nothing
 end
 
-@inline function staggered_kernel(U, ϕ, site, mass, ::Val{μ}, bc, ::Type{T}, dagg::Bool) where {T,μ}
+#= @inline  =#function staggered_kernel(U, ϕ, site, mass, ::Val{μ}, bc, ::Type{T}, dagg::Bool) where {T,μ}
     @inbounds begin
         sgn = dagg ? T(-1) : T(1)
         NT = size(U, 4)

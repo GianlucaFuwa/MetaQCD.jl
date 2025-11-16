@@ -5,7 +5,6 @@ function calc_dSfdU!( # Force for unrooted Staggered-Hoelbling Action (Nf=2)
     ϕ::StaggeredSpinorfield,
 ) where {TD<:StaggeredHoelblingDiracOperator}
     clear!(dU)
-    X, Y, temp1, temp2 = fermion_action.temps[1:4]
     D = fermion_action.D(U)
     DdagD = DdaggerD(D)
     term = get_mass_term(D)
@@ -13,11 +12,25 @@ function calc_dSfdU!( # Force for unrooted Staggered-Hoelbling Action (Nf=2)
     solver_md = fermion_action.solver_md
     tol, maxiters, datafile = get_info(solver_md)
 
-    clear!(X) # initial guess is zero
-    solve_dirac!(X, DdagD, ϕ, Y, temp1, temp2; tol, maxiters, datafile)
+    if isnothing(fermion_action.D_low)
+        X, temps... = fermion_action.temps[1:4]
+        clear!(X)
+        solve_dirac!(X, DdagD, ϕ, temps; tol, maxiters, datafile)
+    else
+        # TODO: delta = solver_action.delta
+        X, temps... = fermion_action.temps[1:3]
+        clear!(X)
+        U_low, temps_low... = fermion_action.temps_low[1:6]
+        copy!(U_low, U)
+        D_low = fermion_action.D_low(U_low)
+        DdagD_low = DdaggerD(D_low)
+        solve_dirac_mixed!(
+            X, DdagD, DdagD_low, ϕ, temps, temps_low; tol, maxiters, datafile
+        )
+    end
 
-    LinearAlgebra.mul!(Y, D, X)
-    add_staggered_hoelbling_derivative!(dU, U, X, Y, bc, term)
+    LinearAlgebra.mul!(temps[1], D, X)
+    add_staggered_hoelbling_derivative!(dU, U, X, temps[1], bc, term)
     return nothing
 end
 
@@ -34,27 +47,50 @@ function calc_dSfdU!( # Force for single flavor Staggered-Hoelbling Action (Nf=2
     DdagD = DdaggerD(D)
     term = get_mass_term(D)
     bc = D.boundary_condition
-    temp1, temp2 = fermion_action.temps[1:2]
-    Xs = fermion_action.temps[3:n+3]
-    Ys = fermion_action.temps[n+4:2n+4]
     solver_md = fermion_action.solver_md
     tol, maxiters, datafile = get_info(solver_md)
 
-    for X in Xs
-        clear!(X)
-    end
-
     shifts = get_β_inverse(rhmc)
     coeffs = get_α_inverse(rhmc)
-    solve_dirac_multishift!(
-        Xs, shifts, DdagD, ϕ, temp1, temp2, Ys; tol, maxiters, datafile
-    )
+
+    if isnothing(fermion_action.D_low)
+        Xs = fermion_action.temps[1:n+1]
+        Ys = fermion_action.temps[n+2:2n+2]
+        temps = fermion_action.temps[2n+3:2n+4]
+
+        for X in Xs
+            clear!(X)
+        end
+
+        solve_dirac_multishift!(
+            Xs, shifts, DdagD, ϕ, temps, Ys; tol, maxiters, datafile
+        )
+    else
+        # TODO: delta = solver_action.delta
+        Xs = fermion_action.temps[1:n+1]
+        temps = fermion_action.temps[n+2:n+3]
+        U_low = fermion_action.temps_low[1]
+        Xs_low = fermion_action.temps_low[2:n+2]
+        ps_low = fermion_action.temps_low[n+3:2n+3]
+        temps_low = fermion_action.temps_low[2n+4:2n+6]
+        copy!(U_low, U)
+        D_low = fermion_action.D_low(U_low)
+        DdagD_low = DdaggerD(D_low)
+
+        for X in Xs
+            clear!(X)
+        end
+
+        solve_dirac_multishift_mixed!(
+            Xs, shifts, DdagD, DdagD_low, ϕ, temps,
+            Xs_low, ps_low, temps_low;
+            tol, maxiters, datafile
+        )
+    end
 
     for i in 1:n
-        X = Xs[i+1]
-        Y = Ys[i+1]
-        LinearAlgebra.mul!(Y, D, X)
-        add_staggered_hoelbling_derivative!(dU, U, X, Y, bc, term; coeff=coeffs[i])
+        LinearAlgebra.mul!(temps[1], D, Xs[i+1])
+        add_staggered_hoelbling_derivative!(dU, U, Xs[i+1], temps[1], bc, term; coeff=coeffs[i])
     end
 
     return nothing
