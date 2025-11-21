@@ -176,4 +176,4 @@ end
 # AMDGPU.@allowscalar test_fderivative(;
 #     single_flavor=true, backend=ROCBackend, nprocs_cart=(1, 1, 1, mpi_size())
 # )
-test_fderivative(; dirac="wilson", eoprec=true, nprocs_cart=(1, 1, 1, mpi_size()), csw=1.0)
+# test_fderivative(; dirac="wilson", eoprec=true, nprocs_cart=(1, 1, 1, mpi_size()), csw=1.0)

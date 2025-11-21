@@ -365,10 +365,14 @@ function mul_oo_inv!(
     itr = eachindex(odd_half, ϕ, D_oo_inv)
 
     parallelfor(itr, B, Val(M), (), (ϕ,), (ϕ, D_oo_inv)) do o_site, (ϕ, D_oo_inv)
-        @inbounds ϕ[o_site] = cmvmul_block(D_oo_inv[o_site], ϕ[o_site])
+        @inbounds ϕ[o_site] = mul_oo_inv_kernel(D_oo_inv, ϕ, o_site)
     end
 
     return nothing
+end
+
+@noinline function mul_oo_inv_kernel(D_oo_inv, ϕ, o_site)
+    return cmvmul_block(D_oo_inv[o_site], ϕ[o_site])
 end
 
 function axmy!(
