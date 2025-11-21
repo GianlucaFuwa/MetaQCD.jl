@@ -52,58 +52,17 @@ or
 pkg> instantiate
 ```
 
-If you want to use a GPU (still experimental), make sure you not only have CUDA.jl or AMDGPU.jl installed, but also a fairly recent version of the CUDA Toolkit or ROCm.
+If you want to use GPUs, make sure you not only have CUDA.jl or AMDGPU.jl installed, but also a fairly recent version of the CUDA Toolkit or ROCm.
 
 ## Quick Start
-1. Set parameters using one of the templates in template folder
+1. Set parameters using one of the templates in template folder (see docs for all the parameters and their options)
 2. From shell, do:
 ```
-julia --threads=auto metaqcd.jl -mode=sim parameters.toml
-```
-
-or
-
-2. Start Julia (with project):
-```
-julia --threads=auto --project=/path/to/dir/containing/MetaQCD.jl
-```
-3. Import MetaQCD package:
-``` julia
-using MetaQCD
-```
-4. Begin Simulation with prepared parameter file "parameters.toml":
-``` julia
-run_sim("parameters.toml")
-```
-To use another backend, add the `-backend` flag like:
-```
-julia --threads=auto metaqcd.jl -mode=sim -backend=cuda parameters.toml
-```
-
-## Build a Bias
-1. Set parameters using the "parameters_build.toml" example in template folder
-2. From shell, do:
-```
-julia --threads=auto metaqcd.jl -mode=build parameters.toml
-```
-
-or
-
-2. Start Julia (with project):
-```
-julia --threads=auto --project=/path/to/dir/containing/MetaQCD.jl
-```
-3. Import MetaQCD package:
-``` julia
-using MetaQCD
-```
-4. Begin build with prepared parameter file "parameters.toml":
-``` julia
-build_bias("parameters.toml")
+julia --threads=auto metaqcd.jl parameters.toml
 ```
 
 ## Visualization
-We include the ability to visualize your data. For that, you just have to pass the directory where your ensemble lives:
+We include the ability to visualize your data (might not work as intended as of version 2.0.0) . For that, you just have to pass the directory where your ensemble lives:
 ```julia
 ] activate MetaAnalysis/
 ] instantiate

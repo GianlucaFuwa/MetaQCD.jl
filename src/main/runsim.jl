@@ -65,11 +65,7 @@ function run_sim(parameters)
     end
 
     to_console = mpi_amroot() ? parameters.log_to_console : false
-
     set_global_logger!(parameters.verboselevel, logpath; tc=to_console)
-
-    @level1("# Working directory: $(pwd()) @ $(string(current_time()))")
-    @level1("[ Running MetaQCD.jl version $(PACKAGE_VERSION)\n")
 
     if parameters.load_checkpoint_fromfile
         rank = mpi_myrank(mpi_comm_instance())

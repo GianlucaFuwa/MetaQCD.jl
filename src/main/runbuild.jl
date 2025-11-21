@@ -78,11 +78,7 @@ function run_build(parameters)
     end
 
     to_console = mpi_amroot() ? parameters.log_to_console : false
-
     set_global_logger!(parameters.verboselevel, logpath; tc=to_console)
-
-    @level1("# Working directory: $(pwd()) @ $(string(current_time()))")
-    @level1("[ Running MetaQCD.jl version $(PACKAGE_VERSION)\n")
 
     if parameters.load_checkpoint_fromfile
         rank = mpi_myrank(mpi_comm_instance())
@@ -206,7 +202,7 @@ function metabuild!(
     if isnothing(starting_itrj)
         @level1("- Thermalization:")
         _, runtime_therm = @timed begin
-            !isnothing(starting_Q) && set_instanton!(U, starting_Q[myinstance+1])
+            set_instanton!(U, starting_Q)
 
             for itrj in 1:(parameters.numtherm)
                 if (last_updatetime + time() + TIME_BUFFER - LOAD_TIME) > JOB_TIME_LIMIT

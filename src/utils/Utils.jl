@@ -17,7 +17,7 @@ using StaticArrays
 using StaticTools
 # using PrecompileTools: PrecompileTools
 
-export METAQCD_VERSION, to_vec
+export METAQCD_VERSION, to_vec, print_startup
 export MPI_COMM_WORLD, MPI_COMM_INSTANCE, MPI_WORLD_SIZE, MPI_INSTANCE_SIZE, MPI_INSTANCE
 export MPI_NUMINSTANCES, MPI_IS_GPUAWARE, mpi_make_transferrable, instance_from_rank
 export mpi_comm_instance, mpi_comm_shared, mpi_ssend, mpi_recv!, mpi_datatype, mpi_buffer

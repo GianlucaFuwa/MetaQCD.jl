@@ -18,7 +18,11 @@ end
 
 parameters, mode, backend = parse_args(ARGS)
 
-@level1 "[ Mode: $(mode)\n"
+mpi_amroot() && print_startup()
+@level1("##### Mode: $(mode)")
+@level1("##### Number of ranks: $(mpi_size())")
+@level1("##### Working Directory: $(pwd())")
+# @level1("##### MetaQCD.jl version: $(METAQCD_VERSION)\n")
 
 if backend != "cpu"
     @level1 """

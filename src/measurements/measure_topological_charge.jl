@@ -153,13 +153,13 @@ function top_charge(::Improved, U::Gaugefield{B,T,M}) where {B,T,M}
     c₁ = T(-2/12)
     itr = eachindex(U)
     Q = parallelfor_sum(itr, 0.0, B, Val(M), (U,), (), (U,); do_edges=Val(true)) do q, site, (U,)
-        q += top_charge_density_imp(U, site, c₀, c₁, T)
+        q += top_charge_density_imp(U, site, c₀, c₁, Float64)
     end
 
     return distributed_reduce(Q/4π^2, +, U)
 end
 
-@inline function top_charge_density_plaq(U, site)
+function top_charge_density_plaq(U, site)
     C₁₂ = plaquette(U, 1, 2, site)
     F₁₂ = C₁₂ - C₁₂'
     C₁₃ = plaquette(U, 1, 3, site)
@@ -177,7 +177,7 @@ end
     return -qₙ
 end
 
-@inline function top_charge_density_clover(U, site, ::Type{T}) where {T}
+function top_charge_density_clover(U, site, ::Type{T}) where {T}
     C₁₂ = clover_1x1(U, 1, 2, site)
     F₁₂ = C₁₂ - C₁₂'
     C₁₃ = clover_1x1(U, 1, 3, site)
@@ -202,7 +202,7 @@ end
     return q_imp
 end
 
-@inline function top_charge_density_rect(U, site, ::Type{T}) where {T}
+ function top_charge_density_rect(U, site, ::Type{T}) where {T}
     C₁₂ = clover_2x1(U, 1, 2, site) + clover_1x2(U, 1, 2, site)
     F₁₂ = C₁₂ - C₁₂'
     C₁₃ = clover_2x1(U, 1, 3, site) + clover_1x2(U, 1, 3, site)
@@ -224,50 +224,77 @@ function top_charge_deriv!(
     dU::Colorfield{B,T}, F::Tensorfield{B,TF,M}, U::Gaugefield{B,TU}, kind_of_charge, fac=1.0
 ) where {B,T,M,TF,TU}
     c = T(fac / 4π^2)
-    fieldstrength_eachsite!(kind_of_charge, F, U) # halo update of U done here
+    fieldstrength_eachsite!(kind_of_charge, F, U)
 
     parallelfor(eachindex(dU, F, U), B, Val(M), (F,), (U,), (F, U); do_edges=Val(true)) do site, (F, U)
-        # @inbounds begin
-            tmp1 = cmatmul_oo(
-                U[1, site],
-                (
-                    ∇trFμνFρσ(kind_of_charge, U, F, 1, 2, 3, 4, site) -
-                    ∇trFμνFρσ(kind_of_charge, U, F, 1, 3, 2, 4, site) +
-                    ∇trFμνFρσ(kind_of_charge, U, F, 1, 4, 2, 3, site)
-                ),
-            )
-            dU[1, site] = c * traceless_antihermitian(tmp1)
-            tmp2 = cmatmul_oo(
-                U[2, site],
-                (
-                    ∇trFμνFρσ(kind_of_charge, U, F, 2, 3, 1, 4, site) -
-                    ∇trFμνFρσ(kind_of_charge, U, F, 2, 1, 3, 4, site) -
-                    ∇trFμνFρσ(kind_of_charge, U, F, 2, 4, 1, 3, site)
-                ),
-            )
-            dU[2, site] = c * traceless_antihermitian(tmp2)
-            tmp3 = cmatmul_oo(
-                U[3, site],
-                (
-                    ∇trFμνFρσ(kind_of_charge, U, F, 3, 1, 2, 4, site) -
-                    ∇trFμνFρσ(kind_of_charge, U, F, 3, 2, 1, 4, site) +
-                    ∇trFμνFρσ(kind_of_charge, U, F, 3, 4, 1, 2, site)
-                ),
-            )
-            dU[3, site] = c * traceless_antihermitian(tmp3)
-            tmp4 = cmatmul_oo(
-                U[4, site],
-                (
-                    ∇trFμνFρσ(kind_of_charge, U, F, 4, 2, 1, 3, site) -
-                    ∇trFμνFρσ(kind_of_charge, U, F, 4, 1, 2, 3, site) -
-                    ∇trFμνFρσ(kind_of_charge, U, F, 4, 3, 1, 2, site)
-                ),
-            )
-            dU[4, site] = c * traceless_antihermitian(tmp4)
-        # end
+        tmp = top_charge_deriv_kernel(U, F, site, kind_of_charge, Val(1))
+        @inbounds dU[1, site] = c * tmp
+    end
+
+    parallelfor(eachindex(dU, F, U), B, Val(M), (F,), (U,), (F, U); do_edges=Val(true)) do site, (F, U)
+        tmp = top_charge_deriv_kernel(U, F, site, kind_of_charge, Val(2))
+        @inbounds dU[2, site] = c * tmp
+    end
+
+    parallelfor(eachindex(dU, F, U), B, Val(M), (F,), (U,), (F, U); do_edges=Val(true)) do site, (F, U)
+        tmp = top_charge_deriv_kernel(U, F, site, kind_of_charge, Val(3))
+        @inbounds dU[3, site] = c * tmp
+    end
+
+    parallelfor(eachindex(dU, F, U), B, Val(M), (F,), (U,), (F, U); do_edges=Val(true)) do site, (F, U)
+        tmp = top_charge_deriv_kernel(U, F, site, kind_of_charge, Val(4))
+        @inbounds dU[4, site] = c * tmp
     end
 
     return nothing
+end
+
+function top_charge_deriv_kernel(U, F, site, kind_of_charge, ::Val{1})
+    out = @inbounds cmatmul_oo(
+        U[1, site],
+        (
+            ∇trFμνFρσ(kind_of_charge, U, F, 1, 2, 3, 4, site) -
+            ∇trFμνFρσ(kind_of_charge, U, F, 1, 3, 2, 4, site) +
+            ∇trFμνFρσ(kind_of_charge, U, F, 1, 4, 2, 3, site)
+        ),
+    )
+    return traceless_antihermitian(out)
+end
+
+function top_charge_deriv_kernel(U, F, site, kind_of_charge, ::Val{2})
+    out = @inbounds cmatmul_oo(
+        U[2, site],
+        (
+            ∇trFμνFρσ(kind_of_charge, U, F, 2, 3, 1, 4, site) -
+            ∇trFμνFρσ(kind_of_charge, U, F, 2, 1, 3, 4, site) -
+            ∇trFμνFρσ(kind_of_charge, U, F, 2, 4, 1, 3, site)
+        ),
+    )
+    return traceless_antihermitian(out)
+end
+
+function top_charge_deriv_kernel(U, F, site, kind_of_charge, ::Val{3})
+    out = @inbounds cmatmul_oo(
+        U[3, site],
+        (
+            ∇trFμνFρσ(kind_of_charge, U, F, 3, 1, 2, 4, site) -
+            ∇trFμνFρσ(kind_of_charge, U, F, 3, 2, 1, 4, site) +
+            ∇trFμνFρσ(kind_of_charge, U, F, 3, 4, 1, 2, site)
+        ),
+    )
+    return traceless_antihermitian(out)
+end
+
+function top_charge_deriv_kernel(U, F, site, kind_of_charge, ::Val{4})
+    out = @inbounds cmatmul_oo(
+        U[4, site],
+        (
+            ∇trFμνFρσ(kind_of_charge, U, F, 4, 2, 1, 3, site) -
+            ∇trFμνFρσ(kind_of_charge, U, F, 4, 1, 2, 3, site) -
+            ∇trFμνFρσ(kind_of_charge, U, F, 4, 3, 1, 2, site)
+        ),
+    )
+    return traceless_antihermitian(out)
 end
 
 # """
@@ -283,9 +310,11 @@ function ∇trFμνFρσ(::Plaquette, U, F, μ, ν, ρ, σ, site)
     i = get_tensor_index(ρ, σ)
     sgn = ρ > σ ? -1 : 1
 
-    component =
-        cmatmul_oddo(U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site], F[i, site]) +
-        cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], F[i, siteν⁻], U[ν, siteν⁻])
+    @inbounds begin
+        component =
+            cmatmul_oddo(U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site], F[i, site]) +
+            cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], F[i, siteν⁻], U[ν, siteν⁻])
+    end
 
     return eltype(component)(im * sgn / 2) * component
 end
@@ -312,15 +341,17 @@ function ∇trFμνFρσ(::Clover, U, F, μ, ν, ρ, σ, site)
     # Uμsiteν⁻ = U[μ,siteν⁻]
     # Uνsiteν⁻ = U[ν,siteν⁻]
 
-    component =
-        cmatmul_oddo(U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site], F[i, site]) +
-        cmatmul_odod(U[ν, siteμ⁺], U[μ, siteν⁺], F[i, siteν⁺], U[ν, site]) +
-        cmatmul_oodd(U[ν, siteμ⁺], F[i, siteμ⁺ν⁺], U[μ, siteν⁺], U[ν, site]) +
-        cmatmul_oodd(F[i, siteμ⁺], U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site]) -
-        cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻], F[i, site]) -
-        cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], F[i, siteν⁻], U[ν, siteν⁻]) -
-        cmatmul_dodo(U[ν, siteμ⁺ν⁻], F[i, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻]) -
-        cmatmul_oddo(F[i, siteμ⁺], U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻])
+    @inbounds begin
+        component =
+            cmatmul_oddo(U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site], F[i, site]) +
+            cmatmul_odod(U[ν, siteμ⁺], U[μ, siteν⁺], F[i, siteν⁺], U[ν, site]) +
+            cmatmul_oodd(U[ν, siteμ⁺], F[i, siteμ⁺ν⁺], U[μ, siteν⁺], U[ν, site]) +
+            cmatmul_oodd(F[i, siteμ⁺], U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site]) -
+            cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻], F[i, site]) -
+            cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], F[i, siteν⁻], U[ν, siteν⁻]) -
+            cmatmul_dodo(U[ν, siteμ⁺ν⁻], F[i, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻]) -
+            cmatmul_oddo(F[i, siteμ⁺], U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻])
+    end
 
     return eltype(component)(im * sgn / 8) * component
 end

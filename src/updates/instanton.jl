@@ -1,7 +1,7 @@
 set_instanton!(::Gaugefield, ::Nothing) = nothing
 
 function set_instanton!(U::Gaugefield, Q::Vector{Int64})
-    set_instanton!(U, Q[MPI_MYINSTANCE[]+1])
+    set_instanton!(U, Q[MPI_INSTANCE[]+1])
     return nothing
 end
 
