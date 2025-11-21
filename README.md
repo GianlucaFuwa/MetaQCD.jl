@@ -58,7 +58,7 @@ If you want to use GPUs, make sure you not only have CUDA.jl or AMDGPU.jl instal
 1. Set parameters using one of the templates in template folder (see docs for all the parameters and their options)
 2. From shell, do:
 ```
-julia --threads=auto metaqcd.jl parameters.toml
+julia --project --threads=auto metaqcd.jl parameters.toml
 ```
 
 ## Visualization
