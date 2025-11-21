@@ -39,6 +39,15 @@ const MYEXT = StaticString(MYEXT_str)
     return Char('0' + x)
 end
 
+const ITRJ_STR_FMT = StaticString("%-11s")
+const IFLOW_STR_FMT = StaticString("%-7s")
+const TFLOW_STR_FMT = StaticString("%-9s")
+const METHOD_STR_FMT = StaticString("%-25s")
+const ITRJ_FMT = StaticString("%-11i")
+const IFLOW_FMT = StaticString("%-7i")
+const TFLOW_FMT = StaticString("%-9.5f")
+const METHOD_FMT = StaticString("%-25.15E")
+
 function measure(::M, args...; kwargs...) where {M<:AbstractMeasurement}
     return error("Measurement of type $M is not supported")
 end

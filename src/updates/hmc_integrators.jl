@@ -307,6 +307,22 @@ function num_U_updates(str::String)
     end
 end
 
+function num_P_updates(str::String, numsteps)
+    if lowercase(str) ∈ ("leapfrog", "leapfrogra")
+        return numsteps + 1
+    elseif lowercase(str) == "omf2slow"
+        return 3numsteps
+    elseif lowercase(str) == "omf2"
+        return 2(numsteps-1) + 3
+    elseif lowercase(str) == "omf4slow"
+        return 6numsteps
+    elseif lowercase(str) ∈ ("omf4", "omf4ra")
+        return 5(numsteps-1) + 6
+    else
+        error("integrator \"$(str)\" not supported")
+    end
+end
+
 @inline default_integrator(int::AbstractIntegrator) = int
 @inline default_integrator(int::LeapfrogRA) = Leapfrog()
 @inline default_integrator(int::OMF4RA) = OMF4()

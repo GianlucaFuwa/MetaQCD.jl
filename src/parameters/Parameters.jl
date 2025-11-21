@@ -152,7 +152,7 @@ function construct_params_from_toml(parameters, inputfile)
         log_dir_exists = isdir(log_dir)
         measure_dir_exists = isdir(measure_dir)
         config_dir_exists = isdir(save_config_dir)
-        checkpoint_dir_exists = isdir(checkpoint_dir_exists)
+        checkpoint_dir_exists = isdir(checkpoint_dir)
         bias_dir_exists = isdir(bias_dir)
         itimer += 1
     end

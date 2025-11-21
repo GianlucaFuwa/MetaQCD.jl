@@ -49,10 +49,10 @@ function calc_weights(
         end
 
         fp = fopen(_filename, "a")
-        printf(fp, "%-11i", itrj)
+        printf(fp, StaticString("%-11i"), itrj)
 
         for i in eachindex(b.CV)
-            printf(fp, "%+-25.15E", b.CV[i])
+            printf(fp, StaticString("%+-25.15E"), b.CV[i])
         end
 
         for method in b.kinds_of_weights
@@ -62,7 +62,7 @@ function calc_weights(
                 w += calc_weight(bias, b.CV[icv], method)
             end
 
-            printf(fp, "%-25.15E", w)
+            printf(fp, StaticString("%-25.15E"), w)
         end
 
         newline(fp)

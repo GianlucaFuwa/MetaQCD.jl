@@ -324,7 +324,7 @@ function metaqcd!(
 
     if !isnothing(timing_datafile)
         fp = fopen(timing_datafile, "w")
-        printf(fp, "%s", "time [s]")
+        printf(fp, printfmt(String), "time [s]")
         newline(fp)
         fclose(fp)
     end
@@ -360,7 +360,7 @@ function metaqcd!(
                 if mpi_amroot(mpi_comm_instance())
                     if !isnothing(timing_datafile)
                         fp = fopen(timing_datafile, "a")
-                        printf(fp, "%-.10E", updatetime)
+                        printf(fp, StaticString("%-.10E"), updatetime)
                         newline(fp)
                         fclose(fp)
                     end
@@ -406,7 +406,7 @@ function metaqcd!(
                 )
 
                 if rand() < 0.5
-                    update!(parity, U[1])
+                    update!(parity, U)
                 end
 
                 accepted>0 && update_bias!(bias, itrj; mpi_multi_sim=mpi_multi_sim)
@@ -421,7 +421,7 @@ function metaqcd!(
                 if !isnothing(timing_datafile)
                     set_ext!(timing_datafile)
                     fp = fopen(timing_datafile, "a")
-                    printf(fp, "%-.10E", updatetime)
+                    printf(fp, StaticString("%-.10E"), updatetime)
                     newline(fp)
                     fclose(fp)
                 end

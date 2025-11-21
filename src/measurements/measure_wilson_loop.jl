@@ -16,16 +16,16 @@ struct WilsonLoopMeasurement{T} <: AbstractMeasurement
 
             if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
                 fp = fopen(filename, "w")
-                printf(fp, "%-11s", "itrj")
+                printf(fp, ITRJ_STR_FMT, "itrj")
 
                 if flow == true || flow != NoSmearing()
-                    printf(fp, "%-7s", "iflow")
-                    printf(fp, "%-9s", "tflow")
+                    printf(fp, IFLOW_STR_FMT, "iflow")
+                    printf(fp, TFLOW_STR_FMT, "tflow")
                 end
 
                 for iT in 1:Tmax
                     for iR in 1:Rmax
-                        printf(fp, "%-25s", "wilson_loop_$(iR)x$(iT)")
+                        printf(fp, METHOD_STR_FMT, "wilson_loop_$(iR)x$(iT)")
                     end
                 end
 
@@ -76,16 +76,16 @@ function measure(
         end
 
         fp = fopen(filename, "a")
-        printf(fp, "%-11i", itrj)
+        printf(fp, ITRJ_FMT, itrj)
 
         if !isnothing(flow)
-            printf(fp, "%-7i\t", iflow)
-            printf(fp, "%-9.5f\t", τ)
+            printf(fp, IFLOW_FMT, iflow)
+            printf(fp, TFLOW_FMT, τ)
         end
 
         for iT in 1:(m.Tmax)
             for iR in 1:(m.Rmax)
-                printf(fp, "%+-25.15E", m.WL[iR, iT]::Float64)
+                printf(fp, METHOD_FMT, m.WL[iR, iT]::Float64)
             end
         end
 

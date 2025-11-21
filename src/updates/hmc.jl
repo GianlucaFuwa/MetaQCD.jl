@@ -69,6 +69,8 @@ struct HMC{TL,NL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF} <: AbstractUpdate
     smearing_fermion::TSF
 
     substep_CVs::Vector{Vector{Float64}}
+    substep_CVs_single::Vector{Float64}
+    substep_counter::Base.RefValue{Int64}
 
     logfile::TLF
     function HMC(
@@ -99,6 +101,8 @@ struct HMC{TL,NL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF} <: AbstractUpdate
         @level1("|  FERMION SMEARING: $(string(smearing_fermion))")
         !isnothing(logfile) && @level1("|  HMC LOGFILE: $(logfile)")
         @level1("-\n")
+        substep_CVs_single = isempty(substep_CVs) ? Float64[] : deepcopy(substep_CVs[1])
+        substep_counter = Base.RefValue{Int64}(0)
         TL = typeof(levels)
         NL = _unwrap_val(numlevels)
         TG = typeof(U_old)
@@ -125,6 +129,8 @@ struct HMC{TL,NL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF} <: AbstractUpdate
             smearing_gauge,
             smearing_fermion,
             substep_CVs,
+            substep_CVs_single,
+            substep_counter,
             logfile,
         )
     end
@@ -189,7 +195,24 @@ function HMC(
         )
     end
 
-    substep_CVs = Vector{Float64}[]
+    numsubsteps = 1
+    sum_U_updates = 0
+    switch = false
+    for ilvl in length(levels):-1:1
+        switch && continue
+        lvl = levels[ilvl]
+        int = level_params[ilvl].integrator
+        if Val(0)in lvl.forces && ilvl == length(levels)
+            switch = true
+            numsubsteps = num_P_updates(int, lvl.numsteps)
+        elseif Val(0) in lvl.forces
+            switch = true
+            numsubsteps = sum_U_updates * num_P_updates(int, lvl.numsteps)
+        else
+            sum_U_updates += lvl.numsteps * num_U_updates(int)
+        end
+    end
+    substep_CVs = fill(zeros(numcv), Int(numsubsteps))
 
     allforces = collect(Iterators.flatten([lvl.forces for lvl in levels]))
     fail = false
@@ -257,13 +280,13 @@ function HMC(
         for ii in instance
             _logfile = joinpath(logdir, "hmc_acc_logs_$(lpad(ii, 3, "0")).txt")
             fp = fopen(_logfile, "w")
-            printf(fp, "%-25s", "ΔP2")
-            printf(fp, "%-25s", "ΔSg")
-            printf(fp, "%-25s", "ΔSf")
-            printf(fp, "%-25s", "ΔV")
-            printf(fp, "%-25s", "ΔH")
-            printf(fp, "%-25s", "Total Action")
-            printf(fp, "%-8s", "Accepted")
+            printf(fp, StaticString("%-25s"), "ΔP2")
+            printf(fp, StaticString("%-25s"), "ΔSg")
+            printf(fp, StaticString("%-25s"), "ΔSf")
+            printf(fp, StaticString("%-25s"), "ΔV")
+            printf(fp, StaticString("%-25s"), "ΔH")
+            printf(fp, StaticString("%-25s"), "Total Action")
+            printf(fp, StaticString("%-8s"), "Accepted")
             newline(fp)
             fclose(fp)
         end
@@ -309,7 +332,7 @@ function update!(
         @assert !isnothing(hmc.ϕ) "fermion_action passed but not activated in HMC"
     end
 
-    empty!(hmc.substep_CVs)
+    hmc.substep_counter[] = 0
 
     set_ext!(hmc.logfile, instance)
     for lvl in hmc.levels
@@ -419,7 +442,8 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level)
 
     if Val(0) ∈ forces
         if bias isa Bias
-            substep_cv = Vector{Float64}(undef, length(bias))
+            hmc.substep_counter[] += 1
+            substep_cv = hmc.substep_CVs_single
             for i in 1:length(bias)
                 is_smeared = i > 1
                 cv = calc_dVdU_bare!(
@@ -432,19 +456,19 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level)
                 if !isnothing(fp)
                     # print(fp, cfmt("%+-25.15E", force_avg))
                     # print(fp, cfmt("%+-25.15E", force_sup))
-                    printf(fp, "%+-25.15E", force_avg)
-                    printf(fp, "%+-25.15E", force_sup)
+                    printf(fp, StaticString("%+-25.15E"), force_avg)
+                    printf(fp, StaticString("%+-25.15E"), force_sup)
                 end
 
                 add!(P, force, ϵ)
             end
-            push!(hmc.substep_CVs, substep_cv)
+            hmc.substep_CVs[hmc.substep_counter[]] .= substep_cv
         else
             if !isnothing(fp)
                 # print(fp, cfmt("%+-25.15E", 0.0))
                 # print(fp, cfmt("%+-25.15E", 0.0))
-                printf(fp, "%+-25.15E", 0.0)
-                printf(fp, "%+-25.15E", 0.0)
+                printf(fp, StaticString("%+-25.15E"), 0.0)
+                printf(fp, StaticString("%+-25.15E"), 0.0)
             end
         end
     end
@@ -457,8 +481,8 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level)
         if !isnothing(fp)
             # print(fp, cfmt("%+-25.15E", force_avg))
             # print(fp, cfmt("%+-25.15E", force_sup))
-            printf(fp, "%+-25.15E", force_avg)
-            printf(fp, "%+-25.15E", force_sup)
+            printf(fp, StaticString("%+-25.15E"), force_avg)
+            printf(fp, StaticString("%+-25.15E"), force_sup)
         end
 
         add!(P, force, ϵ)
@@ -486,8 +510,8 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level)
             if !isnothing(fp)
                 # print(fp, cfmt("%+-25.15E", force_avg))
                 # print(fp, cfmt("%+-25.15E", force_sup))
-                printf(fp, "%+-25.15E", force_avg)
-                printf(fp, "%+-25.15E", force_sup)
+                printf(fp, StaticString("%+-25.15E"), force_avg)
+                printf(fp, StaticString("%+-25.15E"), force_sup)
             end
 
             add!(P, force, ϵ)
@@ -580,13 +604,13 @@ end
 
 @inline function print_hmc_data(logfile, ΔP², ΔSg, ΔSf, ΔV, ΔH, S, accept)
     fp = fopen(logfile, "a")
-    printf(fp, "%+-24.15E", ΔP²)
-    printf(fp, "%+-24.15E", ΔSg)
-    printf(fp, "%+-24.15E", ΔSf)
-    printf(fp, "%+-24.15E", ΔV)
-    printf(fp, "%+-24.15E", ΔH)
-    printf(fp, "%+-24.15E", S)
-    printf(fp, "%-i", Int64(accept))
+    printf(fp, StaticString("%+-24.15E"), ΔP²)
+    printf(fp, StaticString("%+-24.15E"), ΔSg)
+    printf(fp, StaticString("%+-24.15E"), ΔSf)
+    printf(fp, StaticString("%+-24.15E"), ΔV)
+    printf(fp, StaticString("%+-24.15E"), ΔH)
+    printf(fp, StaticString("%+-24.15E"), S)
+    printf(fp, StaticString("%-i"), Int64(accept))
     newline(fp)
     fclose(fp)
     return nothing
@@ -612,6 +636,8 @@ struct HMCSerialization{TL,NL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF}
     smearing_gauge::TSG
     smearing_fermion::TSF
 
+    substep_CVs::Vector{Vector{Float64}}
+
     logfile::TLF
 end
 
@@ -636,6 +662,7 @@ function Base.convert(::Type{<:HMCSerialization}, hmc::HMC)
         hmc.fieldstrength,
         hmc.smearing_gauge,
         hmc.smearing_fermion,
+        hmc.substep_CVs,
         hmc.logfile,
     )
     return out
@@ -656,6 +683,7 @@ function Base.convert(::Type{<:HMC}, hmc::HMCSerialization)
         hmc.fieldstrength,
         hmc.smearing_gauge,
         hmc.smearing_fermion,
+        hmc.substep_CVs,
         hmc.logfile,
     )
     return out

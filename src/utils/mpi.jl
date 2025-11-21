@@ -137,6 +137,10 @@ end
     return MPI.Allgather(sendbuf::T, comm)
 end
 
+@inline function mpi_allgather!(sendbuf::T, recvbuf, comm) where {T}
+    return MPI.Allgather!(sendbuf::T, recvbuf, comm)
+end
+
 @inline function mpi_bcast!(buff, comm; root=0)
     return MPI.Bcast!(buff, comm, root=root)
 end

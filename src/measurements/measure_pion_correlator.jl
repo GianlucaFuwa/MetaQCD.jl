@@ -60,15 +60,15 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT,T1} <: AbstractMeasurement
 
             if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
                 fp = fopen(filename, "w")
-                printf(fp, "%-11s", "itrj")
+                printf(fp, ITRJ_STR_FMT, "itrj")
 
                 if flow == true || flow != NoSmearing()
-                    printf(fp, "%-7s", "iflow")
-                    printf(fp, "%-9s", "tflow")
+                    printf(fp, IFLOW_STR_FMT, "iflow")
+                    printf(fp, TFLOW_STR_FMT, "tflow")
                 end
 
                 for it in 1:NT
-                    printf(fp, "%-25s", "pion_corr_$(it)")
+                    printf(fp, METHOD_STR_FMT, "pion_corr_$(it)")
                 end
 
                 newline(fp)
@@ -87,8 +87,8 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT,T1} <: AbstractMeasurement
 
             if cg_filepath != ""
                 fp = fopen(cg_datafile, "w")
-                printf(fp, "%-11s", "iters")
-                printf(fp, "%-25s", "res")
+                printf(fp, ITRJ_STR_FMT, "iters")
+                printf(fp, METHOD_STR_FMT, "res")
                 newline(fp)
                 fclose(fp)
             end
@@ -147,15 +147,15 @@ function measure(
         end
 
         fp = fopen(filename, "a")
-        printf(fp, "%-11i", itrj)
+        printf(fp, ITRJ_FMT, itrj)
 
         if !isnothing(flow)
-            printf(fp, "%-7i", iflow)
-            printf(fp, "%-9.5f", τ)
+            printf(fp, IFLOW_FMT, iflow)
+            printf(fp, TFLOW_FMT, τ)
         end
 
         for value in m.pion_corr
-            printf(fp, "%+-25.15E", value)
+            printf(fp, METHOD_FMT, value)
         end
 
         printf(fp, "\n")

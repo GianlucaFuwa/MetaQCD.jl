@@ -38,8 +38,8 @@ function calc_gauge_action(U::Gaugefield, methodname::String)
 end
 
 function calc_gauge_action(U::Gaugefield{B,T,M,GA}) where {B,T,M,GA}
-    Uhigh = convert_field(B, U, Float64)
-    return calc_gauge_action(GA(), Uhigh)
+    # Uhigh = convert_field(B, U, Float64)
+    return calc_gauge_action(GA(), U)
 end
 
 function calc_gauge_action(::WilsonGaugeAction, U::Gaugefield)

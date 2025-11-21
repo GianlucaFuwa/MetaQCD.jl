@@ -252,11 +252,19 @@ end
 function update_bias!(
     b::Bias{N}, values, itrj; mpi_multi_sim=false
 ) where {N}
-    (length(values) == 0) && return nothing
+    # values can either be a tuple of size N, or a Vector of such tuples
+    if values isa Vector && isempty(values)
+        return nothing
+    end
 
     for (icv, bias) in enumerate(b.bias)
         bias.static && continue
-        values_i = ntuple(j -> values[j][icv], length(values))
+        values_i = if values isa Vector
+            ntuple(j -> values[j][icv], length(values))
+        else
+            values[icv]
+        end
+
         update!(bias, values_i, itrj)
 
         if (bias.write_bias_every != 0) && (itrj % bias.write_bias_every == 0)

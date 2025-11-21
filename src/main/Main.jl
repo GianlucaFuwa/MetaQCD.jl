@@ -54,10 +54,11 @@ function metaqcd(parameterfile::String)
 end
 
 function print_acceptance_rates(numaccepts, itrj)
-    for (i, value) in enumerate(numaccepts)
-        @level1("|    Acceptance $i:\t$(100value / itrj) %")
-    end
+    # for (i, value) in enumerate(numaccepts)
+    #     @level1("|    Acceptance $i:\t$(100value / itrj) %")
+    # end
 
+    @level1("|    Acceptance $(MPI_INSTANCE[]):\t$(100numaccepts / itrj) %")
     return nothing
 end
 

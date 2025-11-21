@@ -17,15 +17,15 @@ struct GaugeActionMeasurement{T} <: AbstractMeasurement
 
             if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
                 fp = fopen(filename, "w")
-                printf(fp, "%-11s", "itrj")
+                printf(fp, ITRJ_STR_FMT, "itrj")
 
                 if flow == true || flow != NoSmearing()
-                    printf(fp, "%-7s", "iflow")
-                    printf(fp, "%-9s", "tflow")
+                    printf(fp, IFLOW_STR_FMT, "iflow")
+                    printf(fp, TFLOW_STR_FMT, "tflow")
                 end
 
                 for method in keys(GA_dict)
-                    printf(fp, "%-25s", "S_$(method)")
+                    printf(fp, METHOD_STR_FMT, "S_$(method)")
                 end
 
                 newline(fp)
@@ -83,15 +83,15 @@ function measure(
         end
 
         fp = fopen(filename, "a")
-        printf(fp, "%-11i", itrj)
+        printf(fp, ITRJ_FMT, itrj)
 
         if !isnothing(flow)
-            printf(fp, "%-7i", iflow)
-            printf(fp, "%-9.5f", τ)
+            printf(fp, IFLOW_FMT, iflow)
+            printf(fp, TFLOW_FMT, τ)
         end
 
         for method in keys(GA_dict)
-            printf(fp, "%+-25.15E", GA_dict[method])
+            printf(fp, METHOD_FMT, GA_dict[method])
         end
 
         printf(fp, "\n")

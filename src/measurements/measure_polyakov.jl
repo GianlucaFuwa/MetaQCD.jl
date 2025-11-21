@@ -10,15 +10,15 @@ struct PolyakovMeasurement{T} <: AbstractMeasurement
 
             if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
                 fp = fopen(filename, "w")
-                printf(fp, "%-11s", "itrj")
+                printf(fp, ITRJ_STR_FMT, "itrj")
 
                 if flow == true || flow != NoSmearing()
-                    printf(fp, "%-7s", "iflow")
-                    printf(fp, "%-9s", "tflow")
+                    printf(fp, IFLOW_STR_FMT, "iflow")
+                    printf(fp, TFLOW_STR_FMT, "tflow")
                 end
 
-                printf(fp, "%-25s", "Re(poly)")
-                printf(fp, "%-25s", "Im(poly)")
+                printf(fp, METHOD_STR_FMT, "Re(poly)")
+                printf(fp, METHOD_STR_FMT, "Im(poly)")
                 newline(fp)
                 fclose(fp)
             end
@@ -60,15 +60,15 @@ function measure(
         end
 
         fp = fopen(filename, "a")
-        printf(fp, "%-11i", itrj)
+        printf(fp, ITRJ_FMT, itrj)
 
         if !isnothing(flow)
-            printf(fp, "%-7i", iflow)
-            printf(fp, "%-9.5f", τ)
+            printf(fp, IFLOW_FMT, iflow)
+            printf(fp, TFLOW_FMT, τ)
         end
 
-        printf(fp, "%-25.15E", real(poly))
-        printf(fp, "%-25.15E", imag(poly))
+        printf(fp, METHOD_FMT, real(poly))
+        printf(fp, METHOD_FMT, imag(poly))
         printf(fp, "\n")
         fclose(fp)
     end

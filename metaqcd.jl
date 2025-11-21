@@ -10,14 +10,13 @@ function parse_args(args)
     @assert length(args) >= 1 && isfile(parameterfile) """
     An existing parameter file has to be given as an input, e.g.:
     julia metaqcd.jl parameters.toml
-
     You either did not provide a file or the file you provided does not exist.
     """
     parameters = construct_params_from_toml(parameterfile)
     return parameters, parameters.mode, parameters.backend
 end
 
-parameterfile, mode, backend = parse_args(ARGS)
+parameters, mode, backend = parse_args(ARGS)
 
 @level1 "[ Mode: $(mode)\n"
 
@@ -52,9 +51,9 @@ end
 mpi_parallel() && @level1("[ $(mpi_size()) MPI processes are being used")
 
 if mode == "sim"
-    run_sim(parameterfile)
+    run_sim(parameters)
 elseif mode == "build"
-    run_build(parameterfile)
+    run_build(parameters)
 else
     throw(ArgumentError(
         """

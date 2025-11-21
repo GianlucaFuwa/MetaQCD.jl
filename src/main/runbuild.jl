@@ -188,10 +188,13 @@ function metabuild!(
     adaptive_σ = is_adaptive(bias)
     myinstance = MPI_INSTANCE[]
     rank = mpi_myrank(mpi_comm_instance())
+    len = length(updatemethod.substep_CVs)
+    CV_sendbuf = Vector{NTuple{num_cv,Float64}}(undef, len)
+    CV_recvbuf = Vector{NTuple{num_cv,Float64}}(undef, MPI_NUMINSTANCES[] * len)
 
     if !isnothing(timing_datafile)
         fp = fopen(timing_datafile, "w")
-        printf(fp, "%s", "time [s]")
+        printf(fp, printfmt(String), "time [s]")
         newline(fp)
         fclose(fp)
     end
@@ -227,7 +230,7 @@ function metabuild!(
 
                 if mpi_amroot(mpi_comm_instance())
                     fp = fopen(timing_datafile, "a")
-                    printf(fp, "%-.10E", updatetime)
+                    printf(fp, StaticString("%-.10E"), updatetime)
                     newline(fp)
                     fclose(fp)
                 end
@@ -286,6 +289,7 @@ function metabuild!(
                     metro_test=true,
                 )
                 numaccepts += accepted
+                mpi_barrier()
                 accepted
             end
 
@@ -295,39 +299,34 @@ function metabuild!(
                 if !isnothing(timing_datafile)
                     set_ext!(timing_datafile)
                     fp = fopen(timing_datafile, "a")
-                    printf(fp, "%-.10E", updatetime)
+                    printf(fp, StaticString("%-.10E"), updatetime)
                     newline(fp)
                     fclose(fp)
                 end
             end
 
             @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")
+
             # all procs send their CVs to all other procs and update their copy of the bias
-            if parameters.recycle && updatemethod isa HMC
-                all_accepted = mpi_allgather(acc::Bool, comm_shared)
-                if all(all_accepted)
-                    sCVs = updatemethod.substep_CVs
-                    all_CVs = Vector{NTuple{num_cv,Float64}}(undef, length(sCVs)-1)
+            substep_CVs = updatemethod.substep_CVs
 
-                    for i in 1:length(sCVs)-1
-                        all_CVs[i] = tuple(sCVs[i+1]...)
-                    end
-
-                    CVs = mpi_allgather(all_CVs, comm_shared)
-                    update_bias!(bias, CVs, itrj; mpi_multi_sim=mpi_multi_sim)
-                else
-                    CVs = mpi_allgather(tuple(bias.CV...)::NTuple{num_cv,Float64}, comm_shared)
-                    update_bias!(bias, CVs, itrj; mpi_multi_sim=mpi_multi_sim)
-                end
-            else
-                CVs = mpi_allgather(tuple(bias.CV...)::NTuple{num_cv,Float64}, comm_shared)
-                update_bias!(bias, CVs, itrj; mpi_multi_sim=mpi_multi_sim)
+            for i in eachindex(substep_CVs)
+                CV_sendbuf[i] = ntuple(icv -> substep_CVs[i][icv], Val(num_cv))
             end
 
-            acceptances = mpi_allgather(numaccepts::Float64, comm_shared) # XXX: should use MPI.gather?
-            print_acceptance_rates(acceptances, numitrj)
+            mpi_allgather!(CV_sendbuf, CV_recvbuf, comm_shared)
+            was_accepted = mpi_allgather(acc::Bool, comm_shared)
 
-            mpi_barrier()
+            if all(was_accepted)
+                update_bias!(bias, CV_recvbuf, itrj; mpi_multi_sim=mpi_multi_sim)
+            else
+                update_bias!(bias, [CV_recvbuf[1]], itrj; mpi_multi_sim=mpi_multi_sim)
+            end
+            # CVs = mpi_allgather(tuple(bias.CV...)::NTuple{num_cv,Float64}, comm_shared)
+            # update_bias!(bias, CVs, itrj; mpi_multi_sim=mpi_multi_sim)
+
+            print_acceptance_rates(numaccepts, numitrj)
+
             save_field(config_saver, U, itrj, parameters)
             create_checkpoint(checkpointer, univ, updatemethod, nothing, itrj; rank)
 

@@ -3,12 +3,12 @@
 # But this doesn't work on Windows...
 struct FILE end
 
-@inline printfmt(::Type{<:AbstractFloat}) = "%g"
-@inline printfmt(::Type{<:Integer}) = "%d"
-@inline printfmt(::Type{UInt64}) = "%#x"
-@inline printfmt(::Type{UInt32}) = "%#x"
-@inline printfmt(::Type{Bool}) = "%s"
-@inline printfmt(::Type{<:AbstractString}) = "%s"
+@inline printfmt(::Type{<:AbstractFloat}) = StaticString("%g")
+@inline printfmt(::Type{<:Integer}) = StaticString("%d")
+@inline printfmt(::Type{UInt64}) = StaticString("%#x")
+@inline printfmt(::Type{UInt32}) = StaticString("%#x")
+@inline printfmt(::Type{Bool}) = StaticString("%s")
+@inline printfmt(::Type{<:AbstractString}) = StaticString("%s")
 
 if Sys.iswindows() # ccall printf with floats doesnt work on windows for some reason
     using Format: cfmt
@@ -45,8 +45,12 @@ if Sys.iswindows() # ccall printf with floats doesnt work on windows for some re
         end
     end
 else
+    @inline _pointer(a) = GC.@preserve Base.pointer(a)
+    @inline _pointer(a::Ptr) = a
+    @inline _pointer(::SubString) = error("SubString is not a NULL-terminated string")
+
     @inline function fopen(name::AbstractString, mode::AbstractString)
-        GC.@preserve name mode fopen(pointer(name), pointer(mode))
+        GC.@preserve name mode fopen(_pointer(name), _pointer(mode))
     end
 
     @inline function fopen(name::Ptr{UInt8}, mode::Ptr{UInt8})
@@ -66,11 +70,11 @@ else
     end
 
     @inline printf(s) = GC.@preserve s printf(pointer(s))
-    @inline printf(b::Bool) = printf("%s", b)
+    @inline printf(b::Bool) = printf(StaticString("%s"), b)
     @inline printf(n::T) where {T<:Number} = printf(printfmt(T), n)
     @inline printf(::Nothing) = Int32(0)
     @inline printf(fp::Ptr{FILE}, s) = GC.@preserve s printf(fp, pointer(s))
-    @inline printf(fp::Ptr{FILE}, b::Bool) = printf(fp, "%s", b)
+    @inline printf(fp::Ptr{FILE}, b::Bool) = printf(fp, StaticString("%s"), b)
     @inline printf(fp::Ptr{FILE}, n::T) where {T<:Number} = printf(fp, printfmt(T), n)
     @inline printf(::Ptr{FILE}, ::Nothing) = Int32(0)
     @inline printf(fmt, s) = GC.@preserve fmt s printf(pointer(fmt), pointer(s))
