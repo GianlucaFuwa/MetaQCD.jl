@@ -141,7 +141,7 @@ end
 function top_charge(::Clover, U::Gaugefield{B,T,M}) where {B,T,M}
     itr = eachindex(U)
     Q = parallelfor_sum(itr, 0.0, B, Val(M), (U,), (), (U,); do_edges=Val(true)) do q, site, (U,)
-        q += top_charge_density_clover(U, site, Float64)
+        q += top_charge_density_clover(U, site)
     end
 
     return distributed_reduce(Q/4π^2, +, U)
@@ -153,7 +153,7 @@ function top_charge(::Improved, U::Gaugefield{B,T,M}) where {B,T,M}
     c₁ = T(-2/12)
     itr = eachindex(U)
     Q = parallelfor_sum(itr, 0.0, B, Val(M), (U,), (), (U,); do_edges=Val(true)) do q, site, (U,)
-        q += top_charge_density_imp(U, site, c₀, c₁, Float64)
+        q += top_charge_density_imp(U, site, c₀, c₁)
     end
 
     return distributed_reduce(Q/4π^2, +, U)
@@ -177,7 +177,7 @@ function top_charge_density_plaq(U, site)
     return -qₙ
 end
 
-function top_charge_density_clover(U, site, ::Type{T}) where {T}
+function top_charge_density_clover(U, site)
     C₁₂ = clover_1x1(U, 1, 2, site)
     F₁₂ = C₁₂ - C₁₂'
     C₁₃ = clover_1x1(U, 1, 3, site)
@@ -192,17 +192,17 @@ function top_charge_density_clover(U, site, ::Type{T}) where {T}
     F₃₄ = C₃₄ - C₃₄'
 
     qₙ = real(multr(F₁₂, F₃₄)) - real(multr(F₁₃, F₂₄)) + real(multr(F₁₄, F₂₃))
-    return -T(1/64) * qₙ
+    return -1/64 * qₙ
 end
 
-@inline function top_charge_density_imp(U, site, c₀, c₁, ::Type{T}) where {T}
-    q_clov = top_charge_density_clover(U, site, T)
-    q_rect = top_charge_density_rect(U, site, T)
+@inline function top_charge_density_imp(U, site, c₀, c₁)
+    q_clov = top_charge_density_clover(U, site)
+    q_rect = top_charge_density_rect(U, site)
     q_imp = c₀ * q_clov + c₁ * q_rect
     return q_imp
 end
 
- function top_charge_density_rect(U, site, ::Type{T}) where {T}
+ function top_charge_density_rect(U, site)
     C₁₂ = clover_2x1(U, 1, 2, site) + clover_1x2(U, 1, 2, site)
     F₁₂ = C₁₂ - C₁₂'
     C₁₃ = clover_2x1(U, 1, 3, site) + clover_1x2(U, 1, 3, site)
@@ -217,7 +217,7 @@ end
     F₃₄ = C₃₄ - C₃₄'
 
     qₙ = real(multr(F₁₂, F₃₄)) - real(multr(F₁₃, F₂₄)) + real(multr(F₁₄, F₂₃))
-    return -T(1/256) * qₙ
+    return -1/256 * qₙ
 end
 
 function top_charge_deriv!(
@@ -228,70 +228,70 @@ function top_charge_deriv!(
 
     parallelfor(eachindex(dU, F, U), B, Val(M), (F,), (U,), (F, U); do_edges=Val(true)) do site, (F, U)
         tmp = top_charge_deriv_kernel(U, F, site, kind_of_charge, Val(1))
-        @inbounds dU[1, site] = c * tmp
+        dU[1, site] = c * tmp
     end
 
     parallelfor(eachindex(dU, F, U), B, Val(M), (F,), (U,), (F, U); do_edges=Val(true)) do site, (F, U)
         tmp = top_charge_deriv_kernel(U, F, site, kind_of_charge, Val(2))
-        @inbounds dU[2, site] = c * tmp
+        dU[2, site] = c * tmp
     end
 
     parallelfor(eachindex(dU, F, U), B, Val(M), (F,), (U,), (F, U); do_edges=Val(true)) do site, (F, U)
         tmp = top_charge_deriv_kernel(U, F, site, kind_of_charge, Val(3))
-        @inbounds dU[3, site] = c * tmp
+        dU[3, site] = c * tmp
     end
 
     parallelfor(eachindex(dU, F, U), B, Val(M), (F,), (U,), (F, U); do_edges=Val(true)) do site, (F, U)
         tmp = top_charge_deriv_kernel(U, F, site, kind_of_charge, Val(4))
-        @inbounds dU[4, site] = c * tmp
+        dU[4, site] = c * tmp
     end
 
     return nothing
 end
 
 function top_charge_deriv_kernel(U, F, site, kind_of_charge, ::Val{1})
-    out = @inbounds cmatmul_oo(
+    out = cmatmul_oo(
         U[1, site],
         (
-            ∇trFμνFρσ(kind_of_charge, U, F, 1, 2, 3, 4, site) -
-            ∇trFμνFρσ(kind_of_charge, U, F, 1, 3, 2, 4, site) +
-            ∇trFμνFρσ(kind_of_charge, U, F, 1, 4, 2, 3, site)
+            ∇trFμνFρσ(kind_of_charge, U, F, 1, 2, 3, 4, site, 6) -
+            ∇trFμνFρσ(kind_of_charge, U, F, 1, 3, 2, 4, site, 5) +
+            ∇trFμνFρσ(kind_of_charge, U, F, 1, 4, 2, 3, site, 4)
         ),
     )
     return traceless_antihermitian(out)
 end
 
 function top_charge_deriv_kernel(U, F, site, kind_of_charge, ::Val{2})
-    out = @inbounds cmatmul_oo(
+    out = cmatmul_oo(
         U[2, site],
         (
-            ∇trFμνFρσ(kind_of_charge, U, F, 2, 3, 1, 4, site) -
-            ∇trFμνFρσ(kind_of_charge, U, F, 2, 1, 3, 4, site) -
-            ∇trFμνFρσ(kind_of_charge, U, F, 2, 4, 1, 3, site)
+            ∇trFμνFρσ(kind_of_charge, U, F, 2, 3, 1, 4, site, 3) -
+            ∇trFμνFρσ(kind_of_charge, U, F, 2, 1, 3, 4, site, 6) -
+            ∇trFμνFρσ(kind_of_charge, U, F, 2, 4, 1, 3, site, 2)
         ),
     )
     return traceless_antihermitian(out)
 end
 
 function top_charge_deriv_kernel(U, F, site, kind_of_charge, ::Val{3})
-    out = @inbounds cmatmul_oo(
+    out = cmatmul_oo(
         U[3, site],
         (
-            ∇trFμνFρσ(kind_of_charge, U, F, 3, 1, 2, 4, site) -
-            ∇trFμνFρσ(kind_of_charge, U, F, 3, 2, 1, 4, site) +
-            ∇trFμνFρσ(kind_of_charge, U, F, 3, 4, 1, 2, site)
+            ∇trFμνFρσ(kind_of_charge, U, F, 3, 1, 2, 4, site, 5) -
+            ∇trFμνFρσ(kind_of_charge, U, F, 3, 2, 1, 4, site, 3) +
+            ∇trFμνFρσ(kind_of_charge, U, F, 3, 4, 1, 2, site, 1)
         ),
     )
     return traceless_antihermitian(out)
 end
 
 function top_charge_deriv_kernel(U, F, site, kind_of_charge, ::Val{4})
-    out = @inbounds cmatmul_oo(
+    out = cmatmul_oo(
         U[4, site],
         (
-            ∇trFμνFρσ(kind_of_charge, U, F, 4, 2, 1, 3, site) -
-            ∇trFμνFρσ(kind_of_charge, U, F, 4, 1, 2, 3, site) -
-            ∇trFμνFρσ(kind_of_charge, U, F, 4, 3, 1, 2, site)
+            ∇trFμνFρσ(kind_of_charge, U, F, 4, 2, 1, 3, site, 2) -
+            ∇trFμνFρσ(kind_of_charge, U, F, 4, 1, 2, 3, site, 4) -
+            ∇trFμνFρσ(kind_of_charge, U, F, 4, 3, 1, 2, site, 1)
         ),
     )
     return traceless_antihermitian(out)
@@ -300,29 +300,25 @@ end
 # """
 # Derivative of the FμνFρσ term for Field strength tensor given by plaquette
 # """
-function ∇trFμνFρσ(::Plaquette, U, F, μ, ν, ρ, σ, site)
+function ∇trFμνFρσ(::Plaquette, U::Gaugefield{B,T}, F, μ, ν, ρ, σ, site, i) where {B,T}
     Nμ = axes(U, μ)
     Nν = axes(U, ν)
     siteμ⁺ = move(site, μ, 1, Nμ)
     siteν⁺ = move(site, ν, 1, Nν)
     siteν⁻ = move(site, ν, -1, Nν)
     siteμ⁺ν⁻ = move(siteμ⁺, ν, -1, Nν)
-    i = get_tensor_index(ρ, σ)
-    sgn = ρ > σ ? -1 : 1
 
-    @inbounds begin
-        component =
-            cmatmul_oddo(U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site], F[i, site]) +
-            cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], F[i, siteν⁻], U[ν, siteν⁻])
-    end
+    component =
+        cmatmul_oddo(U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site], F[i, site]) +
+        cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], F[i, siteν⁻], U[ν, siteν⁻])
 
-    return eltype(component)(im * sgn / 2) * component
+    return Complex{T}(im / 2) * component
 end
 
 # """
 # Derivative of the FμνFρσ term for Field strength tensor given by 1x1-Clover
 # """
-function ∇trFμνFρσ(::Clover, U, F, μ, ν, ρ, σ, site)
+function ∇trFμνFρσ(::Clover, U::Gaugefield{B,T}, F, μ, ν, ρ, σ, site, i) where {B,T}
     Nμ = axes(U, μ)
     Nν = axes(U, ν)
     siteμ⁺ = move(site, μ, 1, Nμ)
@@ -330,8 +326,6 @@ function ∇trFμνFρσ(::Clover, U, F, μ, ν, ρ, σ, site)
     siteν⁻ = move(site, ν, -1, Nν)
     siteμ⁺ν⁺ = move(siteμ⁺, ν, 1, Nν)
     siteμ⁺ν⁻ = move(siteμ⁺, ν, -1, Nν)
-    i = get_tensor_index(ρ, σ)
-    sgn = ρ > σ ? -1 : 1
 
     # get reused matrices up to cache (can precalculate some products too)
     # Uνsiteμ⁺ = U[ν,siteμ⁺]
@@ -341,17 +335,15 @@ function ∇trFμνFρσ(::Clover, U, F, μ, ν, ρ, σ, site)
     # Uμsiteν⁻ = U[μ,siteν⁻]
     # Uνsiteν⁻ = U[ν,siteν⁻]
 
-    @inbounds begin
-        component =
-            cmatmul_oddo(U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site], F[i, site]) +
-            cmatmul_odod(U[ν, siteμ⁺], U[μ, siteν⁺], F[i, siteν⁺], U[ν, site]) +
-            cmatmul_oodd(U[ν, siteμ⁺], F[i, siteμ⁺ν⁺], U[μ, siteν⁺], U[ν, site]) +
-            cmatmul_oodd(F[i, siteμ⁺], U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site]) -
-            cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻], F[i, site]) -
-            cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], F[i, siteν⁻], U[ν, siteν⁻]) -
-            cmatmul_dodo(U[ν, siteμ⁺ν⁻], F[i, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻]) -
-            cmatmul_oddo(F[i, siteμ⁺], U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻])
-    end
+    component =
+        cmatmul_oddo(U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site], F[i, site]) +
+        cmatmul_odod(U[ν, siteμ⁺], U[μ, siteν⁺], F[i, siteν⁺], U[ν, site]) +
+        cmatmul_oodd(U[ν, siteμ⁺], F[i, siteμ⁺ν⁺], U[μ, siteν⁺], U[ν, site]) +
+        cmatmul_oodd(F[i, siteμ⁺], U[ν, siteμ⁺], U[μ, siteν⁺], U[ν, site]) -
+        cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻], F[i, site]) -
+        cmatmul_ddoo(U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], F[i, siteν⁻], U[ν, siteν⁻]) -
+        cmatmul_dodo(U[ν, siteμ⁺ν⁻], F[i, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻]) -
+        cmatmul_oddo(F[i, siteμ⁺], U[ν, siteμ⁺ν⁻], U[μ, siteν⁻], U[ν, siteν⁻])
 
-    return eltype(component)(im * sgn / 8) * component
+    return Complex{T}(im / 8) * component
 end

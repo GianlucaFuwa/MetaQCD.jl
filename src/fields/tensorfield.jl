@@ -100,25 +100,6 @@ Base.@propagate_inbounds function Base.setindex!(
 end
 ######################
 
-@inline function get_tensor_index(μ, ν)
-    lo, hi = minmax(μ, ν)
-    return if lo == 1 && hi == 2
-        1
-    elseif lo == 1 && hi == 3
-        2
-    elseif lo == 1 && hi == 4
-        3
-    elseif lo == 2 && hi == 3
-        4
-    elseif lo == 2 && hi == 4
-        5
-    elseif lo == 3 && hi == 4
-        6
-    else
-        throw(AssertionError("invalid tensor index combination"))
-    end
-end
-
 function fieldstrength_eachsite!(F::Tensorfield, U, kind_of_fs::String)
     if kind_of_fs == "plaquette"
         fieldstrength_eachsite!(Plaquette(), F, U)

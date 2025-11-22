@@ -52,8 +52,6 @@ if backend != "cpu"
     end
 end
 
-mpi_parallel() && @level1("[ $(mpi_size()) MPI processes are being used")
-
 if mode == "sim"
     run_sim(parameters)
 elseif mode == "build"

@@ -149,27 +149,27 @@ end
 
 function add_clover_derivative_kernel!(dU, U, Xμν, site, fac, ::Type{T}) where {T}
     tmp =
-        Xμν∇Fμν(Xμν, U, 1, 2, site, T) +
-        Xμν∇Fμν(Xμν, U, 1, 3, site, T) +
-        Xμν∇Fμν(Xμν, U, 1, 4, site, T)
+        Xμν∇Fμν(Xμν, U, 1, 2, site, 1, T) +
+        Xμν∇Fμν(Xμν, U, 1, 3, site, 2, T) +
+        Xμν∇Fμν(Xμν, U, 1, 4, site, 3, T)
     @inbounds dU[1, site] += fac * traceless_antihermitian(cmatmul_oo(U[1, site], tmp))
 
     tmp =
-        Xμν∇Fμν(Xμν, U, 2, 1, site, T) +
-        Xμν∇Fμν(Xμν, U, 2, 3, site, T) +
-        Xμν∇Fμν(Xμν, U, 2, 4, site, T)
+        Xμν∇Fμν(Xμν, U, 2, 1, site, 1, T) +
+        Xμν∇Fμν(Xμν, U, 2, 3, site, 4, T) +
+        Xμν∇Fμν(Xμν, U, 2, 4, site, 5, T)
     @inbounds dU[2, site] += fac * traceless_antihermitian(cmatmul_oo(U[2, site], tmp))
 
     tmp =
-        Xμν∇Fμν(Xμν, U, 3, 1, site, T) +
-        Xμν∇Fμν(Xμν, U, 3, 2, site, T) +
-        Xμν∇Fμν(Xμν, U, 3, 4, site, T)
+        Xμν∇Fμν(Xμν, U, 3, 1, site, 2, T) +
+        Xμν∇Fμν(Xμν, U, 3, 2, site, 4, T) +
+        Xμν∇Fμν(Xμν, U, 3, 4, site, 6, T)
     @inbounds dU[3, site] += fac * traceless_antihermitian(cmatmul_oo(U[3, site], tmp))
 
     tmp =
-        Xμν∇Fμν(Xμν, U, 4, 1, site, T) +
-        Xμν∇Fμν(Xμν, U, 4, 2, site, T) +
-        Xμν∇Fμν(Xμν, U, 4, 3, site, T)
+        Xμν∇Fμν(Xμν, U, 4, 1, site, 3, T) +
+        Xμν∇Fμν(Xμν, U, 4, 2, site, 5, T) +
+        Xμν∇Fμν(Xμν, U, 4, 3, site, 6, T)
     @inbounds dU[4, site] += fac * traceless_antihermitian(cmatmul_oo(U[4, site], tmp))
     return nothing
 end
@@ -197,7 +197,7 @@ function calc_Xμν_wilson_kernel!(Xμν, X, Y, site)
     return nothing
 end
 
-function Xμν∇Fμν(Xμν, U, μ, ν, site, ::Type{T}) where {T}
+function Xμν∇Fμν(Xμν, U, μ, ν, site, i, ::Type{T}) where {T}
     Nμ = axes(U, μ)
     Nν = axes(U, ν)
     siteμ⁺ = move(site, μ, 1, Nμ)
@@ -205,7 +205,6 @@ function Xμν∇Fμν(Xμν, U, μ, ν, site, ::Type{T}) where {T}
     siteν⁻ = move(site, ν, -1, Nν)
     siteμ⁺ν⁺ = move(siteμ⁺, ν, 1, Nν)
     siteμ⁺ν⁻ = move(siteμ⁺, ν, -1, Nν)
-    i = get_tensor_index(μ, ν)
     sgn = μ > ν ? -1 : 1
 
     # get reused matrices up to cache (can precalculate some products too)
