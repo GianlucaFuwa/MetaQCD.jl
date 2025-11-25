@@ -405,7 +405,7 @@ function metaqcd!(
                     update!(parity, U)
                 end
 
-                accepted>0 && update_bias!(bias, itrj; mpi_multi_sim=mpi_multi_sim)
+                update_bias!(bias, itrj)
                 numaccepts += accepted
                 mpi_barrier()
                 accepted
@@ -547,7 +547,7 @@ function metaqcd_PT!(
                         metro_test=true,
                         instance=i-1,
                     )
-                    accepted && update_bias!(bias[i], bias[i].CV, itrj)
+                    update_bias!(bias[i], itrj)
                     numaccepts[i] += accepted
                 end
             end
