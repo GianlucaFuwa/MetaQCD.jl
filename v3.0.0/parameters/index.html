@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Full Parameter list (= default): · MetaQCD.jl</title><meta name="title" content="Full Parameter list (= default): · MetaQCD.jl"/><meta property="og:title" content="Full Parameter list (= default): · MetaQCD.jl"/><meta property="twitter:title" content="Full Parameter list (= default): · MetaQCD.jl"/><meta name="description" content="Documentation for MetaQCD.jl."/><meta property="og:description" content="Documentation for MetaQCD.jl."/><meta property="twitter:description" content="Documentation for MetaQCD.jl."/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">MetaQCD.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">MetaQCD.jl: Metadynamics in Lattice QCD</a></li><li><a class="tocitem" href="../usage/">Quick Start</a></li><li><a class="tocitem" href="../parameter_file/">Creating a Parameter File</a></li><li><a class="tocitem" href="../gaugefields/">Implementation of Gauge and Spinor fields</a></li><li><a class="tocitem" href="../parallel/">Parallelization</a></li><li><a class="tocitem" href="../updates/">Updating a Gaugefield</a></li><li><a class="tocitem" href="../dirac/">Dirac Operators</a></li><li><a class="tocitem" href="../biased_sampling/">Biased Sampling Methods</a></li><li><a class="tocitem" href="../viz/">Visualization</a></li><li><a class="tocitem" href="../utils/">Utility Functions</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Full Parameter list (= default):</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Full Parameter list (= default):</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/GianlucaFuwa/MetaQCD.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/GianlucaFuwa/MetaQCD.jl/blob/dirac/docs/src/parameters.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Full-Parameter-list-(-default):"><a class="docs-heading-anchor" href="#Full-Parameter-list-(-default):">Full Parameter list (= default):</a><a id="Full-Parameter-list-(-default):-1"></a><a class="docs-heading-anchor-permalink" href="#Full-Parameter-list-(-default):" title="Permalink"></a></h1><pre><code class="language-julia hljs">function struct2dict(x::T) where {T}
+    return Dict{String,Any}(string(fn) =&gt; getfield(x, fn) for fn in fieldnames(T))
+end
+
+@kwdef mutable struct EnsembleParameters
+    mode::String = &quot;sim&quot;
+    L::NTuple{4,Int64} = (4, 4, 4, 4)
+    backend::String = &quot;cpu&quot;
+    float_type::String = &quot;float64&quot;
+    solver_float_type::String = &quot;float64&quot;
+    randomseed::Union{UInt64,Vector{UInt64}} = 0x0000000000000000
+    NC::Int64 = 3
+    su3_nfloats::Int64 = 18
+    numprocs_cart::NTuple{4,Int64} = (1, 1, 1, 1)
+    halo_width::Int64 = 0
+    numtherm::Int64 = 10
+    numsteps::Int64 = 100
+    inital::String = &quot;cold&quot;
+    update_method::String = &quot;HMC&quot;
+    hb_maxit::Int64 = 10^5
+    numheatbath::Int64 = 4
+    metro_epsilon::Float64 = 0.1
+    metro_numhits::Int64 = 1
+    metro_target_acc::Float64 = 0.5
+    eo::Bool = true
+    or_algorithm::String = &quot;subgroups&quot;
+    numorelax::Int64 = 0
+    parity_update::Bool = false
+end
+
+@kwdef mutable struct DataParameters
+    ensemble_dir::String = &quot;&quot;
+    log_to_console::Bool = true
+    verboselevel::Int64 = 1
+    save_config_format::String = &quot;&quot;
+    save_config_every::Int64 = 0
+    save_checkpoint_format::String = &quot;&quot;
+    save_checkpoint_every::Int64 = 0
+    load_config_fromfile::Bool = false
+    load_config_format::String = &quot;&quot;
+    load_config_path::String = &quot;&quot;
+    load_checkpoint_fromfile::Bool = false
+    load_checkpoint_format::String = &quot;jld2&quot;
+    load_checkpoint_path::String = &quot;&quot;
+    overwrite::Bool = false
+end
+
+@kwdef mutable struct GaugeActionParameters
+    beta::Float64 = 5.7
+    gauge_action::String = &quot;wilson&quot;
+end
+
+@kwdef mutable struct FermionActionParameters
+    fermion_action::String = &quot;none&quot;
+    boundary_condition::String = &quot;antiperiodic&quot;
+    wilson_r::Float64 = 1.0
+    wilson_csw::Float64 = 0.0
+    fermions::Vector{Dict} = Dict[]
+end
+
+@kwdef mutable struct BiasParameters
+    biases::Vector{Dict} = Dict[]
+    recycle::Bool = true
+    rhostout_for_cv::Float64 = 0.12
+    weight_type::Vector{String} = [&quot;tiwari&quot;]
+    starting_Q::Union{Nothing,Vector{Int64}} = nothing
+    usebiases::Vector{String} = [&quot;&quot;]
+    # tempering specific
+    tempering_enabled::Bool = false
+    numinstances::Int64 = 1
+    swap_every::Int64 = 1
+    non_metadynamics_updates::Int64 = 1
+    measure_on_all::Bool = false
+end
+
+@kwdef mutable struct HMCParameters
+    levels::Vector{Dict} = Dict[]
+    hmc_trajectory::Float64 = 1
+    hmc_friction::Float64 = 0.0
+    hmc_rafriction::Float64 = 1.0
+    hmc_numsmear_gauge::Int64 = 0
+    hmc_numsmear_fermion::Int64 = 0
+    hmc_rhostout_gauge::Float64 = 0.0
+    hmc_rhostout_fermion::Float64 = 0.0
+    hmc_logging::Bool = true
+end
+
+@kwdef mutable struct GradientFlowParameters
+    flow_integrator::String = &quot;none&quot;
+    flow_num::Int64 = 0
+    flow_tf::Float64 = 0.0
+    flow_steps::Int64 = 0
+    flow_measure_every::Union{Int64,Vector{Int64}} = 1
+end
+
+@kwdef mutable struct MeasurementParameters
+    measurements::Vector{Dict} = Dict[]
+    measurements_with_flow::Vector{Dict} = Dict[]
+end</code></pre></article><nav class="docs-footer"><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.3.0 on <span class="colophon-date" title="Tuesday 25 November 2025 02:02">Tuesday 25 November 2025</span>. Using Julia version 1.9.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
