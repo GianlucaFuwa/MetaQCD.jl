@@ -384,10 +384,14 @@ function axmy!(
     itr = eachindex(even_half, ϕ, ψ, D_diag)
 
     parallelfor(itr, B, Val(M), (), (ϕ,), (ϕ, ψ, D_diag)) do e_site, (ϕ, ψ, D_diag)
-        @inbounds ϕ[e_site] = cmvmul_block(D_diag[e_site], ψ[e_site]) - ϕ[e_site]
+        @inbounds ϕ[e_site] = axmy_kernel!(D_diag, ψ, ϕ, e_site)
     end
 
     return nothing
+end
+
+@noinline function axmy_kernel!(D_diag, ψ, ϕ, e_site)
+    return cmvmul_block(D_diag[e_site], ψ[e_site]) - ϕ[e_site]
 end
 
 function trlog(D_diag::Paulifield{B,T,M,false}, mass) where {B,T,M} # Without clover term
