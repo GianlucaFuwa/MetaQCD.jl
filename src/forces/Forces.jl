@@ -4,7 +4,6 @@ using Base.Cartesian: @nexprs
 using LinearAlgebra
 using StaticArrays
 using Polyester: @batch
-using StaticTools: StaticString
 using ..Logs
 using ..RHMCParameters
 using ..Utils

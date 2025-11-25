@@ -6,7 +6,6 @@ using LinearAlgebra
 using Preferences
 using Random
 using Statistics
-using StaticTools: StaticString
 using ..Logs
 using ..MetaIO
 using ..Utils

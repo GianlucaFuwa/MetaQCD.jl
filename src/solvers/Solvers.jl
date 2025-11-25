@@ -22,11 +22,11 @@ end
 end
 
 @inline function print_solverdata(datafile, iters, res)
-    if datafile != ""
+    if !isnothing(datafile)
         set_ext!(datafile, MPI_INSTANCE[])
         fp = fopen(datafile, "a")
-        printf(fp, "%-11i", iters)
-        printf(fp, "%-25.15E", res)
+        printf(fp, StaticString("%-11i"), iters)
+        printf(fp, StaticString("%-25.15E"), res)
         newline(fp)
         fclose(fp)
     end
@@ -35,12 +35,12 @@ end
 end
 
 @inline function print_solverdata(datafile, iters, res, elapsed_time)
-    if datafile != ""
+    if !isnothing(datafile)
         set_ext!(datafile, MPI_INSTANCE[])
         fp = fopen(datafile, "a")
-        printf(fp, "%-11i", iters)
-        printf(fp, "%-25.15E", res)
-        printf(fp, "%-25.6E", elapsed_time)
+        printf(fp, StaticString("%-11i"), iters)
+        printf(fp, StaticString("%-25.15E"), res)
+        printf(fp, StaticString("%-25.6E"), elapsed_time)
         newline(fp)
         fclose(fp)
     end
@@ -49,13 +49,13 @@ end
 end
 
 @inline function print_solverdata(datafile, outer_iters, inner_iters, res, elapsed_time)
-    if datafile != ""
+    if !isnothing(datafile)
         set_ext!(datafile, MPI_INSTANCE[])
         fp = fopen(datafile, "a")
-        printf(fp, "%-11i", outer_iters)
-        printf(fp, "%-11i", inner_iters)
-        printf(fp, "%-25.15E", res)
-        printf(fp, "%-25.6E", elapsed_time)
+        printf(fp, StaticString("%-11i"), outer_iters)
+        printf(fp, StaticString("%-11i"), inner_iters)
+        printf(fp, StaticString("%-25.15E"), res)
+        printf(fp, StaticString("%-25.6E"), elapsed_time)
         newline(fp)
         fclose(fp)
     end

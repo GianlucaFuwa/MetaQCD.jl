@@ -110,7 +110,7 @@ using Base.Math: isinf_real
         r₂₁ = -im * e⁻ⁱᵘ * (cosw + (1 + 2im * u) * ξ₀ - 3u² * ξ₁)
         r₂₂ = e⁻ⁱᵘ * (ξ₀ - 3im * u * ξ₁)
 
-        bdenom = isapprox(zero(T), 9u² - w²) ? zero(T) : 1 / 2(9u² - w²)^2
+        bdenom = isinf_real(1 / 2(9u² - w²)^2) ? zero(T) : 1 / 2(9u² - w²)^2
 
         if signflip
             b₁₀ = conj((2u * r₁₀ + (3u² - w²) * r₂₀ - 2(15u² + w²) * conj(f₀))) * bdenom
@@ -146,7 +146,7 @@ using Base.Math: isinf_real
         denom = 9u² - w²
 
         if signflip
-            if isapprox(zero(T), denom)
+            if isinf_real(one(T)/denom)
                 fdenom = one(T)
                 h₀ = one(Complex{T})
                 h₁ = zero(Complex{T})
@@ -160,7 +160,7 @@ using Base.Math: isinf_real
                 h₂ = conj(e²ⁱᵘ - e⁻ⁱᵘ * (cosw + 3im * u * ξ₀))
             end
         else
-            if isapprox(zero(T), denom)
+            if isinf_real(one(T)/denom)
                 fdenom = one(T)
                 h₀ = one(Complex{T})
                 h₁ = zero(Complex{T})

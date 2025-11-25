@@ -5,7 +5,6 @@ using LinearAlgebra
 using StaticArrays
 using Polyester: @batch
 using Random: rand, default_rng
-using StaticTools: StaticString
 using ..Logs
 using ..RHMCParameters
 using ..Utils

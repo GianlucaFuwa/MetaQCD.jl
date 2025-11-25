@@ -162,18 +162,18 @@ struct FermionAction{R,Nf,TD,TDl,CT,CTl,RI1,RI2,SA,SMD,TX} <: AbstractFermionAct
         end
 
         solverfile_action = if cg_filepath == ""
-            StaticString("")
+            nothing
         else
-            StaticString(cg_filepath * "_action_$(lpad(MPI_INSTANCE[], 3, "0")).txt")
+            SStaticString(cg_filepath * "_action_$(lpad(MPI_INSTANCE[], 3, "0")).txt")
         end
 
         solverfile_md = if cg_filepath == ""
-            StaticString("")
+            nothing
         else
-            StaticString(cg_filepath * "_md_$(lpad(MPI_INSTANCE[], 3, "0")).txt")
+            SStaticString(cg_filepath * "_md_$(lpad(MPI_INSTANCE[], 3, "0")).txt")
         end
 
-        if solverfile_action != ""
+        if !isnothing(solverfile_action)
             fp = fopen(solverfile_action, "w")
             if is_mixed
                 printf(fp, "%-11s", "outer iters")
@@ -187,7 +187,7 @@ struct FermionAction{R,Nf,TD,TDl,CT,CTl,RI1,RI2,SA,SMD,TX} <: AbstractFermionAct
             fclose(fp)
         end
 
-        if solverfile_md != ""
+        if !isnothing(solverfile_md)
             fp = fopen(solverfile_md, "w")
             if is_mixed
                 printf(fp, "%-11s", "outer iters")

@@ -2,9 +2,9 @@ module BiasModule
 
 using DelimitedFiles
 using LinearAlgebra
+using MPI
 using Polyester: @batch
 using StaticArrays
-using StaticTools: StaticString
 using Statistics
 using ..Logs
 using ..Parameters: ParameterSet
@@ -169,11 +169,11 @@ function Bias(
             ""
         end
 
-        StaticString(_biasfile)
+        SStaticString(_biasfile)
     end
 
     _datafile = joinpath(p.measure_dir, "bias_data_$(inum_str).txt")
-    datafile = StaticString(_datafile)
+    datafile = SStaticString(_datafile)
     fp = fopen(_datafile, "w")
     printf(fp, "%-11s", "itrj")
 
@@ -245,45 +245,56 @@ include("opes.jl")
 include("opes_multithermal.jl")
 include("ves.jl")
 
-function update_bias!(b::Bias{N}, itrj; mpi_multi_sim=false) where {N}
-    return update_bias!(b, b.CV, itrj; mpi_multi_sim=mpi_multi_sim)
+function update_bias!(b::Bias{N}, itrj::Int64) where {N}
+    for icv in 1:N
+        update_bias!(b, b.CV[icv], itrj, icv)
+    end
 end
 
 function update_bias!(
-    b::Bias{N}, values, itrj; mpi_multi_sim=false
+    b::Bias{N}, substep_CVs, local_accepted::Bool, itrj::Int64
+) where {N}
+    global_accepted = mpi_allgather(local_accepted, mpi_comm_shared())
+
+    # if a trajectory was rejected, only update bias on its starting CV
+    for i in eachindex(global_accepted)
+        for icv in 1:N
+            nsub = length(substep_CVs[icv])
+            CVs = mpi_allgather(substep_CVs[icv], mpi_comm_shared())
+            if global_accepted[i]
+                update_bias!(b, @view(CVs[nsub*(i-1)+1:nsub*i]), itrj, icv)
+            else
+                update_bias!(b, CVs[nsub*(i-1)+1], itrj, icv)
+            end
+        end
+    end
+
+    return nothing
+end
+
+function update_bias!(
+    b::Bias{N},
+    values::Union{Float64,Vector{Float64},SubArray{Float64}},
+    itrj::Int64,
+    icv::Int64
 ) where {N}
     # values can either be a tuple of size N, or a Vector of such tuples
-    if values isa Vector && isempty(values)
+    bias = b.bias[icv]
+
+    if isempty(values) || bias.static
         return nothing
     end
 
-    for (icv, bias) in enumerate(b.bias)
-        bias.static && continue
-        values_i = if values isa Vector
-            ntuple(j -> values[j][icv], length(values))
-        else
-            values[icv]
-        end
+    update!(bias, values, itrj)
 
-        update!(bias, values_i, itrj)
-
-        if (bias.write_bias_every != 0) && (itrj % bias.write_bias_every == 0)
-            # INFO: When using parallel tempering with MPI, we only swap the bias
-            # potentials and the "names" of the instances, i.e., the number associated to
-            # the instances. Thus we have to change all filenames to conincide with the
-            # current instance
-            filename = if mpi_multi_sim
-                set_ext!(b.biasfile[icv], ext_length(bias))
-            else
-                b.biasfile[icv]
-            end
-
-            if mpi_amroot(mpi_comm_instance())
-                write_to_file(bias, filename)
-            end
+    if (bias.write_bias_every != 0) && (itrj % bias.write_bias_every == 0)
+        if mpi_amroot(mpi_comm_instance())
+            write_to_file(bias, b.biasfile[icv])
         end
     end
-
+    
+    mpi_barrier()
+    GC.gc()
     return nothing
 end
 

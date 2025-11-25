@@ -25,7 +25,7 @@ end
 function construct_params_from_toml(filename::String)
     parameters = TOML.parsefile(filename)
     inputfile = isabspath(filename) ? filename : joinpath(pwd(), filename)
-    mpi_amroot() && println("inputfile: ", inputfile * "\n")
+    mpi_amroot() && println("##### inputfile: ", inputfile * "\n")
     return construct_params_from_toml(parameters, inputfile)
 end
 

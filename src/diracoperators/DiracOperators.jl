@@ -15,7 +15,6 @@ using LinearAlgebra: checksquare
 using LinearAlgebra
 using Polyester
 using StaticArrays
-using StaticTools: StaticString
 using ..Logs
 using ..RHMCParameters
 using ..Solvers

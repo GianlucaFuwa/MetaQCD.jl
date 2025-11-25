@@ -61,7 +61,7 @@ function calc_measurements(m::MeasurementMethods, U, itrj; mpi_multi_sim=false)
         interval = m.intervals[i]
 
         if itrj%interval == 0
-            measure(m[i], U, itrj, nothing; mpi_multi_sim=mpi_multi_sim)
+            measure(m[i], U, itrj, nothing; mpi_multi_sim)
         end
     end
 
@@ -87,7 +87,7 @@ end
 
 function calc_measurements_flowed(m::Tuple, flow::Tuple, U, itrj; mpi_multi_sim=false)
     for i in eachindex(flow)
-        calc_measurements_flowed(m[i], flow[i], U, itrj; mpi_multi_sim=mpi_multi_sim)
+        calc_measurements_flowed(m[i], flow[i], U, itrj; mpi_multi_sim)
     end
 
     return nothing
@@ -111,10 +111,8 @@ function calc_measurements_flowed(
                 interval = m.intervals[i]
 
                 if itrj%interval == 0
-                    measure(
-                        m.measurements[i], Uflow, itrj, (iflow, τ);
-                        mpi_multi_sim=mpi_multi_sim, fstr=flow_string(flow)
-                    )
+                    fstr = flow_string(flow)
+                    measure(m.measurements[i], Uflow, itrj, (iflow, τ); mpi_multi_sim, fstr)
                 end
             end
         end

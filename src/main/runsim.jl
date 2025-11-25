@@ -253,7 +253,7 @@ function run_sim!(
 
     # INFO: Log times per update in seconds
     timing_datafile = if mpi_amroot(mpi_comm_instance())
-        StaticString(
+        SStaticString(
             joinpath(parameters.log_dir, "timings_$(lpad(MPI_INSTANCE[], 3, "0")).txt")
         )
     else
@@ -552,7 +552,10 @@ function metaqcd_PT!(
                 end
             end
 
-            print_acceptance_rates(numaccepts, itrj)
+            for numaccepts_i in numaccepts
+                print_acceptance_rates(numaccepts_i, itrj)
+            end
+
             @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")
 
             temper!(U, bias, numaccepts_temper, swap_every, itrj; recalc=true)

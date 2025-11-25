@@ -10,7 +10,7 @@ struct FILE end
 @inline printfmt(::Type{Bool}) = StaticString("%s")
 @inline printfmt(::Type{<:AbstractString}) = StaticString("%s")
 
-if Sys.iswindows() # ccall printf with floats doesnt work on windows for some reason
+if !(Sys.iswindows()) # ccall printf with floats doesnt work on windows for some reason
     using Format: cfmt
     @inline fopen(name::AbstractString, mode::AbstractString) = open(name, mode)
     @inline fclose(fp::IOStream) = close(fp)

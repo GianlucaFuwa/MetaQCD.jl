@@ -5,6 +5,8 @@ using MetaQCD.Utils
 using MetaQCD: @level1, run_build, run_sim, construct_params_from_toml
 using AMDGPU
 
+mpi_amroot() && print_startup()
+
 function parse_args(args)
     parameterfile = args[end]
     @assert length(args) >= 1 && isfile(parameterfile) """
@@ -18,10 +20,10 @@ end
 
 parameters, mode, backend = parse_args(ARGS)
 
-mpi_amroot() && print_startup()
 @level1("##### Mode: $(mode)")
 @level1("##### Number of ranks: $(mpi_size())")
-@level1("##### Working Directory: $(pwd())")
+@level1("##### Number of threads on each rank: $(Base.Threads.nthreads())")
+@level1("##### Working Directory: $(pwd())\n")
 # @level1("##### MetaQCD.jl version: $(METAQCD_VERSION)\n")
 
 if backend != "cpu"

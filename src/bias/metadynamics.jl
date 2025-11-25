@@ -131,7 +131,14 @@ end
 end
 
 function update!(m::Metadynamics, cv, args...)
-    for cvᵢ in cv
+    cv_range = if length(cv) > 1
+        range(1, length(cv); step=cld(length(cv), 20))
+    else
+        range(1, length(cv))
+    end
+
+    for i in cv_range
+        cvᵢ = cv[i]
         for (idx, bin_val) in enumerate(m.bin_vals)
             wt = exp(-m[idx] / m.biasfactor)
             m[idx] += m.weight * wt * exp(-0.5(cvᵢ - bin_val)^2 / m.bin_width^2)

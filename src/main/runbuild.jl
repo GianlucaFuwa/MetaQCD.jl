@@ -137,7 +137,7 @@ function build_bias!(univ, parameters, updatemethod; mpi_multi_sim=false, itrj=n
     )
 
     timing_datafile = if mpi_amroot(mpi_comm_instance())
-        StaticString(
+        SStaticString(
             joinpath(parameters.log_dir, "timings_$(lpad(MPI_INSTANCE[], 3, "0")).txt")
         )
     else
@@ -182,11 +182,11 @@ function metabuild!(
     num_cv = length(bias)
     therm_cv = Matrix{Float64}(undef, num_cv, parameters.numtherm)
     adaptive_σ = is_adaptive(bias)
-    myinstance = MPI_INSTANCE[]
     rank = mpi_myrank(mpi_comm_instance())
-    len = length(updatemethod.substep_CVs)
-    CV_sendbuf = Vector{NTuple{num_cv,Float64}}(undef, len)
-    CV_recvbuf = Vector{NTuple{num_cv,Float64}}(undef, MPI_NUMINSTANCES[] * len)
+    # len = length(updatemethod.substep_CVs)
+    # CV_sendbuf = Vector{NTuple{num_cv,Float64}}(undef, len)
+    # CV_recvbuf = Vector{NTuple{num_cv,Float64}}(undef, MPI_NUMINSTANCES[] * len)
+    # global_accepts = Vector{Bool}(undef, MPI_NUMINSTANCES[])
 
     if !isnothing(timing_datafile)
         fp = fopen(timing_datafile, "w")
@@ -305,31 +305,15 @@ function metabuild!(
 
             # all procs send their CVs to all other procs and update their copy of the bias
             substep_CVs = updatemethod.substep_CVs
-
-            for i in eachindex(substep_CVs)
-                CV_sendbuf[i] = ntuple(icv -> substep_CVs[i][icv], Val(num_cv))
-            end
-
-            mpi_allgather!(CV_sendbuf, CV_recvbuf, comm_shared)
-            was_accepted = mpi_allgather(acc::Bool, comm_shared)
-
-            if all(was_accepted)
-                update_bias!(bias, CV_recvbuf, itrj; mpi_multi_sim=mpi_multi_sim)
-            else
-                update_bias!(bias, [CV_recvbuf[1]], itrj; mpi_multi_sim=mpi_multi_sim)
-            end
-            # CVs = mpi_allgather(tuple(bias.CV...)::NTuple{num_cv,Float64}, comm_shared)
-            # update_bias!(bias, CVs, itrj; mpi_multi_sim=mpi_multi_sim)
+            update_bias!(bias, substep_CVs, Bool(acc), itrj)
 
             print_acceptance_rates(numaccepts, numitrj)
 
             save_field(config_saver, U, itrj, parameters)
             create_checkpoint(checkpointer, univ, updatemethod, nothing, itrj; rank)
 
-            calc_measurements(measurements, U, itrj; mpi_multi_sim=mpi_multi_sim)
-            calc_measurements_flowed(
-                measurements_with_flow, gflow, U, itrj; mpi_multi_sim=mpi_multi_sim
-            )
+            calc_measurements(measurements, U, itrj; mpi_multi_sim)
+            calc_measurements_flowed(measurements_with_flow, gflow, U, itrj; mpi_multi_sim)
             calc_weights(bias, itrj)
         end
     end

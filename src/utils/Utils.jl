@@ -77,15 +77,15 @@ struct OddSites <: AbstractIterator end
 
 @inline _unwrap_val(::Val{B}) where {B} = B
 
-@inline set_ext!(::Nothing, args...) = nothing
-@inline set_ext!(filename::String, args...) = filename
+set_ext!(::Nothing, args...) = nothing
+set_ext!(filename::String, args...) = filename
 
-@inline function set_ext!(filename::StaticString{N}, ::Val{len}=Val(3)) where {N,len}
+@noinline function set_ext!(filename::StaticString{N}, ::Val{len}=Val(3)) where {N,len}
     filename[end-len-4:end-len-2] = StaticString(lpad(MPI_INSTANCE[], 3, "0"))
     return filename
 end
 
-@inline function set_ext!(filename::StaticString{N}, inst, ::Val{len}=Val(3)) where {N,len}
+@noinline function set_ext!(filename::StaticString{N}, inst, ::Val{len}=Val(3)) where {N,len}
     filename[end-len-4:end-len-2] = StaticString(lpad(inst, 3, "0"))
     return filename
 end

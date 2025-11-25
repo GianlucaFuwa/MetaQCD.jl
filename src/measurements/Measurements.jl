@@ -10,7 +10,6 @@ module Measurements
 
 using LinearAlgebra
 using Polyester
-using StaticTools: StaticString
 using ..Logs
 using ..Utils
 

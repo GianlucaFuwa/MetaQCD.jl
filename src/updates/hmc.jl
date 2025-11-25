@@ -101,7 +101,7 @@ struct HMC{TL,NL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF} <: AbstractUpdate
         @level1("|  FERMION SMEARING: $(string(smearing_fermion))")
         !isnothing(logfile) && @level1("|  HMC LOGFILE: $(logfile)")
         @level1("-\n")
-        substep_CVs_single = isempty(substep_CVs) ? Float64[] : deepcopy(substep_CVs[1])
+        substep_CVs_single = isempty(substep_CVs) ? Float64[] : zeros(length(substep_CVs))
         substep_counter = Base.RefValue{Int64}(0)
         TL = typeof(levels)
         NL = _unwrap_val(numlevels)
@@ -212,7 +212,11 @@ function HMC(
             sum_U_updates += lvl.numsteps * num_U_updates(int)
         end
     end
-    substep_CVs = fill(zeros(numcv), Int(numsubsteps))
+
+    substep_CVs = Vector{Float64}[]
+    for _ in 1:numcv
+        push!(substep_CVs, zeros(Int(numsubsteps)))
+    end
 
     allforces = collect(Iterators.flatten([lvl.forces for lvl in levels]))
     fail = false
@@ -292,7 +296,7 @@ function HMC(
         end
 
         _logfile = joinpath(logdir, "hmc_acc_logs_$(lpad(instance[1], 3, "0")).txt")
-        logfile = StaticString(_logfile)
+        logfile = SStaticString(_logfile)
     else
         logfile = nothing
     end
@@ -462,7 +466,10 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level)
 
                 add!(P, force, ϵ)
             end
-            hmc.substep_CVs[hmc.substep_counter[]] .= substep_cv
+
+            for i in eachindex(substep_cv)
+                hmc.substep_CVs[i][hmc.substep_counter[]] = substep_cv[i]
+            end
         else
             if !isnothing(fp)
                 # print(fp, cfmt("%+-25.15E", 0.0))
