@@ -251,6 +251,12 @@ function update_bias!(b::Bias{N}, itrj::Int64) where {N}
     end
 end
 
+function update_bias!(b::Bias{N}, cv, itrj::Int64) where {N}
+    for icv in 1:N
+        update_bias!(b, cv[icv], itrj, icv)
+    end
+end
+
 function update_bias!(
     b::Bias{N}, substep_CVs, local_accepted::Bool, itrj::Int64
 ) where {N}
