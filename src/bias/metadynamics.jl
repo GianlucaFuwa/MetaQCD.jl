@@ -59,14 +59,14 @@ function Metadynamics(
     end
     symmetric = p.symmetric
     stride = p.stride
-    @level1("|  STATIC: $(static)")
-    @level1("|  STRIDE: $(stride)")
+    @level1("|    STATIC: $(static)")
+    @level1("|    STRIDE: $(stride)")
     @assert stride > 0 "STRIDE must be >0"
 
-    @level1("|  CVLIMS: $(string(p.cvlims))")
+    @level1("|    CVLIMS: $(string(p.cvlims))")
     @assert issorted(p.cvlims) "CVLIMS must be sorted from low to high"
 
-    @level1("|  BIN_WIDTH: $(p.bin_width)")
+    @level1("|    BIN_WIDTH: $(p.bin_width)")
     @assert p.bin_width > 0 "BIN_WIDTH must be > 0"
 
     if (0 < instance <= length(p.load_bias) && !dummy)
@@ -77,13 +77,13 @@ function Metadynamics(
         bin_vals, values = metad_from_file(p, "")
     end
 
-    @level1("|  META_WEIGHT: $(p.weight)")
+    @level1("|    META_WEIGHT: $(p.weight)")
     @assert p.weight > 0 "METAD.WEIGHT must be > 0"
 
-    @level1("|  PENALTY_WEIGHT: $(p.penalty_weight)")
+    @level1("|    PENALTY_WEIGHT: $(p.penalty_weight)")
 
     biasfactor = p.biasfactor
-    @level1("|  BIASFACTOR: $(biasfactor)")
+    @level1("|    BIASFACTOR: $(biasfactor)")
     @assert biasfactor > 1 "BIASFACTOR must be > 1"
 
     write_bias_every = if p.write_bias_every <= stride
@@ -91,8 +91,7 @@ function Metadynamics(
     else
         p.write_bias_every
     end
-    @level1("|  WRITE_BIAS_EVERY: $(string(dummy ? "" : write_bias_every))")
-    @level1("|")
+    @level1("|    WRITE_BIAS_EVERY: $(string(dummy ? "" : write_bias_every))")
     return Metadynamics(
         cvinfo,
         static,
@@ -132,7 +131,7 @@ end
 
 function update!(m::Metadynamics, cv, args...)
     cv_range = if length(cv) > 1
-        range(1, length(cv); step=cld(length(cv), 20))
+        range(1, length(cv); step=cld(length(cv), 40))
     else
         range(1, length(cv))
     end

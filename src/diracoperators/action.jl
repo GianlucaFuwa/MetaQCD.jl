@@ -458,11 +458,9 @@ function Base.show(io::IO, ::MIME"text/plain", S::FermionAction{R,Nf,TD}) where 
     print(
         io,
         """
-
         |  $(name)
         |    Nf: $Nf
-        |    MASS: $(D.mass)
-        """,
+        |    MASS: $(D.mass)""",
     )
 
     if D isa WilsonDiracOperator || D isa WilsonEOPreDiracOperator
@@ -470,15 +468,13 @@ function Base.show(io::IO, ::MIME"text/plain", S::FermionAction{R,Nf,TD}) where 
             io,
             """
             |    KAPPA: $(D.κ)
-            |    CSW: $(D.csw)
-            """,
+            |    CSW: $(D.csw)""",
         )
     elseif D isa StaggeredHoelblingDiracOperator
         print(
             io,
             """
-            |    MASS TERM: $(_unwrap_val.(get_mass_term(D)))
-            """,
+            |    MASS TERM: $(_unwrap_val.(get_mass_term(D)))""",
         )
     end
 
@@ -491,8 +487,7 @@ function Base.show(io::IO, ::MIME"text/plain", S::FermionAction{R,Nf,TD}) where 
         |    CG MAX ITERS (ACTION): $(S.solver_action.maxiters)
         |    CG MAX ITERS (ACTION): $(S.solver_md.maxiters)
         |    RHMC INFO (Action): $(S.rhmc_info_action)
-        |    RHMC INFO (MD): $(S.rhmc_info_md)
-        """,
+        |    RHMC INFO (MD): $(S.rhmc_info_md)""",
     )
     return nothing
 end
@@ -503,11 +498,9 @@ function Base.show(io::IO, S::FermionAction{R,Nf,TD}) where {R,Nf,TD}
     print(
         io,
         """
-
         |  $(name)
         |    Nf: $Nf
-        |    MASS: $(D.mass)
-        """,
+        |    MASS: $(D.mass)""",
     )
 
     if D isa WilsonDiracOperator || D isa WilsonEOPreDiracOperator
@@ -515,15 +508,13 @@ function Base.show(io::IO, S::FermionAction{R,Nf,TD}) where {R,Nf,TD}
             io,
             """
             |    KAPPA: $(D.κ)
-            |    CSW: $(D.csw)
-            """,
+            |    CSW: $(D.csw)""",
         )
     elseif D isa StaggeredHoelblingDiracOperator
         print(
             io,
             """
-            |    MASS TERM: $(_unwrap_val.(get_mass_term(D)))
-            """,
+            |    MASS TERM: $(_unwrap_val.(get_mass_term(D)))""",
         )
     end
 
@@ -536,8 +527,7 @@ function Base.show(io::IO, S::FermionAction{R,Nf,TD}) where {R,Nf,TD}
         |    CG MAX ITERS (ACTION): $(S.solver_action.maxiters)
         |    CG MAX ITERS (MD): $(S.solver_md.maxiters)
         |    RHMC INFO (Action): $(S.rhmc_info_action)
-        |    RHMC INFO (MD): $(S.rhmc_info_md)
-        """,
+        |    RHMC INFO (MD): $(S.rhmc_info_md)""",
     )
     return nothing
 end

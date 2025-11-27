@@ -200,7 +200,7 @@ function metabuild!(
     last_updatetime = 0.0 # look at last update time to determine whether we are going past the time limit
 
     if isnothing(starting_itrj)
-        @level1("- Thermalization:")
+        @level2("- Thermalization:")
         _, runtime_therm = @timed begin
             set_instanton!(U, starting_Q)
 
@@ -209,7 +209,7 @@ function metabuild!(
                     break
                 end
 
-                @level1("|  itrj = $itrj")
+                @level2("|  itrj = $itrj")
                 _, updatetime = @timed begin
                     update!(
                         updatemethod,
@@ -239,7 +239,7 @@ function metabuild!(
                     end
                 end
 
-                @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")
+                @level2("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")
             end
         end
 
@@ -274,7 +274,7 @@ function metabuild!(
             end
 
             numitrj += 1
-            @level1("|  itrj = $itrj")
+            @level2("|  itrj = $itrj")
 
             acc, updatetime = @timed begin
                 accepted = update!(
@@ -301,7 +301,7 @@ function metabuild!(
                 end
             end
 
-            @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")
+            @level2("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")
 
             # all procs send their CVs to all other procs and update their copy of the bias
             substep_CVs = updatemethod.substep_CVs
@@ -318,7 +318,7 @@ function metabuild!(
         end
     end
 
-    @level1("- Production elapsed time:\t$(runtime_prod) [s]\n")
+    @level2("- Production elapsed time:\t$(runtime_prod) [s]\n")
     print_total_time(runtime_therm + runtime_prod)
     flush(stdout)
     close(MetaIO.__GlobalLogger[])

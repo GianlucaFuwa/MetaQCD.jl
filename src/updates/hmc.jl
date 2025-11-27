@@ -544,13 +544,8 @@ function calc_gauge_action(U, smearing::StoutSmearing)
     return smeared_gauge_action
 end
 
-function sample_pseudofermions!(ϕ, ::QuenchedFermionAction, U, ::NoSmearing, ::Any)
-    return nothing
-end
-
-function sample_pseudofermions!(ϕ, ::QuenchedFermionAction, U, ::StoutSmearing, ::Any)
-    return nothing
-end
+sample_pseudofermions!(ϕ, ::QuenchedFermionAction, U, ::NoSmearing, ::Any) = nothing
+sample_pseudofermions!(ϕ, ::QuenchedFermionAction, U, ::StoutSmearing, ::Any) = nothing
 
 function sample_pseudofermions!(ϕ, fermion_action, U, ::NoSmearing, ::Any)
     for i in eachindex(fermion_action)
@@ -560,6 +555,8 @@ function sample_pseudofermions!(ϕ, fermion_action, U, ::NoSmearing, ::Any)
     return nothing
 end
 
+# TODO: include numsmear as argument so we can lift the requirement that fermion smearing
+# has to be exactly equal to cv smearing to save on that 
 function sample_pseudofermions!(ϕ, fermion_action, U, smearing::StoutSmearing, is_smeared)
     # we only need to smear once even if we have multiple fermion actions
     is_smeared || calc_smearedU!(smearing, U)

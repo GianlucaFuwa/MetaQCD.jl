@@ -74,8 +74,7 @@ function Base.show(io::IO, ::MIME"text/plain", level::HMCLevel)
         |    numchildren: $(_unwrap_val(level.numchildren))
         |    forces: $(_unwrap_val.(level.forces))
         |    forcefile: $(level.forcefile)
-        |  )
-        """
+        |  )"""
     return print(io, str)
 end
 
@@ -88,8 +87,7 @@ function Base.show(io::IO, level::HMCLevel)
         |    numchildren: $(_unwrap_val(level.numchildren))
         |    forces: $(_unwrap_val.(level.forces))
         |    forcefile: $(level.forcefile)
-        |  )
-        """
+        |  )"""
     print(io, str)
     return nothing
 end

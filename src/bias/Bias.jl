@@ -107,13 +107,12 @@ function Bias(
     
     if isnothing(bias)
         bias = ntuple(num_cv) do i
-            @level1("|")
             bias_parameters = bias_parameters_from_dict(biases[i], instance; build)
             name = bias_parameters.kind_of_cv
             numsmears = bias_parameters.numsmears_for_cv
             cv_numsmears[i] = numsmears
             @level1("|  Bias $i: $(bias_parameters.type)")
-            @level1("|  CV$i: $(name) with $(numsmears)x$(rho) Stout smearing")
+            @level1("|    CV$i: $(name) with $(numsmears)x$(rho) Stout smearing")
             if biases[i]["type"] ∈ ["metad", "metadynamics"]
                 Metadynamics(
                     bias_parameters;
@@ -199,9 +198,10 @@ function Bias(
         end
     end
 
-    !isnothing(p.starting_Q) && @level1("|  STARTING SECTOR: $(string(p.starting_Q))")
-    @level1("-")
-    @level1("")
+    if !isnothing(p.starting_Q)
+        @level1("|  STARTING SECTOR(S): $(string(p.starting_Q[instance]))")
+    end
+    @level1("-\n")
     return Bias(
         U,
         cv_numsmears,

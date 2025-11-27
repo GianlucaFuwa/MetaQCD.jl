@@ -331,14 +331,14 @@ function metaqcd!(
     last_updatetime = 0.0
 
     if isnothing(starting_itrj)
-        @level1("- Thermalization:")
+        @level2("- Thermalization:")
         _, runtime_therm = @timed begin
             for itrj in 1:(parameters.numtherm)
                 if (last_updatetime + time() + TIME_BUFFER - LOAD_TIME) > JOB_TIME_LIMIT
                     break
                 end
 
-                @level1("|  itrj = $itrj")
+                @level2("|  itrj = $itrj")
                 _, updatetime = @timed begin # time each update iteration
                     update!(
                         updatemethod,
@@ -362,11 +362,11 @@ function metaqcd!(
                     end
                 end
 
-                @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))\n-")
+                @level2("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))\n-")
             end
         end
 
-        @level1("-- Thermalization elapsed time:\t$(runtime_therm) [s]\n")
+        @level2("-- Thermalization elapsed time:\t$(runtime_therm) [s]\n")
         recalc_cv!(U, bias) # need to recalc cv since it was not updated during therm
     else
         runtime_therm = 0.0
@@ -380,7 +380,7 @@ function metaqcd!(
         1+starting_itrj:(parameters.numsteps)+starting_itrj
     end
 
-    @level1("- Production:")
+    @level2("- Production:")
     _, runtime_prod = @timed begin
         numaccepts = 0.0
         numitrj = 0
@@ -390,7 +390,7 @@ function metaqcd!(
             end
 
             numitrj += 1
-            @level1("|  itrj = $itrj")
+            @level2("|  itrj = $itrj")
 
             _, updatetime = @timed begin
                 accepted = update!(
@@ -424,7 +424,7 @@ function metaqcd!(
             end
 
             print_acceptance_rates(numaccepts, itrj)
-            @level1("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")
+            @level2("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")
 
             if tempering_enabled
                 temper!(
@@ -452,8 +452,8 @@ function metaqcd!(
             end
 
             calc_weights(bias, itrj; mpi_multi_sim=mpi_multi_sim)
-            @level1("|  Meas. elapsed time:     $(mtime)  [s]")
-            @level1("|  FlowMeas. elapsed time: $(fmtime) [s]\n-")
+            @level2("|  Meas. elapsed time:     $(mtime)  [s]")
+            @level2("|  FlowMeas. elapsed time: $(fmtime) [s]\n-")
         end
     end
 
