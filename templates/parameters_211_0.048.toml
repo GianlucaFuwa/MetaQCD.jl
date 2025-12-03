@@ -1,0 +1,151 @@
+[data]
+float_type = "double"
+solver_float_type = "double"
+backend = "rocm"
+ensemble_dir = "/zhome/academic/HLRS/xnw/xnwgfuwa/projects/MetaQCD.jl/ensembles/nf211_a0.048_build_8smear_2"
+randomseed = 0
+overwrite = true
+verboselevel = 2
+log_to_console = true
+# save_config_format = "bridge"
+# save_config_every = 1
+# load_config_fromfile = true
+# load_config_path = "/zhome/academic/HLRS/xnw/xnwgfuwa/projects/MetaQCD.jl/ensembles/config_bonanno_64_16_therm50"
+# load_config_format = "mpi"
+
+[ensemble]
+mode = "build"
+numinstances = 8
+L = [28, 28, 28, 8]
+numtherm = 15
+numsteps = 2000
+numprocs_cart = [1, 1, 1, 1]
+halo_width = 1
+initial = "cold"
+update_method = "hmc"
+su3_nfloats = 12
+
+[gauge_action]
+beta = 4.1479
+gauge_action = "symanzik_tree"
+
+[fermion_action]
+fermion_action = "staggered"
+[[fermion_action.fermions]]
+precon = "heavy"
+Nf = 2
+mass = [0.00070104958378574, 0.019370]
+cg_tol_action = 1e-10
+cg_tol_md = 1e-5
+cg_maxiters_action = 5000
+cg_maxiters_md = 5000
+rhmc_order_action = 11
+rhmc_order_md = 8
+rhmc_tol_action = 1e-5
+rhmc_tol_md = 1e-4
+rhmc_spectral_bound = [0.00025, 6.0]
+[[fermion_action.fermions]]
+precon = "none"
+Nf = 1
+mass = 0.019370
+cg_tol_action = 1e-10
+cg_tol_md = 1e-5
+cg_maxiters_action = 5000
+cg_maxiters_md = 5000
+rhmc_order_action = 11
+rhmc_order_md = 8
+rhmc_tol_action = 1e-5
+rhmc_tol_md = 1e-4
+rhmc_spectral_bound = [0.0003, 6.0]
+[[fermion_action.fermions]]
+precon = "none"
+Nf = 1
+mass = 0.019370
+cg_tol_action = 1e-10
+cg_tol_md = 1e-5
+cg_maxiters_action = 5000
+cg_maxiters_md = 5000
+rhmc_order_action = 11
+rhmc_order_md = 8
+rhmc_tol_action = 1e-5
+rhmc_tol_md = 1e-4
+rhmc_spectral_bound = [0.0003, 6.0]
+[[fermion_action.fermions]]
+precon = "none"
+Nf = 1
+mass = 0.019370
+cg_tol_action = 1e-10
+cg_tol_md = 1e-5
+cg_maxiters_action = 5000
+cg_maxiters_md = 5000
+rhmc_order_action = 11
+rhmc_order_md = 8
+rhmc_tol_action = 1e-5
+rhmc_tol_md = 1e-4
+rhmc_spectral_bound = [0.0003, 6.0]
+[[fermion_action.fermions]]
+precon = "none"
+Nf = 1
+mass = 0.22953449999999997
+cg_tol_action = 1e-10
+cg_tol_md = 1e-5
+cg_maxiters_action = 5000
+cg_maxiters_md = 5000
+rhmc_order_action = 11
+rhmc_order_md = 8
+rhmc_tol_action = 1e-5
+rhmc_tol_md = 1e-4
+rhmc_spectral_bound = [0.05, 6.0]
+
+[bias]
+recycle = true
+rhostout_for_cv = 0.125 # rho is the same for all CVs
+# starting_Q = [0, 0, -1, -1, 1, -2, 2, 2]
+[[bias.biases]]
+type = "metad"
+kind_of_cv = "topcharge_clover"
+numsmears_for_cv = 8
+static = false
+symmetric = true
+stride = 1
+cvlims = [-3.0, 3.0]
+biasfactor = 5
+penalty_weight = 100.0
+# metad specific parameters
+bin_width = 0.01
+weight = 0.05
+load_bias = ["/zhome/academic/HLRS/xnw/xnwgfuwa/projects/MetaQCD.jl/ensembles/nf211_a0.048_build_8smear/biaspotentials/bias1_000.metad"]
+
+[hmc]
+hmc_trajectory = 4
+hmc_numsmear_fermion = 4
+hmc_rhostout_fermion = 0.125
+[[hmc.levels]]
+forces = [0, 1]
+integrator = "OMF4"
+numsteps = 1
+[[hmc.levels]]
+forces = [2, 3, 4, 5, 6]
+integrator = "OMF2"
+numsteps = 20
+
+[gradient_flow]
+flow_integrator = "euler"
+flow_num = 30
+flow_steps = 1
+flow_tf = 0.12 # total flow time is flow_num * flow_tf
+flow_measure_every = [15, 30]
+
+[measurements.Plaquette]
+measure_every = 20
+
+[measurements.Topological_charge]
+measure_every = 20
+type = ["clover"]
+
+[measurements_with_flow.Plaquette]
+measure_every = 20
+
+[measurements_with_flow.Topological_charge]
+measure_every = 20
+type = ["clover"]
