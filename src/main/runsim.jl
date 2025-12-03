@@ -317,6 +317,7 @@ function metaqcd!(
     numaccepts_temper = zeros(Int64, MPI_NUMINSTANCES[]-1)
     instance_state = collect(0:univ.numinstances)
     swap_every = parameters.swap_every
+    rank = mpi_myrank(mpi_comm_instance())
 
     if !isnothing(timing_datafile)
         fp = fopen(timing_datafile, "w")
@@ -329,12 +330,21 @@ function metaqcd!(
     load_field!(U, parameters)
 
     last_updatetime = 0.0
+    all_load_times = mpi_allgather(LOAD_TIME::Float64, mpi_comm())
+    load_time = minimum(all_load_times)
 
     if isnothing(starting_itrj)
         @level2("- Thermalization:")
         _, runtime_therm = @timed begin
             for itrj in 1:(parameters.numtherm)
-                if (last_updatetime + time() + TIME_BUFFER - LOAD_TIME) > JOB_TIME_LIMIT
+                all_last_updatetime = mpi_allgather(last_updatetime, mpi_comm())
+                if any(x -> x > JOB_TIME_LIMIT, all_last_updatetime .+ time() .+ TIME_BUFFER .- load_time)
+                    @level1(
+                        """### Run terminated before thermalization trajectory $(itrj)
+                        ### because time limit would be passed"""
+                    )
+                    create_checkpoint(checkpointer, univ, updatemethod, nothing, itrj; rank)
+                    mpi_barrier()
                     break
                 end
 
@@ -385,7 +395,14 @@ function metaqcd!(
         numaccepts = 0.0
         numitrj = 0
         for itrj in itrj_range
-            if (last_updatetime + time() + TIME_BUFFER - LOAD_TIME) > JOB_TIME_LIMIT
+            all_last_updatetime = mpi_allgather(last_updatetime, mpi_comm())
+            if any(x -> x > JOB_TIME_LIMIT, all_last_updatetime .+ time() .+ TIME_BUFFER .- load_time)
+                @level1(
+                    """### Run terminated before production trajectory $(itrj)
+                    ### because time limit would be passed"""
+                )
+                create_checkpoint(checkpointer, univ, updatemethod, nothing, itrj; rank)
+                mpi_barrier()
                 break
             end
 

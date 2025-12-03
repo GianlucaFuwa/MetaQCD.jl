@@ -3,6 +3,7 @@ function cg_mixed!(
     x_low, r_low, Ap_low, p_low, r_old_low;
     delta=0.1, tol=1e-7, maxiters=1000, datafile=""
 )
+    rel_tol = tol * sqrt(real(dot(b, b)))
     mul!(Ap_high, A_high, x_high)
     copy!(r_high, b_high)
     axpy!(-1, Ap_high, r_high)
@@ -10,7 +11,7 @@ function cg_mixed!(
     res_high_old = res_high
     res_low = res_high
 
-    if sqrt(res_high) < tol
+    if sqrt(res_high) < rel_tol
         @level3 "|  Mixed CG: converged at iter 0 with res = $(sqrt(res_high))"
         print_solverdata(datafile, 0, sqrt(res_high))
         return 0, sqrt(res_high)
@@ -52,7 +53,7 @@ function cg_mixed!(
 
         @level4 "|  Mixed CG: residual outer $(outer_iters) inner $(inner_iters) = $(sqrt(res_high))"
 
-        if sqrt(res_high) < tol
+        if sqrt(res_high) < rel_tol
             @level3 "|  Mixed CG: converged at outer $(outer_iters) inner $(inner_iters) with res = $(sqrt(res_high))"
             print_solverdata(datafile, inner_iters, sqrt(res_high))
             return inner_iters, sqrt(res_high)
@@ -76,6 +77,7 @@ function mscg_mixed!(
     x_low::NTuple{M}, p_low::NTuple{L}, r_low, Ap_low, r_old_low;
     tol=1e-7, maxiters=1000, datafile="", delta=0.1
 ) where {M,L} # multishift solver
+    rel_tol = tol * sqrt(real(dot(b, b)))
     @assert all(x -> x>0, shifts) "Mixed precision multishift CG not supported for shifts < 0"
     N = length(shifts) + 1
     @assert L ≥ M ≥ N
@@ -101,7 +103,7 @@ function mscg_mixed!(
     res_low = res_high
     res_max_low = res_high
 
-    if sqrt(abs(res_high)) < tol
+    if sqrt(abs(res_high)) < rel_tol
         @level3 "|  Mixed MSCG: converged at iter 0 with res = $(sqrt(abs(res_high)))"
         print_solverdata(datafile, 0, sqrt(abs(res_high)))
         return 0, sqrt(abs(res_high))
@@ -130,7 +132,7 @@ function mscg_mixed!(
             res_max_low = abs(res_new)
 
             for i in 1:N-1
-                sqrt(abs(res_low′[i])) < tol && continue
+                sqrt(abs(res_low′[i])) < rel_tol && continue
                 axpy!(α′[i], p_low[i+1], x_low[i+1])
                 @reset β′[i] = ρ′[i]^2 * β
                 resᵢ = γ′[i] * res_new
@@ -142,7 +144,7 @@ function mscg_mixed!(
             axpby!(1, r_low, β, p_low[1])
 
             for i in 1:N-1
-                sqrt(abs(res_low′[i])) < tol && continue
+                sqrt(abs(res_low′[i])) < rel_tol && continue
                 axpby!(γ′[i], r_low, β′[i], p_low[i+1])
             end
 
@@ -164,7 +166,7 @@ function mscg_mixed!(
 
         @level4 "|  Mixed MSCG: residual outer $(outer_iters) inner $(inner_iters) = $(sqrt(abs(res_high)))"
 
-        if sqrt(abs(res_high)) < tol
+        if sqrt(abs(res_high)) < rel_tol
             @level3 "|  Mixed MSCG: converged at outer $(outer_iters) inner $(inner_iters) with res = $(sqrt(abs(res_high)))"
             print_solverdata(datafile, inner_iters, sqrt(abs(res_high)))
             return inner_iters, sqrt(abs(res_high))

@@ -82,9 +82,9 @@ function measure(
         Q = TC_dict[method]
 
         if !isnothing(flow)
-            @level1("$itrj\t$Q # topcharge_$(method)$(fstr)_$(τ)")
+            @level2("$itrj\t$Q # topcharge_$(method)$(fstr)_$(τ)")
         else
-            @level1("$itrj\t$Q # topcharge_$(method)")
+            @level2("$itrj\t$Q # topcharge_$(method)")
         end
     end
 

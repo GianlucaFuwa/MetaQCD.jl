@@ -47,10 +47,10 @@ get_layer(s::StoutSmearing, i) = s.Usmeared_multi[i]
 
 function apply_smearing!(smearing, Uin)
     numlayers = length(smearing)
-    ρ = convert(float_type(Uin), smearing.ρ)
     Usmeared = smearing.Usmeared_multi
     C = smearing.C_multi
     Q = smearing.Q_multi
+    ρ = convert(float_type(Usmeared[1]), smearing.ρ)
 
     copy!(Usmeared[1], Uin)
 

@@ -41,7 +41,7 @@ struct Univ{TG,TF,TB}
         if TF === QuenchedFermionAction
             @level1("|  FERMION ACTION: Quenched\n-\n")
         else
-            @level1("|  FERMION ACTION: $(string(fermion_action...))\n-\n")
+            @level1("|  FERMION ACTION:\n$(string(fermion_action...))\n-\n")
         end
 
         TG = typeof(U)
@@ -63,7 +63,7 @@ struct Univ{TG,TF,TB}
         if TF === QuenchedFermionAction
             @level1("|  FERMION ACTION:\n-\n")
         else
-            @level1("|  FERMION ACTION: $(string(fermion_action...))-\n")
+            @level1("|  FERMION ACTION:\n$(string(fermion_action...))-\n")
         end
 
         return new{Vector{TG},TF,Vector{TB}}(U, fermion_action, bias, numinstances)

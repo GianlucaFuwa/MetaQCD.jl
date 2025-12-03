@@ -44,9 +44,9 @@ function measure(
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
     if !isnothing(flow)
-        @level1("$itrj\t$plaq # plaq$(fstr)_$(τ)")
+        @level2("$itrj\t$plaq # plaq$(fstr)_$(τ)")
     else
-        @level1("$itrj\t$plaq # plaq")
+        @level2("$itrj\t$plaq # plaq")
     end
 
     if T !== Nothing

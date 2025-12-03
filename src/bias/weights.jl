@@ -38,7 +38,7 @@ function calc_weights(
             w += calc_weight(bias, b.CV[icv], method)
         end
 
-        @level1("$itrj\t$(string(b.CV))\t$(w) # cv weight_$method")
+        @level2("$itrj\t$(string(b.CV))\t$(w) # cv weight_$method")
     end
 
     if datafile != ""

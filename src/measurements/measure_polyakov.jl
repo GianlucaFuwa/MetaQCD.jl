@@ -47,9 +47,9 @@ function measure(
     iflow, τ = isnothing(flow) ? (0, 0.0) : flow
 
     if !isnothing(flow)
-        @level1("$itrj\t$(real(poly)) + $(imag(poly))im # poly$(fstr)_$(τ)")
+        @level2("$itrj\t$(real(poly)) + $(imag(poly))im # poly$(fstr)_$(τ)")
     else
-        @level1("$itrj\t$(real(poly)) + $(imag(poly))im # poly")
+        @level2("$itrj\t$(real(poly)) + $(imag(poly))im # poly")
     end
 
     if T !== Nothing

@@ -198,6 +198,8 @@ function metabuild!(
     load_field!(U, parameters)
 
     last_updatetime = 0.0 # look at last update time to determine whether we are going past the time limit
+    all_load_times = mpi_allgather(LOAD_TIME::Float64, mpi_comm())
+    load_time = minimum(all_load_times)
 
     if isnothing(starting_itrj)
         @level2("- Thermalization:")
@@ -205,7 +207,14 @@ function metabuild!(
             set_instanton!(U, starting_Q)
 
             for itrj in 1:(parameters.numtherm)
-                if (last_updatetime + time() + TIME_BUFFER - LOAD_TIME) > JOB_TIME_LIMIT
+                all_last_updatetime = mpi_allgather(last_updatetime, mpi_comm())
+                if any(x -> x > JOB_TIME_LIMIT, all_last_updatetime .+ time() .+ TIME_BUFFER .- load_time)
+                    @level1(
+                        """### Run terminated before production trajectory $(itrj)
+                        ### because time limit would be passed"""
+                    )
+                    create_checkpoint(checkpointer, univ, updatemethod, nothing, itrj; rank)
+                    mpi_barrier()
                     break
                 end
 
@@ -264,12 +273,19 @@ function metabuild!(
         1+starting_itrj:(parameters.numsteps)+starting_itrj
     end
 
-    @level1("- Production:")
+    @level2("- Production:")
     _, runtime_prod = @timed begin
         numaccepts = 0.0
         numitrj = 0
         for itrj in itrj_range
-            if (last_updatetime + time() + TIME_BUFFER - LOAD_TIME) > JOB_TIME_LIMIT
+            all_last_updatetime = mpi_allgather(last_updatetime, mpi_comm())
+            if any(x -> x > JOB_TIME_LIMIT, all_last_updatetime .+ time() .+ TIME_BUFFER .- load_time)
+                @level1(
+                    """### Run terminated before production trajectory $(itrj)
+                    ### because time limit would be passed"""
+                )
+                create_checkpoint(checkpointer, univ, updatemethod, nothing, itrj; rank)
+                mpi_barrier()
                 break
             end
 

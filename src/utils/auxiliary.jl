@@ -1,4 +1,4 @@
-const METAQCD_VERSION = "v3.0.0"
+const METAQCD_VERSION = "v2.2.0"
 
 function print_startup()
     str = """

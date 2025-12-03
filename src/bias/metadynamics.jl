@@ -69,10 +69,10 @@ function Metadynamics(
     @level1("|    BIN_WIDTH: $(p.bin_width)")
     @assert p.bin_width > 0 "BIN_WIDTH must be > 0"
 
-    if (0 < instance <= length(p.load_bias) && !dummy)
-        bin_vals, values = metad_from_file(p, p.load_bias[instance+1])
-    elseif build && (length(p.load_bias) != 0)
+    if build && (length(p.load_bias) != 0)
         bin_vals, values = metad_from_file(p, p.load_bias[1])
+    elseif (0 < instance <= length(p.load_bias) && !dummy)
+        bin_vals, values = metad_from_file(p, p.load_bias[instance+1])
     else
         bin_vals, values = metad_from_file(p, "")
     end
@@ -131,7 +131,7 @@ end
 
 function update!(m::Metadynamics, cv, args...)
     cv_range = if length(cv) > 1
-        range(1, length(cv); step=cld(length(cv), 40))
+        range(1, length(cv); step=cld(length(cv), 20))
     else
         range(1, length(cv))
     end

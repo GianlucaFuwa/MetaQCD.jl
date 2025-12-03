@@ -1,7 +1,7 @@
 """
     OPESmultithermal{CV} <: AbstractBias
 
-OPES bias-enhanced sampler from https://arxiv.org/abs/1909.07250 .
+OPES MultiThermal from https://arxiv.org/abs/1909.07250 .
 
     OPESmultithermal(; symmetric=true, stride=1, cvlims=(-6, 6), barrier=30,
          biasfactor=Inf, σ₀=0.1, σ_min=1e-6, fixed_σ=true, opes_epsilon=0.0,
@@ -76,12 +76,12 @@ function OPESmultithermal(
     sum_weights2 = zero(λ)
     current_weight = zero(λ)
 
-    if (0 < instance <= length(p.load_bias) && !dummy)
-        load_bias = p.load_bias[instance+1]
+    if build && (length(p.load_bias) != 0)
+        load_bias = p.load_bias[1]
         is_first_step = false
         counter, rct, β, λ, ΔF = opesmt_from_file!(counter, rct, β, λ, ΔF, load_bias)
-    elseif build && (length(p.load_bias) != 0)
-        load_bias = p.load_bias[1]
+    elseif (0 < instance <= length(p.load_bias) && !dummy)
+        load_bias = p.load_bias[instance+1]
         is_first_step = false
         counter, rct, β, λ, ΔF = opesmt_from_file!(counter, rct, β, λ, ΔF, load_bias)
     end
@@ -205,7 +205,7 @@ const opesmt_state_vars = [
 
 write_to_file(::OPESmultithermal, ::Nothing, args...) = nothing
 
-function write_to_file(o::OPESmultithermal, filename::String, args...)
+function write_to_file(o::OPESmultithermal, filename::AbstractString, args...)
     filename=="" && return nothing
     (tmppath, tmpio) = mktemp()
     print(tmpio, rpad("#counter", 25))

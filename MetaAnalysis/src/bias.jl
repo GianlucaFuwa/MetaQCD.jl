@@ -22,12 +22,7 @@ end
 function MetaBias(
     ; filename=nothing, ensemblename::String="", which=nothing, stream=0
 )
-    from_ensemble = ensemblename != ""
-    from_file = filename isa String
-    @assert from_file ⊻ from_ensemble """
-    One and only one of the filename or the ensemblename of the bias potential has to \
-    be given
-    """
+    from_ensemble = ensemblename != "" && isnothing(filename)
     dir = if isabspath(ensemblename) && from_ensemble
         joinpath(ensemblename, "biaspotentials/")
     elseif from_ensemble
@@ -75,6 +70,9 @@ function MetaBias(
         )
     elseif ext == ".opes" || which == :opes
         bias = OPES(file)
+    elseif ext == ".ves" || which == :ves
+    elseif ext == ".opesmt" || which == :opesmt
+        bias = OPESmultithermal(file)
     else
         throw(AssertionError("File extension $ext not recognized.
                              Must be either .metad or .opes"))
@@ -82,8 +80,9 @@ function MetaBias(
 
     ename = split(ensemblename, "/")[end]
     mbias = MetaBias(bias, string(ename), ext)
-    display(plot(mbias))
-    return mbias
+    plt = plot(mbias)
+    display(plt)
+    return mbias, plt
 end
 
 (m::MetaBias{F})(cv::Float64) where {F} = m.bias(cv)
@@ -98,7 +97,11 @@ RecipesBase.@recipe function f(
     b::MetaBias; cvlims=nothing, normalize=false, ylims=nothing
 )
     bias = b.bias
-    xlims = cvlims ≡ nothing ? bias.cvlims : cvlims
+    xlims = if b.bias isa OPESmultithermal
+        cvlims = extrema(b.bias.β)
+    else
+        cvlims ≡ nothing ? bias.cvlims : cvlims
+    end
     yylims = ylims ≡ nothing ? :auto : ylims
     isinf(sum(xlims)) && (xlims = (-6, 6))
 
@@ -110,7 +113,11 @@ RecipesBase.@recipe function f(
     ylabel --> "Bias Potential ($(nameof(b)))"
     title --> b.ensemblename
     titlefontsize --> 10
-    x = (bias isa OPES) ? (xlims[1]:0.001:xlims[2]-0.001) : bias.bin_vals
+    x = if bias isa OPESmultithermal
+        xlims[1]:0.001:xlims[2]
+    else
+        (bias isa OPES) ? (xlims[1]:0.001:xlims[2]-0.001) : bias.bin_vals
+    end
     yraw = b.(x)
     y = normalize ? yraw .- maximum(yraw) : yraw
     return x, y
@@ -390,4 +397,93 @@ function opes_from_file!(dict, usebias)
 
         return kernels, length(kernels)
     end
+end
+
+mutable struct VES
+    cvlims::NTuple{2,Float64}
+    penalty_weight::Float64
+    nbasis::Int64
+    alpha::Vector{Float64} # instantaneous ptimization parameters
+    alpha_bar::Vector{Float64} # averaged optimization parameters
+end
+
+function VES(filename::String)
+    @assert isfile(filename) "file \"$(filename)\" doesn't exist"
+    data = readdlm(filename)
+    nbasis = size(data, 2) ÷ 2 - 2
+    alpha = data[end, 1:nbasis+2]
+    alpha_bar = data[end, nbasis+3:end]
+    penalty_weight = 100
+    cvlims = (-3, 3)
+    return VES(cvlims, penalty_weight, nbasis, alpha, alpha_bar)
+end
+
+function (p::VES)(cv)
+    lb, ub = p.cvlims
+
+    out = if !in_bounds(cv, p.cvlims...)
+        bounds_penalty = 100
+        which_bound, dist² = findmin(((cv - lb)^2, (cv - ub)^2))
+        nearest_bound = which_bound == 1 ? lb : ub
+        return_potential(p, nearest_bound) + bounds_penalty * dist²
+    else
+        return_potential(p, cv)
+    end
+
+    return out
+end
+
+function return_potential(p::VES, cv)
+    nbasis = p.nbasis
+    ᾱ = p.alpha_bar
+    lim = abs(p.cvlims[1])
+    out = ᾱ[1] + ᾱ[2] * cv^2
+
+    for i in 1:nbasis
+        out += ᾱ[i+2] * cos(i*π*cv / lim)
+    end
+
+    return out
+end
+
+mutable struct OPESmultithermal
+    counter::Int64
+    rct::Float64
+    β::Vector{Float64}
+    λ::Vector{Float64}
+    ΔF::Vector{Float64}
+end
+
+function OPESmultithermal(filename::String)
+    @assert isfile(filename) "file \"$(filename)\" doesn't exist"
+    # state is stored in header, which is always read as a string so we have to parse it
+    kernel_data, state_data = readdlm(filename; comments=true, header=true)
+    counter = parse(Int64, state_data[1])
+    rct = parse(Float64, state_data[1])
+
+    beta = kernel_data[:, 1]
+    lambda = kernel_data[:, 2]
+    deltaF = kernel_data[:, 3]
+    return OPESmultithermal(
+        counter, rct, beta, lambda, deltaF
+    )
+end
+
+function (o::OPESmultithermal)(cv)
+    return calculate!(o, cv)
+end
+
+function calculate!(o::OPESmultithermal, cv::Float64)
+    ΔF = o.ΔF
+    λ = o.λ
+    ΔS_max = maximum(-cv*λ[i] + ΔF[i] for i in eachindex(λ)) # get maximum difference to avoid over/underflow of exp
+    sum = 0.0
+
+    for i in eachindex(λ)
+        diff_i = -cv*λ[i] + ΔF[i]
+        sum += exp(diff_i - ΔS_max)
+    end
+
+    current_bias = -(ΔS_max + log(sum/length(λ)))
+    return current_bias
 end

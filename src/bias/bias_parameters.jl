@@ -116,7 +116,7 @@ function get_cvinfo_from_parameters(p::BiasParameters)
         U -> top_charge(Clover(), U)
     elseif p.kind_of_cv == "multithermal"
         @assert p.type == "opesmt" "Multithermal CV only works with opesmt"
-        U -> calc_gauge_action(U)
+        U -> calc_gauge_action(U) / length(U)
     else
         error("kind_of_cv \"$(p.kind_of_cv)\" not supported (see docs for supported CVs)")
     end

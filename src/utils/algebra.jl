@@ -162,7 +162,7 @@
         return out
     end
 
-    @inline function proj_onto_SU3(M::SMatrix{3,3,Complex{T},9}) where {T}
+    @inline function proj_onto_SU3(M::SMatrix{3,3,ComplexF64,9})
         col1 = M[:, 1]
         col2 = M[:, 2]
         col3 = M[:, 3]
@@ -172,8 +172,14 @@
         col3 -= (col1' * col3) * col1 + (col2' * col3) * col2
         col3 /= norm(col3)
         out = [col1 col2 col3]
-        out /= det(out)^(T(1 / 3))
+        out /= det(out)^(1/3)
         return out
+    end
+
+    # We convert lower precision matrices before projecting to improve correctness/precision of projection
+    @inline function proj_onto_SU3(M::SMatrix{3,3,Complex{T},9}) where {T}
+        M64 = ComplexF64.(M)
+        return Complex{T}.(proj_onto_SU3(M64))
     end
 
     @inline function restore_last_col(M::SMatrix{3,3,Complex{T},9}) where {T}

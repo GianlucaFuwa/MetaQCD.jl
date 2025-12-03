@@ -114,22 +114,14 @@ function Bias(
             @level1("|  Bias $i: $(bias_parameters.type)")
             @level1("|    CV$i: $(name) with $(numsmears)x$(rho) Stout smearing")
             if biases[i]["type"] ∈ ["metad", "metadynamics"]
-                Metadynamics(
-                    bias_parameters;
-                    instance=instance, dummy=dummy, mpi_multi_sim=mpi_multi_sim, build=build
-                )
+                Metadynamics(bias_parameters; instance, dummy, mpi_multi_sim, build)
             elseif biases[i]["type"] == "opes"
-                OPES(
-                    bias_parameters;
-                    instance=instance, dummy=dummy, mpi_multi_sim=mpi_multi_sim, build=build
-                )
+                OPES(bias_parameters; instance, dummy, mpi_multi_sim, build)
             elseif biases[i]["type"] == "opesmt"
-                OPESmultithermal(
-                    bias_parameters, p.beta;
-                    instance=instance, dummy=dummy, mpi_multi_sim=mpi_multi_sim, build=build
-                )
+                β = p.beta
+                OPESmultithermal(bias_parameters, β; instance, dummy, mpi_multi_sim, build)
             elseif biases[i]["type"] == "ves"
-                VES(bias_parameters; dummy=dummy)
+                VES(bias_parameters; dummy)
             else
                 error("type $(p[i]["type"]) not supported. Try metad, opes, opesmt or ves")
             end
@@ -199,7 +191,7 @@ function Bias(
     end
 
     if !isnothing(p.starting_Q)
-        @level1("|  STARTING SECTOR(S): $(string(p.starting_Q[instance]))")
+        @level1("|  STARTING SECTOR: $(string(p.starting_Q[instance+1]))")
     end
     @level1("-\n")
     return Bias(

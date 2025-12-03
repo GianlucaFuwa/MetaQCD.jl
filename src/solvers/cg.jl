@@ -1,11 +1,12 @@
 function cg!(x, A, b, Ap, r, p; tol=1e-7, maxiters=1000, datafile="")
+    rel_tol = tol * sqrt(real(dot(b, b)))
     mul!(Ap, A, x)
     copy!(r, b)
     axpy!(-1, Ap, r)
     copy!(p, r)
     res = real(dot(r, r))
 
-    if sqrt(res) < tol
+    if sqrt(res) < rel_tol
         @level3 "|  CG: converged at iter 0 with res = $(sqrt(res))"
         print_solverdata(datafile, 0, sqrt(res))
         return 0, sqrt(res)
@@ -21,7 +22,7 @@ function cg!(x, A, b, Ap, r, p; tol=1e-7, maxiters=1000, datafile="")
         res_new = real(dot(r, r))
         @level4 "|  CG: residual $(iter) = $(sqrt(res_new))"
 
-        if sqrt(res_new) < tol
+        if sqrt(res_new) < rel_tol
             @level3 "|  CG: converged at iter $(iter) with res = $(sqrt(res_new))"
             print_solverdata(datafile, iter, sqrt(res_new))
             return iter, sqrt(res_new)
@@ -38,6 +39,7 @@ function cg!(x, A, b, Ap, r, p; tol=1e-7, maxiters=1000, datafile="")
 end
 
 function cgnr!(x, A, A_dagg, b, Ap, r, g, p; tol=1e-12, maxiters=1000, datafile="")
+    rel_tol = tol * sqrt(real(dot(b, b)))
     mul!(Ap, A, x)
     copy!(r, b)
     axpy!(-1, Ap, r)
@@ -50,7 +52,7 @@ function cgnr!(x, A, A_dagg, b, Ap, r, g, p; tol=1e-12, maxiters=1000, datafile=
     for iter in 1:maxiters+1
         @level4 "|  CGNR: residual $(iter-1) = $(sqrt(res_new))"
 
-        if sqrt(res_new) < tol
+        if sqrt(res_new) < rel_tol
             @level3 "|  CGNR: converged at iter $(iter-1) with res = $(sqrt(res_new))"
             print_solverdata(datafile, iter-1, sqrt(res_new))
             return iter, sqrt(res_new)
@@ -87,6 +89,7 @@ function mscg!(
     x::NTuple{M,V}, shifts, A, b::V, Ap::V, r::V, p::NTuple{L,V};
     tol=1e-7, maxiters=1000, datafile=""
 ) where {M,L,V} # multishift solver
+    rel_tol = tol * sqrt(real(dot(b, b)))
     N = length(shifts) + 1
     @assert L ≥ M ≥ N
     α = one(ComplexF64)
@@ -107,7 +110,7 @@ function mscg!(
     res = dot(r, r)
     res′ = @SVector fill(res, N - 1)
 
-    if sqrt(abs(res)) < tol
+    if sqrt(abs(res)) < rel_tol
         @level3 "|  MultishiftCG: converged at iter 0 with res = $(sqrt(abs(res)))"
         print_solverdata(datafile, 0, sqrt(abs(res)))
         return 0, sqrt(abs(res))
@@ -129,7 +132,7 @@ function mscg!(
         res_max = abs(res_new)
 
         for i in 1:N-1
-            sqrt(abs(res′[i])) < tol && continue
+            sqrt(abs(res′[i])) < rel_tol && continue
             axpy!(α′[i], p[i+1], x[i+1])
             @reset β′[i] = ρ′[i]^2 * β
             resᵢ = γ′[i] * res_new
@@ -140,7 +143,7 @@ function mscg!(
 
         @level4 "|  MultishiftCG: max residual $(iter) = $(sqrt(res_max))"
 
-        if sqrt(res_max) < tol
+        if sqrt(res_max) < rel_tol
             @level3 "|  MultishiftCG: converged at iter $(iter) with res = $(sqrt(res_max))"
             print_solverdata(datafile, iter, sqrt(abs(res_max)))
             return iter, sqrt(res_max)
@@ -149,7 +152,7 @@ function mscg!(
         axpby!(1, r, β, p[1])
 
         for i in 1:N-1
-            sqrt(abs(res′[i])) < tol && continue
+            sqrt(abs(res′[i])) < rel_tol && continue
             axpby!(γ′[i], r, β′[i], p[i+1])
         end
 
@@ -162,6 +165,7 @@ function mscg!(
 end
 
 function bicg!(x, A, b, Ap, r, p, Ap′, r′, p′; tol=1e-7, maxiters=1000, datafile="")
+    rel_tol = tol * sqrt(real(dot(b, b)))
     mul!(Ap, A, x)
     mul!(Ap′, adjoint(A), x)
     copy!(r, b)
@@ -173,7 +177,7 @@ function bicg!(x, A, b, Ap, r, p, Ap′, r′, p′; tol=1e-7, maxiters=1000, da
     ρ = dot(r′, r)
     res = abs(dot(r, r))
 
-    if sqrt(res) < tol
+    if sqrt(res) < rel_tol
         @level3 "|  BiCG: converged at iter 0 with res = $(sqrt(res))"
         print_solverdata(datafile, 0, sqrt(res))
         return 0, sqrt(res)
@@ -192,7 +196,7 @@ function bicg!(x, A, b, Ap, r, p, Ap′, r′, p′; tol=1e-7, maxiters=1000, da
         res = abs(dot(r, r))
         @level4 "|  BiCG: residual $(iter) = $(sqrt(res))"
 
-        if res < tol
+        if res < rel_tol
             @level3 "|  BiCG: converged at iter $(iter) with res = $(sqrt(res))"
             print_solverdata(datafile, iter, sqrt(res))
             return iter, sqrt(res)
@@ -210,6 +214,7 @@ function bicg!(x, A, b, Ap, r, p, Ap′, r′, p′; tol=1e-7, maxiters=1000, da
 end
 
 function bicg_stab!(x, A, b, v, r, p, r₀, t; tol=1e-7, maxiters=1000, datafile="")
+    rel_tol = tol * sqrt(real(dot(b, b)))
     mul!(v, A, x)
     copy!(r, b)
     axpy!(-1, v, r)
@@ -219,7 +224,7 @@ function bicg_stab!(x, A, b, v, r, p, r₀, t; tol=1e-7, maxiters=1000, datafile
     res = abs(ρ)
     @level4 "|  BiCGStab: residual 0 = $(sqrt(res))"
 
-    if res < tol
+    if res < rel_tol
         @level3 "|  BiCGStab: converged at iter 0 with res = $(sqrt(res))"
         print_solverdata(datafile, 0, sqrt(res))
         return 0, sqrt(res)
@@ -235,7 +240,7 @@ function bicg_stab!(x, A, b, v, r, p, r₀, t; tol=1e-7, maxiters=1000, datafile
         res = abs(dot(r, r))
         @level4 "|  BiCGStab: residual $(iter).5 = $(sqrt(res))"
 
-        if res < tol
+        if res < rel_tol
             @level3 "|  BiCGStab: converged at iter $(iter).5 with res = $(sqrt(res))"
             print_solverdata(datafile, iter, sqrt(res))
             return iter, sqrt(res)
@@ -251,7 +256,7 @@ function bicg_stab!(x, A, b, v, r, p, r₀, t; tol=1e-7, maxiters=1000, datafile
         res = abs(dot(r, r))
         @level4 "|  BiCGStab: residual $(iter) = $(sqrt(res))"
 
-        if res < tol
+        if res < rel_tol
             @level3 "|  BiCGStab: converged at iter $(iter) with res = $(sqrt(res))"
             print_solverdata(datafile, iter, sqrt(res))
             return iter, sqrt(res)

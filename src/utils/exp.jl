@@ -8,28 +8,28 @@ using Base.Math: isinf_real
     struct ExpiQCoeffs{T}
         Q::SU{3,9,T}
         expiQ::SU{3,9,T}
-        f₀::Complex{T}
-        f₁::Complex{T}
-        f₂::Complex{T}
-        b₁₀::Complex{T}
-        b₁₁::Complex{T}
-        b₁₂::Complex{T}
-        b₂₀::Complex{T}
-        b₂₁::Complex{T}
-        b₂₂::Complex{T}
+        f₀::ComplexF64
+        f₁::ComplexF64
+        f₂::ComplexF64
+        b₁₀::ComplexF64
+        b₁₁::ComplexF64
+        b₁₂::ComplexF64
+        b₂₀::ComplexF64
+        b₂₁::ComplexF64
+        b₂₂::ComplexF64
     end
 
     function ExpiQCoeffs(::Type{T}) where {T}
         Q = zero3(T)
         expiQ = zero3(T)
-        T0 = zero(Complex{T})
+        T0 = zero(ComplexF64)
         return ExpiQCoeffs{T}(Q, expiQ, T0, T0, T0, T0, T0, T0, T0, T0, T0)
     end
 
     @inline function Base.convert(::Type{ExpiQCoeffs{Tout}}, e::ExpiQCoeffs) where {Tout}
         Q = SU{3,9,Tout}(e.Q)
         expiQ = SU{3,9,Tout}(e.expiQ)
-        vals = Complex{Tout}.((e.f₀, e.f₁, e.f₂, e.b₁₀, e.b₁₁, e.b₁₂, e.b₂₀, e.b₂₁, e.b₂₂))
+        vals = (e.f₀, e.f₁, e.f₂, e.b₁₀, e.b₁₁, e.b₁₂, e.b₂₀, e.b₂₁, e.b₂₂)
         return ExpiQCoeffs{Tout}(Q, expiQ, vals...)
     end
 
@@ -54,8 +54,8 @@ using Base.Math: isinf_real
     Base.zero(::Type{ExpiQCoeffs{T}}) where {T} = ExpiQCoeffs(T)
     exp_iQ(e::ExpiQCoeffs{T}) where {T} = e.expiQ
     get_Q(e::ExpiQCoeffs{T}) where {T} = e.Q
-    get_B₁(e::ExpiQCoeffs{T}) where {T} = e.b₁₀ * eye3(T) + e.b₁₁ * e.Q + e.b₁₂ * cmatmul_oo(e.Q, e.Q)
-    get_B₂(e::ExpiQCoeffs{T}) where {T} = e.b₂₀ * eye3(T) + e.b₂₁ * e.Q + e.b₂₂ * cmatmul_oo(e.Q, e.Q)
+    get_B₁(e::ExpiQCoeffs{T}) where {T} = Complex{T}(e.b₁₀) * eye3(T) + Complex{T}(e.b₁₁) * e.Q + Complex{T}(e.b₁₂) * cmatmul_oo(e.Q, e.Q)
+    get_B₂(e::ExpiQCoeffs{T}) where {T} = Complex{T}(e.b₂₀) * eye3(T) + Complex{T}(e.b₂₁) * e.Q + Complex{T}(e.b₂₂) * cmatmul_oo(e.Q, e.Q)
 
     """
         exp_iQ(Q::SU{3,9,T}) where {T}
@@ -67,8 +67,8 @@ using Base.Math: isinf_real
     """
     @inline function exp_iQ(Q::SU{3,9,T}) where {T}
         u, w, signflip = set_uw(Q)
-        f₀, f₁, f₂, _ = set_fj(T, u, w, signflip)
-        mat = f₀ * eye3(T) + f₁ * Q + f₂ * cmatmul_oo(Q, Q)
+        f₀, f₁, f₂, _ = set_fj(u, w, signflip)
+        mat = Complex{T}(f₀) * eye3(T) + Complex{T}(f₁) * Q + Complex{T}(f₂) * cmatmul_oo(Q, Q)
         return mat
     end
 
@@ -80,20 +80,20 @@ using Base.Math: isinf_real
     """
     @inline function exp_iQ_coeffs(Q::SU{3,9,T}) where {T}
         f₀, f₁, f₂, b₁₀, b₁₁, b₁₂, b₂₀, b₂₁, b₂₂ = calc_coefficients(Q)
-        mat = f₀ * eye3(T) + f₁ * Q + f₂ * cmatmul_oo(Q, Q)
+        mat = Complex{T}(f₀) * eye3(T) + Complex{T}(f₁) * Q + Complex{T}(f₂) * cmatmul_oo(Q, Q)
         return ExpiQCoeffs(Q, mat, f₀, f₁, f₂, b₁₀, b₁₁, b₁₂, b₂₀, b₂₁, b₂₂)
     end
 
     function calc_coefficients(Q::SU{3,9,T}) where {T}
         u, w, signflip = set_uw(Q)
-        f₀, f₁, f₂, ξ₀ = set_fj(T, u, w, signflip)
+        f₀, f₁, f₂, ξ₀ = set_fj(u, w, signflip)
         e²ⁱᵘ = cis(2u)
         e⁻ⁱᵘ = cis(-u)
         cosw = cos(w)
         w² = w * w
         u² = u * u
 
-        if abs(w) <= T(0.2)
+        if abs(w) <= 0.2
             ξ₁ = -T(1 / 3) + w² / 30 * (one(T) - w² / 28 * (one(T) - w² / 54))
         else
             ξ₁ = cosw / w² - sin(w) / (w² * w)
@@ -110,7 +110,9 @@ using Base.Math: isinf_real
         r₂₁ = -im * e⁻ⁱᵘ * (cosw + (1 + 2im * u) * ξ₀ - 3u² * ξ₁)
         r₂₂ = e⁻ⁱᵘ * (ξ₀ - 3im * u * ξ₁)
 
-        bdenom = isinf_real(1 / 2(9u² - w²)^2) ? zero(T) : 1 / 2(9u² - w²)^2
+        # INFO: bdenom_raw can get very large for some configs (instantons) so we check it
+        bdenom_raw = 1 / 2(9u² - w²)^2 
+        bdenom = bdenom_raw > 1e6 ? zero(w) : 1 / 2(9u² - w²)^2
 
         if signflip
             b₁₀ = conj((2u * r₁₀ + (3u² - w²) * r₂₀ - 2(15u² + w²) * conj(f₀))) * bdenom
@@ -131,7 +133,7 @@ using Base.Math: isinf_real
         return f₀, f₁, f₂, b₁₀, b₁₁, b₁₂, b₂₀, b₂₁, b₂₂
     end
 
-    function set_fj(::Type{T}, u, w, signflip) where {T}
+    function set_fj(u, w, signflip)
         w² = w * w
         u² = u * u
         #if abs(w) <= 0.05
@@ -146,13 +148,13 @@ using Base.Math: isinf_real
         denom = 9u² - w²
 
         if signflip
-            if isinf_real(one(T)/denom)
-                fdenom = one(T)
-                h₀ = one(Complex{T})
-                h₁ = zero(Complex{T})
-                h₂ = zero(Complex{T})
+            if isinf_real(one(Float64)/denom)
+                fdenom = one(Float64)
+                h₀ = one(ComplexF64)
+                h₁ = zero(ComplexF64)
+                h₂ = zero(ComplexF64)
             else
-                fdenom = one(T) / denom
+                fdenom = one(Float64) / denom
                 h₀ = conj(
                     (u² - w²) * e²ⁱᵘ + e⁻ⁱᵘ * (8u² * cosw + 2im * u * (3u² + w²) * ξ₀)
                 )
@@ -160,13 +162,13 @@ using Base.Math: isinf_real
                 h₂ = conj(e²ⁱᵘ - e⁻ⁱᵘ * (cosw + 3im * u * ξ₀))
             end
         else
-            if isinf_real(one(T)/denom)
-                fdenom = one(T)
-                h₀ = one(Complex{T})
-                h₁ = zero(Complex{T})
-                h₂ = zero(Complex{T})
+            if isinf_real(one(Float64)/denom)
+                fdenom = one(Float64)
+                h₀ = one(ComplexF64)
+                h₁ = zero(ComplexF64)
+                h₂ = zero(ComplexF64)
             else
-                fdenom = one(T) / denom
+                fdenom = one(Float64) / denom
                 h₀ = (u² - w²) * e²ⁱᵘ + e⁻ⁱᵘ * (8u² * cosw + 2im * u * (3u² + w²) * ξ₀)
                 h₁ = 2u * e²ⁱᵘ - e⁻ⁱᵘ * (2u * cosw - im * (3u² - w²) * ξ₀)
                 h₂ = e²ⁱᵘ - e⁻ⁱᵘ * (cosw + 3im * u * ξ₀)
@@ -180,14 +182,14 @@ using Base.Math: isinf_real
     end
 
     function set_uw(Q::SU{3,9,T}) where {T}
-        oneover3 = T(1/3)
+        oneover3 = 1/3
         c₀_bare = real(det(Q))
         signflip = c₀_bare < 0
         c₀ = abs(c₀_bare)
-        c₁ = T(0.5) * real(multr(Q, Q))
+        c₁ = 0.5 * real(multr(Q, Q))
         c₁_3r = sqrt(c₁ * oneover3)
         c₀ᵐᵃˣ = 2(c₁_3r * c₁_3r * c₁_3r)
-        Θ = isnan(c₀ / c₀ᵐᵃˣ) ? acos(T(1)) : acos(min(T(1), c₀ / c₀ᵐᵃˣ))
+        Θ = isnan(c₀ / c₀ᵐᵃˣ) ? acos(1) : acos(min(1, c₀ / c₀ᵐᵃˣ))
 
         u = c₁_3r * cos(Θ * oneover3)
         w = sqrt(c₁) * sin(Θ * oneover3)

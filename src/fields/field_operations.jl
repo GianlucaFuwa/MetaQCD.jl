@@ -5,6 +5,8 @@ function Base.deepcopy(u::AbstractField{B,T,M}) where {B,T,M}
 end
 
 function Base.copy!(a::AbstractField{B}, b::AbstractField{B}) where {B}
+    a === b && return nothing # if a and b refer to the same array we dont have to do anything
+
     parallelfor(allindices(a, b), B, Val(false), (), (a,), (a, b)) do μsite, (a, b)
         a[μsite] = b[μsite]
     end
@@ -72,7 +74,7 @@ function LinearAlgebra.norm(u::GaugeLikeField{B,T,M}, ::Val{Inf}) where {B,T,M}
     return distributed_reduce(normsup, max, u)
 end
 
-function add!(a::AbstractField{B,T}, b::AbstractField{B,T}, fac) where {B,T}
+function add!(a::AbstractField{B,T}, b::AbstractField{B}, fac) where {B,T}
     parallelfor(allindices(a, b), B, Val(false), (), (a,), (a, b)) do μsite, (a, b)
         a[μsite] += T(fac) * b[μsite]
     end

@@ -69,9 +69,9 @@ function measure(
         S = GA_dict[method]
 
         if !isnothing(flow)
-            @level1("$itrj\t$S # gaction_$(method)$(fstr)_$(τ)")
+            @level2("$itrj\t$S # gaction_$(method)$(fstr)_$(τ)")
         else
-            @level1("$itrj\t$S # gaction_$(method)")
+            @level2("$itrj\t$S # gaction_$(method)")
         end
     end
 

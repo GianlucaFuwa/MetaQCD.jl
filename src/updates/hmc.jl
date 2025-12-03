@@ -52,14 +52,15 @@ force recursion when using a bias.
 - `wilson`
 - `wilson_eo`
 """
-struct HMC{TL,NL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF} <: AbstractUpdate
+struct HMC{TL,NL,TG,TGH,TP,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF} <: AbstractUpdate
     levels::TL
     numlevels::Val{NL}
     friction::Float64
 
-    P::TT
+    P::TP
     P_old::TPO # second momentum field for GHMC
     U_old::TG
+    U_high::TGH
     ϕ::TF
     staples::TT
     force::TT
@@ -80,6 +81,7 @@ struct HMC{TL,NL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF} <: AbstractUpdate
         P,
         P_old,
         U_old,
+        U_high,
         ϕ,
         staples,
         force,
@@ -106,6 +108,8 @@ struct HMC{TL,NL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF} <: AbstractUpdate
         TL = typeof(levels)
         NL = _unwrap_val(numlevels)
         TG = typeof(U_old)
+        TGH = typeof(U_high)
+        TP = typeof(P)
         TT = typeof(staples)
         TF = typeof(ϕ)
         TSG = typeof(smearing_gauge)
@@ -114,13 +118,14 @@ struct HMC{TL,NL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF} <: AbstractUpdate
         TF2 = typeof(force2)
         TFS = typeof(fieldstrength)
         TLF = typeof(logfile)
-        return new{TL,NL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF}(
+        return new{TL,NL,TG,TGH,TP,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF}(
             levels,
             numlevels,
             friction,
             P,
             P_old,
             U_old,
+            U_high,
             ϕ,
             staples,
             force,
@@ -137,7 +142,7 @@ struct HMC{TL,NL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF} <: AbstractUpdate
 end
 
 function HMC(
-    U,
+    U::Gaugefield{B,T},
     hmc_levels,
     trajectory,
     friction=0.0,
@@ -152,11 +157,12 @@ function HMC(
     numcv=0,
     logdir="",
     instance=MPI_INSTANCE[],
-)
-    P = Colorfield(U; no_halo=true)
+) where {B,T}
+    P = Colorfield(U, Float64; no_halo=true)
     gaussian_TA!(P, 0)
     P_old = friction == 0 ? nothing : Colorfield(U; no_halo=true)
     U_old = Gaugefield(U; no_halo=true)
+    U_high = T==Float64 ? nothing : Gaugefield(U, Float64)
     staples = Colorfield(U; no_halo=true)
     force = Colorfield(U; no_halo=true)
 
@@ -204,10 +210,10 @@ function HMC(
         int = level_params[ilvl].integrator
         if Val(0)in lvl.forces && ilvl == length(levels)
             switch = true
-            numsubsteps = num_P_updates(int, lvl.numsteps)
+            numsubsteps = lvl.numsteps
         elseif Val(0) in lvl.forces
             switch = true
-            numsubsteps = sum_U_updates * num_P_updates(int, lvl.numsteps)
+            numsubsteps = sum_U_updates * lvl.numsteps
         else
             sum_U_updates += lvl.numsteps * num_U_updates(int)
         end
@@ -308,6 +314,7 @@ function HMC(
         P,
         P_old,
         U_old,
+        U_high,
         ϕ,
         staples,
         force,
@@ -344,6 +351,8 @@ function update!(
     end
 
     U_old = hmc.U_old
+    # INFO: We always use double precision for the momenta and gauge action to improve reversibility
+    U_high = isnothing(hmc.U_high) ? U : hmc.U_high 
     P_old = hmc.P_old
     P = hmc.P
     ϕ = hmc.ϕ
@@ -354,22 +363,27 @@ function update!(
     friction = THERM ? 0.0 : hmc.friction
     numlevels = _unwrap_val(hmc.numlevels)
 
+    copy!(U_high, U)
+    !isnothing(hmc.U_high) && normalize!(U_high)
     copy!(U_old, U)
     gaussian_TA!(P, friction)
     !isnothing(P_old) && copy!(P_old, P)
 
     trP²_old = -calc_kinetic_energy(P)
-    Sg_old = calc_gauge_action(U, smearing_gauge)
-    CV_old = calc_cv(U, bias)
+    Sg_old = calc_gauge_action(U_high, smearing_gauge)
+    CV_old = calc_cv(U_high, bias)# FIXME: this will error if there is not smearing in definition
     V_old = bias(CV_old)
     sample_pseudofermions!(ϕ, fermion_action, U, smearing_fermion, shared_smearing)
     Sf_old = calc_fermion_action(fermion_action, U, ϕ, smearing_fermion, true) # INFO: fields are already smeared in sampling, so we dont have to here
 
     evolve!(U, hmc, fermion_action, bias, therm, numlevels)
 
+    copy!(U_high, U)
+    !isnothing(hmc.U_high) && normalize!(U_high)
+
     trP²_new = -calc_kinetic_energy(P)
-    Sg_new = calc_gauge_action(U, smearing_gauge)
-    CV_new = calc_cv(U, bias)
+    Sg_new = calc_gauge_action(U_high, smearing_gauge)
+    CV_new = calc_cv(U_high, bias) # FIXME: this will error if there is not smearing in definition
     V_new = bias(CV_new)
     Sf_new = calc_fermion_action(fermion_action, U, ϕ, smearing_fermion, shared_smearing)
 
@@ -411,8 +425,8 @@ function updateU!(
         P = hmc.P
 
         parallelfor(allindices(U, P), B, Val(M), (), (U,), (U, P)) do μsite, (U, P)
-            U[μsite] = cmatmul_oo(exp_iQ(-im * ϵ * P[μsite]), U[μsite])
-            # U[μsite] = proj_onto_SU3(cmatmul_oo(exp_iQ(-im * ϵ * P[μsite]), U[μsite]))
+            # U[μsite] = cmatmul_oo(exp_iQ(-im * ϵ * P[μsite]), U[μsite])
+            U[μsite] = proj_onto_SU3(cmatmul_oo(exp_iQ(-im * ϵ * P[μsite]), ComplexF64.(U[μsite])))
         end
         normalize!(U)
     else
@@ -422,7 +436,7 @@ function updateU!(
     return nothing
 end
 
-function updateP!(U, hmc::HMC, fac, fermion_action, bias, level)
+function updateP!(U, hmc::HMC, fac, fermion_action, bias, level, recycle=false)
     lvl = hmc.levels[level]
     forces = lvl.forces
     ϵ = lvl.Δτ * fac
@@ -446,7 +460,9 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level)
 
     if Val(0) ∈ forces
         if bias isa Bias
-            hmc.substep_counter[] += 1
+            if recycle
+                hmc.substep_counter[] += 1
+            end
             substep_cv = hmc.substep_CVs_single
             for i in 1:length(bias)
                 is_smeared = i > 1
@@ -467,8 +483,10 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level)
                 add!(P, force, ϵ)
             end
 
-            for i in eachindex(substep_cv)
-                hmc.substep_CVs[i][hmc.substep_counter[]] = substep_cv[i]
+            if recycle
+                for i in eachindex(substep_cv)
+                    hmc.substep_CVs[i][hmc.substep_counter[]] = substep_cv[i]
+                end
             end
         else
             if !isnothing(fp)
@@ -608,12 +626,12 @@ end
 
 @inline function print_hmc_data(logfile, ΔP², ΔSg, ΔSf, ΔV, ΔH, S, accept)
     fp = fopen(logfile, "a")
-    printf(fp, StaticString("%+-24.15E"), ΔP²)
-    printf(fp, StaticString("%+-24.15E"), ΔSg)
-    printf(fp, StaticString("%+-24.15E"), ΔSf)
-    printf(fp, StaticString("%+-24.15E"), ΔV)
-    printf(fp, StaticString("%+-24.15E"), ΔH)
-    printf(fp, StaticString("%+-24.15E"), S)
+    printf(fp, StaticString("%+-25.15E"), ΔP²)
+    printf(fp, StaticString("%+-25.15E"), ΔSg)
+    printf(fp, StaticString("%+-25.15E"), ΔSf)
+    printf(fp, StaticString("%+-25.15E"), ΔV)
+    printf(fp, StaticString("%+-25.15E"), ΔH)
+    printf(fp, StaticString("%+-25.15E"), S)
     printf(fp, StaticString("%-i"), Int64(accept))
     newline(fp)
     fclose(fp)

@@ -26,17 +26,15 @@ function set_instanton!(U::Gaugefield{B,T,M}, Q) where {B,T,M}
 
     itr = CartesianIndices((xrange, yrange, zrange))
 
-    if NT in trange
-        parallelfor(itr, B, Val(M), (), (U,), (U,)) do xyz, (U,)
-            ix, iy, iz = xyz.I
-            cit = T(cos(field_x * ix))
-            sit = T(sin(field_x * ix))
-            U[4, CartesianIndex(ix, iy, iz, NT)] = s_comp + cit * s_id - im * sit * s
-        end
+    parallelfor(itr, B, Val(M), (), (U,), (U,)) do xyz, (U,)
+        ix, iy, iz = xyz.I
+        cit = T(cos(field_x * ix))
+        sit = T(sin(field_x * ix))
+        U[4, CartesianIndex(ix, iy, iz, NT)] = s_comp + cit * s_id - im * sit * s
     end
 
-    field_y::T = Q == 0 ? 0.0 : -2π * Q / (abs(Q) * NY * NZ)
-    field_z::T = Q == 0 ? 0.0 : -2π * Q / (abs(Q) * NZ)
+    field_y = Q == 0 ? 0.0 : 2π * Q / (abs(Q) * NY * NZ)
+    field_z = Q == 0 ? 0.0 : 2π * Q / (abs(Q) * NZ)
 
     t = tau(T)
     t_comp = tau_comp(T)
@@ -51,13 +49,11 @@ function set_instanton!(U::Gaugefield{B,T,M}, Q) where {B,T,M}
 
     itr = CartesianIndices((xrange, zrange, trange))
 
-    if NY in yrange
-        parallelfor(itr, B, Val(M), (), (U,), (U,)) do xzt, (U,)
-            ix, iz, it = xzt.I
-            cit = T(cos(field_z * iz))
-            sit = T(sin(field_z * iz))
-            U[2, CartesianIndex(ix, NY, iz, it)] = t_comp + cit * t_id - im * sit * t
-        end
+    parallelfor(itr, B, Val(M), (), (U,), (U,)) do xzt, (U,)
+        ix, iz, it = xzt.I
+        cit = T(cos(field_z * iz))
+        sit = T(sin(field_z * iz))
+        U[2, CartesianIndex(ix, NY, iz, it)] = t_comp + cit * t_id - im * sit * t
     end
 
     normalize!(U)
@@ -91,7 +87,7 @@ end
 
 @inline function sig(::Type{T}) where {T<:AbstractFloat}
     return SMatrix{3,3,Complex{T},9}(
-        zero(Complex{T}), zero(Complex{T}), zero(Complex{T}),
+        one(Complex{T}), zero(Complex{T}), zero(Complex{T}),
         zero(Complex{T}), -one(Complex{T}), zero(Complex{T}),
         zero(Complex{T}), zero(Complex{T}), zero(Complex{T})
     )

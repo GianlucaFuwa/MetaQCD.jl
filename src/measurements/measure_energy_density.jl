@@ -80,9 +80,9 @@ function measure(
         E = ED_dict[method]
 
         if !isnothing(flow)
-            @level1("$itrj\t$E # energydensity_$(method)$(fstr)_$(τ)")
+            @level2("$itrj\t$E # energydensity_$(method)$(fstr)_$(τ)")
         else
-            @level1("$itrj\t$E # energydensity_$(method)")
+            @level2("$itrj\t$E # energydensity_$(method)")
         end
     end
 

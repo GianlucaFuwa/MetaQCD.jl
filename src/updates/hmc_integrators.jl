@@ -23,11 +23,11 @@ function evolve!(::Leapfrog, U, hmc::HMC, fermion_action, bias, therm, level)
 
     for _ in 1:hmc.levels[level].numsteps-1
         updateU!(U, hmc, 1.0, fermion_action, bias, therm, level)
-        updateP!(U, hmc, 1.0, fermion_action, bias, level)
+        updateP!(U, hmc, 1.0, fermion_action, bias, level, true)
     end
 
     updateU!(U, hmc, 1.0, fermion_action, bias, therm, level)
-    updateP!(U, hmc, 0.5, fermion_action, bias, level)
+    updateP!(U, hmc, 0.5, fermion_action, bias, level, true)
     return nothing
 end
 
@@ -50,7 +50,7 @@ function evolve!(L::LeapfrogRA, U, hmc::HMC, fermion_action, bias, therm, level)
         mul!(hmc.P, exp(0.5Δτ * L.friction))
         updateP!(U, hmc, 0.5, fermion_action, bias, level)
         updateU!(U, hmc, 1.0, fermion_action, bias, therm, level)
-        updateP!(U, hmc, 0.5, fermion_action, bias, level)
+        updateP!(U, hmc, 0.5, fermion_action, bias, level, true)
         mul!(hmc.P, exp(0.5Δτ * L.friction))
     end
 
@@ -59,7 +59,7 @@ function evolve!(L::LeapfrogRA, U, hmc::HMC, fermion_action, bias, therm, level)
         mul!(hmc.P, exp(-0.5Δτ * L.friction))
         updateP!(U, hmc, 0.5, fermion_action, bias, level)
         updateU!(U, hmc, 1.0, fermion_action, bias, therm, level)
-        updateP!(U, hmc, 0.5, fermion_action, bias, level)
+        updateP!(U, hmc, 0.5, fermion_action, bias, level, true)
         mul!(hmc.P, exp(-0.5Δτ * L.friction))
     end
 
@@ -84,7 +84,7 @@ function evolve!(O2S::OMF2Slow, U, hmc::HMC, fermion_action, bias, therm, level)
         updateU!(U, hmc, O2S.β, fermion_action, bias, therm, level)
         updateP!(U, hmc, O2S.γ, fermion_action, bias, level)
         updateU!(U, hmc, O2S.β, fermion_action, bias, therm, level)
-        updateP!(U, hmc, O2S.α, fermion_action, bias, level)
+        updateP!(U, hmc, O2S.α, fermion_action, bias, level, true)
     end
 
     return nothing
@@ -109,13 +109,13 @@ function evolve!(O2::OMF2, U, hmc::HMC, fermion_action, bias, therm, level)
     updateU!(U, hmc, O2.β, fermion_action, bias, therm, level)
 
     for _ in 1:hmc.levels[level].numsteps-1
-        updateP!(U, hmc, 2 * O2.α, fermion_action, bias, level)
+        updateP!(U, hmc, 2 * O2.α, fermion_action, bias, level, true)
         updateU!(U, hmc, O2.β, fermion_action, bias, therm, level)
         updateP!(U, hmc, O2.γ, fermion_action, bias, level)
         updateU!(U, hmc, O2.β, fermion_action, bias, therm, level)
     end
 
-    updateP!(U, hmc, O2.α, fermion_action, bias, level)
+    updateP!(U, hmc, O2.α, fermion_action, bias, level, true)
     return nothing
 end
 
@@ -151,7 +151,7 @@ function evolve!(O4S::OMF4Slow, U, hmc::HMC, fermion_action, bias, therm, level)
         updateU!(U, hmc, O4S.δ, fermion_action, bias, therm, level)
         updateP!(U, hmc, O4S.γ, fermion_action, bias, level)
         updateU!(U, hmc, O4S.β, fermion_action, bias, therm, level)
-        updateP!(U, hmc, O4S.α, fermion_action, bias, level)
+        updateP!(U, hmc, O4S.α, fermion_action, bias, level, true)
     end
 
     return nothing
@@ -190,7 +190,7 @@ function evolve!(O4::OMF4, U, hmc::HMC, fermion_action, bias, therm, level)
     updateU!(U, hmc, O4.β, fermion_action, bias, therm, level)
 
     for _ in 1:hmc.levels[level].numsteps-1
-        updateP!(U, hmc, 2 * O4.α, fermion_action, bias, level)
+        updateP!(U, hmc, 2 * O4.α, fermion_action, bias, level, true)
         updateU!(U, hmc, O4.β, fermion_action, bias, therm, level)
         updateP!(U, hmc, O4.γ, fermion_action, bias, level)
         updateU!(U, hmc, O4.δ, fermion_action, bias, therm, level)
@@ -204,7 +204,7 @@ function evolve!(O4::OMF4, U, hmc::HMC, fermion_action, bias, therm, level)
         updateU!(U, hmc, O4.β, fermion_action, bias, therm, level)
     end
 
-    updateP!(U, hmc, O4.α, fermion_action, bias, level)
+    updateP!(U, hmc, O4.α, fermion_action, bias, level, true)
     return nothing
 end
 
@@ -245,7 +245,7 @@ function evolve!(O4::OMF4RA, U, hmc::HMC, fermion_action, bias, therm, level)
         updateU!(U, hmc, O4.δ, fermion_action, bias, therm, level)
         updateP!(U, hmc, O4.γ, fermion_action, bias, level)
         updateU!(U, hmc, O4.β, fermion_action, bias, therm, level)
-        updateP!(U, hmc, O4.α, fermion_action, bias, level)
+        updateP!(U, hmc, O4.α, fermion_action, bias, level, true)
         mul!(hmc.P, exp(Δτ * O4.friction))
     end
 
@@ -263,7 +263,7 @@ function evolve!(O4::OMF4RA, U, hmc::HMC, fermion_action, bias, therm, level)
         updateU!(U, hmc, O4.δ, fermion_action, bias, therm, level)
         updateP!(U, hmc, O4.γ, fermion_action, bias, level)
         updateU!(U, hmc, O4.β, fermion_action, bias, therm, level)
-        updateP!(U, hmc, O4.α, fermion_action, bias, level)
+        updateP!(U, hmc, O4.α, fermion_action, bias, level, true)
         mul!(hmc.P, exp(-Δτ * O4.friction))
     end
 
