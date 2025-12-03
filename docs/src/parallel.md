@@ -25,7 +25,9 @@ function parallelfor(
     to_validate::Tuple,   # Fields requiring halo validation before execution
     invalidated::Tuple,   # Fields whose halos become invalid after execution
     captured::Tuple;      # Fields captured by kernel f
-    block_size=min(256, length(itr))  # GPU block size (optional)
+    block_size=min(256, length(itr)),  # GPU block size (optional)
+    do_edges=Val(false),  # Whether the edges and corners need to be respected in the halo exchange
+    stream=default_stream(B())  # Which GPU stream to launch the kernel on
 ) where {B,M}
 ```
 
@@ -38,6 +40,17 @@ function parallelfor(
 - **`to_validate`**: Tuple of fields whose halos must be validated before kernel execution
 - **`invalidated`**: Tuple of fields whose halos become invalid after kernel execution
 - **`captured`**: Fields that the kernel function `f` will access
+
+## Backend Support
+
+### CPU (Multithreading)
+- Uses [Polyester.jl](https://github.com/JuliaSIMD/Polyester.jl)'s `@batch` macro
+- Automatically handles thread distribution
+
+### GPU Support
+- Implemented via Julia extensions (loaded only when GPU packages are available)
+- Key functions: `launch_foreachindex_global!` and `launch_foreachindex_reduce_global!`
+- See [CUDA example](../../ext/MetaCUDAExt.jl) for implementation details
 
 ### Halo Exchange Optimization
 
@@ -63,19 +76,9 @@ When `HIDE_COMMS = true`, the system:
 1. Splits kernels into two parts:
    - First: Processes indices independent of halos
    - Second: Processes remaining indices
-2. Executes halo exchange asynchronously using Julia's `@spawn` and task mechanism
+2. Executes halo exchange asynchronously using Julia's `@spawn` and task mechanism on CPUs
+and hardware queues (streams) on GPUs
 3. Overlaps computation with communication for better performance
-
-## Backend Support
-
-### CPU (Multithreading)
-- Uses [Polyester.jl](https://github.com/JuliaSIMD/Polyester.jl)'s `@batch` macro
-- Automatically handles thread distribution
-
-### GPU Support
-- Implemented via Julia extensions (loaded only when GPU packages are available)
-- Key functions: `launch_foreachindex_global!` and `launch_foreachindex_reduce_global!`
-- See [CUDA example](../../ext/MetaCUDAExt.jl) for implementation details
 
 ### Kernel Tuning
 
@@ -137,19 +140,10 @@ Fields are distributed across MPI processes using a 4D tuple `numprocs_cart` tha
 All topology information is stored in a [`FieldTopology`](../../src/fields/distributed/topology.jl) object, including:
 - Halo width specifications
 - Global and local dimensions/volumes
-- Bulk, halo, and border index mappings
 
 ### Halo Implementation
 
-Halos are implemented using **separate arrays** rather than padding the main field arrays. In 4D, this means maintaining 8 separate halo arrays alongside the bulk data. This design choice ensures that:
-
-- **GPU Performance**: Loops over the bulk data remain coalesced, maximizing memory bandwidth on GPUs
-- **Clear Separation**: Bulk and halo data are explicitly separated in memory
-
-*Note: This implementation approach may be subject to change in future versions.*
-
-#### Abstracted Access
-
+Halos are implemented using **ghost cells**, i.e., padding around the original array.
 This complex halo structure is **completely abstracted away** from the user through:
 
 - **Overloaded `getindex` and `setindex!`**: These methods on `AbstractField` types automatically determine which halo array needs to be accessed based on the requested index

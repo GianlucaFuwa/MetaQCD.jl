@@ -1,3 +1,10 @@
+"""
+This module defines all the functions required to make the code work on CUDA-based GPUs
+by overloading the relevant functions in the mofule `Fields` with direct calls to CUDA.jl API.
+Extension modules such as this one are loaded one both MetaQCD.jl and the "extension trigger"
+module is called. The extensions and their triggers can be found in the Project.toml file
+under `[extensions]`
+"""
 module MetaCUDAExt
 
 using CUDA
@@ -32,6 +39,8 @@ const cu_priostreams = Vector{CUDA.CuStream}(undef, 0)
 function Fields.allocate_commstreams!(::CUDABackend, fields)
     global cu_readstreams, cu_sendstreams
 
+    # INFO: create 2 streams per dimension (4) per field (in the end the GPU will probably not)
+    # not have as many hardware streams as are created here but that is not a problem
     if length(fields) > length(cu_readstreams) ÷ 8
         push!(cu_readstreams, [CUDA.CuStream(; priority=:high) for _ in 1:8, _ in 1:(length(fields)-length(cu_readstreams)÷8)]...)
     end

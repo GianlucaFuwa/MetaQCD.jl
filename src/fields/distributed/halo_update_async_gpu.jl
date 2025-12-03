@@ -40,9 +40,9 @@ function start_halo_update!(
         update_halo_gpu_multi_edges!(reqs, fields_to_update...)
     end
 
-    # for u in fields
-    #     validate_halo!(u)
-    # end
+    for u in fields
+        validate_halo!(u)
+    end
 
     return nothing
 end

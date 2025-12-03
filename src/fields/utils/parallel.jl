@@ -108,6 +108,18 @@ function _parallelfor(
     return nothing
 end
 
+"""
+    launch_foreachindex_global!(
+        backend, f, captured, itr::Tuple, groupsize, stream=default_stream(backend)
+    )
+Call the kernel function `f` with captured input arguments `captured` on `backend`
+using the queue `stream` on each index of the iterators `itr`.
+`itr` has to be a tuple of iterable objects that specify the indices or sites at which the
+kernel is to be called.
+
+The API calls for each backend are defined in their respective extension files under the 
+directory ../ext/
+"""
 function launch_foreachindex_global! end
 
 # KERNEL:

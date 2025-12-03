@@ -25,14 +25,23 @@ MetaQCD implements three main matrix field container types:
 
 ### Data Storage Structure
 
-All field types use a **5-dimensional array** structure:
+On CPUs all field types use a **5-dimensional array** structure:
 - **Dimensions**: `[μ, x, y, z, t]` where `μ` (fastest/first index) indexes the 4 spacetime directions
-- **Elements**: Statically sized 3×3 complex matrices (`SMatrix` from StaticArrays.jl)
-- **Storage**: Matrices stored as tuples under the hood for optimal performance
+- **Elements**: Statically sized 3×3 complex matrices or 3ND-element complex vectors (`SMatrix`/`SVector` from StaticArrays.jl)
+
+On GPUs we found that performance improved when making `μ` the slowest index. Additionally
+we enforce vectorized loads and stores by not storing the matrices and vectors as is
+but using the `SIMD.jl` type `Vec` to either group 2 or 4 floating point numbers together.
+This essentially mimics the C++ types float2, float4 etc.
+
+> Example 1: In the 12 element representation of SU(3) we store the matrices as 3 `SVec{4,T}` where `T` is the floating point precision
+> Example 2: We store staggered spinors as 3 `SVec{2,T}`
+
+When a field is indexed into, the `getindex` function automatically reconstructs the `SMatrix` or `SVec` from these SIMD vectors.
 
 ### Performance Benefits
 
-The use of `SMatrix` provides several advantages:
+The use of `StaticArrays` provides several advantages:
 
 - **Zero Allocations**: No memory allocation during linear algebra operations
 - **Immutable Operations**: Matrices are always replaced rather than mutated
@@ -44,7 +53,8 @@ Different computing backends (CPU, GPU) are handled through Julia extensions, as
 
 ### Future Optimizations
 
-More memory-efficient storage schemes for SU(3) and su(3) elements may be implemented in future versions to further reduce memory footprint.
+More memory-efficient storage schemes for SU(3) and su(3) elements (8 floating point representations)
+may be implemented in future versions to further reduce memory footprint.
 
 ## Spinor Fields
 

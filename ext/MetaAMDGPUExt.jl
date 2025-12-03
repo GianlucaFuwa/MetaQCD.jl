@@ -1,3 +1,10 @@
+"""
+This module defines all the functions required to make the code work on ROCM-based GPUs
+by overloading the relevant functions in the mofule `Fields` with direct calls to AMDGPU.jl API.
+Extension modules such as this one are loaded one both MetaQCD.jl and the "extension trigger"
+module is called. The extensions and their triggers can be found in the Project.toml file
+under `[extensions]`
+"""
 module MetaAMDGPUExt
 
 using AMDGPU
@@ -31,6 +38,8 @@ const roc_priostreams = Vector{AMDGPU.HIPStream}(undef, 0)
 function Fields.allocate_commstreams!(::ROCBackend, fields)
     global roc_readstreams, roc_sendstreams
 
+    # INFO: create 2 streams per dimension (4) per field (in the end the GPU will probably not)
+    # not have as many hardware streams as are created here but that is not a problem
     if length(fields) > length(roc_readstreams) ÷ 8
         push!(roc_readstreams, [AMDGPU.HIPStream(:high) for _ in 1:8, _ in 1:(length(fields)-length(roc_readstreams)÷8)]...)
     end
