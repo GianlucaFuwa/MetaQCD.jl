@@ -3,7 +3,6 @@
 #
 using MetaQCD.Utils
 using MetaQCD: @level1, run_build, run_sim, construct_params_from_toml
-using AMDGPU
 
 mpi_amroot() && print_startup()
 
