@@ -39,7 +39,6 @@ end
     load_config_fromfile::Bool = false
     load_config_format::String = ""
     load_config_path::String = ""
-    load_checkpoint_fromfile::Bool = false
     load_checkpoint_format::String = "jld2"
     load_checkpoint_path::String = ""
     overwrite::Bool = false

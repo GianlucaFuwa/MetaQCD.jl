@@ -76,7 +76,6 @@ struct ParameterSet
     load_config_fromfile::Bool
     load_config_format::String
     load_config_path::String
-    load_checkpoint_fromfile::Bool
     load_checkpoint_path::String
 
     randomseed::Union{UInt64,Vector{UInt64}}

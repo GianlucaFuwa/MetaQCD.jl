@@ -3,7 +3,7 @@ function cg_mixed!(
     x_low, r_low, Ap_low, p_low, r_old_low;
     delta=0.1, tol=1e-7, maxiters=1000, datafile=""
 )
-    rel_tol = tol * sqrt(real(dot(b, b)))
+    rel_tol = tol * sqrt(real(dot(b_high, b_high)))
     mul!(Ap_high, A_high, x_high)
     copy!(r_high, b_high)
     axpy!(-1, Ap_high, r_high)
@@ -77,7 +77,7 @@ function mscg_mixed!(
     x_low::NTuple{M}, p_low::NTuple{L}, r_low, Ap_low, r_old_low;
     tol=1e-7, maxiters=1000, datafile="", delta=0.1
 ) where {M,L} # multishift solver
-    rel_tol = tol * sqrt(real(dot(b, b)))
+    rel_tol = tol * sqrt(real(dot(b_high, b_high)))
     @assert all(x -> x>0, shifts) "Mixed precision multishift CG not supported for shifts < 0"
     N = length(shifts) + 1
     @assert L ≥ M ≥ N

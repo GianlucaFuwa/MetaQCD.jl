@@ -67,7 +67,7 @@ function run_sim(parameters)
     to_console = mpi_amroot() ? parameters.log_to_console : false
     set_global_logger!(parameters.verboselevel, logpath; tc=to_console)
 
-    if parameters.load_checkpoint_fromfile
+    if parameters.load_checkpoint_path != ""
         rank = mpi_myrank(mpi_comm_instance())
         univ_args..., updatemethod, _, itrj = load_checkpoint(parameters; rank)
         univ = Univ(univ_args...)

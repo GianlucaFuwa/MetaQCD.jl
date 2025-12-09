@@ -131,7 +131,7 @@ end
 
 function update!(m::Metadynamics, cv, args...)
     cv_range = if length(cv) > 1
-        range(1, length(cv); step=cld(length(cv), 20))
+        range(1, length(cv); step=cld(length(cv), 40))
     else
         range(1, length(cv))
     end
