@@ -78,7 +78,7 @@ function Fields.mpi_assign_device!(::CUDABackend, _id)
     (0 <= id < CUDA.ndevices()) || throw(ArgumentError("Device id $id out of bounds."))
     CUDA.device!(Int32(id))
     Fields.DEVICE_ID[] = id
-    dev = AMDGPU.device()
+    dev = CUDA.device()
     Fields.MAX_SHMEM[] = CUDA.attribute(dev, CUDA.DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK)
     return nothing
 end
