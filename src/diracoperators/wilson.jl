@@ -88,7 +88,7 @@ function LinearAlgebra.mul!(
     U = D.U
     Fμν = D.Fμν
     mass_term = T(4 + D.mass)
-    csw= D.csw
+    csw = D.csw
     bc = D.boundary_condition
     fac = T(-csw / 2)
     do_edges = C ? Val(true) : Val(false)
