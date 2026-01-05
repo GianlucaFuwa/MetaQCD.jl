@@ -95,7 +95,7 @@ function Fields.launch_foreachindex_global!(
             max_threads = min(1024, length(itr[1]))
             compute_items(max_items) = wanted_items > max_items ? prevpow(2, max_items) : wanted_items
             kernel = @cuda launch=false _foreachindex_global!(f, captured, itr[1])
-            config = launch_configuration(kernel; max_threads)
+            config = launch_configuration(kernel.fun; max_threads)
             Fields.KERNEL_CACHE[f_str] = config.threads
             threads = compute_items(config.groupsize)
         else
@@ -117,7 +117,7 @@ function Fields.launch_foreachindex_global!(
 end
 
 function Fields.launch_foreachindex_reduce_global!(
-    ::CUDABackend, out, op, f, captured, itr::Tuple, threads, blocks, stream=CUDA.stream()
+    ::CUDABackend, out, op, f, captured, itr::Tuple, threads, stream=CUDA.stream()
 )
     length(itr) == 0 && return out
     compute_shmem(items) = items * sizeof(typeof(out))
@@ -128,14 +128,14 @@ function Fields.launch_foreachindex_reduce_global!(
             # how many items do we want?
             wanted_items = nextpow(2, length(itr[1]))
             # how many items can we launch?
-            max_block_size = min(1024, length(itr[1]))
+            max_threads = min(1024, length(itr[1]))
             compute_items(max_items) = wanted_items > max_items ? prevpow(2, max_items) : wanted_items
-            max_shmem = max_block_size |> compute_items |> compute_shmem
+            max_shmem = max_threads |> compute_items |> compute_shmem
             out_vec = CUDA.zeros(typeof(out), 256)
             kernel = @cuda launch=false _foreachindex_reduce_global!(
                 out_vec, out, op, f, captured, itr[1]
             ) 
-            config = launch_configuration(kernel; shmem=max_shmem, max_block_size)
+            config = launch_configuration(kernel.fun; shmem=max_shmem, max_threads)
             # determine the launch configuration
             threads = compute_items(config.groupsize)
             Fields.KERNEL_CACHE[f_str] = threads
@@ -153,7 +153,7 @@ function Fields.launch_foreachindex_reduce_global!(
     reduce_shmem = compute_shmem(threads)
 
     for i in eachindex(itr)
-        @cuda blocks=_blocks[i] threads=threads shmem=reduce_shmem stream=stream _foreachindex_reduce_global!(
+        @cuda threads=threads blocks=blocks[i] shmem=reduce_shmem stream=stream _foreachindex_reduce_global!(
             out_vec, out, op, f, captured, itr[i]
         ) 
     end
