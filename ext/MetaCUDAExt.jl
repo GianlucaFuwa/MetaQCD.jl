@@ -165,6 +165,7 @@ end
 @inline Fields.groupidx() = blockIdx()
 @inline Fields.groupdim() = blockDim()
 @inline Fields.griddim() = gridDim()
-@inline Fields.groupreduce(op, val, neutral) = reduce_block(op, val, neutral)
+# Since this is currently only used for sum reductions, we can assume associativity (in exact arithmetic) and set shuffle = True
+@inline Fields.groupreduce(op, val, neutral) = reduce_block(op, val, neutral, #=shuffle=# Val(True))
 
 end
