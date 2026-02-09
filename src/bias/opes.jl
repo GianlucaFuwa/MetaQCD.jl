@@ -255,10 +255,16 @@ function calculate!(o::OPES, cv)
     return nothing
 end
 
-function update!(o::OPES, cv, itrj)
+function update!(o::OPES, cv_in, itrj)
     if o.is_first_step
         o.is_first_step = false
         return nothing
+    end
+
+    cv = if length(cv_in) > 1
+        cv_in[range(1, length(cv_in); step=cld(length(cv_in), 20))]
+    else
+        cv_in
     end
 
     (itrj % o.stride != 0 || length(cv) == 0) && return nothing

@@ -28,3 +28,6 @@ error*.dat
 /test/_*
 .zed
 LocalPreferences.toml
+/job_output/
+/reports*/
+/batch*/
