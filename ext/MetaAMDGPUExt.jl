@@ -95,8 +95,8 @@ function Fields.launch_foreachindex_global!(
             compute_items(max_items) = wanted_items > max_items ? prevpow(2, max_items) : wanted_items
             kernel = @roc launch=false _foreachindex_global!(f, captured, itr[1])
             config = launch_configuration(kernel; max_block_size)
-            Fields.KERNEL_CACHE[f_str] = config.groupsize
-            groupsize = config.groupsize
+            groupsize = compute_items(config.groupsize)
+            Fields.KERNEL_CACHE[f_str] = groupsize
         else
             if haskey(Fields.KERNEL_CACHE, f_str)
                 groupsize = Fields.KERNEL_CACHE[f_str]
@@ -104,19 +104,9 @@ function Fields.launch_foreachindex_global!(
         end
     end
 
-    # gridsize = if length(itr) == 1
-    #     cld(length(itr[1]), groupsize)
-    # else
-    #     cld(sum(length.(itr)), groupsize)
-    # end
-    #
-    # @roc groupsize=groupsize gridsize=gridsize stream=stream _foreachindex_global!(f, captured, itr...)
-
     gridsize = ntuple(i -> cld(length(itr[i]), groupsize), length(itr))
 
     for i in eachindex(itr)
-        # _stream = length(itr) > 1 ? Fields.get_priority_stream(ROCBackend(), i+1) : stream 
-        # _stream = stream
         @roc groupsize=groupsize gridsize=gridsize[i] stream=stream _foreachindex_global!(
             f, captured, itr[i]
         ) 
@@ -162,11 +152,9 @@ function Fields.launch_foreachindex_reduce_global!(
     reduce_shmem = compute_shmem(groupsize)
 
     for i in eachindex(itr)
-        # _stream = length(itr) > 1 ? Fields.get_priority_stream(ROCBackend(), i+1) : stream 
         @roc gridsize=gridsize[i] groupsize=groupsize shmem=reduce_shmem stream=stream _foreachindex_reduce_global!(
             out_vec, out, op, f, captured, itr[i],
         ) 
-        # _stream != AMDGPU.stream() && AMDGPU.synchronize(_stream)
     end
 
     return reduce(op, out_vec)

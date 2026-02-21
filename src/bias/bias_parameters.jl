@@ -11,7 +11,19 @@ function bias_parameters_from_dict(input::Dict, instance=mpi_rank(); build=false
         if haskey(bias_dict, key_i)
             if !isnothing(value_i)
                 if key_i == "static"
-                    idx = build ? 1 : instance+1
+                    idx = if build
+                        1
+                    else
+                        if length(value_i) == 1
+                            1
+                        else
+                            @assert length(value_i) >= instance+1 """
+                            if tempering is enables, the 'static' parameter has to be a vector of length >= numinstances
+                            """
+                            instance+1
+                        end
+                    end
+
                     setfield!(bias_params, :static, Bool(value_i[idx]))
                 elseif key_i == "load_bias"
                     setfield!(bias_params, :load_bias, String[value_i...])

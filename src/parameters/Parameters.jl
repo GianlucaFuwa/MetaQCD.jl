@@ -246,7 +246,7 @@ function check_parameters(p::ParameterSet)
 
     @assert lowercase(p.fermion_action) ∈ [
         "none", "wilson", "wilson_eo", "staggered", "staggered_eo",
-        "staggered-h1234", "staggered-h1324", "staggered-h1342"
+        "staggered_h1234", "staggered_h1324", "staggered_h1342"
     ] """
     fermion_action in [\"fermion_action\"]: \"$(p.fermion_action)\" is not supported.
     Supported gactions are:
@@ -255,9 +255,9 @@ function check_parameters(p::ParameterSet)
     Wilson_EO
     Staggered
     Staggered_EO
-    Staggered-H1234
-    Staggered-H1324
-    Staggered-H1342
+    Staggered_H1234
+    Staggered_H1324
+    Staggered_H1342
     """
 
     if lowercase(p.fermion_action) != "none"

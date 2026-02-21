@@ -57,10 +57,12 @@ end
 @inline is_staggered(::StaggeredDiracOperator) = true
 
 function solve_dirac!(
-    ψ, D::T, ϕ, temps...; tol=1e-14, maxiters=1000, datafile=""
+    ψ, D::T, ϕ, temps...; tol=1e-8, maxiters=1000, datafile=""
 ) where {T<:StaggeredDiracOperator}
     D_dagg = Daggered(D)
-    return cgnr!(ψ, D, D_dagg, ϕ, temps[1], temps[2], temps[3], temps[4]; tol, maxiters, datafile)
+    return cgnr!(
+        ψ, D, D_dagg, ϕ, temps[1], temps[2], temps[3], temps[4]; tol, maxiters, datafile
+    )
 end
 
 # We overload LinearAlgebra.mul! instead of Gaugefields.mul! so we dont have to import

@@ -86,7 +86,7 @@ function OPES(p::OPESParameters; instance=1, dummy=false, build=false, mpi_multi
     elseif build
         false
     else
-        inum==0 ? false : p.static[inum]
+        inum==0 ? false : p.static
     end
     is_first_step = true
 

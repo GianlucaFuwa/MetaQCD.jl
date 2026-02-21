@@ -96,8 +96,8 @@ function Fields.launch_foreachindex_global!(
             compute_items(max_items) = wanted_items > max_items ? prevpow(2, max_items) : wanted_items
             kernel = @cuda launch=false _foreachindex_global!(f, captured, itr[1])
             config = launch_configuration(kernel.fun; max_threads)
-            Fields.KERNEL_CACHE[f_str] = config.threads
             threads = compute_items(config.threads)
+            Fields.KERNEL_CACHE[f_str] = threads
         else
             if haskey(Fields.KERNEL_CACHE, f_str)
                 threads = Fields.KERNEL_CACHE[f_str]
@@ -165,7 +165,6 @@ end
 @inline Fields.groupidx() = blockIdx()
 @inline Fields.groupdim() = blockDim()
 @inline Fields.griddim() = gridDim()
-# Since this is currently only used for sum reductions, we can assume associativity (in exact arithmetic) and set shuffle = True
-@inline Fields.groupreduce(op, val, neutral) = reduce_block(op, val, neutral, #=shuffle=# Val(True))
+@inline Fields.groupreduce(op, val, neutral) = reduce_block(op, val, neutral, #=shuffle=# Val(true))
 
 end

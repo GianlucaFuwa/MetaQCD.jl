@@ -11,7 +11,7 @@ using ..Logs
 using ..Parameters
 using ..Utils
 
-import ..BiasModule: Bias, BiasSerialization, calc_cv, recalc_cv!
+import ..BiasModule: Bias, BiasSerialization, NoBias, calc_cv, recalc_cv!
 import ..Fields: AbstractField, Gaugefield, Spinorfield, SpinorfieldEO, Paulifield
 import ..Fields: Tensorfield, MultiSpinorfield, CPU, get_backend, bzeros, BACKENDS
 import ..Fields: is_distributed, get_global_volume, get_global_dims, parallelfor

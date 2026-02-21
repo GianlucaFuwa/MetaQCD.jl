@@ -315,7 +315,7 @@ function metaqcd!(
     fermion_action = univ.fermion_action
     bias = univ.bias
     numaccepts_temper = zeros(Int64, MPI_NUMINSTANCES[]-1)
-    instance_state = collect(0:univ.numinstances)
+    instance_state = collect(0:univ.numinstances-1)
     swap_every = parameters.swap_every
     rank = mpi_myrank(mpi_comm_instance())
 

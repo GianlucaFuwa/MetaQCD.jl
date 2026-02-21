@@ -42,7 +42,7 @@ end
     r::Float64 = 1.0
     csw::Float64 = 0.0
     eo_precon::Union{Bool,Vector{Bool}} = false
-    cg_tol::Float64 = 1e-16
+    cg_tol::Float64 = 1e-8
     cg_maxiters::Int64 = 1000
     rhmc_order::Union{Int64,Vector{Int64}} = 15
     rhmc_prec::Union{Int64,Vector{Int64}} = 64
@@ -58,7 +58,7 @@ end
     r::Float64 = 1.0
     csw::Float64 = 0.0
     eo_precon::Bool = false
-    cg_tol::Float64 = 1e-16
+    cg_tol::Float64 = 1e-8
     cg_maxiters::Int64 = 1000
     boundary_condition::String = "antiperiodic"
     measure_every::Int64 = 10

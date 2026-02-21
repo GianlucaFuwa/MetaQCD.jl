@@ -43,6 +43,14 @@ function create_checkpoint(
         Uout = convert_field(CPU, univ.U)
     end
 
+    if univ.bias isa Vector
+        biasout = [univ.bias[i].bias for i in eachindex(univ.bias)]
+    elseif univ.bias == NoBias()
+        biasout = NoBias()
+    else
+        biasout = univ.bias.bias
+    end
+
     state = get_rng_state()
 
     if filename != ""
@@ -50,7 +58,7 @@ function create_checkpoint(
             jldsave(
                 filename; 
                 U=Uout,
-                bias=univ.bias.bias,
+                bias=biasout,
                 numinstances=univ.numinstances,
                 itrj=itrj,
                 rngstate=state,
@@ -70,13 +78,18 @@ function load_checkpoint(
     backend = parameters.backend
     B = BACKENDS[backend]
     T = Utils.FLOAT_TYPE[parameters.float_type]
+    # TODO: support case of single node PT-MetaD
     U, _bias, numinst, itrj, rngstate = jldopen(filename, "r") do file
         convert_field(B, file["U"], T), file["bias"], file["numinstances"],
         file["itrj"], file["rngstate"]
     end
 
     dummy = parameters.tempering_enabled && mpi_multi_sim ? (instance==0) : false
-    bias = Bias(parameters, U; bias=_bias, dummy, mpi_multi_sim, build)
+    bias = if _bias == NoBias()
+        NoBias()
+    else
+        Bias(parameters, U; bias=_bias, dummy, mpi_multi_sim, build)
+    end
     recalc_cv!(U, bias)
     faction = init_fermion_actions(parameters, U)
     updatemethod = Updatemethod(parameters, U)

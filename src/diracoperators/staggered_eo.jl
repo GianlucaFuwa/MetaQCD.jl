@@ -61,7 +61,7 @@ end
 @inline is_staggered(::StaggeredEOPreDiracOperator) = true
 
 function solve_dirac!(
-    ψ_eo, D::T, ϕ_eo, temp1, temp2, temp3, temp4, temp5; tol=1e-14, maxiters=1000, datafile=""
+    ψ_eo, D::T, ϕ_eo, temp1, temp2, temp3, temp4, temp5; tol=1e-8, maxiters=1000, datafile=""
 ) where {T<:StaggeredEOPreDiracOperator}
     error("Not implemented yet")
     # TODO: CGNE

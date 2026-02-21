@@ -14,15 +14,15 @@ using ..Logs
 using ..Utils
 
 import ..DiracOperators: Daggered, DdaggerD, StaggeredDiracOperator, WilsonDiracOperator
-import ..DiracOperators: StaggeredEOPreDiracOperator, even_odd, solve_dirac!
-import ..DiracOperators: ArnoldiWorkspaceMeta, get_eigenvalues, num_dirac
+import ..DiracOperators: StaggeredEOPreDiracOperator, StaggeredHoelblingDiracOperator
+import ..DiracOperators: ArnoldiWorkspaceMeta, get_eigenvalues, num_dirac, even_odd, solve_dirac!
 import ..DiracOperators: FermionAction, calc_fermion_action, sample_pseudofermions!
 import ..Fields: WilsonGaugeAction, SymanzikTreeGaugeAction, SymanzikTadGaugeAction
 import ..Fields: IwasakiGaugeAction, DBW2GaugeAction, AbstractFieldstrength, Colorfield
 import ..Fields: Gaugefield, Spinorfield, Tensorfield, calc_gauge_action, check_dims 
 import ..Fields: Plaquette, Clover, Improved, fieldstrength_eachsite!, gauge_action, staple
 import ..Fields: clover_1x1, clover_2x1, clover_1x2, float_type, plaquette, wilsonloop
-import ..Fields: parallelfor, parallelfor_sum, CPU, ones!, set_source!
+import ..Fields: parallelfor, parallelfor_sum, CPU, ones!, set_source!, get_backend
 import ..Fields: clear!, distributed_reduce, is_distributed, plaquette_trace_sum
 import ..Fields: update_halo!, get_local_dims, get_global_dims, get_global_volume
 import ..Smearing: AbstractSmearing, Cooling, GradientFlow, NoSmearing, StoutSmearing

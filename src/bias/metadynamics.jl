@@ -55,7 +55,7 @@ function Metadynamics(
     elseif build
         false
     else
-        inum==0 ? false : p.static[inum]
+        inum==0 ? false : p.static
     end
     symmetric = p.symmetric
     stride = p.stride

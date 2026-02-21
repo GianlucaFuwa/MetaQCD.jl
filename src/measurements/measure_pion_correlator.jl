@@ -17,7 +17,7 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT,T1} <: AbstractMeasurement
         mass=0.1,
         csw=0,
         r=1,
-        cg_tol=1e-16,
+        cg_tol=1e-8,
         cg_maxiters=1000,
         bc_str="antiperiodic",
     )
@@ -50,7 +50,19 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT,T1} <: AbstractMeasurement
                 U, mass; bc_str=bc_str, r=r, csw=csw
             )
             temp = Spinorfield(U)
-            cg_temps = ntuple(_ -> Spinorfield(temp), 6)
+            cg_temps = ntuple(_ -> similar(temp), 6)
+        elseif dirac_type == "staggered_h1234"
+            dirac_operator = StaggeredHoelblingDiracOperator{1234}(
+                U, mass; bc_str=bc_str
+            )
+            temp = Spinorfield(U; staggered=true)
+            cg_temps = ntuple(_ -> similar(temp), 6)
+        elseif dirac_type == "staggered_h1342"
+            dirac_operator = StaggeredHoelblingDiracOperator{1342}(
+                U, mass; bc_str=bc_str
+            )
+            temp = Spinorfield(U; staggered=true)
+            cg_temps = ntuple(_ -> similar(temp), 6)
         else
             throw(ArgumentError("Dirac operator \"$dirac_type\" is not supported"))
         end
@@ -86,7 +98,7 @@ struct PionCorrelatorMeasurement{T,TD,TF,CT,T1} <: AbstractMeasurement
             cg_dataf = StaticString(cg_filepath)
 
             if cg_filepath != ""
-                fp = fopen(cg_datafile, "w")
+                fp = fopen(cg_dataf, "w")
                 printf(fp, ITRJ_STR_FMT, "iters")
                 printf(fp, METHOD_STR_FMT, "res")
                 newline(fp)
@@ -175,9 +187,11 @@ We follow the procedure outlined in DOI: 10.1007/978-3-642-01850-3 (Gattringer) 
 """
 function pion_correlators_avg!(pion_corr, D, ψ, cg_temps, tol, maxiters, datafile)
     check_dims(D.U, ψ, cg_temps...)
+    M = is_distributed(D.U)
+    B = get_backend(D.U)
     NX, NY, NZ, NT = size(ψ)
-    my_NX, my_NY, my_NZ, my_NT = get_local_dims(ψ)
-    halo_width = D.U.topology.halo_width
+    xrange, yrange, zrange, _ = D.U.topology.bulk_sites.indices
+    itr = CartesianIndices((xrange, yrange, zrange))
     @assert length(pion_corr) == NT
 
     # Point source at origin
@@ -194,18 +208,14 @@ function pion_correlators_avg!(pion_corr, D, ψ, cg_temps, tol, maxiters, datafi
                 propagator, D, ψ, temps...; tol, maxiters, datafile
             )
 
-            for it in 1+halo_width[4]:my_NT+halo_width[4]
+            for it in 1:NT
                 cit = 0.0
 
-                # TODO:
-                @batch reduction = (+, cit) for iz in 1+halo_width[3]:my_NZ+halo_width[3]
-                    for iy in 1+halo_width[2]:my_NY+halo_width[2]
-                        for ix in 1+halo_width[1]:my_NX+halo_width[1]
-                            cit += real(
-                                cdot(propagator[ix, iy, iz, it], propagator[ix, iy, iz, it])
-                            )
-                        end
-                    end
+                cit = parallelfor_sum(itr, 0.0, B, Val(M), (), (), (propagator,)) do ci, xyz, (propagator,)
+                    ix, iy, iz = xyz.I
+                    ci += real(
+                        cdot(propagator[ix, iy, iz, it], propagator[ix, iy, iz, it])
+                    )
                 end
 
                 pion_corr[it] += distributed_reduce(cit, +, D.U)

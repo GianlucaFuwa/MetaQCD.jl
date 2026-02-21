@@ -291,7 +291,7 @@ function update_bias!(
         end
     end
     
-    mpi_barrier()
+    mpi_barrier(mpi_comm_instance())
     GC.gc()
     return nothing
 end

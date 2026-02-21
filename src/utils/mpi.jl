@@ -117,6 +117,10 @@ end
     return MPI.Irecv!(args...; kwargs...)
 end
 
+@inline function mpi_sendrecv!(args...; kwargs...)
+    return MPI.Sendrecv!(args...; kwargs...)
+end
+
 @inline function mpi_wait!(args...)
     return MPI.Wait!(args...)
 end

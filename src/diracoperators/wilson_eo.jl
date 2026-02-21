@@ -162,9 +162,12 @@ function calc_fermion_action(
 end
 
 function solve_dirac!(
-    ψ_eo, D::T, ϕ_eo, temps...; tol=1e-14, maxiters=1000, datafile=""
+    ψ_eo, D::T, ϕ_eo, temps...; tol=1e-8, maxiters=1000, datafile=""
 ) where {T<:WilsonEOPreDiracOperator}
-    return bicg_stab!(ψ_eo, D, ϕ_eo, temps...; tol, maxiters, datafile)
+    D_dagg = Daggered(D)
+    return cgnr!(
+        ψ_eo, D, D_dagg, ϕ_eo, temps[1], temps[2], temps[3], temps[4]; tol, maxiters, datafile
+    )
 end
 
 # We overload LinearAlgebra.mul! instead of Gaugefields.mul! so we dont have to import

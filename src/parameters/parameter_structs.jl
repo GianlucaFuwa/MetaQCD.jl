@@ -61,6 +61,7 @@ end
     biases::Vector{Dict} = Dict[]
     recycle::Bool = true
     rhostout_for_cv::Float64 = 0.12
+    meas_stream_bias::Bool = false
     weight_type::Vector{String} = ["tiwari"]
     starting_Q::Union{Nothing,Vector{Int64}} = nothing
     usebiases::Vector{String} = [""]

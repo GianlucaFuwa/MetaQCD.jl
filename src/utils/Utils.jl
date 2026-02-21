@@ -24,7 +24,7 @@ export mpi_comm_instance, mpi_comm_shared, mpi_ssend, mpi_recv!, mpi_datatype, m
 export mpi_init, mpi_comm, mpi_size, mpi_parallel, mpi_myrank, mpi_amroot, mpi_barrier
 export mpi_cart_create, mpi_cart_coords, mpi_cart_shift, mpi_multirequest, mpi_send
 export mpi_isend, mpi_recv, mpi_irecv!, mpi_waitall, mpi_allreduce, mpi_allgather, mpi_split
-export mpi_wait!, mpi_waitall!, mpi_allgather!
+export mpi_wait!, mpi_waitall!, mpi_allgather!, mpi_srecv, mpi_sendrecv!
 export mpi_bcast, mpi_bcast!, mpi_buffer, mpi_bcast_isbits, mpi_write_at
 export PauliMatrix, exp_iQ, exp_iQ_coeffs, ExpiQCoeffs, get_B₁, get_B₂, get_Q
 export gen_SU3_matrix, is_special_unitary, is_traceless_antihermitian

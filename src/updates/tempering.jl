@@ -13,7 +13,6 @@ function temper!( # INFO: When using MPI in tempering
     comm_shared = mpi_comm_shared()
     numinstances = MPI_NUMINSTANCES[]
     myrank = mpi_myrank(comm_shared)
-    mpi_barrier()
     
     # Query `instance_state` to find out which rank has to temper with which
     # Convention: instance N <-> instance N-1, instance N-1 <-> instance N-2, etc.
@@ -24,11 +23,11 @@ function temper!( # INFO: When using MPI in tempering
 
         if (myrank == rank_i || myrank == rank_i_min_1) && mpi_amroot(comm_instance)
             if myrank == rank_i
-                mpi_send(mpi_buffer(bias.CV), comm_shared; dest=rank_i_min_1::Int64, tag=1) 
-                CV_j = mpi_recv(comm_shared; source=rank_i_min_1::Int64, tag=1)
+                mpi_ssend(bias.CV, comm_shared; dest=rank_i_min_1::Int64, tag=1) 
+                CV_j = mpi_srecv(comm_shared; source=rank_i_min_1::Int64, tag=1)
             elseif myrank == rank_i_min_1
-                CV_j = mpi_recv(comm_shared; source=rank_i::Int64, tag=1)
-                mpi_send(mpi_buffer(bias.CV), comm_shared; dest=rank_i::Int64, tag=1) 
+                CV_j = mpi_srecv(comm_shared; source=rank_i::Int64, tag=1)
+                mpi_ssend(bias.CV, comm_shared; dest=rank_i::Int64, tag=1) 
             end
 
             if myrank == rank_i
@@ -48,8 +47,10 @@ function temper!( # INFO: When using MPI in tempering
                     for icv in eachindex(bias.CV)
                         buf = bias.buffers[icv]
                         pack_buffer!(buf, bias.bias[icv])
-                        mpi_send(mpi_buffer(buf), comm_shared; dest=rank_i_min_1, tag=100+icv)
-                        mpi_recv!(buf, comm_shared; source=rank_i_min_1, tag=100+icv)
+                        mpi_sendrecv!(
+                            deepcopy(buf), buf, comm_shared;
+                            dest=rank_i_min_1::Int64, source=rank_i_min_1::Int64
+                        )
                         unpack_buffer!(bias.bias[icv], buf)
                     end
 
@@ -64,8 +65,10 @@ function temper!( # INFO: When using MPI in tempering
                     for icv in eachindex(bias.CV)
                         buf = bias.buffers[icv]
                         pack_buffer!(buf, bias.bias[icv])
-                        mpi_send(mpi_buffer(buf), comm_shared; dest=rank_i, tag=100+icv)
-                        mpi_recv!(buf, comm_shared; source=rank_i, tag=100+icv)
+                        mpi_sendrecv!(
+                            deepcopy(buf), buf, comm_shared;
+                            dest=rank_i::Int64, source=rank_i::Int64
+                        )
                         unpack_buffer!(bias.bias[icv], buf)
                     end
 
@@ -78,14 +81,15 @@ function temper!( # INFO: When using MPI in tempering
                 end
             end
 
-            # Synchronize between instances
-            mpi_bcast!(instance_state, comm_shared; root=rank_i)
-            mpi_bcast!(numaccepts_temper, comm_shared; root=rank_i)
         end
+
+        # Synchronize between instances
+        mpi_bcast!(instance_state, comm_shared; root=rank_i)
+        mpi_bcast!(numaccepts_temper, comm_shared; root=rank_i)
 
         mpi_barrier()
 
-        # Synchronize within instance XXX: not needed?
+        # Synchronize within instance
         mpi_bcast!(instance_state, comm_instance; root=0)
         mpi_bcast!(numaccepts_temper, comm_instance; root=0)
 

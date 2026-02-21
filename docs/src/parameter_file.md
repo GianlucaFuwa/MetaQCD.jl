@@ -164,6 +164,7 @@ Biases are specified similarly to hmc levels. Note, that each bias/CV has to hav
 step size, meaning that only the number of smearing steps can be varied per bias.
 The general bias parameters are:
 - `rhostout_for_cv`: Smearing step size for the cv as a float (e.g, `rhostout_for_cv = 0.12`)
+- `meas_stream_bias`: Whether the measurement stream in PT-MetaD has a bias of its own (e.g, `meas_stream_bias = true`)
 - `numinstances`: Number of instances in PT-MetaD or multiple walkers as an integer (e.g, `numinstances = 2`)
 - `starting_Q`: Topological sector each walker should start from when using multiple walkers as a vector of integers (e.g, `starting_Q = [-1, 0, 1]`)
 > Length of `starting_Q` has to be equal to the number of walkers/instances!
