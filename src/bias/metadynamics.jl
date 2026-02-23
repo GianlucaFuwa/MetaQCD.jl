@@ -215,10 +215,12 @@ function metad_from_file(p, filename)
         return collect(bin_vals), values
     else
         values, _ = readdlm(filename, Float64; header=true)
-        bin_vals = range(cvlims[1], cvlims[2]; step=p.bin_width)
-        @assert length(values[:, 2]) == length(bin_vals) "your bias doesn't match parameters"
+        @assert length(values[:, 1]) == length(values[:, 2]) """
+        the number of bin edges and the number of values isn't the same in your provided
+        bias file
+        """
         @level1("|  initialized from \"$(filename)\"")
-        return collect(bin_vals), values[:, 2]
+        return values[:, 1], values[:, 2]
     end
 end
 

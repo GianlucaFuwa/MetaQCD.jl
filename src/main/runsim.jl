@@ -78,7 +78,7 @@ function run_sim(parameters)
     end
 
     @level1("[ Random seed is: $(string(copy(Random.default_rng())))\n")
-    run_sim!(univ, parameters, updatemethod, updatemethod_pt, multi_sim)
+    run_sim!(univ, parameters, updatemethod, updatemethod_pt, multi_sim, itrj)
     return nothing
 end
 
