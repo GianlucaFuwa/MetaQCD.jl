@@ -69,7 +69,7 @@ function run_sim(parameters)
 
     if parameters.load_checkpoint_path != ""
         rank = mpi_myrank(mpi_comm_instance())
-        univ_args..., updatemethod, _, itrj = load_checkpoint(parameters; rank)
+        univ_args..., updatemethod, updatemethod_pt, itrj = load_checkpoint(parameters; rank)
         univ = Univ(univ_args...)
     else
         itrj = nothing
@@ -353,7 +353,7 @@ function metaqcd!(
                     update!(
                         updatemethod,
                         U;
-                        fermion_action=fermion_action,
+                        fermion_action,
                         bias=NoBias(),
                         metro_test=itrj>20, # So we dont get stuck at the beginning
                         therm=Val(true),
@@ -394,6 +394,7 @@ function metaqcd!(
     _, runtime_prod = @timed begin
         numaccepts = 0.0
         numitrj = 0
+
         for itrj in itrj_range
             all_last_updatetime = mpi_allgather(last_updatetime, mpi_comm())
             if any(x -> x > JOB_TIME_LIMIT, all_last_updatetime .+ time() .+ TIME_BUFFER .- load_time)
@@ -408,15 +409,10 @@ function metaqcd!(
 
             numitrj += 1
             @level2("|  itrj = $itrj")
+            mpi_barrier()
 
             _, updatetime = @timed begin
-                accepted = update!(
-                    updatemethod,
-                    U;
-                    fermion_action=fermion_action,
-                    bias=bias,
-                    metro_test=true,
-                )
+                accepted = update!(updatemethod, U; fermion_action, bias, metro_test=true)
 
                 if rand() < 0.5
                     update!(parity, U)
@@ -424,7 +420,6 @@ function metaqcd!(
 
                 update_bias!(bias, itrj)
                 numaccepts += accepted
-                mpi_barrier()
                 accepted
             end
 
@@ -458,17 +453,14 @@ function metaqcd!(
             save_field(config_saver, U, itrj, parameters)
             create_checkpoint(checkpointer, univ, updatemethod, nothing, itrj; rank)
 
-            _, mtime = @timed calc_measurements(
-                measurements, U, itrj; mpi_multi_sim=mpi_multi_sim
-            )
+            _, mtime = @timed calc_measurements(measurements, U, itrj; mpi_multi_sim)
             _, fmtime = @timed for i in eachindex(gflow)
                 calc_measurements_flowed(
-                    measurements_with_flow[i], gflow[i], U, itrj;
-                    mpi_multi_sim=mpi_multi_sim
+                    measurements_with_flow[i], gflow[i], U, itrj; mpi_multi_sim
                 )
             end
 
-            calc_weights(bias, itrj; mpi_multi_sim=mpi_multi_sim)
+            calc_weights(bias, itrj; mpi_multi_sim)
             @level2("|  Meas. elapsed time:     $(mtime)  [s]")
             @level2("|  FlowMeas. elapsed time: $(fmtime) [s]\n-")
         end

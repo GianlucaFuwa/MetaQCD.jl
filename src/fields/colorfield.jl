@@ -75,3 +75,50 @@ Base.@propagate_inbounds function Base.setindex!(
 ) where {B,T}
     return _setindex_mat!(Val(18), u.U, v, μsite, T)
 end
+
+function convert_field(
+    ::Type{Bout}, Uin::Colorfield{CPU,Tin,M}, ::Type{Tout}=Tin
+) where {M,Bout,Tout,Tin}
+    if Bout === CPU
+        Uout = similar(Uin, Tout)
+        copy!(Uout, Uin)
+        return Uout
+    end
+
+    NX, NY, NZ, NT = size(Uin)
+    numprocs_cart = get_numprocs_cart(Uin)
+    halo_width = get_halo_width(Uin)
+    Uout = Colorfield{Bout,Tout}(NX, NY, NZ, NT; numprocs_cart, halo_width)
+    Uarr = OffsetArray(array_type(Bout)(Uin.U.parent), OffsetArrays.Origin(Uin.U))
+
+    parallelfor(eachindex(Uout), Bout, Val(M), (Uout,), (), (Uout,)) do site, (Uout,)
+        Uout[site] = Uarr[site]
+    end
+
+    return Uout
+end
+
+function convert_field(
+    ::Type{Bout}, Uin::Colorfield{Bin,Tin,M}, ::Type{Tout}=Tin
+) where {M,Bout,Tout,Bin,Tin}
+    if Bout === Bin
+        Uout = similar(Uin, Tout)
+        copy!(Uout, Uin)
+        return Uout
+    end
+
+    NX, NY, NZ, NT = size(Uin)
+    numprocs_cart = get_numprocs_cart(Uin)
+    halo_width = get_halo_width(Uin)
+    Uout = Colorfield{Bout,Tout}(NX, NY, NZ, NT; numprocs_cart, halo_width)
+    Uarr = OffsetArray(array_type(Bout)(Uin.U.parent), OffsetArrays.Origin(Uin.U))
+
+    parallelfor(eachindex(Uout), Bout, Val(M), (Uout,), (), (Uout,)) do site, (Uout,)
+        Uout[1, site] = _getindex_mat(Val(18), Uarr, 1, site, Tout)
+        Uout[2, site] = _getindex_mat(Val(18), Uarr, 2, site, Tout)
+        Uout[3, site] = _getindex_mat(Val(18), Uarr, 3, site, Tout)
+        Uout[4, site] = _getindex_mat(Val(18), Uarr, 4, site, Tout)
+    end
+
+    return Uout
+end

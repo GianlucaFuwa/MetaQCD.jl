@@ -17,7 +17,7 @@ import ..Fields: Tensorfield, MultiSpinorfield, CPU, get_backend, bzeros, BACKEN
 import ..Fields: is_distributed, get_global_volume, get_global_dims, parallelfor
 import ..Fields: WilsonGaugeAction, array_type, convert_field, device_to_host, allindices
 import ..Universe: init_fermion_actions
-import ..Updates: Updatemethod
+import ..Updates: Updatemethod, HMC
 
 export BMWFormat, BridgeFormat, Checkpointer, ConfigSaver, JLD2Format
 export create_checkpoint, load_checkpoint, load_field!, save_field

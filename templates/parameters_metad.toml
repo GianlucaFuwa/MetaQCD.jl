@@ -21,7 +21,7 @@ gauge_action = "wilson"
 rhostout_for_cv = 0.12
 kinds_of_weights = ["branduardi"]
 [[bias.biases]]
-kind_of_bias = "metad"
+type = "metad"
 kind_of_cv = "topcharge_clover"
 numsmears_for_cv = 4
 cvlims = [-5, 5]
@@ -30,7 +30,6 @@ static = [true, false]
 biasfactor = inf
 bin_width = 0.02
 weight = 0.01
-penalty_weight = 1000
 
 [hmc]
 hmc_trajectory = 1

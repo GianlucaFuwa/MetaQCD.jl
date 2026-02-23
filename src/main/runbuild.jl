@@ -112,7 +112,7 @@ function build_bias!(univ, parameters, updatemethod; mpi_multi_sim=false, itrj=n
         U,
         parameters.measure_dir,
         parameters.measurements;
-        additional_string=additional_string,
+        additional_string,
     )
 
     measurements_with_flow = ntuple(length(gflow)) do i
@@ -120,7 +120,7 @@ function build_bias!(univ, parameters, updatemethod; mpi_multi_sim=false, itrj=n
             U,
             parameters.measure_dir,
             parameters.measurements_with_flow;
-            additional_string=additional_string,
+            additional_string,
             flow=gflow[i],
         )
     end
@@ -223,7 +223,7 @@ function metabuild!(
                     update!(
                         updatemethod,
                         U;
-                        fermion_action=fermion_action,
+                        fermion_action,
                         bias=NoBias(),
                         metro_test=itrj>20, # So we dont get stuck at the beginning
                         therm=Val(true),
@@ -277,6 +277,7 @@ function metabuild!(
     _, runtime_prod = @timed begin
         numaccepts = 0.0
         numitrj = 0
+
         for itrj in itrj_range
             all_last_updatetime = mpi_allgather(last_updatetime, mpi_comm())
             if any(x -> x > JOB_TIME_LIMIT, all_last_updatetime .+ time() .+ TIME_BUFFER .- load_time)
@@ -293,13 +294,7 @@ function metabuild!(
             @level2("|  itrj = $itrj")
 
             acc, updatetime = @timed begin
-                accepted = update!(
-                    updatemethod,
-                    U;
-                    fermion_action=fermion_action,
-                    bias=bias,
-                    metro_test=true,
-                )
+                accepted = update!(updatemethod, U; fermion_action, bias, metro_test=true)
                 numaccepts += accepted
                 mpi_barrier()
                 accepted
