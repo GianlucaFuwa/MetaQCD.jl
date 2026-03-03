@@ -64,24 +64,23 @@ only the root rank printing its bias to file etc.
 The kwarg `bias` is there for loading checkpoints, since checkpoints only keep track of the
 `bias` field and therefore all other information is gathered from the parameter file as usual
 """
-mutable struct Bias{N,TB,TS,TW,T1,T2,T3}
+mutable struct Bias{N,TB,TS,TW,T1,T2}
     cv_numsmears::Vector{Int64}
     bias::TB
     smearing::TS
     kinds_of_weights::TW
     biasfile::T1
     datafile::T2
-    buffers::T3
     CV::Vector{Float64}
     function Bias(
-        U, cv_numsmears, rho, bias::TB, weights::TW, bfile::T1, dfile::T2, buffers::T3
-    ) where {TB,TW,T1,T2,T3}
+        U, cv_numsmears, rho, bias::TB, weights::TW, bfile::T1, dfile::T2
+    ) where {TB,TW,T1,T2}
         N = length(bias)
         CV = zeros(Float64, N)
         smearing = StoutSmearing(U; numlayers=maximum(cv_numsmears), rho)
         TS = typeof(smearing)
-        return new{N,TB,TS,TW,T1,T2,T3}(
-            cv_numsmears, bias, smearing, weights, bfile, dfile, buffers, CV
+        return new{N,TB,TS,TW,T1,T2}(
+            cv_numsmears, bias, smearing, weights, bfile, dfile, CV
         )
     end
 end
@@ -132,10 +131,6 @@ function Bias(
             numsmears = bias_parameters.numsmears_for_cv
             cv_numsmears[i] = numsmears
         end
-    end
-
-    buffers = ntuple(length(bias)) do i
-        create_buffer(bias[i])
     end
 
     kinds_of_weights = if any(x -> !(x isa Metadynamics), bias)
@@ -202,7 +197,6 @@ function Bias(
         kinds_of_weights,
         biasfile,
         datafile,
-        buffers,
     )
 end
 
@@ -365,32 +359,30 @@ include("weights.jl")
 # custom serialization, because saving and loading IOStreams doesn't work
 using JLD2
 
-struct BiasSerialization{N,TB,TW,T1,T2,T3}
+struct BiasSerialization{N,TB,TW,T1,T2}
     cv_numsmears::Vector{Int64}
     bias::TB
     rho::Float64
     kinds_of_weights::TW
     biasfile::T1
     datafile::T2
-    buffers::T3
     CV::Vector{Float64}
 end
 
-function JLD2.writeas(::Type{<:Bias{N,TB,TS,TW,T1,T2,T3}}) where {N,TB,TS,TW,T1,T2,T3}
-    return BiasSerialization{N,TB,TW,T1,T2,T3}
+function JLD2.writeas(::Type{<:Bias{N,TB,TS,TW,T1,T2}}) where {N,TB,TS,TW,T1,T2}
+    return BiasSerialization{N,TB,TW,T1,T2}
 end
 
 function Base.convert(
-    ::Type{<:BiasSerialization}, b::Bias{N,TB,TS,TW,T1,T2,T3}
-) where {N,TB,TS,TW,T1,T2,T3}
-    out = BiasSerialization{N,TB,TW,T1,T2,T3}(
+    ::Type{<:BiasSerialization}, b::Bias{N,TB,TS,TW,T1,T2}
+) where {N,TB,TS,TW,T1,T2}
+    out = BiasSerialization{N,TB,TW,T1,T2}(
         b.cv_numsmears,
         deepcopy(b.bias),
         b.smearing.ρ,
         b.kinds_of_weights,
         b.biasfile,
         b.datafile,
-        deepcopy(b.buffers),
         deepcopy(b.CV),
     )
     return out
@@ -404,7 +396,6 @@ function Base.convert(::Type{<:Bias}, b::BiasSerialization)
         b.kinds_of_weights,
         b.biasfile,
         b.datafile,
-        b.buffers,
         b.CV,
     )
     return out

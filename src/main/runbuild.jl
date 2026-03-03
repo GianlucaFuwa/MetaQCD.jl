@@ -82,7 +82,7 @@ function run_build(parameters)
 
     if parameters.load_checkpoint_path != ""
         rank = mpi_myrank(mpi_comm_instance())
-        univ_args..., updatemethod, _, itrj = load_checkpoint(
+        univ_args..., updatemethod, _, itrj, numaccepts = load_checkpoint(
             parameters; rank, mpi_multi_sim, build=true
         )
         univ = Univ(univ_args...)
@@ -93,11 +93,13 @@ function run_build(parameters)
     end
 
     @level1("[ Random seed is: $(string(copy(Random.default_rng())))\n")
-    build_bias!(univ, parameters, updatemethod; mpi_multi_sim, itrj)
+    build_bias!(univ, parameters, updatemethod; mpi_multi_sim, itrj, numaccepts)
     return nothing
 end
 
-function build_bias!(univ, parameters, updatemethod; mpi_multi_sim=false, itrj=nothing)
+function build_bias!(
+    univ, parameters, updatemethod; mpi_multi_sim=false, itrj=nothing, numaccepts=0
+)
     U = univ.U
 
     if isnothing(updatemethod)
@@ -157,6 +159,7 @@ function build_bias!(univ, parameters, updatemethod; mpi_multi_sim=false, itrj=n
         timing_datafile,
         mpi_multi_sim,
         itrj,
+        numaccepts,
     )
     return nothing
 end
@@ -172,7 +175,8 @@ function metabuild!(
     checkpointer,
     timing_datafile,
     mpi_multi_sim,
-    starting_itrj=nothing
+    starting_itrj=nothing,
+    numaccepts=0,
 )
     U = univ.U
     fermion_action = univ.fermion_action
@@ -275,7 +279,6 @@ function metabuild!(
 
     @level2("- Production:")
     _, runtime_prod = @timed begin
-        numaccepts = 0.0
         numitrj = 0
 
         for itrj in itrj_range
@@ -321,7 +324,9 @@ function metabuild!(
             print_acceptance_rates(numaccepts, numitrj)
 
             save_field(config_saver, U, itrj, parameters)
-            create_checkpoint(checkpointer, univ, updatemethod, nothing, itrj; rank)
+            create_checkpoint(
+                checkpointer, univ, updatemethod, nothing, itrj, numaccepts; rank
+            )
 
             calc_measurements(measurements, U, itrj; mpi_multi_sim)
             calc_measurements_flowed(measurements_with_flow, gflow, U, itrj; mpi_multi_sim)

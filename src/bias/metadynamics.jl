@@ -66,17 +66,16 @@ function Metadynamics(
     @level1("|    CVLIMS: $(string(p.cvlims))")
     @assert issorted(p.cvlims) "CVLIMS must be sorted from low to high"
 
-    @level1("|    BIN_WIDTH: $(p.bin_width)")
-    @assert p.bin_width > 0 "BIN_WIDTH must be > 0"
-
     if build && (length(p.load_bias) != 0)
-        bin_vals, values = metad_from_file(p, p.load_bias[1])
+        bin_width, bin_vals, values = metad_from_file(p, p.load_bias[1])
     elseif (0 < instance <= length(p.load_bias) && !dummy)
-        bin_vals, values = metad_from_file(p, p.load_bias[instance+1])
+        bin_width, bin_vals, values = metad_from_file(p, p.load_bias[instance+1])
     else
-        bin_vals, values = metad_from_file(p, "")
+        bin_width, bin_vals, values = metad_from_file(p, "")
     end
 
+    @level1("|    BIN_WIDTH: $(bin_width)")
+    @assert bin_width > 0 "BIN_WIDTH must be > 0"
     @level1("|    META_WEIGHT: $(p.weight)")
     @assert p.weight > 0 "METAD.WEIGHT must be > 0"
 
@@ -99,7 +98,7 @@ function Metadynamics(
         stride,
         tuple(p.cvlims...),
         biasfactor,
-        p.bin_width,
+        bin_width,
         p.weight,
         p.penalty_weight,
         bin_vals,
@@ -209,35 +208,40 @@ function metad_from_file(p, filename)
     cvlims = p.cvlims
 
     if filename == ""
-        bin_vals = range(cvlims[1], cvlims[2]; step=p.bin_width)
+        bin_width = p.bin_width
+        bin_vals = range(cvlims[1], cvlims[2]; step=bin_width)
         values = zero(bin_vals)
         @level1("|  initialized as zeros")
-        return collect(bin_vals), values
+        return bin_width, collect(bin_vals), values
     else
         values, _ = readdlm(filename, Float64; header=true)
         @assert length(values[:, 1]) == length(values[:, 2]) """
         the number of bin edges and the number of values isn't the same in your provided
         bias file
         """
+        bin_width = abs(round(values[1, 1] - values[2, 1]; sigdigits=5))
         @level1("|  initialized from \"$(filename)\"")
-        return values[:, 1], values[:, 2]
+        return bin_width, values[:, 1], values[:, 2]
     end
 end
 
 function create_buffer(m::Metadynamics)
-    # for Metadynamics, only need to communicate static, write_bias_every and values
-    # all others are the same between ranks
-    return Vector{Float64}(undef, 2+length(m.values))
-end
-
-function pack_buffer!(buf, m::Metadynamics)
+    # for Metadynamics, need to communicate static, write_bias_every, bin_width, bin_vals and values
+    buf = Vector{Float64}(undef, 3+2length(m.values))
     buf[1] = Float64(m.static)
     buf[2] = Float64(m.write_bias_every)
-    buf[3:end] .= m.values
+    buf[3] = Float64(m.bin_width)
+    buf[4:3+length(m.bin_vals)] .= m.bin_vals
+    buf[4+length(m.bin_vals):end] .= m.values
+    return buf
 end
 
 function unpack_buffer!(m::Metadynamics, buf)
+    len_vals = div(length(buf)-3, 2)
     m.static = round(Bool, buf[1])
     m.write_bias_every = round(Int64, buf[2])
-    m.values .= view(buf, 3:length(buf))
+    m.bin_width = buf[3]
+    m.bin_vals = buf[4:3+len_vals]
+    m.values = buf[4+len_vals:length(buf)]
+    return nothing
 end

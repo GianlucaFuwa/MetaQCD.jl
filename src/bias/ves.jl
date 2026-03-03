@@ -219,10 +219,7 @@ end
 function create_buffer(p::VES)
     # for VES, only need to communicate static, write_bias_every, batch_size, nbasis, step_size and values
     # all others are the same between ranks
-    return Vector{Float64}(undef, 5+2length(p.alpha))
-end
-
-function pack_buffer!(buf, p::VES)
+    buf = Vector{Float64}(undef, 5+2length(p.alpha))
     buf[1] = Float64(p.static)
     buf[2] = Float64(p.write_bias_every)
     buf[3] = Float64(p.batch_size)
@@ -230,14 +227,17 @@ function pack_buffer!(buf, p::VES)
     buf[5] = Float64(p.step_size)
     buf[6:5+length(p.alpha)] .= p.alpha
     buf[6+length(p.alpha):end] .= p.alpha_bar
+    return buf
 end
 
 function unpack_buffer!(p::VES, buf)
+    len_alpha = div(length(buf)-5, 2)
     p.static = round(Bool, buf[1])
     p.write_bias_every = round(Int64, buf[2])
     p.batch_size = round(Int64, buf[3])
     p.nbasis = round(Int64, buf[4])
     p.step_size = round(Float64, buf[5])
-    p.alpha .= view(buf, 6:5+length(p.alpha))
-    p.alpha_bar .= view(buf, 6+length(p.alpha):length(buf))
+    p.alpha = buf[6:5+len_alpha]
+    p.alpha_bar = buf[6+len_alpha:length(buf)]
+    return nothing
 end

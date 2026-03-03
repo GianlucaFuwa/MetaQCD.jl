@@ -92,7 +92,10 @@ function convert_field(
     Uarr = OffsetArray(array_type(Bout)(Uin.U.parent), OffsetArrays.Origin(Uin.U))
 
     parallelfor(eachindex(Uout), Bout, Val(M), (Uout,), (), (Uout,)) do site, (Uout,)
-        Uout[site] = Uarr[site]
+        Uout[1, site] = Uarr[1, site]
+        Uout[2, site] = Uarr[2, site] 
+        Uout[3, site] = Uarr[3, site] 
+        Uout[4, site] = Uarr[4, site] 
     end
 
     return Uout

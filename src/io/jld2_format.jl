@@ -35,7 +35,14 @@ function load_field!(::JLD2Format, U::Gaugefield{B,T,false,GA}, filename) where 
 end
 
 function create_checkpoint(
-    ::JLD2Format, univ, updatemethod, updatemethod_pt, itrj::Int, filename::String
+    ::JLD2Format,
+    univ,
+    updatemethod,
+    updatemethod_pt,
+    itrj,
+    numaccepts,
+    numaccepts_t,
+    filename::String
 )
     Uout = if univ.U isa Vector
        [convert_field(CPU, univ.U[i]) for i in eachindex(univ.U)]
@@ -68,6 +75,8 @@ function create_checkpoint(
                 bias=biasout,
                 numinstances=univ.numinstances,
                 itrj=itrj,
+                numaccepts=numaccepts,
+                numaccepts_t=numaccepts_t,
                 rngstate=state,
             )
         end
@@ -86,7 +95,7 @@ function load_checkpoint(
     B = BACKENDS[backend]
     T = Utils.FLOAT_TYPE[parameters.float_type]
     # TODO: support case of single node PT-MetaD
-    U, _P, _bias, numinst, itrj, rngstate = jldopen(filename, "r") do file
+    U, _P, _bias, numinst, itrj, _numaccepts, _numaccepts_t, rngstate = jldopen(filename, "r") do file
         # INFO: versions older than 2.3.0 didnt checkpoint the momentum in HMC
         p = try
             file["P"]
@@ -94,8 +103,20 @@ function load_checkpoint(
             nothing
         end
 
+        numaccepts = try
+            file["numaccepts"]
+        catch _
+            nothing
+        end
+
+        numaccepts_t = try
+            file["numaccepts_t"]
+        catch _
+            nothing
+        end
+
         convert_field(B, file["U"], T), p, file["bias"],
-        file["numinstances"], file["itrj"], file["rngstate"]
+        file["numinstances"], file["itrj"], numaccepts, numaccepts_t, file["rngstate"]
     end
 
     dummy = parameters.tempering_enabled && mpi_multi_sim ? (instance==0) : false
@@ -113,7 +134,23 @@ function load_checkpoint(
         copy!(updatemethod.P, P)
     end
 
+    if !isnothing(_numaccepts)
+        numaccepts = _numaccepts
+    else
+        numaccepts = 0
+    end
+
+    if !isnothing(_numaccepts_t)
+        numaccepts_t = _numaccepts
+    else
+        numaccepts_t = zeros(Int64, numinst-1)
+    end
+
     updatemethod_pt = nothing # TODO: support this case (serialize HMC and make method that takes P_old and U only)
     copy!(Random.default_rng(), rngstate)
-    return U, faction, bias, numinst, updatemethod, updatemethod_pt, itrj
+    return U, faction, bias, numinst, updatemethod, updatemethod_pt, itrj, numaccepts, numaccepts_t
 end
+
+
+
+

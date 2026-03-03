@@ -492,10 +492,7 @@ function create_buffer(o::OPES)
     # old_Z, old_KDEnorm, nker, nδker, write_bias_every (5)
     # kernels, δkernels
     # all others are the same between ranks
-    return Vector{Float64}(undef, 14+3length(o.kernels)+3length(o.δkernels))
-end
-
-function pack_buffer!(buf, o::OPES)
+    buf = Vector{Float64}(undef, 14+3length(o.kernels)+3length(o.δkernels))
     buf[1] = Float64(o.static)
     buf[2] = Float64(o.counter)
     buf[3] = o.sum_weights
@@ -526,7 +523,7 @@ function pack_buffer!(buf, o::OPES)
         i += 3
     end
 
-    return nothing
+    return buf
 end
 
 function unpack_buffer!(o::OPES, buf)
@@ -545,18 +542,20 @@ function unpack_buffer!(o::OPES, buf)
     o.nδker = round(Int64, buf[13])
     o.write_bias_every = round(Int64, buf[14])
 
-    kernels = o.kernels
+    kernels = Vector{Kernel}(undef, o.nker)
     i = 15
     for ik in eachindex(kernels)
         kernels[ik] = Kernel(buf[i], buf[i+1], buf[i+2])
         i += 3
     end
+    o.kernels = kernels
 
-    dkernels = o.δkernels
+    dkernels = Vector{Kernel}(undef, o.nδker)
     for ik in eachindex(dkernels)
         dkernels[ik] = Kernel(buf[i], buf[i+1], buf[i+2])
         i += 3
     end
+    o.δkernels = dkernels
 
     return nothing
 end

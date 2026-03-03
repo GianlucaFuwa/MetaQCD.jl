@@ -106,14 +106,23 @@ struct Checkpointer{T}
 end
 
 function create_checkpoint(
-    cp::Checkpointer{T}, univ, updatemethod, updatemethod_pt, itrj; rank=mpi_myrank()
+    cp::Checkpointer{T},
+    univ,
+    updatemethod,
+    updatemethod_pt,
+    itrj,
+    numaccepts,
+    numaccepts_t=nothing;
+    rank=mpi_myrank()
 ) where {T}
     T ≡ Nothing && return nothing
     instance = MPI_INSTANCE[]
 
     if itrj % cp.checkpoint_every == 0
         filename = joinpath(cp.checkpoint_dir, "checkpoint_$(instance)_$(rank).jld2")
-        create_checkpoint(T(), univ, updatemethod, updatemethod_pt, itrj, filename)
+        create_checkpoint(
+            T(), univ, updatemethod, updatemethod_pt, itrj, numaccepts, numaccepts_t, filename
+        )
         @level1("|")
         @level1("|  Checkpoint created in $(cp.checkpoint_dir)")
         @level1("|")

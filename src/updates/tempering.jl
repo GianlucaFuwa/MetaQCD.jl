@@ -45,13 +45,10 @@ function temper!( # INFO: When using MPI in tempering
             if is_accepted
                 if myrank == rank_i
                     for icv in eachindex(bias.CV)
-                        buf = bias.buffers[icv]
-                        pack_buffer!(buf, bias.bias[icv])
-                        mpi_sendrecv!(
-                            deepcopy(buf), buf, comm_shared;
-                            dest=rank_i_min_1::Int64, source=rank_i_min_1::Int64
-                        )
-                        unpack_buffer!(bias.bias[icv], buf)
+                        buf = create_buffer(bias.bias[icv])
+                        mpi_ssend(buf, comm_shared; dest=rank_i_min_1::Int64)
+                        buf_new = mpi_srecv(comm_shared; source=rank_i_min_1::Int64)
+                        unpack_buffer!(bias.bias[icv], buf_new)
                     end
 
                     instance_state[rank_i+1] = i-1
@@ -63,13 +60,10 @@ function temper!( # INFO: When using MPI in tempering
                     @level1 "|  Old/New: $(i) -> $(i-1)"
                 elseif myrank == rank_i_min_1
                     for icv in eachindex(bias.CV)
-                        buf = bias.buffers[icv]
-                        pack_buffer!(buf, bias.bias[icv])
-                        mpi_sendrecv!(
-                            deepcopy(buf), buf, comm_shared;
-                            dest=rank_i::Int64, source=rank_i::Int64
-                        )
-                        unpack_buffer!(bias.bias[icv], buf)
+                        buf = create_buffer(bias.bias[icv])
+                        mpi_ssend(buf, comm_shared; dest=rank_i::Int64)
+                        buf_new = mpi_srecv(comm_shared; source=rank_i::Int64)
+                        unpack_buffer!(bias.bias[icv], buf_new)
                     end
 
                     instance_state[rank_i_min_1+1] = i
@@ -84,14 +78,14 @@ function temper!( # INFO: When using MPI in tempering
         end
 
         # Synchronize between instances
-        mpi_bcast!(instance_state, comm_shared; root=rank_i)
-        mpi_bcast!(numaccepts_temper, comm_shared; root=rank_i)
+        mpi_bcast!(instance_state, comm_shared; root=rank_i::Int64)
+        mpi_bcast!(numaccepts_temper, comm_shared; root=rank_i::Int64)
 
         mpi_barrier()
 
         # Synchronize within instance
-        mpi_bcast!(instance_state, comm_instance; root=0)
-        mpi_bcast!(numaccepts_temper, comm_instance; root=0)
+        mpi_bcast!(instance_state, comm_instance; root=0::Int64)
+        mpi_bcast!(numaccepts_temper, comm_instance; root=0::Int64)
 
         acc_pct = 100numaccepts_temper[i] / (itrj/swap_every)
         @level1 "|    Acceptance [$i <-> $(i-1)]:\t$(acc_pct) %"

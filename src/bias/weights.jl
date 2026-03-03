@@ -6,7 +6,7 @@ calc_weights(::Nothing, args...; kwargs...) = nothing
 calc_weights(::NoBias, args...; kwargs...) = nothing
 
 function calc_weights(b::Bias, itrj; mpi_multi_sim=false)
-    calc_weights(b.datafile, b, itrj; mpi_multi_sim=mpi_multi_sim)
+    calc_weights(b.datafile, b, itrj; mpi_multi_sim)
     return nothing
 end
 

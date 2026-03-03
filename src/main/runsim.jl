@@ -24,7 +24,7 @@ function run_sim(parameters)
     num_instances = parameters.numinstances
     num_dist = prod(parameters.numprocs_cart)
 
-    multi_sim = if mpi_size() > num_dist
+    mpi_multi_sim = if mpi_size() > num_dist
         @assert mpi_size() == num_instances * num_dist "MPI comm size must be = numinstances*prod(numprocs_cart)"
         true
     else
@@ -40,7 +40,7 @@ function run_sim(parameters)
         """
     end
 
-    color = multi_sim ? instance_from_rank(mpi_myrank(), num_instances) : 0
+    color = mpi_multi_sim ? instance_from_rank(mpi_myrank(), num_instances) : 0
     mpi_split(mpi_comm(); color)
     MPI_NUMINSTANCES[] = num_instances # change global consant defined in utils/mpi.jl
 
@@ -69,16 +69,28 @@ function run_sim(parameters)
 
     if parameters.load_checkpoint_path != ""
         rank = mpi_myrank(mpi_comm_instance())
-        univ_args..., updatemethod, updatemethod_pt, itrj = load_checkpoint(parameters; rank)
+        univ_args..., updatemethod, updatemethod_pt, itrj, numaccepts, numaccepts_temper =
+            load_checkpoint(parameters; rank, mpi_multi_sim)
         univ = Univ(univ_args...)
     else
         itrj = nothing
-        univ = Univ(parameters; mpi_multi_sim=multi_sim)
+        univ = Univ(parameters; mpi_multi_sim)
         updatemethod = updatemethod_pt = nothing
+        numaccepts = 0
+        numaccepts_temper=zeros(Int64, MPI_NUMINSTANCES[]-1)
     end
 
     @level1("[ Random seed is: $(string(copy(Random.default_rng())))\n")
-    run_sim!(univ, parameters, updatemethod, updatemethod_pt, multi_sim, itrj)
+    run_sim!(
+        univ,
+        parameters,
+        updatemethod,
+        updatemethod_pt,
+        numaccepts,
+        numaccepts_temper;
+        mpi_multi_sim,
+        itrj,
+    )
     return nothing
 end
 
@@ -87,6 +99,8 @@ function run_sim!(
     parameters::ParameterSet,
     updatemethod,
     updatemethod_pt,
+    numaccepts=0,
+    numaccepts_temper=zeros(Int64, MPI_NUMINSTANCES[]-1);
     mpi_multi_sim=false,
     itrj=nothing,
 )
@@ -290,6 +304,8 @@ function run_sim!(
             mpi_multi_sim,
             Val(parameters.tempering_enabled),
             itrj,
+            numaccepts,
+            numaccepts_temper,
         )
     end
 
@@ -310,11 +326,12 @@ function metaqcd!(
     mpi_multi_sim::Bool,
     ::Val{tempering_enabled},
     starting_itrj=nothing,
+    numaccepts=0,
+    numaccepts_temper=zeros(Int64, MPI_NUMINSTANCES[]-1),
 ) where {tempering_enabled}
     U = univ.U
     fermion_action = univ.fermion_action
     bias = univ.bias
-    numaccepts_temper = zeros(Int64, MPI_NUMINSTANCES[]-1)
     instance_state = collect(0:univ.numinstances-1)
     swap_every = parameters.swap_every
     rank = mpi_myrank(mpi_comm_instance())
@@ -343,7 +360,9 @@ function metaqcd!(
                         """### Run terminated before thermalization trajectory $(itrj)
                         ### because time limit would be passed"""
                     )
-                    create_checkpoint(checkpointer, univ, updatemethod, nothing, itrj; rank)
+                    create_checkpoint(
+                        checkpointer, univ, updatemethod, nothing, itrj, numaccepts; rank
+                    )
                     mpi_barrier()
                     break
                 end
@@ -392,7 +411,6 @@ function metaqcd!(
 
     @level2("- Production:")
     _, runtime_prod = @timed begin
-        numaccepts = 0.0
         numitrj = 0
 
         for itrj in itrj_range
@@ -402,7 +420,9 @@ function metaqcd!(
                     """### Run terminated before production trajectory $(itrj)
                     ### because time limit would be passed"""
                 )
-                create_checkpoint(checkpointer, univ, updatemethod, nothing, itrj; rank)
+                create_checkpoint(
+                    checkpointer, univ, updatemethod, nothing, itrj, numaccepts; rank
+                )
                 mpi_barrier()
                 break
             end
@@ -451,7 +471,10 @@ function metaqcd!(
             end
 
             save_field(config_saver, U, itrj, parameters)
-            create_checkpoint(checkpointer, univ, updatemethod, nothing, itrj; rank)
+            create_checkpoint(
+                checkpointer, univ, updatemethod, nothing, itrj, numaccepts, numaccepts_temper;
+                rank
+            )
 
             _, mtime = @timed calc_measurements(measurements, U, itrj; mpi_multi_sim)
             _, fmtime = @timed for i in eachindex(gflow)

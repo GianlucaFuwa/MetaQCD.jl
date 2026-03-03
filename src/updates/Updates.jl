@@ -10,7 +10,7 @@ using ..RHMCParameters
 using ..Utils
 
 import ..BiasModule: Bias, NoBias, calc_cv, ∂V∂Q, recalc_cv!, set_cv!
-import ..BiasModule: update_bias!, pack_buffer!, unpack_buffer!
+import ..BiasModule: update_bias!, create_buffer, unpack_buffer!
 import ..DiracOperators: AbstractDiracOperator, FermionAction, QuenchedFermionAction
 import ..DiracOperators: calc_fermion_action, has_clover_term, sample_pseudofermions!
 import ..Fields: AbstractGaugeAction, Gaugefield, Colorfield, identity_gauges!, get_global_dims

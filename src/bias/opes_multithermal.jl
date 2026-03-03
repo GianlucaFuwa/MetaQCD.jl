@@ -258,10 +258,7 @@ function create_buffer(o::OPESmultithermal)
     # old_Z, old_KDEnorm, nker, nδker, write_bias_every (5)
     # kernels, δkernels
     # all others are the same between ranks
-    return Vector{Float64}(undef, 8+length(o.ΔF))
-end
-
-function pack_buffer!(buf, o::OPESmultithermal)
+    buf = Vector{Float64}(undef, 8+length(o.ΔF))
     buf[1] = Float64(o.static)
     buf[2] = Float64(o.counter)
     buf[3] = o.rct
@@ -271,7 +268,7 @@ function pack_buffer!(buf, o::OPESmultithermal)
     buf[7] = o.sum_weights2
     buf[8] = Float64(o.write_bias_every)
     view(buf, 9:length(buf)) .= o.ΔF
-    return nothing
+    return buf
 end
 
 function unpack_buffer!(o::OPESmultithermal, buf)
@@ -283,6 +280,6 @@ function unpack_buffer!(o::OPESmultithermal, buf)
     o.sum_weights = buf[6]
     o.sum_weights2 = buf[7]
     o.write_bias_every = round(Int64, buf[8])
-    o.ΔF = view(buf, 9:length(buf))
+    o.ΔF = buf[9:length(buf)]
     return nothing
 end
