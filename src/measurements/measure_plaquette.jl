@@ -3,7 +3,7 @@ struct PlaquetteMeasurement{T} <: AbstractMeasurement
     filename::T
     function PlaquetteMeasurement(U::Gaugefield; filename="", flow=NoSmearing())
         if !isnothing(filename) && filename != "" && mpi_amroot(mpi_comm_instance())
-            rpath = StaticString(filename)
+            rpath = SStaticString(filename)
 
             if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
                 fp = fopen(filename, "w")

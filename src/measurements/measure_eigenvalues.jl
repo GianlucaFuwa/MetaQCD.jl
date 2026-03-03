@@ -64,7 +64,7 @@ struct EigenvaluesMeasurement{T,TA,TD} <: AbstractMeasurement
         end
 
         if !isnothing(filename) && filename != ""
-            rpath = StaticString(filename)
+            rpath = SStaticString(filename)
 
             if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
                 fp = fopen(path, "w")

@@ -1,3 +1,4 @@
+# TODO:
 struct LogDetMeasurement{T,TD,TF} <: AbstractMeasurement
     fermion_action::TD
     temp::TF # We need 1 temp fermion field per action
