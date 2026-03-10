@@ -361,7 +361,8 @@ function metaqcd!(
                         ### because time limit would be passed"""
                     )
                     create_checkpoint(
-                        checkpointer, univ, updatemethod, nothing, itrj, numaccepts; rank
+                        checkpointer, univ, updatemethod, nothing, itrj, numaccepts, numaccepts_temper;
+                        rank
                     )
                     mpi_barrier()
                     break
@@ -421,7 +422,8 @@ function metaqcd!(
                     ### because time limit would be passed"""
                 )
                 create_checkpoint(
-                    checkpointer, univ, updatemethod, nothing, itrj, numaccepts; rank
+                    checkpointer, univ, updatemethod, nothing, itrj, numaccepts, numaccepts_temper;
+                    rank
                 )
                 mpi_barrier()
                 break

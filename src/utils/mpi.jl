@@ -18,7 +18,28 @@ function mpi_init()
         return nothing
     else
         MPI.Init(; finalize_atexit=true)
-        MPI_COMM_WORLD[] = MPI.COMM_WORLD
+        #INFO: get number of apps, when running multiple disjunt simulations from a single mpirun/mpiexec call
+        comm = MPI.COMM_WORLD
+        appnum = try
+            Int(unsafe_load(Ptr{Cint}(MPI.unsafe_get_attr(comm, MPI.API.MPI_APPNUM[]))))
+        catch _
+            @warn "Could not gather appnum, running in MPMD mode is not possible, unless you use another MPI distro"
+            nothing
+        end
+
+        if !(isnothing(appnum))
+            max_appnum = MPI.Allreduce(appnum, MPI.MAX, comm) + 1
+
+            comm_world = if max_appnum > 1
+                MPI.Comm_split(MPI.COMM_WORLD, appnum, 0)
+            else
+                MPI.COMM_WORLD
+            end
+        else
+            comm_world = MPI.COMM_WORLD
+        end
+
+        MPI_COMM_WORLD[] = comm_world
         MPI_COMM_INSTANCE[] = MPI.COMM_WORLD
         MPI_COMM_SHARED[] = MPI.COMM_WORLD
         MPI_WORLD_SIZE[] = mpi_size(MPI.COMM_WORLD)
@@ -39,7 +60,7 @@ end
 
 @inline function mpi_comm()
     mpi_init()
-    return MPI.COMM_WORLD
+    return MPI_COMM_WORLD[]
 end
 
 @inline function mpi_comm_instance()

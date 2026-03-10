@@ -141,7 +141,7 @@ function load_checkpoint(
     end
 
     if !isnothing(_numaccepts_t)
-        numaccepts_t = _numaccepts
+        numaccepts_t = _numaccepts_t
     else
         numaccepts_t = zeros(Int64, numinst-1)
     end

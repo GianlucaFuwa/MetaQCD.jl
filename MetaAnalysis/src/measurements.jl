@@ -69,10 +69,25 @@ struct MetaMeasurements
 
                         if header[i] != "itrj"
                             if header[i] == "Q_clover"
-                                tau_int[head * str] = autoc_time_int_uw(data[ui, i])
-                                tau_int[head * "^2" * str] = autoc_time_int_uw(data[ui, i].^2)
+                                tau_int[head * str] = try
+                                    @warn "Autocorrelation time of $(head * str) could not be determined using UWerr, falling back to manual"
+                                    autoc_time_int_uw(data[ui, i])
+                                catch _
+                                    autoc_time_int(data[ui, i]), 0.0
+                                end
+                                tau_int[head * "^2" * str] = try
+                                    @warn "Autocorrelation time of $(head * "^2" * str) could not be determined using UWerr, falling back to manual"
+                                    autoc_time_int_uw(data[ui, i].^2)
+                                catch _
+                                    autoc_time_int(data[ui, i].^2), 0.0
+                                end
                             else
-                                tau_int[head * str] = autoc_time_int_uw(data[ui, i])
+                                tau_int[head * str] = try
+                                    @warn "Autocorrelation time of $(head * str) could not be determined using UWerr, falling back to manual"
+                                    autoc_time_int_uw(data[ui, i])
+                                catch _
+                                    autoc_time_int(data[ui, i]), 0.0
+                                end
                             end
                         end
                     end
@@ -86,7 +101,12 @@ struct MetaMeasurements
                     measurement[header[i]] = data[:, i]
 
                     if header[i] != "itrj"
-                        tau_int[header[i] * "_$(instance)"] = autoc_time_int_uw(data[:, i])
+                        tau_int[header[i] * "_$(instance)"] = try 
+                            autoc_time_int_uw(data[:, i])
+                        catch _
+                            @warn "Autocorrelation time of $(header[i] * "_$(instance)") could not be determined using UWerr, falling back to manual"
+                            autoc_time_int(data[:, i]), 0.0
+                        end
                     end
                 end
 
@@ -101,7 +121,6 @@ struct MetaMeasurements
 end
 
 Base.length(m::MetaMeasurements, observable) = Int(getproperty(m, observable)["itrj"][end])
-
 
 function Base.getproperty(m::MetaMeasurements, s::Symbol)
     s == :ensemblename && return getfield(m, :ensemblename)
@@ -136,10 +155,31 @@ RecipesBase.@recipe function timeseries(
     m, observable = ts.args[1:2]
     @assert !occursin("correlator", string(observable)) "timeseries not supported for correlators"
     @assert !occursin("eigenvalues", string(observable)) "timeseries not supported for eigenvalues"
-    @assert observable ∈ observables(m) "Observable $observable is not in Measurements"
+    if observable != :bias_data
+        @assert observable ∈ observables(m) "Observable $observable is not in Measurements"
+    end
     seriestype := seriestype
-    obs_keys = collect(keys(getproperty(m, observable)))
-    filter!(x -> x ≠ "itrj", obs_keys)
+    obs_keys = if observable != :bias_data
+        collect(keys(getproperty(m, observable)))
+    else
+        numinstances = 0
+        while true
+            if Symbol(:bias_data_, Symbol(lpad(numinstances, 3, "0"))) ∈ observables(m)
+                numinstances += 1
+            else
+                break
+            end
+        end
+        @show numinstances
+        [collect(keys(getproperty(m, Symbol(:bias_data_, Symbol(lpad(i, 3, "0")))))) for i in 0:numinstances-1]
+    end
+    
+    if observable != :bias_data
+        filter!(x -> x ≠ "itrj", obs_keys)
+    else
+        [filter!(x -> x ≠ "itrj", obs_keys_i) for obs_keys_i in obs_keys]
+    end
+
     palette --> DEFAULT_COLORS
 
     x = try
@@ -148,7 +188,23 @@ RecipesBase.@recipe function timeseries(
         nothing
     end
 
-    if occursin("bias_data", string(observable))
+    if observable == :bias_data
+        [filter!(x -> !contains("cv", x), obs_keys_i) for obs_keys_i in obs_keys]
+        size --> (600, 400)
+        link := :x
+        legend := false
+        palette --> DEFAULT_COLORS
+        xlabel --> "Monte Carlo Time"
+        ylabel --> "cv"
+
+        for (i, name) in enumerate(obs_keys)
+            @series begin
+                color --> DEFAULT_COLORS[mod1(i+1, length(DEFAULT_COLORS))]
+                y = view(getproperty(m, Symbol(:bias_data_, Symbol(lpad(i-1, 3, "0"))))["cv1"], irange)
+                x, y
+            end
+        end
+    elseif occursin("bias_data", string(observable))
         filter!(x -> !contains("cv", x), obs_keys)
         size --> (600, 200 * length(obs_keys))
         link := :x
@@ -182,7 +238,6 @@ RecipesBase.@recipe function timeseries(
     elseif any(occursin.(("flowed", "gflow", "cooling"), string(observable)))
         palette --> DEFAULT_COLORS
         xlabel --> "Monte Carlo Time"
-        linewidth --> 2
         legend --> :outertopright
 
         sub_obs = unique!(first.(split.(obs_keys, " ")))
