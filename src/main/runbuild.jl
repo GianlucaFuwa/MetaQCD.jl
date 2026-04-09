@@ -90,6 +90,7 @@ function run_build(parameters)
         itrj = nothing
         univ = Univ(parameters; mpi_multi_sim, build=true)
         updatemethod = nothing
+        numaccepts = 0
     end
 
     @level1("[ Random seed is: $(string(copy(Random.default_rng())))\n")

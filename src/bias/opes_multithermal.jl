@@ -42,7 +42,7 @@ end
 
 function OPESmultithermal(
     p::OPESmultithermalParameters, beta0;
-    instance=1, dummy=false, mpi_multi_sim=false, build=false
+    instance=MPI_INSTANCE[], dummy=false, mpi_multi_sim=false, build=false
 )
     inum = if dummy
         0
@@ -58,7 +58,7 @@ function OPESmultithermal(
     elseif build
         false
     else
-        inum==0 ? false : p.static
+        p.static[inum+1]
     end
     is_first_step = true
     stride = p.stride
@@ -80,8 +80,8 @@ function OPESmultithermal(
         load_bias = p.load_bias[1]
         is_first_step = false
         counter, rct, β, λ, ΔF = opesmt_from_file!(counter, rct, β, λ, ΔF, load_bias)
-    elseif (0 < instance <= length(p.load_bias) && !dummy)
-        load_bias = p.load_bias[instance+1]
+    elseif (0 <= instance <= length(p.load_bias) && !dummy)
+        load_bias = p.load_bias[inum+1]
         is_first_step = false
         counter, rct, β, λ, ΔF = opesmt_from_file!(counter, rct, β, λ, ΔF, load_bias)
     end

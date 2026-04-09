@@ -39,7 +39,8 @@ mutable struct Metadynamics{CV} <: AbstractBias
 end
 
 function Metadynamics(
-    p::MetadynamicsParameters; instance=1, dummy=false, mpi_multi_sim=false, build=false
+    p::MetadynamicsParameters;
+    instance=MPI_INSTANCE[], dummy=false, mpi_multi_sim=false, build=false
 )
     inum = if dummy
         0
@@ -55,24 +56,33 @@ function Metadynamics(
     elseif build
         false
     else
-        inum==0 ? false : p.static
+        p.static
     end
     symmetric = p.symmetric
     stride = p.stride
     @level1("|    STATIC: $(static)")
     @level1("|    STRIDE: $(stride)")
     @assert stride > 0 "STRIDE must be >0"
-
-    @level1("|    CVLIMS: $(string(p.cvlims))")
-    @assert issorted(p.cvlims) "CVLIMS must be sorted from low to high"
+    cvlims = p.cvlims
 
     if build && (length(p.load_bias) != 0)
         bin_width, bin_vals, values = metad_from_file(p, p.load_bias[1])
-    elseif (0 < instance <= length(p.load_bias) && !dummy)
-        bin_width, bin_vals, values = metad_from_file(p, p.load_bias[instance+1])
+        if extrema(bin_vals) != p.cvlims
+            @level1("|    @Info: cvlims of `load_bias` were different than provided `cvlims` in parameter file")
+            cvlims = extrema(bin_vals)
+        end
+    elseif (0 <= instance <= length(p.load_bias)-1 && !dummy)
+        bin_width, bin_vals, values = metad_from_file(p, p.load_bias[inum+1])
+        if extrema(bin_vals) != p.cvlims
+            @level1("|    @Info: cvlims of `load_bias` were different than provided `cvlims` in parameter file")
+            cvlims = extrema(bin_vals)
+        end
     else
         bin_width, bin_vals, values = metad_from_file(p, "")
     end
+
+    @level1("|    CVLIMS: $(string(cvlims))")
+    @assert issorted(p.cvlims) "CVLIMS must be sorted from low to high"
 
     @level1("|    BIN_WIDTH: $(bin_width)")
     @assert bin_width > 0 "BIN_WIDTH must be > 0"
@@ -96,7 +106,7 @@ function Metadynamics(
         static,
         symmetric,
         stride,
-        tuple(p.cvlims...),
+        tuple(cvlims...),
         biasfactor,
         bin_width,
         p.weight,
@@ -192,14 +202,22 @@ write_to_file(::Metadynamics, ::Nothing, args...) = nothing
 
 function write_to_file(m::Metadynamics, filename::AbstractString, args...)
     filename == "" && return nothing
+    set_ext!(filename, MPI_INSTANCE[], Val(5))
     (tmppath, tmpio) = mktemp() # open temporary file at arbitrary location in storage
-    println(tmpio, "$(rpad("CV", 7))\t$(rpad("V(CV)", 7))")
 
-    for i in eachindex(m)
-        println(tmpio, "$(rpad(m.bin_vals[i], 7, "0"))\t$(rpad(m.values[i], 7, "0"))")
+    if isfile(filename)
+        old_values, old_header = readdlm(filename; header=true)
+        new_header = hcat(old_header, "$(rpad("V(CV)", 7))")
+        new_values = hcat(old_values, m.values)
+    else
+        new_header = ["$(rpad("CV", 7))" "$(rpad("V(CV)", 7))"]
+        new_values = hcat(m.bin_vals, m.values)
     end
 
+    final_output = vcat(new_header, new_values)
+    writedlm(tmpio, final_output, '\t')
     close(tmpio)
+    
     mv(tmppath, filename; force=true) # replace bias file with temporary file
     return nothing
 end
@@ -215,33 +233,36 @@ function metad_from_file(p, filename)
         return bin_width, collect(bin_vals), values
     else
         values, _ = readdlm(filename, Float64; header=true)
-        @assert length(values[:, 1]) == length(values[:, 2]) """
+        @assert length(values[:, 1]) == length(values[:, end]) """
         the number of bin edges and the number of values isn't the same in your provided
         bias file
         """
         bin_width = abs(round(values[1, 1] - values[2, 1]; sigdigits=5))
         @level1("|  initialized from \"$(filename)\"")
-        return bin_width, values[:, 1], values[:, 2]
+        return bin_width, values[:, 1], values[:, end]
     end
 end
 
 function create_buffer(m::Metadynamics)
     # for Metadynamics, need to communicate static, write_bias_every, bin_width, bin_vals and values
-    buf = Vector{Float64}(undef, 3+2length(m.values))
+    buf = Vector{Float64}(undef, 5+2length(m.values))
     buf[1] = Float64(m.static)
     buf[2] = Float64(m.write_bias_every)
     buf[3] = Float64(m.bin_width)
-    buf[4:3+length(m.bin_vals)] .= m.bin_vals
-    buf[4+length(m.bin_vals):end] .= m.values
+    buf[4] = Float64(m.cvlims[1])
+    buf[5] = Float64(m.cvlims[2])
+    buf[6:5+length(m.bin_vals)] .= m.bin_vals
+    buf[6+length(m.bin_vals):end] .= m.values
     return buf
 end
 
 function unpack_buffer!(m::Metadynamics, buf)
-    len_vals = div(length(buf)-3, 2)
+    len_vals = div(length(buf)-5, 2)
     m.static = round(Bool, buf[1])
     m.write_bias_every = round(Int64, buf[2])
     m.bin_width = buf[3]
-    m.bin_vals = buf[4:3+len_vals]
-    m.values = buf[4+len_vals:length(buf)]
+    m.cvlims = (buf[4], buf[5])
+    m.bin_vals = buf[6:5+len_vals]
+    m.values = buf[6+len_vals:length(buf)]
     return nothing
 end

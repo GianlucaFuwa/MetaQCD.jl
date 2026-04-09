@@ -1,6 +1,6 @@
 abstract type BiasParameters end
 
-function bias_parameters_from_dict(input::Dict, instance=mpi_rank(); build=false)
+function bias_parameters_from_dict(input::Dict, instance=MPI_INSTANCE[]; build=false)
     type = input["type"]
     bias_params = initialize_bias_parameters(type)
     bias_dict = struct2dict(bias_params)
@@ -18,7 +18,7 @@ function bias_parameters_from_dict(input::Dict, instance=mpi_rank(); build=false
                             1
                         else
                             @assert length(value_i) >= instance+1 """
-                            if tempering is enables, the 'static' parameter has to be a vector of length >= numinstances
+                            if tempering is enabled, the 'static' parameter has to be a vector of length >= numinstances
                             """
                             instance+1
                         end

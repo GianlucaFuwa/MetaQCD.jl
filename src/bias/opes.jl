@@ -71,7 +71,9 @@ mutable struct OPES{CV} <: AbstractBias
     write_bias_every::Int64
 end
 
-function OPES(p::OPESParameters; instance=1, dummy=false, build=false, mpi_multi_sim=false)
+function OPES(
+    p::OPESParameters; instance=MPI_INSTANCE[], dummy=false, build=false, mpi_multi_sim=false
+)
     inum = if dummy
         0
     elseif mpi_multi_sim
@@ -86,7 +88,7 @@ function OPES(p::OPESParameters; instance=1, dummy=false, build=false, mpi_multi
     elseif build
         false
     else
-        inum==0 ? false : p.static
+        p.static
     end
     is_first_step = true
 
@@ -144,8 +146,8 @@ function OPES(p::OPESParameters; instance=1, dummy=false, build=false, mpi_multi
         :penalty => penalty,
     )
 
-    if (0 < instance <= length(p.load_bias) && !dummy) || (build && (length(p.load_bias) != 0))
-        idx = build ? 1 : instance+1
+    if (0 <= instance <= length(p.load_bias) && !dummy) || (build && (length(p.load_bias) != 0))
+        idx = build ? 1 : inum+1
         kernels, nker = opes_from_file!(state, p.load_bias[idx])
         is_first_step = false
         explore = state[:explore]
@@ -457,6 +459,7 @@ function write_to_file(o::OPES, filename::AbstractString, args...)
     end
 
     fclose(tmpio)
+    set_ext!(filename, MPI_INSTANCE[], Val(4))
     mv(tmppath, filename; force=true)
     return nothing
 end

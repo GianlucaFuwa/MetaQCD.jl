@@ -167,15 +167,15 @@ end
 end
 
 @inline function mpi_bcast!(buff, comm; root=0)
-    return MPI.Bcast!(buff, comm, root=root)
+    return MPI.Bcast!(buff, comm; root)
 end
 
 @inline function mpi_bcast(obj::T, comm; root=0) where {T}
-    return MPI.bcast(obj::T, comm, root=root)
+    return MPI.bcast(obj::T, comm; root)
 end
 
 @inline function mpi_bcast_isbits(obj::T, comm=mpi_comm(); root=0) where {T}
-    return MPI.bcast(obj::T, comm, root=root)
+    return MPI.Bcast(obj::T, root, comm)
 end
 
 @inline function mpi_datatype(::Type{T}) where {T}

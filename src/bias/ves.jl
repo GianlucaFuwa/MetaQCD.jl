@@ -38,7 +38,12 @@ mutable struct VES{CV} <: AbstractBias
     write_bias_every::Int64
 end
 
-function VES(p::VESParameters; dummy=false)
+function VES(p::VESParameters; instance=MPI_INSTANCE[], dummy=false, build=false)
+    inum = if dummy
+        0
+    else
+        instance
+    end
     cvinfo = get_cvinfo_from_parameters(p)
     static = p.static
     cvlims = !dummy ? tuple(p.cvlims...) : (-Inf, Inf)
@@ -194,6 +199,7 @@ write_to_file(::VES, ::Nothing, args...) = nothing
 function write_to_file(p::VES, filename::AbstractString, clear=false)
     filename == "" && return nothing
     mode = clear ? "w" : "a"
+    set_ext!(filename, MPI_INSTANCE[], Val(3))
     open(filename, mode) do io
         for i in 1:p.nbasis+1
             print(io, "$(p.alpha[i])\t")

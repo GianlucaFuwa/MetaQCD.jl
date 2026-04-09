@@ -595,7 +595,9 @@ function metaqcd_PT!(
             temper!(U, bias, numaccepts_temper, swap_every, itrj; recalc=true)
 
             save_field(config_saver, U[1], itrj, parameters)
-            create_checkpoint(checkpointer, univ, updatemethod, updatemethod_pt, itrj; rank)
+            create_checkpoint(
+                checkpointer, univ, updatemethod, updatemethod_pt, itrj, numaccepts, numaccepts_temper;
+            )
 
             _, mtime = @timed calc_measurements(measurements, U, itrj, measure_on_all)
             _, fmtime = @timed for i in eachindex(gflow)

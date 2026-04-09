@@ -72,26 +72,27 @@ function construct_params_from_toml(parameters, inputfile)
             nothing
         end
 
-        ed = mpi_bcast_isbits(tmp)
+        ed = mpi_bcast(tmp, mpi_comm())
         ed
     end
 
-    if !overwrite
+    if !overwrite && mpi_amroot()
         i = 1
         tmp = ensemble_dir
-        while isdir(tmp) && !overwrite
+        while isdir(tmp)
             tmp = ensemble_dir * "_$(i)"
             i += 1
             i > 100 && error("ensemble directory name gen timed out, try \"overwrite = true\"")
         end
         ensemble_dir = tmp
-        mpi_amroot() && mkpath(ensemble_dir)
+        mkpath(ensemble_dir)
     else
         if !isdir(ensemble_dir) && mpi_amroot()
             mkpath(ensemble_dir)
         end
     end
 
+    ensemble_dir = mpi_bcast(ensemble_dir, mpi_comm())
     mpi_amroot() && cp(inputfile, joinpath(ensemble_dir, "used_parameterfile.toml"); force=true)
     pose = findfirst(x -> String(x) == "ensemble_dir", pnames)
     value_Params[pose] = ensemble_dir

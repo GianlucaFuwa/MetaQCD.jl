@@ -139,6 +139,8 @@ function Bias(
         p.weight_type
     end
 
+    @level1("|  WEIGHTS: $(string(kinds_of_weights))")
+
     inum_str = lpad(inum, 3, "0")
     biasfile = ntuple(num_cv) do i
         ext = get_ext(bias[i])
