@@ -122,6 +122,7 @@ end
 
 Base.length(m::MetaMeasurements, observable) = Int(getproperty(m, observable)["itrj"][end])
 
+
 function Base.getproperty(m::MetaMeasurements, s::Symbol)
     s == :ensemblename && return getfield(m, :ensemblename)
     s == :measurement_dict && return getfield(m, :measurement_dict)
@@ -189,19 +190,28 @@ RecipesBase.@recipe function timeseries(
     end
 
     if observable == :bias_data
-        [filter!(x -> !contains("cv", x), obs_keys_i) for obs_keys_i in obs_keys]
-        size --> (600, 400)
+        for obs_keys_i in obs_keys
+            filter!(x -> contains(x, "cv"), obs_keys_i)
+        end
+
+        numplots = length(obs_keys[1])
+        size --> (600, 200*numplots)
         link := :x
         legend := false
+        layout := (numplots, 1)
         palette --> DEFAULT_COLORS
-        xlabel --> "Monte Carlo Time"
-        ylabel --> "cv"
 
         for (i, name) in enumerate(obs_keys)
-            @series begin
-                color --> DEFAULT_COLORS[mod1(i+1, length(DEFAULT_COLORS))]
-                y = view(getproperty(m, Symbol(:bias_data_, Symbol(lpad(i-1, 3, "0"))))["cv1"], irange)
-                x, y
+            for j in 1:numplots
+                @series begin
+                    xlab = j == numplots ? "Monte Carlo Time" : ""
+                    color --> DEFAULT_COLORS[mod1(i+1, length(DEFAULT_COLORS))]
+                    ylabel --> "cv$(j)"
+                    xlabel --> xlab
+                    y = view(getproperty(m, Symbol(:bias_data_, Symbol(lpad(i-1, 3, "0"))))["cv$(j)"], irange)
+                    subplot := j
+                    x, y
+                end
             end
         end
     elseif occursin("bias_data", string(observable))
@@ -241,7 +251,7 @@ RecipesBase.@recipe function timeseries(
         legend --> :outertopright
 
         sub_obs = unique!(first.(split.(obs_keys, " ")))
-        size --> (600, 250 * length(sub_obs))
+        size --> (600, 300 * length(sub_obs))
         layout := (length(sub_obs), 1)
         nlabel = last.(split.(obs_keys, " "))
         tf_digits = parse.(Float64, filter.(x -> isdigit(x) || x=='.', nlabel))
