@@ -52,6 +52,14 @@ function update_halo_gpu_multi!(
 ) where {N,backend}
     partitioned_dims = findall(fields[1].topology.numprocs_cart .> 1)
 
+    # Drain the default (per-thread) stream before launching packing kernels on
+    # the high-priority streams.  The fields to be packed were written by the
+    # previous _parallelfor call on the PTDS; without this fence the high-priority
+    # packing kernels race against that still-in-flight PTDS computation.
+    # In the HIDE_COMMS path the PTDS is already drained in parallelfor before
+    # start_halo_update! is called, so this is a cheap no-op there.
+    synchronize(backend(), default_stream(backend()))
+
     # === PHASE 1: Launch all packing kernels concurrently ===
     sendbufs, streams = launch_packing_kernels!(partitioned_dims, fields...)
 
@@ -78,6 +86,11 @@ function update_halo_gpu_multi_edges!(
     reqs, fields::Vararg{AbstractMPIField{backend},N}
 ) where {N,backend}
     partitioned_dims = findall(fields[1].topology.numprocs_cart .> 1)
+
+    # Same reasoning as update_halo_gpu_multi!: drain the PTDS before the first
+    # packing phase so that prior computation kernels writing the border data are
+    # fully committed before the high-priority packing kernels read them.
+    synchronize(backend(), default_stream(backend()))
 
     for dim in partitioned_dims
         # === PHASE 1: Launch all packing kernels concurrently ===
