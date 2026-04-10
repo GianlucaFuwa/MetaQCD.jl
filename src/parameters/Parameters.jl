@@ -222,6 +222,12 @@ function check_parameters(p::ParameterSet)
 
     @assert p.verboselevel > 0 "verboselevel in parameters has to be bigger than 0"
 
+    if p.numinstances > 1 && p.mode != "build"
+        @assert p.tempering_enabled """
+        When using more than 1 instance, you either have to be in build mode or use tempering
+        """
+    end
+
     if prod(p.numprocs_cart) > 1
         @assert p.halo_width >= 1 "Halo width must be >= 1, when using field decomposition"
         @assert lowercase(p.update_method) == "hmc" """

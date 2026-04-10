@@ -20,14 +20,12 @@ of size `NX × NY × NZ × NT` or a zero-initialized copy of `f`.
 """ Paulifield
 
 function Paulifield(
-    u::AbstractField{B,T,M}, csw, inverse, ::Type{Tnew}=T; no_halo=false, hw=get_halo_width(u)
+    u::AbstractField{B,T,M}, csw, inverse, ::Type{Tnew}=T;
+    no_halo=false, halo_width=get_halo_width(u)
 ) where {B,T,M,Tnew}
     u_out = if M
-        ncart = get_numprocs_cart(u)
-        Paulifield{B,Tnew}(
-            size(u)..., csw, inverse;
-            numprocs_cart=ncart, halo_width=hw, no_halo=no_halo
-        )
+        numprocs_cart = get_numprocs_cart(u)
+        Paulifield{B,Tnew}(size(u)..., csw, inverse; numprocs_cart, halo_width, no_halo)
     else
         Paulifield{B,Tnew}(size(u)..., csw, inverse)
     end

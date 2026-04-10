@@ -24,11 +24,11 @@ of size `6 × NX × NY × NZ × NT` or a zero-initialized Tensorfield of the sam
 """ Tensorfield
 
 function Tensorfield(
-    u::AbstractField{B,T,M}, ::Type{Tnew}=T; no_halo=false, hw=get_halo_width(u)
+    u::AbstractField{B,T,M}, ::Type{Tnew}=T; no_halo=false, halo_width=get_halo_width(u)
 ) where {B,T,M,Tnew}
     u_out = if M
-        ncart = get_numprocs_cart(u)
-        Tensorfield{B,Tnew}(size(u)...; numprocs_cart=ncart, halo_width=hw, no_halo=no_halo)
+        numprocs_cart = get_numprocs_cart(u)
+        Tensorfield{B,Tnew}(size(u)...; numprocs_cart, halo_width, no_halo)
     else
         Tensorfield{B,Tnew}(size(u)...)
     end

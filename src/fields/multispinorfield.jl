@@ -19,15 +19,14 @@ If `staggered=true`, the number of Dirac degrees of freedom (ND) is reduced to 1
 """ MultiSpinorfield
 
 function MultiSpinorfield(
-    f::MultiSpinorfield{B,T,M,ND}, ::Type{Tnew}=T; no_halo=false, hw=halo_width(f)
+    f::MultiSpinorfield{B,T,M,ND}, ::Type{Tnew}=T; no_halo=false, halo_width=get_halo_width(f)
 ) where {B,T,M,ND,Tnew}
     global_dims = f.topology.global_dims
 
     u_out = if M
-        ncart = f.topology.numprocs_cart
+        numprocs_cart = f.topology.numprocs_cart
         MultiSpinorfield{B,Tnew,ND}(
-            global_dims..., f.numspinors;
-            numprocs_cart=ncart, halo_width=hw, no_halo=no_halo
+            global_dims..., f.numspinors; numprocs_cart, halo_width, no_halo
         )
     else
         MultiSpinorfield{B,Tnew,ND}(global_dims..., f.numspinors)

@@ -48,6 +48,7 @@ function save_field(
         end
     end
 
+    invalidate_halo!(f) 
     close(fp)
     return nothing
 end
@@ -73,6 +74,7 @@ function load_field!(::BridgeFormat, U::Gaugefield{CPU,T,false}, filename) where
         end
     end
 
+    invalidate_halo!(U) 
     close(fp)
     return nothing
 end

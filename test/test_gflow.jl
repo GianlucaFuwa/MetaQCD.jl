@@ -5,16 +5,16 @@ using LinearAlgebra
 using Random
 # using AMDGPU
 
-function test_gradflow(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=1)
+function test_gradflow(; backend=CPU, numprocs_cart=(1, 1, 1, 1), halo_width=1)
     Random.seed!(123)
     mpi_amroot() && println("Smearing tests")
     NX = NY = NZ = NT = 16
     U = Gaugefield{backend,Float64,WilsonGaugeAction,12}(
-        NX, NY, NZ, NT, 6.0, numprocs_cart=nprocs_cart, halo_width=halo_width
+        NX, NY, NZ, NT, 6.0; numprocs_cart, halo_width
     )
     numflow = 7
 
-    filename = if nprocs_cart != (1, 1, 1, 1)
+    filename = if numprocs_cart != (1, 1, 1, 1)
         pkgdir(MetaQCD, "test", "testconf_16_mpi")
     else
         pkgdir(MetaQCD, "test", "testconf_16.txt")
@@ -32,8 +32,8 @@ function test_gradflow(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=1)
     copy!(g.Uflow, U)
 
     if mpi_amroot()
-        println("0\tplaq: $plaq\n")
-        println("0\tqclov: $q\n")
+        println("0\tplaq: $plaq")
+        println("0\tqclov: $q")
     end
 
     p_flow = zeros(numflow)
@@ -49,7 +49,8 @@ function test_gradflow(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=1)
         q_flow[iflow] = q
     end
 
-    println()
+    mpi_amroot() && println()
+
     calc_smearedU!(s, U)
     p_stout = plaquette_trace_sum(s.Usmeared_multi[end]) * mfac
     q_stout = top_charge(s.Usmeared_multi[end], "clover")
@@ -71,4 +72,4 @@ function test_gradflow(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=1)
     return isapprox(p_stout, p_flow[end])
 end
 
-# test_gradflow(; backend=ROCBackend, nprocs_cart=(1, 1, 1, mpi_size()))
+# test_gradflow(; backend=ROCBackend, numprocs_cart=(1, 1, 1, mpi_size()))

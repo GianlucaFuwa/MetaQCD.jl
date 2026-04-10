@@ -20,6 +20,7 @@ end
 parameters, mode, backend = parse_args(ARGS)
 
 @level1("##### Mode: $(mode)")
+@level1("##### Backend: $(backend)")
 @level1("##### Number of ranks: $(mpi_size())")
 @level1("##### Number of threads on each rank: $(Base.Threads.nthreads())")
 @level1("##### Working Directory: $(pwd())\n")

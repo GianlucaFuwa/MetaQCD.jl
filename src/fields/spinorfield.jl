@@ -25,7 +25,8 @@ with the component index being the slowest to improve coalescing on GPUs
 """ Spinorfield
 
 function Spinorfield(
-    u::AbstractField{B,T,M}, ::Type{Tnew}=T; staggered=false, no_halo=false, hw=get_halo_width(u)
+    u::AbstractField{B,T,M}, ::Type{Tnew}=T;
+    staggered=false, no_halo=false, halo_width=get_halo_width(u)
 ) where {B,T,M,Tnew}
     ND = if u isa Spinorfield || u isa SpinorfieldEO
         num_dirac(u)
@@ -34,8 +35,8 @@ function Spinorfield(
     end
 
     u_out = if M
-        ncart = get_numprocs_cart(u)
-        Spinorfield{B,Tnew,ND}(size(u)...; numprocs_cart=ncart, halo_width=hw, no_halo=no_halo)
+        numprocs_cart = get_numprocs_cart(u)
+        Spinorfield{B,Tnew,ND}(size(u)...; numprocs_cart, halo_width, no_halo)
     else
         Spinorfield{B,Tnew,ND}(size(u)...)
     end

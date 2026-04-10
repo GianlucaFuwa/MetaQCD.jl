@@ -148,11 +148,9 @@ function Bias(
 
         # INFO: When using PT-MetaD, we want each instance to print its bias
         # When using multiple walkers during build, we only need instance 0 to print
-        # since they are all the same anyway
-        _biasfile = if mpi_amroot(mpi_comm_instance()) && !dummy && !build
+        # since they are all the same anyway, but we print all for debugging anyway
+        _biasfile = if mpi_amroot(mpi_comm_instance()) && !dummy
             _name
-        elseif mpi_amroot(mpi_comm_instance()) && !dummy && build
-            mpi_amroot() ? _name : ""
         else
             ""
         end

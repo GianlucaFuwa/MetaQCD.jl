@@ -85,7 +85,7 @@ function Univ(parameters::ParameterSet; mpi_multi_sim=false, build=false)
             dummy = parameters.meas_stream_bias ? false : (MPI_INSTANCE[]==0)
             bias = Bias(parameters, U; mpi_multi_sim, dummy)
         else
-            numinstances = 1
+            numinstances = parameters.numinstances
             U = Gaugefield(parameters)
             fermion_action = init_fermion_actions(parameters, U)
             bias = Bias(parameters, U; mpi_multi_sim, build)

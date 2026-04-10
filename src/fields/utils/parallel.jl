@@ -51,6 +51,13 @@ function parallelfor(
     stream=default_stream(B())
 ) where {B,M,hide,E}
         if M && (hide && B!=CPU) && length(to_validate) > 0
+        # Drain the default (per-thread) stream before enqueuing the inner-bulk
+        # kernel on the low-priority stream.  The *previous* parallelfor call
+        # wrote border rows of the input field(s) on the PTDS (default stream);
+        # those rows are read as stencil neighbours by the inner-bulk kernel.
+        # Without this fence the two streams race: PTDS (normal priority) and
+        # cu_streams[1] (low priority) have no implicit ordering on the GPU.
+        synchronize(B(), default_stream(B()))
         # launch inner comp (async)
         hw, idx = findmin(get_halo_width, to_validate)
         inner_bulk = shrink_bulk(itr, hw, to_validate[1].topology.numprocs_cart)

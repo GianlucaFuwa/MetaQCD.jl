@@ -32,13 +32,11 @@ with the component index being the slowest to improve coalescing on GPUs
 """ Gaugefield
 
 function Gaugefield(
-    u::Gaugefield{B,T,M,GA,N}, ::Type{Tnew}=T; no_halo=false, hw=get_halo_width(u)
+    u::Gaugefield{B,T,M,GA,N}, ::Type{Tnew}=T; no_halo=false, halo_width=get_halo_width(u)
 ) where {B,T,M,GA,N,Tnew}
     u_out = if M
-        ncart = get_numprocs_cart(u)
-        Gaugefield{B,Tnew,GA,N}(
-            size(u)..., u.β, numprocs_cart=ncart, halo_width=hw, no_halo=no_halo
-        )
+        numprocs_cart = get_numprocs_cart(u)
+        Gaugefield{B,Tnew,GA,N}(size(u)..., u.β; numprocs_cart, halo_width, no_halo)
     else
         Gaugefield{B,Tnew,GA,N}(size(u)..., u.β)
     end
@@ -53,11 +51,11 @@ function Gaugefield(parameters)
     N = parameters.su3_nfloats
     T = Utils.FLOAT_TYPE[parameters.float_type]
     B = BACKENDS[parameters.backend]
-    ncart = parameters.numprocs_cart
-    hw = parameters.halo_width
+    numprocs_cart = parameters.numprocs_cart
+    halo_width = parameters.halo_width
     B == CPU && @assert(N == 18, "su3_nfloats is bound to 18 on CPUs for now")
 
-    U = Gaugefield{B,T,GA,N}(global_dims..., β, numprocs_cart=ncart, halo_width=hw)
+    U = Gaugefield{B,T,GA,N}(global_dims..., β; numprocs_cart, halo_width)
 
     initial = parameters.initial
     if initial == "cold"

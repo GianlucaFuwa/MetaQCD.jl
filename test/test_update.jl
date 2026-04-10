@@ -9,7 +9,7 @@ function test_update(
     hmc_integrator="OMF4",
     hmc_numsmear_gauge=0,
     gaction=WilsonGaugeAction,
-    nprocs_cart=(1, 1, 1, 1),
+    numprocs_cart=(1, 1, 1, 1),
     halo_width=1,
 )
     Random.seed!(123)
@@ -22,9 +22,9 @@ function test_update(
         "$(update_method)"
     end
     @testset "$(str)" begin
-        NX = NY = NZ = NT = 4
+        NX = NY = NZ = NT = 12
         U = Gaugefield{backend,Float64,gaction,12}(
-            NX, NY, NZ, NT, 6.0, numprocs_cart=nprocs_cart, halo_width=halo_width
+            NX, NY, NZ, NT, 6.0; numprocs_cart, halo_width
         )
         random_gauges!(U)
 
@@ -62,7 +62,8 @@ function test_update(
         );
 
         mpi_amroot() && println(typeof(updatemethod), "\n") # To check if we are using the right iterator
-        mpi_amroot() && println("Starting action is: $(calc_gauge_action(U))")
+        Sg0 = calc_gauge_action(U)
+        mpi_amroot() && println("Starting action is: $(Sg0)")
 
         for _ in 1:10
             _, runtime = @timed update!(updatemethod, U; metro_test=false)
@@ -82,9 +83,11 @@ function test_update(
             println("Final Gauge Action is: ", calc_gauge_action(U))
         else
             if typeof(updatemethod.smearing_gauge) == NoSmearing
-                mpi_amroot() && println("Final Gauge Action is: ", calc_gauge_action(U))
+                Sgf = calc_gauge_action(U)
+                mpi_amroot() && println("Final Gauge Action is: ", Sgf)
             else
-                mpi_amroot() && println("Final Gauge Action is: ", calc_gauge_action(U))
+                Sgf = calc_gauge_action(U)
+                mpi_amroot() && println("Final Gauge Action is: ", Sgf)
                 calc_smearedU!(updatemethod.smearing_gauge, U)
                 fully_smeared_U = updatemethod.smearing_gauge.Usmeared_multi[end]
                 Sg_final_smeared = calc_gauge_action(fully_smeared_U)

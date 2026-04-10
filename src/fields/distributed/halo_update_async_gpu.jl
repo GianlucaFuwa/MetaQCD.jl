@@ -10,6 +10,7 @@ update_halo!(args...; kwargs...) = nothing
 function update_halo!(fields::NTuple{N,AbstractMPIField{B}}; kwargs...) where {N,B}
     # reqs = start_halo_update!(fields)
     # finalize_halo_update!(reqs, fields, B)
+    synchronize(B(), default_stream(B()))
     start_halo_update!(fields; do_edges=Val(true))
     return nothing
 end
@@ -51,6 +52,7 @@ function update_halo_gpu_multi!(
     reqs, fields::Vararg{AbstractMPIField{backend},N}
 ) where {N,backend}
     partitioned_dims = findall(fields[1].topology.numprocs_cart .> 1)
+    # synchronize(backend(), default_stream(backend()))
 
     # === PHASE 1: Launch all packing kernels concurrently ===
     sendbufs, streams = launch_packing_kernels!(partitioned_dims, fields...)
@@ -78,6 +80,7 @@ function update_halo_gpu_multi_edges!(
     reqs, fields::Vararg{AbstractMPIField{backend},N}
 ) where {N,backend}
     partitioned_dims = findall(fields[1].topology.numprocs_cart .> 1)
+    # synchronize(backend(), default_stream(backend()))
 
     for dim in partitioned_dims
         # === PHASE 1: Launch all packing kernels concurrently ===
@@ -187,6 +190,11 @@ function wait_and_fill!(
                             recv_buf = get_recv_buf(u, 2*(dim-1) + inbr)
                             stream = streams[inbr, idim]
                             fill_halo!(u, recv_buf, halo_sites[dim][inbr]; stream=stream)
+                            # Keep any_progress = true while sends are still pending so
+                            # we never call yield().  Calling yield() when both ranks
+                            # have in-flight sends/recvs can cause a rendezvous deadlock
+                            # if neither rank is actively pumping MPI (Test calls
+                            # themselves drive MPI progress in non-threaded MPI).
                             sendrecv_ready[recv_idx] = true
                             any_progress = true
                         end

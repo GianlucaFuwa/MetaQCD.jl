@@ -9,10 +9,9 @@ end
 function update!(parity::ParityUpdate, U::Gaugefield{B,T,M}) where {B,T,M}
     NX, NY, NZ, _ = size(U)
     U_bak = parity.U_bak
-    update_halo!(U)
     copy!(U_bak, U)
 
-    parallelfor(eachindex(U), B, Val(M), (U,), (U,), (U,)) do site, (U,)
+    parallelfor(eachindex(U), B, Val(M), (U_bak,), (U,), (U, U_bak)) do site, (U, U_bak)
         ix, iy, iz, it = site.I
         ix_min_0 = mod(-ix, NX) + 1
         ix_min_1 = mod(-ix - 1, NX) + 1

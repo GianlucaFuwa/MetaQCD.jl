@@ -21,7 +21,7 @@ const EXP16 = Dict(
     "topo_imp" => 2.613871310127444,
 )
 
-function test_measurements(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=2)
+function test_measurements(; backend=CPU, numprocs_cart=(1, 1, 1, 1), halo_width=2)
     mpi_amroot() && println("Gauge observable tests")
     if mpi_size() > 1
         NX = NY = NZ = NT = 16
@@ -29,11 +29,11 @@ function test_measurements(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=2
         NX = NY = NZ = NT = 16
     end
     U = Gaugefield{backend,Float64,WilsonGaugeAction,12}(
-        NX, NY, NZ, NT, 6.0; numprocs_cart=nprocs_cart, halo_width=halo_width
+        NX, NY, NZ, NT, 6.0; numprocs_cart, halo_width
     )
 
     add_str = mpi_size() > 1 ? "_16" : "_16"
-    filename = if nprocs_cart != (1, 1, 1, 1)
+    filename = if numprocs_cart != (1, 1, 1, 1)
         pkgdir(MetaQCD, "test", "testconf$(add_str)_mpi")
     else
         pkgdir(MetaQCD, "test", "testconf$(add_str).txt")
@@ -46,14 +46,14 @@ function test_measurements(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=2
 
     mpi_amroot() && println("==========")
 
-    if nprocs_cart[4] == 1
+    if numprocs_cart[4] == 1
         m_poly = PolyakovMeasurement(U)
         poly =  measure(m_poly, U)
 
         mpi_amroot() && println("==========")
     end
 
-    if nprocs_cart == (1, 1, 1, 1)
+    if numprocs_cart == (1, 1, 1, 1)
         m_wilson = WilsonLoopMeasurement(U)
         wilsonloop = measure(m_wilson, U)
 
@@ -88,11 +88,11 @@ function test_measurements(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=2
         expvalues = NX == 4 ? EXP4 : EXP16
         @testset "Gauge observables" begin
             @test isapprox(expvalues["plaq"], plaq)
-            nprocs_cart[4] == 1 && (@test isapprox(expvalues["poly"], poly)) # FIXME: for now U cannot be partitioned in time dimension
+            numprocs_cart[4] == 1 && (@test isapprox(expvalues["poly"], poly)) # FIXME: for now U cannot be partitioned in time dimension
             @test isapprox(expvalues["topo_plaq"], topo["plaquette"])
             @test isapprox(expvalues["topo_clov"], topo["clover"])
             halo_width >= 2 && (@test isapprox(expvalues["topo_imp"], topo["improved"]))
-            if nprocs_cart == (1, 1, 1, 1)
+            if numprocs_cart == (1, 1, 1, 1)
                 @test isapprox(expvalues["plaq"], wilsonloop[1, 1])
             end
         end
@@ -102,9 +102,9 @@ function test_measurements(; backend=CPU, nprocs_cart=(1, 1, 1, 1), halo_width=2
     return nothing
 end
 
-# test_measurements(; backend=ROCBackend, nprocs_cart=(1, 1, 1, mpi_size()))
-# test_measurements(nprocs_cart=(1, 2, 1, 2))
-# test_measurements(nprocs_cart=(2, 1, 1, 2))
-# test_measurements(nprocs_cart=(1, 2, 2, 1))
-# test_measurements(nprocs_cart=(2, 2, 1, 1))
-# test_measurements(nprocs_cart=(2, 1, 2, 1))
+# test_measurements(; backend=ROCBackend, numprocs_cart=(1, 1, 1, mpi_size()))
+# test_measurements(numprocs_cart=(1, 2, 1, 2))
+# test_measurements(numprocs_cart=(2, 1, 1, 2))
+# test_measurements(numprocs_cart=(1, 2, 2, 1))
+# test_measurements(numprocs_cart=(2, 2, 1, 1))
+# test_measurements(numprocs_cart=(2, 1, 2, 1))

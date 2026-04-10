@@ -4,12 +4,12 @@ using MetaQCD.Updates: set_instanton!
 using MetaQCD.Measurements: top_charge
 using Random
 
-function test_instanton(backend=CPU; nprocs_cart=(1, 1, 1, 1), halo_width=1)
+function test_instanton(backend=CPU; numprocs_cart=(1, 1, 1, 1), halo_width=1)
     Random.seed!(123)
     println("Instanton tests")
     N = 16
     U = Gaugefield{backend,Float64,WilsonGaugeAction,12}(
-        N, N, N, N, 6.0, numprocs_cart=nprocs_cart, halo_width=halo_width
+        N, N, N, N, 6.0, numprocs_cart, halo_width
     )
     g = GradientFlow(U; integrator="euler", numflow=30, steps=1, tf=0.12)
 

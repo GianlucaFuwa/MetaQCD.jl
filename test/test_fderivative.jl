@@ -7,7 +7,7 @@ using Test
 
 function test_fderivative(;
     backend=CPU,
-    nprocs_cart=(1, 1, 1, 1),
+    numprocs_cart=(1, 1, 1, 1),
     halo_width=1,
     N=4,
     dirac="staggered",
@@ -29,15 +29,15 @@ function test_fderivative(;
         ""
     end
     name_str ="$dirac$(ifelse(eoprec, " even-odd", ""))"
-    MetaQCD.MetaIO.set_global_logger!(1, nothing; tc=true)
+    MetaQCD.MetaIO.set_global_logger!(4, nothing; tc=true)
 
     @testset "$(name_str)$(csw_str) derivative" begin
         Random.seed!(123 * (mpi_myrank() + 1))
         NX = NY = NZ = NT = N
         Ucpu = Gaugefield{CPU,Float64,WilsonGaugeAction,12}(
-            NX, NY, NZ, NT, 6.0, numprocs_cart=nprocs_cart, halo_width=halo_width
+            NX, NY, NZ, NT, 6.0; numprocs_cart, halo_width
         )
-        filename = if nprocs_cart != (1, 1, 1, 1)
+        filename = if numprocs_cart != (1, 1, 1, 1)
             pkgdir(MetaQCD, "test", NX==4 ? "testconf_mpi" : "testconf_16_mpi")
         else
             pkgdir(MetaQCD, "test", NX==4 ? "testconf.txt" : "testconf_16.txt")
@@ -174,6 +174,6 @@ function test_fderivative(;
 end
 
 # AMDGPU.@allowscalar test_fderivative(;
-#     single_flavor=true, backend=ROCBackend, nprocs_cart=(1, 1, 1, mpi_size())
+#     single_flavor=true, backend=ROCBackend, numprocs_cart=(1, 1, 1, mpi_size())
 # )
-# test_fderivative(; dirac="wilson", eoprec=true, nprocs_cart=(1, 1, 1, mpi_size()), csw=1.0)
+# test_fderivative(; dirac="wilson", eoprec=true, numprocs_cart=(1, 1, 1, mpi_size()), csw=1.0)

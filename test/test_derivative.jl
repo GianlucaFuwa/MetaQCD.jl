@@ -8,7 +8,7 @@ using Test
 function test_derivative(
     ; backend=CPU,
     GA=WilsonGaugeAction,
-    nprocs_cart=(1, 1, 1, 1),
+    numprocs_cart=(1, 1, 1, 1),
     halo_width=1,
     N=4
 )
@@ -21,10 +21,10 @@ function test_derivative(
     @testset "Gauge derivative" begin
         NX = NY = NZ = NT = N
         Ucpu = Gaugefield{CPU,Float64,GA,12}(
-            NX, NY, NZ, NT, 6.0, numprocs_cart=nprocs_cart, halo_width=halo_width
+            NX, NY, NZ, NT, 6.0; numprocs_cart, halo_width
         )
 
-        filename = if nprocs_cart != (1, 1, 1, 1)
+        filename = if numprocs_cart != (1, 1, 1, 1)
             pkgdir(MetaQCD, "test", NX==4 ? "testconf_mpi" : "testconf_16_mpi")
         else
             pkgdir(MetaQCD, "test", NX==4 ? "testconf.txt" : "testconf_16.txt")
@@ -171,4 +171,4 @@ function top_charge_deriv_bare!(kind_of_charge, dU, F, U, temp_force, smearing)
     return nothing
 end
 
-# AMDGPU.@allowscalar test_derivative(; backend=ROCBackend, nprocs_cart=(1, 1, 1, mpi_size()))
+# AMDGPU.@allowscalar test_derivative(; backend=ROCBackend, numprocs_cart=(1, 1, 1, mpi_size()))
