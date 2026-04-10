@@ -204,11 +204,15 @@ function wait_and_fill!(
                         end
                     end
 
-                    # --- Test send (optional, can be fire-and-forget) ---
+                    # --- Test send ---
+                    # Keep any_progress = true while sends are still pending so
+                    # we never call yield().  Calling yield() when both ranks
+                    # have in-flight sends/recvs can cause a rendezvous deadlock
+                    # if neither rank is actively pumping MPI (Test calls
+                    # themselves drive MPI progress in non-threaded MPI).
                     if !sendrecv_ready[send_idx] && reqs[send_idx] != Utils.MPI.REQUEST_NULL
-                        send_completed = Utils.MPI.Test(reqs[send_idx])
-                        any_progress |= send_completed
-                        sendrecv_ready[send_idx] = send_completed
+                        sendrecv_ready[send_idx] = Utils.MPI.Test(reqs[send_idx])
+                        any_progress = true
                     end
                 end
             end
