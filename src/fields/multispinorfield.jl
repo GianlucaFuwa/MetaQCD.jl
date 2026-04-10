@@ -36,7 +36,8 @@ function MultiSpinorfield(
 end
 
 function MultiSpinorfield(
-    u::AbstractField{B,T,M}, numspinors; staggered=false, no_halo=false, hw=get_halo_width(u)
+    u::AbstractField{B,T,M}, numspinors;
+    staggered=false, no_halo=false, halo_width=get_halo_width(u)
 ) where {B,T,M}
     ND = if u isa MultiSpinorfield
         num_dirac(u)
@@ -46,10 +47,7 @@ function MultiSpinorfield(
 
     u_out = if M
         ncart = get_numprocs_cart(u)
-        MultiSpinorfield{B,T,ND}(
-            size(u)..., numspinors;
-            numprocs_cart=ncart, halo_width=hw, no_halo=no_halo
-        )
+        MultiSpinorfield{B,T,ND}(size(u)..., numspinors; numprocs_cart, halo_width, no_halo)
     else
         MultiSpinorfield{B,T,ND}(size(u)..., numspinors)
     end

@@ -37,7 +37,7 @@ struct StaggeredDiracOperator{B,T,TF,TG,BC} <: AbstractDiracOperator{B,T}
         f::AbstractField{B,T}, mass; bc_str="antiperiodic", kwargs...
     ) where {B,T}
         U = nothing
-        temp = Spinorfield(f; staggered=true, hw=1)
+        temp = Spinorfield(f; staggered=true, halo_width=1)
         boundary_condition = create_bc(bc_str, f.topology)
         TG = Nothing
         TF = typeof(temp)

@@ -44,9 +44,9 @@ struct WilsonDiracOperator{B,T,C,TF,TG,BC,TT} <: AbstractDiracOperator{B,T}
         κ = 1 / (2mass + 8)
         U = nothing
         C = csw == 0 ? false : true
-        hw = C ? 2 : 1
+        halo_width = C ? 2 : 1
         Fμν = C ? Tensorfield(f; no_halo=true) : nothing
-        temp = Spinorfield(f; hw=hw)
+        temp = Spinorfield(f; halo_width)
         boundary_condition = create_bc(bc_str, f.topology)
         TG = Nothing
         TF = typeof(temp)

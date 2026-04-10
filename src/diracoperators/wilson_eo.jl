@@ -51,9 +51,9 @@ struct WilsonEOPreDiracOperator{B,T,C,TF,TG,TX,TO,BC} <: AbstractDiracOperator{B
         κ = 1 / (2mass + 8)
         U = nothing
         C = csw == 0 ? false : true
-        hw = C ? 2 : 1
+        halo_width = C ? 2 : 1
         Fμν = C ? Tensorfield(f) : nothing
-        temp = even_odd(Spinorfield(f; hw=hw)) # INFO: Wilson Dirac Op. is 1-hop, so halo_width=1 is enough
+        temp = even_odd(Spinorfield(f; halo_width)) # INFO: Wilson Dirac Op. is 1-hop, so halo_width=1 is enough
         D_diag = Paulifield(temp, csw, false; no_halo=true)
         D_oo_inv = Paulifield(temp, csw, true; no_halo=true)
         boundary_condition = create_bc(bc_str, f.topology)

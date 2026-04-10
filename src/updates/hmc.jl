@@ -266,15 +266,15 @@ function HMC(
     force2 = (!has_smearing && numcv == 0) ? nothing : Colorfield(U)
 
     if fermion_action == "staggered"
-        ϕ = ntuple(_ -> Spinorfield(U; staggered=true, hw=1), numfermions)
+        ϕ = ntuple(_ -> Spinorfield(U; staggered=true, halo_width=1), numfermions)
     elseif fermion_action == "staggered_eo"
-        ϕ = ntuple(_ -> even_odd(Spinorfield(U; staggered=true, hw=1)), numfermions)
+        ϕ = ntuple(_ -> even_odd(Spinorfield(U; staggered=true, halo_width=1)), numfermions)
     elseif fermion_action ∈ ["staggered_h1234", "staggered_1342"]
-        ϕ = ntuple(_ -> Spinorfield(U; staggered=true, hw=2), numfermions)
+        ϕ = ntuple(_ -> Spinorfield(U; staggered=true, halo_width=2), numfermions)
     elseif fermion_action == "wilson"
-        ϕ = ntuple(_ -> Spinorfield(U; hw=1), numfermions)
+        ϕ = ntuple(_ -> Spinorfield(U; halo_width=1), numfermions)
     elseif fermion_action == "wilson_eo"
-        ϕ = ntuple(_ -> even_odd(Spinorfield(U; hw=2)), numfermions)
+        ϕ = ntuple(_ -> even_odd(Spinorfield(U; halo_width=2)), numfermions)
     elseif fermion_action ∈ ["quenched", "none"]
         ϕ = nothing
     else

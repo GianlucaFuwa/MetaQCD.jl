@@ -9,7 +9,7 @@ lower right blocks of a full 12x12 hermitian matrix.
 
     Paulifield{B,T,C}(NX, NY, NZ, NT, csw, inverse)
     Paulifield{B,T,C}(NX, NY, NZ, NT, csw, inverse; numprocs_cart, halo_width)
-    Paulifield(f::AbstractField, csw, inverse; no_halo, hw)
+    Paulifield(f::AbstractField, csw, inverse; no_halo, halo_width)
 
 Creates a Paulifield on `B`, i.e. an array of link-variables
 of size `NX × NY × NZ × NT` or a zero-initialized copy of `f`.

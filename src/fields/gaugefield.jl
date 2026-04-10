@@ -6,7 +6,7 @@ the global MPI-topology.
 
     Gaugefield{B,T,GA,NFLOAT}(NX, NY, NZ, NT, β)
     Gaugefield{B,T,GA,NFLOAT}(NX, NY, NZ, NT, β; numprocs_cart, halo_width)
-    Gaugefield(U::Gaugefield; no_halo, hw)
+    Gaugefield(U::Gaugefield; no_halo, halo_width)
     Gaugefield(parameters::ParameterSet)
 
 Creates a Gaugefield on backend `B`, i.e. an array of link-variables (SU3 matrices with

@@ -48,7 +48,7 @@ struct StaggeredHoelblingDiracOperator{MT,B,T,TF,TG,BC} <: AbstractDiracOperator
     ) where {MT,B,T}
         @assert MT ∈ (1234, 1324, 1342) "Mass term $(MT) not supported"
         U = nothing
-        temp = Spinorfield(f; staggered=true, hw=2)
+        temp = Spinorfield(f; staggered=true, halo_width=2)
         TG = Nothing
         TF = typeof(temp)
         boundary_condition = create_bc(bc_str, f.topology)
