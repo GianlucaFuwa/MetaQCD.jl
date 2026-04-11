@@ -174,7 +174,7 @@ redirect_stdout(sout) do
         end
     end
 
-    @allowscalar runtests(; numprocs_cart=(1, 1, 1, mpi_size()))
+    runtests(; numprocs_cart=(1, 1, 1, mpi_size()))
 end
 
 # using AMDGPU
