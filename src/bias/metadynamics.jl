@@ -67,13 +67,13 @@ function Metadynamics(
 
     if build && (length(p.load_bias) != 0)
         bin_width, bin_vals, values = metad_from_file(p, p.load_bias[1])
-        if extrema(bin_vals) != p.cvlims
+        if extrema(bin_vals) != tuple(p.cvlims...)
             @level1("|    @Info: cvlims of `load_bias` were different than provided `cvlims` in parameter file")
             cvlims = extrema(bin_vals)
         end
     elseif (0 <= instance <= length(p.load_bias)-1 && !dummy)
         bin_width, bin_vals, values = metad_from_file(p, p.load_bias[inum+1])
-        if extrema(bin_vals) != p.cvlims
+        if extrema(bin_vals) != tuple(p.cvlims...)
             @level1("|    @Info: cvlims of `load_bias` were different than provided `cvlims` in parameter file")
             cvlims = extrema(bin_vals)
         end

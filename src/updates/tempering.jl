@@ -61,8 +61,8 @@ function temper!( # INFO: When using MPI in tempering
                 elseif myrank == rank_i_min_1
                     for icv in eachindex(bias.CV)
                         buf = create_buffer(bias.bias[icv])
-                        mpi_ssend(buf, comm_shared; dest=rank_i::Int64)
                         buf_new = mpi_srecv(comm_shared; source=rank_i::Int64)
+                        mpi_ssend(buf, comm_shared; dest=rank_i::Int64)
                         unpack_buffer!(bias.bias[icv], buf_new)
                     end
 

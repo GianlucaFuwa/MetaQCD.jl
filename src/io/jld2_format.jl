@@ -119,12 +119,18 @@ function load_checkpoint(
         file["numinstances"], file["itrj"], numaccepts, numaccepts_t, file["rngstate"]
     end
 
-    dummy = parameters.tempering_enabled && mpi_multi_sim ? (instance==0) : false
+    dummy = if parameters.tempering_enabled
+        parameters.meas_stream_bias ? false : (MPI_INSTANCE[]==0)
+    else
+        false
+    end
+
     bias = if _bias == NoBias()
         NoBias()
     else
         Bias(parameters, U; bias=_bias, dummy, mpi_multi_sim, build)
     end
+
     recalc_cv!(U, bias)
     faction = init_fermion_actions(parameters, U)
     updatemethod = Updatemethod(parameters, U)
