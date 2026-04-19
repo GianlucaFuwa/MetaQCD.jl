@@ -136,6 +136,11 @@ end
 observables(m::MetaMeasurements) = m.observables
 auto_correlation(m::MetaMeasurements) = m.tau_int
 
+function Base.show(io::IO, ::MIME"text/plain", m::MetaMeasurements)
+    print(io, "MetaMeasurements(ensemble: \"$(m.ensemblename)\")")
+    return nothing
+end
+
 function Base.show(io::IO, m::MetaMeasurements)
     print(io, "MetaMeasurements(ensemble: \"$(m.ensemblename)\")")
     return nothing
@@ -195,7 +200,7 @@ RecipesBase.@recipe function timeseries(
         end
 
         numplots = length(obs_keys[1])
-        size --> (600, 200*numplots)
+        size --> (600, 300*numplots)
         link := :x
         legend := false
         layout := (numplots, 1)

@@ -22,8 +22,8 @@ abstract type AbstractErrorEstimator end
 
 const DEFAULT_COLORS = ["#0072b2", "#e69f00", "#009e73", "#cc79a7", "#56b4e9", "#d55e00"]
 
-include("bias.jl")
 include("measurements.jl")
+include("bias.jl")
 include("autocorr.jl")
 include("bootstrap.jl")
 include("jackknife.jl")

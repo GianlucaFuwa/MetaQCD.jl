@@ -164,6 +164,7 @@ function return_potential(m::Metadynamics, cv)
 
     if in_bounds(cv, lb, ub)
         idx = index(m, cv)
+        idx == length(m.values) && return m[idx]
         interpolation_constant = (cv - m.bin_vals[idx]) / bw
         return m[idx] * (1 - interpolation_constant) + interpolation_constant * m[idx + 1]
     elseif cv < lb
@@ -486,4 +487,44 @@ function calculate!(o::OPESmultithermal, cv::Float64)
 
     current_bias = -(ΔS_max + log(sum/length(λ)))
     return current_bias
+end
+
+function bias_from_weights(
+    meas::MetaMeasurements, cvlims=(-3, 3); bin_width=0.01, kernel_variance=0.0
+)
+    observables = meas.observables
+    numinstances = count(x->contains(string(x), "bias_data"), observables)
+    @assert numinstances > 0 "No bias data found"
+    @assert kernel_variance >= 0.0 "kernel_variance has to be >= 0.0"
+
+    bias_data = [getproperty(meas, Symbol("bias_data_00", i)) for i in 0:numinstances-1]
+    q = range(cvlims[1], cvlims[2]; step=bin_width)
+    V = zero(q)
+
+    if kernel_variance == 0.0
+        for i in 1:numinstances
+            for (j, cv) in enumerate(bias_data[i]["cv1"])
+                val, idx = findmin(x->abs(cv-x), q)
+                val, idxn = findmin(x->abs(-cv-x), q)
+                V[idx] += bias_data[i]["weight_tiwari"][j] # TODO: generalize for diff weights
+                V[idxn] += bias_data[i]["weight_tiwari"][j]
+            end
+        end
+    else
+        for i in 1:numinstances
+            for (j, cv) in enumerate(bias_data[i]["cv1"])
+                w = bias_data[i]["weight_tiwari"][j] # TODO: generalize for diff weights
+                for (idx, bin_val) in enumerate(q)
+                    V[idx] += w * exp(-0.5(cv - bin_val)^2 / kernel_variance^2)
+                end
+
+                for (idx, bin_val) in enumerate(q)
+                    V[idx] += w * exp(-0.5(-cv - bin_val)^2 / kernel_variance^2)
+                end
+            end
+        end
+    end
+
+    V ./= sum(V)
+    return q, log.(V)
 end

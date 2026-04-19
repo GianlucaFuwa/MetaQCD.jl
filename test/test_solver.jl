@@ -4,7 +4,7 @@ using Random
 
 function test_solver(
     backend=CPU;
-    nprocs_cart=(1, 1, 1, 1),
+    numprocs_cart=(1, 1, 1, 1),
     halo_width=1,
     dirac="staggered",
     mass=0.01,
@@ -23,11 +23,11 @@ function test_solver(
     NZ = 4
     NT = 4
     U = Gaugefield{CPU,Float64,WilsonGaugeAction}(
-        NX, NY, NZ, NT, 6.0, nprocs_cart, halo_width
+        NX, NY, NZ, NT, 6.0; numprocs_cart, halo_width
     )
     random_gauges!(U)
 
-    # filename = if nprocs_cart != (1, 1, 1, 1)
+    # filename = if numprocs_cart != (1, 1, 1, 1)
     #     pkgdir(MetaQCD, "test", "testconf_mpi")
     # else
     #     pkgdir(MetaQCD, "test", "testconf.txt")
