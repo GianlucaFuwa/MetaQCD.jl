@@ -82,7 +82,7 @@ function run_build(parameters)
 
     if parameters.load_checkpoint_path != ""
         rank = mpi_myrank(mpi_comm_instance())
-        univ_args..., updatemethod, _, itrj, numaccepts = load_checkpoint(
+        univ_args..., updatemethod, _, itrj, numaccepts, _ = load_checkpoint(
             parameters; rank, mpi_multi_sim, build=true
         )
         univ = Univ(univ_args...)
