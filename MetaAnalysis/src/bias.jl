@@ -528,3 +528,12 @@ function bias_from_weights(
     V ./= sum(V)
     return q, log.(V)
 end
+
+function moving_average(arr, window)
+    @assert window % 2 == 0
+    averaged = cumsum(arr)
+    averaged[window:end] .= averaged[window:end] - averaged[1:end-window+1]
+    baveraged = averaged[window-1:end] / window
+    pad = fld(window, 2)-1
+    bias_averaged = vcat(zeros(pad), baveraged, zeros(pad))
+end

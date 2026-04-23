@@ -245,7 +245,7 @@ function convert_field(
     Uout = Gaugefield{Bout,Tout,GA,N}(NX, NY, NZ, NT, Uin.β; numprocs_cart, halo_width)
     Uarr = OffsetArray(array_type(Bout)(Uin.U.parent), OffsetArrays.Origin(Uin.U))
 
-    parallelfor(eachindex(Uout), Bout, Val(M), (Uout,), (), (Uout,)) do site, (Uout,)
+    parallelfor(eachindex(Uout), Bout, Val(false), (), (Uout,), (Uout,)) do site, (Uout,)
         Uout[1, site] = Uarr[1, site]
         Uout[2, site] = Uarr[2, site] 
         Uout[3, site] = Uarr[3, site] 
@@ -270,7 +270,7 @@ function convert_field(
     Uout = Gaugefield{Bout,Tout,GA,N}(NX, NY, NZ, NT, Uin.β; numprocs_cart, halo_width)
     Uarr = OffsetArray(array_type(Bout)(Uin.U.parent), OffsetArrays.Origin(Uin.U))
 
-    parallelfor(eachindex(Uout), Bout, Val(M), (Uout,), (), (Uout,)) do site, (Uout,)
+    parallelfor(eachindex(Uout), Bout, Val(false), (), (Uout,), (Uout,)) do site, (Uout,)
         Uout[1, site] = _getindex_mat(Val(N), Uarr, 1, site, Tout)
         Uout[2, site] = _getindex_mat(Val(N), Uarr, 2, site, Tout)
         Uout[3, site] = _getindex_mat(Val(N), Uarr, 3, site, Tout)
