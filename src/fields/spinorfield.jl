@@ -148,9 +148,8 @@ function ones!(ϕ::Spinorfield{B,T,M}) where {B,T,M}
     return nothing
 end
 
-function set_source!(ϕ::Spinorfield{B,T,M}, source::SiteCoords, a, μ) where {B,T,M}
+function set_source!(ϕ::Spinorfield{B,T,M,ND}, source::SiteCoords, a, μ) where {B,T,M,ND}
     NC = num_colors(ϕ)
-    ND = num_dirac(ϕ)
     @assert μ ∈ 1:ND && a ∈ 1:NC
     vec_index = (μ - 1) * NC + a
 

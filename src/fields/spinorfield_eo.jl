@@ -89,10 +89,9 @@ function Base.copy!(ϕ_eo::TF, ψ_eo::TF) where {B,T,M,TF<:SpinorfieldEO{B,T,M}}
     return nothing
 end
 
-function set_source!(ϕ_eo::SpinorfieldEO{B,T,M}, source::SiteCoords, a, μ) where {B,T,M}
+function set_source!(ϕ_eo::SpinorfieldEO{B,T,M,ND}, source::SiteCoords, a, μ) where {B,T,M,ND}
     ϕ = ϕ_eo.parent
     NC = num_colors(ϕ)
-    ND = num_dirac(ϕ)
     @assert μ ∈ 1:ND && a ∈ 1:3
     vec_index = (μ - 1) * NC + a
 

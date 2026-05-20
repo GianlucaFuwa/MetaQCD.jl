@@ -22,6 +22,8 @@ function run_sim(parameters)
     end
 
     num_instances = parameters.numinstances
+    starting_Q = parameters.starting_Q
+    @assert isnothing(starting_Q) || (length(starting_Q) >= num_instances)
     num_dist = prod(parameters.numprocs_cart)
 
     mpi_multi_sim = if mpi_size() > num_dist
@@ -332,6 +334,7 @@ function metaqcd!(
     U = univ.U
     fermion_action = univ.fermion_action
     bias = univ.bias
+    starting_Q = parameters.starting_Q
     instance_state = collect(0:univ.numinstances-1)
     swap_every = parameters.swap_every
     rank = mpi_myrank(mpi_comm_instance())
@@ -353,6 +356,8 @@ function metaqcd!(
     if isnothing(starting_itrj)
         @level2("- Thermalization:")
         _, runtime_therm = @timed begin
+            set_instanton!(U, starting_Q)
+
             for itrj in 1:(parameters.numtherm)
                 all_last_updatetime = mpi_allgather(last_updatetime, mpi_comm())
                 if any(x -> x > JOB_TIME_LIMIT, all_last_updatetime .+ time() .+ TIME_BUFFER .- load_time)
