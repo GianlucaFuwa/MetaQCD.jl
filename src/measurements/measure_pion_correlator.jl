@@ -213,9 +213,8 @@ function pion_correlators_avg!(pion_corr, D, ψ, cg_temps, tol, maxiters, datafi
 
                 cit = parallelfor_sum(itr, 0.0, B, Val(M), (), (), (propagator,)) do ci, xyz, (propagator,)
                     ix, iy, iz = xyz.I
-                    ci += real(
-                        cdot(propagator[ix, iy, iz, it], propagator[ix, iy, iz, it])
-                    )
+                    site = SiteCoords(ix, iy, iz, it)
+                    ci += real(dot(propagator[site], propagator[site]))
                 end
 
                 pion_corr[it] += distributed_reduce(cit, +, D.U)
