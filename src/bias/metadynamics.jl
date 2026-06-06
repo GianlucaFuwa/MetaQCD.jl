@@ -205,15 +205,17 @@ function write_to_file(m::Metadynamics, filename::AbstractString, args...)
     set_ext!(filename, MPI_INSTANCE[], Val(5))
     (tmppath, tmpio) = mktemp() # open temporary file at arbitrary location in storage
 
-    if isfile(filename)
-        old_values, old_header = readdlm(filename; header=true)
-        new_header = hcat(old_header, "$(rpad("V(CV)", 7))")
-        new_values = hcat(old_values, m.values)
-    else
-        new_header = ["$(rpad("CV", 7))" "$(rpad("V(CV)", 7))"]
-        new_values = hcat(m.bin_vals, m.values)
-    end
+    # if isfile(filename)
+    #     old_values, old_header = readdlm(filename; header=true)
+    #     new_header = hcat(old_header, "$(rpad("V(CV)", 7))")
+    #     new_values = hcat(old_values, m.values)
+    # else
+    #     new_header = ["$(rpad("CV", 7))" "$(rpad("V(CV)", 7))"]
+    #     new_values = hcat(m.bin_vals, m.values)
+    # end
 
+    new_header = ["$(rpad("CV", 7))" "$(rpad("V(CV)", 7))"]
+    new_values = hcat(m.bin_vals, m.values)
     final_output = vcat(new_header, new_values)
     writedlm(tmpio, final_output, '\t')
     close(tmpio)

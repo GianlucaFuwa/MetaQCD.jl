@@ -20,7 +20,7 @@ struct StoutSmearing{TG,TT,TC,TL} <: AbstractSmearing
             C_multi = [Colorfield(U; no_halo=true) for _ in 1:numlayers]
             Q_multi = [Expfield(U; no_halo=true) for _ in 1:numlayers]
             Usmeared_multi = [similar(U) for _ in 1:numlayers+1]
-            Λ = Colorfield(U)
+            Λ = Colorfield(U; halo_width=1)
             return new{TG,typeof(C_multi[1]),typeof(Q_multi[1]),typeof(Λ)}(
                 numlayers, rho, Usmeared_multi, C_multi, Q_multi, Λ
             )
@@ -99,8 +99,8 @@ function stout_recursion!(Σ, Σ′, U′, U::Gaugefield{B,T,M}, C, Q, Λ, ρ) w
     calc_stout_Λ!(Λ, Σ′, Q, U)
     itr = eachindex(Σ, Σ′, U′, U, C, Q, Λ)
 
-    parallelfor(itr, B, Val(M), (U, Λ), (Σ,), (Σ, Σ′, U, C, Q, Λ); do_edges=Val(true)) do site, (Σ, Σ′, U, C, Q, Λ)
-        for μ in 1:4
+    for μ in 1:4
+        parallelfor(itr, B, Val(M), (U, Λ), (Σ,), (Σ, Σ′, U, C, Q, Λ); do_edges=Val(true)) do site, (Σ, Σ′, U, C, Q, Λ)
             stout_recursion_kernel!(Σ, Σ′, U, C, Q, Λ, site, μ, ρ)
         end
     end
@@ -156,11 +156,10 @@ end
 function calc_stout_Λ!(Λ, Σ′, Q::Expfield{B}, U::Gaugefield{B,T,M}) where {B,T,M}
     itr = eachindex(Λ, Σ′, Q, U)
 
-    parallelfor(itr, B, Val(M), (), (Λ,), (Λ, Σ′, Q, U)) do site, (Λ, Σ′, Q, U)
-        calc_stout_Λ_kernel!(Λ, Σ′, Q, U, site, 1)
-        calc_stout_Λ_kernel!(Λ, Σ′, Q, U, site, 2)
-        calc_stout_Λ_kernel!(Λ, Σ′, Q, U, site, 3)
-        calc_stout_Λ_kernel!(Λ, Σ′, Q, U, site, 4)
+    for μ in 1:4
+        parallelfor(itr, B, Val(M), (), (Λ,), (Λ, Σ′, Q, U)) do site, (Λ, Σ′, Q, U)
+            calc_stout_Λ_kernel!(Λ, Σ′, Q, U, site, μ)
+        end
     end
 
     return nothing

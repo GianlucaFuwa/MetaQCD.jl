@@ -31,7 +31,7 @@ struct FermionAction{R,Nf,TD,TDl,CT,CTl,RI1,RI2,SA,SMD,TX} <: AbstractFermionAct
         cg_filepath="",
         kwargs...,
     ) where {B,T}
-        D = DIRAC_OPERATORS[type](f, minimum(mass); bc_str=bc_str, kwargs...)
+        D = DIRAC_OPERATORS[type](f, minimum(mass); bc_str, kwargs...)
         temp = D.temp
         eo_fun = contains(type, "eo") ? even_odd : identity
         TD = typeof(D)
@@ -78,7 +78,7 @@ struct FermionAction{R,Nf,TD,TDl,CT,CTl,RI1,RI2,SA,SMD,TX} <: AbstractFermionAct
                 U_low = is_mixed ? Gaugefield(f, Tsolve) : nothing
                 if is_mixed
                     temps = ntuple(_ -> eo_fun(Spinorfield(temp)), 3)
-                    D_low = DIRAC_OPERATORS[type](U_low, minimum(mass); bc_str=bc_str, kwargs...)
+                    D_low = DIRAC_OPERATORS[type](U_low, minimum(mass); bc_str, kwargs...)
                     temps_low = (U_low, ntuple(_ -> eo_fun(Spinorfield(temp, Tsolve; staggered)), 5)...)
                 else
                     temps = ntuple(_ -> eo_fun(Spinorfield(temp)), 4)
@@ -143,7 +143,7 @@ struct FermionAction{R,Nf,TD,TDl,CT,CTl,RI1,RI2,SA,SMD,TX} <: AbstractFermionAct
                 # ntemps+1 for solution vectors, 2 for Ap & r
                 temps = ntuple(_ -> eo_fun(Spinorfield(temp)), n_temps + 3) 
                 U_low = Gaugefield(f, Tsolve)
-                D_low = DIRAC_OPERATORS[type](U_low, minimum(mass); bc_str=bc_str, kwargs...)
+                D_low = DIRAC_OPERATORS[type](U_low, minimum(mass); bc_str, kwargs...)
                 # ntemps+1 for solution vectors, ntemps+1 for gradients, 3 for Ap & r & r_old
                 temps_low = (U_low, ntuple(_ -> eo_fun(Spinorfield(temp, Tsolve; staggered=true)), 2n_temps + 2 + 3)...)
             else

@@ -52,7 +52,7 @@ force recursion when using a bias.
 - `wilson`
 - `wilson_eo`
 """
-struct HMC{TL,NL,TG,TGH,TP,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF} <: AbstractUpdate
+struct HMC{TL,NL,TG,TGH,TP,TT,TPF,TSG,TSF,TPO,TF,TF2,TFS,TLF} <: AbstractUpdate
     levels::TL
     numlevels::Val{NL}
     friction::Float64
@@ -61,9 +61,9 @@ struct HMC{TL,NL,TG,TGH,TP,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF} <: AbstractUpdate
     P_old::TPO # second momentum field for GHMC
     U_old::TG
     U_high::TGH
-    ϕ::TF
+    ϕ::TPF
     staples::TT
-    force::TT
+    force::TF
     force2::TF2 # second force field for smearing
     fieldstrength::TFS # fieldstrength fields for Bias
     smearing_gauge::TSG
@@ -111,14 +111,15 @@ struct HMC{TL,NL,TG,TGH,TP,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF} <: AbstractUpdate
         TGH = typeof(U_high)
         TP = typeof(P)
         TT = typeof(staples)
-        TF = typeof(ϕ)
+        TPF = typeof(ϕ)
         TSG = typeof(smearing_gauge)
         TSF = typeof(smearing_fermion)
         TPO = typeof(P_old)
+        TF = typeof(force)
         TF2 = typeof(force2)
         TFS = typeof(fieldstrength)
         TLF = typeof(logfile)
-        return new{TL,NL,TG,TGH,TP,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF}(
+        return new{TL,NL,TG,TGH,TP,TT,TPF,TSG,TSF,TPO,TF,TF2,TFS,TLF}(
             levels,
             numlevels,
             friction,
@@ -164,7 +165,7 @@ function HMC(
     U_old = Gaugefield(U; no_halo=true)
     U_high = T==Float64 ? nothing : Gaugefield(U, Float64)
     staples = Colorfield(U; no_halo=true)
-    force = Colorfield(U; no_halo=true)
+    force = Colorfield(U; halo_width=1)
 
     numlevels = Val(length(hmc_levels))
     level_params = level_parameters_from_dict(hmc_levels)
@@ -375,6 +376,8 @@ function update!(
     V_old = bias(CV_old)
     sample_pseudofermions!(ϕ, fermion_action, U, smearing_fermion, shared_smearing)
     Sf_old = calc_fermion_action(fermion_action, U, ϕ, smearing_fermion, true) # INFO: fields are already smeared in sampling, so we dont have to here
+    @level4("trP²_old: $(trP²_old)")
+    @level4("Sg_old: $(Sg_old)")
 
     evolve!(U, hmc, fermion_action, bias, therm, numlevels)
 
@@ -386,6 +389,8 @@ function update!(
     CV_new = calc_cv(U_high, bias) # FIXME: this will error if there is not smearing in definition
     V_new = bias(CV_new)
     Sf_new = calc_fermion_action(fermion_action, U, ϕ, smearing_fermion, shared_smearing)
+    @level4("trP²_new: $(trP²_new)")
+    @level4("Sg_new: $(Sg_new)")
 
     ΔP² = trP²_new - trP²_old
     ΔSg = Sg_new - Sg_old
@@ -428,7 +433,6 @@ function updateU!(
             # U[μsite] = cmatmul_oo(exp_iQ(-im * ϵ * P[μsite]), U[μsite])
             U[μsite] = proj_onto_SU3(cmatmul_oo(exp_iQ(-im * ϵ * P[μsite]), ComplexF64.(U[μsite])))
         end
-        normalize!(U)
     else
         evolve!(U, hmc, fermion_action, bias, therm, level-1)
     end
@@ -578,7 +582,6 @@ end
 function sample_pseudofermions!(ϕ, fermion_action, U, smearing::StoutSmearing, is_smeared)
     # we only need to smear once even if we have multiple fermion actions
     is_smeared || calc_smearedU!(smearing, U)
-    calc_smearedU!(smearing, U)
     fully_smeared_U = smearing.Usmeared_multi[end]
 
     for i in eachindex(fermion_action)

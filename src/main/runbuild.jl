@@ -218,7 +218,9 @@ function metabuild!(
                         """### Run terminated before production trajectory $(itrj)
                         ### because time limit would be passed"""
                     )
-                    create_checkpoint(checkpointer, univ, updatemethod, nothing, itrj; rank)
+                    create_checkpoint(
+                        checkpointer, univ, updatemethod, nothing, nothing, numaccepts; rank
+                    )
                     mpi_barrier()
                     break
                 end
@@ -289,7 +291,9 @@ function metabuild!(
                     """### Run terminated before production trajectory $(itrj)
                     ### because time limit would be passed"""
                 )
-                create_checkpoint(checkpointer, univ, updatemethod, nothing, itrj; rank)
+                create_checkpoint(
+                    checkpointer, univ, updatemethod, nothing, itrj-1, numaccepts; rank
+                )
                 mpi_barrier()
                 break
             end

@@ -366,7 +366,7 @@ function metaqcd!(
                         ### because time limit would be passed"""
                     )
                     create_checkpoint(
-                        checkpointer, univ, updatemethod, nothing, itrj, numaccepts, numaccepts_temper;
+                        checkpointer, univ, updatemethod, nothing, nothing, numaccepts, numaccepts_temper;
                         rank
                     )
                     mpi_barrier()
@@ -421,6 +421,8 @@ function metaqcd!(
 
         for itrj in itrj_range
             all_last_updatetime = mpi_allgather(last_updatetime, mpi_comm())
+            time_left = JOB_TIME_LIMIT .- (time() .+ TIME_BUFFER .- load_time)
+            @level3("Time left: $(time_left/60) minute(s)")
             if any(x -> x > JOB_TIME_LIMIT, all_last_updatetime .+ time() .+ TIME_BUFFER .- load_time)
                 @level1(
                     """### Run terminated before production trajectory $(itrj)

@@ -59,7 +59,7 @@ function create_checkpoint(
     end
 
     Pout = if updatemethod isa HMC
-        convert_field(CPU, updatemethod.P)
+        updatemethod.friction != 0.0 ? convert_field(CPU, updatemethod.P) : nothing
     else
         nothing
     end

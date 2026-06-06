@@ -81,7 +81,9 @@ end
     return CartesianIndices((6, siterange.indices...))
 end
 
-Base.@propagate_inbounds function Base.getindex(f::Spinorfield{B}, ii::Integer) where {B}
+Base.@propagate_inbounds function Base.getindex(
+    f::Spinorfield{B,T}, ii::Integer
+) where {B,T}
     return f.U[ii]
 end
 
@@ -92,8 +94,8 @@ Base.@propagate_inbounds function Base.getindex(
 end
 
 Base.@propagate_inbounds function Base.setindex!(
-    f::Spinorfield{B}, v, ii::Integer
-) where {B}
+    f::Spinorfield{B,T}, v, ii::Integer
+) where {B,T}
     f.U[ii] = v
     return nothing
 end

@@ -109,23 +109,19 @@ end
 function launch_packing_kernels!(
     dims, fields::Vararg{AbstractMPIField{backend},N}
 ) where {backend,N}
-    topology = fields[1].topology
-    border_sites = topology.border_sites
-
     # Pre-allocate send/recv buffers outside loop
     sendbufs = Matrix{Any}(undef, 2N, length(dims))
     streams = Matrix{typeof(default_stream(backend()))}(undef, 2, length(dims))
 
     for (idim, dim) in enumerate(dims)
-        sites_from = border_sites[dim]
-
         for inbr in 1:2
             stream = get_priority_stream(backend(), inbr + 2(idim-1))
             streams[inbr, idim] = stream
             for ifield in 1:N
+                sites_from = fields[ifield].topology.border_sites[dim][inbr]
                 idx = (inbr-1)*N + ifield
                 sendbufs[idx, idim] = create_sendbuf!(
-                    fields[ifield], sites_from[inbr], dim, inbr; stream
+                    fields[ifield], sites_from, dim, inbr; stream
                 )
             end
         end
@@ -167,10 +163,7 @@ end
 function wait_and_fill!(
     reqs, streams, dims, fields::Vararg{AbstractMPIField{backend},N}
 ) where {N,backend}
-    topology = fields[1].topology
-    halo_sites = topology.halo_sites
     req_index(i, pn, sr, d) = i + (pn-1)*N + (sr-1)*N*2 + (d-1)*N*2*2
-
     sendrecv_ready = fill(false, size(reqs))
 
     while !(all(sendrecv_ready))
@@ -180,6 +173,7 @@ function wait_and_fill!(
         for (idim, dim) in enumerate(dims)
             for inbr in 1:2
                 for i in 1:N
+                    halo_sites = fields[i].topology.halo_sites[dim][inbr]
                     recv_idx = req_index(i, inbr, 1, idim)
                     send_idx = req_index(i, inbr, 2, idim)
 
@@ -189,7 +183,7 @@ function wait_and_fill!(
                             u = fields[i]
                             recv_buf = get_recv_buf(u, 2*(dim-1) + inbr)
                             stream = streams[inbr, idim]
-                            fill_halo!(u, recv_buf, halo_sites[dim][inbr]; stream=stream)
+                            fill_halo!(u, recv_buf, halo_sites; stream=stream)
                             # Keep any_progress = true while sends are still pending so
                             # we never call yield().  Calling yield() when both ranks
                             # have in-flight sends/recvs can cause a rendezvous deadlock
