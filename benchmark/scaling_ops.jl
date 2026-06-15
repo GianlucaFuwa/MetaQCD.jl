@@ -20,35 +20,39 @@ const FLOPS = [
     # "Halo-Exchange" 0
 ]
 
-function bench_mul!(::Type{B}, ϕ, D, ψ, nlaunches) where B
+function bench_mul!(::Type{B}, ϕ, D, ψ, nlaunches; do_barrier=false) where B
     for _ in 1:nlaunches
         mul!(ψ, D, ϕ)
     end
     MetaQCD.Fields.device_synchronize(B())
+    do_barrier && mpi_barrier()
     return nothing
 end
 
-function bench_copy!(::Type{B}, a, b, nlaunches) where B
+function bench_copy!(::Type{B}, a, b, nlaunches; do_barrier=false) where B
     for _ in 1:nlaunches
         copy!(a, b)
     end
     MetaQCD.Fields.synchronize(B())
+    do_barrier && mpi_barrier()
     return nothing
 end
 
-function bench_dot(::Type{B}, a, b, nlaunches) where B
+function bench_dot(::Type{B}, a, b, nlaunches; do_barrier=false) where B
     for _ in 1:nlaunches
         dot(a, b)
     end
     MetaQCD.Fields.synchronize(B())
+    do_barrier && mpi_barrier()
     return nothing
 end
 
-function bench_exchange(::Type{B}, u, nlaunches) where B
+function bench_exchange(::Type{B}, u, nlaunches; do_barrier=false) where B
     for _ in 1:nlaunches
         update_halo!((u,))
     end
     MetaQCD.Fields.synchronize(B())
+    do_barrier && mpi_barrier()
     return nothing
 end
 
@@ -100,7 +104,8 @@ function main(; strong=false)
 
     for iop in axes(FLOPS, 1)
         opname = FLOPS[iop, 1]
-        timings = []
+        timings_barrier = []
+        timings_nobarrier = []
         for T in (Float16, Float32, Float64)
             tstring = lowercase(string(T))
             U = Gaugefield{B,T,GA,N}(global_dims..., 6.0; numprocs_cart, halo_width)
@@ -124,7 +129,8 @@ function main(; strong=false)
                 MetaQCD.Fields.synchronize(B())
                 mpi_barrier()
                 println("Benchmarking $(opname) $(tstring) ($(mpi_myrank()))")
-                bench = @be _ $bench_copy!($B, $a, $b, $nlaunches) mpi_barrier() evals=1 samples=100 seconds=10
+                bench_barrier = @be _ $bench_copy!($B, $a, $b, $nlaunches; do_barrier=true) evals=1 samples=100 seconds=10
+                bench_nobarrier = @be _ $bench_copy!($B, $a, $b, $nlaunches; do_barrier=false) evals=1 samples=100 seconds=10
             elseif opname == "Copy-Staggered"
                 a = Spinorfield(U; staggered=true)
                 b = Spinorfield(U; staggered=true)
@@ -133,7 +139,8 @@ function main(; strong=false)
                 MetaQCD.Fields.synchronize(B())
                 mpi_barrier()
                 println("Benchmarking $(opname) $(tstring) ($(mpi_myrank()))")
-                bench = @be _ $bench_copy!($B, $a, $b, $nlaunches) mpi_barrier() evals=1 samples=100 seconds=10
+                bench_barrier = @be _ $bench_copy!($B, $a, $b, $nlaunches; do_barrier=true) evals=1 samples=100 seconds=10
+                bench_nobarrier = @be _ $bench_copy!($B, $a, $b, $nlaunches; do_barrier=false) evals=1 samples=100 seconds=10
             elseif opname == "Copy-Wilson"
                 a = Spinorfield(U)
                 b = Spinorfield(U)
@@ -142,7 +149,8 @@ function main(; strong=false)
                 MetaQCD.Fields.synchronize(B())
                 mpi_barrier()
                 println("Benchmarking $(opname) $(tstring) ($(mpi_myrank()))")
-                bench = @be _ $bench_copy!($B, $a, $b, $nlaunches) mpi_barrier() evals=1 samples=100 seconds=10
+                bench_barrier = @be _ $bench_copy!($B, $a, $b, $nlaunches; do_barrier=true) evals=1 samples=100 seconds=10
+                bench_nobarrier = @be _ $bench_copy!($B, $a, $b, $nlaunches; do_barrier=false) evals=1 samples=100 seconds=10
             elseif opname == "Halo-Exchange"
                 f = Spinorfield(U; staggered=true)
                 # warmup
@@ -150,7 +158,8 @@ function main(; strong=false)
                 MetaQCD.Fields.synchronize(B())
                 mpi_barrier()
                 println("Benchmarking $(opname) $(tstring) ($(mpi_myrank()))")
-                bench = @be _ $bench_exchange($B, $f, $nlaunches) mpi_barrier() evals=1 samples=100 seconds=10
+                bench_barrier = @be _ $bench_exchange($B, $f, $nlaunches; do_barrier=true) evals=1 samples=100 seconds=10
+                bench_nobarrier = @be _ $bench_exchange($B, $f, $nlaunches; do_barrier=false) evals=1 samples=100 seconds=10
             elseif contains(opname, "Dot")
                 staggered = contains(opname, "Staggered")
                 a = Spinorfield(U; staggered)
@@ -160,7 +169,8 @@ function main(; strong=false)
                 MetaQCD.Fields.synchronize(B())
                 mpi_barrier()
                 println("Benchmarking $(opname) $(tstring) ($(mpi_myrank()))")
-                bench = @be _ $bench_dot($B, $a, $b, $nlaunches) mpi_barrier() evals=1 samples=100 seconds=10
+                bench_barrier = @be _ $bench_dot($B, $a, $b, $nlaunches; do_barrier=true) evals=1 samples=100 seconds=10
+                bench_nobarrier = @be _ $bench_dot($B, $a, $b, $nlaunches; do_barrier=false) evals=1 samples=100 seconds=10
             elseif contains(opname, "Invert")
                 T == Float64 || continue
                 operator, staggered = if contains(opname, "Staggered")
@@ -237,48 +247,55 @@ function main(; strong=false)
                 bench_mul!(B, ψ, (D(U)), ϕ, 1)
                 mpi_barrier()
                 println("Benchmarking $(opname) $(tstring) Operator ($(mpi_myrank()))")
-                bench = @be _ $bench_mul!($B, $ψ, $(D)($U), $ϕ, $nlaunches) mpi_barrier() evals=1 samples=50 seconds=100
+                bench_barrier = @be _ $bench_mul!($B, $ψ, $(D)($U), $ϕ, $nlaunches; do_barrier=true) evals=1 samples=50 seconds=100
+                bench_nobarrier = @be _ $bench_mul!($B, $ψ, $(D)($U), $ϕ, $nlaunches; do_barrier=false) evals=1 samples=50 seconds=100
             end
 
             flops = prod(global_dims) * FLOPS[iop, 2] / 1e9
             mem = prod(global_dims) * mem_per_site(opname, T, N) / 1e9
             if mpi_amroot()
-                push!(timings, [s.time for s in bench.samples])
+                push!(timings_barrier, [s.time for s in bench_barrier.samples])
+                push!(timings_nobarrier, [s.time for s in bench_nobarrier.samples])
                 if T == Float64 
-                    open(timingname*"_$(opname)", "w") do io
-                        writedlm(io, zip(timings...), '\t')
+                    open(timingname*"_$(opname)_barrier", "w") do io
+                        writedlm(io, zip(timings_barrier...), '\t')
+                    end
+                    open(timingname*"_$(opname)_nobarrier", "w") do io
+                        writedlm(io, zip(timings_nobarrier...), '\t')
                     end
                 end
             end
             mpi_barrier()
 
-            mintime = minimum(s.time for s in bench.samples) / nlaunches
-            mediantime = median(s.time for s in bench.samples) / nlaunches
-            meantime = mean(s.time for s in bench.samples) / nlaunches
-            stdtime = std(s.time for s in bench.samples) / nlaunches
-
-            maxperf = flops / mintime
-            medianperf = flops / mediantime
-            meanperf = flops / meantime
-            stdperf = meanperf - (flops / (meantime+stdtime))
-
-            maxbw = mem / mintime
-            medianbw = mem / mediantime
-            meanbw = mem / meantime
-            stdbw = meanbw - (mem / (meantime+stdtime))
-
             if mpi_amroot()
-                benchprint(fp, "$(opname) $(tstring)")
-                str = @sprintf(
-                    "%-15s%-12.3f%-12.3f%-12.3f%-10.3f[GFLOPs]",
-                    "", maxperf, medianperf, meanperf, stdperf
-                )
-                benchprint(fp, str)
-                str = @sprintf(
-                    "%-15s%-12.3f%-12.3f%-12.3f%-10.3f[GB/s]",
-                    "", maxbw, medianbw, meanbw, stdbw
-                )
-                benchprint(fp, str)
+                for (mode, bench) in (("barrier", bench_barrier), ("nobarrier", bench_nobarrier))
+                    mintime = minimum(s.time for s in bench.samples) / nlaunches
+                    mediantime = median(s.time for s in bench.samples) / nlaunches
+                    meantime = mean(s.time for s in bench.samples) / nlaunches
+                    stdtime = std(s.time for s in bench.samples) / nlaunches
+
+                    maxperf = flops / mintime
+                    medianperf = flops / mediantime
+                    meanperf = flops / meantime
+                    stdperf = meanperf - (flops / (meantime + stdtime))
+
+                    maxbw = mem / mintime
+                    medianbw = mem / mediantime
+                    meanbw = mem / meantime
+                    stdbw = meanbw - (mem / (meantime + stdtime))
+
+                    benchprint(fp, "$(opname) $(tstring) [$(mode)]")
+                    str = @sprintf(
+                        "%-15s%-12.3f%-12.3f%-12.3f%-10.3f[GFLOPs]",
+                        "", maxperf, medianperf, meanperf, stdperf
+                    )
+                    benchprint(fp, str)
+                    str = @sprintf(
+                        "%-15s%-12.3f%-12.3f%-12.3f%-10.3f[GB/s]",
+                        "", maxbw, medianbw, meanbw, stdbw
+                    )
+                    benchprint(fp, str)
+                end
                 flush(fp)
             end
         end

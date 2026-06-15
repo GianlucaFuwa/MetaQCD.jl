@@ -50,30 +50,23 @@ function parallelfor(
     do_edges::Val{E}=Val(false),
     stream=default_stream(B())
 ) where {B,M,hide,E}
-        if M && (hide && B!=CPU) && length(to_validate) > 0
-        # Drain the default (per-thread) stream before enqueuing the inner-bulk
-        # kernel on the low-priority stream.  The *previous* parallelfor call
-        # wrote border rows of the input field(s) on the PTDS (default stream);
-        # those rows are read as stencil neighbours by the inner-bulk kernel.
-        # Without this fence the two streams race: PTDS (normal priority) and
-        # cu_streams[1] (low priority) have no implicit ordering on the GPU.
-        synchronize(B(), default_stream(B()))
-        # launch inner comp (async)
+    if M && (hide && B!=CPU) && length(to_validate) > 0
+        t_inner = overlap_timing_start()
         hw, idx = findmin(get_halo_width, to_validate)
         inner_bulk = shrink_bulk(itr, hw, to_validate[1].topology.numprocs_cart)
         new_block_size = min(block_size, min(256, length(inner_bulk)))
         _parallelfor(f, captured, inner_bulk, B, new_block_size; stream=get_stream(B(), 1))
+        overlap_timing_add!(:parallel_inner_launch, t_inner)
 
-        # do exchange 
+        t_halo = overlap_timing_start()
         start_halo_update!(to_validate; do_edges)
+        overlap_timing_add!(:parallel_halo_exchange, t_halo)
 
-        # finish inner comp (to avoid resource contention)
-        synchronize(B(), get_stream(B(), 1))
-
-        # launch outer comp
+        t_border = overlap_timing_start()
         border_iterators = to_validate[idx].topology.border_iterators
         new_block_size = min(block_size, min(256, length(border_iterators[1])))
         _parallelfor(f, captured, border_iterators, B, new_block_size)
+        overlap_timing_add!(:parallel_border_launch, t_border)
     elseif M && (!hide || B==CPU) && length(to_validate) > 0
         update_halo!(to_validate; do_edges)
         _parallelfor(f, captured, itr, B, block_size; stream)
