@@ -45,9 +45,9 @@ function create_checkpoint(
     filename::String
 )
     Uout = if univ.U isa Vector
-       [convert_field(CPU, univ.U[i]) for i in eachindex(univ.U)]
+        [convert_field(CPU, univ.U[i]) for i in eachindex(univ.U)]
     else
-       convert_field(CPU, univ.U)
+        convert_field(CPU, univ.U)
     end
 
     biasout = if univ.bias isa Vector
@@ -67,19 +67,21 @@ function create_checkpoint(
     state = get_rng_state()
 
     if filename != ""
-        redirect_stderr(devnull) do
-            jldsave(
-                filename; 
-                U=Uout,
-                P=Pout,
-                bias=biasout,
-                numinstances=univ.numinstances,
-                itrj=itrj,
-                numaccepts=numaccepts,
-                numaccepts_t=numaccepts_t,
-                rngstate=state,
-            )
-        end
+        (tmppath, tmpio) = mktemp() # open temporary file at arbitrary location in storage
+        close(tmpio)
+        jldsave(
+            tmppath; 
+            U=Uout,
+            P=Pout,
+            bias=biasout,
+            numinstances=univ.numinstances,
+            itrj=itrj,
+            numaccepts=numaccepts,
+            numaccepts_t=numaccepts_t,
+            rngstate=state,
+        )
+        mpi_barrier()
+        mv(tmppath, filename; force=true) # replace bias file with temporary file
     end
 
     return nothing

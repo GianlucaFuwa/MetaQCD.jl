@@ -85,7 +85,7 @@ include("bridge_format.jl")
 include("jld2_format.jl")
 include("mpi_format.jl")
 
-struct Checkpointer{T}
+mutable struct Checkpointer{T}
     checkpoint_dir::String
     checkpoint_every::Int64
 
@@ -126,6 +126,7 @@ function create_checkpoint(
         @level1("|")
         @level1("|  Checkpoint created in $(cp.checkpoint_dir)")
         @level1("|")
+        flush(stdout)
     end
 
     return nothing

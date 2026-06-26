@@ -188,11 +188,13 @@ end
 end
 
 @inline function calc_stout_Q_kernel!(Q, C, U, site, μ, ρ)
-    Cμ = ρ * staple(WilsonGaugeAction(), U, μ, site)
-    @inbounds C[μ, site] = Cμ
+    @inbounds begin
+        Cμ = ρ * staple(WilsonGaugeAction(), U, μ, site)
+        C[μ, site] = Cμ
 
-    @inbounds Ω = cmatmul_od(Cμ, U[μ, site])
-    Qμ = exp_iQ_coeffs(-im * traceless_antihermitian(Ω))
-    @inbounds Q[μ, site] = Qμ
+        Ω = cmatmul_od(Cμ, U[μ, site])
+        Qμ = exp_iQ_coeffs(-im * traceless_antihermitian(Ω))
+        Q[μ, site] = Qμ
+    end
     return Qμ
 end

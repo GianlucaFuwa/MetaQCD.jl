@@ -417,7 +417,6 @@ function metaqcd!(
 
     @level2("- Production:")
     _, runtime_prod = @timed begin
-        numitrj = 0
 
         for itrj in itrj_range
             all_last_updatetime = mpi_allgather(last_updatetime, mpi_comm())
@@ -436,7 +435,6 @@ function metaqcd!(
                 break
             end
 
-            numitrj += 1
             @level2("|  itrj = $itrj")
             mpi_barrier()
 

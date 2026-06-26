@@ -282,7 +282,6 @@ function metabuild!(
 
     @level2("- Production:")
     _, runtime_prod = @timed begin
-        numitrj = 0
 
         for itrj in itrj_range
             all_last_updatetime = mpi_allgather(last_updatetime, mpi_comm())
@@ -298,7 +297,6 @@ function metabuild!(
                 break
             end
 
-            numitrj += 1
             @level2("|  itrj = $itrj")
 
             acc, updatetime = @timed begin
@@ -330,7 +328,7 @@ function metabuild!(
                 update_bias!(bias, [bias.CV], Bool(acc), itrj)
             end
 
-            print_acceptance_rates(numaccepts, numitrj)
+            print_acceptance_rates(numaccepts, itrj)
 
             save_field(config_saver, U, itrj, parameters)
             create_checkpoint(
