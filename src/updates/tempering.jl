@@ -21,7 +21,7 @@ function temper!( # INFO: When using MPI in tempering
         rank_i = get_rank_from_instance(i, instance_state)
         rank_i_min_1 = get_rank_from_instance(i-1, instance_state)
 
-        if (myrank == rank_i || myrank == rank_i_min_1) && mpi_amroot(comm_instance)
+        if (myrank == rank_i || myrank == rank_i_min_1)
             if myrank == rank_i
                 mpi_ssend(bias.CV, comm_shared; dest=rank_i_min_1::Int64, tag=1) 
                 CV_j = mpi_srecv(comm_shared; source=rank_i_min_1::Int64, tag=1)
@@ -34,7 +34,8 @@ function temper!( # INFO: When using MPI in tempering
                 ΔV1 = bias(CV_j) - bias(bias.CV)
                 ΔV2 = mpi_recv(Float64, comm_shared; source=rank_i_min_1::Int64, tag=2)
                 acc_prob = exp(-ΔV1 - ΔV2)
-                is_accepted = rand() ≤ acc_prob
+                is_accepted_root = rand() ≤ acc_prob
+                is_accepted = mpi_bcast_isbits(is_accepted_root, comm_instance; root=0)
                 mpi_send(is_accepted::Bool, comm_shared; dest=rank_i_min_1::Int64, tag=3) 
             elseif myrank == rank_i_min_1 
                 ΔV2 = bias(CV_j) - bias(bias.CV)
@@ -82,12 +83,10 @@ function temper!( # INFO: When using MPI in tempering
         mpi_bcast!(numaccepts_temper, comm_shared; root=rank_i::Int64)
 
         mpi_barrier()
-
-        # Synchronize within instance
-        mpi_bcast!(instance_state, comm_instance; root=0::Int64)
-        mpi_bcast!(numaccepts_temper, comm_instance; root=0::Int64)
-
+        our_instance = mpi_allgather(MPI_INSTANCE[], comm_instance)
+        @assert allequal(our_instance) "instances arent synchronized correctly"
         acc_pct = 100numaccepts_temper[i] / (itrj/swap_every)
+        @level1 "|    Instance State: $(string(instance_state))"
         @level1 "|    Acceptance [$i <-> $(i-1)]:\t$(acc_pct) %"
     end
 

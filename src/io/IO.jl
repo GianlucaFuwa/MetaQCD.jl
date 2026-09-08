@@ -101,6 +101,7 @@ mutable struct Checkpointer{T}
             T = Nothing
         end
 
+        mpi_amroot(mpi_comm_instance()) && flush(__GlobalLogger[])
         return new{T}(checkpoint_dir, checkpoint_every)
     end
 end
@@ -119,14 +120,18 @@ function create_checkpoint(
     instance = MPI_INSTANCE[]
 
     if itrj % cp.checkpoint_every == 0
+        @level1("|")
+        @level1("|  Creating checkpoint")
         filename = joinpath(cp.checkpoint_dir, "checkpoint_$(instance)_$(rank).jld2")
         create_checkpoint(
             T(), univ, updatemethod, updatemethod_pt, itrj, numaccepts, numaccepts_t, filename
         )
-        @level1("|")
         @level1("|  Checkpoint created in $(cp.checkpoint_dir)")
         @level1("|")
-        flush(stdout)
+        if rank==0
+            flush(stdout)
+            flush(__GlobalLogger[])
+        end
     end
 
     return nothing
@@ -167,10 +172,11 @@ end
 
 function save_field(saver::ConfigSaver{T}, U, itrj, parameters=nothing) where {T}
     T ≡ Nothing && return nothing
+    instance = MPI_INSTANCE[]
 
     if itrj % saver.save_config_every == 0
         itrjstring = lpad(itrj, 8, "0")
-        filename = saver.save_config_dir * "/config_$(itrjstring)$(saver.ext)"
+        filename = saver.save_config_dir * "/config_$(instance)_$(itrjstring)$(saver.ext)"
         save_field(T(), U, filename, parameters)
         @level1("|  Config saved in $(string(T)) in file \"$(filename)\"")
     end

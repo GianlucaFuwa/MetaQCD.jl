@@ -350,8 +350,9 @@ function metaqcd!(
     load_field!(U, parameters)
 
     last_updatetime = 0.0
-    all_load_times = mpi_allgather(LOAD_TIME::Float64, mpi_comm())
-    load_time = minimum(all_load_times)
+    _start_time = time()
+    all_start_times = mpi_allgather(_start_time::Float64, mpi_comm())
+    start_time = minimum(all_start_times)
 
     if isnothing(starting_itrj)
         @level2("- Thermalization:")
@@ -360,7 +361,7 @@ function metaqcd!(
 
             for itrj in 1:(parameters.numtherm)
                 all_last_updatetime = mpi_allgather(last_updatetime, mpi_comm())
-                if any(x -> x > JOB_TIME_LIMIT, all_last_updatetime .+ time() .+ TIME_BUFFER .- load_time)
+                if any(x -> x > JOB_TIME_LIMIT, all_last_updatetime .+ time() .+ TIME_BUFFER .- start_time)
                     @level1(
                         """### Run terminated before thermalization trajectory $(itrj)
                         ### because time limit would be passed"""
@@ -383,8 +384,8 @@ function metaqcd!(
                         metro_test=itrj>20, # So we dont get stuck at the beginning
                         therm=Val(true),
                     )
-                    mpi_barrier()
                 end
+                mpi_barrier()
 
                 last_updatetime = updatetime
 
@@ -420,9 +421,9 @@ function metaqcd!(
 
         for itrj in itrj_range
             all_last_updatetime = mpi_allgather(last_updatetime, mpi_comm())
-            time_left = JOB_TIME_LIMIT .- (time() .+ TIME_BUFFER .- load_time)
-            @level3("Time left: $(time_left/60) minute(s)")
-            if any(x -> x > JOB_TIME_LIMIT, all_last_updatetime .+ time() .+ TIME_BUFFER .- load_time)
+            time_left = JOB_TIME_LIMIT .- (time() .+ TIME_BUFFER .- start_time)
+            @level2("Time left: $(time_left/60) minute(s)")
+            if any(x -> x > JOB_TIME_LIMIT, all_last_updatetime .+ time() .+ TIME_BUFFER .- start_time)
                 @level1(
                     """### Run terminated before production trajectory $(itrj)
                     ### because time limit would be passed"""
@@ -445,12 +446,12 @@ function metaqcd!(
                     update!(parity, U)
                 end
 
-                update_bias!(bias, itrj)
                 numaccepts += accepted
                 accepted
             end
 
             last_updatetime = updatetime
+            update_bias!(bias, itrj)
 
             if mpi_amroot(mpi_comm_instance())
                 if !isnothing(timing_datafile)

@@ -39,18 +39,18 @@ end
 
 function staple_plaq(U, μ, site)
     Nμ = axes(U, μ)
-    siteμ⁺ = move(site, μ, 1i32, Nμ)
+    siteμ⁺ = move(site, μ, 1, Nμ)
     staple = zero(U[μ, site])
 
-    for ν in (1i32):(4i32)
+    for ν in (1):(4)
         if ν == μ
             continue
         end
 
         Nν = axes(U, ν)
-        siteν⁺ = move(site, ν, 1i32, Nν)
-        siteν⁻ = move(site, ν, -1i32, Nν)
-        siteμ⁺ν⁻ = move(siteμ⁺, ν, -1i32, Nν)
+        siteν⁺ = move(site, ν, 1, Nν)
+        siteν⁻ = move(site, ν, -1, Nν)
+        siteμ⁺ν⁻ = move(siteμ⁺, ν, -1, Nν)
         staple += cmatmul_ood(U[ν, site], U[μ, siteν⁺], U[ν, siteμ⁺])
         staple += cmatmul_doo(U[ν, siteν⁻], U[μ, siteν⁻], U[ν, siteμ⁺ν⁻])
     end
@@ -60,28 +60,28 @@ end
 
 function staple_rect(U, μ, site)
     Nμ = axes(U, μ)
-    siteμ⁺ = move(site, μ, 1i32, Nμ)
-    siteμ⁻ = move(site, μ, -1i32, Nμ)
-    siteμ²⁺ = move(site, μ, 2i32, Nμ)
+    siteμ⁺ = move(site, μ, 1, Nμ)
+    siteμ⁻ = move(site, μ, -1, Nμ)
+    siteμ²⁺ = move(site, μ, 2, Nμ)
 
     staple = zero(U[μ, site])
 
-    for ν in (1i32):(4i32)
+    for ν in (1):(4)
         if ν == μ
             continue
         end
 
         Nν = axes(U, ν)
-        siteν⁺ = move(site, ν, 1i32, Nν)
-        siteν⁻ = move(site, ν, -1i32, Nν)
-        siteμ⁺ν⁺ = move(siteμ⁺, ν, 1i32, Nν)
-        siteμ⁺ν⁻ = move(siteμ⁺, ν, -1i32, Nν)
-        siteμ⁻ν⁺ = move(siteμ⁻, ν, 1i32, Nν)
-        siteμ⁻ν⁻ = move(siteμ⁻, ν, -1i32, Nν)
-        siteν²⁺ = move(site, ν, 2i32, Nν)
-        siteν²⁻ = move(site, ν, -2i32, Nν)
-        siteμ⁺ν²⁻ = move(siteν²⁻, μ, 1i32, Nμ)
-        siteμ²⁺ν⁻ = move(siteν⁻, μ, 2i32, Nμ)
+        siteν⁺ = move(site, ν, 1, Nν)
+        siteν⁻ = move(site, ν, -1, Nν)
+        siteμ⁺ν⁺ = move(siteμ⁺, ν, 1, Nν)
+        siteμ⁺ν⁻ = move(siteμ⁺, ν, -1, Nν)
+        siteμ⁻ν⁺ = move(siteμ⁻, ν, 1, Nν)
+        siteμ⁻ν⁻ = move(siteμ⁻, ν, -1, Nν)
+        siteν²⁺ = move(site, ν, 2, Nν)
+        siteν²⁻ = move(site, ν, -2, Nν)
+        siteμ⁺ν²⁻ = move(siteν²⁻, μ, 1, Nμ)
+        siteμ²⁺ν⁻ = move(siteν⁻, μ, 2, Nμ)
 
         # reused matrices
         # Uνsite = U[ν,site]

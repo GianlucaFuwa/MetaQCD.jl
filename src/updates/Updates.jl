@@ -17,9 +17,10 @@ import ..Fields: AbstractGaugeAction, Gaugefield, Colorfield, identity_gauges!, 
 import ..Fields: WilsonGaugeAction, add!, calc_gauge_action, calc_kinetic_energy, update_halo!
 import ..Fields: allindices, clear!, get_local_dims, normalize!, fieldstrength_eachsite!, float_type
 import ..Fields: check_dims, even_odd, gaussian_TA!, mul!, staple, staple_eachsite!
-import ..Fields: parallelfor, parallelfor_max, @latmap, @latsum, gauge_action
+import ..Fields: parallelfor, parallelfor_max, @latmap, @latsum, gauge_action, gpu_used_memory
 import ..Fields: AbstractField, Plaquette, Clover, Spinorfield, Tensorfield, is_distributed
 import ..Forces: calc_dSdU_bare!, calc_dSfdU_bare!, calc_dVdU_bare!
+import ..Forces: calc_dSfdU_top!, calc_dVdU_top!
 import ..Parameters: ParameterSet
 import ..Smearing: AbstractSmearing, NoSmearing, StoutSmearing
 import ..Smearing: calc_smearedU!, get_layer, stout_backprop!

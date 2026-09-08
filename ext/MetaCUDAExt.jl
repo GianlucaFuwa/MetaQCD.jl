@@ -25,6 +25,7 @@ Fields.synchronize(::CUDABackend) = CUDA.synchronize()
 Fields.synchronize(::CUDABackend, stream) = CUDA.synchronize(stream)
 Fields.device_synchronize(::CUDABackend) = CUDA.device_synchronize()
 Fields.default_stream(::CUDABackend) = CUDA.stream()
+Fields.gpu_used_memory(::CUDABackend) = (CUDA.CUDACore.total_memory() - CUDA.CUDACore.free_memory()) / 1e9
 
 function Fields.priority!(::CUDABackend, priority)
     CUDA.KernelAbstractions.priority!(CUDABackend(), priority)

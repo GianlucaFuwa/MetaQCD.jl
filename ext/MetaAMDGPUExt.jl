@@ -24,11 +24,12 @@ end
 
 Fields.array_type(::Type{ROCBackend}) = ROCArray
 Fields.bzeros(::ROCBackend, args...) = AMDGPU.zeros(args...)
-Fields.synchronize(::ROCBackend) = AMDGPU.synchronize()
+Fields.synchronize(::ROCBackend; stop_hostcalls=false) = AMDGPU.synchronize(; stop_hostcalls)
 Fields.synchronize(::ROCBackend, stream) = AMDGPU.synchronize(stream)
 Fields.device_synchronize(::ROCBackend) = AMDGPU.device_synchronize()
 Fields.default_stream(::ROCBackend) = AMDGPU.stream()
 Fields.priority!(::ROCBackend, priority) = AMDGPU.priority!(priority)
+Fields.gpu_used_memory(::ROCBackend) = AMDGPU.used() / 1e9
 
 const roc_readstreams = Vector{AMDGPU.HIPStream}(undef, 0)
 const roc_sendstreams = Vector{AMDGPU.HIPStream}(undef, 0)
@@ -86,8 +87,10 @@ function Fields.launch_foreachindex_global!(
     ::ROCBackend, f, captured, itr::Tuple, groupsize, stream=AMDGPU.stream()
 )
     if Fields.TUNE_KERNELS == Val(true)
-        f_str = "$(Symbol(f))_$(Fields.float_type(captured[1]))"
-        if !haskey(Fields.KERNEL_CACHE, f_str) && (length(itr) == 1)
+        f_key = typeof(f)
+        f_prec = Fields.float_type(captured[1])
+        f_key = (f_key, f_prec)
+        if !haskey(Fields.KERNEL_CACHE, f_key) && (length(itr) == 1)
             # how many items do we want?
             wanted_items = nextpow(2, length(itr[1]))
             # how many items can we launch?
@@ -96,10 +99,10 @@ function Fields.launch_foreachindex_global!(
             kernel = @roc launch=false _foreachindex_global!(f, captured, itr[1])
             config = launch_configuration(kernel; max_block_size)
             groupsize = compute_items(config.groupsize)
-            Fields.KERNEL_CACHE[f_str] = groupsize
+            Fields.KERNEL_CACHE[f_key] = groupsize
         else
-            if haskey(Fields.KERNEL_CACHE, f_str)
-                groupsize = Fields.KERNEL_CACHE[f_str]
+            if haskey(Fields.KERNEL_CACHE, f_key)
+                groupsize = Fields.KERNEL_CACHE[f_key]
             end
         end
     end
@@ -122,8 +125,10 @@ function Fields.launch_foreachindex_reduce_global!(
     compute_shmem(items) = items * sizeof(typeof(out))
 
     if Fields.TUNE_KERNELS == Val(true)
-        f_str = "$(Symbol(f))_$(Fields.float_type(captured[1]))"
-        if !haskey(Fields.KERNEL_CACHE, f_str) && (length(itr) == 1)
+        f_key = typeof(f)
+        f_prec = Fields.float_type(captured[1])
+        f_key = (f_key, f_prec)
+        if !haskey(Fields.KERNEL_CACHE, f_key) && (length(itr) == 1)
             # how many items do we want?
             wanted_items = nextpow(2, length(itr[1]))
             # how many items can we launch?
@@ -137,10 +142,10 @@ function Fields.launch_foreachindex_reduce_global!(
             config = launch_configuration(kernel; shmem=max_shmem, max_block_size)
             # determine the launch configuration
             groupsize = compute_items(config.groupsize)
-            Fields.KERNEL_CACHE[f_str] = groupsize
+            Fields.KERNEL_CACHE[f_key] = groupsize
         else
-            if haskey(Fields.KERNEL_CACHE, f_str)
-                groupsize = Fields.KERNEL_CACHE[f_str]
+            if haskey(Fields.KERNEL_CACHE, f_key)
+                groupsize = Fields.KERNEL_CACHE[f_key]
             end
         end
     end

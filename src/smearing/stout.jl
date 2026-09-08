@@ -42,6 +42,18 @@ end
     return (s1.numlayers == s2.numlayers) && (s1.ρ == s2.ρ)
 end
 
+@inline function Base.:(≈)(s1::T, s2::T) where {T<:StoutSmearing}
+    return (s1.ρ == s2.ρ)
+end
+
+@inline function Base.:(<=)(s1::T, s2::T) where {T<:StoutSmearing}
+    return (s1.numlayers <= s2.numlayers) && (s1.ρ == s2.ρ)
+end
+
+@inline function Base.:(>=)(s1::T, s2::T) where {T<:StoutSmearing}
+    return (s1.numlayers >= s2.numlayers) && (s1.ρ == s2.ρ)
+end
+
 Base.length(s::StoutSmearing) = s.numlayers
 get_layer(s::StoutSmearing, i) = s.Usmeared_multi[i]
 
@@ -67,14 +79,14 @@ function apply_stout_smearing!(Uout::Gaugefield{B,T,M}, C, Q, U, ρ) where {B,T,
     parallelfor(itr, B, Val(M), (U,), (Uout, C, Q), (Uout, C, Q, U); do_edges=Val(true)) do site, (Uout, C, Q, U)
         Base.Cartesian.@nexprs 4 μ -> (
             Qμ = calc_stout_Q_kernel!(Q, C, U, site, μ, ρ);
-            Uout[μ, site] = proj_onto_SU3(cmatmul_oo(exp_iQ(Qμ), U[μ, site]))
+            @inbounds Uout[μ, site] = proj_onto_SU3(cmatmul_oo(exp_iQ(Qμ), U[μ, site]))
         )
     end
 
     return nothing
 end
 
-function stout_backprop!(Σ′, Σ, smearing, max_level=length(smearing))
+function stout_backprop!(Σ′, Σ, smearing; min_level=1, max_level=length(smearing))
     # Variable names might be misleading---the bare force Σ⁰ will be stored in Σ′, contrary
     # to the naming convention in [hep-lat/0311018]
     Usmeared = smearing.Usmeared_multi
@@ -82,13 +94,15 @@ function stout_backprop!(Σ′, Σ, smearing, max_level=length(smearing))
     Q = smearing.Q_multi
     Λ = smearing.Λ
 
-    for i in reverse(1:max_level)
+    for i in reverse(min_level:max_level)
         stout_recursion!(Σ, Σ′, Usmeared[i+1], Usmeared[i], C[i], Q[i], Λ, smearing.ρ)
         copy!(Σ′, Σ)
     end
 
     return nothing
 end
+
+stout_backprop!(::Any, ::Any, ::NoSmearing; kwargs...) = nothing
 
 """
 Stout-Force recursion \\
@@ -187,7 +201,7 @@ end
     return nothing
 end
 
-@inline function calc_stout_Q_kernel!(Q, C, U, site, μ, ρ)
+function calc_stout_Q_kernel!(Q, C, U, site, μ, ρ)
     @inbounds begin
         Cμ = ρ * staple(WilsonGaugeAction(), U, μ, site)
         C[μ, site] = Cμ

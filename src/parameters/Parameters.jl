@@ -126,10 +126,12 @@ function construct_params_from_toml(parameters, inputfile)
     posl = findfirst(x -> String(x) == "log_dir", pnames)
     posm = findfirst(x -> String(x) == "measure_dir", pnames)
     poss = findfirst(x -> String(x) == "save_config_dir", pnames)
+    posc = findfirst(x -> String(x) == "checkpoint_dir", pnames)
     posb = findfirst(x -> String(x) == "bias_dir", pnames)
     value_Params[posl] = log_dir
     value_Params[posm] = measure_dir
     value_Params[poss] = save_config_dir
+    value_Params[posc] = checkpoint_dir
     value_Params[posb] = bias_dir
 
     mpi_barrier()

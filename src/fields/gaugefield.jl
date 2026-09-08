@@ -277,5 +277,6 @@ function convert_field(
         Uout[4, site] = _getindex_mat(Val(N), Uarr, 4, site, Tout)
     end
 
+    invalidate_halo!(Uout)
     return Uout
 end

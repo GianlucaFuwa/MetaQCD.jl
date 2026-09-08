@@ -40,8 +40,7 @@ on the trajectories, unless `logdir = ""`
 - `fermion_action`: An String that identifies the fermion action type to initialize the appropriate fermion fields
 - `numfermions`: The number of non-degenerate heavy flavours, again to initialize the
 right number of fermion fields
-- `numcv`: If bigger than 0, additional fields are initialized that are needed for Stout
-force recursion when using a bias.
+- `numcv`: If numcv>0, additional fields are initialized that are needed for the calculation of the bias force
 - `logdir`: Directory that hmc data should be written into.
 - `instance`: Integer identifier of current instance (for parallel tempering and multiple walkers).
 
@@ -65,13 +64,13 @@ struct HMC{TL,NL,TG,TGH,TP,TT,TPF,TSG,TSF,TPO,TF,TF2,TFS,TLF} <: AbstractUpdate
     staples::TT
     force::TF
     force2::TF2 # second force field for smearing
+    force_sum::TF # accumulated force when merging stout recursion
     fieldstrength::TFS # fieldstrength fields for Bias
     smearing_gauge::TSG
     smearing_fermion::TSF
 
     substep_CVs::Vector{Vector{Float64}}
     substep_CVs_single::Vector{Float64}
-    substep_counter::Base.RefValue{Int64}
 
     logfile::TLF
     function HMC(
@@ -86,6 +85,7 @@ struct HMC{TL,NL,TG,TGH,TP,TT,TPF,TSG,TSF,TPO,TF,TF2,TFS,TLF} <: AbstractUpdate
         staples,
         force,
         force2,
+        force_sum,
         fieldstrength,
         smearing_gauge,
         smearing_fermion,
@@ -104,7 +104,6 @@ struct HMC{TL,NL,TG,TGH,TP,TT,TPF,TSG,TSF,TPO,TF,TF2,TFS,TLF} <: AbstractUpdate
         !isnothing(logfile) && @level1("|  HMC LOGFILE: $(logfile)")
         @level1("-\n")
         substep_CVs_single = isempty(substep_CVs) ? Float64[] : zeros(length(substep_CVs))
-        substep_counter = Base.RefValue{Int64}(0)
         TL = typeof(levels)
         NL = _unwrap_val(numlevels)
         TG = typeof(U_old)
@@ -131,12 +130,12 @@ struct HMC{TL,NL,TG,TGH,TP,TT,TPF,TSG,TSF,TPO,TF,TF2,TFS,TLF} <: AbstractUpdate
             staples,
             force,
             force2,
+            force_sum,
             fieldstrength,
             smearing_gauge,
             smearing_fermion,
             substep_CVs,
             substep_CVs_single,
-            substep_counter,
             logfile,
         )
     end
@@ -151,6 +150,7 @@ function HMC(
     numsmear_fermion=0,
     rho_stout_gauge=0.0,
     rho_stout_fermion=0.0;
+    generalized_multiscale=true,
     rafriction=0.0,
     hmc_logging=true,
     fermion_action="quenched",
@@ -166,15 +166,19 @@ function HMC(
     U_high = T==Float64 ? nothing : Gaugefield(U, Float64)
     staples = Colorfield(U; no_halo=true)
     force = Colorfield(U; halo_width=1)
+    force_sum = Colorfield(U; halo_width=1)
 
     numlevels = Val(length(hmc_levels))
-    level_params = level_parameters_from_dict(hmc_levels)
+    level_params = level_parameters_from_dict(hmc_levels, trajectory)
+    @assert issorted(level_params; lt=(x, y)->isless(trajectory/x.numsteps, trajectory/y.numsteps)) """
+    HMC levels have to be sorted by Δτ in generalized multiscale (coarsest level is the highest)
+    """
 
     levels = ntuple(numlevels) do i
         lvl = level_params[i]
         forces = lvl.forces
         numchildren = Val(i - 1)
-        Δτ = if i == length(level_params)
+        Δτ = if i == length(level_params) || generalized_multiscale
             trajectory / lvl.numsteps
         else
             Nᵢ = lvl.numsteps
@@ -186,10 +190,16 @@ function HMC(
             trajectory / Nᵢ
         end
 
+        integrator = if generalized_multiscale && Val(i) == numlevels
+            build_multirate_integrator(level_params, @__MODULE__) 
+        else
+            integrator_from_str(lvl.integrator, rafriction)
+        end
+
         numcv == 0 &&
             (@assert 0 ∉ forces "bias force cannot be in hmc level without bias")
         HMCLevel(
-            integrator_from_str(lvl.integrator, rafriction),
+            integrator,
             lvl.numsteps,
             Δτ,
             forces;
@@ -202,27 +212,27 @@ function HMC(
         )
     end
 
-    numsubsteps = 1
-    sum_U_updates = 0
-    switch = false
-    for ilvl in length(levels):-1:1
-        switch && continue
-        lvl = levels[ilvl]
-        int = level_params[ilvl].integrator
-        if Val(0)in lvl.forces && ilvl == length(levels)
-            switch = true
-            numsubsteps = lvl.numsteps
-        elseif Val(0) in lvl.forces
-            switch = true
-            numsubsteps = sum_U_updates * lvl.numsteps
-        else
-            sum_U_updates += lvl.numsteps * num_U_updates(int)
-        end
-    end
+    # numsubsteps = 1
+    # sum_U_updates = 0
+    # switch = false
+    # for ilvl in length(levels):-1:1
+    #     switch && continue
+    #     lvl = levels[ilvl]
+    #     int = level_params[ilvl].integrator
+    #     if Val(0)in lvl.forces && ilvl == length(levels)
+    #         switch = true
+    #         numsubsteps = lvl.numsteps
+    #     elseif Val(0) in lvl.forces
+    #         switch = true
+    #         numsubsteps = sum_U_updates * lvl.numsteps
+    #     else
+    #         sum_U_updates += lvl.numsteps * num_U_updates(int)
+    #     end
+    # end
 
     substep_CVs = Vector{Float64}[]
     for _ in 1:numcv
-        push!(substep_CVs, zeros(Int(numsubsteps)))
+        push!(substep_CVs, Float64[])
     end
 
     allforces = collect(Iterators.flatten([lvl.forces for lvl in levels]))
@@ -264,7 +274,7 @@ function HMC(
     end
 
     has_smearing = smearing_gauge != NoSmearing() || smearing_fermion != NoSmearing()
-    force2 = (!has_smearing && numcv == 0) ? nothing : Colorfield(U)
+    force2 = (!has_smearing && numcv == 0) ? nothing : Colorfield(U; halo_width=1)
 
     if fermion_action == "staggered"
         ϕ = ntuple(_ -> Spinorfield(U; staggered=true, halo_width=1), numfermions)
@@ -320,6 +330,7 @@ function HMC(
         staples,
         force,
         force2,
+        force_sum,
         fieldstrength,
         smearing_gauge,
         smearing_fermion,
@@ -329,22 +340,28 @@ function HMC(
 end
 
 include("hmc_integrators.jl")
+include("hmc_multiscale_integrators.jl")
 
 function update!(
     hmc::HMC,
-    U;
+    U::Gaugefield{B};
     fermion_action::TF=QuenchedFermionAction(),
     bias::TB=NoBias(),
     metro_test::Bool=true,
     therm::Val{THERM}=Val(false),
     instance::Int64=MPI_INSTANCE[],
-) where {TF,TB,THERM}
+) where {B,TF,TB,THERM}
     if TF !== QuenchedFermionAction
         @assert TF <: Tuple "fermion_action must be nothing or a tuple of fermion actions"
         @assert !isnothing(hmc.ϕ) "fermion_action passed but not activated in HMC"
     end
 
-    hmc.substep_counter[] = 0
+    for i in eachindex(hmc.substep_CVs)
+        empty!(hmc.substep_CVs[i])
+    end
+
+    @level2("|  GPU memory used: $(gpu_used_memory(B()))")
+    @level2("|  GC live memory: $(Base.gc_live_bytes() / 1e9)")
 
     set_ext!(hmc.logfile, instance)
     for lvl in hmc.levels
@@ -376,10 +393,8 @@ function update!(
     V_old = bias(CV_old)
     sample_pseudofermions!(ϕ, fermion_action, U, smearing_fermion, shared_smearing)
     Sf_old = calc_fermion_action(fermion_action, U, ϕ, smearing_fermion, true) # INFO: fields are already smeared in sampling, so we dont have to here
-    @level4("trP²_old: $(trP²_old)")
-    @level4("Sg_old: $(Sg_old)")
 
-    evolve!(U, hmc, fermion_action, bias, therm, numlevels)
+    Base.invokelatest(evolve!, U, hmc, fermion_action, bias, therm, numlevels)
 
     copy!(U_high, U)
     !isnothing(hmc.U_high) && normalize!(U_high)
@@ -389,8 +404,6 @@ function update!(
     CV_new = calc_cv(U_high, bias) # FIXME: this will error if there is not smearing in definition
     V_new = bias(CV_new)
     Sf_new = calc_fermion_action(fermion_action, U, ϕ, smearing_fermion, shared_smearing)
-    @level4("trP²_new: $(trP²_new)")
-    @level4("Sg_new: $(Sg_new)")
 
     ΔP² = trP²_new - trP²_old
     ΔSg = Sg_new - Sg_old
@@ -425,7 +438,8 @@ end
 function updateU!(
     U::Gaugefield{B,T,M}, hmc, fac, fermion_action, bias, therm, level
 ) where {B,T,M}
-    if level == 1
+    # println("updateU!")
+    # if level == 1
         ϵ = T(hmc.levels[level].Δτ * fac)
         P = hmc.P
 
@@ -433,9 +447,10 @@ function updateU!(
             # U[μsite] = cmatmul_oo(exp_iQ(-im * ϵ * P[μsite]), U[μsite])
             U[μsite] = proj_onto_SU3(cmatmul_oo(exp_iQ(-im * ϵ * P[μsite]), ComplexF64.(U[μsite])))
         end
-    else
-        evolve!(U, hmc, fermion_action, bias, therm, level-1)
-    end
+        # normalize!(U)
+    # else
+    #     evolve!(U, hmc, fermion_action, bias, therm, level-1)
+    # end
 
     return nothing
 end
@@ -449,30 +464,38 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level, recycle=false)
     force = hmc.force
     ϕ = hmc.ϕ
     temp_force = hmc.force2
+    force_sum = hmc.force_sum
+    fieldstrength = hmc.fieldstrength
+    clear!(force_sum)
     smearing_gauge = hmc.smearing_gauge
+
     if bias == NoBias() || isnothing(bias)
         shared_smearing = false
         smearing_fermion = hmc.smearing_fermion
     else
-        shared_smearing = (bias.smearing == hmc.smearing_fermion)
+        # FIXME: for now merging only works when bias is smeared longer than fermion action
+        shared_smearing = (bias.smearing >= hmc.smearing_fermion) && length(bias) == 1
         smearing_fermion = shared_smearing ? bias.smearing : hmc.smearing_fermion
     end
 
-    fieldstrength = hmc.fieldstrength
+    numsmear_fermion = length(hmc.smearing_fermion)
 
     fp = !isnothing(lvl.forcefile) ? fopen(lvl.forcefile, "a") : nothing
 
     if Val(0) ∈ forces
+        # println("updateP! (bias)")
         if bias isa Bias
-            if recycle
-                hmc.substep_counter[] += 1
-            end
             substep_cv = hmc.substep_CVs_single
             for i in 1:length(bias)
                 is_smeared = i > 1
-                cv = calc_dVdU_bare!(
-                    force, (fieldstrength, staples), U, temp_force, bias, i, is_smeared
+                min_level = shared_smearing ? numsmear_fermion+1 : 1
+                cv = calc_dVdU_top!(
+                    force, (fieldstrength, staples), U, bias, i, bias.smearing, is_smeared
                 )
+                if length(bias.smearing) > numsmear_fermion
+                    stout_backprop!(force, temp_force, bias.smearing; min_level) 
+                end
+                add!(force_sum, force, 1)
                 substep_cv[i] = cv
 
                 force_avg = norm(force, Val(2))
@@ -483,13 +506,11 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level, recycle=false)
                     printf(fp, StaticString("%+-25.15E"), force_avg)
                     printf(fp, StaticString("%+-25.15E"), force_sup)
                 end
-
-                add!(P, force, ϵ)
             end
 
             if recycle
                 for i in eachindex(substep_cv)
-                    hmc.substep_CVs[i][hmc.substep_counter[]] = substep_cv[i]
+                    push!(hmc.substep_CVs[i], substep_cv[i])
                 end
             end
         else
@@ -503,6 +524,7 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level, recycle=false)
     end
 
     if Val(1) ∈ forces
+        # println("updateP! (gauge)")
         calc_dSdU_bare!(force, staples, U, temp_force, smearing_gauge)
 
         force_avg = norm(force, Val(2))
@@ -519,20 +541,23 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level, recycle=false)
 
     if fermion_action !== QuenchedFermionAction()
         iforce = 0
+
         for i in forces
             (i == Val(0) || i == Val(1)) && continue # if bias or gauge force, go to next iteration
             iforce += 1
+            # println("updateP! (fermion $(iforce))")
 
             is_smeared = (shared_smearing && Val(0) ∈ forces) || iforce > 1
-            calc_dSfdU_bare!(
+            calc_dSfdU_top!(
                 force,
                 fermion_action[_unwrap_val(i)-1],
                 U,
                 ϕ[_unwrap_val(i)-1],
-                temp_force,
                 smearing_fermion,
-                is_smeared,
+                is_smeared;
+                level=numsmear_fermion,
             )
+            add!(force_sum, force, 1)
 
             force_avg = norm(force, Val(2))
             force_sup = norm(force, Val(Inf))
@@ -542,10 +567,13 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level, recycle=false)
                 printf(fp, StaticString("%+-25.15E"), force_avg)
                 printf(fp, StaticString("%+-25.15E"), force_sup)
             end
-
-            add!(P, force, ϵ)
         end
     end
+
+    if numsmear_fermion > 0
+        stout_backprop!(force_sum, temp_force, smearing_fermion; max_level=numsmear_fermion)
+    end
+    add!(P, force_sum, ϵ)
 
     if !isnothing(fp)
         newline(fp)

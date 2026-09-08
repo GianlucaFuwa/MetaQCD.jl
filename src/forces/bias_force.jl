@@ -18,6 +18,24 @@ function calc_dVdU_bare!(dU, F, U, temp_force, bias, icv, is_smeared)
     return cv
 end
 
+function calc_dVdU_top!(dU, F, U, bias, icv, smearing, is_smeared)
+    cv = calc_cv(U, bias, icv, is_smeared)
+    bias_derivative = ∂V∂Q(bias, cv, icv)
+    level = bias.cv_numsmears[icv]
+    smeared_U = smearing.Usmeared_multi[level+1]
+    itemp = _unwrap_val(bias.bias[icv].cvinfo.cv_temp_ind)
+    calc_cv_deriv!(dU, bias, icv, F[itemp], smeared_U, bias_derivative)
+    return cv
+end
+
+function calc_dVdU_top!(dU, F, U, bias, icv, ::NoSmearing, is_smeared)
+    cv = calc_cv(U, bias, icv, is_smeared)
+    bias_derivative = ∂V∂Q(bias, cv, icv)
+    itemp = _unwrap_val(bias.bias[icv].cvinfo.cv_temp_ind)
+    calc_cv_deriv!(dU, bias, icv, F[itemp], U, bias_derivative)
+    return cv
+end
+
 function calc_cv_deriv_bare!(dU, bias, F, U, ::Any, ::NoSmearing, icv, fac=1)
     itemp = _unwrap_val(bias.bias[icv].cvinfo.cv_temp_ind)
     calc_cv_deriv!(dU, bias, icv, F[itemp], U, fac)
@@ -34,6 +52,6 @@ function calc_cv_deriv_bare!(
     smeared_U = smearing.Usmeared_multi[level+1]
     itemp = _unwrap_val(bias.bias[icv].cvinfo.cv_temp_ind)
     calc_cv_deriv!(dU, bias, icv, F[itemp], smeared_U, fac)
-    stout_backprop!(dU, temp_force, smearing, level)
+    stout_backprop!(dU, temp_force, smearing; max_level=level)
     return nothing
 end

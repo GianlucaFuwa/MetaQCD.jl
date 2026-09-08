@@ -497,7 +497,7 @@ function bias_from_weights(
     @assert numinstances > 0 "No bias data found"
     @assert kernel_variance >= 0.0 "kernel_variance has to be >= 0.0"
 
-    bias_data = [getproperty(meas, Symbol("bias_data_00", i)) for i in 0:numinstances-1]
+    bias_data = [getproperty(meas, Symbol("bias_data_" * lpad(i, 3, "0"))) for i in 0:numinstances-1]
     q = range(cvlims[1], cvlims[2]; step=bin_width)
     V = zero(q)
 

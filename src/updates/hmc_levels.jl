@@ -92,7 +92,7 @@ function Base.show(io::IO, level::HMCLevel)
     return nothing
 end
 
-function level_parameters_from_dict(value::Vector)
+function level_parameters_from_dict(value::Vector, trajectory)
     value_out = Vector{HMCLevelParameters}(undef, length(value))
 
     # Dictionary to track which forces are assigned to which levels
@@ -101,6 +101,12 @@ function level_parameters_from_dict(value::Vector)
     for i in eachindex(value)
         level_params = initialize_level_parameters()
         level_dict = struct2dict(level_params)
+        if length(value) > 1
+            @assert "level" ∈ keys(value[i]) "level (Int) needs to be provided in every hmc.levels"
+            @assert "forces" ∈ keys(value[i]) "forces (Vector{Int}) needs to be provided in every hmc.levels"
+            @assert "integrator" ∈ keys(value[i]) "integrator needs to be provided in every hmc.levels"
+            @assert "numsteps" ∈ keys(value[i]) "numsteps needs to be provided in every hmc.levels"
+        end
 
         for (key_ii, value_ii) in value[i]
             if haskey(level_dict, key_ii)
@@ -111,6 +117,7 @@ function level_parameters_from_dict(value::Vector)
             end
         end
 
+        level_params.Δτ = trajectory / level_params.numsteps
         # Check for forces that are already assigned to other levels
         for force in level_params.forces
             if haskey(force_dict, force)
@@ -134,7 +141,9 @@ function initialize_level_parameters()
 end
 
 @kwdef mutable struct HMCLevelParameters
+    level::Int64 = 1
     forces::Vector{Int64} = [1]
     integrator::String = "Leapfrog"
     numsteps::Int64 = 10
+    Δτ::Float64 = 0.1
 end

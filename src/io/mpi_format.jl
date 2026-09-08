@@ -1,8 +1,8 @@
-function save_field(::MPIFormat, u::AbstractField{B,T}, filename) where {B,T}
+function save_field(::MPIFormat, u::AbstractField{B,T}, filename, args...) where {B,T}
     return save_field_mpi(u, filename)
 end
 
-function save_field(::BridgeFormat, u::AbstractField{B,T,true}, filename) where {B,T}
+function save_field(::BridgeFormat, u::AbstractField{B,T,true}, filename, args...) where {B,T}
     return save_field_mpi(u, filename)
 end
 
@@ -19,7 +19,6 @@ function save_field_mpi(u::Gaugefield{B,T}, filename, args...) where {B,T}
     set_view!(fp, u, etype)
     Utils.MPI.File.write_all(fp, U)
     Utils.MPI.File.close(fp)
-    mpi_barrier(u.topology.comm_cart)
     return nothing
 end
 

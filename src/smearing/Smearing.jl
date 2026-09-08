@@ -48,6 +48,20 @@ function construct_flow(U, parameters)
     return smearing
 end
 
+Base.:(==)(::NoSmearing, ::NoSmearing) = false
+Base.:(==)(::NoSmearing, ::Any) = false
+Base.:(==)(::Any, ::NoSmearing) = false
+Base.:(≈)(::NoSmearing, ::NoSmearing) = false
+Base.:(≈)(::NoSmearing, ::Any) = false
+Base.:(≈)(::Any, ::NoSmearing) = false
+Base.:(<=)(::NoSmearing, ::NoSmearing) = false
+Base.:(<=)(::NoSmearing, ::Any) = false
+Base.:(<=)(::Any, ::NoSmearing) = false
+Base.:(>=)(::NoSmearing, ::NoSmearing) = false
+Base.:(>=)(::NoSmearing, ::Any) = false
+Base.:(>=)(::Any, ::NoSmearing) = false
+
+Base.length(::NoSmearing) = 0
 calc_smearedU!(::NoSmearing, ::Any) = nothing
 calc_smearedU!(smearing::StoutSmearing, Uin) = apply_smearing!(smearing, Uin)
 calc_smearedU!(smearing::GradientFlow, Uin) = flow!(smearing, Uin)

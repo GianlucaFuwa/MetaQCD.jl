@@ -50,6 +50,7 @@ struct ParameterSet
     hmc_rhostout_gauge::Float64
     hmc_rhostout_fermion::Float64
     hmc_logging::Bool
+    hmc_generalized_multiscale::Bool
     hb_maxit::Int64
     numheatbath::Int64
     eo::Bool # XXX: Remove?
@@ -78,6 +79,7 @@ struct ParameterSet
     load_config_format::String
     load_config_path::String
     load_checkpoint_path::String
+    checkpoint_dir::String
 
     randomseed::Union{UInt64,Vector{UInt64}}
     ensemble_dir::String

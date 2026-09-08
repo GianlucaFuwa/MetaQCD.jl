@@ -25,6 +25,14 @@ function set_global_logger!(level, fp_or_file=nothing; tc=true)
     return nothing
 end
 
+function Base.flush(logger::MetaLogger)
+    if logger.fp isa IOStream
+        flush(logger.fp)
+    end
+
+    return nothing
+end
+
 printf(::Nothing, ::Any) = zero(Int32)
 
 macro level1(msg)

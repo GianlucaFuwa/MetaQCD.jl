@@ -67,7 +67,9 @@ function create_checkpoint(
     state = get_rng_state()
 
     if filename != ""
-        (tmppath, tmpio) = mktemp() # open temporary file at arbitrary location in storage
+        #INFO: We first create the checkpoint at a temporary location in case something goes wrong
+        # and we dont overwrite a valid checkpoing with a broken one
+        (tmppath, tmpio) = mktemp() 
         close(tmpio)
         jldsave(
             tmppath; 
@@ -80,8 +82,9 @@ function create_checkpoint(
             numaccepts_t=numaccepts_t,
             rngstate=state,
         )
+        # Need to make sure every single rank has successfully checkpointed before finalizing
         mpi_barrier()
-        mv(tmppath, filename; force=true) # replace bias file with temporary file
+        mv(tmppath, filename; force=true)
     end
 
     return nothing

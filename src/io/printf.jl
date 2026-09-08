@@ -10,7 +10,7 @@ struct FILE end
 @inline printfmt(::Type{Bool}) = StaticString("%s")
 @inline printfmt(::Type{<:AbstractString}) = StaticString("%s")
 
-if !(Sys.iswindows()) # ccall printf with floats doesnt work on windows for some reason
+if (Sys.iswindows()) # ccall printf with floats doesnt work on windows for some reason
     using Format: cfmt
     @inline fopen(name::AbstractString, mode::AbstractString) = open(name, mode)
     @inline fclose(fp::IOStream) = close(fp)
@@ -131,11 +131,13 @@ else
 
     # AbstractFloat
     @inline function printf(fmt::Ptr{UInt8}, n::AbstractFloat)
-        ccall(:printf, Cint, (Ptr{UInt8}, Cdouble), fmt, Float64(n))
+        # ccall(:printf, Cint, (Ptr{UInt8}, Cdouble), fmt, Float64(n))
+        @ccall printf(fmt::Ptr{UInt8}; Float64(n)::Cdouble)::Cint
     end
 
     @inline function printf(fp::Ptr{FILE}, fmt::Ptr{UInt8}, n::AbstractFloat)
-        ccall(:fprintf, Cint, (Ptr{FILE}, Ptr{UInt8}, Cdouble), fp, fmt, Float64(n))
+        # ccall(:fprintf, Cint, (Ptr{FILE}, Ptr{UInt8}, Cdouble), fp, fmt, Float64(n))
+        @ccall fprintf(fp::Ptr{FILE}, fmt::Ptr{UInt8}; Float64(n)::Cdouble)::Cint
     end
 
     # Tuple

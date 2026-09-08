@@ -9,12 +9,12 @@ using Statistics
 using ..Logs
 using ..MetaIO
 using ..Utils
-using ..Fields: BACKENDS
+using ..Fields: BACKENDS, gpu_used_memory
 
 import ..BiasModule: Bias, NoBias, calc_weights, is_adaptive, recalc_cv!, update_bias!
 import ..BiasModule: set_cv!, set_sigma0!
 import ..DiracOperators: QuenchedFermionAction
-import ..Fields: calc_gauge_action, is_distributed, normalize!
+import ..Fields: calc_gauge_action, is_distributed, normalize!, synchronize, get_backend
 import ..Measurements: MeasurementMethods, calc_measurements, calc_measurements_flowed
 import ..Parameters: ParameterSet, construct_params_from_toml
 import ..Smearing: construct_flow
@@ -24,8 +24,7 @@ import ..Updates: set_instanton!
 
 export run_build, run_sim, metaqcd
 
-const LOAD_TIME = time() # Used for cluster job termination when there is a time limit
-const TIME_BUFFER = 20 * 60 # 20 Minute buffer for job termination
+const TIME_BUFFER = 30 * 60 # 30 Minute buffer for job termination
 const JOB_TIME_LIMIT = @load_preference("JOB_TIME_LIMIT", Inf) * 60 # should be given in minutes in LocalPreferences.toml
 
 function metaqcd(parameterfile::String)

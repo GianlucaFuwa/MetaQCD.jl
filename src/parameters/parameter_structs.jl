@@ -83,6 +83,7 @@ end
     hmc_rhostout_gauge::Float64 = 0.0
     hmc_rhostout_fermion::Float64 = 0.0
     hmc_logging::Bool = true
+    hmc_generalized_multiscale::Bool = true
 end
 
 @kwdef mutable struct GradientFlowParameters

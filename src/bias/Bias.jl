@@ -86,7 +86,7 @@ mutable struct Bias{N,TB,TS,TW,T1,T2}
 end
 
 function Bias(
-    p, U; bias=nothing, mpi_multi_sim=false, instance=mpi_myrank(), dummy=false, build=false
+    p, U; bias=nothing, mpi_multi_sim=false, instance=MPI_INSTANCE[], dummy=false, build=false
 )
     inum = if dummy
         0
@@ -215,6 +215,7 @@ function Base.show(io::IO, b::Bias)
     return nothing
 end
 
+Base.length(::NoBias) = 0
 Base.length(::Bias{N}) where {N} = N
 (b::Bias{N})(cv) where {N} = sum(b.bias[i](cv[i]) for i in 1:N)
 
@@ -261,6 +262,7 @@ function update_bias!(
         end
     end
 
+    GC.gc()
     return nothing
 end
 
@@ -286,7 +288,6 @@ function update_bias!(
     end
     
     mpi_barrier(mpi_comm_instance())
-    GC.gc()
     return nothing
 end
 

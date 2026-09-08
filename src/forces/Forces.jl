@@ -62,6 +62,20 @@ function calc_dSfdU_bare!(dU, fermion_action, U, ϕ, temp_force, smearing, is_sm
     return nothing
 end
 
+function calc_dSfdU_top!(
+    dU, fermion_action, U, ϕ, smearing, is_smeared=false; level=smearing.numlayers
+)
+    is_smeared || calc_smearedU!(smearing, U)
+    fully_smeared_U = smearing.Usmeared_multi[level+1]
+    calc_dSfdU!(dU, fermion_action, fully_smeared_U, ϕ) # Defined in each operators respective file
+    return nothing
+end
+
+function calc_dSfdU_top!(dU, fermion_action, U, ϕ, ::NoSmearing, ::Bool; kwargs...)
+    calc_dSfdU!(dU, fermion_action, U, ϕ) # Defined in each operators respective file
+    return nothing
+end
+
 include("gauge_force.jl")
 include("bias_force.jl")
 include("wilson_force.jl")

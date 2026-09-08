@@ -1,6 +1,6 @@
 function wilsonloop(U, μ, ν, site, Lμ, Lν)
-    right = sign(Lμ) == 1i32
-    top = sign(Lν) == 1i32
+    right = sign(Lμ) == 1
+    top = sign(Lν) == 1
 
     if right && top
         return wilsonloop_top_right(U, μ, ν, site, Lμ, Lν)
@@ -20,23 +20,23 @@ function wilsonloop_top_right(U::Gaugefield{B,T}, μ, ν, site, Lμ, Lν) where 
     Lμ = abs(Lμ)
     Lν = abs(Lν)
 
-    for _ in (1i32):Lμ
+    for _ in (1):Lμ
         wil = cmatmul_oo(wil, U[μ, site])
-        site = move(site, μ, 1i32, Nμ)
+        site = move(site, μ, 1, Nμ)
     end
 
-    for _ in (1i32):Lν
+    for _ in (1):Lν
         wil = cmatmul_oo(wil, U[ν, site])
-        site = move(site, ν, 1i32, Nν)
+        site = move(site, ν, 1, Nν)
     end
 
-    for _ in (1i32):Lμ
-        site = move(site, μ, -1i32, Nμ)
+    for _ in (1):Lμ
+        site = move(site, μ, -1, Nμ)
         wil = cmatmul_od(wil, U[μ, site])
     end
 
-    for _ in (1i32):Lν
-        site = move(site, ν, -1i32, Nν)
+    for _ in (1):Lν
+        site = move(site, ν, -1, Nν)
         wil = cmatmul_od(wil, U[ν, site])
     end
 
@@ -50,24 +50,24 @@ function wilsonloop_top_left(U::Gaugefield{B,T}, μ, ν, site, Lμ, Lν) where {
     Lμ = abs(Lμ)
     Lν = abs(Lν)
 
-    for _ in (1i32):Lν
+    for _ in (1):Lν
         wil = cmatmul_oo(wil, U[ν, site])
-        site = move(site, ν, 1i32, Nν)
+        site = move(site, ν, 1, Nν)
     end
 
-    for _ in (1i32):Lμ
-        site = move(site, μ, -1i32, Nμ)
+    for _ in (1):Lμ
+        site = move(site, μ, -1, Nμ)
         wil = cmatmul_od(wil, U[μ, site])
     end
 
-    for _ in (1i32):Lν
-        site = move(site, ν, -1i32, Nν)
+    for _ in (1):Lν
+        site = move(site, ν, -1, Nν)
         wil = cmatmul_od(wil, U[ν, site])
     end
 
-    for _ in (1i32):Lμ
+    for _ in (1):Lμ
         wil = cmatmul_oo(wil, U[μ, site])
-        site = move(site, μ, 1i32, Nμ)
+        site = move(site, μ, 1, Nμ)
     end
 
     return wil
@@ -80,24 +80,24 @@ function wilsonloop_bottom_left(U::Gaugefield{B,T}, μ, ν, site, Lμ, Lν) wher
     Lμ = abs(Lμ)
     Lν = abs(Lν)
 
-    for _ in (1i32):Lμ
-        site = move(site, μ, -1i32, Nμ)
+    for _ in (1):Lμ
+        site = move(site, μ, -1, Nμ)
         wil = cmatmul_od(wil, U[μ, site])
     end
 
-    for _ in (1i32):Lν
-        site = move(site, ν, -1i32, Nν)
+    for _ in (1):Lν
+        site = move(site, ν, -1, Nν)
         wil = cmatmul_od(wil, U[ν, site])
     end
 
-    for _ in (1i32):Lμ
+    for _ in (1):Lμ
         wil = cmatmul_oo(wil, U[μ, site])
-        site = move(site, μ, 1i32, Nμ)
+        site = move(site, μ, 1, Nμ)
     end
 
-    for _ in (1i32):Lν
+    for _ in (1):Lν
         wil = cmatmul_oo(wil, U[ν, site])
-        site = move(site, ν, 1i32, Nν)
+        site = move(site, ν, 1, Nν)
     end
 
     return wil
@@ -110,23 +110,23 @@ function wilsonloop_bottom_right(U::Gaugefield{B,T}, μ, ν, site, Lμ, Lν) whe
     Lμ = abs(Lμ)
     Lν = abs(Lν)
 
-    for _ in (1i32):Lν
-        site = move(site, ν, -1i32, Nν)
+    for _ in (1):Lν
+        site = move(site, ν, -1, Nν)
         wil = cmatmul_od(wil, U[ν, site])
     end
 
-    for _ in (1i32):Lμ
+    for _ in (1):Lμ
         wil = cmatmul_oo(wil, U[μ, site])
-        site = move(site, μ, 1i32, Nμ)
+        site = move(site, μ, 1, Nμ)
     end
 
-    for _ in (1i32):Lν
+    for _ in (1):Lν
         wil = cmatmul_oo(wil, U[ν, site])
-        site = move(site, ν, 1i32, Nν)
+        site = move(site, ν, 1, Nν)
     end
 
-    for _ in (1i32):Lμ
-        site = move(site, μ, -1i32, Nμ)
+    for _ in (1):Lμ
+        site = move(site, μ, -1, Nμ)
         wil = cmatmul_od(wil, U[μ, site])
     end
 

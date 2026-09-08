@@ -78,9 +78,16 @@ using Base.Math: isinf_real
     Return a `ExpiQCoeffs` object that contains the exponential of `Q` and all parameters
     obtained in the Cayley-Hamilton algorithm that are needed for Stout force recursion.
     """
-    @inline function exp_iQ_coeffs(Q::SU{3,9,T}) where {T}
-        f₀, f₁, f₂, b₁₀, b₁₁, b₁₂, b₂₀, b₂₁, b₂₂ = calc_coefficients(Q)
+    @inline function exp_iQ_coeffs(Q::SU{3,9,T}) where {T} #XXX: to avoid host_malloc on AMDGPU
+        Q64 = SMatrix{3,3,ComplexF64,9}(Q)
+        f₀, f₁, f₂, b₁₀, b₁₁, b₁₂, b₂₀, b₂₁, b₂₂ = calc_coefficients(Q64)
         mat = Complex{T}(f₀) * eye3(T) + Complex{T}(f₁) * Q + Complex{T}(f₂) * cmatmul_oo(Q, Q)
+        return ExpiQCoeffs(Q, mat, f₀, f₁, f₂, b₁₀, b₁₁, b₁₂, b₂₀, b₂₁, b₂₂)
+    end
+
+    @inline function exp_iQ_coeffs(Q::SU{3,9,Float64})
+        f₀, f₁, f₂, b₁₀, b₁₁, b₁₂, b₂₀, b₂₁, b₂₂ = calc_coefficients(Q)
+        mat = ComplexF64(f₀) * eye3(Float64) + ComplexF64(f₁) * Q + ComplexF64(f₂) * cmatmul_oo(Q, Q)
         return ExpiQCoeffs(Q, mat, f₀, f₁, f₂, b₁₀, b₁₁, b₁₂, b₂₀, b₂₁, b₂₂)
     end
 
@@ -189,7 +196,7 @@ using Base.Math: isinf_real
         c₁ = 0.5 * real(multr(Q, Q))
         c₁_3r = sqrt(c₁ * oneover3)
         c₀ᵐᵃˣ = 2(c₁_3r * c₁_3r * c₁_3r)
-        Θ = isnan(c₀ / c₀ᵐᵃˣ) ? acos(1) : acos(min(1, c₀ / c₀ᵐᵃˣ))
+        Θ = isnan(c₀ / c₀ᵐᵃˣ) ? acos(1.0) : acos(min(1.0, c₀ / c₀ᵐᵃˣ))
 
         u = c₁_3r * cos(Θ * oneover3)
         w = sqrt(c₁) * sin(Θ * oneover3)

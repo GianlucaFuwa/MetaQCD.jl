@@ -25,8 +25,8 @@ const FORCE_SINGLE_GPU = Val(@load_preference("FORCE_SINGLE_GPU", false))
 # For other backends, we overload this method in their respective extensions
 array_type(::Type{CPU}) = Array
 bzeros(::CPU, args...) = zeros(args...)
-synchronize(::CPU) = nothing
-synchronize(::CPU, stream) = nothing
+synchronize(::CPU; kwargs...) = nothing
+synchronize(::CPU, stream; kwargs...) = nothing
 device_synchronize(::CPU) = nothing
 priority!(::CPU, priority) = nothing
 mpi_assign_device!(::CPU, id) = nothing
@@ -36,6 +36,7 @@ get_readstream(::CPU, args...) = nothing
 get_sendstream(::CPU, args...) = nothing
 get_stream(::CPU, args...) = nothing
 get_priority_stream(::CPU, args...) = nothing
+gpu_used_memory(::CPU) = 0.0
 
 # Define an abstract field super type that is parametrized by the backend, the precision and
 # the array type (Array, CuArray, ROCArray)

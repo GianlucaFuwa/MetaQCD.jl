@@ -70,7 +70,7 @@ struct EigenvaluesMeasurement{T,TA,TD} <: AbstractMeasurement
                 fp = fopen(path, "w")
                 printf(fp, "%-11s", "itrj")
 
-                if flow == true || flow != NoSmearing()
+                if flow == true || flow !== NoSmearing()
                     printf(fp, "%-7s", "iflow")
                     printf(fp, "%-9s", "tflow")
                 end

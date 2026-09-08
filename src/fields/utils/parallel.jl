@@ -1,7 +1,7 @@
 const HIDE_COMMS = Val(@load_preference("MPI_HIDE_COMMUNICATION", false))
 const TUNE_KERNELS = Val(@load_preference("TUNE_KERNELS", false))
 
-const KERNEL_CACHE::Dict{String,Int64} = Dict{String,Int64}() # function name => block size
+const KERNEL_CACHE::Dict{Tuple{DataType,DataType},Int64} = Dict{String,Int64}() # (function_type, precision) => block size
 const MAX_SHMEM = Base.RefValue{Int64}(0)
 
 function groupreduce end    #
@@ -50,7 +50,7 @@ function parallelfor(
     do_edges::Val{E}=Val(false),
     stream=default_stream(B())
 ) where {B,M,hide,E}
-        if M && (hide && B!=CPU) && length(to_validate) > 0
+    if M && (hide && B!=CPU) && length(to_validate) > 0
         # Drain the default (per-thread) stream before enqueuing the inner-bulk
         # kernel on the low-priority stream.  The *previous* parallelfor call
         # wrote border rows of the input field(s) on the PTDS (default stream);
@@ -59,21 +59,25 @@ function parallelfor(
         # cu_streams[1] (low priority) have no implicit ordering on the GPU.
         synchronize(B(), default_stream(B()))
         # launch inner comp (async)
-        hw, idx = findmin(get_halo_width, to_validate)
+        hw, idx = findmax(get_halo_width, to_validate)
         inner_bulk = shrink_bulk(itr, hw, to_validate[1].topology.numprocs_cart)
         new_block_size = min(block_size, min(256, length(inner_bulk)))
-        _parallelfor(f, captured, inner_bulk, B, new_block_size; stream=get_stream(B(), 1))
+        _parallelfor(f, captured, inner_bulk, B, new_block_size)
 
         # do exchange 
         start_halo_update!(to_validate; do_edges)
 
-        # finish inner comp (to avoid resource contention)
-        synchronize(B(), get_stream(B(), 1))
-
         # launch outer comp
         border_iterators = to_validate[idx].topology.border_iterators
         new_block_size = min(block_size, min(256, length(border_iterators[1])))
-        _parallelfor(f, captured, border_iterators, B, new_block_size)
+        for i in eachindex(border_iterators)
+            _parallelfor(
+                f, captured, border_iterators[i], B, new_block_size; stream=get_priority_stream(B(), i)
+            )
+        end
+        for i in eachindex(border_iterators)
+            synchronize(B(), get_priority_stream(B(), i))
+        end
     elseif M && (!hide || B==CPU) && length(to_validate) > 0
         update_halo!(to_validate; do_edges)
         _parallelfor(f, captured, itr, B, block_size; stream)
@@ -189,7 +193,7 @@ function parallelfor_sum(
 ) where {B,M,hide,E}
     if M && (hide && B!=CPU) && length(to_validate) > 0
         # inner work
-        hw, idx = findmin(get_halo_width, to_validate)
+        hw, idx = findmax(get_halo_width, to_validate)
         inner_bulk = shrink_bulk(itr, hw, to_validate[1].topology.numprocs_cart)
         new_block_size = min(block_size, min(256, length(inner_bulk)))
         result = _parallelfor_sum(f, captured, inner_bulk, init, B, new_block_size)#, stream=get_stream(B(), 1))

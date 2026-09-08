@@ -18,7 +18,7 @@ struct WilsonLoopMeasurement{T} <: AbstractMeasurement
                 fp = fopen(filename, "w")
                 printf(fp, ITRJ_STR_FMT, "itrj")
 
-                if flow == true || flow != NoSmearing()
+                if flow == true || flow !== NoSmearing()
                     printf(fp, IFLOW_STR_FMT, "iflow")
                     printf(fp, TFLOW_STR_FMT, "tflow")
                 end
