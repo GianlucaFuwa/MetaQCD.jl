@@ -36,19 +36,19 @@ const roc_sendstreams = Vector{AMDGPU.HIPStream}(undef, 0)
 const roc_streams = Vector{AMDGPU.HIPStream}(undef, 0)
 const roc_priostreams = Vector{AMDGPU.HIPStream}(undef, 0)
 
+function ensure_commstream_capacity!(streams::Vector{AMDGPU.HIPStream}, required_fields::Int)
+    required_streams = 8 * required_fields
+    nmissing = required_streams - length(streams)
+    nmissing <= 0 && return nothing
+    sizehint!(streams, required_streams)
+    append!(streams, (AMDGPU.HIPStream(:high) for _ in 1:nmissing))
+    return nothing
+end
+
 function Fields.allocate_commstreams!(::ROCBackend, fields)
-    global roc_readstreams, roc_sendstreams
-
-    # INFO: create 2 streams per dimension (4) per field (in the end the GPU will probably not)
-    # not have as many hardware streams as are created here but that is not a problem
-    if length(fields) > length(roc_readstreams) ÷ 8
-        push!(roc_readstreams, [AMDGPU.HIPStream(:high) for _ in 1:8, _ in 1:(length(fields)-length(roc_readstreams)÷8)]...)
-    end
-
-    if length(fields) > length(roc_sendstreams) ÷ 8
-        push!(roc_sendstreams, [AMDGPU.HIPStream(:high) for _ in 1:8, _ in 1:(length(fields)-length(roc_sendstreams)÷8)]...)
-    end
-
+    required_fields = length(fields)
+    ensure_commstream_capacity!(roc_readstreams, required_fields)
+    ensure_commstream_capacity!(roc_sendstreams, required_fields)
     return nothing
 end
 

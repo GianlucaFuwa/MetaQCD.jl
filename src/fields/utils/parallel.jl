@@ -51,18 +51,11 @@ function parallelfor(
     stream=default_stream(B())
 ) where {B,M,hide,E}
     if M && (hide && B!=CPU) && length(to_validate) > 0
-        # Drain the default (per-thread) stream before enqueuing the inner-bulk
-        # kernel on the low-priority stream.  The *previous* parallelfor call
-        # wrote border rows of the input field(s) on the PTDS (default stream);
-        # those rows are read as stencil neighbours by the inner-bulk kernel.
-        # Without this fence the two streams race: PTDS (normal priority) and
-        # cu_streams[1] (low priority) have no implicit ordering on the GPU.
-        synchronize(B(), default_stream(B()))
         # launch inner comp (async)
         hw, idx = findmax(get_halo_width, to_validate)
         inner_bulk = shrink_bulk(itr, hw, to_validate[1].topology.numprocs_cart)
         new_block_size = min(block_size, min(256, length(inner_bulk)))
-        _parallelfor(f, captured, inner_bulk, B, new_block_size)
+        _parallelfor(f, captured, inner_bulk, B, new_block_size; stream)
 
         # do exchange 
         start_halo_update!(to_validate; do_edges)
@@ -71,12 +64,13 @@ function parallelfor(
         border_iterators = to_validate[idx].topology.border_iterators
         new_block_size = min(block_size, min(256, length(border_iterators[1])))
         for i in eachindex(border_iterators)
+            border_stream = get_stream(B(), i)
             _parallelfor(
-                f, captured, border_iterators[i], B, new_block_size; stream=get_priority_stream(B(), i)
+                f, captured, border_iterators[i], B, new_block_size; stream=border_stream
             )
         end
         for i in eachindex(border_iterators)
-            synchronize(B(), get_priority_stream(B(), i))
+            synchronize(B(), get_stream(B(), i))
         end
     elseif M && (!hide || B==CPU) && length(to_validate) > 0
         update_halo!(to_validate; do_edges)
@@ -196,14 +190,16 @@ function parallelfor_sum(
         hw, idx = findmax(get_halo_width, to_validate)
         inner_bulk = shrink_bulk(itr, hw, to_validate[1].topology.numprocs_cart)
         new_block_size = min(block_size, min(256, length(inner_bulk)))
-        result = _parallelfor_sum(f, captured, inner_bulk, init, B, new_block_size)#, stream=get_stream(B(), 1))
+        result = _parallelfor_sum(f, captured, inner_bulk, init, B, new_block_size; stream)
 
         start_halo_update!(to_validate; do_edges)
 
         # outer work
         border_iterators = to_validate[idx].topology.border_iterators
         new_block_size = min(block_size, min(256, length(border_iterators[1])))
-        result += _parallelfor_sum(f, captured, border_iterators, init, B, new_block_size)
+        result += _parallelfor_sum(
+            f, captured, border_iterators, init, B, new_block_size; stream=get_stream(B(), 1)
+        )
     elseif M && (!hide || B==CPU) && length(to_validate) > 0
         update_halo!(to_validate; do_edges)
         result = _parallelfor_sum(f, captured, itr, init, B, block_size; stream)

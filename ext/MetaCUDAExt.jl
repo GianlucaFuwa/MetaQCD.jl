@@ -37,19 +37,19 @@ const cu_sendstreams = Vector{CUDA.CuStream}(undef, 0)
 const cu_streams = Vector{CUDA.CuStream}(undef, 0)
 const cu_priostreams = Vector{CUDA.CuStream}(undef, 0)
 
+function ensure_commstream_capacity!(streams::Vector{CUDA.CuStream}, required_fields::Int)
+    required_streams = 8 * required_fields
+    nmissing = required_streams - length(streams)
+    nmissing <= 0 && return nothing
+    sizehint!(streams, required_streams)
+    append!(streams, (CUDA.CuStream(; priority=:high) for _ in 1:nmissing))
+    return nothing
+end
+
 function Fields.allocate_commstreams!(::CUDABackend, fields)
-    global cu_readstreams, cu_sendstreams
-
-    # INFO: create 2 streams per dimension (4) per field (in the end the GPU will probably not)
-    # not have as many hardware streams as are created here but that is not a problem
-    if length(fields) > length(cu_readstreams) ÷ 8
-        push!(cu_readstreams, [CUDA.CuStream(; priority=:high) for _ in 1:8, _ in 1:(length(fields)-length(cu_readstreams)÷8)]...)
-    end
-
-    if length(fields) > length(cu_sendstreams) ÷ 8
-        push!(cu_sendstreams, [CUDA.CuStream(; priority=:high) for _ in 1:8, _ in 1:(length(fields)-length(cu_sendstreams)÷8)]...)
-    end
-
+    required_fields = length(fields)
+    ensure_commstream_capacity!(cu_readstreams, required_fields)
+    ensure_commstream_capacity!(cu_sendstreams, required_fields)
     return nothing
 end
 

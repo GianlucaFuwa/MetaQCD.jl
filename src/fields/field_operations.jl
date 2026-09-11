@@ -130,8 +130,7 @@ function create_sendbuf!(u::AbstractField{B,T,M}, sites, dim, dir; stream=defaul
 
     parallelfor(itr, B, Val(M), Val(false), (), (), (u, sendbuf); stream) do i, (u, sendbuf)
         @inbounds begin
-            j = linear_index(u, _sites[i])
-            sendbuf[i] = u[j]
+            sendbuf[i] = u[_sites[i]]
         end
     end
 
@@ -144,8 +143,7 @@ function fill_halo!(u::AbstractField{B,T,M}, recvbuf, siterange; stream=default_
 
     parallelfor(itr, B, Val(M), Val(false), (), (), (u, recvbuf); stream) do i, (u, recvbuf)
         @inbounds begin
-            j = linear_index(u, _siterange[i])
-            u[j] = recvbuf[i]
+            u[_siterange[i]] = recvbuf[i]
         end
     end
 

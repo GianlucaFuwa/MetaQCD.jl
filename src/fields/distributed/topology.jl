@@ -171,36 +171,34 @@ function calc_border_sites(bulk_sites, local_dims, halo_width, is_partitioned)
 end
 
 function get_border_iterators(bulk_sites, halo_width, is_partitioned)
-    hw = halo_width .* is_partitioned
-    # FIXME: when not padding every dimension, this is wrong
-    ox, oy, oz, ot = bulk_sites[1].I
-    fx, fy, fz, ft = bulk_sites[end].I
-    # X-direction faces (full slabs)
-    xm_itr = CartesianIndices((ox:ox+hw[1]-1, oy:fy, oz:fz, ot:ft))
-    xp_itr = CartesianIndices((fx-hw[1]+1:fx, oy:fy, oz:fz, ot:ft))
+    ranges = bulk_sites.indices
+    itrs = CartesianIndices{4,NTuple{4,UnitRange{Int64}}}[]
 
-    # Y-direction faces (excluding x-boundaries to avoid double-counting)
-    ym_itr = CartesianIndices((hw[1]+ox:fx-hw[1], oy:oy+hw[2]-1, oz:fz, ot:ft))
-    yp_itr = CartesianIndices((hw[1]+ox:fx-hw[1], fy-hw[2]+1:fy, oz:fz, ot:ft))
-
-    # Z-direction faces
-    zm_itr = CartesianIndices((hw[1]+ox:fx-hw[1], hw[2]+oy:fy-hw[2], oz:oz+hw[3]-1, ot:ft))
-    zp_itr = CartesianIndices((hw[1]+ox:fx-hw[1], hw[2]+oy:fy-hw[2], fz-hw[3]+1:fz, ot:ft))
-
-    # T-direction faces  
-    tm_itr = CartesianIndices((hw[1]+ox:fx-hw[1], hw[2]+oy:fy-hw[2], hw[3]+oz:fz-hw[3], ot:ot+hw[4]-1))
-    tp_itr = CartesianIndices((hw[1]+ox:fx-hw[1], hw[2]+oy:fy-hw[2], hw[3]+oz:fz-hw[3], ft-hw[4]+1:ft))
-    
-    iterators = (xm_itr, xp_itr, ym_itr, yp_itr, zm_itr, zp_itr, tm_itr, tp_itr)
-
-    return_vec = []
-    
     for dim in 1:4
-        if is_partitioned[dim]
-            push!(return_vec, iterators[2(dim-1)+1])
-            push!(return_vec, iterators[2(dim-1)+2])
+        is_partitioned[dim] || continue
+
+        for side in 1:2
+            face_ranges = ntuple(Val(4)) do i
+                r = ranges[i]
+                if i < dim
+                    if is_partitioned[i]
+                        range(first(r) + halo_width, last(r) - halo_width)
+                    else
+                        r
+                    end
+                elseif i == dim
+                    if side == 1
+                        range(first(r), first(r) + halo_width - 1)
+                    else
+                        range(last(r) - halo_width + 1, last(r))
+                    end
+                else
+                    r
+                end
+            end
+            push!(itrs, CartesianIndices(face_ranges))
         end
     end
 
-    return tuple(return_vec...)
+    return tuple(itrs...)
 end
