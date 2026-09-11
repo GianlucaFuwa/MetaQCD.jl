@@ -92,20 +92,21 @@ function update_halo_gpu_multi!(
     overlap_timing_add!(:halo_post_recv, t_post)
 
     t_pack = overlap_timing_start()
-    sendbufs, streams = launch_packing_kernels!(partitioned_dims, fields...)
+    sendbufs, send_streams = launch_packing_kernels!(partitioned_dims, fields...)
     overlap_timing_add!(:halo_pack_launch, t_pack)
 
     t_send = overlap_timing_start()
-    launch_packed_sends!(reqs, sendbufs, streams, partitioned_dims, fields...)
+    launch_packed_sends!(reqs, sendbufs, send_streams, partitioned_dims, fields...)
     overlap_timing_add!(:halo_pack_wait_send, t_send)
 
-    filled_streams = falses(size(streams))
+    fill_streams = launch_fill_streams(partitioned_dims, fields...)
+    filled_streams = falses(size(fill_streams))
     t_waitfill = overlap_timing_start()
-    wait_and_fill!(reqs, streams, filled_streams, partitioned_dims, fields...)
+    wait_and_fill!(reqs, fill_streams, filled_streams, partitioned_dims, fields...)
     overlap_timing_add!(:halo_wait_fill, t_waitfill)
 
     t_sync = overlap_timing_start()
-    synchronize_filled_streams!(backend, streams, filled_streams)
+    synchronize_filled_streams!(backend, fill_streams, filled_streams)
     overlap_timing_add!(:halo_fill_sync, t_sync)
     finalize_requests!(reqs)
     return nothing
@@ -123,20 +124,21 @@ function update_halo_gpu_multi_edges!(
         overlap_timing_add!(:halo_post_recv, t_post)
 
         t_pack = overlap_timing_start()
-        sendbufs, streams = launch_packing_kernels!((dim,), fields...)
+        sendbufs, send_streams = launch_packing_kernels!((dim,), fields...)
         overlap_timing_add!(:halo_pack_launch, t_pack)
 
         t_send = overlap_timing_start()
-        launch_packed_sends!(reqs, sendbufs, streams, (dim,), fields...)
+        launch_packed_sends!(reqs, sendbufs, send_streams, (dim,), fields...)
         overlap_timing_add!(:halo_pack_wait_send, t_send)
 
-        filled_streams = falses(size(streams))
+        fill_streams = launch_fill_streams((dim,), fields...)
+        filled_streams = falses(size(fill_streams))
         t_waitfill = overlap_timing_start()
-        wait_and_fill!(reqs, streams, filled_streams, (dim,), fields...)
+        wait_and_fill!(reqs, fill_streams, filled_streams, (dim,), fields...)
         overlap_timing_add!(:halo_wait_fill, t_waitfill)
 
         t_sync = overlap_timing_start()
-        synchronize_filled_streams!(backend, streams, filled_streams)
+        synchronize_filled_streams!(backend, fill_streams, filled_streams)
         overlap_timing_add!(:halo_fill_sync, t_sync)
         finalize_requests!(reqs)
     end
@@ -147,25 +149,33 @@ end
 function launch_packing_kernels!(
     dims, fields::Vararg{AbstractMPIField{backend},N}
 ) where {backend,N}
-    # Pre-allocate send/recv buffers outside loop
-    sendbufs = Matrix{Any}(undef, 2N, length(dims))
-    streams = Matrix{typeof(default_stream(backend()))}(undef, 2, length(dims))
+    sendbufs = Array{Any}(undef, N, 2, length(dims))
+    send_streams = Array{Any}(undef, N, 2, length(dims))
 
     for (idim, dim) in enumerate(dims)
-        for inbr in 1:2
-            stream = get_priority_stream(backend(), inbr + 2(idim-1))
-            streams[inbr, idim] = stream
-            for ifield in 1:N
-                sites_from = fields[ifield].topology.border_sites[dim][inbr]
-                idx = (inbr-1)*N + ifield
-                sendbufs[idx, idim] = create_sendbuf!(
-                    fields[ifield], sites_from, dim, inbr; stream
-                )
-            end
+        for inbr in 1:2, ifield in 1:N
+            stream = get_sendstream(backend(), inbr, dim, ifield)
+            send_streams[ifield, inbr, idim] = stream
+            sites_from = fields[ifield].topology.border_sites[dim][inbr]
+            sendbufs[ifield, inbr, idim] = create_sendbuf!(
+                fields[ifield], sites_from, dim, inbr; stream
+            )
         end
     end
 
-    return sendbufs, streams
+    return sendbufs, send_streams
+end
+
+function launch_fill_streams(dims, fields::Vararg{AbstractMPIField{backend},N}) where {backend,N}
+    fill_streams = Array{Any}(undef, N, 2, length(dims))
+
+    for (idim, dim) in enumerate(dims)
+        for inbr in 1:2, ifield in 1:N
+            fill_streams[ifield, inbr, idim] = get_readstream(backend(), inbr, dim, ifield)
+        end
+    end
+
+    return fill_streams
 end
 
 function post_mpi_recvs!(
@@ -194,25 +204,23 @@ function post_mpi_recvs!(
 end
 
 function launch_packed_sends!(
-    reqs, sendbufs, streams, dims, fields::Vararg{AbstractMPIField{backend},N}
+    reqs, sendbufs, send_streams, dims, fields::Vararg{AbstractMPIField{backend},N}
 ) where {N,backend}
     for (idim, dim) in enumerate(dims)
-        for inbr in 1:2
-            synchronize(backend(), streams[inbr, idim])
-            for ifield in 1:N
-                topology = fields[ifield].topology
-                comm_cart = topology.comm_cart
-                nbrs = mpi_cart_shift(comm_cart, dim-1, 1)
+        for inbr in 1:2, ifield in 1:N
+            stream = send_streams[ifield, inbr, idim]
+            synchronize(backend(), stream)
 
-                idx = (inbr - 1) * N + ifield
-                tag_base = 8(ifield-1)
-                tags = tag_base + (2*(dim-1) + 1), tag_base + (2*(dim-1) + 2)
-                send_req = mpi_isend(
-                    sendbufs[idx, idim], comm_cart;
-                    dest=nbrs[inbr], tag=tags[mod1(inbr + 1, 2)]
-                )
-                reqs[_req_index(ifield, inbr, 2, idim, N)] = send_req
-            end
+            topology = fields[ifield].topology
+            comm_cart = topology.comm_cart
+            nbrs = mpi_cart_shift(comm_cart, dim-1, 1)
+            tag_base = 8(ifield-1)
+            tags = tag_base + (2*(dim-1) + 1), tag_base + (2*(dim-1) + 2)
+            send_req = mpi_isend(
+                sendbufs[ifield, inbr, idim], comm_cart;
+                dest=nbrs[inbr], tag=tags[mod1(inbr + 1, 2)]
+            )
+            reqs[_req_index(ifield, inbr, 2, idim, N)] = send_req
         end
     end
 
@@ -220,54 +228,51 @@ function launch_packed_sends!(
 end
 
 function wait_and_fill!(
-    reqs, streams, filled_streams, dims, fields::Vararg{AbstractMPIField{backend},N}
+    reqs, fill_streams, filled_streams, dims, fields::Vararg{AbstractMPIField{backend},N}
 ) where {N,backend}
-    active_recvs = [(ifield, inbr, idim, dim) for (idim, dim) in enumerate(dims) for inbr in 1:2 for ifield in 1:N]
-    active_sends = [(ifield, inbr, idim) for (idim, _) in enumerate(dims) for inbr in 1:2 for ifield in 1:N]
-
-    pending_recvs = length(active_recvs)
-    pending_sends = length(active_sends)
+    pending_recv = trues(N, 2, length(dims))
+    pending_send = trues(N, 2, length(dims))
+    pending_recvs = length(pending_recv)
+    pending_sends = length(pending_send)
 
     while pending_recvs > 0 || pending_sends > 0
         any_progress = false
 
-        irecv = 1
-        while irecv <= length(active_recvs)
-            ifield, inbr, idim, dim = active_recvs[irecv]
-            recv_idx = _req_index(ifield, inbr, 1, idim, N)
-            recv_req = reqs[recv_idx]
-            if recv_req == Utils.MPI.REQUEST_NULL || Utils.MPI.Test(recv_req)
-                if recv_req != Utils.MPI.REQUEST_NULL
-                    u = fields[ifield]
-                    recv_buf = get_recv_buf(u, 2*(dim - 1) + inbr)
-                    halo_sites = u.topology.halo_sites[dim][inbr]
-                    stream = streams[inbr, idim]
-                    t_fill = overlap_timing_start()
-                    fill_halo!(u, recv_buf, halo_sites; stream=stream)
-                    overlap_timing_add!(:halo_fill_launch, t_fill)
-                    filled_streams[inbr, idim] = true
+        for (idim, dim) in enumerate(dims)
+            for inbr in 1:2, ifield in 1:N
+                if pending_recv[ifield, inbr, idim]
+                    recv_idx = _req_index(ifield, inbr, 1, idim, N)
+                    recv_req = reqs[recv_idx]
+                    if recv_req == Utils.MPI.REQUEST_NULL || Utils.MPI.Test(recv_req)
+                        if recv_req != Utils.MPI.REQUEST_NULL
+                            u = fields[ifield]
+                            recv_buf = get_recv_buf(u, 2*(dim - 1) + inbr)
+                            halo_sites = u.topology.halo_sites[dim][inbr]
+                            stream = fill_streams[ifield, inbr, idim]
+                            t_fill = overlap_timing_start()
+                            fill_halo!(u, recv_buf, halo_sites; stream=stream)
+                            overlap_timing_add!(:halo_fill_launch, t_fill)
+                            filled_streams[ifield, inbr, idim] = true
+                        end
+                        pending_recv[ifield, inbr, idim] = false
+                        pending_recvs -= 1
+                        any_progress = true
+                    end
                 end
-                active_recvs[irecv] = active_recvs[end]
-                pop!(active_recvs)
-                pending_recvs -= 1
-                any_progress = true
-            else
-                irecv += 1
             end
         end
 
-        isend = 1
-        while isend <= length(active_sends)
-            ifield, inbr, idim = active_sends[isend]
-            send_idx = _req_index(ifield, inbr, 2, idim, N)
-            send_req = reqs[send_idx]
-            if send_req == Utils.MPI.REQUEST_NULL || Utils.MPI.Test(send_req)
-                active_sends[isend] = active_sends[end]
-                pop!(active_sends)
-                pending_sends -= 1
-                any_progress = true
-            else
-                isend += 1
+        for idim in eachindex(dims)
+            for inbr in 1:2, ifield in 1:N
+                if pending_send[ifield, inbr, idim]
+                    send_idx = _req_index(ifield, inbr, 2, idim, N)
+                    send_req = reqs[send_idx]
+                    if send_req == Utils.MPI.REQUEST_NULL || Utils.MPI.Test(send_req)
+                        pending_send[ifield, inbr, idim] = false
+                        pending_sends -= 1
+                        any_progress = true
+                    end
+                end
             end
         end
 
