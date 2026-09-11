@@ -37,3 +37,12 @@ function calc_cv_deriv_bare!(
     stout_backprop!(dU, temp_force, smearing, level)
     return nothing
 end
+
+function calc_q_deriv_bare!(
+    dU, F, ::Gaugefield, temp_force, smearing::StoutSmearing, icv, fac=1
+)
+    smeared_U = smearing.Usmeared_multi[end]
+    # top_charge_deriv!(dU, bias, icv, F, smeared_U, fac)
+    stout_backprop!(dU, temp_force, smearing)
+    return nothing
+end

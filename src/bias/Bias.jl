@@ -1,9 +1,11 @@
 module BiasModule
 
 using DelimitedFiles
+using Dierckx
 using LinearAlgebra
 using MPI
 using Polyester: @batch
+using Roots
 using StaticArrays
 using Statistics
 using ..Logs
@@ -13,7 +15,7 @@ using ..Utils
 import ..Fields: Gaugefield, WilsonGaugeAction, Plaquette, Clover
 import ..Fields: SymanzikTreeGaugeAction, IwasakiGaugeAction, DBW2GaugeAction
 import ..Fields: calc_gauge_action, gauge_action_deriv!, is_distributed
-import ..Measurements: top_charge, top_charge_deriv!
+import ..Measurements: top_charge, top_charge_deriv!, polyakov_traced, polyakov_deriv!, polyakov_mag_deriv!, polyakov_phase_deriv!
 import ..Smearing: AbstractSmearing, NoSmearing, StoutSmearing, calc_smearedU!
 
 abstract type AbstractBias end
@@ -64,7 +66,7 @@ only the root rank printing its bias to file etc.
 The kwarg `bias` is there for loading checkpoints, since checkpoints only keep track of the
 `bias` field and therefore all other information is gathered from the parameter file as usual
 """
-mutable struct Bias{N,TB,TS,TW,T1,T2,T3}
+mutable struct Bias{N,TB,TS,TW,T1,T2,T3,TSS}
     cv_numsmears::Vector{Int64}
     bias::TB
     smearing::TS
@@ -72,16 +74,18 @@ mutable struct Bias{N,TB,TS,TW,T1,T2,T3}
     biasfile::T1
     datafile::T2
     buffers::T3
+    sampler::TSS
     CV::Vector{Float64}
     function Bias(
-        U, cv_numsmears, rho, bias::TB, weights::TW, bfile::T1, dfile::T2, buffers::T3
-    ) where {TB,TW,T1,T2,T3}
+        U, cv_numsmears, rho,
+        bias::TB, weights::TW, bfile::T1, dfile::T2, buffers::T3, sampler::TSS=nothing
+    ) where {TB,TW,T1,T2,T3,TSS}
         N = length(bias)
         CV = zeros(Float64, N)
         smearing = StoutSmearing(U; numlayers=maximum(cv_numsmears), rho)
         TS = typeof(smearing)
-        return new{N,TB,TS,TW,T1,T2,T3}(
-            cv_numsmears, bias, smearing, weights, bfile, dfile, buffers, CV
+        return new{N,TB,TS,TW,T1,T2,T3,TSS}(
+            cv_numsmears, bias, smearing, weights, bfile, dfile, buffers, sampler, CV
         )
     end
 end
@@ -120,6 +124,8 @@ function Bias(
             elseif biases[i]["type"] == "opesmt"
                 β = p.beta
                 OPESmultithermal(bias_parameters, β; instance, dummy, mpi_multi_sim, build)
+            elseif biases[i]["type"] == "opesmu"
+                OPESmultiumbrella(bias_parameters; instance, dummy, mpi_multi_sim, build)
             elseif biases[i]["type"] == "ves"
                 VES(bias_parameters; dummy)
             else
@@ -190,6 +196,13 @@ function Bias(
         end
     end
 
+    sampler = if contains(lowercase(p.levels[1]["integrator"]), "constrained")
+        @assert length(bias) == 1 "Constrained HMC only works with 1 bias"
+        CVSampler(bias[1])
+    else
+        nothing
+    end
+
     if !isnothing(p.starting_Q)
         @level1("|  STARTING SECTOR: $(string(p.starting_Q[instance+1]))")
     end
@@ -203,6 +216,7 @@ function Bias(
         biasfile,
         datafile,
         buffers,
+        sampler,
     )
 end
 
@@ -235,6 +249,7 @@ include("bias_parameters.jl")
 include("metadynamics.jl")
 include("opes.jl")
 include("opes_multithermal.jl")
+include("opes_multiumbrella.jl")
 include("ves.jl")
 
 function update_bias!(b::Bias{N}, itrj::Int64) where {N}
@@ -331,11 +346,17 @@ function calc_cv(U, b::Bias{N,TB,TS}, i::Int64, ::Bool=false) where {N,TB,TS<:No
 end
 
 function calc_cv(U, b::Bias{N}, is_smeared::Bool=false) where {N} # all CVs smeared
-    is_smeared || calc_smearedU!(b.smearing, U)
-    levels = b.cv_numsmears
-    CV_new = ntuple(Val(N)) do i
-        smeared_U = b.smearing.Usmeared_multi[levels[i]+1]
-        calc_cv(smeared_U, b.bias[i])
+    if b.smearing === NoSmearing()
+        CV_new = ntuple(Val(N)) do i
+            calc_cv(U, b.bias[i])
+        end
+    else
+        is_smeared || calc_smearedU!(b.smearing, U)
+        levels = b.cv_numsmears
+        CV_new = ntuple(Val(N)) do i
+            smeared_U = b.smearing.Usmeared_multi[levels[i]+1]
+            calc_cv(smeared_U, b.bias[i])
+        end
     end
 
     return CV_new
@@ -357,6 +378,44 @@ calc_cv_deriv!(dU, b::Bias, i, args...) = b.bias[i].cvinfo.deriv_func(dU, args..
 function in_bounds(cv, lb, ub)
     lb <= cv < ub && return true
     return false
+end
+
+struct CVSampler{T1,T2} # TODO: Needs to be cotinuous
+    cv_range::Vector{Float64}
+    cdf::T1
+    p::T2
+    function CVSampler(cv_range::Vector{Float64}, v::Vector{Float64})
+        _p = exp.(v)
+        Z = sum(_p)
+        p = _p / Z
+        p_cont = Spline1D(cv_range, p; k=3, bc="extrapolate")
+        cdf = cumsum(p)
+        cdf_cont = Spline1D(cv_range, cdf; k=3, bc="extrapolate")
+        return new{typeof(cdf_cont),typeof(p_cont)}(cv_range, cdf_cont, p_cont)
+    end
+
+    function CVSampler(bias::AbstractBias)
+        cv_range = bias.cvlims[1]:0.0001:bias.cvlims[end]
+        v = bias.(cv_range) 
+        return CVSampler(collect(cv_range), v)
+    end
+end
+
+function get_sample(c::CVSampler)
+    r = rand()
+    s = find_zero(cv -> c.cdf(cv) - r, (c.cv_range[1], c.cv_range[end]))
+    return s
+end
+
+function get_sample(c::CVSampler, n)
+    r = rand(n)
+    s = [find_zero(cv -> c.cdf(cv) - r[i], (c.cv_range[1], c.cv_range[end])) for i in eachindex(r)]
+    return s
+end
+
+function get_probability(c::CVSampler, cv)
+    p = c.p(cv)
+    return p
 end
 
 include("weights.jl")

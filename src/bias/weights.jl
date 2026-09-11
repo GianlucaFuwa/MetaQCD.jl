@@ -89,6 +89,13 @@ function calc_weight(o::OPESmultithermal, cv, args...)
     return w
 end
 
+function calc_weight(o::OPESmultiumbrella, cv, args...)
+    current_bias = o(cv)
+    # w = [exp(-o.λ[i]*cv + current_bias) for i in eachindex(o.λ)]
+    w = exp(current_bias)
+    return w
+end
+
 function calc_weight(m::Metadynamics, cv, weight_method)
     w = 0.0
 

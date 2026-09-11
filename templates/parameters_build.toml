@@ -1,41 +1,46 @@
 [data]
-float_type = "double"
+float_type = "single"
 solver_float_type = "single"
-backend = "cpu"
-ensemble_dir = "/home/gialu/projects/MetaQCD.jl/ensembles/recycling_test_1"
+backend = "rocm"
+ensemble_dir = "/home/gialu/projects/MetaQCD-CHMC/ensembles/constraint_test_14_2"
 randomseed = 123
 overwrite = true
-verboselevel = 1
+verboselevel = 2
 log_to_console = true
+# save_config_every = 5
+# save_config_format = "bridge"
+load_config_format = "bridge"
+load_config_fromfile = true
+load_config_path = "/home/gialu/projects/MetaQCD-CHMC/ensembles/constraint_test_14/configs/config_00000005.txt"
 
 [ensemble]
 numinstances = 1
-L = [6, 6, 6, 6]
-numtherm = 20
-numsteps = 1000
+L = [14, 14, 14, 14]
+numtherm = 0
+numsteps = 5
 numprocs_cart = [1, 1, 1, 1]
 halo_width = 1
 initial = "cold"
 update_method = "hmc"
 su3_nfloats = 18
-mode = "build"
+mode = "sim"
 
 [gauge_action]
-beta = 0.95
-gauge_action = "dbw2"
+beta = 6.1912
+gauge_action = "wilson"
 
 [bias]
 recycle = true
 rhostout_for_cv = 0.12 # rho is the same for all CVs
 starting_Q = [0, 1]
 [[bias.biases]]
-type = "opes"
+type = "metad"
 kind_of_cv = "topcharge_clover"
-numsmears_for_cv = 2
-static = false
+numsmears_for_cv = 1
+static = true
 symmetric = true
 stride = 1
-cvlims = [-2.0, 2.0]
+cvlims = [-3.0, 3.0]
 biasfactor = 5
 penalty_weight = 100.0
 # opes specific parameters
@@ -43,40 +48,15 @@ barrier = 10.0
 sigma_0 = 0.0
 explore = false
 # metad specific parameters
-bin_width = 0.01
+bin_width = 0.02
 meta_weight = 0.05
-# ves specific parameters
-batch_size = 20
-step_size = 0.2
-alpha = [
-  9.0,
-  7.0,
- -1.0,
-  1.0,
-  0.0,
-  0.0,
-  2.0,
-  2.0,
-  0.0,
-  0.0,
-  0.0,
-  0.0,
-  0.0,
-  0.0,
-  0.0,
-  0.0,
-  0.0,
-  0.0,
-  0.0,
-  0.0,
-  0.0,
-]
+load_bias = ["/home/gialu/ensembles/PP/topsusc_wilson_beta6.1912_14_14_build_7smear/biaspotentials/bias_000.metad"]
 
 [hmc]
 hmc_trajectory = 4
 [[hmc.levels]]
 forces = [0, 1]
-integrator = "OMF4"
+integrator = "OMF4Constrained"
 numsteps = 20
 
 [gradient_flow]

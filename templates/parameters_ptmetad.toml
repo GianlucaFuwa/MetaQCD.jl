@@ -26,7 +26,7 @@ gauge_action = "wilson"
 rhostout_for_cv = 0.12
 kinds_of_weights = ["branduardi"]
 [[bias.biases]]
-kind_of_bias = "metad"
+type = "metad"
 kind_of_cv = "topcharge_clover"
 numsmears_for_cv = 4
 cvlims = [-5, 5]

@@ -24,7 +24,7 @@ function run_sim(parameters)
     num_instances = parameters.numinstances
     num_dist = prod(parameters.numprocs_cart)
 
-    multi_sim = if mpi_size() > num_dist
+    mpi_multi_sim = if mpi_size() > num_dist
         @assert mpi_size() == num_instances * num_dist "MPI comm size must be = numinstances*prod(numprocs_cart)"
         true
     else
@@ -40,7 +40,7 @@ function run_sim(parameters)
         """
     end
 
-    color = multi_sim ? instance_from_rank(mpi_myrank(), num_instances) : 0
+    color = mpi_multi_sim ? instance_from_rank(mpi_myrank(), num_instances) : 0
     mpi_split(mpi_comm(); color)
     MPI_NUMINSTANCES[] = num_instances # change global consant defined in utils/mpi.jl
 
@@ -69,16 +69,16 @@ function run_sim(parameters)
 
     if parameters.load_checkpoint_fromfile
         rank = mpi_myrank(mpi_comm_instance())
-        univ_args..., updatemethod, _, itrj = load_checkpoint(parameters; rank)
+        univ_args..., updatemethod, updatemethod_pt, itrj = load_checkpoint(parameters; rank)
         univ = Univ(univ_args...)
     else
         itrj = nothing
-        univ = Univ(parameters; mpi_multi_sim=multi_sim)
+        univ = Univ(parameters; mpi_multi_sim)
         updatemethod = updatemethod_pt = nothing
     end
 
     @level1("[ Random seed is: $(string(copy(Random.default_rng())))\n")
-    run_sim!(univ, parameters, updatemethod, updatemethod_pt, multi_sim)
+    run_sim!(univ, parameters, updatemethod, updatemethod_pt, mpi_multi_sim)
     return nothing
 end
 
@@ -353,10 +353,11 @@ function metaqcd!(
                     update!(
                         updatemethod,
                         U;
-                        fermion_action=fermion_action,
-                        bias=NoBias(),
+                        fermion_action,
+                        bias,
                         metro_test=itrj>20, # So we dont get stuck at the beginning
                         therm=Val(true),
+                        itrj
                     )
                     mpi_barrier()
                 end

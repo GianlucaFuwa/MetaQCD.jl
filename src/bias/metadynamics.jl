@@ -54,6 +54,8 @@ function Metadynamics(
         true
     elseif build
         false
+    elseif !build && !mpi_multi_sim
+        p.static[inum]
     else
         inum==0 ? false : p.static[inum]
     end
@@ -72,7 +74,7 @@ function Metadynamics(
     if build && (length(p.load_bias) != 0)
         bin_vals, values = metad_from_file(p, p.load_bias[1])
     elseif (0 < instance <= length(p.load_bias) && !dummy)
-        bin_vals, values = metad_from_file(p, p.load_bias[instance+1])
+        bin_vals, values = metad_from_file(p, p.load_bias[instance])
     else
         bin_vals, values = metad_from_file(p, "")
     end

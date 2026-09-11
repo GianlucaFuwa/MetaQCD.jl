@@ -81,12 +81,17 @@ function Univ(parameters::ParameterSet; mpi_multi_sim=false, build=false)
             numinstances = 1
             U = Gaugefield(parameters)
             fermion_action = init_fermion_actions(parameters, U)
-            bias = Bias(parameters, U; mpi_multi_sim=mpi_multi_sim, dummy=MPI_INSTANCE[]==0)
+            bias = Bias(parameters, U; mpi_multi_sim, dummy=MPI_INSTANCE[]==0)
+        elseif !mpi_multi_sim && !build
+            numinstances = 1
+            U = Gaugefield(parameters)
+            fermion_action = init_fermion_actions(parameters, U)
+            bias = Bias(parameters, U; instance=1, mpi_multi_sim, build)
         else
             numinstances = 1
             U = Gaugefield(parameters)
             fermion_action = init_fermion_actions(parameters, U)
-            bias = Bias(parameters, U; mpi_multi_sim=mpi_multi_sim, build=build)
+            bias = Bias(parameters, U; mpi_multi_sim, build)
         end
     else
         @assert parameters.tempering_enabled == false """

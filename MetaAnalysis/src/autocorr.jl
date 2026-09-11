@@ -26,7 +26,7 @@ function autoc_time_int(x::Vector{<:Real})
 
     C = Γ₀ + 2C
     τ = C / 2Γ₀
-    return τ
+    return τ, 0.0
 end
 
 function autoc_time_int_uw(x::Vector{<:Real})

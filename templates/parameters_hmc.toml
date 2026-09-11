@@ -8,8 +8,8 @@ log_to_console = false
 
 [ensemble]
 L = [4, 4, 4, 4]
-numtherm = 1
-numsteps = 1
+numtherm = 15
+numsteps = 15
 initial = "cold"
 update_method = "hmc"
 metro_numhits = 10

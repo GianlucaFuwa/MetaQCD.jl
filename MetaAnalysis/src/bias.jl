@@ -56,7 +56,7 @@ function MetaBias(
         cvlims = data[1, 1], data[end, 1]
         bin_width = data[2, 1] - data[1, 1]
         bin_vals = data[:, 1]
-        values = data[:, 2]
+        values = data[:, end]
         bias = Metadynamics(
             true,
             1,

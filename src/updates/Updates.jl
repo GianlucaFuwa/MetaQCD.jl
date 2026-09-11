@@ -9,7 +9,7 @@ using ..Logs
 using ..RHMCParameters
 using ..Utils
 
-import ..BiasModule: Bias, NoBias, calc_cv, ∂V∂Q, recalc_cv!, set_cv!
+import ..BiasModule: Bias, NoBias, calc_cv, ∂V∂Q, recalc_cv!, set_cv!, get_sample
 import ..BiasModule: update_bias!, pack_buffer!, unpack_buffer!
 import ..DiracOperators: AbstractDiracOperator, FermionAction, QuenchedFermionAction
 import ..DiracOperators: calc_fermion_action, has_clover_term, sample_pseudofermions!
@@ -17,13 +17,14 @@ import ..Fields: AbstractGaugeAction, Gaugefield, Colorfield, identity_gauges!, 
 import ..Fields: WilsonGaugeAction, add!, calc_gauge_action, calc_kinetic_energy, update_halo!
 import ..Fields: allindices, clear!, get_local_dims, normalize!, fieldstrength_eachsite!, float_type
 import ..Fields: check_dims, even_odd, gaussian_TA!, mul!, staple, staple_eachsite!
-import ..Fields: parallelfor, parallelfor_max, @latmap, @latsum, gauge_action
-import ..Fields: AbstractField, Plaquette, Clover, Spinorfield, Tensorfield, is_distributed
-import ..Forces: calc_dSdU_bare!, calc_dSfdU_bare!, calc_dVdU_bare!
+import ..Fields: parallelfor, parallelfor_max, @latmap, @latsum, gauge_action, gauge_action_deriv!
+import ..Fields: AbstractField, Plaquette, Clover, Spinorfield, Tensorfield, is_distributed, CPU
+import ..Forces: calc_dSdU_bare!, calc_dSfdU_bare!, calc_dVdU_bare!, calc_cv_deriv_bare!
 import ..Parameters: ParameterSet
-import ..Smearing: AbstractSmearing, NoSmearing, StoutSmearing
+import ..Smearing: AbstractSmearing, NoSmearing, StoutSmearing, calcZ!
 import ..Smearing: calc_smearedU!, get_layer, stout_backprop!
 import ..Universe: Univ
+import ..Measurements: top_charge, top_charge_deriv!
 
 abstract type AbstractUpdate end
 
@@ -34,6 +35,7 @@ include("./overrelaxation.jl")
 include("./parity.jl")
 include("./tempering.jl")
 include("./instanton.jl")
+include("./constrained_hmc.jl")
 
 function Updatemethod(parameters::ParameterSet, U; instance=MPI_INSTANCE[])
     updatemethod = Updatemethod(
@@ -50,6 +52,7 @@ function Updatemethod(parameters::ParameterSet, U; instance=MPI_INSTANCE[])
         hmc_trajectory=parameters.hmc_trajectory,
         hmc_friction=parameters.hmc_friction,
         hmc_rafriction=parameters.hmc_rafriction,
+        hmc_constraint=parameters.hmc_constraint,
         hmc_numsmear_gauge=parameters.hmc_numsmear_gauge,
         hmc_numsmear_fermion=parameters.hmc_numsmear_fermion,
         hmc_rhostout_gauge=parameters.hmc_rhostout_gauge,
@@ -78,6 +81,7 @@ function Updatemethod(
     hmc_trajectory=1,
     hmc_friction=0,
     hmc_rafriction=0,
+    hmc_constraint=nothing,
     hmc_numsmear_gauge=0,
     hmc_numsmear_fermion=0,
     hmc_rhostout_gauge=0,
@@ -100,6 +104,7 @@ function Updatemethod(
             hmc_rhostout_gauge,
             hmc_rhostout_fermion;
             rafriction=hmc_rafriction,
+            constraint=hmc_constraint,
             hmc_logging=hmc_logging,
             fermion_action=fermion_action,
             numfermions=num_fermions,

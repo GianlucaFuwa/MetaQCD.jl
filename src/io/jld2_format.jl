@@ -69,8 +69,9 @@ function load_checkpoint(
     filename = joinpath(checkpoint_path, "checkpoint_$(instance)_$(rank).jld2")
     backend = parameters.backend
     B = BACKENDS[backend]
+    T = Utils.FLOAT_TYPE[parameters.float_type]
     U, _bias, numinst, itrj, rngstate = jldopen(filename, "r") do file
-        convert_field(B, file["U"]), file["bias"], file["numinstances"],
+        convert_field(B, file["U"], T), file["bias"], file["numinstances"],
         file["itrj"], file["rngstate"]
     end
 

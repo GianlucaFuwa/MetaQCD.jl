@@ -44,6 +44,7 @@ struct ParameterSet
     hmc_trajectory::Float64
     hmc_friction::Float64
     hmc_rafriction::Float64
+    hmc_constraint::Union{Nothing,Float64}
     hmc_numsmear_gauge::Int64
     hmc_numsmear_fermion::Int64
     hmc_rhostout_gauge::Float64

@@ -11,8 +11,9 @@ function bias_parameters_from_dict(input::Dict, instance=mpi_rank(); build=false
         if haskey(bias_dict, key_i)
             if !isnothing(value_i)
                 if key_i == "static"
-                    idx = build ? 1 : instance+1
-                    setfield!(bias_params, :static, Bool(value_i[idx]))
+                    idx = instance==0 ? 1 : instance
+                    s = build ? false : Bool(value_i[idx])
+                    setfield!(bias_params, :static, s)
                 elseif key_i == "load_bias"
                     setfield!(bias_params, :load_bias, String[value_i...])
                 else
@@ -34,6 +35,8 @@ function initialize_bias_parameters(type)
         method = OPESParameters()
     elseif lowercase(type) == "opesmt"
         method = OPESmultithermalParameters()
+    elseif lowercase(type) == "opesmu"
+        method = OPESmultiumbrellaParameters()
     elseif lowercase(type) == "ves"
         method = VESParameters()
     else
@@ -94,6 +97,20 @@ end
     beta_num::Int64 = 2
 end
 
+@kwdef mutable struct OPESmultiumbrellaParameters <: BiasParameters
+    type::String = "opesmu"
+    kind_of_cv::String = "multiumbrella"
+    load_bias::Vector{String} = String[]
+    static::Bool = true
+    numsmears_for_cv::Int64 = 0
+    stride::Int64 = 1
+    write_bias_every::Int64 = stride
+    cv_min_max::Vector{Float64} = []
+    cv_num::Int64 = 2
+    sigma::Float64 = 0.1
+    barrier::Float64 = Inf
+end
+
 @kwdef mutable struct VESParameters <: BiasParameters
     type::String = "ves"
     kind_of_cv::String = "topcharge_clover"
@@ -117,6 +134,14 @@ function get_cvinfo_from_parameters(p::BiasParameters)
     elseif p.kind_of_cv == "multithermal"
         @assert p.type == "opesmt" "Multithermal CV only works with opesmt"
         U -> calc_gauge_action(U) / length(U)
+    elseif p.kind_of_cv == "polyakov_real"
+        U -> real(polyakov_traced(U))
+    elseif p.kind_of_cv == "polyakov_im"
+        U -> imag(polyakov_traced(U))
+    elseif p.kind_of_cv == "polyakov_abs"
+        U -> abs(polyakov_traced(U))
+    elseif p.kind_of_cv == "polyakov_phase"
+        U -> angle(polyakov_traced(U))
     else
         error("kind_of_cv \"$(p.kind_of_cv)\" not supported (see docs for supported CVs)")
     end
@@ -127,6 +152,14 @@ function get_cvinfo_from_parameters(p::BiasParameters)
         (dU, F, U, fac) -> top_charge_deriv!(dU, F, U, Clover(), fac)
     elseif p.kind_of_cv == "multithermal"
         (dU, staples, U, fac) -> gauge_action_deriv!(dU, staples, U, fac)
+    elseif p.kind_of_cv == "polyakov_real"
+        (dU, _, U, fac) -> polyakov_deriv!(dU, U, 1, fac)
+    elseif p.kind_of_cv == "polyakov_im"
+        (dU, _, U, fac) -> polyakov_deriv!(dU, U, -im, fac)
+    elseif p.kind_of_cv == "polyakov_abs"
+        (dU, dU1, U, fac) -> polyakov_mag_deriv!(dU, dU1, U, fac)
+    elseif p.kind_of_cv == "polyakov_phase"
+        (dU, dU1, U, fac) -> polyakov_phase_deriv!(dU, dU1, U, fac)
     else
         error("kind_of_cv \"$(p.kind_of_cv)\" not supported (see docs for supported CVs)")
     end
@@ -134,6 +167,8 @@ function get_cvinfo_from_parameters(p::BiasParameters)
     cv_temp_ind = if p.kind_of_cv in ("topcharge_plaquette", "topcharge_clover")
         Val(1)
     elseif p.kind_of_cv == "multithermal"
+        Val(2)
+    elseif p.kind_of_cv in ("polyakov_real", "polyakov_im", "polyakov_abs", "polyakov_phase")
         Val(2)
     else
         error("kind_of_cv \"$(p.kind_of_cv)\" not supported (see docs for supported CVs)")

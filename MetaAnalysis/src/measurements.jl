@@ -15,7 +15,7 @@ struct MetaMeasurements
     observables::Vector{Symbol}
     tau_int::Dict{String,NTuple{2,Float64}}
     ensemblename::String
-    function MetaMeasurements(ensemblename::String)
+    function MetaMeasurements(ensemblename::String; full=false)
         _dir = if isabspath(ensemblename)
             @assert isdir(ensemblename) """
             Ensemble \"$(ensemblename)\" could not be found or doesn't exist.
@@ -29,7 +29,7 @@ struct MetaMeasurements
             path
         end
 
-        dir = joinpath(_dir, "measurements")
+        dir = full ? _dir : joinpath(_dir, "measurements")
         @assert isdir(dir) "Directory $(dir) does not exist"
         hmc_logfile = "$(dir)/logs/hmc_acc_logs.txt"
         measurement_dict = Dict{String,Dict{String,Vector{Float64}}}()
@@ -64,15 +64,15 @@ struct MetaMeasurements
                     head = header[i]
                     for (j, tflow) in enumerate(unique_tflow)
                         ui = unique_indices[j]
-                        str = "_$(instance) (tf=$(tflow))"
+                        str = " (tf=$(tflow))"
                         measurement[head * str] = data[ui, i]
 
                         if header[i] != "itrj"
                             if header[i] == "Q_clover"
-                                tau_int[head * str] = autoc_time_int_uw(data[ui, i])
-                                tau_int[head * "^2" * str] = autoc_time_int_uw(data[ui, i].^2)
+                                tau_int[head * str] = autoc_time_int(data[ui, i])
+                                tau_int[head * "^2" * str] = autoc_time_int(data[ui, i].^2)
                             else
-                                tau_int[head * str] = autoc_time_int_uw(data[ui, i])
+                                tau_int[head * str] = autoc_time_int(data[ui, i])
                             end
                         end
                     end
@@ -86,7 +86,7 @@ struct MetaMeasurements
                     measurement[header[i]] = data[:, i]
 
                     if header[i] != "itrj"
-                        tau_int[header[i] * "_$(instance)"] = autoc_time_int_uw(data[:, i])
+                        tau_int[header[i] * "_$(instance)"] = autoc_time_int(data[:, i])
                     end
                 end
 
@@ -136,10 +136,31 @@ RecipesBase.@recipe function timeseries(
     m, observable = ts.args[1:2]
     @assert !occursin("correlator", string(observable)) "timeseries not supported for correlators"
     @assert !occursin("eigenvalues", string(observable)) "timeseries not supported for eigenvalues"
-    @assert observable ∈ observables(m) "Observable $observable is not in Measurements"
+    if observable != :bias_data
+        @assert observable ∈ observables(m) "Observable $observable is not in Measurements"
+    end
     seriestype := seriestype
-    obs_keys = collect(keys(getproperty(m, observable)))
-    filter!(x -> x ≠ "itrj", obs_keys)
+    obs_keys = if observable != :bias_data
+        collect(keys(getproperty(m, observable)))
+    else
+        numinstances = 0
+        while true
+            if Symbol(:bias_data_, Symbol(lpad(numinstances, 3, "0"))) ∈ observables(m)
+                numinstances += 1
+            else
+                break
+            end
+        end
+        @show numinstances
+        [collect(keys(getproperty(m, Symbol(:bias_data_, Symbol(lpad(i, 3, "0")))))) for i in 0:numinstances-1]
+    end
+    
+    if observable != :bias_data
+        filter!(x -> x ≠ "itrj", obs_keys)
+    else
+        [filter!(x -> x ≠ "itrj", obs_keys_i) for obs_keys_i in obs_keys]
+    end
+
     palette --> DEFAULT_COLORS
 
     x = try
@@ -148,7 +169,23 @@ RecipesBase.@recipe function timeseries(
         nothing
     end
 
-    if occursin("bias_data", string(observable))
+    if observable == :bias_data
+        [filter!(x -> !contains("cv", x), obs_keys_i) for obs_keys_i in obs_keys]
+        size --> (600, 400)
+        link := :x
+        legend := false
+        palette --> DEFAULT_COLORS
+        xlabel --> "Monte Carlo Time"
+        ylabel --> "cv"
+
+        for (i, name) in enumerate(obs_keys)
+            @series begin
+                color --> DEFAULT_COLORS[mod1(i+1, length(DEFAULT_COLORS))]
+                y = view(getproperty(m, Symbol(:bias_data_, Symbol(lpad(i-1, 3, "0"))))["cv1"], irange)
+                x, y
+            end
+        end
+    elseif occursin("bias_data", string(observable))
         filter!(x -> !contains("cv", x), obs_keys)
         size --> (600, 200 * length(obs_keys))
         link := :x
@@ -233,6 +270,11 @@ RecipesBase.@recipe function hadroncorrelator(
     layout := (2, 1)
     m, correlator = hc.args[1:2]
     @assert correlator ∈ observables(m) "Observable $correlator is not in Measurements"
+    if any(occursin.(("flowed", "gflow", "cooling"), string(correlator)))
+        @assert tf != 0 "specific flow time 'tf' needs to be given as keyword argument with flowed correlator"
+    else
+        tf = 0
+    end
     seriestype := style
     obs_keys = collect(keys(getproperty(m, correlator)))
     filter!(x -> x ≠ "itrj", obs_keys)
@@ -279,7 +321,7 @@ RecipesBase.@recipe function hadroncorrelator(
     @series begin
         subplot := 1
         xticks := 1:len
-        ylabel --> "⟨C(t)⟩"
+        ylabel --> "⟨C(t)⟩ (tf = $tf)"
         label --> string(correlator)
         yscale := logscale ? :log10 : :identity
         y = C
@@ -289,7 +331,7 @@ RecipesBase.@recipe function hadroncorrelator(
     @series begin
         subplot := 2
         xticks := 1:len
-        ylabel --> "m_eff"
+        ylabel --> "m_eff (tf = $tf)"
         label --> string(correlator)
         yscale --> :identity
         y = meff

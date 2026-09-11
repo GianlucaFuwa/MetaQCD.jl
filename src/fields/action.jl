@@ -86,15 +86,14 @@ function calc_gauge_action(::DBW2GaugeAction, U::Gaugefield)
 end
 
 function gauge_action_deriv!(
-    dU::Colorfield{B,T}, staples::Colorfield{B,T}, U::Gaugefield{B,TU,M}, fac=1
-) where {B,T,M,TU}
+    dU::Colorfield{B,T}, staples::Colorfield{B,T}, U::Gaugefield{B,TU,M,GA}, fac=1
+) where {B,T,M,TU,GA}
     mβover6 = T(-U.β*fac / 6)
-    gaction = gauge_action(U)()
     itr = eachindex(dU, staples, U)
 
     parallelfor(itr, B, Val(M), (U,), (dU, staples), (U, dU, staples)) do site, (U, dU, staples)
         for μ in 1:4
-            A = staple(gaction, U, μ, site)
+            A = staple(GA(), U, μ, site)
             staples[μ, site] = A
             UA = cmatmul_od(U[μ, site], A)
             dU[μ, site] = mβover6 * traceless_antihermitian(UA)

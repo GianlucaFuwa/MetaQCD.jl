@@ -49,8 +49,8 @@ function normalize!(u::Gaugefield{B,T,M}) where {B,T,M}
 end
 
 function LinearAlgebra.tr(u::GaugeLikeField{B,T,M}) where {B,T,M}
-    trace = parallelfor_sum(allindices(u), 0.0, B, Val(M), (), (), (u,)) do t, μsite, (u,)
-        t += real(tr(u[μsite]))
+    trace = parallelfor_sum(allindices(u), 0.0+0.0im, B, Val(M), (), (), (u,)) do t, μsite, (u,)
+        t += tr(u[μsite])
     end
 
     trace /= 4length(u)
@@ -74,9 +74,55 @@ function LinearAlgebra.norm(u::GaugeLikeField{B,T,M}, ::Val{Inf}) where {B,T,M}
     return distributed_reduce(normsup, max, u)
 end
 
+function LinearAlgebra.dot(a::GaugeLikeField{B,T}, b::GaugeLikeField{B,T}) where {B,T}
+    itr = allindices(a, b)
+
+    res = parallelfor_sum(itr, 0.0+0.0im, B, Val(false), (), (), (a, b)) do d, μsite, (a, b)
+        d += tr(cmatmul_oo(a[μsite], b[μsite])) 
+    end
+
+    return distributed_reduce(res, +, a)
+end
+
+function LinearAlgebra.dot(a::GaugeLikeField{B,T1}, b::GaugeLikeField{B,T2}) where {B,T1,T2}
+    itr = allindices(a, b)
+
+    res = parallelfor_sum(itr, 0.0+0.0im, B, Val(false), (), (), (a, b)) do d, μsite, (a, b)
+        d += tr(cmatmul_oo(a[μsite], SMatrix{3,3,Complex{T1},9}(b[μsite]))) 
+    end
+
+    return distributed_reduce(res, +, a)
+end
+
+function LinearAlgebra.dot(a::GaugeLikeField{B,T}, b::GaugeLikeField{B,T}, ::Val{2}) where {B,T}
+    itr = allindices(a, b)
+
+    res = parallelfor_sum(itr, 0.0+0.0im, B, Val(false), (), (), (a, b)) do d, μsite, (a, b)
+        d += tr(cmatmul_oo(cmatmul_oo(a[μsite], a[μsite]), b[μsite])) 
+    end
+
+    return distributed_reduce(res, +, a)
+end
+
+function LinearAlgebra.axpy!(α, a::GaugeLikeField{B,T}, b::GaugeLikeField{B}) where {B,T}
+    parallelfor(allindices(a, b), B, Val(false), (), (a,), (a, b)) do μsite, (a, b)
+        a[μsite] += Complex{T}(α) * b[μsite]
+    end
+
+    return nothing
+end
+
 function add!(a::AbstractField{B,T}, b::AbstractField{B}, fac) where {B,T}
     parallelfor(allindices(a, b), B, Val(false), (), (a,), (a, b)) do μsite, (a, b)
         a[μsite] += T(fac) * b[μsite]
+    end
+
+    return nothing
+end
+
+function add!(c::AbstractField{B,T}, a::AbstractField{B}, b::AbstractField{B}, fac) where {B,T}
+    parallelfor(allindices(a, b, c), B, Val(false), (), (c,), (a, b, c)) do μsite, (a, b, c)
+        c[μsite] = a[μsite] + T(fac) * b[μsite]
     end
 
     return nothing

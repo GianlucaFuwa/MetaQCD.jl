@@ -1,4 +1,4 @@
-struct HMCLevel{NC,TI,TF,TFP}
+mutable struct HMCLevel{NC,TI,TF,TFP}
     integrator::TI
     numsteps::Int64
     Δτ::Float64
@@ -132,6 +132,8 @@ end
 function initialize_level_parameters()
     return HMCLevelParameters()
 end
+
+is_constrained(level::HMCLevel) = is_constrained(level.integrator)
 
 @kwdef mutable struct HMCLevelParameters
     forces::Vector{Int64} = [1]

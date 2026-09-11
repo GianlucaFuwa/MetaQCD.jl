@@ -1,0 +1,131 @@
+[data]
+float_type = "single"
+solver_float_type = "single"
+backend = "rocm"
+ensemble_dir = "/home/gialu/projects/MetaQCD-upstream/ensembles/chempot_test"
+randomseed = 0
+overwrite = true
+verboselevel = 2
+log_to_console = true
+# save_config_format = "bridge"
+# save_config_every = 1
+# load_config_fromfile = true
+# load_config_path = "/zhome/academic/HLRS/xnw/xnwgfuwa/projects/MetaQCD.jl/ensembles/config_bonanno_64_16_therm50"
+# load_config_format = "mpi"
+
+# =====
+# <poly> = 0.00075 pm 4.67e-5 + im * 1.0493e-5 pm 8.0748e-7
+# P = 20000
+# c = 0.18
+# =====
+
+[ensemble]
+mode = "sim"
+numinstances = 1
+L = [8, 8, 8, 8]
+numtherm = 15
+numsteps = 1000
+initial = "cold"
+update_method = "hmc"
+su3_nfloats = 18
+
+[gauge_action]
+beta = 0.5829
+gauge_action = "dbw2"
+
+[fermion_action]
+fermion_action = "staggered"
+[[fermion_action.fermions]]
+# precon = "heavy"
+precon = "none"
+Nf = 2
+mass = 0.00360381
+cg_tol_action = 1e-10
+cg_tol_md = 1e-5
+cg_maxiters_action = 5000
+cg_maxiters_md = 5000
+rhmc_order_action = 11
+rhmc_order_md = 10
+rhmc_tol_action = 1e-5
+rhmc_tol_md = 1e-4
+rhmc_spectral_bound = [0.00001, 6.0]
+[[fermion_action.fermions]]
+precon = "none"
+Nf = 1
+mass = 0.09957333
+chemical_potential = 0.1
+cg_tol_action = 1e-10
+cg_tol_md = 1e-5
+cg_maxiters_action = 5000
+cg_maxiters_md = 5000
+rhmc_order_action = 11
+rhmc_order_md = 8
+rhmc_tol_action = 1e-5
+rhmc_tol_md = 1e-4
+rhmc_spectral_bound = [0.0001, 6.0]
+
+[bias]
+recycle = true
+# rhostout_for_cv = 0.125 # rho is the same for all CVs
+# starting_Q = [0, 0, -1, -1, 1, -2, 2, 2]
+[[bias.biases]]
+type = "opesmu"
+kind_of_cv = "polyakov_abs"
+numsmears_for_cv = 0
+static = false
+cv_min_max = [0.0, 1.0]
+cv_num = 21
+sigma = 0.05
+# metad specific parameters
+# [[bias.biases]]
+# type = "metad"
+# kind_of_cv = "polyakov_abs"
+# numsmears_for_cv = 0
+# static = false
+# symmetric = false
+# stride = 1
+# cvlims = [-3.15, 3.15]
+# biasfactor = 5
+# penalty_weight = 100.0
+# # metad specific parameters
+# bin_width = 0.01
+# weight = 0.05
+# load_bias = ["/home/gialu/projects/MetaQCD.jl/nf211_biaspotentials/nf211_a0.048_8smear_ssa_total.metad"]
+
+[hmc]
+hmc_trajectory = 1
+# hmc_numsmear_fermion = 4
+# hmc_rhostout_fermion = 0.125
+# hmc_constraint = 0.18
+[[hmc.levels]]
+level = 1
+forces = [0, 1, 2, 3]
+integrator = "OMF4"
+numsteps = 5
+
+[gradient_flow]
+flow_integrator = "euler"
+flow_num = 30
+flow_steps = 1
+flow_tf = 0.12 # total flow time is flow_num * flow_tf
+flow_measure_every = [4, 30]
+
+[measurements.Plaquette]
+measure_every = 1
+
+[measurements.Polyakov_loop]
+measure_every = 1
+
+[measurements.Topological_charge]
+measure_every = 1
+type = ["clover"]
+
+[measurements_with_flow.Plaquette]
+measure_every = 1
+
+[measurements_with_flow.Polyakov_loop]
+measure_every = 1
+
+[measurements_with_flow.Topological_charge]
+measure_every = 1
+type = ["clover"]
