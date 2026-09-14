@@ -1,6 +1,7 @@
 abstract type AbstractIntegrator end
 
 include("hmc_levels.jl")
+include("hmc_constraints.jl")
 
 """
     HMC(
@@ -52,11 +53,11 @@ force recursion when using a bias.
 - `wilson`
 - `wilson_eo`
 """
-struct HMC{TL,NL,TG,TGH,TGO,TP,TT,TF,TSG,TSF,TPO,TPOO,TF2,TFS,TLF} <: AbstractUpdate
+struct HMC{TL,NL,TC,TG,TGH,TGO,TP,TT,TF,TSG,TSF,TPO,TPOO,TF2,TFS,TLF} <: AbstractUpdate
     levels::TL
     numlevels::Val{NL}
+    constraint::TC
     friction::Float64
-    constraint::Union{Nothing,Float64}
 
     P::TP
     P_old::TPO # second momentum field for GHMC
@@ -80,8 +81,8 @@ struct HMC{TL,NL,TG,TGH,TGO,TP,TT,TF,TSG,TSF,TPO,TPOO,TF2,TFS,TLF} <: AbstractUp
     function HMC(
         levels::TL,
         numlevels,
+        constraint::TC,
         friction,
-        constraint,
         P::TP,
         P_old::TPO,
         P0::TPOO,
@@ -97,14 +98,14 @@ struct HMC{TL,NL,TG,TGH,TGO,TP,TT,TF,TSG,TSF,TPO,TPOO,TF2,TFS,TLF} <: AbstractUp
         smearing_fermion::TSF,
         substep_CVs,
         logfile::TLF,
-    ) where {TL,TP,TPO,TPOO,TG,TGH,TGO,TF,TT,TF2,TFS,TSG,TSF,TLF}
+    ) where {TL,TC,TP,TPO,TPOO,TG,TGH,TGO,TF,TT,TF2,TFS,TSG,TSF,TLF}
         @level1("- Constructing HMC...")
         @level1("|  LEVELS:")
         for lvl in reverse(levels)
             @level1("$(string(lvl))")
         end
+        @level1("|  CONSTRAINT:\n$(string(constraint))")
         @level1("|  FRICTION: $(friction) $(ifelse(friction==0, "(default)", ""))")
-        @level1("|  CONSTRAINT: $(constraint)")
         isnothing(fieldstrength) ? @level1("|  BIAS DISABLED") : @level1("|  BIAS ENABLED")
         @level1("|  GAUGE SMEARING: $(string(smearing_gauge))")
         @level1("|  FERMION SMEARING: $(string(smearing_fermion))")
@@ -113,11 +114,11 @@ struct HMC{TL,NL,TG,TGH,TGO,TP,TT,TF,TSG,TSF,TPO,TPOO,TF2,TFS,TLF} <: AbstractUp
         substep_CVs_single = isempty(substep_CVs) ? Float64[] : zeros(length(substep_CVs))
         substep_counter = Base.RefValue{Int64}(0)
         NL = _unwrap_val(numlevels)
-        return new{TL,NL,TG,TGH,TGO,TP,TT,TF,TSG,TSF,TPO,TPOO,TF2,TFS,TLF}(
+        return new{TL,NL,TC,TG,TGH,TGO,TP,TT,TF,TSG,TSF,TPO,TPOO,TF2,TFS,TLF}(
             levels,
             numlevels,
-            friction,
             constraint,
+            friction,
             P,
             P_old,
             P0,
@@ -155,15 +156,30 @@ function HMC(
     fermion_action="quenched",
     numfermions=0,
     numcv=0,
+    constraint_name=nothing,
+    constraint_numsmear=0,
+    constraint_rho=0.0,
+    constraint_value=0.0,
+    constraint_variance=0.0,
     logdir="",
     instance=MPI_INSTANCE[],
 ) where {B,T}
+    numlevels = Val(length(hmc_levels))
+    level_params = level_parameters_from_dict(hmc_levels)
+    constraint = HMCConstraint(
+        U,
+        constraint_name,
+        constraint_value,
+        constraint_variance;
+        numsmear=constraint_numsmear,
+        rho=constraint_rho,
+    )
     P = Colorfield(U, Float64; no_halo=true)
     gaussian_TA!(P, 0)
     P_old = friction == 0 ? nothing : Colorfield(U; no_halo=true)
     U_old = Gaugefield(U; no_halo=true)
     U_high = T==Float64 ? nothing : Gaugefield(U, Float64)
-    U0, P0 = if contains(lowercase(hmc_levels[1]["integrator"]), "constrained")
+    U0, P0 = if constraint!==NoConstraint() || contains(level_params[1].integrator, "Constrained")
         Gaugefield(U), Colorfield(U, Float64; no_halo=true)
     else
         nothing, nothing
@@ -171,13 +187,16 @@ function HMC(
     staples = Colorfield(U; no_halo=true)
     force = Colorfield(U; no_halo=true)
 
-    numlevels = Val(length(hmc_levels))
-    level_params = level_parameters_from_dict(hmc_levels)
-
     levels = ntuple(numlevels) do i
         lvl = level_params[i]
 
-        if contains(lowercase(lvl.integrator), "constrained")
+        if constraint !== NoConstraint() && constraint.variance == 0 && !contains(lowercase(lvl.integrator), "constrained")
+            integrator = lowercase(lvl.integrator) * "constrained"
+        else
+            integrator = lowercase(lvl.integrator)
+        end
+
+        if contains(integrator, "constrained")
             @assert length(hmc_levels) == 1 "Constrained HMC can only be used with a single time scale"
         end
 
@@ -198,7 +217,7 @@ function HMC(
         numcv == 0 &&
             (@assert 0 ∉ forces "bias force cannot be in hmc level without bias")
         HMCLevel(
-            integrator_from_str(lvl.integrator, rafriction, velocity, constraint),
+            integrator_from_str(integrator, rafriction, velocity, constraint_value),
             lvl.numsteps,
             Δτ,
             forces;
@@ -273,7 +292,7 @@ function HMC(
     end
 
     has_smearing = smearing_gauge != NoSmearing() || smearing_fermion != NoSmearing()
-    force2 = (!has_smearing && numcv == 0) ? nothing : Colorfield(U)
+    force2 = (!has_smearing && numcv == 0 && constraint==NoConstraint()) ? nothing : Colorfield(U)
 
     if fermion_action == "staggered"
         ϕ = ntuple(_ -> Spinorfield(U; staggered=true, hw=1), numfermions)
@@ -291,7 +310,13 @@ function HMC(
         throw(AssertionError("Dynamical fermions \"$fermion_action\" not supported"))
     end
 
-    fieldstrength = numcv > 0 ? Tensorfield(U) : nothing
+    fieldstrength = if numcv > 0
+        Tensorfield(U)
+    elseif constraint != NoConstraint()
+        contains(constraint.name, "topcharge") ? Tensorfield(U) : nothing
+    else
+        nothing
+    end
     comm_instance = mpi_comm_instance()
 
     if hmc_logging && (logdir != "") && (!is_distributed(U) || mpi_amroot(comm_instance))
@@ -321,8 +346,8 @@ function HMC(
     return HMC(
         levels,
         numlevels,
-        friction,
         constraint,
+        friction,
         P,
         P_old,
         P0,
@@ -369,6 +394,7 @@ function update!(
     # INFO: We always use double precision for the momenta and gauge action to improve reversibility
     U_high = isnothing(hmc.U_high) ? U : hmc.U_high 
     P_old = hmc.P_old
+    # FIXME: add constraint value here if variance>0
     P = hmc.P
     ϕ = hmc.ϕ
     smearing_gauge = hmc.smearing_gauge
@@ -386,12 +412,16 @@ function update!(
 
     gaussian_TA!(P, friction)
     CV_old = calc_cv(U_high, bias)
-    if is_constrained(hmc.levels[1]) && (!THERM || (!isnothing(hmc.constraint) && CV_old[1]!=3))
+    # if is_constrained(hmc.levels[1]) && (!THERM || (!isnothing(hmc.constraint) && CV_old[1]!=3))
+    if hmc.constraint !== NoConstraint() && itrj>10
         therm = Val(false)
-        enforce_hidden_constraint!(hmc, U, bias)
-        CV_final = isnothing(hmc.constraint) ? CV_old[1] : hmc.constraint#get_sample(bias.sampler)
-        hmc.levels[1].integrator.interval = (CV_final, CV_final)
+        enforce_hidden_constraint!(hmc, U, hmc.constraint)
+        # CV_final = isnothing(hmc.constraint) ? CV_old[1] : hmc.constraint#get_sample(bias.sampler)
+        val = hmc.constraint.value#calc_cv(U_high, hmc.constraint)
+        hmc.levels[1].integrator.interval = (val[1], val[1])
         println(hmc.levels[1].integrator.interval)
+    # elseif itrj > 10
+    #     error()
     end
     !isnothing(P_old) && copy!(P_old, P)
 
@@ -488,7 +518,7 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level, recycle=false)
 
     fp = !isnothing(lvl.forcefile) ? fopen(lvl.forcefile, "a") : nothing
 
-    if Val(0) ∈ forces && !(lvl.integrator isa LeapfrogConstrained) && !(lvl.integrator isa OMF4Constrained)
+    if Val(0) ∈ forces #&& !(lvl.integrator isa LeapfrogConstrained) && !(lvl.integrator isa OMF4Constrained) && (hmc.constraint==NoConstraint())
         if bias isa Bias
             if recycle
                 hmc.substep_counter[] += 1

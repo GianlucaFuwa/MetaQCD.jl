@@ -8,7 +8,7 @@ using ..Logs
 using ..RHMCParameters
 using ..Utils
 
-import ..BiasModule: calc_cv, calc_cv_deriv!, ∂V∂Q
+import ..BiasModule: Bias, calc_cv, calc_cv_deriv!, ∂V∂Q
 import ..DiracOperators: StaggeredDiracOperator, StaggeredEOPreDiracOperator
 import ..DiracOperators: StaggeredHoelblingDiracOperator, WilsonDiracOperator
 import ..DiracOperators: WilsonEOPreDiracOperator, FermionAction, has_clover_term

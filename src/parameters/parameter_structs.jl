@@ -78,7 +78,11 @@ end
     hmc_trajectory::Float64 = 1
     hmc_friction::Float64 = 0.0
     hmc_rafriction::Float64 = 1.0
-    hmc_constraint::Union{Nothing,Float64} = nothing
+    hmc_constraint_name::Union{Nothing,String} = nothing
+    hmc_constraint_numsmear::Int64 = 0
+    hmc_constraint_rho::Float64 = 0.0
+    hmc_constraint_value::Float64 = 0.0
+    hmc_constraint_variance::Float64 = 0.0
     hmc_numsmear_gauge::Int64 = 0
     hmc_numsmear_fermion::Int64 = 0
     hmc_rhostout_gauge::Float64 = 0.0

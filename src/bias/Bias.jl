@@ -370,6 +370,7 @@ function calc_cv(U, b::Bias{N}, i::Int64, is_smeared::Bool=false) where {N} # 1 
 end
 
 calc_cv_deriv!(dU, b::Bias, i, args...) = b.bias[i].cvinfo.deriv_func(dU, args...)
+calc_cv_deriv!(dU, b, i, args...) = b.info.deriv_func(dU, args...)
 
 ∂V∂Q(b::NoBias, ::Any) = 0.0
 ∂V∂Q(b::Bias, cv::Float64, i) = ∂V∂Q(b.bias[i], cv)

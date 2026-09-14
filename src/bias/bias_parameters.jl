@@ -126,7 +126,7 @@ end
     write_bias_every::Int64 = batch_size
 end
 
-function get_cvinfo_from_parameters(p::BiasParameters)
+function get_cvinfo_from_parameters(p)
     cv_func = if p.kind_of_cv == "topcharge_plaquette"
         U -> top_charge(Plaquette(), U)
     elseif p.kind_of_cv == "topcharge_clover"

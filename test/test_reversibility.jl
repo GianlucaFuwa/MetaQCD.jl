@@ -1,7 +1,7 @@
 using MetaQCD
-using MetaQCD.BiasModule: Metadynamics, MetadynamicsParameters
+using MetaQCD.BiasModule: Metadynamics, MetadynamicsParameters, calc_cv
 using MetaQCD.MetaIO: printf
-using MetaQCD.Updates: LeapfrogConstrained, OMF4Constrained
+using MetaQCD.Updates: LeapfrogConstrained, OMF4Constrained, NoConstraint
 using Random
 using TimerOutputs
 using Statistics
@@ -55,7 +55,7 @@ function test_reversibility(
     bias = if with_bias
         Bias(
             U,
-            [7],
+            [4],
             0.12,
             (b,),
             nothing,
@@ -92,18 +92,28 @@ function test_reversibility(
                 U,
                 lvl,
                 hmc_trajectory;
+                constraint_name="polyakov_real",
+                constraint_numsmear=0,
+                constraint_rho=0.125,
+                constraint_value=1.0,
                 velocity=velocities[iv],
                 fermion_action=faction ? "staggered" : "quenched",
                 numfermions=faction ? 1 : 0,
                 numcv=with_bias ? 1 : 0,
             )
-            load_field!(BridgeFormat(), U, "/home/gialu/projects/MetaQCD-CHMC/ensembles/constraint_test_14/configs/config_00000005.txt")
+            if N == 14
+                load_field!(BridgeFormat(), U, "/home/gialu/projects/MetaQCD-CHMC/ensembles/constraint_test_14/configs/config_00000005.txt")
+            else
+                random_gauges!(U)
+            end
+            @show calc_cv(U, hmc.constraint)
+            @show calc_cv(U, bias)
             dh = 0.0
             w = 0.0
             for _ in 1:nreps
                 dh_i, w_i = reversibility_test(hmc, U, U64, fermion, bias, "", to)
                 dh += dh_i
-                w += w_i
+                # w += w_i
             end
             dH[is, iv] = dh/nreps
             W[is, iv] = w/nreps
@@ -132,7 +142,7 @@ function reversibility_test(hmc::HMC{TI}, U, U64, fermion, bias, str, to) where 
     @timeit to "gauge action" Sg_old = calc_gauge_action(U64)
     @timeit to "kinetic energy" trP²_old = -calc_kinetic_energy(hmc.P)
     @timeit to "fermion action" Sf_old = isnothing(hmc.ϕ) ? 0.0 : calc_fermion_action(fermion, U, hmc.ϕ, NoSmearing(), false)
-    @timeit to "CV" CV_old = isnothing(bias) ? 0.0 : calc_cv(U, bias)
+    @timeit to "CV" CV_old = hmc.constraint==NoConstraint() ? calc_cv(U, bias) : calc_cv(U, hmc.constraint)
     V_old = isnothing(bias) ? 0.0 : bias(CV_old)
     H_old = Sg_old + trP²_old + Sf_old + V_old
 
@@ -140,9 +150,14 @@ function reversibility_test(hmc::HMC{TI}, U, U64, fermion, bias, str, to) where 
     if hmc.levels[1].integrator isa LeapfrogConstrained || hmc.levels[1].integrator isa OMF4Constrained
         hmc.levels[1].integrator.interval = (
             CV_old[1],
-            MetaQCD.BiasModule.get_sample(bias.sampler)
+            CV_old[1],
+            # MetaQCD.BiasModule.get_sample(bias.sampler)
         )
-        Z = hmc.levels[1].integrator.interval
+        if hmc.constraint == NoConstraint()
+            Z = hmc.levels[1].integrator.interval
+        else
+            Z = (CV_old[1], hmc.constraint.value)
+        end
         p = [
             MetaQCD.BiasModule.get_probability(bias.sampler, Z[1]),
             MetaQCD.BiasModule.get_probability(bias.sampler, Z[2])
@@ -168,12 +183,13 @@ function reversibility_test(hmc::HMC{TI}, U, U64, fermion, bias, str, to) where 
     ΔSg_mid = Sg_mid - Sg_old
     ΔSf_mid = Sf_mid - Sf_old
     ΔH_mid = H_mid - H_old
+    ΔCV_mid = CV_mid .- CV_old
     ΔtrP²_mid = trP²_mid - trP²_old
     Δp = log(p[1]) - log(p[2])
     # @show ΔSg_mid
     # @show ΔH_mid
     # @show abs(hmc.levels[1].integrator.interval[2]-CV_mid[1])
-    @show ΔH_mid, W_mid, Δp
+    @show ΔH_mid, ΔCV_mid, W_mid, Δp
 
     # @timeit to "invert momenta" MetaQCD.Fields.mul!(hmc.P, -1)
     # if hmc.levels[1].integrator isa LeapfrogConstrained ||hmc.levels[1].integrator isa OMF4Constrained

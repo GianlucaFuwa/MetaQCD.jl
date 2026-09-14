@@ -353,66 +353,36 @@ include("sched.jl")
 
 function evolve!(O4C::OMF4Constrained, U, hmc::HMC, fermion_action, bias, therm, level)
     @assert level == 1
-    @assert length(bias) == 1 "Constrained evolution only supported for a single CV"
-    Z, Z̃ = O4C.interval
     Δτ = hmc.levels[level].Δτ
-    v = O4C.velocity
-    numsteps = maximum((hmc.levels[level].numsteps, cld(abs(Z̃ - Z), v)))
-    # @show Z, Z̃
-    # @show numsteps
-    T = Δτ * numsteps
-    # @show T
-    # c(t) = optimal_schedule(bias, Z, Z̃).z(t/T)
-    c(t) = Z + (Z̃ - Z)*0.5(1 - cos(π*t/T))
+    numsteps = hmc.levels[level].numsteps
+    if hmc.constraint == NoConstraint()
+        constraint = bias
+        ci = O4C.interval[1]
+    else
+        constraint = hmc.constraint
+        ci = constraint.value
+    end
     λ = 0.0
-    t = 0.0
-    W = 0.0
-    ci_old = c(0.0)
 
     for i in 1:numsteps
-        t += O4C.β*Δτ
-        ci = c(t)
-        # @show ci - ci_old
         updateP!(U, hmc, O4C.α, fermion_action, bias, level)
         copy!(hmc.P0, hmc.P)
-        λ = solve_via_secant!(U, hmc, bias, ci; Δτ=O4C.β*Δτ, λ)
-        W += λ * (ci - ci_old)
-        ci_old = ci
+        λ = solve_via_secant!(U, hmc, constraint, ci; Δτ=O4C.β*Δτ, λ)
         updateP!(U, hmc, O4C.γ, fermion_action, bias, level)
         copy!(hmc.P0, hmc.P)
-        t += O4C.δ*Δτ
-        ci = c(t)
         # @show ci - ci_old
-        λ = solve_via_secant!(U, hmc, bias, ci; Δτ=O4C.δ*Δτ, λ)
-        W += λ * (ci - ci_old)
-        ci_old = ci
+        λ = solve_via_secant!(U, hmc, constraint, ci; Δτ=O4C.δ*Δτ, λ)
 
         updateP!(U, hmc, O4C.μ, fermion_action, bias, level)
         copy!(hmc.P0, hmc.P)
-        t += O4C.ν*Δτ
-        ci = c(t)
-        # @show ci - ci_old
-        λ = solve_via_secant!(U, hmc, bias, ci; Δτ=O4C.ν*Δτ, λ)
-        W += λ * (ci - ci_old)
-        ci_old = ci
+        λ = solve_via_secant!(U, hmc, constraint, ci; Δτ=O4C.ν*Δτ, λ)
         updateP!(U, hmc, O4C.μ, fermion_action, bias, level)
         copy!(hmc.P0, hmc.P)
 
-        t += O4C.δ*Δτ
-        ci = c(t)
-        # @show ci - ci_old
-        λ = solve_via_secant!(U, hmc, bias, ci; Δτ=O4C.δ*Δτ, λ)
-        W += λ * (ci - ci_old)
-        ci_old = ci
+        λ = solve_via_secant!(U, hmc, constraint, ci; Δτ=O4C.δ*Δτ, λ)
         updateP!(U, hmc, O4C.γ, fermion_action, bias, level)
         copy!(hmc.P0, hmc.P)
-        t += O4C.β*Δτ
-        ci = c(t)
-        # @show ci - ci_old
-        λ = solve_via_secant!(U, hmc, bias, ci; Δτ=O4C.β*Δτ, λ)
-        W += λ * (ci - ci_old)
-        ci_old = ci
-        # @show t
+        λ = solve_via_secant!(U, hmc, constraint, ci; Δτ=O4C.β*Δτ, λ)
 
         fac = 1/real(-6dot(hmc.force2, hmc.force2))
         dc_dot_p = real(-6dot(hmc.force2, hmc.P))
@@ -422,7 +392,7 @@ function evolve!(O4C::OMF4Constrained, U, hmc::HMC, fermion_action, bias, therm,
         add!(hmc.P, hmc.force2, μ)
     end
 
-    return -W
+    return nothing
 end
 
 function Base.show(io::IO, ::MIME"text/plain", int::OMF4RA)
@@ -431,7 +401,7 @@ end
 Base.show(io::IO, int::OMF4RA) = print(io, "$(typeof(int))(friction=$(int.friction))")
 
 function integrator_from_str(str::String, friction=0.0, velocity=0.1, constraint=nothing)
-    if lowercase(str) == "Leapfrog"
+    if lowercase(str) == "leapfrog"
         return Leapfrog()
     elseif lowercase(str) == "leapfrogra"
         return LeapfrogRA(friction)
@@ -446,7 +416,7 @@ function integrator_from_str(str::String, friction=0.0, velocity=0.1, constraint
         return OMF4()
     elseif lowercase(str) == "omf4slow"
         return OMF4Slow()
-    elseif lowercase(str) == "omf4ra" || str == "OMF4RA"
+    elseif lowercase(str) == "omf4ra"
         return OMF4RA(friction)
     elseif lowercase(str) == "omf4constrained"
         itvl = isnothing(constraint) ? (0.0, 1.0) : (constraint, constraint)

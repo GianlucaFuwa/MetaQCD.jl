@@ -16,10 +16,10 @@ function solve_via_secant!(
         parallelfor(allindices(U, P), B, Val(false), (), (U,), (U, U0, P)) do μsite, (U, U0, P)
             U[μsite] = proj_onto_SU3(cmatmul_oo(exp_iQ(-im * Δτ * P[μsite]), ComplexF64.(U0[μsite])))
         end
-        return calc_cv(U, bias, 1) - c_final
+        return calc_cv(U, bias)[1] - c_final
     end
 
-    calc_cv(U0, bias, 1)
+    calc_cv(U0, bias)[1]
     calc_cv_deriv_bare!(force, bias, F, U0, temp_force, bias.smearing, 1)
     # @show log(real(-6dot(force, force)))
 
