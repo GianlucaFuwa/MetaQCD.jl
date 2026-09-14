@@ -19,7 +19,7 @@ import ..Fields: allindices, clear!, get_local_dims, normalize!, fieldstrength_e
 import ..Fields: check_dims, even_odd, gaussian_TA!, mul!, staple, staple_eachsite!
 import ..Fields: parallelfor, parallelfor_max, @latmap, @latsum, gauge_action, gauge_action_deriv!
 import ..Fields: AbstractField, Plaquette, Clover, Spinorfield, Tensorfield, is_distributed, CPU
-import ..Forces: calc_dSdU_bare!, calc_dSfdU_bare!, calc_dVdU_bare!, calc_cv_deriv_bare!
+import ..Forces: calc_dSdU_bare!, calc_dSfdU_bare!, calc_dScdU_bare!, calc_dVdU_bare!, calc_cv_deriv_bare!
 import ..Parameters: ParameterSet
 import ..Smearing: AbstractSmearing, NoSmearing, StoutSmearing, calcZ!
 import ..Smearing: calc_smearedU!, get_layer, stout_backprop!

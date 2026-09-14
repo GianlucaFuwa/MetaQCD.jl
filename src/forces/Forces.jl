@@ -63,6 +63,7 @@ function calc_dSfdU_bare!(dU, fermion_action, U, ϕ, temp_force, smearing, is_sm
 end
 
 include("gauge_force.jl")
+include("constraint_force.jl")
 include("bias_force.jl")
 include("wilson_force.jl")
 include("wilson_eo_force.jl")

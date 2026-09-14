@@ -190,14 +190,14 @@ function HMC(
     levels = ntuple(numlevels) do i
         lvl = level_params[i]
 
-        if constraint !== NoConstraint() && constraint.variance == 0 && !contains(lowercase(lvl.integrator), "constrained")
+        if constraint !== NoConstraint() && constraint.variance==0 && !contains(lowercase(lvl.integrator), "constrained")
             integrator = lowercase(lvl.integrator) * "constrained"
         else
             integrator = lowercase(lvl.integrator)
         end
 
         if contains(integrator, "constrained")
-            @assert length(hmc_levels) == 1 "Constrained HMC can only be used with a single time scale"
+            @assert length(hmc_levels) == 1 "Constrained integrators can only be used with a single time scale"
         end
 
         forces = lvl.forces
@@ -255,6 +255,13 @@ function HMC(
 
     allforces = collect(Iterators.flatten([lvl.forces for lvl in levels]))
     fail = false
+
+    if constraint!=NoConstraint() && !constraint_is_delta(constraint)
+        if Val(-1) ∉ allforces
+            @error("Constraint force (i.e., force -1) not included in any level")
+            fail = true
+        end
+    end
 
     if numcv > 0
         if Val(0) ∉ allforces
@@ -328,6 +335,7 @@ function HMC(
             printf(fp, StaticString("%-25s"), "ΔP2")
             printf(fp, StaticString("%-25s"), "ΔSg")
             printf(fp, StaticString("%-25s"), "ΔSf")
+            printf(fp, StaticString("%-25s"), "ΔSc")
             printf(fp, StaticString("%-25s"), "ΔV")
             printf(fp, StaticString("%-25s"), "Work")
             printf(fp, StaticString("%-25s"), "ΔH")
@@ -413,7 +421,7 @@ function update!(
     gaussian_TA!(P, friction)
     CV_old = calc_cv(U_high, bias)
     # if is_constrained(hmc.levels[1]) && (!THERM || (!isnothing(hmc.constraint) && CV_old[1]!=3))
-    if hmc.constraint !== NoConstraint() && itrj>10
+    if hmc.constraint !== NoConstraint() && constraint_is_delta(hmc.constraint) && itrj>10
         therm = Val(false)
         enforce_hidden_constraint!(hmc, U, hmc.constraint)
         # CV_final = isnothing(hmc.constraint) ? CV_old[1] : hmc.constraint#get_sample(bias.sampler)
@@ -428,6 +436,7 @@ function update!(
     trP²_old = -calc_kinetic_energy(P)
     Sg_old = calc_gauge_action(U_high, smearing_gauge)
     V_old = bias(CV_old)
+    Sc_old = calc_constraint_action(U, hmc.constraint)
     sample_pseudofermions!(ϕ, fermion_action, U, smearing_fermion, shared_smearing)
     Sf_old = calc_fermion_action(fermion_action, U, ϕ, smearing_fermion, true) # INFO: fields are already smeared in sampling, so we dont have to here
 
@@ -440,6 +449,7 @@ function update!(
     Sg_new = calc_gauge_action(U_high, smearing_gauge)
     CV_new = calc_cv(U_high, bias) # FIXME: this will error if there is not smearing in definition
     V_new = bias(CV_new)
+    Sc_new = calc_constraint_action(U, hmc.constraint)
     Sf_new = calc_fermion_action(fermion_action, U, ϕ, smearing_fermion, shared_smearing)
     work = if is_constrained(hmc.levels[1]) && !THERM
         0.0#sum(out[2])
@@ -449,16 +459,17 @@ function update!(
 
     ΔP² = trP²_new - trP²_old
     ΔSg = Sg_new - Sg_old
+    ΔSc = Sc_new - Sc_old
     ΔV = V_new - V_old
     ΔSf = Sf_new - Sf_old
 
-    ΔH = ΔP² + ΔSg + ΔV + ΔSf + work
-    S_new = Sg_new + V_new + Sf_new
+    ΔH = ΔP² + ΔSg + ΔSc + ΔV + ΔSf + work
+    S_new = Sg_new + Sc_new + V_new + Sf_new
 
     accept_root = metro_test ? rand() ≤ exp(-ΔH) : true
 
     accept = mpi_bcast_isbits(accept_root, mpi_comm_instance(); root=0)
-    print_hmc_data(hmc.logfile, ΔP², ΔSg, ΔSf, ΔV, work, ΔH, S_new, accept)
+    print_hmc_data(hmc.logfile, ΔP², ΔSg, ΔSf, ΔSc, ΔV, work, ΔH, S_new, accept)
 
     if accept
         set_cv!(bias, CV_new)
@@ -518,6 +529,21 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level, recycle=false)
 
     fp = !isnothing(lvl.forcefile) ? fopen(lvl.forcefile, "a") : nothing
 
+    if Val(-1) ∈ forces
+        calc_dScdU_bare!(force, (fieldstrength, staples), U, temp_force, hmc.constraint)
+
+        force_avg = norm(force, Val(2))
+        force_sup = norm(force, Val(Inf))
+        if !isnothing(fp)
+            # print(fp, cfmt("%+-25.15E", force_avg))
+            # print(fp, cfmt("%+-25.15E", force_sup))
+            printf(fp, StaticString("%+-25.15E"), force_avg)
+            printf(fp, StaticString("%+-25.15E"), force_sup)
+        end
+
+        add!(P, force, ϵ)
+    end
+
     if Val(0) ∈ forces #&& !(lvl.integrator isa LeapfrogConstrained) && !(lvl.integrator isa OMF4Constrained) && (hmc.constraint==NoConstraint())
         if bias isa Bias
             if recycle
@@ -576,7 +602,7 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level, recycle=false)
     if fermion_action !== QuenchedFermionAction()
         iforce = 0
         for i in forces
-            (i == Val(0) || i == Val(1)) && continue # if bias or gauge force, go to next iteration
+            (i == Val(-1) || i == Val(0) || i == Val(1)) && continue # if bias or gauge force, go to next iteration
             iforce += 1
 
             is_smeared = (shared_smearing && Val(0) ∈ forces) || iforce > 1
@@ -673,10 +699,11 @@ function calc_fermion_action(fermion_action, U, ϕ, smearing::StoutSmearing, is_
     return Sf
 end
 
-@inline function print_hmc_data(::Nothing, ΔP², ΔSg, ΔSf, ΔV, work, ΔH, S, accept)
+@inline function print_hmc_data(::Nothing, ΔP², ΔSg, ΔSf, ΔSc, ΔV, work, ΔH, S, accept)
     @level2("delta_P²:\t$ΔP²")
     @level2("delta_Sg:\t$ΔSg")
     @level2("delta_Sf:\t$ΔSf")
+    @level2("delta_Sc:\t$ΔSc")
     @level2("delta_V:\t$ΔV")
     @level2("W:\t$work")
     @level2("delta_H:\t$ΔH")
@@ -685,11 +712,12 @@ end
     return nothing
 end
 
-@inline function print_hmc_data(logfile, ΔP², ΔSg, ΔSf, ΔV, work, ΔH, S, accept)
+@inline function print_hmc_data(logfile, ΔP², ΔSg, ΔSf, ΔSc, ΔV, work, ΔH, S, accept)
     fp = fopen(logfile, "a")
     printf(fp, StaticString("%+-25.15E"), ΔP²)
     printf(fp, StaticString("%+-25.15E"), ΔSg)
     printf(fp, StaticString("%+-25.15E"), ΔSf)
+    printf(fp, StaticString("%+-25.15E"), ΔSc)
     printf(fp, StaticString("%+-25.15E"), ΔV)
     printf(fp, StaticString("%+-25.15E"), work)
     printf(fp, StaticString("%+-25.15E"), ΔH)
