@@ -9,10 +9,16 @@ module MetaCUDAExt
 
 using CUDA
 using CUDA: @cuda, CUDABackend, CuArray, launch_configuration, synchronize
-using CUDA: threadIdx, blockIdx, blockDim, reduce_block
+using CUDA: threadIdx, blockIdx, blockDim
 import MetaQCD.Fields
 import MetaQCD.Fields: _foreachindex_global!, _foreachindex_reduce_global!
 import MetaQCD.Utils: mpi_myrank
+
+if pkgversion(CUDA) < v"6.0.0"
+    using CUDA: reduce_block
+else
+    using CUDA.CUDACore: reduce_block
+end
 
 function __init__()
     Fields.BACKENDS["cuda"] = CUDABackend
@@ -78,7 +84,7 @@ function Fields.mpi_assign_device!(::CUDABackend, _id)
     (0 <= id < CUDA.ndevices()) || throw(ArgumentError("Device id $id out of bounds."))
     CUDA.device!(Int32(id))
     Fields.DEVICE_ID[] = id
-    dev = AMDGPU.device()
+    dev = CUDA.device()
     Fields.MAX_SHMEM[] = CUDA.attribute(dev, CUDA.DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK)
     return nothing
 end
@@ -117,7 +123,7 @@ function Fields.launch_foreachindex_global!(
 end
 
 function Fields.launch_foreachindex_reduce_global!(
-    ::CUDABackend, out, op, f, captured, itr::Tuple, threads, blocks, stream=CUDA.stream()
+    ::CUDABackend, out, op, f, captured, itr::Tuple, threads, stream=CUDA.stream()
 )
     length(itr) == 0 && return out
     compute_shmem(items) = items * sizeof(typeof(out))
@@ -153,7 +159,7 @@ function Fields.launch_foreachindex_reduce_global!(
     reduce_shmem = compute_shmem(threads)
 
     for i in eachindex(itr)
-        @cuda blocks=_blocks[i] threads=threads shmem=reduce_shmem stream=stream _foreachindex_reduce_global!(
+        @cuda blocks=blocks[i] threads=threads shmem=reduce_shmem stream=stream _foreachindex_reduce_global!(
             out_vec, out, op, f, captured, itr[i]
         ) 
     end
@@ -165,6 +171,6 @@ end
 @inline Fields.groupidx() = blockIdx()
 @inline Fields.groupdim() = blockDim()
 @inline Fields.griddim() = gridDim()
-@inline Fields.groupreduce(op, val, neutral) = reduce_block(op, val, neutral)
+@inline Fields.groupreduce(op, val, neutral) = reduce_block(op, val, neutral, #=shuffle=# Val(true))
 
 end
