@@ -75,7 +75,6 @@ struct HMC{TL,NL,TC,TG,TGH,TGO,TP,TT,TF,TSG,TSF,TPO,TPOO,TF2,TFS,TLF} <: Abstrac
 
     substep_CVs::Vector{Vector{Float64}}
     substep_CVs_single::Vector{Float64}
-    substep_counter::Base.RefValue{Int64}
 
     logfile::TLF
     function HMC(
@@ -112,7 +111,6 @@ struct HMC{TL,NL,TC,TG,TGH,TGO,TP,TT,TF,TSG,TSF,TPO,TPOO,TF2,TFS,TLF} <: Abstrac
         !isnothing(logfile) && @level1("|  HMC LOGFILE: $(logfile)")
         @level1("-\n")
         substep_CVs_single = isempty(substep_CVs) ? Float64[] : zeros(length(substep_CVs))
-        substep_counter = Base.RefValue{Int64}(0)
         NL = _unwrap_val(numlevels)
         return new{TL,NL,TC,TG,TGH,TGO,TP,TT,TF,TSG,TSF,TPO,TPOO,TF2,TFS,TLF}(
             levels,
@@ -134,7 +132,6 @@ struct HMC{TL,NL,TC,TG,TGH,TGO,TP,TT,TF,TSG,TSF,TPO,TPOO,TF2,TFS,TLF} <: Abstrac
             smearing_fermion,
             substep_CVs,
             substep_CVs_single,
-            substep_counter,
             logfile,
         )
     end
@@ -250,7 +247,7 @@ function HMC(
 
     substep_CVs = Vector{Float64}[]
     for _ in 1:numcv
-        push!(substep_CVs, zeros(Int(numsubsteps)))
+        push!(substep_CVs, Float64[])
     end
 
     allforces = collect(Iterators.flatten([lvl.forces for lvl in levels]))
@@ -391,7 +388,9 @@ function update!(
         @assert !isnothing(hmc.ϕ) "fermion_action passed but not activated in HMC"
     end
 
-    hmc.substep_counter[] = 0
+    for i in eachindex(hmc.substep_CVs)
+        empty!(hmc.substep_CVs[i])
+    end
 
     set_ext!(hmc.logfile, instance)
     for lvl in hmc.levels
@@ -546,9 +545,6 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level, recycle=false)
 
     if Val(0) ∈ forces #&& !(lvl.integrator isa LeapfrogConstrained) && !(lvl.integrator isa OMF4Constrained) && (hmc.constraint==NoConstraint())
         if bias isa Bias
-            if recycle
-                hmc.substep_counter[] += 1
-            end
             substep_cv = hmc.substep_CVs_single
             for i in 1:length(bias)
                 is_smeared = i > 1
@@ -571,7 +567,7 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level, recycle=false)
 
             if recycle
                 for i in eachindex(substep_cv)
-                    hmc.substep_CVs[i][hmc.substep_counter[]] = substep_cv[i]
+                    push!(hmc.substep_CVs[i], substep_cv[i])
                 end
             end
         else

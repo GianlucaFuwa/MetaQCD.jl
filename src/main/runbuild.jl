@@ -320,7 +320,12 @@ function metabuild!(
             @level2("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")
 
             # all procs send their CVs to all other procs and update their copy of the bias
-            substep_CVs = updatemethod.substep_CVs
+            if parameters.recycle
+                println("recycling")
+                substep_CVs = updatemethod.substep_CVs
+            else
+                substep_CVs = [bias.CV]
+            end
             update_bias!(bias, substep_CVs, Bool(acc), itrj)
 
             print_acceptance_rates(numaccepts, numitrj)
