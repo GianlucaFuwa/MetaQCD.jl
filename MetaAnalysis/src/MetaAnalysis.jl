@@ -240,4 +240,21 @@ function phys_not(val::Real, err::Real)
     end
 end
 
+phys_not(val::uwreal) = phys_not(value(val), ADerrors.err(val))
+
+function phys_not(val::Float64, err::Float64)
+    err > 1 && return phys_not_cp(val, err)
+    exp_err = round(Int64, log10(err), RoundDown)-1
+    err_shifted = err / 10.0^exp_err
+    val_str = if exp_err < -5
+        @sprintf("%f", round(val, digits=-exp_err))
+    else
+        @sprintf("%g", round(val, digits=-exp_err))
+    end
+    xx = abs(val) > 1 ? Int(2 + floor(log10(abs(val)))) : 2
+    val_str = length(val_str)!=-exp_err+xx ? rpad(val_str, -exp_err+xx, "0") : val_str
+    err_str = "($(round(Int64, err_shifted)))"
+    return val_str * err_str
+end
+
 end

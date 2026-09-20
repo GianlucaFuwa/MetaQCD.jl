@@ -15,7 +15,8 @@ struct MetaMeasurements
     observables::Vector{Symbol}
     tau_int::Dict{String,NTuple{2,Float64}}
     ensemblename::String
-    function MetaMeasurements(ensemblename::String)
+    ensemblepath::String
+    function MetaMeasurements(ensemblename::String; name=nothing)
         _dir = if isabspath(ensemblename)
             @assert isdir(ensemblename) """
             Ensemble \"$(ensemblename)\" could not be found or doesn't exist.
@@ -30,23 +31,27 @@ struct MetaMeasurements
         end
 
         dir = joinpath(_dir, "measurements")
+        logdir = joinpath(_dir, "logs")
         @assert isdir(dir) "Directory $(dir) does not exist"
-        hmc_logfile = "$(dir)/logs/hmc_acc_logs.txt"
         measurement_dict = Dict{String,Dict{String,Vector{Float64}}}()
 
         filenames = readdir(dir)
-        isfile(hmc_logfile) && push!(filenames, hmc_logfile)
+        logfilenames = isdir(logdir) ? readdir(logdir) : String[]
+        filter!(x -> contains(x, "hmc_acc_logs"), logfilenames)
+        append!(filenames, logfilenames)
         tau_int = Dict{String,NTuple{2,Float64}}()
 
         for name in filenames
+            occursin("cg_data", name) && continue
             name_no_ext = splitext(name)[1]
             instance = name_no_ext[end-2:end]
             measurement = Dict{String,Vector{Float64}}()
             if contains(name, "hmc_acc_logs")
-                data, header = readdlm(hmc_logfile; header=true)
+                header = ["ΔP2", "ΔSg", "ΔSf", "ΔV", "ΔH", "Total Action", "Accepted"]
+                data = readdlm(logdir * "/$(name)"; skipstart=1)
                 
                 for i in eachindex(header)
-                    measurement[header[i]] = data[:, i]
+                    measurement[header[i]] = data[10:end, i]
                 end
 
                 measurement_dict["hmc_data"] = measurement
@@ -70,22 +75,22 @@ struct MetaMeasurements
                         if header[i] != "itrj"
                             if header[i] == "Q_clover"
                                 tau_int[head * str] = try
-                                    @warn "Autocorrelation time of $(head * str) could not be determined using UWerr, falling back to manual"
                                     autoc_time_int_uw(data[ui, i])
                                 catch _
+                                    @warn "Autocorrelation time of $(head * str) could not be determined using UWerr, falling back to manual"
                                     autoc_time_int(data[ui, i]), 0.0
                                 end
                                 tau_int[head * "^2" * str] = try
-                                    @warn "Autocorrelation time of $(head * "^2" * str) could not be determined using UWerr, falling back to manual"
                                     autoc_time_int_uw(data[ui, i].^2)
                                 catch _
+                                    @warn "Autocorrelation time of $(head * "^2" * str) could not be determined using UWerr, falling back to manual"
                                     autoc_time_int(data[ui, i].^2), 0.0
                                 end
                             else
                                 tau_int[head * str] = try
-                                    @warn "Autocorrelation time of $(head * str) could not be determined using UWerr, falling back to manual"
                                     autoc_time_int_uw(data[ui, i])
                                 catch _
+                                    @warn "Autocorrelation time of $(head * str) could not be determined using UWerr, falling back to manual"
                                     autoc_time_int(data[ui, i]), 0.0
                                 end
                             end
@@ -97,7 +102,7 @@ struct MetaMeasurements
             else
                 data, header = readdlm(dir * "/$(name)"; header=true)
 
-                for i in eachindex(header)
+                for i in 2:length(header)
                     measurement[header[i]] = data[:, i]
 
                     if header[i] != "itrj"
@@ -115,8 +120,9 @@ struct MetaMeasurements
         end
 
         obs_sym = Symbol.(keys(measurement_dict))
+        _name = isnothing(name) ? ensemblename : name
         clear_wspace!()
-        return new(measurement_dict, obs_sym, tau_int, ensemblename)
+        return new(measurement_dict, obs_sym, tau_int, _name, _dir)
     end
 end
 
@@ -125,6 +131,7 @@ Base.length(m::MetaMeasurements, observable) = Int(getproperty(m, observable)["i
 
 function Base.getproperty(m::MetaMeasurements, s::Symbol)
     s == :ensemblename && return getfield(m, :ensemblename)
+    s == :ensemblepath && return getfield(m, :ensemblepath)
     s == :measurement_dict && return getfield(m, :measurement_dict)
     s == :observables && return getfield(m, :observables)
     s == :tau_int && return getfield(m, :tau_int)
@@ -296,74 +303,211 @@ end
 Plot the effective mass plot of the hadron correlator `correlator` from the measurements in `m`.
 """
 RecipesBase.@recipe function hadroncorrelator(
-    hc::HadronCorrelator; logscale=false, style=:line, tf=0
+    hc::HadronCorrelator; logscale=false, style=:line, tf=0, with_errs=false,
+    fit_plateau=false, plateau_range=nothing, staggered=false
 )
+    fit_plateau && !with_errs && throw(ArgumentError(
+        "fit_plateau=true requires with_errs=true so the plateau error can be obtained via ADerrors.jl"
+    ))
+
+    sessid = rand(UInt64)
     size --> (600, 500)
     link := :x
     layout := (2, 1)
     m, correlator = hc.args[1:2]
+    savedir = joinpath(m.ensemblepath, "analysis")
+    corrname = "$(join(split(string(correlator), "_")[1:end-2], " ")) (tf=$tf)"
+    is_gflow = contains(String(correlator), "gflow")
     @assert correlator ∈ observables(m) "Observable $correlator is not in Measurements"
+    tf > 0 && @assert is_gflow
+    is_gflow && @assert tf > 0
     seriestype := style
     obs_keys = collect(keys(getproperty(m, correlator)))
     filter!(x -> x ≠ "itrj", obs_keys)
     filter!(x -> x ≠ "C" && x ≠ "C_flowed", obs_keys)
+    filter!(x -> contains(x, "tf=$(tf)"), obs_keys)
     palette --> DEFAULT_COLORS
-    x = collect(1:length(obs_keys))
-    len = length(x)
-    C = zeros(len)
-    Cr = zeros(len)
-    meff = zeros(len)
-    tmp = last.(split.(obs_keys, "_"))
-
-    if tf > 0
-        tmp = split.(tmp, " ")
-        tmp = [tmp[i][1] for i in eachindex(tmp)]
+    x = 1:length(obs_keys)
+    T = length(x)
+    corrrange = 2:div(T, 2)+1
+    @show T, corrrange[end]
+    T2 = length(corrrange)
+    C = []
+    Cr = []
+    meff = []
+    tmp = if is_gflow
+        [split(obs_keys[i], "_")[3] for i in eachindex(obs_keys)]
+    else
+        last.(split.(obs_keys, "_"))
     end
-
-    nums = parse.(Int, tmp)
+    nums = sort(parse.(Int, tmp))
     corr = first(split(string(correlator), "_"))
-    str(it) = tf > 0 ? "$(corr)_corr_$(it) (tf=$tf)" : "$(corr)_corr_$(it)"
-
-    for it in nums
-        tmp = getproperty(m, correlator)[str(it)]
-        C[it] = sum(tmp) / length(tmp)
-    end
-
-    key_str = tf > 0 ? "C_flowed" : "C"
-    haskey(getproperty(m, correlator), key_str) || (getproperty(m, correlator)[key_str] = C)
-
-    for it in nums
-        Cr[it] = log(C[it] / C[mod1(it + 1, len)])
-        meff[it] = try
-            acosh((C[mod1(it + 1, len)] + C[mod1(it - 1, len)]) / 2C[it])
-        catch _ 
-            0.0
+    str(it) = is_gflow ? "$(corr)_corr_$(it)_000 (tf=$tf)" : "$(corr)_corr_$(it)"
+    for it in corrrange
+        _tmp1 = getproperty(m, correlator)[str(it)]
+        _tmp2 = getproperty(m, correlator)[str(T-it+2)]
+        tmp2 = if with_errs
+            try
+                if it != div(T, 2)+1
+                    u1 = uwreal(_tmp1, "$(str(it)) $(sessid)")
+                    u2 = uwreal(_tmp2, "$(str(it)) $(sessid)")
+                    u = (u1 + u2) / 2
+                else
+                    u = uwreal(_tmp1, "$(str(it)) $(sessid)")
+                end
+                uwerr(u)
+                u
+            catch _
+                if it != div(T, 2)+1
+                    r1 = analyze(_tmp1, Bootstrap())
+                    r2 = analyze(_tmp2, Bootstrap())
+                    u1 = uwreal([r1["mean"], r1["stderr"]], "$(str(it)) $(sessid) bb")
+                    u2 = uwreal([r2["mean"], r2["stderr"]], "$(str(it)) $(sessid) bb")
+                    u = (u1 + u2) / 2
+                else
+                    r = analyze(_tmp1, Bootstrap())
+                    u = uwreal([r["mean"], r["stderr"]], "$(str(it)) $(sessid) bb")
+                end
+                uwerr(u)
+                u
+            end
+        else
+            (sum(_tmp1)/length(_tmp1) + sum(_tmp2)/length(_tmp2)) / 2
         end
+        push!(C, tmp2)
     end
+    for it in 2:corrrange[end]-2
+        # tmp = log(C[it] / C[mod1(it + 1, T)])
+        tmp2 = try
+            if it != corrrange[end]-1
+                if staggered
+                    # 0.5acosh((C[mod1(it + 2, T2)] + C[mod1(it - 2, T2)]) / 2C[it])
+                    if C[mod1(it + 1, T2)] == C[end]
+                        0.5 * (
+                            acosh(C[mod1(it - 1, T2)] / C[end])
+                        )
+                    else
+                        0.5 * (
+                            acosh(C[mod1(it - 1, T2)] / C[end]) -
+                            acosh(C[mod1(it + 1, T2)] / C[end])
+                        )
+                    end
+                else
+                    acosh((C[mod1(it + 1, T2)] + C[mod1(it - 1, T2)]) / 2C[it])
+                end
+            else
+                nothing
+            end
+        catch _
+            with_errs ? uwreal([0.0, 0.0], it) : 0.0
+        end
+        if with_errs
+            # uwerr(tmp)
+            !isnothing(tmp2) && uwerr(tmp2)
+        end
+        # push!(Cr, tmp)
+        !isnothing(tmp2) && push!(meff, tmp2)
+    end
+    if with_errs
+        # uwerr.(Cr)
+        uwerr.(meff)
+    end
+
+    # Write correlator means and meff to file
+    mkpath(savedir)
+    io = open(joinpath(savedir, corrname), "w")
+    println(io, "$(rpad("t", 5, " "))$(rpad("mean", 25, " "))$(rpad("err", 25, " "))")
+    for i in eachindex(C)
+        @printf io "%-5i" i
+        @printf io "%-25.15E" value(C[i])
+        @printf io "%-25.15E\n" ADerrors.err(C[i])
+    end
+    close(io)
+
+    # --- plateau fit -------------------------------------------------
+    meff_plateau = nothing
+    pval = perr = nothing
+    prange = 1:0
+    if fit_plateau
+        prange = something(plateau_range, (corrrange[end]-3-T2÷3:corrrange[end]-3))
+        prange = collect(prange)
+        @assert prange ⊆ corrrange "plateau_range $(prange) is out of bounds $(corrrange)"
+
+        # drop any points whose error collapsed to zero (failed acosh fallback)
+        selected = filter(i -> ADerrors.err(meff[i]) > 0, prange)
+        isempty(selected) && error(
+            "No valid points in plateau_range=$(prange) to fit (all have zero error)."
+        )
+
+        w = 1 ./ ADerrors.err.(meff[selected]) .^ 2
+        meff_plateau = sum(w .* meff[selected]) / sum(w)   # linear combo of uwreal ⇒ exact error propagation
+        uwerr(meff_plateau)
+        pval = value(meff_plateau)
+        perr = ADerrors.err(meff_plateau)
+
+        println(
+            "Plateau fit [$(first(selected)), $(last(selected))] for $(corrname): " *
+            "am_eff = $(pval) ± $(perr)"
+        )
+    end
+    # -------------------------------------------------------------------
+
+    io = open(joinpath(savedir, corrname*"_meff"), "w")
+    if fit_plateau
+        println(io, "# Plateau fit in range [$(first(selected)+1), $(last(selected)+1)]: am_eff = $(pval) ± $(perr)")
+    end
+    println(io, "$(rpad("t", 5, " "))$(rpad("mean", 25, " "))$(rpad("err", 25, " "))")
+    for (i, m) in enumerate(meff)
+        @printf io "%-5i" corrrange[i]
+        @printf io "%-25.15E" value(m)
+        @printf io "%-25.15E\n" ADerrors.err(m)
+    end
+    close(io)
 
     xlabel --> "Time Extent"
     linecolor := DEFAULT_COLORS[1]
     markercolor := DEFAULT_COLORS[1]
     markershape := :circ
-
     @series begin
         subplot := 1
-        xticks := 1:len
-        ylabel --> "⟨C(t)⟩"
-        label --> string(correlator)
+        ylabel --> L"\langle C(t) \rangle"
+        titlefontsize --> 10
+        title --> "Ensemble: $(split(m.ensemblename, "/")[end])"
+        label --> corrname
+        ylims --> (minimum(Float64.(C))*0.5, maximum(Float64.(C))*1.3)
         yscale := logscale ? :log10 : :identity
-        y = C
-        x, y
+        y = with_errs ? value.(C) : Float64.(C)
+        if with_errs
+            yerror := ADerrors.err.(C)
+        end
+        collect(corrrange).-1, y
     end
-
     @series begin
         subplot := 2
-        xticks := 1:len
-        ylabel --> "m_eff"
-        label --> string(correlator)
+        ylabel --> L"am_\mathrm{eff}"
+        label --> corrname
+        ylims --> (-0.1, maximum(Float64.(meff))*1.1)
         yscale --> :identity
-        y = meff
-        x, y
+        legend --> :topright
+        y = with_errs ? value.(meff) : Float64.(meff)
+        if with_errs
+            yerror := ADerrors.err.(meff)
+        end
+        2:corrrange[end]-2, y
+    end
+    if fit_plateau
+        @series begin
+            subplot := 2
+            seriestype := :path
+            markershape := :none
+            linecolor := DEFAULT_COLORS[2]
+            fillalpha --> 0.25
+            legend --> :topright
+            fillcolor := DEFAULT_COLORS[2]
+            ribbon := perr
+            label --> "plateau: $(round(pval, digits=5)) ± $(round(perr, digits=5))"
+            corrrange[prange], fill(pval, length(prange))
+        end
     end
 end
 

@@ -170,9 +170,11 @@ function HMC(
 
     numlevels = Val(length(hmc_levels))
     level_params = level_parameters_from_dict(hmc_levels, trajectory)
-    @assert issorted(level_params; lt=(x, y)->isless(trajectory/x.numsteps, trajectory/y.numsteps)) """
-    HMC levels have to be sorted by Δτ in generalized multiscale (coarsest level is the highest)
-    """
+    if generalized_multiscale
+        @assert issorted(level_params; lt=(x, y)->isless(trajectory/x.numsteps, trajectory/y.numsteps)) """
+        HMC levels have to be sorted by Δτ in generalized multiscale (coarsest level is the highest)
+        """
+    end
 
     levels = ntuple(numlevels) do i
         lvl = level_params[i]
@@ -301,13 +303,13 @@ function HMC(
         for ii in instance
             _logfile = joinpath(logdir, "hmc_acc_logs_$(lpad(ii, 3, "0")).txt")
             fp = fopen(_logfile, "w")
-            printf(fp, StaticString("%-25s"), "ΔP2")
-            printf(fp, StaticString("%-25s"), "ΔSg")
-            printf(fp, StaticString("%-25s"), "ΔSf")
-            printf(fp, StaticString("%-25s"), "ΔV")
-            printf(fp, StaticString("%-25s"), "ΔH")
-            printf(fp, StaticString("%-25s"), "Total Action")
-            printf(fp, StaticString("%-8s"), "Accepted")
+            printf(fp, "%-25s", "ΔP2")
+            printf(fp, "%-25s", "ΔSg")
+            printf(fp, "%-25s", "ΔSf")
+            printf(fp, "%-25s", "ΔV")
+            printf(fp, "%-25s", "ΔH")
+            printf(fp, "%-25s", "Total Action")
+            printf(fp, "%-8s", "Accepted")
             newline(fp)
             fclose(fp)
         end

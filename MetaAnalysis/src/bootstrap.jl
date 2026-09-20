@@ -27,7 +27,8 @@ function (b::Bootstrap)(x::Vector{<:Real}, weights=nothing)
         A[1] = b.func(x)
         xboot = Vector{Float64}(undef, itvl*B)
 
-        p = Progress(b.nboot, desc = "Bootstrapping...")
+        # p = Progress(b.nboot, desc = "Bootstrapping...")
+        # threadlocal = zeros(Int64, B)
         @batch threadlocal=zeros(Int64, B)::Vector{Int64} for i in 2:b.nboot+1
             r = rand(1:N, itvl)
 
@@ -40,7 +41,7 @@ function (b::Bootstrap)(x::Vector{<:Real}, weights=nothing)
             end
 
             A[i] = b.func(xboot)
-            next!(p)
+            # next!(p)
         end
 
         meanA = A[1]

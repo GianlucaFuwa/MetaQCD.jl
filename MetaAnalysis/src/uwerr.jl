@@ -32,3 +32,5 @@ function clear_wspace!()
         -12345,
     )
 end
+
+Base.Float64(u::uwreal) = value(u)

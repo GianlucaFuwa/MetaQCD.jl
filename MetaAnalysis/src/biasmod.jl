@@ -14,9 +14,10 @@ function modify_bias(
     end
     y .-= minimum(y)
 
-    plt = plot(x, yn, label="Raw (γ=$(biasfactor))", linewidth=2)
+    plt = plot(x, yn .- maximum(yn), label="Raw (γ=$(biasfactor))", linewidth=2)
     plot!(plt, x, y, label="SSA", linewidth=2)
-    plot!(plt, x, yt, label="Trend", linewidth=2)
+    plot!(plt, x, yt .- maximum(yt), label="Trend", linewidth=2)
+    plot!(plt, x, y.+yt .- maximum(y.+yt), label="Total", linewidth=2)
     # for i in axes(ys, 2)
     #     plot!(plt, x, ys[:, i], label="$i", linewidth=2)
     # end
@@ -25,11 +26,17 @@ function modify_bias(
         bin_width = round(bin_width, sigdigits=3)
         xrange = cvlims[1]:bin_width:cvlims[2]
         ytrend = yt[1:Int64(div(bin_width, 0.01)):length(y)]
+        ytrend .-= minimum(ytrend)
         ysinus = y[1:Int64(div(bin_width, 0.01)):length(y)]
-        ytotal = yn[1:Int64(div(bin_width, 0.01)):length(y)]
+        ysinus .-= minimum(ysinus)
+        ytotal = ytrend .+ ysinus
+        ytotal .-= minimum(ytotal)
+        yoriginal = yn[1:Int64(div(bin_width, 0.01)):length(y)]
+        yoriginal .-= minimum(yoriginal)
         savefile_trend = joinpath(savedir, b.ensemblename * "_ssa_trend" * b.ext)
         savefile_sinus = joinpath(savedir, b.ensemblename * "_ssa_sinusoidal" * b.ext)
         savefile_total = joinpath(savedir, b.ensemblename * "_ssa_total" * b.ext)
+        savefile_original = joinpath(savedir, b.ensemblename * "_ssa_original" * b.ext)
         println("Saving SSA in file: $(joinpath(savedir, b.ensemblename))")
 
         open(savefile_trend, "w") do fp
@@ -53,6 +60,14 @@ function modify_bias(
 
             for i in eachindex(xrange)
                 println(fp, "$(rpad(xrange[i], 7, "0"))\t$(rpad(ytotal[i], 7, "0"))")
+            end
+        end
+
+        open(savefile_original, "w") do fp
+            println(fp, "$(rpad("CV", 7))\t$(rpad("V(CV)", 7))")
+
+            for i in eachindex(xrange)
+                println(fp, "$(rpad(xrange[i], 7, "0"))\t$(rpad(yoriginal[i], 7, "0"))")
             end
         end
     end
@@ -86,6 +101,8 @@ function modify_bias(
     return Dict(
         "quadratic part" => yt,
         "sinusoidal part" => y,
+        "total" => y .+ yt,
+        "original" => yn,
     )
 end
 

@@ -47,6 +47,7 @@ function Updatemethod(parameters::ParameterSet, U; instance=MPI_INSTANCE[])
         metro_ϵ=parameters.metro_epsilon,
         metro_numhits=parameters.metro_numhits,
         metro_target_acc=parameters.metro_target_acc,
+        hmc_generalized_multiscale=parameters.hmc_generalized_multiscale,
         hmc_levels=parameters.levels,
         hmc_trajectory=parameters.hmc_trajectory,
         hmc_friction=parameters.hmc_friction,
@@ -75,6 +76,7 @@ function Updatemethod(
     metro_ϵ=0.1,
     metro_numhits=1,
     metro_target_acc=0.5,
+    hmc_generalized_multiscale=true,
     hmc_levels=DEFAULT_GAUGE_LEVEL,
     hmc_trajectory=1,
     hmc_friction=0,
@@ -100,6 +102,7 @@ function Updatemethod(
             hmc_numsmear_fermion,
             hmc_rhostout_gauge,
             hmc_rhostout_fermion;
+            generalized_multiscale=hmc_generalized_multiscale,
             rafriction=hmc_rafriction,
             hmc_logging=hmc_logging,
             fermion_action=fermion_action,

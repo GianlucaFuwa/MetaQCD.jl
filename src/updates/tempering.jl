@@ -1,6 +1,7 @@
 function temper!( # INFO: When using MPI in tempering
     U::Gaugefield,
     bias::Bias,
+    numaccepts,
     numaccepts_temper,
     instance_state,
     swap_every,
@@ -13,6 +14,7 @@ function temper!( # INFO: When using MPI in tempering
     comm_shared = mpi_comm_shared()
     numinstances = MPI_NUMINSTANCES[]
     myrank = mpi_myrank(comm_shared)
+    numaccepts_all = mpi_allgather(numaccepts, comm_shared)
     
     # Query `instance_state` to find out which rank has to temper with which
     # Convention: instance N <-> instance N-1, instance N-1 <-> instance N-2, etc.
@@ -90,7 +92,7 @@ function temper!( # INFO: When using MPI in tempering
         @level1 "|    Acceptance [$i <-> $(i-1)]:\t$(acc_pct) %"
     end
 
-    return nothing
+    return numaccepts_all[instance_state[myrank+1]+1]
 end
 
 function temper!( # INFO: When not using MPI in tempering

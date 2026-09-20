@@ -338,6 +338,7 @@ function metaqcd!(
     instance_state = collect(0:univ.numinstances-1)
     swap_every = parameters.swap_every
     rank = mpi_myrank(mpi_comm_instance())
+    numaccepts = isnothing(numaccepts) ? 0 : numaccepts
 
     if !isnothing(timing_datafile)
         fp = fopen(timing_datafile, "w")
@@ -381,7 +382,7 @@ function metaqcd!(
                         U;
                         fermion_action,
                         bias=NoBias(),
-                        metro_test=itrj>20, # So we dont get stuck at the beginning
+                        metro_test=itrj>10, # So we dont get stuck at the beginning
                         therm=Val(true),
                     )
                 end
@@ -446,7 +447,7 @@ function metaqcd!(
                     update!(parity, U)
                 end
 
-                numaccepts += accepted
+                # numaccepts += accepted
                 accepted
             end
 
@@ -463,13 +464,15 @@ function metaqcd!(
                 end
             end
 
-            print_acceptance_rates(numaccepts, itrj)
+            # print_acceptance_rates(numaccepts, itrj)
             @level2("|  Elapsed time:\t$(updatetime) [s] @ $(string(current_time()))")
 
             if tempering_enabled
+                # numaccepts = temper!(
                 temper!(
                     U,
                     bias,
+                    0,
                     numaccepts_temper,
                     instance_state,
                     swap_every,

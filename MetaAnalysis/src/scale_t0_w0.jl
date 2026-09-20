@@ -88,6 +88,11 @@ function t0_scale(data, error_est, flow_num, flow_times, len)
         t²E[i] = tf^2 * E
         uwerr(t²E[i])
     end
+    open("t0_data.txt", "w") do io
+        for i in eachindex(flow_times)
+            println(io, "$(flow_times[i])\t$(value(t²E[i]))\t$(ADerrors.err(t²E[i]))")
+        end
+    end
 
     errs = ADerrors.err.(t²E)
     ℰ = Spline1D(flow_times, value.(t²E); w=1 ./ errs.^2, k=3, bc="extrapolate")
