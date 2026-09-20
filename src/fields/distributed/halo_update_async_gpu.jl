@@ -56,22 +56,24 @@ Start the update of halos or buffers of MPI-parallelized fields and return the R
 function start_halo_update!(
     fields::NTuple{N,AbstractMPIField{B}}; do_edges::Val{DO_EDGES}=Val(false)
 ) where {N,B,DO_EDGES}
-    fields_to_update = AbstractMPIField[]
+    any_invalid = false
     for u in fields
-        !halo_is_valid(u) && push!(fields_to_update, u)
+        if !halo_is_valid(u)
+            any_invalid = true
+            break
+        end
     end
+    !any_invalid && return nothing
 
-    isempty(fields_to_update) && return nothing
-
-    allocate_commstreams!(B(), fields_to_update)
+    allocate_commstreams!(B(), fields)
 
     if do_edges == Val(false)
         num_pdims = sum(fields[1].topology.numprocs_cart .> 1)
-        reqs = fill(Utils.MPI.REQUEST_NULL, length(fields_to_update) * 2 * 2 * num_pdims)
-        update_halo_gpu_multi!(reqs, fields_to_update...)
+        reqs = fill(Utils.MPI.REQUEST_NULL, N * 2 * 2 * num_pdims)
+        update_halo_gpu_multi!(reqs, fields...)
     else
-        reqs = fill(Utils.MPI.REQUEST_NULL, length(fields_to_update) * 2 * 2 * 1)
-        update_halo_gpu_multi_edges!(reqs, fields_to_update...)
+        reqs = fill(Utils.MPI.REQUEST_NULL, N * 2 * 2 * 1)
+        update_halo_gpu_multi_edges!(reqs, fields...)
     end
 
     for u in fields
@@ -243,8 +245,9 @@ function wait_and_fill!(
                 if pending_recv[ifield, inbr, idim]
                     recv_idx = _req_index(ifield, inbr, 1, idim, N)
                     recv_req = reqs[recv_idx]
-                    if recv_req == Utils.MPI.REQUEST_NULL || Utils.MPI.Test(recv_req)
-                        if recv_req != Utils.MPI.REQUEST_NULL
+                    was_null = recv_req == Utils.MPI.REQUEST_NULL
+                    if was_null || Utils.MPI.Test(recv_req)
+                        if !was_null
                             u = fields[ifield]
                             recv_buf = get_recv_buf(u, 2*(dim - 1) + inbr)
                             halo_sites = u.topology.halo_sites[dim][inbr]
@@ -254,6 +257,7 @@ function wait_and_fill!(
                             overlap_timing_add!(:halo_fill_launch, t_fill)
                             filled_streams[ifield, inbr, idim] = true
                         end
+                        reqs[recv_idx] = Utils.MPI.REQUEST_NULL
                         pending_recv[ifield, inbr, idim] = false
                         pending_recvs -= 1
                         any_progress = true
@@ -268,6 +272,7 @@ function wait_and_fill!(
                     send_idx = _req_index(ifield, inbr, 2, idim, N)
                     send_req = reqs[send_idx]
                     if send_req == Utils.MPI.REQUEST_NULL || Utils.MPI.Test(send_req)
+                        reqs[send_idx] = Utils.MPI.REQUEST_NULL
                         pending_send[ifield, inbr, idim] = false
                         pending_sends -= 1
                         any_progress = true
