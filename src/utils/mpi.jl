@@ -23,7 +23,7 @@ function mpi_init()
         appnum = try
             Int(unsafe_load(Ptr{Cint}(MPI.unsafe_get_attr(comm, MPI.API.MPI_APPNUM[]))))
         catch _
-            @warn "Could not gather appnum, running in MPMD mode is not possible, unless you use another MPI distro"
+            @warn "Could not gather appnum. Running in MPMD mode is not possible, unless you use another MPI distro"
             nothing
         end
 

@@ -13,7 +13,8 @@ using ..Utils
 import ..Fields: Gaugefield, WilsonGaugeAction, Plaquette, Clover
 import ..Fields: SymanzikTreeGaugeAction, IwasakiGaugeAction, DBW2GaugeAction
 import ..Fields: calc_gauge_action, gauge_action_deriv!, is_distributed
-import ..Measurements: top_charge, top_charge_deriv!
+import ..Measurements: top_charge, top_charge_deriv!, polyakov_traced
+import ..Measurements: polyakov_deriv!, polyakov_mag_deriv!, polyakov_phase_deriv!
 import ..Smearing: AbstractSmearing, NoSmearing, StoutSmearing, calc_smearedU!
 
 abstract type AbstractBias end
@@ -344,6 +345,7 @@ function calc_cv(U, b::Bias{N}, i::Int64, is_smeared::Bool=false) where {N} # 1 
 end
 
 calc_cv_deriv!(dU, b::Bias, i, args...) = b.bias[i].cvinfo.deriv_func(dU, args...)
+calc_cv_deriv!(dU, b, i, args...) = b.info.deriv_func(dU, args...)
 
 ∂V∂Q(b::NoBias, ::Any) = 0.0
 ∂V∂Q(b::Bias, cv::Float64, i) = ∂V∂Q(b.bias[i], cv)

@@ -121,11 +121,19 @@ end
     write_bias_every::Int64 = batch_size
 end
 
-function get_cvinfo_from_parameters(p::BiasParameters)
+function get_cvinfo_from_parameters(p)
     cv_func = if p.kind_of_cv == "topcharge_plaquette"
         U -> top_charge(Plaquette(), U)
     elseif p.kind_of_cv == "topcharge_clover"
         U -> top_charge(Clover(), U)
+    elseif p.kind_of_cv == "polyakov_real"
+        U -> real(polyakov_traced(U))
+    elseif p.kind_of_cv == "polyakov_im"
+        U -> imag(polyakov_traced(U))
+    elseif p.kind_of_cv == "polyakov_abs"
+        U -> abs(polyakov_traced(U))
+    elseif p.kind_of_cv == "polyakov_phase"
+        U -> angle(polyakov_traced(U))
     elseif p.kind_of_cv == "multithermal"
         @assert p.type == "opesmt" "Multithermal CV only works with opesmt"
         U -> calc_gauge_action(U) / length(U)
@@ -137,6 +145,14 @@ function get_cvinfo_from_parameters(p::BiasParameters)
         (dU, F, U, fac) -> top_charge_deriv!(dU, F, U, Plaquette(), fac)
     elseif p.kind_of_cv == "topcharge_clover"
         (dU, F, U, fac) -> top_charge_deriv!(dU, F, U, Clover(), fac)
+    elseif p.kind_of_cv == "polyakov_real"
+        (dU, _, U, fac) -> polyakov_deriv!(dU, U, 1, fac)
+    elseif p.kind_of_cv == "polyakov_im"
+        (dU, _, U, fac) -> polyakov_deriv!(dU, U, -im, fac)
+    elseif p.kind_of_cv == "polyakov_abs"
+        (dU, dU1, U, fac) -> polyakov_mag_deriv!(dU, dU1, U, fac)
+    elseif p.kind_of_cv == "polyakov_phase"
+        (dU, dU1, U, fac) -> polyakov_phase_deriv!(dU, dU1, U, fac)
     elseif p.kind_of_cv == "multithermal"
         (dU, staples, U, fac) -> gauge_action_deriv!(dU, staples, U, fac)
     else
@@ -146,6 +162,8 @@ function get_cvinfo_from_parameters(p::BiasParameters)
     cv_temp_ind = if p.kind_of_cv in ("topcharge_plaquette", "topcharge_clover")
         Val(1)
     elseif p.kind_of_cv == "multithermal"
+        Val(2)
+    elseif p.kind_of_cv in ("polyakov_real", "polyakov_im", "polyakov_abs", "polyakov_phase")
         Val(2)
     else
         error("kind_of_cv \"$(p.kind_of_cv)\" not supported (see docs for supported CVs)")

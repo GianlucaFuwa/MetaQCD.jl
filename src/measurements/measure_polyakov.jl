@@ -96,3 +96,72 @@ function polyakov_traced(U::Gaugefield{B,T,M}) where {B,T,M}
 
     return distributed_reduce(P / (NX * NY * NZ), +, U)
 end
+
+function polyakov_deriv!(
+    dU::Colorfield{B,T,M}, U::Gaugefield{B,TU}, deriv_fac, fac=1.0
+) where {B,T,M,TU}
+    @assert U.topology.numprocs_cart[4] == 1 """
+    for polyakov loop, the field cannot be partitioned in the t-dimension
+    """
+    clear!(dU) # set all to 0
+    NX, NY, NZ, NT = size(U)
+    c = T(fac / 2 / (NX * NY * NZ))
+    # c = T(fac / 2)
+
+    parallelfor(eachindex(dU, U), B, Val(M), (), (U,), (dU, U)) do site, (dU, U)
+        ix, iy, iz, it = site.I
+        tmp = U[4, site]
+
+        for j in it+1:NT 
+            tmp = cmatmul_oo(tmp, U[4, CartesianIndex(ix, iy, iz, j)])
+        end
+
+        for k in 1:it-1
+            tmp = cmatmul_oo(tmp, U[4, CartesianIndex(ix, iy, iz, k)])
+        end
+
+        dU[4, site] = c * traceless_antihermitian(deriv_fac * tmp)
+    end
+
+    return nothing
+end
+
+function polyakov_mag_deriv!(
+    dU::Colorfield{B,T,M}, dU1::Colorfield{B,T,M}, U::Gaugefield{B,TU}, fac=1.0
+) where {B,T,M,TU}
+    @assert U.topology.numprocs_cart[4] == 1 """
+    for polyakov loop, the field cannot be partitioned in the t-dimension
+    """
+    polyakov_deriv!(dU, U, 1, fac)
+    polyakov_deriv!(dU1, U, -im, fac)
+    _, _, _, trange = U.topology.bulk_sites.indices
+    L = polyakov_traced(U)
+    reL, imL, absL = real(L), imag(L), abs(L)
+
+    parallelfor(eachindex(dU, U), B, Val(M), (), (U,), (dU, dU1, U)) do site, (dU, dU1, U)
+        ix, iy, iz, it = site.I
+        dU[4, site] = (reL/absL) * dU[4, site] + (imL/absL) * dU1[4, site]
+    end
+
+    return nothing
+end
+
+function polyakov_phase_deriv!(
+    dU::Colorfield{B,T,M}, dU1::Colorfield{B,T,M}, U::Gaugefield{B,TU}, fac=1.0
+) where {B,T,M,TU}
+    @assert U.topology.numprocs_cart[4] == 1 """
+    for polyakov loop, the field cannot be partitioned in the t-dimension
+    """
+    polyakov_deriv!(dU, U, 1, fac)
+    polyakov_deriv!(dU1, U, -im, fac)
+    _, _, _, trange = U.topology.bulk_sites.indices
+    L = polyakov_traced(U)
+    reL, imL, absL = real(L), imag(L), abs(L)
+
+    parallelfor(eachindex(dU, U), B, Val(M), (), (U,), (dU, dU1, U)) do site, (dU, dU1, U)
+        ix, iy, iz, it = site.I
+        dU[4, site] = (-imL/absL^2) * dU[4, site] + (reL/absL^2) * dU1[4, site]
+    end
+
+    return nothing
+end

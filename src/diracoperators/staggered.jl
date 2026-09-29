@@ -184,6 +184,8 @@ end
 @inline staggered_η(::Val{5}, site, ::Type{T}) where {T} = @inbounds ifelse(iseven(site[Int32(1)] + site[Int32(3)]), T(1), T(-1))
 @inline staggered_ϵμν(::Val{μ}, ::Val{ν}, site) where {μ,ν} =
     @inbounds ifelse(iseven(site[μ] + site[ν]), 1, -1)
+@inline staggered_ϵ(site, ::Type{T}) where {T} =
+    @inbounds ifelse(iseven(site[Int32(1)] + site[Int32(2)] + site[Int32(3)] + site[Int32(4)]), T(1), T(-1))
 
 @inline function ξ5(::Type{T}) where {T}
     return SMatrix{4,4,Complex{T},16}(

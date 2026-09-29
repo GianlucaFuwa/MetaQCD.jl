@@ -30,6 +30,11 @@ struct HMCLevel{NC,TI,TF,TFP}
                 _forcefile = joinpath(logdir, "hmc_force_logs_level$(ilevel)_$(ext)")
                 force_fp = fopen(_forcefile, "w")
 
+                if Val(-1) ∈ forces
+                    printf(force_fp, "%-25s", "avg||F_Sc||")
+                    printf(force_fp, "%-25s", "sup||F_Sc||")
+                end
+
                 if Val(0) ∈ forces
                     for icv in 1:numcv
                         printf(force_fp, "%-25s", "avg||F_V$(icv)||")
@@ -43,7 +48,7 @@ struct HMCLevel{NC,TI,TF,TFP}
                 end
 
                 for i in _unwrap_val.(forces)
-                    i ∈ (0, 1) && continue
+                    i ∈ (-1, 0, 1) && continue
                     printf(force_fp, "%-25s", "avg||F_Sf$(i-1)||")
                     printf(force_fp, "%-25s", "sup||F_Sf$(i-1)||")
                 end

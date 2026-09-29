@@ -1,6 +1,7 @@
 abstract type AbstractIntegrator end
 
 include("hmc_levels.jl")
+include("hmc_constraints.jl")
 
 """
     HMC(
@@ -51,9 +52,10 @@ right number of fermion fields
 - `wilson`
 - `wilson_eo`
 """
-struct HMC{TL,NL,TG,TGH,TP,TT,TPF,TSG,TSF,TPO,TF,TF2,TFS,TLF} <: AbstractUpdate
+struct HMC{TL,NL,TC,TG,TGH,TP,TT,TPF,TSG,TSF,TPO,TF,TF2,TFS,TLF} <: AbstractUpdate
     levels::TL
     numlevels::Val{NL}
+    constraint::TC
     friction::Float64
 
     P::TP
@@ -74,29 +76,31 @@ struct HMC{TL,NL,TG,TGH,TP,TT,TPF,TSG,TSF,TPO,TF,TF2,TFS,TLF} <: AbstractUpdate
 
     logfile::TLF
     function HMC(
-        levels,
+        levels::TL,
         numlevels,
+        constraint::TC,
         friction,
-        P,
-        P_old,
-        U_old,
-        U_high,
-        ϕ,
-        staples,
-        force,
-        force2,
+        P::TP,
+        P_old::TPO,
+        U_old::TG,
+        U_high::TGH,
+        ϕ::TPF,
+        staples::TT,
+        force::TF,
+        force2::TF2,
         force_sum,
-        fieldstrength,
-        smearing_gauge,
-        smearing_fermion,
+        fieldstrength::TFS,
+        smearing_gauge::TSG,
+        smearing_fermion::TSF,
         substep_CVs,
-        logfile,
-    )
+        logfile::TLF,
+    ) where {TL,TC,TP,TPO,TG,TGH,TPF,TT,TF,TF2,TFS,TSG,TSF,TLF}
         @level1("- Constructing HMC...")
         @level1("|  LEVELS:")
         for lvl in reverse(levels)
             @level1("$(string(lvl))")
         end
+        @level1("|  CONSTRAINT:\n$(string(constraint))")
         @level1("|  FRICTION: $(friction) $(ifelse(friction==0, "(default)", ""))")
         isnothing(fieldstrength) ? @level1("|  BIAS DISABLED") : @level1("|  BIAS ENABLED")
         @level1("|  GAUGE SMEARING: $(string(smearing_gauge))")
@@ -104,23 +108,11 @@ struct HMC{TL,NL,TG,TGH,TP,TT,TPF,TSG,TSF,TPO,TF,TF2,TFS,TLF} <: AbstractUpdate
         !isnothing(logfile) && @level1("|  HMC LOGFILE: $(logfile)")
         @level1("-\n")
         substep_CVs_single = isempty(substep_CVs) ? Float64[] : zeros(length(substep_CVs))
-        TL = typeof(levels)
         NL = _unwrap_val(numlevels)
-        TG = typeof(U_old)
-        TGH = typeof(U_high)
-        TP = typeof(P)
-        TT = typeof(staples)
-        TPF = typeof(ϕ)
-        TSG = typeof(smearing_gauge)
-        TSF = typeof(smearing_fermion)
-        TPO = typeof(P_old)
-        TF = typeof(force)
-        TF2 = typeof(force2)
-        TFS = typeof(fieldstrength)
-        TLF = typeof(logfile)
-        return new{TL,NL,TG,TGH,TP,TT,TPF,TSG,TSF,TPO,TF,TF2,TFS,TLF}(
+        return new{TL,NL,TC,TG,TGH,TP,TT,TPF,TSG,TSF,TPO,TF,TF2,TFS,TLF}(
             levels,
             numlevels,
+            constraint,
             friction,
             P,
             P_old,
@@ -152,6 +144,11 @@ function HMC(
     rho_stout_fermion=0.0;
     generalized_multiscale=true,
     rafriction=0.0,
+    constraint_name=nothing,
+    constraint_numsmear=0,
+    constraint_rho=0.0,
+    constraint_value=0.0,
+    constraint_variance=0.0,
     hmc_logging=true,
     fermion_action="quenched",
     numfermions=0,
@@ -167,6 +164,15 @@ function HMC(
     staples = Colorfield(U; no_halo=true)
     force = Colorfield(U; halo_width=1)
     force_sum = Colorfield(U; halo_width=1)
+
+    constraint = HMCConstraint(
+        U,
+        constraint_name,
+        constraint_value,
+        constraint_variance;
+        numsmear=constraint_numsmear,
+        rho=constraint_rho,
+    )
 
     numlevels = Val(length(hmc_levels))
     level_params = level_parameters_from_dict(hmc_levels, trajectory)
@@ -240,6 +246,13 @@ function HMC(
     allforces = collect(Iterators.flatten([lvl.forces for lvl in levels]))
     fail = false
 
+    if constraint !== NoConstraint()
+        if Val(-1) ∉ allforces
+            @error("Constraint force (i.e., force -1) not included in any level")
+            fail = true
+        end
+    end
+
     if numcv > 0
         if Val(0) ∉ allforces
             @error("Bias force (i.e., force 0) not included in any level")
@@ -303,11 +316,12 @@ function HMC(
         for ii in instance
             _logfile = joinpath(logdir, "hmc_acc_logs_$(lpad(ii, 3, "0")).txt")
             fp = fopen(_logfile, "w")
-            printf(fp, "%-25s", "ΔP2")
-            printf(fp, "%-25s", "ΔSg")
-            printf(fp, "%-25s", "ΔSf")
-            printf(fp, "%-25s", "ΔV")
-            printf(fp, "%-25s", "ΔH")
+            printf(fp, "%-26s", "ΔP2")
+            printf(fp, "%-26s", "ΔSg")
+            printf(fp, "%-26s", "ΔSf")
+            printf(fp, "%-26s", "ΔSc")
+            printf(fp, "%-26s", "ΔV")
+            printf(fp, "%-26s", "ΔH")
             printf(fp, "%-25s", "Total Action")
             printf(fp, "%-8s", "Accepted")
             newline(fp)
@@ -323,6 +337,7 @@ function HMC(
     return HMC(
         levels,
         numlevels,
+        constraint,
         friction,
         P,
         P_old,
@@ -362,8 +377,8 @@ function update!(
         empty!(hmc.substep_CVs[i])
     end
 
-    @level2("|  GPU memory used: $(gpu_used_memory(B()))")
-    @level2("|  GC live memory: $(Base.gc_live_bytes() / 1e9)")
+    # @level2("|  GPU memory used: $(gpu_used_memory(B()))")
+    # @level2("|  GC live memory: $(Base.gc_live_bytes() / 1e9)")
 
     set_ext!(hmc.logfile, instance)
     for lvl in hmc.levels
@@ -389,10 +404,20 @@ function update!(
     gaussian_TA!(P, friction)
     !isnothing(P_old) && copy!(P_old, P)
 
+    if hmc.constraint !== NoConstraint() && constraint_is_delta(hmc.constraint)
+        therm = Val(false)
+        enforce_hidden_constraint!(hmc, U, hmc.constraint)
+        # CV_final = isnothing(hmc.constraint) ? CV_old[1] : hmc.constraint#get_sample(bias.sampler)
+        val = hmc.constraint.value#calc_cv(U_high, hmc.constraint)
+        hmc.levels[1].integrator.interval = (val[1], val[1])
+        println(hmc.levels[1].integrator.interval)
+    end
+
     trP²_old = -calc_kinetic_energy(P)
     Sg_old = calc_gauge_action(U_high, smearing_gauge)
     CV_old = calc_cv(U_high, bias)# FIXME: this will error if there is not smearing in definition
     V_old = bias(CV_old)
+    Sc_old = calc_constraint_action(U, hmc.constraint)
     sample_pseudofermions!(ϕ, fermion_action, U, smearing_fermion, shared_smearing)
     Sf_old = calc_fermion_action(fermion_action, U, ϕ, smearing_fermion, true) # INFO: fields are already smeared in sampling, so we dont have to here
 
@@ -405,20 +430,22 @@ function update!(
     Sg_new = calc_gauge_action(U_high, smearing_gauge)
     CV_new = calc_cv(U_high, bias) # FIXME: this will error if there is not smearing in definition
     V_new = bias(CV_new)
+    Sc_new = calc_constraint_action(U, hmc.constraint)
     Sf_new = calc_fermion_action(fermion_action, U, ϕ, smearing_fermion, shared_smearing)
 
     ΔP² = trP²_new - trP²_old
     ΔSg = Sg_new - Sg_old
+    ΔSc = Sc_new - Sc_old
     ΔV = V_new - V_old
     ΔSf = Sf_new - Sf_old
 
-    ΔH = ΔP² + ΔSg + ΔV + ΔSf
-    S_new = Sg_new + V_new + Sf_new
+    ΔH = ΔP² + ΔSg + ΔSc + ΔV + ΔSf 
+    S_new = Sg_new + Sc_new + V_new + Sf_new
 
     accept_root = metro_test ? rand() ≤ exp(-ΔH) : true
 
     accept = mpi_bcast_isbits(accept_root, mpi_comm_instance(); root=0)
-    print_hmc_data(hmc.logfile, ΔP², ΔSg, ΔSf, ΔV, ΔH, S_new, accept)
+    print_hmc_data(hmc.logfile, ΔP², ΔSg, ΔSf, ΔSc, ΔV, ΔH, S_new, accept)
 
     if accept
         set_cv!(bias, CV_new)
@@ -484,6 +511,23 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level, recycle=false)
 
     fp = !isnothing(lvl.forcefile) ? fopen(lvl.forcefile, "a") : nothing
 
+    if Val(-1) ∈ forces
+        if hmc.constraint isa HMCConstraint
+            calc_dScdU_bare!(force, (fieldstrength, staples), U, temp_force, hmc.constraint)
+
+            force_avg = norm(force, Val(2))
+            force_sup = norm(force, Val(Inf))
+            if !isnothing(fp)
+                # print(fp, cfmt("%+-25.15E", force_avg))
+                # print(fp, cfmt("%+-25.15E", force_sup))
+                printf(fp, StaticString("%+-25.15E"), force_avg)
+                printf(fp, StaticString("%+-25.15E"), force_sup)
+            end
+
+            add!(P, force, ϵ)
+        end
+    end
+
     if Val(0) ∈ forces
         # println("updateP! (bias)")
         if bias isa Bias
@@ -545,7 +589,7 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level, recycle=false)
         iforce = 0
 
         for i in forces
-            (i == Val(0) || i == Val(1)) && continue # if bias or gauge force, go to next iteration
+            (i == Val(-1) || i == Val(0) || i == Val(1)) && continue # if bias or gauge force, go to next iteration
             iforce += 1
             # println("updateP! (fermion $(iforce))")
 
@@ -646,10 +690,11 @@ function calc_fermion_action(fermion_action, U, ϕ, smearing::StoutSmearing, is_
     return Sf
 end
 
-@inline function print_hmc_data(::Nothing, ΔP², ΔSg, ΔSf, ΔV, ΔH, S, accept)
+@inline function print_hmc_data(::Nothing, ΔP², ΔSg, ΔSf, ΔSc, ΔV, ΔH, S, accept)
     @level2("delta_P²:\t$ΔP²")
     @level2("delta_Sg:\t$ΔSg")
     @level2("delta_Sf:\t$ΔSf")
+    @level2("delta_Sf:\t$ΔSc")
     @level2("delta_V:\t$ΔV")
     @level2("delta_H:\t$ΔH")
     @level2("new_S:\t$S")
@@ -657,11 +702,12 @@ end
     return nothing
 end
 
-@inline function print_hmc_data(logfile, ΔP², ΔSg, ΔSf, ΔV, ΔH, S, accept)
+@inline function print_hmc_data(logfile, ΔP², ΔSg, ΔSf, ΔSc, ΔV, ΔH, S, accept)
     fp = fopen(logfile, "a")
     printf(fp, StaticString("%+-25.15E"), ΔP²)
     printf(fp, StaticString("%+-25.15E"), ΔSg)
     printf(fp, StaticString("%+-25.15E"), ΔSf)
+    printf(fp, StaticString("%+-25.15E"), ΔSc)
     printf(fp, StaticString("%+-25.15E"), ΔV)
     printf(fp, StaticString("%+-25.15E"), ΔH)
     printf(fp, StaticString("%+-25.15E"), S)
@@ -675,9 +721,10 @@ end
 # custom serialization, because saving and loading IOStreams doesn't work
 using JLD2
 
-struct HMCSerialization{TL,NL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF}
+struct HMCSerialization{TL,NL,TC,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF}
     levels::TL
     numlevels::Val{NL}
+    constraint::TC
     friction::Float64
 
     P::TT
@@ -697,15 +744,16 @@ struct HMCSerialization{TL,NL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TLF}
 end
 
 function JLD2.writeas(
-    ::Type{<:HMC{TL,NL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TFLS}}
-) where {TL,NL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TFLS}
-    return HMCSerialization{TL,NL,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TFLS}
+    ::Type{<:HMC{TL,NL,TC,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TFLS}}
+) where {TL,NL,TC,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TFLS}
+    return HMCSerialization{TL,NL,TC,TG,TT,TF,TSG,TSF,TPO,TF2,TFS,TFLS}
 end
 
 function Base.convert(::Type{<:HMCSerialization}, hmc::HMC)
     out = HMCSerialization(
         hmc.levels,
         hmc.numlevels,
+        hmc.constraint,
         hmc.friction,
         hmc.P,
         hmc.P_old,
@@ -727,6 +775,7 @@ function Base.convert(::Type{<:HMC}, hmc::HMCSerialization)
     out = HMC(
         hmc.levels,
         hmc.numlevels,
+        hmc.constraint,
         hmc.friction,
         hmc.P,
         hmc.P_old,

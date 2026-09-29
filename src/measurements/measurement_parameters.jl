@@ -52,9 +52,11 @@ end
     methodname::String = "logdet"
 end
 
-@kwdef mutable struct PionCorrelatorParameters <: MeasurementParameters
+@kwdef mutable struct MesonCorrelatorParameters <: MeasurementParameters
+    type::Vector{String} = ["pseudo_pseudo"]
     dirac_type::String = "staggered"
     mass::Float64 = 0.1
+    directions::Vector{Int64} = [4]
     r::Float64 = 1.0
     csw::Float64 = 0.0
     eo_precon::Bool = false
@@ -62,7 +64,7 @@ end
     cg_maxiters::Int64 = 1000
     boundary_condition::String = "antiperiodic"
     measure_every::Int64 = 10
-    methodname::String = "pion_correlator"
+    methodname::String = "meson_correlator"
 end
 
 @kwdef mutable struct EigenvaluesParameters <: MeasurementParameters
@@ -98,13 +100,14 @@ function initialize_measurement_parameters(methodname)
         method = EnergyDensityParameters()
     elseif lowercase(methodname) == "logdet"
         method = LogDetParameters()
-    elseif lowercase(methodname) == "pion_correlator"
-        method = PionCorrelatorParameters()
+    elseif lowercase(methodname) == "meson_correlator"
+        method = MesonCorrelatorParameters()
     elseif lowercase(methodname) == "eigenvalues"
         method = EigenvaluesParameters()
     else
         error("$methodname is not implemented")
     end
+
     return method
 end
 
@@ -150,9 +153,9 @@ function prepare_measurement(
     elseif T == LogDetParameters
         filename_input = ifelse(filename == "", "logdet.txt", filename)
         measurement = LogDetMeasurement(U, meas_parameters, filename_input, flow)
-    elseif T == PionCorrelatorParameters
-        filename_input = ifelse(filename == "", "pion_correlator.txt", filename)
-        measurement = PionCorrelatorMeasurement(U, meas_parameters, filename_input, flow)
+    elseif T == MesonCorrelatorParameters
+        filename_input = ifelse(filename == "", "meson_correlator.txt", filename)
+        measurement = MesonCorrelatorMeasurement(U, meas_parameters, filename_input, flow)
     # elseif T == EigenvaluesParameters
     #     filename_input = ifelse(filename == "", "eigenvalues.txt", filename)
     #     measurement = EigenvaluesMeasurement(U, meas_parameters, filename_input, flow)

@@ -46,7 +46,8 @@ import .Forces: calc_dSdU_bare!, calc_dSfdU_bare!, calc_dVdU_bare!
 import .Measurements: measure, top_charge
 import .Measurements: EnergyDensityMeasurement, GaugeActionMeasurement, PlaquetteMeasurement
 import .Measurements: PolyakovMeasurement, TopologicalChargeMeasurement
-import .Measurements: WilsonLoopMeasurement, ∇trFμνFρσ, PionCorrelatorMeasurement
+import .Measurements: WilsonLoopMeasurement, ∇trFμνFρσ
+import .Measurements: MesonCorrelatorMeasurement
 import .Parameters: ParameterSet, construct_params_from_toml
 import .Smearing: Euler, RK2, RK3, RK3W7, GradientFlow, NoSmearing, StoutSmearing
 import .Smearing: calc_smearedU!, flow!, stout_backprop!
@@ -72,7 +73,7 @@ export calc_fermion_action, gaussian_pseudofermions!
 export measure, top_charge
 export EnergyDensityMeasurement, GaugeActionMeasurement, PlaquetteMeasurement
 export PolyakovMeasurement, TopologicalChargeMeasurement, WilsonLoopMeasurement
-export PionCorrelatorMeasurement
+export MesonCorrelatorMeasurement
 export ParameterSet, construct_params_from_toml
 export Euler, RK2, RK3, RK3W7, GradientFlow, NoSmearing, StoutSmearing
 export calc_smearedU!, flow!, stout_backprop!

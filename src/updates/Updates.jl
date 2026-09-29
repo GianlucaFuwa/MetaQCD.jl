@@ -10,7 +10,7 @@ using ..RHMCParameters
 using ..Utils
 
 import ..BiasModule: Bias, NoBias, calc_cv, ∂V∂Q, recalc_cv!, set_cv!
-import ..BiasModule: update_bias!, create_buffer, unpack_buffer!
+import ..BiasModule: update_bias!, create_buffer, unpack_buffer!, get_cvinfo_from_parameters
 import ..DiracOperators: AbstractDiracOperator, FermionAction, QuenchedFermionAction
 import ..DiracOperators: calc_fermion_action, has_clover_term, sample_pseudofermions!
 import ..Fields: AbstractGaugeAction, Gaugefield, Colorfield, identity_gauges!, get_global_dims
@@ -20,7 +20,7 @@ import ..Fields: check_dims, even_odd, gaussian_TA!, mul!, staple, staple_eachsi
 import ..Fields: parallelfor, parallelfor_max, @latmap, @latsum, gauge_action, gpu_used_memory
 import ..Fields: AbstractField, Plaquette, Clover, Spinorfield, Tensorfield, is_distributed
 import ..Forces: calc_dSdU_bare!, calc_dSfdU_bare!, calc_dVdU_bare!
-import ..Forces: calc_dSfdU_top!, calc_dVdU_top!
+import ..Forces: calc_dSfdU_top!, calc_dVdU_top!, calc_dScdU_bare!
 import ..Parameters: ParameterSet
 import ..Smearing: AbstractSmearing, NoSmearing, StoutSmearing
 import ..Smearing: calc_smearedU!, get_layer, stout_backprop!
@@ -52,6 +52,11 @@ function Updatemethod(parameters::ParameterSet, U; instance=MPI_INSTANCE[])
         hmc_trajectory=parameters.hmc_trajectory,
         hmc_friction=parameters.hmc_friction,
         hmc_rafriction=parameters.hmc_rafriction,
+        hmc_constraint_name=parameters.hmc_constraint_name,
+        hmc_constraint_numsmear=parameters.hmc_constraint_numsmear,
+        hmc_constraint_rho=parameters.hmc_constraint_rho,
+        hmc_constraint_value=parameters.hmc_constraint_value,
+        hmc_constraint_variance=parameters.hmc_constraint_variance,
         hmc_numsmear_gauge=parameters.hmc_numsmear_gauge,
         hmc_numsmear_fermion=parameters.hmc_numsmear_fermion,
         hmc_rhostout_gauge=parameters.hmc_rhostout_gauge,
@@ -81,6 +86,11 @@ function Updatemethod(
     hmc_trajectory=1,
     hmc_friction=0,
     hmc_rafriction=0,
+    hmc_constraint_name=nothing,
+    hmc_constraint_numsmear=0,
+    hmc_constraint_rho=0.0,
+    hmc_constraint_value=0.0,
+    hmc_constraint_variance=0.0,
     hmc_numsmear_gauge=0,
     hmc_numsmear_fermion=0,
     hmc_rhostout_gauge=0,
@@ -104,6 +114,11 @@ function Updatemethod(
             hmc_rhostout_fermion;
             generalized_multiscale=hmc_generalized_multiscale,
             rafriction=hmc_rafriction,
+            constraint_name=hmc_constraint_name,
+            constraint_numsmear=hmc_constraint_numsmear,
+            constraint_rho=hmc_constraint_rho,
+            constraint_value=hmc_constraint_value,
+            constraint_variance=hmc_constraint_variance,
             hmc_logging=hmc_logging,
             fermion_action=fermion_action,
             numfermions=num_fermions,
