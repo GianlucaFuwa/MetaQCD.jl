@@ -281,7 +281,7 @@ function metabuild!(
         1+starting_itrj:(parameters.numsteps)+starting_itrj
     end
 
-    fastest_updatetime = Inf
+    # fastest_updatetime = Inf
 
     @level2("- Production:")
     _, runtime_prod = @timed begin
@@ -309,10 +309,10 @@ function metabuild!(
             end
 
             last_updatetime = updatetime
-            if last_updatetime > 1.5*fastest_updatetime
-                synchronize(get_backend(U)(); stop_hostcalls=true) #INFO:
-            end
-            fastest_updatetime = min(fastest_updatetime, last_updatetime)
+            # if last_updatetime > 1.5*fastest_updatetime
+            #     synchronize(get_backend(U)(); stop_hostcalls=true) #INFO:
+            # end
+            # fastest_updatetime = min(fastest_updatetime, last_updatetime)
             mpi_barrier()
 
             if mpi_amroot(mpi_comm_instance())

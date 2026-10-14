@@ -9,10 +9,16 @@ module MetaCUDAExt
 
 using CUDA
 using CUDA: @cuda, CUDABackend, CuArray, launch_configuration, synchronize
-using CUDA: threadIdx, blockIdx, blockDim, reduce_block
+using CUDA: threadIdx, blockIdx, blockDim
 import MetaQCD.Fields
 import MetaQCD.Fields: _foreachindex_global!, _foreachindex_reduce_global!
 import MetaQCD.Utils: mpi_myrank
+
+if pkgversion(CUDA) < v"6.0.0"
+    using CUDA: reduce_block
+else
+    using CUDA.CUDACore: reduce_block
+end
 
 function __init__()
     Fields.BACKENDS["cuda"] = CUDABackend

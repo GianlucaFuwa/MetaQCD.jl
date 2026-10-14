@@ -560,6 +560,92 @@ end
 end
 
 """
+    gamma_mul(x, ::Val{μ})
+
+Return `γᵤ * x` where `γᵤ` is the μ-th Euclidean gamma matrix in the chiral basis
+(same convention as `spin_proj`), and `x` is a 4×N component complex vector.
+`μ` must be wrapped in `Val` and lie in `[1,4]` — unlike the ± projector, γᵤ itself
+has no associated sign choice, so there is no `Val{-μ}` case.
+"""
+@inline function gamma_mul(x::SVector{M,Complex{T}}, ::Val{μ}) where {T,M,μ}
+    return SVector(gamma_mul!(MVector{M,Complex{T}}(undef), MVector(x), Val(μ)))
+end
+
+@generated function gamma_mul!(
+    yc::MVector{M,Complex{T}}, xc::MVector{M,Complex{T}}, ::Val{μ}
+) where {T,M,μ}
+    if M % 4 != 0
+        return :(throw(DimensionMismatch("length(x) must be a multiple of 4")))
+    end
+
+    N = M ÷ 4
+
+    q = quote
+        $(Expr(:meta, :inline))
+        y = reinterpret(reshape, $T, yc)
+        x = reinterpret(reshape, $T, xc)
+    end
+
+    if μ === 1
+        body = quote
+            y[1, m]       =  x[2, $(3N)+m]
+            y[2, m]       = -x[1, $(3N)+m]
+            y[1, $N+m]    =  x[2, $(2N)+m]
+            y[2, $N+m]    = -x[1, $(2N)+m]
+            y[1, $(2N)+m] = -x[2, $N+m]
+            y[2, $(2N)+m] =  x[1, $N+m]
+            y[1, $(3N)+m] = -x[2, m]
+            y[2, $(3N)+m] =  x[1, m]
+        end
+    elseif μ === 2
+        body = quote
+            y[1, m]       = -x[1, $(3N)+m]
+            y[2, m]       = -x[2, $(3N)+m]
+            y[1, $N+m]    =  x[1, $(2N)+m]
+            y[2, $N+m]    =  x[2, $(2N)+m]
+            y[1, $(2N)+m] =  x[1, $N+m]
+            y[2, $(2N)+m] =  x[2, $N+m]
+            y[1, $(3N)+m] = -x[1, m]
+            y[2, $(3N)+m] = -x[2, m]
+        end
+    elseif μ === 3
+        body = quote
+            y[1, m]       =  x[2, $(2N)+m]
+            y[2, m]       = -x[1, $(2N)+m]
+            y[1, $N+m]    = -x[2, $(3N)+m]
+            y[2, $N+m]    =  x[1, $(3N)+m]
+            y[1, $(2N)+m] = -x[2, m]
+            y[2, $(2N)+m] =  x[1, m]
+            y[1, $(3N)+m] =  x[2, $N+m]
+            y[2, $(3N)+m] = -x[1, $N+m]
+        end
+    elseif μ === 4
+        body = quote
+            y[1, m]       = x[1, $(2N)+m]
+            y[2, m]       = x[2, $(2N)+m]
+            y[1, $N+m]    = x[1, $(3N)+m]
+            y[2, $N+m]    = x[2, $(3N)+m]
+            y[1, $(2N)+m] = x[1, m]
+            y[2, $(2N)+m] = x[2, m]
+            y[1, $(3N)+m] = x[1, $N+m]
+            y[2, $(3N)+m] = x[2, $N+m]
+        end
+    else
+        return :(throw(AssertionError("μ must be in [1,4]")))
+    end
+
+    loop_q = quote
+        @turbo for m in Base.Slice(static(1):static($N))
+            $body
+        end
+        return yc
+    end
+
+    push!(q.args, loop_q)
+    return q
+end
+
+"""
     spin_proj(x, ::Val{ρ})
 
 Return `(1 ± γᵨ) * x` where `γᵨ` is the ρ-th Euclidean gamma matrix in the Chiral basis.

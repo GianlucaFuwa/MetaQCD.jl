@@ -1,49 +1,45 @@
 import ArnoldiMethod: partialschur!, get_order
 using ArnoldiMethod
  
-struct ArnoldiWorkspaceMeta{T,TV,K,K1,KK,K1K}
+struct ArnoldiWorkspaceMeta{T,TV}
     V::TV
     V_tmp::TV
-    H::MMatrix{K1,K,Complex{T},K1K}
-    Q::MMatrix{K,K,Complex{T},KK}
-    h::MVector{K1,Complex{T}}
-    x::MVector{K,Complex{T}}
-    groups::MVector{K,Int}
+    H::Matrix{Complex{T}}
+    Q::Matrix{Complex{T}}
+    h::Vector{Complex{T}}
+    x::Vector{Complex{T}}
+    groups::Vector{Int}
     G::ArnoldiMethod.Reflector{Complex{T}}
     ritz::ArnoldiMethod.RitzValues{Complex{T},T}
     function ArnoldiWorkspaceMeta(D::AbstractDiracOperator, k)
         temp = get_temp(D)
-        T = eltype(temp)
+        T = Complex{float_type(temp)}
         V = [similar(temp) for _ in 1:k+1]
         V_tmp = [similar(temp) for _ in 1:k+1]
-        H = @MMatrix zeros(T, k+1, k)
-        Q = @MMatrix zeros(T, k, k)
-        h = @MVector zeros(T, k+1)
-        x = @MVector zeros(T, k)
-        groups = @MVector zeros(Int, k)
+        H = zeros(T, k+1, k)
+        Q = zeros(T, k, k)
+        h = zeros(T, k+1)
+        x = zeros(T, k)
+        groups = zeros(Int, k)
         G = ArnoldiMethod.Reflector{T}(k)
         ritz = ArnoldiMethod.RitzValues{T}(k)
 
         TV = typeof(V)
-        K = k
-        K1 = k + 1
-        KK = k * k
-        K1K = (k + 1) * k
-        return new{real(T),TV,K,K1,KK,K1K}(V, V_tmp, H, Q, h, x, groups, G, ritz)
+        return new{real(T),TV}(V, V_tmp, H, Q, h, x, groups, G, ritz)
     end
 end
 
 function get_eigenvalues(
-    U::Gaugefield,
+    U::Gaugefield{B,T},
     D::AbstractDiracOperator;
     nev::Int = 1,
-    which::Symbol = :LM,
-    tol::Real = sqrt(eps(Float64)),
+    which::Symbol = :SM,
+    tol::Real = sqrt(eps(T)),
     mindim::Int = max(10, nev),
     maxdim::Int = max(20, 2nev),
     restarts::Int = 200,
     ddaggerd::Bool = false,
-)
+    ) where {B,T}
     arnoldi = ArnoldiWorkspaceMeta(D, maxdim)
     D_in = ddaggerd ? DdaggerD(D(U)) : D(U)
     schur, _ = partialschur!(
@@ -63,7 +59,7 @@ function get_eigenvalues(
     D::AbstractDiracOperator,
     arnoldi::ArnoldiWorkspaceMeta{T};
     nev::Int = 1,
-    which::Symbol = :LM,
+    which::Symbol = :SM,
     tol::Real = sqrt(eps(real(T))),
     mindim::Int = min(max(10, nev), length(arnoldi.V)-1),
     restarts::Int = 200,
@@ -153,6 +149,7 @@ function _partialschur(D, arnoldi, mindim, maxdim, nev, tol, restarts, which)
 
         sort!(ritz.ord, 1, maxdim, QuickSort, ArnoldiMethod.OrderPerm(ritz.λs, ordering))
 
+        @show norm(H)
         isconverged.H_frob_norm[] = norm(H)
 
         effective_nev = ArnoldiMethod.include_conjugate_pair(T, ritz, nev)

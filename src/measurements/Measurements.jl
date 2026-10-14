@@ -17,7 +17,7 @@ import ..DiracOperators: Daggered, DdaggerD, StaggeredDiracOperator, WilsonDirac
 import ..DiracOperators: StaggeredEOPreDiracOperator, StaggeredHoelblingDiracOperator
 import ..DiracOperators: ArnoldiWorkspaceMeta, get_eigenvalues, num_dirac, even_odd, solve_dirac!
 import ..DiracOperators: FermionAction, calc_fermion_action, sample_pseudofermions!
-import ..DiracOperators: staggered_η, staggered_ϵ
+import ..DiracOperators: StaggeredTypeOperator, staggered_η, staggered_ϵ
 import ..Fields: WilsonGaugeAction, SymanzikTreeGaugeAction, SymanzikTadGaugeAction
 import ..Fields: IwasakiGaugeAction, DBW2GaugeAction, AbstractFieldstrength, Colorfield
 import ..Fields: Gaugefield, Spinorfield, Tensorfield, calc_gauge_action, check_dims 

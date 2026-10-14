@@ -31,7 +31,6 @@ function calc_constraint_action(U, constraint::HMCConstraint{false})
     C = calc_cv(U, constraint)[1]
     σ = constraint.variance
     μ = constraint.value
-    @show μ - C
     return 1/2σ^2 * (μ - C)^2
 end
 

@@ -25,14 +25,12 @@ import ..Fields: MultiSpinorfield, SpinorfieldEO, Tensorfield, num_spinors, get_
 import ..Fields: check_dims, get_local_dims, get_global_dims, get_local_volume
 import ..Fields: clear!, clover_1x1 , even_odd, gaussian_pseudofermions!, is_distributed
 import ..Fields: parallelfor, parallelfor_sum, Clover, Checkerboard2, Sequential, set_source!
-import ..Fields: fieldstrength_eachsite!, num_colors, num_dirac
+import ..Fields: fieldstrength_eachsite!, num_colors, num_dirac, float_type
 import ..Fields: PeriodicBC, AntiPeriodicBC, apply_bc, create_bc, distributed_reduce
 import ..Fields: device_to_host
 
 abstract type AbstractDiracOperator{B,T} end
 abstract type AbstractFermionAction{R,Nf} end # R indicates whether the action uses rational approximation or not, TM whether there are twisted masses or not
-abstract type StaggeredTypeOperator end
-abstract type WilsonTypeOperator end
 
 struct QuenchedFermionAction <: AbstractFermionAction{false,0}
     QuenchedFermionAction(args...; kwargs...) = new()
@@ -93,6 +91,8 @@ include("staggered_hoelbling.jl")
 include("wilson.jl")
 include("wilson_eo.jl")
 include("arnoldi.jl")
+
+StaggeredTypeOperator = Union{StaggeredDiracOperator,StaggeredEOPreDiracOperator,StaggeredHoelblingDiracOperator}
 
 const DIRAC_OPERATORS = Dict(
     "staggered" => StaggeredDiracOperator,

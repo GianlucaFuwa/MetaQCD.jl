@@ -98,14 +98,15 @@ struct MesonCorrelatorMeasurement{T,TC,TD,TF,CT,D,T1} <: AbstractMeasurement
             istr = lpad(MPI_INSTANCE[], 3, "0")
             dir = joinpath("/", split(filename, "/")[1:end-1]...)
             rpath = Dict{Tuple{Any,Int64},SStaticString}()
+            fstr = (flow == true || flow !== NoSmearing()) ? "_gflow" : ""
             # cg_dataf = Dict{Any,SStaticString}()
 
             for (itype, t) in enumerate(corrtype)
                 for μ in directions
-                    rpath[(t, μ)] = SStaticString(joinpath(dir, "meson_correlator_$(type[itype])_$(μ)_$(istr).txt"))
+                    rpath[(t, μ)] = SStaticString(joinpath(dir, "meson_correlator_$(type[itype])_$(μ)$(fstr)_$(istr).txt"))
 
                     if !is_distributed(U) || mpi_amroot(mpi_comm_instance())
-                        filename = joinpath(dir, "meson_correlator_$(type[itype])_$(μ)_$(istr).txt")
+                        filename = joinpath(dir, "meson_correlator_$(type[itype])_$(μ)$(fstr)_$(istr).txt")
                         fp = fopen(filename, "w")
                         printf(fp, ITRJ_STR_FMT, "itrj")
 
@@ -114,8 +115,8 @@ struct MesonCorrelatorMeasurement{T,TC,TD,TF,CT,D,T1} <: AbstractMeasurement
                             printf(fp, TFLOW_STR_FMT, "tflow")
                         end
 
-                        for it in 1:NT
-                            printf(fp, METHOD_STR_FMT, "$(type[itype])_corr_$(it)")
+                        for ii in 1:size(U)[μ]
+                            printf(fp, METHOD_STR_FMT, "$(type[itype])_corr_$(ii)")
                         end
 
                         newline(fp)
@@ -127,7 +128,7 @@ struct MesonCorrelatorMeasurement{T,TC,TD,TF,CT,D,T1} <: AbstractMeasurement
             cg_filepath = if mpi_amroot(MPI_COMM_INSTANCE[]) && (filename != "")
                 measdir = joinpath(splitpath(filename)[1:end-1])
                 _ext = "$(lpad(MPI_INSTANCE[], 3, "0")).txt"
-                joinpath(measdir, "meson_correlator_cg_data_$(_ext)")
+                joinpath(measdir, "meson_correlator$(fstr)_cg_data_$(_ext)")
             else
                 ""
             end
@@ -304,49 +305,6 @@ function correlator_avg!(
     return nothing
 end
 
-# function correlator_avg!(
-#     ::AxialPseudo, corr, D, ψ, directions, cg_temps, tol, maxiters, datafile
-# )
-#     check_dims(D.U, ψ, cg_temps...)
-#     global_dims = size(ψ)
-#     local_ranges = D.U.topology.bulk_sites.indices
-#
-#     for dir in _unwrap_val.(directions)
-#         @assert length(corr[(AxialPseudo(), dir)]) == global_dims[dir]
-#         corr[(AxialPseudo(), dir)] .= 0.0
-#     end
-#
-#     # Point source at origin
-#     source = SiteCoords(1, 1, 1, 1)
-#     # Get temporary arrays for cg solver
-#     propagator, temps... = cg_temps
-#
-#     for dir in directions
-#         itr = CartesianIndices((local_ranges[[(directions .!= _unwrap_val(dir))...]]))
-#
-#         for a in 1:3
-#             for μ in 1:num_dirac(ψ)
-#                 ones!(propagator)
-#                 set_source!(ψ, source, a, μ)
-#                 solve_dirac!(
-#                     propagator, D, ψ, temps...; tol, maxiters, datafile
-#                 )
-#
-#                 calc_axial_pseudo_corr(
-#                     D, corr, propagator, dir, global_dims[_unwrap_val(dir)], itr
-#                 )
-#             end
-#         end
-#     end
-#
-#     for dir in _unwrap_val.(directions)
-#         Λₛ = prod(global_dims[[(directions .!= dir)...]])
-#         corr[(AxialPseudo(), dir)] ./= Λₛ
-#     end
-#
-#     return nothing
-# end
-
 function calc_pseudo_pseudo_corr(D, corr, propagator, ::Val{μ}, L, itr) where {μ}
     M = is_distributed(D.U)
     B = get_backend(D.U)
@@ -366,7 +324,9 @@ function calc_pseudo_pseudo_corr(D, corr, propagator, ::Val{μ}, L, itr) where {
     return nothing
 end
 
-function calc_axial_pseudo_corr(D, corr, propagator, ::Val{μ}, L, itr) where {μ}
+function calc_axial_pseudo_corr(
+    D::StaggeredTypeOperator, corr, propagator, ::Val{μ}, L, itr
+) where {μ}
     U = D.U
     M = is_distributed(U)
     B = get_backend(U)
@@ -381,7 +341,30 @@ function calc_axial_pseudo_corr(D, corr, propagator, ::Val{μ}, L, itr) where {�
             siteμ⁺ = move(site, μ, 1, Nμ)
             η = staggered_η(Val(μ), site, Float32)
             ϵ = staggered_ϵ(site, Float32)
-            ci +=  ϵ * η * real(dot(propagator[site], cmvmul(U[μ, siteμ⁺], propagator[site])))
+            ci += ϵ * η * real(dot(propagator[site], cmvmul(U[μ, site], propagator[siteμ⁺])))
+        end
+
+        corr[(AxialPseudo(), μ)][ii] += distributed_reduce(cit, +, D.U)
+    end
+
+    return nothing
+end
+
+function calc_axial_pseudo_corr(
+    D, corr, propagator, ::Val{μ}, L, itr
+) where {μ}
+    U = D.U
+    M = is_distributed(U)
+    B = get_backend(U)
+
+    for ii in 1:L
+        cit = 0.0
+
+        cit = parallelfor_sum(itr, 0.0, B, Val(M), (), (), (propagator,)) do ci, xyz, (propagator,)
+            coords = xyz.I
+            site = SiteCoords(ntuple(d -> d<μ ? coords[d] : (d==μ ? ii : coords[d-1]), 4))
+            S = propagator[site]
+            ci += real(dot(S, gamma_mul(S, Val(μ))))
         end
 
         corr[(AxialPseudo(), μ)][ii] += distributed_reduce(cit, +, D.U)
