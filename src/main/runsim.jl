@@ -264,7 +264,7 @@ function run_sim!(
     )
 
     checkpointer = Checkpointer(
-        joinpath(parameters.ensemble_dir, "checkpoint"), parameters.save_checkpoint_every
+        U, joinpath(parameters.ensemble_dir, "checkpoint"), parameters.save_checkpoint_every
     )
 
     # INFO: Log times per update in seconds
@@ -331,6 +331,7 @@ function metaqcd!(
     numaccepts=0,
     numaccepts_temper=zeros(Int64, MPI_NUMINSTANCES[]-1),
 ) where {tempering_enabled}
+    JOB_TIME_LIMIT = parameters.job_time_limit * 60
     U = univ.U
     fermion_action = univ.fermion_action
     bias = univ.bias
@@ -481,12 +482,6 @@ function metaqcd!(
                 )
             end
 
-            save_field(config_saver, U, itrj, parameters)
-            create_checkpoint(
-                checkpointer, univ, updatemethod, nothing, itrj, numaccepts, numaccepts_temper;
-                rank
-            )
-
             _, mtime = @timed calc_measurements(measurements, U, itrj; mpi_multi_sim)
             _, fmtime = @timed for i in eachindex(gflow)
                 calc_measurements_flowed(
@@ -495,6 +490,13 @@ function metaqcd!(
             end
 
             calc_weights(bias, itrj; mpi_multi_sim)
+
+            save_field(config_saver, U, itrj, parameters)
+            create_checkpoint(
+                checkpointer, univ, updatemethod, nothing, itrj, numaccepts, numaccepts_temper;
+                rank
+            )
+
             @level2("|  Meas. elapsed time:     $(mtime)  [s]")
             @level2("|  FlowMeas. elapsed time: $(fmtime) [s]\n-")
         end

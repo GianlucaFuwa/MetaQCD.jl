@@ -36,6 +36,7 @@ end
 
 function create_checkpoint(
     ::JLD2Format,
+    Ucpu::T,
     univ,
     updatemethod,
     updatemethod_pt,
@@ -43,11 +44,14 @@ function create_checkpoint(
     numaccepts,
     numaccepts_t,
     filename::String
-)
+) where {T}
     Uout = if univ.U isa Vector
         [convert_field(CPU, univ.U[i]) for i in eachindex(univ.U)]
-    else
+    elseif !(univ.U isa Vector) && T===Nothing
         convert_field(CPU, univ.U)
+    else
+        convert_field!(Ucpu, univ.U)
+        Ucpu
     end
 
     biasout = if univ.bias isa Vector

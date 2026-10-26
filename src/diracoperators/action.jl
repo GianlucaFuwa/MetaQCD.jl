@@ -1,3 +1,36 @@
+"""
+    FermionFieldCache(U)
+
+Construction-time pool of solver spinors for actions on the same gauge field `U`.
+Pass it as `field_cache` to `FermionAction` to share scratch storage. Actions using
+one cache must be evaluated sequentially (including force and sampling calls).
+Each action retains concrete tuples; the cache is never queried during a solve.
+"""
+struct FermionFieldCache{G}
+    gauge::G
+    pools::Dict{Any,Any}
+end
+
+FermionFieldCache(U::AbstractField) = FermionFieldCache(U, Dict{Any,Any}())
+
+_solver_spinor(f::Spinorfield) = Spinorfield(f)
+_solver_spinor(f::SpinorfieldEO) = even_odd(Spinorfield(f))
+
+_solver_fields(::Nothing, prototype, n) = ntuple(_ -> _solver_spinor(prototype), n)
+
+function _solver_fields(cache::FermionFieldCache, prototype::F, n) where {F}
+    # Lattice identity is checked by the action constructor. Halo widths may differ
+    # between operators on that lattice, and must have separate pools.
+    key = (F, get_halo_width(prototype))
+    fields = get!(cache.pools, key) do
+        F[]
+    end::Vector{F}
+    while length(fields) < n
+        push!(fields, _solver_spinor(prototype))
+    end
+    return ntuple(i -> fields[i], n)
+end
+
 struct FermionAction{R,Nf,TD,TDl,CT,CTl,RI1,RI2,SA,SMD,TX} <: AbstractFermionAction{R,Nf}
     D::TD
     D_low::TDl
@@ -29,8 +62,12 @@ struct FermionAction{R,Nf,TD,TDl,CT,CTl,RI1,RI2,SA,SMD,TX} <: AbstractFermionAct
         cg_maxiters_md=1000,
         cg_float_type=T,
         cg_filepath="",
+        field_cache=nothing,
         kwargs...,
     ) where {B,T}
+        if field_cache !== nothing && field_cache.gauge !== f
+            throw(ArgumentError("field_cache must belong to the same gauge field"))
+        end
         D = DIRAC_OPERATORS[type](f, minimum(mass); bc_str, kwargs...)
         temp = D.temp
         eo_fun = contains(type, "eo") ? even_odd : identity
@@ -54,19 +91,18 @@ struct FermionAction{R,Nf,TD,TDl,CT,CTl,RI1,RI2,SA,SMD,TX} <: AbstractFermionAct
                 maxerr: $(rhmc_info_action.maxerr) (positive and negative power)
                 """
                 n_temps = max(get_n(rhmc_info_action), get_n_inverse(rhmc_info_action))
-                temps = ntuple(_ -> even_odd(Spinorfield(temp)), 2n_temps + 2 + 4)
                 U_low = is_mixed ? Gaugefield(f, Tsolve) : nothing
                 if is_mixed
                     n_temps = max(get_n(rhmc_info_action), get_n_inverse(rhmc_info_action))
+                    temps = _solver_fields(field_cache, even_odd(temp), n_temps + 3)
                     # ntemps+1 for solution vectors, 2 for Ap & r
-                    temps = ntuple(_ -> even_odd(Spinorfield(temp)), n_temps + 3) 
                     D_low = DIRAC_OPERATORS[type](U_low, minimum(mass); bc_str=bc_str, kwargs...)
                     # ntemps+1 for solution vectors, ntemps+1 for gradients, 3 for Ap & r & r_old
-                    temps_low = (U_low, ntuple(_ -> even_odd(Spinorfield(temp, Tsolve; staggered=true)), 2n_temps + 2 + 3)...)
+                    temps_low = (U_low, _solver_fields(field_cache, even_odd(D_low.temp), 2n_temps + 2 + 3)...)
                 else
                     # ntemps+1 for solution vectors, ntemps+1 for gradient vectors, 2 for Ap & r
                     n_temps = max(get_n(rhmc_info_action), get_n_inverse(rhmc_info_action))
-                    temps = ntuple(_ -> even_odd(Spinorfield(temp)), 2n_temps + 2 + 2) 
+                    temps = _solver_fields(field_cache, even_odd(temp), 2n_temps + 2 + 2)
                     D_low = nothing
                     temps_low = nothing
                 end
@@ -74,14 +110,13 @@ struct FermionAction{R,Nf,TD,TDl,CT,CTl,RI1,RI2,SA,SMD,TX} <: AbstractFermionAct
             else
                 rhmc_info_action = nothing
                 rhmc_info_md = nothing
-                staggered = num_dirac(temp) == 1
                 U_low = is_mixed ? Gaugefield(f, Tsolve) : nothing
                 if is_mixed
-                    temps = ntuple(_ -> eo_fun(Spinorfield(temp)), 3)
+                    temps = _solver_fields(field_cache, eo_fun(temp), 3)
                     D_low = DIRAC_OPERATORS[type](U_low, minimum(mass); bc_str, kwargs...)
-                    temps_low = (U_low, ntuple(_ -> eo_fun(Spinorfield(temp, Tsolve; staggered)), 5)...)
+                    temps_low = (U_low, _solver_fields(field_cache, eo_fun(D_low.temp), 5)...)
                 else
-                    temps = ntuple(_ -> eo_fun(Spinorfield(temp)), 4)
+                    temps = _solver_fields(field_cache, eo_fun(temp), 4)
                     D_low = nothing
                     temps_low = nothing
                 end
@@ -99,8 +134,9 @@ struct FermionAction{R,Nf,TD,TDl,CT,CTl,RI1,RI2,SA,SMD,TX} <: AbstractFermionAct
 
             fun = if precon == "heavy"
                 @assert length(mass) == 2
-                δm² = 4(maximum(mass)^2 - minimum(mass)^2)
-                x -> (x + δm²) / x
+                @level1("Preconditioning lighter mass $(minimum(mass)) with mass $(maximum(mass))")
+                δm² = (maximum(mass)^2 - minimum(mass)^2)
+                x -> x / (x + δm²)
             elseif precon == "none"
                 @assert mass isa Float64
                 x -> x
@@ -141,14 +177,14 @@ struct FermionAction{R,Nf,TD,TDl,CT,CTl,RI1,RI2,SA,SMD,TX} <: AbstractFermionAct
             n_temps = max(n_temps_action, n_temps_md)
             if is_mixed
                 # ntemps+1 for solution vectors, 2 for Ap & r
-                temps = ntuple(_ -> eo_fun(Spinorfield(temp)), n_temps + 3) 
+                temps = _solver_fields(field_cache, eo_fun(temp), n_temps + 3)
                 U_low = Gaugefield(f, Tsolve)
                 D_low = DIRAC_OPERATORS[type](U_low, minimum(mass); bc_str, kwargs...)
                 # ntemps+1 for solution vectors, ntemps+1 for gradients, 3 for Ap & r & r_old
-                temps_low = (U_low, ntuple(_ -> eo_fun(Spinorfield(temp, Tsolve; staggered=true)), 2n_temps + 2 + 3)...)
+                temps_low = (U_low, _solver_fields(field_cache, eo_fun(D_low.temp), 2n_temps + 2 + 3)...)
             else
                 # ntemps+1 for solution vectors, ntemps+1 for gradient vectors, 2 for Ap & r
-                temps = ntuple(_ -> eo_fun(Spinorfield(temp)), 2n_temps + 2 + 2) 
+                temps = _solver_fields(field_cache, eo_fun(temp), 2n_temps + 2 + 2)
                 U_low = nothing
                 D_low = nothing
                 temps_low = nothing
@@ -226,7 +262,7 @@ struct FermionAction{R,Nf,TD,TDl,CT,CTl,RI1,RI2,SA,SMD,TX} <: AbstractFermionAct
     end
 end
 
-function init_fermion_action(parameters, U, i)
+function init_fermion_action(parameters, U, i; field_cache=nothing)
     fparams = fermion_parameters_from_dict(parameters.fermions[i])
     cg_filepath = if mpi_amroot(MPI_COMM_INSTANCE[]) && (parameters.log_dir != "")
         joinpath(parameters.log_dir, "cg_data$(i)")
@@ -255,7 +291,8 @@ function init_fermion_action(parameters, U, i)
         cg_maxiters_action=fparams.cg_maxiters_action,
         cg_maxiters_md=fparams.cg_maxiters_md,
         cg_float_type=Utils.FLOAT_TYPE[parameters.solver_float_type],
-        cg_filepath=cg_filepath,
+        cg_filepath,
+        field_cache,
     )
     return action
 end

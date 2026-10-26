@@ -62,7 +62,7 @@ is the maximum time extent.
 end
 
 @generated function apply_bc(
-    el, ::AntiPeriodicBC{T}, site::SiteCoords, ::Val{dir}, NT, ::Val{dim}=Val(4)
+    el, ::AntiPeriodicBC{T}, site::SiteCoords, ::Val{dir}, NT::Int, ::Val{dim}=Val(4)
 ) where {T,dir,dim}
     # NT is full width of the array, i.e., including halo
     q = quote

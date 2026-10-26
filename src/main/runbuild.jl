@@ -136,7 +136,7 @@ function build_bias!(
     )
 
     checkpointer = Checkpointer(
-        joinpath(parameters.ensemble_dir, "checkpoint"), parameters.save_checkpoint_every
+        U, joinpath(parameters.ensemble_dir, "checkpoint"), parameters.save_checkpoint_every
     )
 
     timing_datafile = if mpi_amroot(mpi_comm_instance())
@@ -179,6 +179,7 @@ function metabuild!(
     starting_itrj=nothing,
     numaccepts=0,
 )
+    JOB_TIME_LIMIT = parameters.job_time_limit * 60
     U = univ.U
     fermion_action = univ.fermion_action
     bias = univ.bias

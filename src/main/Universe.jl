@@ -6,7 +6,7 @@ using TOML: parsefile
 using ..Logs
 using ..Utils
 
-import ..DiracOperators: FermionAction, QuenchedFermionAction, init_fermion_action
+import ..DiracOperators: FermionAction, QuenchedFermionAction, FermionFieldCache, init_fermion_action
 import ..Fields: Gaugefield, WilsonGaugeAction, IwasakiGaugeAction, DBW2GaugeAction
 import ..Fields: SymanzikTreeGaugeAction, get_global_dims, num_floats
 import ..BiasModule: Bias, NoBias
@@ -109,8 +109,9 @@ function init_fermion_actions(parameters::ParameterSet, U)
     if length(fermions) == 0
         fermion_actions = QuenchedFermionAction()
     else
+        field_cache = FermionFieldCache(U)
         fermion_actions = ntuple(length(fermions)) do i
-            init_fermion_action(parameters, U, i)
+            init_fermion_action(parameters, U, i; field_cache)
         end
     end
 

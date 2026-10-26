@@ -16,7 +16,7 @@ using Statistics
 
 export MetaMeasurements, MetaBias, eigenvalues, hadroncorrelator, timeseries, observables
 export Bootstrap, Jackknife, UWerr, analyze, modify_bias, plot, auto_correlation
-export t0_scale, t0_w0_scale, t0_w0_scale_old
+export t0_scale, t0_w0_scale, t0_w0_scale_old, pcacmass
 
 abstract type AbstractErrorEstimator end
 
@@ -239,8 +239,6 @@ function phys_not(val::Real, err::Real)
         return val_str * err_str
     end
 end
-
-phys_not(val::uwreal) = phys_not(value(val), ADerrors.err(val))
 
 function phys_not(val::Float64, err::Float64)
     err > 1 && return phys_not_cp(val, err)

@@ -6,6 +6,7 @@ end
     mode::String = "sim"
     L::NTuple{4,Int64} = (4, 4, 4, 4)
     backend::String = "cpu"
+    job_time_limit::Float64 = Inf
     float_type::String = "float64"
     solver_float_type::String = "float64"
     randomseed::Union{UInt64,Vector{UInt64}} = 0x0000000000000000

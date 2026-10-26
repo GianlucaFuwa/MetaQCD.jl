@@ -74,6 +74,7 @@ struct ParameterSet
 
     # system settings
     backend::String
+    job_time_limit::Float64
     float_type::String
     solver_float_type::String
     verboselevel::Int64

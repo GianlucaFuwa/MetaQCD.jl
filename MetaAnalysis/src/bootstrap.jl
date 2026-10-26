@@ -5,7 +5,7 @@ struct Bootstrap{T<:Function} <: AbstractErrorEstimator
     function Bootstrap(; nboot=1000, τ=0, func=mean)
         @assert nboot >= 1
         @assert τ >= 0
-        return new{typeof(func)}(nboot, τ, func)
+        return new{typeof(func)}(nboot, round(τ), func)
     end
 end
 
@@ -16,7 +16,7 @@ function (b::Bootstrap)(x::Vector{<:Real}, weights=nothing)
         τ = autoc_time_int(x)
         B = round(Int64, 2τ, RoundNearestTiesAway)
     else
-        τ = b.τ
+        τ = round(b.τ)
         B = Int64(2b.τ)
     end
 
@@ -48,12 +48,14 @@ function (b::Bootstrap)(x::Vector{<:Real}, weights=nothing)
         stdA = std(A)
     else
         @assert length(weights) == N "length(weights) has to be equal to length(x)"
-        @info "Weighted works for means, i.e., b.func = mean"
+        @info "Weighted works only for means, i.e., b.func = mean"
         x .*= weights
         A[1] = sum(x) / sum(weights)
 
         p = Progress(b.nboot, desc="Bootstrapping...")
-        @batch threadlocal=zeros(Int64, B)::Vector{Int64} for i = 2:b.nboot+1
+        # @batch threadlocal=zeros(Int64, B)::Vector{Int64} for i = 2:b.nboot+1
+        for i = 2:b.nboot+1
+            threadlocal=zeros(Int64, B)::Vector{Int64} 
             r = rand(1:N, itvl)
             tmpE = 0.0
             tmpD = 0.0
@@ -63,8 +65,8 @@ function (b::Bootstrap)(x::Vector{<:Real}, weights=nothing)
                 for ii in 1:B
                     threadlocal[ii] = mod1(rr[ii], N)
                 end
-                tmpE += sum(view(x, rr))
-                tmpD += sum(view(weights, rr))
+                tmpE += sum(view(x, threadlocal))
+                tmpD += sum(view(weights, threadlocal))
             end
 
             A[i] = tmpE / tmpD

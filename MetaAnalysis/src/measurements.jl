@@ -101,6 +101,7 @@ struct MetaMeasurements
                 measurement_dict[name_no_ext] = measurement
             else
                 data, header = readdlm(dir * "/$(name)"; header=true)
+                measurement["itrj"] = data[:, 1]
 
                 for i in 2:length(header)
                     measurement[header[i]] = data[:, i]
@@ -304,7 +305,7 @@ Plot the effective mass plot of the hadron correlator `correlator` from the meas
 """
 RecipesBase.@recipe function hadroncorrelator(
     hc::HadronCorrelator; logscale=false, style=:line, tf=0, with_errs=false,
-    fit_plateau=false, plateau_range=nothing, staggered=false
+    fit_plateau=false, plateau_range=nothing, staggered=false, ntherm=0
 )
     fit_plateau && !with_errs && throw(ArgumentError(
         "fit_plateau=true requires with_errs=true so the plateau error can be obtained via ADerrors.jl"
@@ -330,49 +331,52 @@ RecipesBase.@recipe function hadroncorrelator(
     x = 1:length(obs_keys)
     T = length(x)
     corrrange = 2:div(T, 2)+1
-    @show T, corrrange[end]
+    # @show T, corrrange[end]
     T2 = length(corrrange)
     C = []
     Cr = []
     meff = []
     tmp = if is_gflow
-        [split(obs_keys[i], "_")[3] for i in eachindex(obs_keys)]
+        [split(obs_keys[i], "_")[end-1] for i in eachindex(obs_keys)]
     else
         last.(split.(obs_keys, "_"))
     end
     nums = sort(parse.(Int, tmp))
-    corr = first(split(string(correlator), "_"))
+    corr = join(split(string(correlator), "_")[3:4], "_")
     str(it) = is_gflow ? "$(corr)_corr_$(it)_000 (tf=$tf)" : "$(corr)_corr_$(it)"
     for it in corrrange
         _tmp1 = getproperty(m, correlator)[str(it)]
         _tmp2 = getproperty(m, correlator)[str(T-it+2)]
+        itrj = getproperty(m, correlator)["itrj"]
+        sep = Int(itrj[2] - itrj[1])
+        start_idx = (ntherm ÷ sep) + 1
         tmp2 = if with_errs
             try
                 if it != div(T, 2)+1
-                    u1 = uwreal(_tmp1, "$(str(it)) $(sessid)")
-                    u2 = uwreal(_tmp2, "$(str(it)) $(sessid)")
+                    u1 = uwreal(_tmp1[start_idx:end], "$(str(it)) $(sessid)")
+                    u2 = uwreal(_tmp2[start_idx:end], "$(str(it)) $(sessid)")
                     u = (u1 + u2) / 2
                 else
-                    u = uwreal(_tmp1, "$(str(it)) $(sessid)")
+                    u = uwreal(_tmp1[start_idx:end], "$(str(it)) $(sessid)")
                 end
                 uwerr(u)
                 u
             catch _
                 if it != div(T, 2)+1
-                    r1 = analyze(_tmp1, Bootstrap())
-                    r2 = analyze(_tmp2, Bootstrap())
+                    r1 = analyze(_tmp1[start_idx:end], Bootstrap())
+                    r2 = analyze(_tmp2[start_idx:end], Bootstrap())
                     u1 = uwreal([r1["mean"], r1["stderr"]], "$(str(it)) $(sessid) bb")
                     u2 = uwreal([r2["mean"], r2["stderr"]], "$(str(it)) $(sessid) bb")
                     u = (u1 + u2) / 2
                 else
-                    r = analyze(_tmp1, Bootstrap())
+                    r = analyze(_tmp1[start_idx:end], Bootstrap())
                     u = uwreal([r["mean"], r["stderr"]], "$(str(it)) $(sessid) bb")
                 end
                 uwerr(u)
                 u
             end
         else
-            (sum(_tmp1)/length(_tmp1) + sum(_tmp2)/length(_tmp2)) / 2
+            (sum(_tmp1[start_idx:end])/length(_tmp1[start_idx:end]) + sum(_tmp2[start_idx:end])/length(_tmp2[start_idx:end])) / 2
         end
         push!(C, tmp2)
     end
@@ -418,9 +422,11 @@ RecipesBase.@recipe function hadroncorrelator(
     io = open(joinpath(savedir, corrname), "w")
     println(io, "$(rpad("t", 5, " "))$(rpad("mean", 25, " "))$(rpad("err", 25, " "))")
     for i in eachindex(C)
+        vC = with_errs ? value(C[i]) : C[i]
+        eC = with_errs ? ADerrors.err(C[i]) : 0.0
         @printf io "%-5i" i
-        @printf io "%-25.15E" value(C[i])
-        @printf io "%-25.15E\n" ADerrors.err(C[i])
+        @printf io "%-25.15E" vC
+        @printf io "%-25.15E\n" eC
     end
     close(io)
 
@@ -458,9 +464,11 @@ RecipesBase.@recipe function hadroncorrelator(
     end
     println(io, "$(rpad("t", 5, " "))$(rpad("mean", 25, " "))$(rpad("err", 25, " "))")
     for (i, m) in enumerate(meff)
+        vm = with_errs ? value(m) : m
+        em = with_errs ? ADerrors.err(m) : 0.0
         @printf io "%-5i" corrrange[i]
-        @printf io "%-25.15E" value(m)
-        @printf io "%-25.15E\n" ADerrors.err(m)
+        @printf io "%-25.15E" vm
+        @printf io "%-25.15E\n" em
     end
     close(io)
 
@@ -474,7 +482,7 @@ RecipesBase.@recipe function hadroncorrelator(
         titlefontsize --> 10
         title --> "Ensemble: $(split(m.ensemblename, "/")[end])"
         label --> corrname
-        ylims --> (minimum(Float64.(C))*0.5, maximum(Float64.(C))*1.3)
+        # ylims --> (minimum(Float64.(C))*0.5, maximum(Float64.(C))*1.3)
         yscale := logscale ? :log10 : :identity
         y = with_errs ? value.(C) : Float64.(C)
         if with_errs
@@ -557,5 +565,486 @@ RecipesBase.@recipe function eigenvalues(ev::Eigenvalues; tf=0, xlims=(-1, 16), 
     @series begin
         label --> "dirac eigenvalues"
         yre, yim
+    end
+end
+
+@userplot PCACMass
+
+"""
+    pcacmass(m::MetaMeasurements, pp::Symbol, ap::Symbol;
+             logscale=false, style=:line, tf=0, with_errs=false,
+             fit_plateau=false, plateau_range=nothing)
+
+Plot the PCAC mass constructed from the pseudoscalar-pseudoscalar
+correlator `pp` and axial-pseudoscalar correlator `ap`.
+
+The PCAC mass is defined using the symmetric lattice derivative
+
+    am_PCAC(t) = [C_AP(t-1) - C_AP(t+1)] / [4 C_PP(t)]
+
+where the factor 2 in the denominator is the conventional PCAC
+normalization and the symmetric derivative contributes another 1/2.
+
+For periodic correlators the forward/backward averaged correlators
+are used in the same way as `hadroncorrelator`.
+
+If `with_errs=true`, ADerrors.jl is used to propagate correlations
+between the correlator measurements. A bootstrap fallback is used
+if the correlator cannot be converted directly to a `uwreal`.
+
+If `fit_plateau=true`, a correlated weighted plateau estimate is
+constructed from the PCAC-mass points.
+"""
+RecipesBase.@recipe function pcacmass(
+    hc::PCACMass;
+    logscale=false,
+    style=:line,
+    tf=0,
+    with_errs=false,
+    fit_plateau=false,
+    plateau_range=nothing,
+    staggered=false,
+    ntherm=0,
+)
+
+    fit_plateau && !with_errs && throw(ArgumentError(
+        "fit_plateau=true requires with_errs=true so the plateau error " *
+        "can be obtained via ADerrors.jl"
+    ))
+
+    sessid = rand(UInt64)
+
+    size --> (600, 500)
+    link := :x
+    layout := (2, 1)
+
+    # ------------------------------------------------------------------
+    # Input
+    # ------------------------------------------------------------------
+
+    m, pp, ap = hc.args[1:3]
+
+    savedir = joinpath(m.ensemblepath, "analysis")
+
+    ppname = string(pp)
+    apname = string(ap)
+
+    is_gflow_pp = contains(ppname, "gflow")
+    is_gflow_ap = contains(apname, "gflow")
+
+    @assert pp ∈ observables(m) "Observable $pp is not in Measurements"
+    @assert ap ∈ observables(m) "Observable $ap is not in Measurements"
+
+    tf > 0 && @assert is_gflow_pp && is_gflow_ap
+    is_gflow_pp && @assert tf > 0
+    is_gflow_ap && @assert tf > 0
+
+    seriestype := style
+
+    # ------------------------------------------------------------------
+    # Determine temporal extent from PP correlator
+    # ------------------------------------------------------------------
+
+    obs_keys = collect(keys(getproperty(m, pp)))
+
+    filter!(x -> x != "itrj", obs_keys)
+    filter!(x -> x != "C" && x != "C_flowed", obs_keys)
+    filter!(x -> contains(x, "tf=$(tf)"), obs_keys)
+
+    tmp = if is_gflow_pp
+        [split(obs_keys[i], "_")[end-1] for i in eachindex(obs_keys)]
+    else
+        last.(split.(obs_keys, "_"))
+    end
+
+    @show tmp
+    nums = sort(parse.(Int, tmp))
+
+    T = length(nums)
+    cstart = staggered ? 1 : 2
+    corrrange = cstart:div(T, 2)+cstart-1
+    T2 = length(corrrange)
+
+    # @show T, corrrange[end]
+
+    # ------------------------------------------------------------------
+    # Correlator key construction
+    # ------------------------------------------------------------------
+
+    # This follows the naming convention used in hadroncorrelator.
+    #
+    # For example:
+    #   pp = :pseudoscalar_pseudo_corr
+    #   ap = :axial_pseudo_corr
+    #
+    # giving
+    #   pseudoscalar_corr_2
+    #   axial_corr_2
+    #
+    # Adjust this helper if your actual observable naming differs.
+
+    function corrkey(correlator, it)
+        name = string(correlator)
+
+        corr = join(split(name, "_")[3:4], "_")
+
+        if contains(name, "gflow")
+            return "$(corr)_corr_$(it)_000 (tf=$tf)"
+        else
+            return "$(corr)_corr_$(it)"
+        end
+    end
+
+    # ------------------------------------------------------------------
+    # Construct symmetrised PP and AP correlators
+    # ------------------------------------------------------------------
+
+    PP = []
+    AP = []
+
+    for it in corrrange
+        # Periodic partner.
+        jt = T - it + cstart
+
+        itrj_pp = getproperty(m, pp)["itrj"]
+        sep_pp = Int(itrj_pp[2] - itrj_pp[1])
+        start_idx_pp = (ntherm ÷ sep_pp) + 1
+        pp1 = getproperty(m, pp)[corrkey(pp, it)]
+        pp2 = getproperty(m, pp)[corrkey(pp, jt)]
+
+        itrj_ap = getproperty(m, ap)["itrj"]
+        sep_ap = Int(itrj_ap[2] - itrj_ap[1])
+        start_idx_ap = (ntherm ÷ sep_ap) + 1
+        ap1 = getproperty(m, ap)[corrkey(ap, it)]
+        ap2 = getproperty(m, ap)[corrkey(ap, jt)]
+
+        if with_errs
+            try
+                # PP
+                if it != div(T, 2) + 1
+                    u1 = uwreal(pp1[start_idx_pp:end], "$(pp)_$(it) $(sessid)")
+                    u2 = uwreal(pp2[start_idx_pp:end], "$(pp)_$(jt) $(sessid)")
+                    upp = (u1 + u2) / 2
+                else
+                    upp = uwreal(pp1[start_idx_pp:end], "$(pp)_$(it) $(sessid)")
+                end
+
+                # AP
+                if it != div(T, 2) + 1
+                    u1 = uwreal(ap1[start_idx_ap:end], "$(ap)_$(it) $(sessid)")
+                    u2 = uwreal(ap2[start_idx_ap:end], "$(ap)_$(jt) $(sessid)")
+                    uap = (u1 - u2) / 2
+                else
+                    uap = uwreal(ap1[start_idx_ap:end], "$(ap)_$(it) $(sessid)")
+                end
+
+                uwerr(upp)
+                uwerr(uap)
+
+                push!(PP, upp)
+                push!(AP, uap)
+
+            catch _
+                # Bootstrap fallback
+                r1 = analyze(pp1[start_idx_pp:end], Bootstrap())
+                r2 = analyze(pp2[start_idx_pp:end], Bootstrap())
+
+                if it != div(T, 2) + 1
+                    upp = (
+                        uwreal(
+                            [r1["mean"], r1["stderr"]],
+                            "$(pp)_$(it) $(sessid) bb"
+                        ) +
+                        uwreal(
+                            [r2["mean"], r2["stderr"]],
+                            "$(pp)_$(jt) $(sessid) bb"
+                        )
+                    ) / 2
+                else
+                    upp = uwreal(
+                        [r1["mean"], r1["stderr"]],
+                        "$(pp)_$(it) $(sessid) bb"
+                    )
+                end
+
+                r1 = analyze(ap1[start_idx_ap:end], Bootstrap())
+                r2 = analyze(ap2[start_idx_ap:end], Bootstrap())
+
+                if it != div(T, 2) + 1
+                    uap = (
+                        uwreal(
+                            [r1["mean"], r1["stderr"]],
+                            "$(ap)_$(it) $(sessid) bb"
+                        ) -
+                        uwreal(
+                            [r2["mean"], r2["stderr"]],
+                            "$(ap)_$(jt) $(sessid) bb"
+                        )
+                    ) / 2
+                else
+                    uap = uwreal(
+                        [r1["mean"], r1["stderr"]],
+                        "$(ap)_$(it) $(sessid) bb"
+                    )
+                end
+
+                uwerr(upp)
+                uwerr(uap)
+
+                push!(PP, upp)
+                push!(AP, uap)
+            end
+
+        else
+            upp = (
+                sum(pp1) / length(pp1) +
+                sum(pp2) / length(pp2)
+            ) / 2
+
+            uap = (
+                sum(ap1) / length(ap1) +
+                sum(ap2) / length(ap2)
+            ) / 2
+
+            push!(PP, upp)
+            push!(AP, uap)
+        end
+    end
+
+    # ------------------------------------------------------------------
+    # PCAC mass
+    # ------------------------------------------------------------------
+    #
+    # am_PCAC(t) =
+    #
+    #     [C_AP(t-1) - C_AP(t+1)] / [4 C_PP(t)]
+    #
+    # The points at the boundaries cannot be evaluated with the
+    # symmetric derivative.
+    # ------------------------------------------------------------------
+
+    mpcac = []
+
+    # PCAC point corresponding to temporal coordinate t
+    #
+    # PP/AP are indexed by the reduced corrrange.
+    #
+    # For t = corrrange[i], the neighbours are i-1 and i+1.
+
+    for i in 2:T2-1
+
+        tmp2 = try
+            dAP = (AP[i-1] - AP[i+1]) / 2
+            u = dAP / (2 * PP[i])
+            with_errs && uwerr(u)
+            u
+        catch _
+            with_errs ? uwreal([0.0, 0.0], "pcac_$(i)") : 0.0
+        end
+
+        push!(mpcac, tmp2)
+    end
+
+    if with_errs
+        uwerr.(mpcac)
+    end
+
+    # ------------------------------------------------------------------
+    # Output names
+    # ------------------------------------------------------------------
+
+    ensemble = split(m.ensemblename, "/")[end]
+
+    corrname = "PCAC_mass_$(replace(string(pp), "_" => "-"))_" *
+               "$(replace(string(ap), "_" => "-"))_tf$(tf)"
+
+    mkpath(savedir)
+
+    # ------------------------------------------------------------------
+    # Write PCAC mass to file
+    # ------------------------------------------------------------------
+
+    io = open(joinpath(savedir, corrname), "w")
+
+    println(
+        io,
+        "$(rpad("t", 5, " "))" *
+        "$(rpad("mean", 25, " "))" *
+        "$(rpad("err", 25, " "))"
+    )
+
+    for (i, mass) in enumerate(mpcac)
+        t = corrrange[i+1]
+
+        vm = with_errs ? value(mass) : mass
+        em = with_errs ? ADerrors.err(mass) : 0.0
+
+        @printf io "%-5i" t
+        @printf io "%-25.15E" vm
+        @printf io "%-25.15E\n" em
+    end
+
+    close(io)
+
+    # ------------------------------------------------------------------
+    # Plateau fit
+    # ------------------------------------------------------------------
+
+    mpcac_plateau = nothing
+    pval = perr = nothing
+    selected = Int[]
+
+    if fit_plateau
+
+        prange = something(
+            plateau_range,
+            (
+                corrrange[end] - T2 ÷ 3 - 2 :
+                corrrange[end] - 1
+            )
+        )
+
+        prange = collect(prange)
+
+        # mpcac[i] corresponds to corrrange[i+1]
+        @assert all(t -> t ∈ corrrange[2:end-1], prange)
+            "plateau_range $(prange) is out of bounds " *
+            "$(corrrange[2:end-1])"
+
+        selected = filter(
+            t -> ADerrors.err(mpcac[t - first(corrrange)]) > 0,
+            prange
+        )
+
+        isempty(selected) && error(
+            "No valid points in plateau_range=$(prange) to fit " *
+            "(all have zero error)."
+        )
+
+        # Convert temporal coordinates into mpcac indices.
+        inds = [t - first(corrrange) for t in selected]
+
+        w = 1 ./ ADerrors.err.(mpcac[inds]) .^ 2
+
+        mpcac_plateau =
+            sum(w .* mpcac[inds]) / sum(w)
+
+        uwerr(mpcac_plateau)
+
+        pval = value(mpcac_plateau)
+        perr = ADerrors.err(mpcac_plateau)
+
+        println(
+            "PCAC plateau fit [$(first(selected)), $(last(selected))] " *
+            "for $(ensemble): " *
+            "am_PCAC = $(pval) ± $(perr)"
+        )
+    end
+
+    # ------------------------------------------------------------------
+    # Write plateau result
+    # ------------------------------------------------------------------
+
+    io = open(joinpath(savedir, corrname * "_plateau"), "w")
+
+    if fit_plateau
+        println(
+            io,
+            "# Plateau fit in range " *
+            "[$(first(selected)), $(last(selected))]: " *
+            "am_PCAC = $(pval) ± $(perr)"
+        )
+    end
+
+    println(
+        io,
+        "$(rpad("t", 5, " "))" *
+        "$(rpad("mean", 25, " "))" *
+        "$(rpad("err", 25, " "))"
+    )
+
+    for (i, mass) in enumerate(mpcac)
+        t = corrrange[i+1]
+        vm = with_errs ? value(mass) : mass
+        em = with_errs ? ADerrors.err(mass) : 0.0
+        @printf io "%-5i" t
+        @printf io "%-25.15E" vm
+        @printf io "%-25.15E\n" em
+    end
+
+    close(io)
+
+    # ------------------------------------------------------------------
+    # Plot
+    # ------------------------------------------------------------------
+
+    xlabel --> "Time Extent"
+
+    linecolor := DEFAULT_COLORS[1]
+    markercolor := DEFAULT_COLORS[1]
+    markershape := :circ
+
+    @series begin
+        subplot := 1
+
+        ylabel --> L"C_{PP}(t)"
+        titlefontsize --> 10
+        title --> "Ensemble: $(ensemble)"
+        label --> "PP: $(pp)"
+
+        yscale := logscale ? :log10 : :identity
+
+        y = with_errs ? value.(PP) : Float64.(PP)
+
+        if with_errs
+            yerror := ADerrors.err.(PP)
+        end
+
+        collect(corrrange).-1, y
+    end
+
+    @series begin
+        subplot := 2
+
+        ylabel --> L"am_\mathrm{PCAC}"
+        label --> "PCAC mass"
+        yscale := logscale ? :log10 : :identity
+
+        y = with_errs ? value.(mpcac) : Float64.(mpcac)
+
+        if with_errs
+            yerror := ADerrors.err.(mpcac)
+        end
+
+        if fit_plateau
+            ylims --> (
+                minimum(y .- (with_errs ? ADerrors.err.(mpcac) : 0)) * 0.9,
+                maximum(y .+ (with_errs ? ADerrors.err.(mpcac) : 0)) * 1.1
+            )
+        end
+
+        legend --> :topright
+
+        collect(corrrange[2:end-1]), y
+    end
+
+    if fit_plateau
+        @series begin
+            subplot := 2
+            ylabel --> L"am_\mathrm{PCAC}"
+            seriestype := :path
+            markershape := :none
+
+            linecolor := DEFAULT_COLORS[2]
+            fillcolor := DEFAULT_COLORS[2]
+            fillalpha --> 0.25
+
+            ribbon := perr
+
+            label --> "plateau: $(round(pval, digits=5)) ± " *
+                      "$(round(perr, digits=5))"
+
+            selected, fill(pval, length(selected))
+        end
     end
 end

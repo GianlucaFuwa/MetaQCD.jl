@@ -25,7 +25,6 @@ import ..Updates: set_instanton!
 export run_build, run_sim, metaqcd
 
 const TIME_BUFFER = 30 * 60 # 30 Minute buffer for job termination
-const JOB_TIME_LIMIT = @load_preference("JOB_TIME_LIMIT", Inf) * 60 # should be given in minutes in LocalPreferences.toml
 
 function metaqcd(parameterfile::String)
     # When using MPI we make sure that only rank 0 prints to the console

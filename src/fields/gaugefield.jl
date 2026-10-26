@@ -280,3 +280,24 @@ function convert_field(
     invalidate_halo!(Uout)
     return Uout
 end
+
+function convert_field!(
+    Uout::Gaugefield{Bout,Tout,M,GA,N}, Uin::Gaugefield{Bin,Tin,M,GA,N}
+) where {M,Bout,Tout,Bin,Tin,GA,N}
+    if Bout === Bin
+        copy!(Uout, Uin)
+        return nothing
+    end
+
+    Uarr = OffsetArray(array_type(Bout)(Uin.U.parent), OffsetArrays.Origin(Uin.U))
+
+    parallelfor(eachindex(Uout), Bout, Val(false), (), (Uout,), (Uout,)) do site, (Uout,)
+        Uout[1, site] = _getindex_mat(Val(N), Uarr, 1, site, Tout)
+        Uout[2, site] = _getindex_mat(Val(N), Uarr, 2, site, Tout)
+        Uout[3, site] = _getindex_mat(Val(N), Uarr, 3, site, Tout)
+        Uout[4, site] = _getindex_mat(Val(N), Uarr, 4, site, Tout)
+    end
+
+    invalidate_halo!(Uout)
+    return nothing
+end

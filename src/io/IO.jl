@@ -15,7 +15,7 @@ import ..BiasModule: Bias, BiasSerialization, NoBias, calc_cv, recalc_cv!
 import ..Fields: AbstractField, Gaugefield, Spinorfield, SpinorfieldEO, Paulifield
 import ..Fields: Tensorfield, MultiSpinorfield, CPU, get_backend, bzeros, BACKENDS
 import ..Fields: is_distributed, get_global_volume, get_global_dims, parallelfor, invalidate_halo!
-import ..Fields: WilsonGaugeAction, array_type, convert_field, device_to_host, allindices
+import ..Fields: WilsonGaugeAction, array_type, convert_field, convert_field!, device_to_host, allindices
 import ..Universe: init_fermion_actions
 import ..Updates: Updatemethod, HMC
 
@@ -85,12 +85,15 @@ include("bridge_format.jl")
 include("jld2_format.jl")
 include("mpi_format.jl")
 
-mutable struct Checkpointer{T}
+mutable struct Checkpointer{T,TG}
+    Ucpu::TG
     checkpoint_dir::String
     checkpoint_every::Int64
 
-    function Checkpointer(checkpoint_dir, checkpoint_every)
+    function Checkpointer(U, checkpoint_dir, checkpoint_every)
         if checkpoint_every > 0
+            Ucpu = convert_field(CPU, U)
+            TG = typeof(Ucpu)
             T = JLD2Format
             @level1("- Checkpoints will be created!")
             @level1("|  FORMAT: JLD2")
@@ -98,11 +101,13 @@ mutable struct Checkpointer{T}
             @level1("|  INTERVAL: $(checkpoint_every)")
             @level1("-\n")
         else
+            Ucpu = nothing
+            TG = Nothing
             T = Nothing
         end
 
         mpi_amroot(mpi_comm_instance()) && flush(__GlobalLogger[])
-        return new{T}(checkpoint_dir, checkpoint_every)
+        return new{T,TG}(Ucpu, checkpoint_dir, checkpoint_every)
     end
 end
 
@@ -124,7 +129,7 @@ function create_checkpoint(
         @level1("|  Creating checkpoint")
         filename = joinpath(cp.checkpoint_dir, "checkpoint_$(instance)_$(rank).jld2")
         create_checkpoint(
-            T(), univ, updatemethod, updatemethod_pt, itrj, numaccepts, numaccepts_t, filename
+            T(), cp.Ucpu, univ, updatemethod, updatemethod_pt, itrj, numaccepts, numaccepts_t, filename
         )
         @level1("|  Checkpoint created in $(cp.checkpoint_dir)")
         @level1("|")
