@@ -167,7 +167,7 @@ RecipesBase.@recipe function timeseries(
     ts::TimeSeries; seriestype=:line, irange=Colon(), tf=nothing,
 )
     m, observable = ts.args[1:2]
-    @assert !occursin("correlator", string(observable)) "timeseries not supported for correlators"
+    # @assert !occursin("correlator", string(observable)) "timeseries not supported for correlators"
     @assert !occursin("eigenvalues", string(observable)) "timeseries not supported for eigenvalues"
     if observable != :bias_data
         @assert observable ∈ observables(m) "Observable $observable is not in Measurements"
@@ -316,6 +316,7 @@ RecipesBase.@recipe function hadroncorrelator(
     link := :x
     layout := (2, 1)
     m, correlator = hc.args[1:2]
+    ename = m.ensemblename
     savedir = joinpath(m.ensemblepath, "analysis")
     corrname = "$(join(split(string(correlator), "_")[1:end-2], " ")) (tf=$tf)"
     is_gflow = contains(String(correlator), "gflow")
@@ -353,11 +354,11 @@ RecipesBase.@recipe function hadroncorrelator(
         tmp2 = if with_errs
             try
                 if it != div(T, 2)+1
-                    u1 = uwreal(_tmp1[start_idx:end], "$(str(it)) $(sessid)")
-                    u2 = uwreal(_tmp2[start_idx:end], "$(str(it)) $(sessid)")
+                    u1 = uwreal(_tmp1[start_idx:end], "$(ename) $(sessid)")
+                    u2 = uwreal(_tmp2[start_idx:end], "$(ename) $(sessid)")
                     u = (u1 + u2) / 2
                 else
-                    u = uwreal(_tmp1[start_idx:end], "$(str(it)) $(sessid)")
+                    u = uwreal(_tmp1[start_idx:end], "$(ename) $(sessid)")
                 end
                 uwerr(u)
                 u
@@ -365,12 +366,12 @@ RecipesBase.@recipe function hadroncorrelator(
                 if it != div(T, 2)+1
                     r1 = analyze(_tmp1[start_idx:end], Bootstrap())
                     r2 = analyze(_tmp2[start_idx:end], Bootstrap())
-                    u1 = uwreal([r1["mean"], r1["stderr"]], "$(str(it)) $(sessid) bb")
-                    u2 = uwreal([r2["mean"], r2["stderr"]], "$(str(it)) $(sessid) bb")
+                    u1 = uwreal([r1["mean"], r1["stderr"]], "$(ename) $(sessid)")
+                    u2 = uwreal([r2["mean"], r2["stderr"]], "$(ename) $(sessid)")
                     u = (u1 + u2) / 2
                 else
                     r = analyze(_tmp1[start_idx:end], Bootstrap())
-                    u = uwreal([r["mean"], r["stderr"]], "$(str(it)) $(sessid) bb")
+                    u = uwreal([r["mean"], r["stderr"]], "$(ename) $(sessid)")
                 end
                 uwerr(u)
                 u
@@ -623,6 +624,7 @@ RecipesBase.@recipe function pcacmass(
     # ------------------------------------------------------------------
 
     m, pp, ap = hc.args[1:3]
+    ename = m.ensemblename
 
     savedir = joinpath(m.ensemblepath, "analysis")
 
@@ -657,7 +659,7 @@ RecipesBase.@recipe function pcacmass(
         last.(split.(obs_keys, "_"))
     end
 
-    @show tmp
+    # @show tmp
     nums = sort(parse.(Int, tmp))
 
     T = length(nums)
@@ -722,20 +724,20 @@ RecipesBase.@recipe function pcacmass(
             try
                 # PP
                 if it != div(T, 2) + 1
-                    u1 = uwreal(pp1[start_idx_pp:end], "$(pp)_$(it) $(sessid)")
-                    u2 = uwreal(pp2[start_idx_pp:end], "$(pp)_$(jt) $(sessid)")
+                    u1 = uwreal(pp1[start_idx_pp:end], "$(ename) $(sessid)")
+                    u2 = uwreal(pp2[start_idx_pp:end], "$(ename) $(sessid)")
                     upp = (u1 + u2) / 2
                 else
-                    upp = uwreal(pp1[start_idx_pp:end], "$(pp)_$(it) $(sessid)")
+                    upp = uwreal(pp1[start_idx_pp:end], "$(ename) $(sessid)")
                 end
 
                 # AP
                 if it != div(T, 2) + 1
-                    u1 = uwreal(ap1[start_idx_ap:end], "$(ap)_$(it) $(sessid)")
-                    u2 = uwreal(ap2[start_idx_ap:end], "$(ap)_$(jt) $(sessid)")
+                    u1 = uwreal(ap1[start_idx_ap:end], "$(ename) $(sessid)")
+                    u2 = uwreal(ap2[start_idx_ap:end], "$(ename) $(sessid)")
                     uap = (u1 - u2) / 2
                 else
-                    uap = uwreal(ap1[start_idx_ap:end], "$(ap)_$(it) $(sessid)")
+                    uap = uwreal(ap1[start_idx_ap:end], "$(ename) $(sessid)")
                 end
 
                 uwerr(upp)
@@ -743,7 +745,6 @@ RecipesBase.@recipe function pcacmass(
 
                 push!(PP, upp)
                 push!(AP, uap)
-
             catch _
                 # Bootstrap fallback
                 r1 = analyze(pp1[start_idx_pp:end], Bootstrap())
@@ -753,17 +754,17 @@ RecipesBase.@recipe function pcacmass(
                     upp = (
                         uwreal(
                             [r1["mean"], r1["stderr"]],
-                            "$(pp)_$(it) $(sessid) bb"
+                            "$(ename) $(sessid)"
                         ) +
                         uwreal(
                             [r2["mean"], r2["stderr"]],
-                            "$(pp)_$(jt) $(sessid) bb"
+                            "$(ename) $(sessid)"
                         )
                     ) / 2
                 else
                     upp = uwreal(
                         [r1["mean"], r1["stderr"]],
-                        "$(pp)_$(it) $(sessid) bb"
+                        "$(ename) $(sessid)"
                     )
                 end
 
@@ -774,17 +775,17 @@ RecipesBase.@recipe function pcacmass(
                     uap = (
                         uwreal(
                             [r1["mean"], r1["stderr"]],
-                            "$(ap)_$(it) $(sessid) bb"
+                            "$(ename) $(sessid)"
                         ) -
                         uwreal(
                             [r2["mean"], r2["stderr"]],
-                            "$(ap)_$(jt) $(sessid) bb"
+                            "$(ename) $(sessid)"
                         )
                     ) / 2
                 else
                     uap = uwreal(
                         [r1["mean"], r1["stderr"]],
-                        "$(ap)_$(it) $(sessid) bb"
+                        "$(ename) $(sessid)"
                     )
                 end
 
@@ -839,7 +840,7 @@ RecipesBase.@recipe function pcacmass(
             with_errs && uwerr(u)
             u
         catch _
-            with_errs ? uwreal([0.0, 0.0], "pcac_$(i)") : 0.0
+            with_errs ? uwreal([0.0, 0.0], "$(ename) $(sessid)") : 0.0
         end
 
         push!(mpcac, tmp2)

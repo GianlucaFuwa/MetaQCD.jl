@@ -5,6 +5,7 @@ using Random
 using Test
 using Polyester
 
+include("./test_rhmc.jl")
 include("./test_io.jl")
 include("./test_checkpoint.jl")
 include("./test_meas.jl")
@@ -160,6 +161,7 @@ end
 sout = mpi_amroot() ? stdout : devnull
 redirect_stdout(sout) do
     if mpi_size() == 1
+        test_rhmc()
         @testset "Linear Algebra Tests" begin
             test_cdot()
             test_ckron()

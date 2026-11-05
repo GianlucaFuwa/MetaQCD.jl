@@ -1,7 +1,7 @@
 const HIDE_COMMS = Val(@load_preference("MPI_HIDE_COMMUNICATION", false))
 const TUNE_KERNELS = Val(@load_preference("TUNE_KERNELS", false))
 
-const KERNEL_CACHE::Dict{Tuple{DataType,DataType},Int64} = Dict{String,Int64}() # (function_type, precision) => block size
+const KERNEL_CACHE = Dict{Tuple,Int64}() # (launch kind, function, precision, iterator type) => block size
 const MAX_SHMEM = Base.RefValue{Int64}(0)
 
 function groupreduce end    #
@@ -29,11 +29,20 @@ function parallelfor(
     captured::Tuple;
     block_size=min(256, length(itr)),
     do_edges::Val{E}=Val(false),
-    stream=default_stream(B())
+    stream=default_stream(B()),
 ) where {B,M,E}
     return parallelfor(
-        f, itr, B, Val(M), HIDE_COMMS, to_validate, invalidated, captured;
-        block_size, do_edges, stream
+        f,
+        itr,
+        B,
+        Val(M),
+        HIDE_COMMS,
+        to_validate,
+        invalidated,
+        captured;
+        block_size,
+        do_edges,
+        stream,
     )
 end
 
@@ -48,39 +57,41 @@ function parallelfor(
     captured::Tuple;
     block_size=min(256, length(itr)),
     do_edges::Val{E}=Val(false),
-    stream=default_stream(B())
+    stream=default_stream(B()),
 ) where {B,M,hide,E}
-    if M && (hide && B!=CPU) && length(to_validate) > 0
-        # Drain the default (per-thread) stream before enqueuing the inner-bulk
-        # kernel on the low-priority stream.  The *previous* parallelfor call
-        # wrote border rows of the input field(s) on the PTDS (default stream);
-        # those rows are read as stencil neighbours by the inner-bulk kernel.
-        # Without this fence the two streams race: PTDS (normal priority) and
-        # cu_streams[1] (low priority) have no implicit ordering on the GPU.
-        synchronize(B(), default_stream(B()))
-        # launch inner comp (async)
-        hw, idx = findmax(get_halo_width, to_validate)
+    if M && (hide && B != CPU) &&
+        length(to_validate) > 0 &&
+        any(u -> !halo_is_valid(u, do_edges), to_validate) &&
+        can_overlap_halo(itr, to_validate, do_edges)
+
+        hw, idx = findmax(
+            u -> halo_is_valid(u, do_edges) ? 0 : get_halo_width(u), to_validate
+        )
         inner_bulk = shrink_bulk(itr, hw, to_validate[1].topology.numprocs_cart)
-        new_block_size = min(block_size, min(256, length(inner_bulk)))
-        _parallelfor(f, captured, inner_bulk, B, new_block_size; stream)
+        compute_stream = get_stream(B(), 1)
+        first_invalid = findfirst(u -> !halo_is_valid(u, do_edges), to_validate)
+        event = halo_plan(to_validate[first_invalid], do_edges).done_event
+        record_stream_event!(B(), event, stream)
+        wait_stream_event!(B(), compute_stream, event)
+        _parallelfor(
+            f, captured, inner_bulk, B, min(block_size, 256); stream=compute_stream
+        )
 
-        # do exchange 
-        start_halo_update!(to_validate; do_edges)
-
-        # launch outer comp
-        border_iterators = to_validate[idx].topology.border_iterators
-        new_block_size = min(block_size, min(256, length(border_iterators[1])))
-        for i in eachindex(border_iterators)
-            border_stream = get_stream(B(), i)
-            _parallelfor(
-                f, captured, border_iterators[i], B, new_block_size; stream=border_stream
-            )
-        end
-        for i in eachindex(border_iterators)
-            synchronize(B(), get_stream(B(), i))
-        end
-    elseif M && (!hide || B==CPU) && length(to_validate) > 0
-        update_halo!(to_validate; do_edges)
+        plans = begin_halo_update!(
+            to_validate; do_edges, stream, destination=compute_stream
+        )
+        # All disjoint boundary slabs share a launch and the same GPU queue.
+        borders = kernel_border_iterators(itr, to_validate[idx].topology.border_iterators)
+        _parallelfor(f, captured, borders, B, min(block_size, 256); stream=compute_stream)
+        record_stream_event!(B(), event, compute_stream)
+        wait_stream_event!(B(), stream, event)
+        # MPI reads only packed buffers; boundary computation can run while
+        # outstanding sends complete, before those buffers are reused.
+        finish_halo_sends!(plans)
+    elseif M &&
+        length(to_validate) > 0 &&
+        any(u -> !halo_is_valid(u, do_edges), to_validate)
+        update_halo!(to_validate; do_edges, stream)
         _parallelfor(f, captured, itr, B, block_size; stream)
     else
         _parallelfor(f, captured, itr, B, block_size; stream)
@@ -88,6 +99,22 @@ function parallelfor(
 
     invalidate_halo!.(invalidated)
     return nothing
+end
+
+@inline can_overlap_halo(itr, fields, edges) = false
+@inline function can_overlap_halo(itr::CartesianIndices, fields, edges)
+    # Topology border iterators cover the full bulk, not arbitrary subdomains
+    # (for example the even half of a checkerboard field).
+    itr.indices[1:4] == fields[1].topology.bulk_sites.indices || return false
+    hw = maximum(u -> halo_is_valid(u, edges) ? 0 : get_halo_width(u), fields)
+    parts = fields[1].topology.numprocs_cart
+    return all(d -> parts[d] == 1 || length(itr.indices[d]) >= 2hw, 1:4)
+end
+
+# GPU gauge/tensor kernels carry the direction as the last iterator dimension.
+@inline kernel_border_iterators(::CartesianIndices{4}, borders) = borders
+@inline function kernel_border_iterators(itr::CartesianIndices{5}, borders)
+    return map(b -> CartesianIndices((b.indices..., itr.indices[5])), borders)
 end
 
 function _parallelfor(f, captured, itr, ::Type{CPU}, ::Int; kwargs...)
@@ -111,11 +138,16 @@ function _parallelfor(f, captured, itrs::Tuple, ::Type{CPU}, ::Int; kwargs...)
 end
 
 function _parallelfor(
-    f, captured, itr, ::Type{backend}, block_size::Int=min(256, length(itr));
-    stream=default_stream(backend())
+    f,
+    captured,
+    itr,
+    ::Type{backend},
+    block_size::Int=min(256, length(itr));
+    stream=default_stream(backend()),
 ) where {backend}
-    @assert block_size > 0
     itr_tup = itr isa Tuple ? itr : (itr,)
+    all(isempty, itr_tup) && return nothing
+    @assert block_size > 0
     launch_foreachindex_global!(backend(), f, captured, itr_tup, block_size, stream)
     return nothing
 end
@@ -146,6 +178,11 @@ function launch_foreachindex_global! end
     return nothing
 end
 
+@inline function _foreachindex_fused!(f, captured, itrs::Tuple)
+    _foreachindex_global!(f, captured, itrs...)
+    return nothing
+end
+
 @inline function _foreachindex_global!(f, captured, itr...)
     ithread = threadidx().x + (groupidx().x - Int32(1)) * groupdim().x
     itr_lengths = length.(itr)
@@ -170,11 +207,21 @@ function parallelfor_sum(
     captured::Tuple;
     block_size=min(256, length(itr)),
     do_edges::Val{E}=Val(false),
-    stream=default_stream(B())
+    stream=default_stream(B()),
 ) where {B,M,E}
     return parallelfor_sum(
-        f, itr, init, B, Val(M), HIDE_COMMS, to_validate, invalidated, captured;
-        block_size, do_edges, stream
+        f,
+        itr,
+        init,
+        B,
+        Val(M),
+        HIDE_COMMS,
+        to_validate,
+        invalidated,
+        captured;
+        block_size,
+        do_edges,
+        stream,
     )
 end
 
@@ -190,28 +237,36 @@ function parallelfor_sum(
     captured::Tuple;
     block_size=min(256, length(itr)),
     do_edges::Val{E}=Val(false),
-    stream=default_stream(B())
+    stream=default_stream(B()),
 ) where {B,M,hide,E}
-    if M && (hide && B!=CPU) && length(to_validate) > 0
+    if M &&
+        (hide && B != CPU) &&
+        length(to_validate) > 0 &&
+        any(u -> !halo_is_valid(u, do_edges), to_validate) &&
+        can_overlap_halo(itr, to_validate, do_edges)
         # inner work
-        hw, idx = findmax(get_halo_width, to_validate)
+        hw, idx = findmax(
+            u -> halo_is_valid(u, do_edges) ? 0 : get_halo_width(u), to_validate
+        )
         inner_bulk = shrink_bulk(itr, hw, to_validate[1].topology.numprocs_cart)
         new_block_size = min(block_size, min(256, length(inner_bulk)))
         result = _parallelfor_sum(f, captured, inner_bulk, init, B, new_block_size; stream)
 
-        start_halo_update!(to_validate; do_edges)
+        start_halo_update!(to_validate; do_edges, stream)
 
         # outer work
-        border_iterators = to_validate[idx].topology.border_iterators
-        new_block_size = min(block_size, min(256, length(border_iterators[1])))
-        for i in eachindex(border_iterators)
-            border_stream = get_stream(B(), i)
-            result += _parallelfor_sum(
-                f, captured, border_iterators, init, B, new_block_size; stream=border_stream
-            )
-        end
-    elseif M && (!hide || B==CPU) && length(to_validate) > 0
-        update_halo!(to_validate; do_edges)
+        border_iterators = kernel_border_iterators(
+            itr, to_validate[idx].topology.border_iterators
+        )
+        # Reduce every boundary exactly once, sharing one scratch vector and one
+        # final device-to-host reduction across all boundary slabs.
+        result += _parallelfor_sum(
+            f, captured, border_iterators, init, B, block_size; stream
+        )
+    elseif M &&
+        length(to_validate) > 0 &&
+        any(u -> !halo_is_valid(u, do_edges), to_validate)
+        update_halo!(to_validate; do_edges, stream)
         result = _parallelfor_sum(f, captured, itr, init, B, block_size; stream)
     else
         result = _parallelfor_sum(f, captured, itr, init, B, block_size; stream)
@@ -246,11 +301,17 @@ function _parallelfor_sum(f, captured, itrs::Tuple, init, ::Type{CPU}, ::Int; kw
 end
 
 function _parallelfor_sum(
-    f, captured, itr, init, ::Type{backend}, block_size::Int=min(256, length(itr));
-    stream=default_stream(backend())
+    f,
+    captured,
+    itr,
+    init,
+    ::Type{backend},
+    block_size::Int=min(256, length(itr));
+    stream=default_stream(backend()),
 ) where {backend}
-    @assert block_size > 0
     itr_tup = itr isa Tuple ? itr : (itr,)
+    all(isempty, itr_tup) && return init
+    @assert block_size > 0
     result = launch_foreachindex_reduce_global!(
         backend(), init, +, f, captured, itr_tup, block_size, stream
     )

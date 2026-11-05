@@ -5,12 +5,8 @@ using MetaQCD.Measurements: top_charge_deriv!
 using Test
 # using AMDGPU
 
-function test_derivative(
-    ; backend=CPU,
-    GA=WilsonGaugeAction,
-    numprocs_cart=(1, 1, 1, 1),
-    halo_width=1,
-    N=4
+function test_derivative(;
+    backend=CPU, GA=WilsonGaugeAction, numprocs_cart=(1, 1, 1, 1), halo_width=1, N=4
 )
     Random.seed!(123)
     mpi_amroot() && println("Gauge and Clover derivative test")
@@ -20,14 +16,12 @@ function test_derivative(
 
     @testset "Gauge derivative" begin
         NX = NY = NZ = NT = N
-        Ucpu = Gaugefield{CPU,Float64,GA,12}(
-            NX, NY, NZ, NT, 6.0; numprocs_cart, halo_width
-        )
+        Ucpu = Gaugefield{CPU,Float64,GA,12}(NX, NY, NZ, NT, 6.0; numprocs_cart, halo_width)
 
         filename = if numprocs_cart != (1, 1, 1, 1)
-            pkgdir(MetaQCD, "test", NX==4 ? "testconf_mpi" : "testconf_16_mpi")
+            pkgdir(MetaQCD, "test", NX == 4 ? "testconf_mpi" : "testconf_16_mpi")
         else
-            pkgdir(MetaQCD, "test", NX==4 ? "testconf.txt" : "testconf_16.txt")
+            pkgdir(MetaQCD, "test", NX == 4 ? "testconf.txt" : "testconf_16.txt")
         end
 
         load_field!(BridgeFormat(), Ucpu, filename)
@@ -63,6 +57,7 @@ function test_derivative(
             if site in eachindex(Ucpu)
                 Ufwdcpu[μ, site] = expλ(group_direction, ΔH) * Ufwdcpu[μ, site]
             end
+            MetaQCD.Fields.invalidate_halo!(Ufwdcpu)
             Ufwd = convert_field(backend, Ufwdcpu)
             gaction_new_fwd = calc_gauge_action(Ufwd)
             topcharge_new_fwd = top_charge(Clover(), Ufwd)
@@ -71,6 +66,7 @@ function test_derivative(
             if site in eachindex(Ucpu)
                 Ubwdcpu[μ, site] = expλ(group_direction, -ΔH) * Ubwdcpu[μ, site]
             end
+            MetaQCD.Fields.invalidate_halo!(Ubwdcpu)
             Ubwd = convert_field(backend, Ubwdcpu)
             gaction_new_bwd = calc_gauge_action(Ubwd)
             topcharge_new_bwd = top_charge(Clover(), Ubwd)
@@ -87,20 +83,24 @@ function test_derivative(
             calc_dSdU_bare!(dSdU, staples, U, nothing, NoSmearing())
             calc_dSdU_bare!(dSdU_smeared, staples, U, temp_force, smearing)
             top_charge_deriv_bare!(Clover(), dQdU, fieldstrength, U, nothing, NoSmearing())
-            top_charge_deriv_bare!(Clover(), dQdU_smeared, fieldstrength, U, temp_force, smearing)
+            top_charge_deriv_bare!(
+                Clover(), dQdU_smeared, fieldstrength, U, temp_force, smearing
+            )
 
             if site in eachindex(U)
                 dgaction_proj = real(multr(im * λ[group_direction], dSdU[μ, site]))
                 dtopcharge_proj = real(multr(im * λ[group_direction], dQdU[μ, site]))
-                dgaction_proj_smeared = real(multr(im * λ[group_direction], dSdU_smeared[μ, site]))
+                dgaction_proj_smeared = real(
+                    multr(im * λ[group_direction], dSdU_smeared[μ, site])
+                )
                 dtopcharge_proj_smeared = real(
                     multr(im * λ[group_direction], dQdU_smeared[μ, site])
                 )
             else
-                dgaction_proj = 1.0
-                dtopcharge_proj = 1.0
-                dgaction_proj_smeared = 1.0
-                dtopcharge_proj_smeared = 1.0
+                dgaction_proj = 0.0
+                dtopcharge_proj = 0.0
+                dgaction_proj_smeared = 0.0
+                dtopcharge_proj_smeared = 0.0
             end
 
             # if group_direction == 8
@@ -108,10 +108,21 @@ function test_derivative(
             #     @show topcharge_new_fwd_smeared, dtopcharge_proj_smeared
             # end
 
+            # The perturbed link can belong to any rank in the Cartesian grid.
+            dgaction_proj = mpi_allreduce(dgaction_proj, +, U.topology.comm_cart)
+            dtopcharge_proj = mpi_allreduce(dtopcharge_proj, +, U.topology.comm_cart)
+            dgaction_proj_smeared = mpi_allreduce(
+                dgaction_proj_smeared, +, U.topology.comm_cart
+            )
+            dtopcharge_proj_smeared = mpi_allreduce(
+                dtopcharge_proj_smeared, +, U.topology.comm_cart
+            )
+
             ga_symm_diff = (gaction_new_fwd - gaction_new_bwd) / 2ΔH
             tc_symm_diff = (topcharge_new_fwd - topcharge_new_bwd) / 2ΔH
             ga_symm_diff_smeared = (gaction_new_fwd_smeared - gaction_new_bwd_smeared) / 2ΔH
-            tc_symm_diff_smeared = (topcharge_new_fwd_smeared - topcharge_new_bwd_smeared) / 2ΔH
+            tc_symm_diff_smeared =
+                (topcharge_new_fwd_smeared - topcharge_new_bwd_smeared) / 2ΔH
 
             relerrors[group_direction, 1] = (ga_symm_diff - dgaction_proj) / ga_symm_diff
             relerrors[group_direction, 2] =
@@ -121,9 +132,12 @@ function test_derivative(
                 (tc_symm_diff_smeared - dtopcharge_proj_smeared) / tc_symm_diff_smeared
 
             if mpi_amroot()
-                println("================= Group direction $(group_direction) =================")
                 println(
-                    "/ GA rel. error (unsmeared): \t", (ga_symm_diff - dgaction_proj) / ga_symm_diff
+                    "================= Group direction $(group_direction) ================="
+                )
+                println(
+                    "/ GA rel. error (unsmeared): \t",
+                    (ga_symm_diff - dgaction_proj) / ga_symm_diff,
                 )
                 println(
                     "/ GA rel. error (smeared):   \t",

@@ -84,6 +84,7 @@ struct FermionAction{R,Nf,TD,TDl,CT,CTl,RI1,RI2,SA,SMD,TX} <: AbstractFermionAct
                     lambda_low=rhmc_spectral_bound[1],
                     lambda_high=rhmc_spectral_bound[2],
                     precision=rhmc_prec_action,
+                    tol=rhmc_tol_action,
                 )
                 @assert all(rhmc_info_action.maxerr .<= rhmc_tol_action) """
                 Rational approximation max. error for action is above given \"rhmc_tol_action\":
@@ -152,6 +153,7 @@ struct FermionAction{R,Nf,TD,TDl,CT,CTl,RI1,RI2,SA,SMD,TX} <: AbstractFermionAct
                 lambda_low=rhmc_lambda_low,
                 lambda_high=rhmc_lambda_high,
                 precision=rhmc_prec_action,
+                tol=rhmc_tol_action,
             )
             @assert all(rhmc_info_action.maxerr .<= rhmc_tol_action) """
             Rational approximation max. error for action is above given \"rhmc_tol_action\":
@@ -166,6 +168,7 @@ struct FermionAction{R,Nf,TD,TDl,CT,CTl,RI1,RI2,SA,SMD,TX} <: AbstractFermionAct
                 lambda_low=rhmc_lambda_low,
                 lambda_high=rhmc_lambda_high,
                 precision=rhmc_prec_md,
+                tol=rhmc_tol_md,
             )
             @assert all(rhmc_info_md.maxerr .<= rhmc_tol_md) """
             Rational approximation max. error for md is above given \"rhmc_tol_md\":

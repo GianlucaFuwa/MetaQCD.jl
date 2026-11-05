@@ -1,7 +1,6 @@
 # Adopted from https://github.com/akio-tomiya/LatticeDiracOperators.jl/blob/master/src/rhmc/rhmc.jl
 module RHMCParameters
 
-using LinearAlgebra
 using RationalFunctionApproximation
 using ..Utils
 
@@ -40,11 +39,14 @@ function fittedfunction(coeff)
 end
 
 """
-    RHMCParams(power::Rational, fun::Function; n=10, lambda_low=0.0004, lambda_high=64, tol=1e-6)
+    RHMCParams(power::Rational, fun::Function; n_max=10, lambda_low=0.0004, lambda_high=64, tol=1e-6)
 
 Return an `RHMCParams` which is a container for the Remez coefficients calculated with
 the specified `power` on the interval `[lambda_low, lambda_high]` and the specified
-`precision`.
+`precision` (decimal digits). Orders `1:n_max` are tested after minimax refinement;
+the first whose direct and inverse absolute errors both meet `tol` is returned.
+The inverse is fitted and the direct approximation is its algebraic reciprocal.
+If no order meets tolerance, the final candidate is returned with a warning.
 """
 struct RHMCParams{N1,N2}
     coeffs::AlgRemezCoeffs{N1}
@@ -67,7 +69,7 @@ struct RHMCParams{N1,N2}
         # suppress warnings from RationalFunctionApproximation.jl here
         my_out = mpi_amroot() ? stdout : devnull
         coeffs, coeffs_inv, err, err_inv, n, n_inv = redirect_stderr(my_out) do
-            calc_coefficients(num, den, n_max+1, lambda_low, lambda_high, precision, fun; tol)
+            calc_coefficients(num, den, n_max, lambda_low, lambda_high, precision, fun; tol)
         end
         maxerr = (err, err_inv)
         return new{n,n_inv}(coeffs, coeffs_inv, lambda_low, lambda_high, maxerr, num, den)
@@ -87,51 +89,62 @@ function calc_coefficients(
     y, z, n_max, lambda_low, lambda_high, precision, fun::Function=x -> x; tol=1000 * eps(Float64)
 )
     @assert y > 0 && z > 0 "Inputs y and z need to be positive"
-    f(x) = fun(x)^(y//z)
-    g(x) = fun(x)^(-y//z)
-    itvl = interval(lambda_low, lambda_high, precision)
+    @assert n_max >= 1 "n_max must be positive"
+    @assert 0 < lambda_low < lambda_high "invalid spectral interval"
+    @assert tol > 0 "tol must be positive"
+    # As in AlgRemez, precision specifies decimal digits. Keep all arithmetic,
+    # including the residue calculation, at that precision until final conversion.
+    return setprecision(BigFloat, ceil(Int, precision * log2(10))) do
+        f(x) = fun(x)^(y//z)
+        g(x) = fun(x)^(-y//z)
+        itvl = interval(lambda_low, lambda_high, Base.precision(BigFloat))
+        result = nothing
+        for n in 1:n_max
+            # AAA starts with two nodes (degree one). Disable its tolerance stop:
+            # acceptance is decided only after Lawson and dense error refinement.
+            r = approximate(g, itvl, AAA(); max_iter=n, tol=0, refinement=100,
+                stagnation=n_max + 1)
+            # At the iteration cap AAA may return an earlier, better interpolant.
+            # Refine the requested order rather than silently testing it twice.
+            r = minimax(RationalFunctionApproximation.rewind(r, length(r.history)), 20)
+            inverse = r.fun
+            # Swap barycentric numerator and denominator, preserving the stored
+            # weighted values from Lawson rather than recomputing their product.
+            direct = RationalFunctionApproximation.Barycentric(
+                nodes(inverse), inv.(values(inverse)), inverse.w_times_f,
+                weights(inverse))
+            coeffs_inv = partial_fraction_coefficients(inverse)
+            coeffs = partial_fraction_coefficients(direct)
+            xs, _ = check(r; quiet=true, refinement=100)
+            # Check the Float64 coefficients actually consumed by the solvers.
+            # Include a logarithmic grid for resolution near the lower bound.
+            append!(xs, exp.(range(log(BigFloat(lambda_low)), log(BigFloat(lambda_high));
+                length=1001)))
+            fitted = fittedfunction(coeffs)
+            fitted_inv = fittedfunction(coeffs_inv)
+            err = maximum(x -> abs(f(x) - fitted(x)), xs)
+            err_inv = maximum(x -> abs(g(x) - fitted_inv(x)), xs)
+            result = (coeffs, coeffs_inv, Float64(err), Float64(err_inv),
+                coeffs.n, coeffs_inv.n)
+            max(err, err_inv) <= tol && return result
+        end
+        @warn "RHMC approximation did not meet tolerance at n_max" n_max tol errors=result[3:4]
+        return result
+    end
+end
 
-    r_p = approximate(f, itvl; max_iter=n_max, tol=tol, refinement=100, stagnation=100)
-    # r_p = minimax(r_p, 20)
-    err_p = maximum(check(r_p, quiet=true, refinement=100)[2])
-    n_p = degree(r_p)
-
-    r_m = approximate(g, itvl; max_iter=n_max, tol=tol, refinement=100, stagnation=100)
-    # r_m = minimax(r_m, 20)
-    err_m = maximum(check(r_m, quiet=true, refinement=100)[2])
-    n_m = degree(r_m)
-
-    β_p = -Float64.(poles(r_p))
-    β_m = -Float64.(poles(r_m))
-
-    # Sample xs — log-space for better small-x resolution
-    xs_p = exp10.(range(log10(lambda_low), log10(lambda_high); length=100))
-    xs_p = filter(x -> all(abs(x + b) > 1e-10 for b in β_p), xs_p)
-    xs_m = exp10.(range(log10(lambda_low), log10(lambda_high); length=100))
-    xs_m = filter(x -> all(abs(x + b) > 1e-10 for b in β_m), xs_m)
-
-    # Evaluate r at sample points
-    ys_p = Float64.(r_p.(xs_p))
-    ys_m = Float64.(r_m.(xs_m))
-
-    # Build A: [1, 1/(x + β1), ..., 1/(x + βn)]
-    A_p = hcat(ones(length(xs_p)), [1 ./ (xs_p .+ β_p[j]) for j in 1:n_p]...)
-    A_m = hcat(ones(length(xs_m)), [1 ./ (xs_m .+ β_m[j]) for j in 1:n_m]...)
-
-    # Solve with SVD
-    U_p, S_p, V_p = svd(A_p)
-    U_m, S_m, V_m = svd(A_m)
-    coeffs_p = V_p * Diagonal(1.0 ./ S_p) * (U_p' * ys_p)
-    coeffs_m = V_m * Diagonal(1.0 ./ S_m) * (U_m' * ys_m)
-
-    α0_p = coeffs_p[1]
-    α_p = coeffs_p[2:end]
-    acoeffs_p = AlgRemezCoeffs(α0_p, tuple(α_p...), tuple(β_p...), n_p)
-
-    α0_m = coeffs_m[1]
-    α_m = coeffs_m[2:end]
-    acoeffs_m = AlgRemezCoeffs(α0_m, tuple(α_m...), tuple(β_m...), n_m)
-    return acoeffs_p, acoeffs_m, err_p, err_m, n_p, n_m
+# For a type (n,n) barycentric function, the constant at infinity is the
+# ratio of the sums of numerator and denominator weights. No sample fit is needed.
+function partial_fraction_coefficients(r)
+    ps, rs = residues(r)
+    all(x -> imag(x)<eps(Float64), ps) && all(x -> imag(x)<eps(Float64), rs) ||
+        error("RHMC requires real poles and residues")
+    all(p -> real(p) < 0, ps) || error("RHMC requires negative poles")
+    order = sortperm(-real.(ps))
+    α0 = Float64(sum(r.w_times_f) / sum(weights(r)))
+    α = Tuple(Float64.(real.(rs[order])))
+    β = Tuple(-Float64.(real.(ps[order])))
+    return AlgRemezCoeffs(α0, α, β, length(ps))
 end
 
 @inline function interval(a, b, precision=42)

@@ -3,7 +3,7 @@ using MetaQCD.Utils
 using LinearAlgebra
 using Random
 using Test
-# using AMDGPU
+using AMDGPU
 
 function test_fderivative(;
     backend=CPU,
@@ -29,7 +29,7 @@ function test_fderivative(;
         ""
     end
     name_str ="$dirac$(ifelse(eoprec, " even-odd", ""))"
-    MetaQCD.MetaIO.set_global_logger!(4, nothing; tc=true)
+    MetaQCD.MetaIO.set_global_logger!(2, nothing; tc=true)
 
     @testset "$(name_str)$(csw_str) derivative" begin
         Random.seed!(123 * (mpi_myrank() + 1))
@@ -174,6 +174,6 @@ function test_fderivative(;
 end
 
 # AMDGPU.@allowscalar test_fderivative(;
-#     single_flavor=true, backend=ROCBackend, numprocs_cart=(1, 1, 1, mpi_size())
+#     single_flavor=true, backend=ROCBackend, numprocs_cart=(1, 1, 1, mpi_size()), N=4
 # )
-# test_fderivative(; dirac="wilson", eoprec=true, numprocs_cart=(1, 1, 1, mpi_size()), csw=1.0)
+AMDGPU.@allowscalar test_fderivative(; backend=ROCBackend, numprocs_cart=(1, 1, 1, mpi_size()), N=16)

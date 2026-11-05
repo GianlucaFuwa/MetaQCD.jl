@@ -93,37 +93,13 @@ function LinearAlgebra.mul!(
     csw = D.csw
     bc = D.boundary_condition
     fac = T(-csw / 2)
-    do_edges = C ? Val(true) : Val(false)
 
-    # if T == Float16
-        parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ, Fμν); do_edges) do site, (U, ϕ, ψ)
-            @inbounds ψ[site] = wilson_kernel(U, ϕ, site, bc, T, Val(1))
-        end
-    # else
-    #     parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ, Fμν); do_edges) do site, (U, ϕ, ψ)
-    #         @inbounds ψ[site] = wilson_kernel(U, ϕ, site, Val(1), bc, T, Val(1))
-    #     end
-    #     parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ, Fμν); do_edges) do site, (U, ϕ, ψ)
-    #         @inbounds ψ[site] += wilson_kernel(U, ϕ, site, Val(2), bc, T, Val(1))
-    #     end
-    #     parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ, Fμν); do_edges) do site, (U, ϕ, ψ)
-    #         @inbounds ψ[site] += wilson_kernel(U, ϕ, site, Val(3), bc, T, Val(1))
-    #     end
-    #     parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ, Fμν); do_edges) do site, (U, ϕ, ψ)
-    #         @inbounds ψ[site] += wilson_kernel(U, ϕ, site, Val(4), bc, T, Val(1))
-    #     end
-    # end
-
-    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (), (ψ,), (ψ, ϕ)) do site, (ψ, ϕ)
-        @inbounds ψ[site] += mass_term .* ϕ[site]
-    end
-
-    if C
-        @nexprs 6 i -> (
-            parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (ϕ,), (ψ,), (ϕ, ψ, Fμν); do_edges) do site, (ϕ, ψ, Fμν)
-                @inbounds ψ[site] += clover_kernel(ϕ, Fμν, site, Val(i), fac, T)
-            end
-        )
+    parallelfor(
+        eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ, Fμν); do_edges=Val(false)
+    ) do site, (U, ϕ, ψ, Fμν)
+        @inbounds ψ[site] =
+            wilson_kernel(U, ϕ, site, bc, T, Val(1)) +
+            wilson_local_term(ϕ, Fμν, site, mass_term, fac, T, Val(C))
     end
 
     return nothing
@@ -139,22 +115,13 @@ function LinearAlgebra.mul!(
     csw = D.parent.csw
     bc = D.parent.boundary_condition
     fac = T(-csw / 2)
-    do_edges = C ? Val(true) : Val(false)
 
-    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ, Fμν); do_edges) do site, (U, ϕ, ψ)
-        @inbounds ψ[site] = wilson_kernel(U, ϕ, site, bc, T, Val(-1))
-    end
-
-    parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (), (ψ,), (ψ, ϕ)) do site, (ψ, ϕ)
-        @inbounds ψ[site] += mass_term .* ϕ[site]
-    end
-
-    if C
-        @nexprs 6 i -> (
-            parallelfor(eachindex(ψ, ϕ, U), B, Val(M), (ϕ,), (ψ,), (ϕ, ψ, Fμν); do_edges) do site, (ϕ, ψ, Fμν)
-                @inbounds ψ[site] += clover_kernel(ϕ, Fμν, site, Val(i), fac, T)
-            end
-        )
+    parallelfor(
+        eachindex(ψ, ϕ, U), B, Val(M), (U, ϕ), (ψ,), (U, ϕ, ψ, Fμν); do_edges=Val(false)
+    ) do site, (U, ϕ, ψ, Fμν)
+        @inbounds ψ[site] =
+            wilson_kernel(U, ϕ, site, bc, T, Val(-1)) +
+            wilson_local_term(ϕ, Fμν, site, mass_term, fac, T, Val(C))
     end
 
     return nothing
@@ -169,49 +136,65 @@ function LinearAlgebra.mul!(
     return nothing
 end
 
-#= @inline  =#function wilson_kernel(
-    U, ϕ, site, mass_term, bc, ::Type{T}, ::Val{dagg}
+function wilson_kernel( #= @inline  =#
+    U,
+    ϕ,
+    site,
+    mass_term,
+    bc,
+    ::Type{T},
+    ::Val{dagg},
 ) where {T,dagg}
     @inbounds begin
         # dagg can be 1 or -1; if it's -1 then we swap (1 - γᵨ) with (1 + γᵨ) and vice versa
         # We have to wrap in a Val for the same reason as in the next comment
         ψₙ = mass_term * ϕ[site] # factor 1/2 is included at the end
         NT = size(U, 4)
-        @nexprs 4 μ -> (
-            Nμ = axes(U, μ);
-            siteμ⁺ = move(site, μ, 1, Nμ);
-            siteμ⁻ = move(site, μ, -1, Nμ);
-            ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(μ));
-            ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(μ));
-            ψₙ -= cmvmul_spin_proj(U[μ, site], ϕ⁺, Val(-μ*dagg), Val(false));
-            ψₙ -= cmvmul_spin_proj(U[μ, siteμ⁻], ϕ⁻, Val(μ*dagg), Val(true))
-        )
+        @nexprs 4 μ -> (Nμ = axes(U, μ);
+        siteμ⁺ = move(site, μ, 1, Nμ);
+        siteμ⁻ = move(site, μ, -1, Nμ);
+        ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(μ));
+        ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(μ));
+        ψₙ -= cmvmul_spin_proj(U[μ, site], ϕ⁺, Val(-μ * dagg), Val(false));
+        ψₙ -= cmvmul_spin_proj(U[μ, siteμ⁻], ϕ⁻, Val(μ * dagg), Val(true)))
     end
 
     return T(0.5) * ψₙ
 end
 
-#= @inline  =#function wilson_kernel(
-    U, ϕ, site, ::Val{μ}, mass_term, bc, ::Type{T}, ::Val{dagg}
+function wilson_kernel( #= @inline  =#
+    U,
+    ϕ,
+    site,
+    ::Val{μ},
+    mass_term,
+    bc,
+    ::Type{T},
+    ::Val{dagg},
 ) where {T,dagg,μ}
     @inbounds begin
         # dagg can be 1 or -1; if it's -1 then we swap (1 - γᵨ) with (1 + γᵨ) and vice versa
         # We have to wrap in a Val for the same reason as in the next comment
         NT = size(U, 4)
-        Nμ = axes(U, μ);
-        siteμ⁺ = move(site, μ, 1, Nμ);
-        siteμ⁻ = move(site, μ, -1, Nμ);
-        ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(μ));
-        ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(μ));
-        ψₙ = cmvmul_spin_proj(U[μ, site], ϕ⁺, Val(-μ*dagg), Val(false));
-        ψₙ += cmvmul_spin_proj(U[μ, siteμ⁻], ϕ⁻, Val(μ*dagg), Val(true))
+        Nμ = axes(U, μ)
+        siteμ⁺ = move(site, μ, 1, Nμ)
+        siteμ⁻ = move(site, μ, -1, Nμ)
+        ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(μ))
+        ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(μ))
+        ψₙ = cmvmul_spin_proj(U[μ, site], ϕ⁺, Val(-μ * dagg), Val(false))
+        ψₙ += cmvmul_spin_proj(U[μ, siteμ⁻], ϕ⁻, Val(μ * dagg), Val(true))
     end
 
     return T(-0.5) * ψₙ
 end
 
-#= @inline  =#function wilson_kernel(
-    U, ϕ, site, bc, ::Type{T}, ::Val{dagg}
+function wilson_kernel( #= @inline  =#
+    U,
+    ϕ,
+    site,
+    bc,
+    ::Type{T},
+    ::Val{dagg},
 ) where {T,dagg}
     @inbounds begin
         # dagg can be 1 or -1; if it's -1 then we swap (1 - γᵨ) with (1 + γᵨ) and vice versa
@@ -220,21 +203,35 @@ end
         NT = size(U, 4)
         # use @nexprs here to statically generate the loop
         # this makes it so Val(μ) is well defined at each iteration and no type-instabilities arise
-        @nexprs 4 μ -> (
-            Nμ = axes(U, μ);
-            siteμ⁺ = move(site, μ, 1, Nμ);
-            siteμ⁻ = move(site, μ, -1, Nμ);
-            ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(μ));
-            ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(μ));
-            ψₙ -= cmvmul_spin_proj(U[μ, site], ϕ⁺, Val(-μ*dagg), Val(false));
-            ψₙ -= cmvmul_spin_proj(U[μ, siteμ⁻], ϕ⁻, Val(μ*dagg), Val(true))
-        )
+        @nexprs 4 μ -> (Nμ = axes(U, μ);
+        siteμ⁺ = move(site, μ, 1, Nμ);
+        siteμ⁻ = move(site, μ, -1, Nμ);
+        ϕ⁺ = apply_bc(ϕ[siteμ⁺], bc, site, Val(1), NT, Val(μ));
+        ϕ⁻ = apply_bc(ϕ[siteμ⁻], bc, site, Val(-1), NT, Val(μ));
+        ψₙ -= cmvmul_spin_proj(U[μ, site], ϕ⁺, Val(-μ * dagg), Val(false));
+        ψₙ -= cmvmul_spin_proj(U[μ, siteμ⁻], ϕ⁻, Val(μ * dagg), Val(true)))
     end
 
     return T(0.5) * ψₙ
 end
 
-#= @inline  =#function clover_kernel(ϕ, Fμν, site, ::Val{i}, csw_fac, ::Type{T}) where {T,i}
+@inline function wilson_local_term(
+    ϕ, Fμν, site, mass_term, fac, ::Type{T}, ::Val{C}
+) where {T,C}
+    @inbounds begin
+        phi = ϕ[site]
+        result = mass_term * phi
+        if C
+            @nexprs 6 i -> (
+                result +=
+                    Complex{T}(fac) * cmvmul_color(Fμν[i, site], σμν_spin_mul(phi, Val(i)))
+            )
+        end
+    end
+    return result
+end
+
+function clover_kernel(ϕ, Fμν, site, ::Val{i}, csw_fac, ::Type{T}) where {T,i} #= @inline  =#
     @inbounds begin
         ϕₙ = ϕ[site]
         Cₙ = cmvmul_color(Fμν[i, site], σμν_spin_mul(ϕₙ, Val(i)))

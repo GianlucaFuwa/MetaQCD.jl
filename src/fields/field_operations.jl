@@ -68,7 +68,7 @@ end
 
 function LinearAlgebra.norm(u::GaugeLikeField{B,T,M}, ::Val{Inf}) where {B,T,M}
     normsup = parallelfor_max(allindices(u), typemin(Float64), B, (u,)) do nsup, μsite, (u,)
-        nsup = max(nsup, norm(u[μsite], 2)) 
+        nsup = max(nsup, norm(u[μsite], 2))
     end
 
     return distributed_reduce(normsup, max, u)
@@ -122,7 +122,9 @@ function rightmul_dagg!(a::GaugeLikeField{B,T}, b::GaugeLikeField{B,T}) where {B
     return nothing
 end
 
-function create_sendbuf!(u::AbstractField{B,T,M}, sites, dim, dir; stream=default_stream(B())) where {B,T,M}
+function create_sendbuf!(
+    u::AbstractField{B,T,M}, sites, dim, dir; stream=default_stream(B())
+) where {B,T,M}
     ibuf = dir + 2(dim - 1)
     sendbuf = u.sendbuf[ibuf]
     _sites = add_all_indices(u, sites)
@@ -131,21 +133,23 @@ function create_sendbuf!(u::AbstractField{B,T,M}, sites, dim, dir; stream=defaul
     parallelfor(itr, B, Val(M), Val(false), (), (), (u, sendbuf); stream) do i, (u, sendbuf)
         @inbounds begin
             j = linear_index(u, _sites[i])
-            sendbuf[i] = u[j]
+            sendbuf[i] = u.U[j]
         end
     end
 
     return mpi_make_transferrable(sendbuf)
 end
 
-function fill_halo!(u::AbstractField{B,T,M}, recvbuf, siterange; stream=default_stream(B())) where {B,T,M}
+function fill_halo!(
+    u::AbstractField{B,T,M}, recvbuf, siterange; stream=default_stream(B())
+) where {B,T,M}
     _siterange = add_all_indices(u, siterange)
     itr = eachindex(IndexLinear(), _siterange)
 
     parallelfor(itr, B, Val(M), Val(false), (), (), (u, recvbuf); stream) do i, (u, recvbuf)
         @inbounds begin
             j = linear_index(u, _siterange[i])
-            u[j] = recvbuf[i]
+            u.U[j] = recvbuf[i]
         end
     end
 
@@ -157,7 +161,9 @@ function Base.copyto!(a::TF, b::TF, arange, brange) where {B,T,M,TF<:AbstractFie
     _arange = add_all_indices(a, arange)
     _brange = add_all_indices(b, arange)
 
-    parallelfor(eachindex(IndexLinear(), _arange), B, Val(M), Val(false), (), (), (a, b)) do i, (a, b)
+    parallelfor(
+        eachindex(IndexLinear(), _arange), B, Val(M), Val(false), (), (), (a, b)
+    ) do i, (a, b)
         j_a = linear_index(a, _arange[i])
         j_b = linear_index(b, _brange[i])
         a[j_a] = b[j_b]

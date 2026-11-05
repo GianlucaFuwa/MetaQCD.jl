@@ -1,6 +1,6 @@
 [data]
-float_type = "double"
-solver_float_type = "double"
+float_type = "single"
+solver_float_type = "single"
 backend = "rocm"
 ensemble_dir = "/home/gialu/projects/MetaQCD.jl/ensembles/bonanno_bench_double"
 randomseed = 111
@@ -15,11 +15,11 @@ log_to_console = true
 
 [ensemble]
 mode = "build"
-L = [8, 8, 8, 8]
-numtherm = 4
-numsteps = 4
-numprocs_cart = [1, 1, 1, 1]
-halo_width = 1
+L = [2, 2, 10, 10]
+numtherm = 10
+numsteps = 10
+numprocs_cart = [1, 1, 2, 2]
+halo_width = 2
 initial = "cold"
 update_method = "hmc"
 numinstances = 1
@@ -32,49 +32,51 @@ gauge_action = "symanzik_tree"
 [fermion_action]
 fermion_action = "staggered"
 [[fermion_action.fermions]]
-precon = "heavy"
+# precon = "heavy"
+precon = "none"
 Nf = 2
-mass = [0.00028348134, 0.00798]
-cg_tol_action = 1e-10
+# mass = [0.00028348134, 0.00798]
+mass = 0.01
+cg_tol_action = 1e-8
 cg_tol_md = 1e-5
 cg_maxiters_action = 5000
 cg_maxiters_md = 5000
 rhmc_order_action = 15
 rhmc_order_md = 15
-rhmc_spectral_bound = [0.00025, 6.0]
-[[fermion_action.fermions]]
-precon = "none"
-Nf = 1
-mass = 0.00798
-cg_tol_action = 1e-10
-cg_tol_md = 1e-5
-cg_maxiters_action = 5000
-cg_maxiters_md = 5000
-rhmc_order_action = 30
-rhmc_order_md = 15
-rhmc_spectral_bound = [0.000064, 6.0]
-[[fermion_action.fermions]]
-precon = "none"
-Nf = 1
-mass = 0.00798
-cg_tol_action = 1e-10
-cg_tol_md = 1e-5
-cg_maxiters_action = 5000
-cg_maxiters_md = 5000
-rhmc_order_action = 30
-rhmc_order_md = 15
-rhmc_spectral_bound = [0.000064, 6.0]
-[[fermion_action.fermions]]
-precon = "none"
-Nf = 1
-mass = 0.00798
-cg_tol_action = 1e-10
-cg_tol_md = 1e-5
-cg_maxiters_action = 5000
-cg_maxiters_md = 5000
-rhmc_order_action = 30
-rhmc_order_md = 15
-rhmc_spectral_bound = [0.000064, 6.0]
+rhmc_spectral_bound = [0.0001, 6.0]
+# [[fermion_action.fermions]]
+# precon = "none"
+# Nf = 1
+# mass = 0.00798
+# cg_tol_action = 1e-10
+# cg_tol_md = 1e-5
+# cg_maxiters_action = 5000
+# cg_maxiters_md = 5000
+# rhmc_order_action = 30
+# rhmc_order_md = 15
+# rhmc_spectral_bound = [0.000064, 6.0]
+# [[fermion_action.fermions]]
+# precon = "none"
+# Nf = 1
+# mass = 0.00798
+# cg_tol_action = 1e-10
+# cg_tol_md = 1e-5
+# cg_maxiters_action = 5000
+# cg_maxiters_md = 5000
+# rhmc_order_action = 30
+# rhmc_order_md = 15
+# rhmc_spectral_bound = [0.000064, 6.0]
+# [[fermion_action.fermions]]
+# precon = "none"
+# Nf = 1
+# mass = 0.00798
+# cg_tol_action = 1e-10
+# cg_tol_md = 1e-5
+# cg_maxiters_action = 5000
+# cg_maxiters_md = 5000
+# rhmc_order_action = 30
+# rhmc_order_md = 15
+# rhmc_spectral_bound = [0.000064, 6.0]
 
 [bias]
 rhostout_for_cv = 0.12 # rho is the same for all CVs
@@ -101,7 +103,7 @@ hmc_trajectory = 1
 hmc_numsmear_fermion = 2
 hmc_rhostout_fermion = 0.15
 [[hmc.levels]]
-forces = [0, 1, 2, 3, 4, 5]
+forces = [0, 1, 2]#, 3, 4, 5]
 integrator = "OMF4"
 numsteps = 5
 

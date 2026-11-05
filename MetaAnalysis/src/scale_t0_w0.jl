@@ -96,6 +96,7 @@ function t0_scale(data, error_est, flow_num, flow_times, len)
 
     errs = ADerrors.err.(t²E)
     ℰ = Spline1D(flow_times, value.(t²E); w=1 ./ errs.^2, k=3, bc="extrapolate")
+    # display(plot(flow_times[1]:0.001:flow_times[end], t -> ℰ(t) - 0.3))
 
     t0 = try
         find_zero(t -> ℰ(t) - 0.3, (flow_times[1], flow_times[end]))

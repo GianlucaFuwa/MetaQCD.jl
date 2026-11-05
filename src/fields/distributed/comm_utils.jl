@@ -34,7 +34,7 @@ end
         @assert new_first <= new_last
         range(new_first, new_last)
     end
-    
+
     first_range = bulk.indices[1]
     return CartesianIndices((first_range, new_ranges...))
 end
@@ -42,9 +42,8 @@ end
 @inline function shrink_bulk(bulk::CartesianIndices{4}, stencil_radius, numprocs_cart)
     new_ranges = ntuple(Val(4)) do i
         irange = bulk.indices[i]
-        new_first = first(irange) + stencil_radius * (numprocs_cart[i]>1)
-        new_last = last(irange) - stencil_radius * (numprocs_cart[i]>1)
-        @assert new_first <= new_last
+        new_first = first(irange) + stencil_radius * (numprocs_cart[i] > 1)
+        new_last = last(irange) - stencil_radius * (numprocs_cart[i] > 1)
         range(new_first, new_last)
     end
 
@@ -54,14 +53,13 @@ end
 @inline function shrink_bulk(bulk::CartesianIndices{5}, stencil_radius, numprocs_cart)
     new_ranges = ntuple(Val(4)) do i
         irange = bulk.indices[i]
-        new_first = first(irange) + stencil_radius * (numprocs_cart[i]>1)
-        new_last = last(irange) - stencil_radius * (numprocs_cart[i]>1)
-        @assert new_first <= new_last
+        new_first = first(irange) + stencil_radius * (numprocs_cart[i] > 1)
+        new_last = last(irange) - stencil_radius * (numprocs_cart[i] > 1)
         range(new_first, new_last)
     end
 
-    first_range = bulk.indices[1]
-    return CartesianIndices((first_range, new_ranges...))
+    direction_range = bulk.indices[5]
+    return CartesianIndices((new_ranges..., direction_range))
 end
 
 function next_div32(n::Integer)

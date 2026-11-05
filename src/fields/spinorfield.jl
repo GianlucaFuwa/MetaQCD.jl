@@ -1,4 +1,4 @@
-@field_constructor Spinorfield extra_types=ND
+@field_constructor Spinorfield extra_types = ND
 
 @doc raw"""
 Wrapper around a dense array or arrays of spinor/vector objects containing information about
@@ -25,8 +25,11 @@ with the component index being the slowest to improve coalescing on GPUs
 """ Spinorfield
 
 function Spinorfield(
-    u::AbstractField{B,T,M}, ::Type{Tnew}=T;
-    staggered=false, no_halo=false, halo_width=get_halo_width(u)
+    u::AbstractField{B,T,M},
+    ::Type{Tnew}=T;
+    staggered=false,
+    no_halo=false,
+    halo_width=get_halo_width(u),
 ) where {B,T,M,Tnew}
     ND = if u isa Spinorfield || u isa SpinorfieldEO
         num_dirac(u)
@@ -46,18 +49,24 @@ end
 
 @inline num_dirac(::Spinorfield{B,T,M,ND}) where {B,T,M,ND} = ND
 LinearAlgebra.checksquare(f::Spinorfield) = length(f) * num_dirac(f) * num_colors(f)
-Base.eltype(::Type{Spinorfield}, ::Type{T}, ::Val{ND}) where {T,ND} = SVector{3ND,Complex{T}}
+function Base.eltype(::Type{Spinorfield}, ::Type{T}, ::Val{ND}) where {T,ND}
+    return SVector{3ND,Complex{T}}
+end
 # Base.eltype(::Spinorfield{CPU,T,M,ND}) where {T,M,ND} = SVector{3ND,Complex{T}}
 # Base.eltype(::Spinorfield{B,T,M,1}) where {B,T,M} = SIMD.Vec{2,T}
 # Base.eltype(::Spinorfield{B,T,M,4}) where {B,T,M} = SIMD.Vec{4,T}
 @inline allindices(f::Spinorfield) = eachindex(f)
 
 #### CPU Indexing ####
-@inline function add_all_indices(::Spinorfield{CPU,T,M,1}, siterange::CartesianIndices) where {T,M}
+@inline function add_all_indices(
+    ::Spinorfield{CPU,T,M,1}, siterange::CartesianIndices
+) where {T,M}
     return siterange
 end
 
-@inline function add_all_indices(::Spinorfield{CPU,T,M,4}, siterange::CartesianIndices) where {T,M}
+@inline function add_all_indices(
+    ::Spinorfield{CPU,T,M,4}, siterange::CartesianIndices
+) where {T,M}
     return siterange
 end
 
@@ -73,11 +82,15 @@ Base.@propagate_inbounds Base.setindex!(f::Spinorfield{CPU}, v, site::SiteCoords
 ######################
 
 #### GPU Indexing ####
-@inline function add_all_indices(::Spinorfield{B,T,M,1}, siterange::CartesianIndices) where {B,T,M}
+@inline function add_all_indices(
+    ::Spinorfield{B,T,M,1}, siterange::CartesianIndices
+) where {B,T,M}
     return CartesianIndices((3, siterange.indices...))
 end
 
-@inline function add_all_indices(::Spinorfield{B,T,M,4}, siterange::CartesianIndices) where {B,T,M}
+@inline function add_all_indices(
+    ::Spinorfield{B,T,M,4}, siterange::CartesianIndices
+) where {B,T,M}
     return CartesianIndices((6, siterange.indices...))
 end
 
@@ -106,29 +119,23 @@ Base.@propagate_inbounds function Base.setindex!(
     return _setindex_nd!(Val(ND), f.U, v, site, T)
 end
 
-Base.@propagate_inbounds function _getindex_nd(::Val{1}, arr, site, ::Type{T}) where T
-    Base.Cartesian.@nexprs 3 i -> (
-        vec = arr[i, site];
-        c_i = Complex(vec[1], vec[2])
-    )
+Base.@propagate_inbounds function _getindex_nd(::Val{1}, arr, site, ::Type{T}) where {T}
+    Base.Cartesian.@nexprs 3 i -> (vec = arr[i, site];
+    c_i = Complex(vec[1], vec[2]))
     return SVector{3,Complex{T}}(c_1, c_2, c_3)
 end
 
-Base.@propagate_inbounds function _getindex_nd(::Val{4}, arr, site, ::Type{T}) where T
-    Base.Cartesian.@nexprs 6 i -> (
-        vec = arr[i, site];
-        c_{2(i-1)+1} = Complex(vec[1], vec[2]);
-        c_{2(i-1)+2} = Complex(vec[3], vec[4])
-    )
+Base.@propagate_inbounds function _getindex_nd(::Val{4}, arr, site, ::Type{T}) where {T}
+    Base.Cartesian.@nexprs 6 i -> (vec = arr[i, site];
+    c_{2(i - 1) + 1} = Complex(vec[1], vec[2]);
+    c_{2(i - 1) + 2} = Complex(vec[3], vec[4]))
     return SVector{12,Complex{T}}(
         c_1, c_2, c_3, c_4, c_5, c_6, c_7, c_8, c_9, c_10, c_11, c_12
     )
 end
 
 Base.@propagate_inbounds function _setindex_nd!(::Val{1}, arr, v, site, ::Type{T}) where {T}
-    Base.Cartesian.@nexprs 3 i -> (
-        arr[i, site] = SIMD.Vec{2,T}((v[i].re, v[i].im));
-    )
+    Base.Cartesian.@nexprs 3 i -> (arr[i, site] = SIMD.Vec{2,T}((v[i].re, v[i].im)))
     return nothing
 end
 
@@ -136,7 +143,7 @@ Base.@propagate_inbounds function _setindex_nd!(::Val{4}, arr, v, site, ::Type{T
     Base.Cartesian.@nexprs 6 i -> (
         arr[i, site] = SIMD.Vec{4,T}((
             v[2(i-1)+1].re, v[2(i-1)+1].im, v[2(i-1)+2].re, v[2(i-1)+2].im
-        ));
+        ))
     )
     return nothing
 end
@@ -211,7 +218,7 @@ LinearAlgebra.norm(ϕ::Spinorfield) = sqrt(real(dot(ϕ, ϕ)))
 function LinearAlgebra.dot(ϕ::TF, ψ::TF) where {B,T,M,TF<:Spinorfield{B,T,M}}
     itr = eachindex(ϕ, ψ)
 
-    res = parallelfor_sum(itr, 0.0+0.0im, B, Val(M), (), (), (ϕ, ψ)) do d, site, (ϕ, ψ)
+    res = parallelfor_sum(itr, 0.0 + 0.0im, B, Val(M), (), (), (ϕ, ψ)) do d, site, (ϕ, ψ)
         d += dot(ϕ[site], ψ[site])
     end
 
@@ -233,7 +240,7 @@ function convert_field(
     fout = Spinorfield{Bout,Tout,ND}(NX, NY, NZ, NT; numprocs_cart, halo_width)
     farr = OffsetArray(array_type(Bout)(fin.U.parent), OffsetArrays.Origin(fin.U))
 
-    parallelfor(eachindex(fout), Bout, Val(M), (fout,), (), (fout,)) do site, (fout,)
+    parallelfor(eachindex(fout), Bout, Val(false), (), (fout,), (fout,)) do site, (fout,)
         fout[site] = farr[site]
     end
 
@@ -255,7 +262,7 @@ function convert_field(
     fout = Spinorfield{Bout,Tout,ND}(NX, NY, NZ, NT; numprocs_cart, halo_width)
     farr = OffsetArray(array_type(Bout)(fin.U.parent), OffsetArrays.Origin(fin.U))
 
-    parallelfor(eachindex(fout), Bout, Val(M), (fout,), (), (fout,)) do site, (fout,)
+    parallelfor(eachindex(fout), Bout, Val(false), (), (fout,), (fout,)) do site, (fout,)
         fout[site] = _getindex_nd(Val(ND), farr, site, Tout)
         fout[site] = _getindex_nd(Val(ND), farr, site, Tout)
         fout[site] = _getindex_nd(Val(ND), farr, site, Tout)

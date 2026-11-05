@@ -27,7 +27,12 @@ macro field_constructor(struct_name, kwargs...)
             $(extra_fields(struct_name))
             halo_valid::HV
             function $(struct_name){B,T,M,$(extra_types...)}(
-                U::AT, sendbuf::BT, recvbuf::BT, topology::TT, $(extra_args...), halo_valid::HV
+                U::AT,
+                sendbuf::BT,
+                recvbuf::BT,
+                topology::TT,
+                $(extra_args...),
+                halo_valid::HV,
             ) where {B,T,M,$(extra_types...),AT,BT,TT,HV}
                 check_types(B, T, U, sendbuf, recvbuf)
                 return new{B,T,M,$(extra_types...),AT,BT,TT,HV}(
@@ -52,7 +57,10 @@ macro field_constructor(struct_name, kwargs...)
             quote
                 function $(struct_name){$(base_types...)}(
                     $(base_args...);
-                    numprocs_cart=(1, 1, 1, 1), halo_width=0, no_halo=false, halo_valid=Ref(false)
+                    numprocs_cart=(1, 1, 1, 1),
+                    halo_width=0,
+                    no_halo=false,
+                    halo_valid=HaloValidity(),
                 ) where {$(var_types...)}
                     numprocs = prod(numprocs_cart)
                     M = numprocs > 1 && !no_halo
@@ -60,7 +68,7 @@ macro field_constructor(struct_name, kwargs...)
 
                     $(halo_check(struct_name)) # if Gaugefield, check that halo is wide enough for gauge action
                     topology = FieldTopology(numprocs_cart, halo_width, (NX, NY, NZ, NT))
-                    eff_halo_width = halo_width .* (numprocs_cart.>1)
+                    eff_halo_width = halo_width .* (numprocs_cart .> 1)
 
                     # Create U array
                     mpi_assign_device!($(base_types[1])(), mpi_myrank())
@@ -88,7 +96,7 @@ macro field_constructor(struct_name, kwargs...)
                         $(final_args...), halo_valid
                     )
                 end
-            end
+            end,
         )
     end
 

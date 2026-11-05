@@ -1,17 +1,15 @@
 struct SpinorfieldEO{B,T,M,ND} <: AbstractField{B,T,M}
     parent::Spinorfield{B,T,M,ND}
-    function SpinorfieldEO(
-        f::Spinorfield{B,T,M,ND}
-    ) where {B,T,M,ND}
+    function SpinorfieldEO(f::Spinorfield{B,T,M,ND}) where {B,T,M,ND}
         @assert iseven(size(f, 4)) "Need even time extent for even-odd preconditioning"
 
         if M
-            @assert iseven(size(f, 4)÷2) """
-            Need time extent divisbile by 4 for even-odd preconditioning with \
-            distributed fields
-            """
+            @assert iseven(size(f, 4) ÷ 2) """
+              Need time extent divisbile by 4 for even-odd preconditioning with \
+              distributed fields
+              """
         end
-        
+
         return new{B,T,M,ND}(f)
     end
 end
@@ -89,7 +87,9 @@ function Base.copy!(ϕ_eo::TF, ψ_eo::TF) where {B,T,M,TF<:SpinorfieldEO{B,T,M}}
     return nothing
 end
 
-function set_source!(ϕ_eo::SpinorfieldEO{B,T,M,ND}, source::SiteCoords, a, μ) where {B,T,M,ND}
+function set_source!(
+    ϕ_eo::SpinorfieldEO{B,T,M,ND}, source::SiteCoords, a, μ
+) where {B,T,M,ND}
     ϕ = ϕ_eo.parent
     NC = num_colors(ϕ)
     @assert μ ∈ 1:ND && a ∈ 1:3
@@ -169,7 +169,7 @@ function LinearAlgebra.dot(ϕ_eo::TF, ψ_eo::TF) where {B,T,M,TF<:SpinorfieldEO{
     even_half = true
     itr = eachindex(even_half, ϕ, ψ)
 
-    res = parallelfor_sum(itr, 0.0+0.0im, B, Val(M), (), (), (ϕ, ψ)) do d, e_site, (ϕ, ψ)
+    res = parallelfor_sum(itr, 0.0 + 0.0im, B, Val(M), (), (), (ϕ, ψ)) do d, e_site, (ϕ, ψ)
         d += dot(ϕ[e_site], ψ[e_site])
     end
 
@@ -199,7 +199,9 @@ function Base.copyto!(
     @assert eachindex(a) == eachindex(b)
     padded_bulk = a.topology.bulk_sites_padded
 
-    parallelfor(eachindex(IndexLinear(), arange), B, Val(M), Val(false), (), (), (a, b)) do i, (a, b)
+    parallelfor(
+        eachindex(IndexLinear(), arange), B, Val(M), Val(false), (), (), (a, b)
+    ) do i, (a, b)
         _site_a = map_to_half(arange[i], padded_bulk)
         _site_b = map_to_half(brange[i], padded_bulk)
         a[_site_a] = b[_site_b]
@@ -208,11 +210,15 @@ function Base.copyto!(
     return nothing
 end
 
-function fill_halo!(ϕ_eo::SpinorfieldEO{CPU,T,M,ND}, recvbuf, siterange) where {T,M,ND}
+function fill_halo!(
+    ϕ_eo::SpinorfieldEO{CPU,T,M,ND}, recvbuf, siterange; stream=default_stream(CPU())
+) where {T,M,ND}
     ϕ = ϕ_eo.parent
     itr = eachindex(IndexLinear(), siterange)
     padded_bulk = ϕ.topology.bulk_sites_padded
-    parallelfor(itr, CPU, Val(M), Val(false), (), (), (ϕ, recvbuf)) do i, (ϕ, recvbuf)
+    parallelfor(
+        itr, CPU, Val(M), Val(false), (), (), (ϕ, recvbuf); stream
+    ) do i, (ϕ, recvbuf)
         _site = map_to_half(siterange[i], padded_bulk)
         ϕ[_site] = recvbuf[i]
     end
@@ -220,14 +226,21 @@ function fill_halo!(ϕ_eo::SpinorfieldEO{CPU,T,M,ND}, recvbuf, siterange) where 
     return nothing
 end
 
-function fill_halo!(ϕ_eo::SpinorfieldEO{B,T,M,ND}, recvbuf, siterange) where {B,T,M,ND}
+function fill_halo!(
+    ϕ_eo::SpinorfieldEO{B,T,M,ND}, recvbuf, siterange; stream=default_stream(B())
+) where {B,T,M,ND}
     ϕ = ϕ_eo.parent
     itr = eachindex(IndexLinear(), siterange)
     padded_bulk = ϕ.topology.bulk_sites_padded
-    parallelfor(itr, B, Val(M), Val(false), (), (), (ϕ, recvbuf)) do i, (ϕ, recvbuf)
+    parallelfor(itr, B, Val(M), Val(false), (), (), (ϕ, recvbuf); stream) do i, (ϕ, recvbuf)
         _site = map_to_half(siterange[i], padded_bulk)
         ϕ[_site] = _getindex_nd(Val(ND), recvbuf, i, T)
     end
 
     return nothing
 end
+
+@inline add_all_indices(u::SpinorfieldEO, sites::CartesianIndices) =
+    add_all_indices(u.parent, sites)
+@inline halo_pack_field(u::SpinorfieldEO) = u.parent
+@inline halo_pack_map(::SpinorfieldEO) = Val(true)

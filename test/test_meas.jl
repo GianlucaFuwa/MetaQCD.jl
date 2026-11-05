@@ -3,7 +3,6 @@ using MetaQCD.Utils
 using Test
 using LinearAlgebra
 using Random
-# using AMDGPU
 
 const EXP4 = Dict(
     "plaq" => 0.587818337847024,
@@ -48,7 +47,7 @@ function test_measurements(; backend=CPU, numprocs_cart=(1, 1, 1, 1), halo_width
 
     if numprocs_cart[4] == 1
         m_poly = PolyakovMeasurement(U)
-        poly =  measure(m_poly, U)
+        poly = measure(m_poly, U)
 
         mpi_amroot() && println("==========")
     end
@@ -60,28 +59,28 @@ function test_measurements(; backend=CPU, numprocs_cart=(1, 1, 1, 1), halo_width
         mpi_amroot() && println("==========")
     end
 
-    TC_methods  = if mpi_size() > 1 && halo_width < 2
+    TC_methods = if mpi_size() > 1 && halo_width < 2
         ["plaquette", "clover"]
     else
         ["plaquette", "clover", "improved"]
     end
-    m_topo = TopologicalChargeMeasurement(U, TC_methods=TC_methods)
+    m_topo = TopologicalChargeMeasurement(U; TC_methods=TC_methods)
     topo = measure(m_topo, U)
 
     mpi_amroot() && println("==========")
 
-    ED_methods  = if mpi_size() > 1 && halo_width < 2
+    ED_methods = if mpi_size() > 1 && halo_width < 2
         ["plaquette", "clover"]
     else
         ["plaquette", "clover", "improved"]
     end
-    m_ed = EnergyDensityMeasurement(U, ED_methods=ED_methods)
+    m_ed = EnergyDensityMeasurement(U; ED_methods=ED_methods)
     ed = measure(m_ed, U)
 
     mpi_amroot() && println("==========")
 
     GA_methods = ["wilson", "symanzik_tree", "iwasaki", "dbw2"]
-    m_gaction = GaugeActionMeasurement(U, GA_methods=GA_methods)
+    m_gaction = GaugeActionMeasurement(U; GA_methods=GA_methods)
     gaction = measure(m_gaction, U)
 
     if mpi_amroot()
@@ -102,7 +101,16 @@ function test_measurements(; backend=CPU, numprocs_cart=(1, 1, 1, 1), halo_width
     return nothing
 end
 
-# test_measurements(; backend=ROCBackend, numprocs_cart=(1, 1, 1, mpi_size()))
+if abspath(PROGRAM_FILE) == @__FILE__
+    if get(ENV, "METAQCD_TEST_BACKEND", "cpu") == "rocm"
+        @eval using AMDGPU
+        backend = ROCBackend
+    else
+        backend = CPU
+    end
+    grid = mpi_size() == 4 ? (1, 2, 2, 1) : (mpi_size(), 1, 1, 1)
+    test_measurements(; backend, numprocs_cart=grid)
+end
 # test_measurements(numprocs_cart=(1, 2, 1, 2))
 # test_measurements(numprocs_cart=(2, 1, 1, 2))
 # test_measurements(numprocs_cart=(1, 2, 2, 1))

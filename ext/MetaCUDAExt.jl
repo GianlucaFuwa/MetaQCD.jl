@@ -11,7 +11,8 @@ using CUDA
 using CUDA: @cuda, CUDABackend, CuArray, launch_configuration, synchronize
 using CUDA: threadIdx, blockIdx, blockDim
 import MetaQCD.Fields
-import MetaQCD.Fields: _foreachindex_global!, _foreachindex_reduce_global!
+import MetaQCD.Fields:
+    _foreachindex_global!, _foreachindex_reduce_global!, _foreachindex_fused!
 import MetaQCD.Utils: mpi_myrank
 
 if pkgversion(CUDA) < v"6.0.0"
@@ -31,7 +32,13 @@ Fields.synchronize(::CUDABackend) = CUDA.synchronize()
 Fields.synchronize(::CUDABackend, stream) = CUDA.synchronize(stream)
 Fields.device_synchronize(::CUDABackend) = CUDA.device_synchronize()
 Fields.default_stream(::CUDABackend) = CUDA.stream()
-Fields.gpu_used_memory(::CUDABackend) = (CUDA.CUDACore.total_memory() - CUDA.CUDACore.free_memory()) / 1e9
+Fields.create_stream_event(::CUDABackend) = CUDA.CuEvent()
+Fields.record_stream_event!(::CUDABackend, event, stream) = CUDA.record(event, stream)
+Fields.wait_stream_event!(::CUDABackend, stream, event) = CUDA.wait(event, stream)
+
+function Fields.gpu_used_memory(::CUDABackend)
+    return (CUDA.CUDACore.total_memory() - CUDA.CUDACore.free_memory()) / 1e9
+end
 
 function Fields.priority!(::CUDABackend, priority)
     CUDA.KernelAbstractions.priority!(CUDABackend(), priority)
@@ -59,8 +66,8 @@ function Fields.allocate_commstreams!(::CUDABackend, fields)
     return nothing
 end
 
-Fields.get_readstream(::CUDABackend, dir, dim, id) = cu_readstreams[dir + 2(dim-1) + 8(id-1)]
-Fields.get_sendstream(::CUDABackend, dir, dim, id) = cu_sendstreams[dir + 2(dim-1) + 8(id-1)]
+Fields.get_readstream(::CUDABackend, dir, dim, id) = cu_readstreams[dir+2(dim-1)+8(id-1)]
+Fields.get_sendstream(::CUDABackend, dir, dim, id) = cu_sendstreams[dir+2(dim-1)+8(id-1)]
 
 function Fields.get_stream(::CUDABackend, id::Integer)
     while id > length(cu_streams)
@@ -86,40 +93,40 @@ function Fields.mpi_assign_device!(::CUDABackend, _id)
     CUDA.device!(Int32(id))
     Fields.DEVICE_ID[] = id
     dev = CUDA.device()
-    Fields.MAX_SHMEM[] = CUDA.attribute(dev, CUDA.DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK)
+    Fields.MAX_SHMEM[] = CUDA.attribute(
+        dev, CUDA.DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK
+    )
     return nothing
 end
 
 function Fields.launch_foreachindex_global!(
     ::CUDABackend, f, captured, itr::Tuple, threads, stream=CUDA.stream()
 )
+    total = sum(length, itr)
+    total == 0 && return nothing
     if Fields.TUNE_KERNELS == Val(true)
-        f_str = "$(Symbol(f))_$(Fields.float_type(captured[1]))"
-        if !haskey(Fields.KERNEL_CACHE, f_str) && (length(itr) == 1)
-            # how many items do we want?
-            wanted_items = nextpow(2, length(itr[1]))
-            # how many items can we launch?
-            max_threads = min(1024, length(itr[1]))
-            compute_items(max_items) = wanted_items > max_items ? prevpow(2, max_items) : wanted_items
-            kernel = @cuda launch=false _foreachindex_global!(f, captured, itr[1])
-            config = launch_configuration(kernel.fun; max_threads)
-            threads = compute_items(config.threads)
-            Fields.KERNEL_CACHE[f_str] = threads
-        else
-            if haskey(Fields.KERNEL_CACHE, f_str)
-                threads = Fields.KERNEL_CACHE[f_str]
+        key = (:foreach, typeof(f), Fields.float_type(captured[1]), typeof(itr))
+        threads = get!(Fields.KERNEL_CACHE, key) do
+            wanted_items = nextpow(2, total)
+            max_threads = min(1024, total)
+            kernel = if length(itr) == 1
+                @cuda launch = false _foreachindex_global!(f, captured, itr[1])
+            else
+                @cuda launch = false _foreachindex_fused!(f, captured, itr)
             end
+            config = launch_configuration(kernel.fun; max_threads)
+            min(wanted_items, prevpow(2, config.threads))
         end
     end
-
-    blocks = ntuple(i -> cld(length(itr[i]), threads), length(itr))
-
-    for i in eachindex(itr)
-        @cuda threads=threads blocks=blocks[i] stream=stream _foreachindex_global!(
-            f, captured, itr[i]
-        ) 
+    if length(itr) == 1
+        @cuda threads = threads blocks = cld(total, threads) stream = stream _foreachindex_global!(
+            f, captured, itr[1]
+        )
+    else
+        @cuda threads = threads blocks = cld(total, threads) stream = stream _foreachindex_fused!(
+            f, captured, itr
+        )
     end
-
     return nothing
 end
 
@@ -130,18 +137,20 @@ function Fields.launch_foreachindex_reduce_global!(
     compute_shmem(items) = items * sizeof(typeof(out))
 
     if Fields.TUNE_KERNELS == Val(true)
-        f_str = "$(Symbol(f))_$(Fields.float_type(captured[1]))"
+        f_str = (typeof(f), Fields.float_type(captured[1]))
         if !haskey(Fields.KERNEL_CACHE, f_str) && (length(itr) == 1)
             # how many items do we want?
             wanted_items = nextpow(2, length(itr[1]))
             # how many items can we launch?
             max_threads = min(1024, length(itr[1]))
-            compute_items(max_items) = wanted_items > max_items ? prevpow(2, max_items) : wanted_items
-            max_shmem = max_threads |> compute_items |> compute_shmem
+            function compute_items(max_items)
+                return wanted_items > max_items ? prevpow(2, max_items) : wanted_items
+            end
+            max_shmem = compute_shmem(compute_items(max_threads))
             out_vec = CUDA.zeros(typeof(out), 256)
-            kernel = @cuda launch=false _foreachindex_reduce_global!(
+            kernel = @cuda launch = false _foreachindex_reduce_global!(
                 out_vec, out, op, f, captured, itr[1]
-            ) 
+            )
             config = launch_configuration(kernel.fun; shmem=max_shmem, max_threads)
             # determine the launch configuration
             threads = compute_items(config.threads)
@@ -160,9 +169,9 @@ function Fields.launch_foreachindex_reduce_global!(
     reduce_shmem = compute_shmem(threads)
 
     for i in eachindex(itr)
-        @cuda threads=threads blocks=blocks[i] shmem=reduce_shmem stream=stream _foreachindex_reduce_global!(
+        @cuda threads = threads blocks = blocks[i] shmem = reduce_shmem stream = stream _foreachindex_reduce_global!(
             out_vec, out, op, f, captured, itr[i]
-        ) 
+        )
     end
 
     return reduce(op, out_vec)
@@ -172,6 +181,6 @@ end
 @inline Fields.groupidx() = blockIdx()
 @inline Fields.groupdim() = blockDim()
 @inline Fields.griddim() = gridDim()
-@inline Fields.groupreduce(op, val, neutral) = reduce_block(op, val, neutral, #=shuffle=# Val(true))
+@inline Fields.groupreduce(op, val, neutral) = reduce_block(op, val, neutral, Val(true)) #=shuffle=#
 
 end
