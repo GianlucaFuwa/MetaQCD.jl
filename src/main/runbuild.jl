@@ -295,7 +295,7 @@ function metabuild!(
                     ### because time limit would be passed"""
                 )
                 create_checkpoint(
-                    checkpointer, univ, updatemethod, nothing, itrj-1, numaccepts; rank
+                    checkpointer, univ, updatemethod, nothing, itrj, numaccepts; rank
                 )
                 mpi_barrier()
                 break
@@ -339,13 +339,12 @@ function metabuild!(
             print_acceptance_rates(numaccepts, itrj)
 
             save_field(config_saver, U, itrj, parameters)
-            create_checkpoint(
-                checkpointer, univ, updatemethod, nothing, itrj, numaccepts; rank
-            )
-
             calc_measurements(measurements, U, itrj; mpi_multi_sim)
             calc_measurements_flowed(measurements_with_flow, gflow, U, itrj; mpi_multi_sim)
             calc_weights(bias, itrj)
+            create_checkpoint(
+                checkpointer, univ, updatemethod, nothing, itrj+1, numaccepts; rank
+            )
         end
     end
 

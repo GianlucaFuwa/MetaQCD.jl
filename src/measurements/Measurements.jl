@@ -25,7 +25,7 @@ import ..Fields: Plaquette, Clover, Improved, fieldstrength_eachsite!, gauge_act
 import ..Fields: clover_1x1, clover_2x1, clover_1x2, float_type, plaquette, wilsonloop
 import ..Fields: parallelfor, parallelfor_sum, CPU, ones!, set_source!, get_backend
 import ..Fields: clear!, distributed_reduce, is_distributed, plaquette_trace_sum
-import ..Fields: update_halo!, get_local_dims, get_global_dims, get_global_volume
+import ..Fields: update_halo!, get_local_dims, get_global_dims, get_global_volume, apply_bc
 import ..Smearing: AbstractSmearing, Cooling, GradientFlow, NoSmearing, StoutSmearing
 import ..Smearing: calc_smearedU!, flow!
 

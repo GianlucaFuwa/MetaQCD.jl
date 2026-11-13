@@ -203,7 +203,7 @@ write_to_file(::Metadynamics, ::Nothing, args...) = nothing
 function write_to_file(m::Metadynamics, filename::AbstractString, args...)
     filename == "" && return nothing
     set_ext!(filename, MPI_INSTANCE[], Val(5))
-    (tmppath, tmpio) = mktemp() # open temporary file at arbitrary location in storage
+    (tmppath, tmpio) = mktemp(dirname(abspath(filename)); cleanup=false) # open temporary file at in same directory
 
     # if isfile(filename)
     #     old_values, old_header = readdlm(filename; header=true)

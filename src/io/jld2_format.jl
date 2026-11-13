@@ -45,14 +45,9 @@ function create_checkpoint(
     numaccepts_t,
     filename::String
 ) where {T}
-    Uout = if univ.U isa Vector
-        [convert_field(CPU, univ.U[i]) for i in eachindex(univ.U)]
-    elseif !(univ.U isa Vector) && T===Nothing
-        convert_field(CPU, univ.U)
-    else
-        convert_field!(Ucpu, univ.U)
-        Ucpu
-    end
+    Uout = checkpoint_gauge!(Ucpu, univ.U)
+    println("Gauge field checkpointed!")
+    flush(stdout)
 
     biasout = if univ.bias isa Vector
         [univ.bias[i].bias for i in eachindex(univ.bias)]
@@ -61,34 +56,48 @@ function create_checkpoint(
     else
         univ.bias.bias
     end
+    println("Bias checkpointed!")
+    flush(stdout)
 
     Pout = if updatemethod isa HMC
         updatemethod.friction != 0.0 ? convert_field(CPU, updatemethod.P) : nothing
     else
         nothing
     end
+    println("Momentum checkpointed!")
+    flush(stdout)
 
     state = get_rng_state()
 
     if filename != ""
-        #INFO: We first create the checkpoint at a temporary location in case something goes wrong
-        # and we dont overwrite a valid checkpoing with a broken one
-        (tmppath, tmpio) = mktemp() 
+        _write_checkpoint(filename) do tmppath
+            jldsave(
+                tmppath, IOStream;
+                U=Uout,
+                P=Pout,
+                bias=biasout,
+                numinstances=univ.numinstances,
+                itrj=itrj,
+                numaccepts=numaccepts,
+                numaccepts_t=numaccepts_t,
+                rngstate=state,
+            )
+            mpi_barrier()
+        end
+    end
+end
+
+function _write_checkpoint(write_checkpoint, filename::String)
+    destination = abspath(filename)
+    tmppath, tmpio = mktemp(dirname(destination); cleanup=false)
+
+    try
         close(tmpio)
-        jldsave(
-            tmppath; 
-            U=Uout,
-            P=Pout,
-            bias=biasout,
-            numinstances=univ.numinstances,
-            itrj=itrj,
-            numaccepts=numaccepts,
-            numaccepts_t=numaccepts_t,
-            rngstate=state,
-        )
-        # Need to make sure every single rank has successfully checkpointed before finalizing
-        mpi_barrier()
-        mv(tmppath, filename; force=true)
+        write_checkpoint(tmppath)
+        Base.Filesystem.rename(tmppath, destination)
+    finally
+        isopen(tmpio) && close(tmpio)
+        ispath(tmppath) && rm(tmppath; force=true)
     end
 
     return nothing

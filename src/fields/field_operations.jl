@@ -135,6 +135,7 @@ function create_sendbuf!(u::AbstractField{B,T,M}, sites, dim, dir; stream=defaul
         end
     end
 
+    MPI_IS_GPUAWARE == Val(false) && synchronize(B(), stream)
     return mpi_make_transferrable(sendbuf)
 end
 

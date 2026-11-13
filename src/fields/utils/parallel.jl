@@ -1,7 +1,7 @@
 const HIDE_COMMS = Val(@load_preference("MPI_HIDE_COMMUNICATION", false))
 const TUNE_KERNELS = Val(@load_preference("TUNE_KERNELS", false))
 
-const KERNEL_CACHE::Dict{Tuple{DataType,DataType},Int64} = Dict{String,Int64}() # (function_type, precision) => block size
+const KERNEL_CACHE::Dict{Tuple{DataType,DataType},Int64} = Dict{Tuple{DataType,DataType},Int64}() # (function_type, precision) => block size
 const MAX_SHMEM = Base.RefValue{Int64}(0)
 
 function groupreduce end    #
@@ -50,7 +50,8 @@ function parallelfor(
     do_edges::Val{E}=Val(false),
     stream=default_stream(B())
 ) where {B,M,hide,E}
-    if M && (hide && B!=CPU) && length(to_validate) > 0
+    if M && (hide && B!=CPU) && length(to_validate) > 0 &&
+       any(u -> !halo_is_valid(u), to_validate)
         # Drain the default (per-thread) stream before enqueuing the inner-bulk
         # kernel on the low-priority stream.  The *previous* parallelfor call
         # wrote border rows of the input field(s) on the PTDS (default stream);
@@ -62,22 +63,24 @@ function parallelfor(
         hw, idx = findmax(get_halo_width, to_validate)
         inner_bulk = shrink_bulk(itr, hw, to_validate[1].topology.numprocs_cart)
         new_block_size = min(block_size, min(256, length(inner_bulk)))
-        _parallelfor(f, captured, inner_bulk, B, new_block_size; stream)
+        inner_stream = get_stream(B(), 1)
+        _parallelfor(f, captured, inner_bulk, B, new_block_size; stream=inner_stream)
 
         # do exchange 
         start_halo_update!(to_validate; do_edges)
 
         # launch outer comp
-        border_iterators = to_validate[idx].topology.border_iterators
-        new_block_size = min(block_size, min(256, length(border_iterators[1])))
+        border_iterators = kernel_border_iterators(itr, to_validate[idx].topology.border_iterators)
         for i in eachindex(border_iterators)
-            border_stream = get_stream(B(), i)
+            border_stream = get_stream(B(), i+1)
+            new_block_size = min(block_size, min(256, length(border_iterators[i])))
             _parallelfor(
                 f, captured, border_iterators[i], B, new_block_size; stream=border_stream
             )
         end
+        synchronize(B(), inner_stream)
         for i in eachindex(border_iterators)
-            synchronize(B(), get_stream(B(), i))
+            synchronize(B(), get_stream(B(), i+1))
         end
     elseif M && (!hide || B==CPU) && length(to_validate) > 0
         update_halo!(to_validate; do_edges)
@@ -88,6 +91,12 @@ function parallelfor(
 
     invalidate_halo!.(invalidated)
     return nothing
+end
+
+# GPU gauge/tensor kernels carry the direction as the last iterator dimension.
+@inline kernel_border_iterators(::CartesianIndices{4}, borders) = borders
+@inline function kernel_border_iterators(itr::CartesianIndices{5}, borders)
+    return map(b -> CartesianIndices((b.indices..., itr.indices[5])), borders)
 end
 
 function _parallelfor(f, captured, itr, ::Type{CPU}, ::Int; kwargs...)
@@ -114,8 +123,9 @@ function _parallelfor(
     f, captured, itr, ::Type{backend}, block_size::Int=min(256, length(itr));
     stream=default_stream(backend())
 ) where {backend}
-    @assert block_size > 0
     itr_tup = itr isa Tuple ? itr : (itr,)
+    all(isempty, itr_tup) && return nothing
+    @assert block_size > 0
     launch_foreachindex_global!(backend(), f, captured, itr_tup, block_size, stream)
     return nothing
 end
@@ -192,7 +202,8 @@ function parallelfor_sum(
     do_edges::Val{E}=Val(false),
     stream=default_stream(B())
 ) where {B,M,hide,E}
-    if M && (hide && B!=CPU) && length(to_validate) > 0
+    if M && (hide && B!=CPU) && length(to_validate) > 0 &&
+       any(u -> !halo_is_valid(u), to_validate)
         # inner work
         hw, idx = findmax(get_halo_width, to_validate)
         inner_bulk = shrink_bulk(itr, hw, to_validate[1].topology.numprocs_cart)
@@ -202,14 +213,10 @@ function parallelfor_sum(
         start_halo_update!(to_validate; do_edges)
 
         # outer work
-        border_iterators = to_validate[idx].topology.border_iterators
-        new_block_size = min(block_size, min(256, length(border_iterators[1])))
-        for i in eachindex(border_iterators)
-            border_stream = get_stream(B(), i)
-            result += _parallelfor_sum(
-                f, captured, border_iterators, init, B, new_block_size; stream=border_stream
-            )
-        end
+        border_iterators = kernel_border_iterators(itr, to_validate[idx].topology.border_iterators)
+        # Reduce every boundary exactly once, sharing one scratch vector and one
+        # final device-to-host reduction across all boundary slabs.
+        result += _parallelfor_sum(f, captured, border_iterators, init, B, block_size; stream)
     elseif M && (!hide || B==CPU) && length(to_validate) > 0
         update_halo!(to_validate; do_edges)
         result = _parallelfor_sum(f, captured, itr, init, B, block_size; stream)
@@ -249,8 +256,9 @@ function _parallelfor_sum(
     f, captured, itr, init, ::Type{backend}, block_size::Int=min(256, length(itr));
     stream=default_stream(backend())
 ) where {backend}
-    @assert block_size > 0
     itr_tup = itr isa Tuple ? itr : (itr,)
+    all(isempty, itr_tup) && return init
+    @assert block_size > 0
     result = launch_foreachindex_reduce_global!(
         backend(), init, +, f, captured, itr_tup, block_size, stream
     )

@@ -176,18 +176,19 @@ function LinearAlgebra.dot(ϕ_eo::TF, ψ_eo::TF) where {B,T,M,TF<:SpinorfieldEO{
     return distributed_reduce(res, +, ϕ)
 end
 
-function create_sendbuf!(ϕ_eo::SpinorfieldEO{B,T,M}, sites, dim, dir) where {B,T,M}
+function create_sendbuf!(ϕ_eo::SpinorfieldEO{B,T,M}, sites, dim, dir; stream=default_stream(B())) where {B,T,M}
     ϕ = ϕ_eo.parent
     ibuf = dir + 2(dim - 1)
     sendbuf = ϕ.sendbuf[ibuf]
     itr = eachindex(IndexLinear(), sites)
     padded_bulk = ϕ.topology.bulk_sites_padded
 
-    parallelfor(itr, B, Val(M), Val(false), (), (), (ϕ, sendbuf)) do i, (ϕ, sendbuf)
+    parallelfor(itr, B, Val(M), Val(false), (), (), (ϕ, sendbuf); stream) do i, (ϕ, sendbuf)
         _site = map_to_half(sites[i], padded_bulk)
         setindex_buf!(sendbuf, ϕ, i, _site)
     end
 
+    MPI_IS_GPUAWARE == Val(false) && synchronize(B(), stream)
     return mpi_make_transferrable(sendbuf)
 end
 
@@ -208,11 +209,11 @@ function Base.copyto!(
     return nothing
 end
 
-function fill_halo!(ϕ_eo::SpinorfieldEO{CPU,T,M,ND}, recvbuf, siterange) where {T,M,ND}
+function fill_halo!(ϕ_eo::SpinorfieldEO{CPU,T,M,ND}, recvbuf, siterange; stream=default_stream(CPU())) where {T,M,ND}
     ϕ = ϕ_eo.parent
     itr = eachindex(IndexLinear(), siterange)
     padded_bulk = ϕ.topology.bulk_sites_padded
-    parallelfor(itr, CPU, Val(M), Val(false), (), (), (ϕ, recvbuf)) do i, (ϕ, recvbuf)
+    parallelfor(itr, CPU, Val(M), Val(false), (), (), (ϕ, recvbuf); stream) do i, (ϕ, recvbuf)
         _site = map_to_half(siterange[i], padded_bulk)
         ϕ[_site] = recvbuf[i]
     end
@@ -220,11 +221,11 @@ function fill_halo!(ϕ_eo::SpinorfieldEO{CPU,T,M,ND}, recvbuf, siterange) where 
     return nothing
 end
 
-function fill_halo!(ϕ_eo::SpinorfieldEO{B,T,M,ND}, recvbuf, siterange) where {B,T,M,ND}
+function fill_halo!(ϕ_eo::SpinorfieldEO{B,T,M,ND}, recvbuf, siterange; stream=default_stream(B())) where {B,T,M,ND}
     ϕ = ϕ_eo.parent
     itr = eachindex(IndexLinear(), siterange)
     padded_bulk = ϕ.topology.bulk_sites_padded
-    parallelfor(itr, B, Val(M), Val(false), (), (), (ϕ, recvbuf)) do i, (ϕ, recvbuf)
+    parallelfor(itr, B, Val(M), Val(false), (), (), (ϕ, recvbuf); stream) do i, (ϕ, recvbuf)
         _site = map_to_half(siterange[i], padded_bulk)
         ϕ[_site] = _getindex_nd(Val(ND), recvbuf, i, T)
     end

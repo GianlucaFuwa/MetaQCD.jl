@@ -263,7 +263,6 @@ function update_bias!(
         end
     end
 
-    GC.gc()
     return nothing
 end
 

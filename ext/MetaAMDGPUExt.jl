@@ -110,9 +110,10 @@ function Fields.launch_foreachindex_global!(
     gridsize = ntuple(i -> cld(length(itr[i]), groupsize), length(itr))
 
     for i in eachindex(itr)
+        isempty(itr[i]) && continue
         @roc groupsize=groupsize gridsize=gridsize[i] stream=stream _foreachindex_global!(
             f, captured, itr[i]
-        ) 
+        )
     end
 
     return nothing
@@ -121,48 +122,51 @@ end
 function Fields.launch_foreachindex_reduce_global!(
     ::ROCBackend, out, op, f, captured, itr::Tuple, groupsize, stream=AMDGPU.stream()
 )
-    length(itr) == 0 && return out
-    compute_shmem(items) = items * sizeof(typeof(out))
+    return AMDGPU.stream!(stream) do
+        all(isempty, itr) && return out
+        compute_shmem(items) = items * sizeof(typeof(out))
 
-    if Fields.TUNE_KERNELS == Val(true)
-        f_key = typeof(f)
-        f_prec = Fields.float_type(captured[1])
-        f_key = (f_key, f_prec)
-        if !haskey(Fields.KERNEL_CACHE, f_key) && (length(itr) == 1)
-            # how many items do we want?
-            wanted_items = nextpow(2, length(itr[1]))
-            # how many items can we launch?
-            max_block_size = min(1024, length(itr[1]))
-            compute_items(max_items) = wanted_items > max_items ? prevpow(2, max_items) : wanted_items
-            max_shmem = max_block_size |> compute_items |> compute_shmem
-            out_vec = AMDGPU.zeros(typeof(out), 256)
-            kernel = @roc launch=false _foreachindex_reduce_global!(
-                out_vec, out, op, f, captured, itr[1]
-            ) 
-            config = launch_configuration(kernel; shmem=max_shmem, max_block_size)
-            # determine the launch configuration
-            groupsize = compute_items(config.groupsize)
-            Fields.KERNEL_CACHE[f_key] = groupsize
-        else
-            if haskey(Fields.KERNEL_CACHE, f_key)
-                groupsize = Fields.KERNEL_CACHE[f_key]
+        if Fields.TUNE_KERNELS == Val(true)
+            f_key = typeof(f)
+            f_prec = Fields.float_type(captured[1])
+            f_key = (f_key, f_prec)
+            if !haskey(Fields.KERNEL_CACHE, f_key) && (length(itr) == 1)
+                # how many items do we want?
+                wanted_items = nextpow(2, length(itr[1]))
+                # how many items can we launch?
+                max_block_size = min(1024, length(itr[1]))
+                compute_items(max_items) = wanted_items > max_items ? prevpow(2, max_items) : wanted_items
+                max_shmem = max_block_size |> compute_items |> compute_shmem
+                out_vec = AMDGPU.zeros(typeof(out), 256)
+                kernel = @roc launch=false _foreachindex_reduce_global!(
+                    out_vec, out, op, f, captured, itr[1]
+                )
+                config = launch_configuration(kernel; shmem=max_shmem, max_block_size)
+                # determine the launch configuration
+                groupsize = compute_items(config.groupsize)
+                Fields.KERNEL_CACHE[f_key] = groupsize
+            else
+                if haskey(Fields.KERNEL_CACHE, f_key)
+                    groupsize = Fields.KERNEL_CACHE[f_key]
+                end
             end
         end
+
+        gridsize = ntuple(i -> cld(length(itr[i]), groupsize), length(itr))
+
+        # perform the actual reduction
+        out_vec = AMDGPU.fill(out, maximum(gridsize))
+        reduce_shmem = compute_shmem(groupsize)
+
+        for i in eachindex(itr)
+            isempty(itr[i]) && continue
+            @roc gridsize=gridsize[i] groupsize=groupsize shmem=reduce_shmem stream=stream _foreachindex_reduce_global!(
+                out_vec, out, op, f, captured, itr[i],
+            )
+        end
+
+        return reduce(op, out_vec)
     end
-
-    gridsize = ntuple(i -> cld(length(itr[i]), groupsize), length(itr))
-
-    # perform the actual reduction
-    out_vec = AMDGPU.fill(out, length(itr) * maximum(gridsize))
-    reduce_shmem = compute_shmem(groupsize)
-
-    for i in eachindex(itr)
-        @roc gridsize=gridsize[i] groupsize=groupsize shmem=reduce_shmem stream=stream _foreachindex_reduce_global!(
-            out_vec, out, op, f, captured, itr[i],
-        ) 
-    end
-
-    return reduce(op, out_vec)
 end
 
 @inline Fields.threadidx() = workitemIdx()

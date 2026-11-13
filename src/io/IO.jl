@@ -14,8 +14,9 @@ using ..Utils
 import ..BiasModule: Bias, BiasSerialization, NoBias, calc_cv, recalc_cv!
 import ..Fields: AbstractField, Gaugefield, Spinorfield, SpinorfieldEO, Paulifield
 import ..Fields: Tensorfield, MultiSpinorfield, CPU, get_backend, bzeros, BACKENDS
-import ..Fields: is_distributed, get_global_volume, get_global_dims, parallelfor, invalidate_halo!
-import ..Fields: WilsonGaugeAction, array_type, convert_field, convert_field!, device_to_host, allindices
+import ..Fields: is_distributed, get_global_volume, get_global_dims, parallelfor
+import ..Fields: WilsonGaugeAction, array_type, convert_field, convert_field!, allindices
+import ..Fields: device_synchronize, invalidate_halo!, device_to_host, synchronize, _getindex_mat
 import ..Universe: init_fermion_actions
 import ..Updates: Updatemethod, HMC
 
@@ -84,69 +85,7 @@ include("bmw_format.jl")
 include("bridge_format.jl")
 include("jld2_format.jl")
 include("mpi_format.jl")
-
-mutable struct Checkpointer{T,TG}
-    Ucpu::TG
-    checkpoint_dir::String
-    checkpoint_every::Int64
-
-    function Checkpointer(U, checkpoint_dir, checkpoint_every)
-        if checkpoint_every > 0
-            Ucpu = convert_field(CPU, U)
-            TG = typeof(Ucpu)
-            T = JLD2Format
-            @level1("- Checkpoints will be created!")
-            @level1("|  FORMAT: JLD2")
-            @level1("|  DIRECTORY: $(checkpoint_dir)")
-            @level1("|  INTERVAL: $(checkpoint_every)")
-            @level1("-\n")
-        else
-            Ucpu = nothing
-            TG = Nothing
-            T = Nothing
-        end
-
-        mpi_amroot(mpi_comm_instance()) && flush(__GlobalLogger[])
-        return new{T,TG}(Ucpu, checkpoint_dir, checkpoint_every)
-    end
-end
-
-function create_checkpoint(
-    cp::Checkpointer{T},
-    univ,
-    updatemethod,
-    updatemethod_pt,
-    itrj,
-    numaccepts,
-    numaccepts_t=nothing;
-    rank=mpi_myrank()
-) where {T}
-    T ≡ Nothing && return nothing
-    instance = MPI_INSTANCE[]
-
-    if itrj % cp.checkpoint_every == 0
-        @level1("|")
-        @level1("|  Creating checkpoint")
-        filename = joinpath(cp.checkpoint_dir, "checkpoint_$(instance)_$(rank).jld2")
-        create_checkpoint(
-            T(), cp.Ucpu, univ, updatemethod, updatemethod_pt, itrj, numaccepts, numaccepts_t, filename
-        )
-        @level1("|  Checkpoint created in $(cp.checkpoint_dir)")
-        @level1("|")
-        if rank==0
-            flush(stdout)
-            flush(__GlobalLogger[])
-        end
-    end
-
-    return nothing
-end
-
-function load_checkpoint(parameters; rank=mpi_myrank(), mpi_multi_sim=false, build=false)
-    checkpoint_path = parameters.load_checkpoint_path
-    @level1("[ Checkpoint loaded from $(checkpoint_path)\n")
-    return load_checkpoint(JLD2Format(), parameters; rank, mpi_multi_sim, build)
-end
+include("checkpointer.jl")
 
 struct ConfigSaver{T}
     save_config_dir::String

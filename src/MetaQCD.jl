@@ -32,7 +32,7 @@ import .BiasModule: Bias, Metadynamics, NoBias, OPES, VES, calc_cv, update_bias!
 import .DiracOperators: AbstractDiracOperator, Daggered, DdaggerD, calc_fermion_action
 import .DiracOperators: StaggeredDiracOperator, StaggeredEOPreDiracOperator, even_odd
 import .DiracOperators: WilsonDiracOperator, WilsonEOPreDiracOperator, sample_pseudofermions!
-import .DiracOperators: StaggeredHoelblingDiracOperator, FermionAction
+import .DiracOperators: StaggeredHoelblingDiracOperator, FermionAction, FermionFieldCache
 import .DiracOperators: QuenchedFermionAction
 import .Fields: CPU, DBW2GaugeAction, IwasakiGaugeAction, SymanzikTadGaugeAction
 import .Fields: SymanzikTreeGaugeAction, WilsonGaugeAction, Plaquette, Clover
@@ -67,7 +67,7 @@ export Tensorfield, calc_kinetic_energy, gaussian_TA!, update_halo!
 export Spinorfield, Daggered, DdaggerD
 export StaggeredDiracOperator, StaggeredEOPreDiracOperator 
 export WilsonDiracOperator, WilsonEOPreDiracOperator, QuenchedFermionAction
-export StaggeredHoelblingDiracOperator, FermionAction
+export StaggeredHoelblingDiracOperator, FermionAction, FermionFieldCache
 export even_odd, sample_pseudofermions!
 export calc_fermion_action, gaussian_pseudofermions!
 export measure, top_charge

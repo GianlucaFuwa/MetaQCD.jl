@@ -14,7 +14,7 @@ const FLOPS = [
     "Staggered" 587
     # "Staggered-EO" 587/2
     # "Wilson" 1368
-    # "Wilson-Clover" 1368 + 1728
+    "Wilson-Clover" 1368 + 1728
     # "Invert-Staggered" 587 + 2*22 + 2*12 + 18 # op + 2dot + 2axpy + axpby
     # "Invert-Wilson" 1368 + 2*22 + 2*12 + 18 # op + 2dot + 2axpy + axpby
     # "Halo-Exchange" 0
@@ -22,6 +22,7 @@ const FLOPS = [
 
 function bench_mul!(::Type{B}, ϕ, D, ψ, nlaunches; do_barrier=false) where B
     for _ in 1:nlaunches
+        MetaQCD.Fields.invalidate_halo!(ϕ)
         mul!(ψ, D, ϕ)
     end
     MetaQCD.Fields.device_synchronize(B())
@@ -66,15 +67,15 @@ function main(; strong=false)
 
     if strong
         # global_dims = (96, 96, 96, 96)
-        global_dims = (70, 70, 70, 20)
+        global_dims = (96, 96, 96, 96)
         numprocs_cart = distribute_procs(global_dims, mpi_size())
         # numprocs_cart = (1, 2, 2, 4)
     else
-        numprocs_cart = distribute_procs_capped(16, mpi_size())
+        numprocs_cart = distribute_procs_capped(8, mpi_size())
         global_dims = (64, 64, 64, 64) .* numprocs_cart
     end
 
-    extra_dir = "22-06-26_overlap"
+    extra_dir = "30-10-26"
     result_dir = joinpath(@__DIR__, "scaling_results", extra_dir)
     time_dir = joinpath(@__DIR__, "scaling_results", extra_dir, "timings")
 
@@ -87,9 +88,10 @@ function main(; strong=false)
     hstring = MetaQCD.Fields.HIDE_COMMS == Val(true) ? "_hide" : ""
     sstring = strong ? "_strong" : "_weak"
     lstring = "$(global_dims[1])x$(global_dims[2])x$(global_dims[3])x$(global_dims[4])"
+    np = prod(numprocs_cart)
     npstring = "$(numprocs_cart[1])-$(numprocs_cart[2])-$(numprocs_cart[3])-$(numprocs_cart[4])"
-    filename = "$(bstring)_$(lstring)_$(npstring)procs_$(pstring)$(hstring)$(sstring).txt" 
-    timingname = joinpath(time_dir, "$(bstring)_$(lstring)_$(npstring)procs_$(pstring)$(hstring)$(sstring)")
+    filename = "$(bstring)_$(lstring)_$(np)procs_$(npstring)_$(pstring)$(hstring)$(sstring).txt" 
+    timingname = joinpath(time_dir, "$(bstring)_$(lstring)_$(np)procs_$(npstring)_$(pstring)$(hstring)$(sstring)")
     ispath(time_dir) || mkpath(time_dir)
 
     if mpi_amroot()
@@ -311,9 +313,9 @@ function main(; strong=false)
     return nothing
 end
 
-function distribute_procs(global_dims, numprocs)
-    start_proc = global_dims[1] >= global_dims[4] ? 1 : 4
-    end_proc = global_dims[1] >= global_dims[4] ? 4 : 1
+function distribute_procs(global_dims, numprocs; max_per_dim=4)
+    start_proc = global_dims[1] > global_dims[4] ? 1 : 4
+    end_proc = global_dims[1] > global_dims[4] ? 4 : 1
     sgn = start_proc == 1 ? 1 : -1
     procsleft = numprocs
     numprocs_cart = [1, 1, 1, 1]
@@ -321,6 +323,11 @@ function distribute_procs(global_dims, numprocs)
     while procsleft > 1
         old_procs = numprocs_cart[dim]
         new_procs = old_procs * 2
+
+        if numprocs_cart[dim] >= max_per_dim
+            dim += sgn
+            continue
+        end
 
         if global_dims[dim]/old_procs % 2 != 0
             if dim == end_proc
@@ -417,3 +424,5 @@ function benchprint(io, str)
 end
 
 main(strong=true)
+GC.gc()
+main(strong=false)

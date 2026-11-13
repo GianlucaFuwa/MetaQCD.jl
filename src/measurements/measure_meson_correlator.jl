@@ -16,7 +16,7 @@ struct MesonCorrelatorMeasurement{T,TC,TD,TF,CT,D,T1} <: AbstractMeasurement
     type::TC
     dirac_operator::TD
     temp::TF # We need 1 temp fermion field for propagators
-    cg_temps::CT # We need 4 temp fermions for cg / 7 for bicg(stab)
+    cg_temps::CT # We need 4 temMetap fermions for cg / 7 for bicg(stab)
     corr::Dict{Tuple{Any,Int64},Vector{Float64}} # One value per time slice
     directions::D
     cg_tol::Float64
@@ -50,7 +50,6 @@ struct MesonCorrelatorMeasurement{T,TC,TD,TF,CT,D,T1} <: AbstractMeasurement
         @level1("|    Boundary Condition: $(bc_str)")
 
         corrtype = ntuple(i -> meson_correlator_from_string(type[i]), length(type))
-        NT = size(U)[end]
         corr = Dict{Tuple{Any,Int64},Vector{Float64}}()
         for t in corrtype
             for dir in directions
@@ -270,7 +269,7 @@ function correlator_avg!(
     propagator, temps... = cg_temps
 
     for dir in directions
-        itr = CartesianIndices((local_ranges[[(directions .!= _unwrap_val(dir))...]]))
+        itr = CartesianIndices((local_ranges[[((1:4) .!= _unwrap_val(dir))...]]))
 
         for a in 1:3
             for μ in 1:num_dirac(ψ)
@@ -297,7 +296,7 @@ function correlator_avg!(
 
     for t in type
         for dir in _unwrap_val.(directions)
-            Λₛ = prod(global_dims[[(directions .!= dir)...]])
+            Λₛ = prod(global_dims[[((1:4) .!= dir)...]])
             corr[(t, dir)] ./= Λₛ
         end
     end
@@ -328,6 +327,7 @@ function calc_axial_pseudo_corr(
     D::StaggeredTypeOperator, corr, propagator, ::Val{μ}, L, itr
 ) where {μ}
     U = D.U
+    bc = D.boundary_condition
     M = is_distributed(U)
     B = get_backend(U)
 
@@ -337,11 +337,16 @@ function calc_axial_pseudo_corr(
         cit = parallelfor_sum(itr, 0.0, B, Val(M), (), (), (propagator,)) do ci, xyz, (propagator,)
             coords = xyz.I
             site = SiteCoords(ntuple(d -> d<μ ? coords[d] : (d==μ ? ii : coords[d-1]), 4))
-            Nμ = axes(propagator, μ)
+            Nμ = size(propagator, μ)
             siteμ⁺ = move(site, μ, 1, Nμ)
             η = staggered_η(Val(μ), site, Float32)
-            ϵ = staggered_ϵ(site, Float32)
-            ci += ϵ * η * real(dot(propagator[site], cmvmul(U[μ, site], propagator[siteμ⁺])))
+            p = propagator[site]
+            p⁺ = apply_bc(propagator[siteμ⁺], bc, site, Val(1), Nμ, Val(μ))
+
+            left  = dot(p,  cmvmul(U[μ, site], p⁺))
+            right = dot(p⁺, cmvmul_d(U[μ, site], p))
+
+            ci += -0.5 * η * real(left + right)
         end
 
         corr[(AxialPseudo(), μ)][ii] += distributed_reduce(cit, +, D.U)

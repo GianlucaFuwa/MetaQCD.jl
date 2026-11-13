@@ -493,7 +493,7 @@ function metaqcd!(
 
             save_field(config_saver, U, itrj, parameters)
             create_checkpoint(
-                checkpointer, univ, updatemethod, nothing, itrj, numaccepts, numaccepts_temper;
+                checkpointer, univ, updatemethod, nothing, itrj+1, numaccepts, numaccepts_temper;
                 rank
             )
 
@@ -606,10 +606,6 @@ function metaqcd_PT!(
             temper!(U, bias, numaccepts_temper, swap_every, itrj; recalc=true)
 
             save_field(config_saver, U[1], itrj, parameters)
-            create_checkpoint(
-                checkpointer, univ, updatemethod, updatemethod_pt, itrj, numaccepts, numaccepts_temper;
-            )
-
             _, mtime = @timed calc_measurements(measurements, U, itrj, measure_on_all)
             _, fmtime = @timed for i in eachindex(gflow)
                 calc_measurements_flowed(
@@ -617,6 +613,9 @@ function metaqcd_PT!(
                 )
             end
             calc_weights(bias, itrj)
+            create_checkpoint(
+                checkpointer, univ, updatemethod, updatemethod_pt, itrj+1, numaccepts, numaccepts_temper;
+            )
             @level1("|  Meas. elapsed time:     $(mtime)  [s]")
             @level1("|  FlowMeas. elapsed time: $(fmtime) [s]\n-")
         end
