@@ -5,6 +5,8 @@ using Random
 using Test
 using Polyester
 
+include("./test_halo_gpu_control.jl")
+include("./test_fermion_field_cache.jl")
 include("./test_io.jl")
 include("./test_checkpoint.jl")
 include("./test_meas.jl")

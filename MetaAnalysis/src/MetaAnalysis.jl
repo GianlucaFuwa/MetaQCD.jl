@@ -22,6 +22,7 @@ abstract type AbstractErrorEstimator end
 
 const DEFAULT_COLORS = ["#0072b2", "#e69f00", "#009e73", "#cc79a7", "#56b4e9", "#d55e00"]
 
+include("concatenate.jl")
 include("measurements.jl")
 include("bias.jl")
 include("autocorr.jl")
@@ -75,6 +76,57 @@ function analyze(
     display(results)
 
     return headers, data, weights, results
+end
+
+function analyze(
+    meas::MetaMeasurements,
+    obs_name,
+    obs::Function,
+    error_est::AbstractErrorEstimator;
+    weighted = true,
+    weight_type = "tiwari",
+    func = identity,
+    start_itrj = 1,
+    save_filename = nothing,
+    instance = 0,
+    str = "",
+)
+    println("\n| Begin analysis...\n")
+
+    if weighted
+        weight_itrjs = getproperty(meas, Symbol("bias_data_$(lpad(instance, 3, "0"))"))["itrj"]
+        _weights = getproperty(meas, Symbol("bias_data_$(lpad(instance, 3, "0"))"))["weight_$(weight_type)"]
+        itrjs = getproperty(meas, obs_name)["itrj"] 
+        _data = obs(meas)
+        data = Float64[]
+        weights = []
+        itrj_range = start_itrj:itrjs[end]
+        for itrj in itrj_range
+            if (itrj in itrjs) && (itrj in weight_itrjs)
+                iweight = findfirst(x -> x==itrj, weight_itrjs)
+                iobs = findfirst(x -> x==itrj, itrjs)
+                push!(weights, _weights[iweight])
+                push!(data, _data[iobs])
+            end
+        end
+    else
+        weights = nothing
+        data = obs(meas)
+    end
+
+    results = analyze(
+        data,
+        error_est,
+        "",
+        weights = weights,
+        func = func,
+        save_filename = save_filename,
+        str = str,
+    )
+
+    display(results)
+
+    return "", data, weights, results
 end
 
 function analyze(

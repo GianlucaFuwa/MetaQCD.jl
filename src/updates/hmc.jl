@@ -467,7 +467,7 @@ end
 function updateU!(
     U::Gaugefield{B,T,M}, hmc, fac, fermion_action, bias, therm, level
 ) where {B,T,M}
-    # println("updateU!")
+    println("updateU!")
     # if level == 1
         ϵ = T(hmc.levels[level].Δτ * fac)
         P = hmc.P
@@ -529,7 +529,7 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level, recycle=false)
     end
 
     if Val(0) ∈ forces
-        # println("updateP! (bias)")
+        println("updateP! (bias)")
         if bias isa Bias
             substep_cv = hmc.substep_CVs_single
             for i in 1:length(bias)
@@ -570,7 +570,7 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level, recycle=false)
     end
 
     if Val(1) ∈ forces
-        # println("updateP! (gauge)")
+        println("updateP! (gauge)")
         calc_dSdU_bare!(force, staples, U, temp_force, smearing_gauge)
 
         force_avg = norm(force, Val(2))
@@ -591,7 +591,7 @@ function updateP!(U, hmc::HMC, fac, fermion_action, bias, level, recycle=false)
         for i in forces
             (i == Val(-1) || i == Val(0) || i == Val(1)) && continue # if bias or gauge force, go to next iteration
             iforce += 1
-            # println("updateP! (fermion $(iforce))")
+            println("updateP! (fermion $(iforce))")
 
             is_smeared = (shared_smearing && Val(0) ∈ forces) || iforce > 1
             calc_dSfdU_top!(

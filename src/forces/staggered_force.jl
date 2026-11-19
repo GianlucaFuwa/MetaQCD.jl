@@ -106,7 +106,7 @@ end
 
     # use @nexprs here to statically generate the loop
     # this makes it so Val(μ) is well defined at each iteration and no type-instabilities arise
-    @inbounds begin
+    # @inbounds begin
         @nexprs 4 μ -> (
             Nμ = axes(U, μ);
             siteμ⁺ = move(site, μ, 1, Nμ);
@@ -115,7 +115,7 @@ end
             C = ckron(apply_bc(Y[siteμ⁺], bc, site, Val(1), NT, Val(μ)), X[site]);
             dU[μ, site] += (fac * η) * traceless_antihermitian(cmatmul_oo(U[μ, site], B - C))
         )
-    end
+    # end
 
     return nothing
 end

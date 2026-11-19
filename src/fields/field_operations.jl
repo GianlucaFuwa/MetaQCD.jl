@@ -129,10 +129,10 @@ function create_sendbuf!(u::AbstractField{B,T,M}, sites, dim, dir; stream=defaul
     itr = eachindex(IndexLinear(), _sites)
 
     parallelfor(itr, B, Val(M), Val(false), (), (), (u, sendbuf); stream) do i, (u, sendbuf)
-        @inbounds begin
+        # @inbounds begin
             j = linear_index(u, _sites[i])
             sendbuf[i] = u[j]
-        end
+        # end
     end
 
     MPI_IS_GPUAWARE == Val(false) && synchronize(B(), stream)
@@ -144,10 +144,10 @@ function fill_halo!(u::AbstractField{B,T,M}, recvbuf, siterange; stream=default_
     itr = eachindex(IndexLinear(), _siterange)
 
     parallelfor(itr, B, Val(M), Val(false), (), (), (u, recvbuf); stream) do i, (u, recvbuf)
-        @inbounds begin
+        # @inbounds begin
             j = linear_index(u, _siterange[i])
             u[j] = recvbuf[i]
-        end
+        # end
     end
 
     return nothing

@@ -67,19 +67,27 @@ struct FieldTopology{TI}
         end)
         halo_sites = calc_halo_sites(bulk_sites, local_dims, halo_width, is_partitioned)
         border_sites = calc_border_sites(bulk_sites, local_dims, halo_width, is_partitioned)
-        border_iterators = if _unwrap_val(HIDE_COMMS)
-            get_border_iterators(bulk_sites, halo_width, is_partitioned)
-        else
-            ntuple(_ -> CartesianIndices((0, 0, 0, 0)), 0)
-        end
+        border_iterators = get_border_iterators(bulk_sites, halo_width, is_partitioned)
 
         global_volume = prod(global_dims)
         local_volume = prod(local_dims)
         return new{typeof(border_iterators)}(
-            comm_cart, numprocs, numprocs_cart, myrank_cart,
-            halo_width, global_dims, local_dims, local_dims_padded,
-            origin, bulk_sites, bulk_sites_padded, halo_sites, border_sites, border_iterators,
-            global_volume, local_volume,
+            comm_cart,
+            numprocs,
+            numprocs_cart,
+            myrank_cart,
+            halo_width,
+            global_dims,
+            local_dims,
+            local_dims_padded,
+            origin,
+            bulk_sites,
+            bulk_sites_padded,
+            halo_sites,
+            border_sites,
+            border_iterators,
+            global_volume,
+            local_volume,
         )
     end
 end

@@ -9,9 +9,10 @@ module MetaAMDGPUExt
 
 using AMDGPU
 using AMDGPU: @roc, ROCBackend, ROCArray, launch_configuration, synchronize
-using AMDGPU: workitemIdx, workgroupIdx, workgroupDim, reduce_group
+using AMDGPU: workitemIdx, workgroupIdx, workgroupDim
 import MetaQCD.Fields
 import MetaQCD.Fields: _foreachindex_global!, _foreachindex_reduce_global!
+import MetaQCD.Fields: _foreachindex_fused!, _foreachindex_reduce_fused!
 import MetaQCD.Utils: mpi_myrank
 
 function __init__()
@@ -30,6 +31,25 @@ Fields.device_synchronize(::ROCBackend) = AMDGPU.device_synchronize()
 Fields.default_stream(::ROCBackend) = AMDGPU.stream()
 Fields.priority!(::ROCBackend, priority) = AMDGPU.priority!(priority)
 Fields.gpu_used_memory(::ROCBackend) = AMDGPU.used() / 1e9
+
+function Fields.create_stream_event(::ROCBackend)
+    return AMDGPU.HIP.HIPEvent(AMDGPU.stream(); do_record=false)
+end
+
+function Fields.record_stream_event!(::ROCBackend, event, stream)
+    AMDGPU.HIP.hipEventRecord(event.handle, stream.stream)
+    return nothing
+end
+
+function Fields.wait_stream_event!(::ROCBackend, stream, event)
+    if isdefined(AMDGPU.HIP, :hipStreamWaitEvent)
+        AMDGPU.HIP.hipStreamWaitEvent(stream.stream, event.handle, UInt32(0))
+    else
+        # Compatibility with older HIP wrapper versions lacking stream waits.
+        AMDGPU.HIP.synchronize(event)
+    end
+    return nothing
+end
 
 const roc_readstreams = Vector{AMDGPU.HIPStream}(undef, 0)
 const roc_sendstreams = Vector{AMDGPU.HIPStream}(undef, 0)
@@ -80,99 +100,131 @@ function Fields.mpi_assign_device!(::ROCBackend, _id)
     Fields.DEVICE_ID[] = id
     dev = AMDGPU.device()
     Fields.MAX_SHMEM[] = AMDGPU.HIP.properties(dev).maxSharedMemoryPerMultiProcessor
+    println(
+        "rank=", mpi_myrank(),
+        " exportable_pool=", AMDGPU.memory_pool_exportable(),
+    )
     return nothing
 end
 
 function Fields.launch_foreachindex_global!(
     ::ROCBackend, f, captured, itr::Tuple, groupsize, stream=AMDGPU.stream()
 )
+    total = sum(length, itr)
+    total == 0 && return nothing
+
     if Fields.TUNE_KERNELS == Val(true)
-        f_key = typeof(f)
-        f_prec = Fields.float_type(captured[1])
-        f_key = (f_key, f_prec)
-        if !haskey(Fields.KERNEL_CACHE, f_key) && (length(itr) == 1)
-            # how many items do we want?
-            wanted_items = nextpow(2, length(itr[1]))
-            # how many items can we launch?
-            max_block_size = min(1024, length(itr[1]))
-            compute_items(max_items) = wanted_items > max_items ? prevpow(2, max_items) : wanted_items
-            kernel = @roc launch=false _foreachindex_global!(f, captured, itr[1])
-            config = launch_configuration(kernel; max_block_size)
-            groupsize = compute_items(config.groupsize)
-            Fields.KERNEL_CACHE[f_key] = groupsize
-        else
-            if haskey(Fields.KERNEL_CACHE, f_key)
-                groupsize = Fields.KERNEL_CACHE[f_key]
+        key = (:foreach, typeof(f), Fields.float_type(captured[1]), typeof(itr))
+        groupsize = get!(Fields.KERNEL_CACHE, key) do 
+            wanted_items = nextpow(2, total)
+            max_block_size = min(1024, total)
+            kernel = if length(itr) == 1
+                @roc launch=false _foreachindex_global!(f, captured, itr[1])
+            else
+                @roc launch=false _foreachindex_fused!(f, captured, itr)
             end
+            config = launch_configuration(kernel; max_block_size)
+            min(wanted_items, prevpow(2, config.groupsize))
         end
     end
 
-    gridsize = ntuple(i -> cld(length(itr[i]), groupsize), length(itr))
+    gridsize = cld(total, groupsize)
 
-    for i in eachindex(itr)
-        isempty(itr[i]) && continue
-        @roc groupsize=groupsize gridsize=gridsize[i] stream=stream _foreachindex_global!(
-            f, captured, itr[i]
+    if length(itr) == 1
+        @roc groupsize=groupsize gridsize=gridsize stream=stream _foreachindex_global!(
+            f, captured, itr[1]
+        )
+    else
+        @roc groupsize=groupsize gridsize=gridsize stream=stream _foreachindex_fused!(
+            f, captured, itr
         )
     end
-
     return nothing
 end
 
 function Fields.launch_foreachindex_reduce_global!(
     ::ROCBackend, out, op, f, captured, itr::Tuple, groupsize, stream=AMDGPU.stream()
 )
-    return AMDGPU.stream!(stream) do
-        all(isempty, itr) && return out
-        compute_shmem(items) = items * sizeof(typeof(out))
+    all(isempty, itr) && return out
+    total = sum(length, itr)
+    total == 0 && return nothing
+    compute_shmem(items) = items * sizeof(typeof(out))
 
-        if Fields.TUNE_KERNELS == Val(true)
-            f_key = typeof(f)
-            f_prec = Fields.float_type(captured[1])
-            f_key = (f_key, f_prec)
-            if !haskey(Fields.KERNEL_CACHE, f_key) && (length(itr) == 1)
-                # how many items do we want?
-                wanted_items = nextpow(2, length(itr[1]))
-                # how many items can we launch?
-                max_block_size = min(1024, length(itr[1]))
-                compute_items(max_items) = wanted_items > max_items ? prevpow(2, max_items) : wanted_items
-                max_shmem = max_block_size |> compute_items |> compute_shmem
-                out_vec = AMDGPU.zeros(typeof(out), 256)
-                kernel = @roc launch=false _foreachindex_reduce_global!(
+    if Fields.TUNE_KERNELS == Val(true)
+        key = (:foreach_reduce, typeof(f), Fields.float_type(captured[1]), typeof(itr))
+        groupsize = get!(Fields.KERNEL_CACHE, key) do
+            wanted_items = nextpow(2, total)
+            max_block_size = min(1024, total)
+            compute_items(max_items) = wanted_items > max_items ? prevpow(2, max_items) : wanted_items
+            max_shmem = max_block_size |> compute_items |> compute_shmem
+            out_vec = AMDGPU.zeros(typeof(out), 256)
+            kernel = if length(itr) == 1
+                @roc launch=false _foreachindex_reduce_global!(
                     out_vec, out, op, f, captured, itr[1]
                 )
-                config = launch_configuration(kernel; shmem=max_shmem, max_block_size)
-                # determine the launch configuration
-                groupsize = compute_items(config.groupsize)
-                Fields.KERNEL_CACHE[f_key] = groupsize
             else
-                if haskey(Fields.KERNEL_CACHE, f_key)
-                    groupsize = Fields.KERNEL_CACHE[f_key]
-                end
+                @roc launch=false _foreachindex_reduce_fused!(
+                    out_vec, out, op, f, captured, itr
+                )
             end
+            config = launch_configuration(kernel; max_block_size)
+            min(wanted_items, prevpow(2, config.groupsize))
         end
-
-        gridsize = ntuple(i -> cld(length(itr[i]), groupsize), length(itr))
-
-        # perform the actual reduction
-        out_vec = AMDGPU.fill(out, maximum(gridsize))
-        reduce_shmem = compute_shmem(groupsize)
-
-        for i in eachindex(itr)
-            isempty(itr[i]) && continue
-            @roc gridsize=gridsize[i] groupsize=groupsize shmem=reduce_shmem stream=stream _foreachindex_reduce_global!(
-                out_vec, out, op, f, captured, itr[i],
-            )
-        end
-
-        return reduce(op, out_vec)
     end
+
+    gridsize = cld(total, groupsize)
+
+    # perform the actual reduction
+    out_vec = AMDGPU.fill(out, maximum(gridsize))
+    reduce_shmem = compute_shmem(groupsize)
+
+    if length(itr) == 1 
+        @roc gridsize=gridsize groupsize=groupsize shmem=reduce_shmem stream=stream _foreachindex_reduce_global!(
+            out_vec, out, op, f, captured, itr[1],
+        )
+    else
+        @roc gridsize=gridsize groupsize=groupsize shmem=reduce_shmem stream=stream _foreachindex_reduce_fused!(
+            out_vec, out, op, f, captured, itr,
+        )
+    end
+
+    result = reduce(op, out_vec)
+    return result
 end
 
 @inline Fields.threadidx() = workitemIdx()
 @inline Fields.groupidx() = workgroupIdx()
 @inline Fields.groupdim() = workgroupDim()
 @inline Fields.griddim() = gridGroupDim()
+
+@inline function reduce_group(op, val::T, neutral) where {T}
+    items = Int32(workgroupDim().x)
+    item = Int32(workitemIdx().x)
+
+    shared = AMDGPU.@ROCDynamicLocalArray(T, items, false)
+    shared[item] = val
+
+    stride = 1
+    while stride < items
+        AMDGPU.sync_workgroup()
+
+        index = 2 * stride * (item - 1) + 1
+        if index <= items
+            other = index + stride <= items ?
+                    shared[index + stride] : neutral
+            shared[index] = op(shared[index], other)
+        end
+
+        stride *= 2
+    end
+
+    if item == 1
+        val = shared[item]
+    end
+
+    return val
+end
+
 @inline Fields.groupreduce(op, val, neutral) = reduce_group(op, val, neutral)
 
 end

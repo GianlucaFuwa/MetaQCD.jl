@@ -1,6 +1,6 @@
 name = "MetaQCD"
 uuid = "31f46e0f-f1ce-4e94-be20-2bb7f09e036f"
-version = "2.0.0"
+version = "2.3.0"
 authors = ["GianlucaFuwa <gianlucafuwa@gmail.com> and contributors"]
 
 [deps]

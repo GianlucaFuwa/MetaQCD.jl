@@ -214,6 +214,8 @@ function metabuild!(
             set_instanton!(U, starting_Q)
 
             for itrj in 1:(parameters.numtherm)
+                println("Rank $(mpi_myrank()) used Memory: $(gpu_used_memory(get_backend(U)()))")
+                flush(stdout)
                 all_last_updatetime = mpi_allgather(last_updatetime, mpi_comm())
                 if any(x -> x > JOB_TIME_LIMIT, all_last_updatetime .+ time() .+ TIME_BUFFER .- start_time)
                     @level1(
@@ -295,7 +297,7 @@ function metabuild!(
                     ### because time limit would be passed"""
                 )
                 create_checkpoint(
-                    checkpointer, univ, updatemethod, nothing, itrj, numaccepts; rank
+                    checkpointer, univ, updatemethod, nothing, itrj-1, numaccepts; rank
                 )
                 mpi_barrier()
                 break
@@ -343,7 +345,7 @@ function metabuild!(
             calc_measurements_flowed(measurements_with_flow, gflow, U, itrj; mpi_multi_sim)
             calc_weights(bias, itrj)
             create_checkpoint(
-                checkpointer, univ, updatemethod, nothing, itrj+1, numaccepts; rank
+                checkpointer, univ, updatemethod, nothing, itrj, numaccepts; rank
             )
         end
     end

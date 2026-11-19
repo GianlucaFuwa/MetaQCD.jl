@@ -37,6 +37,9 @@ get_sendstream(::CPU, args...) = nothing
 get_stream(::CPU, args...) = nothing
 get_priority_stream(::CPU, args...) = nothing
 gpu_used_memory(::CPU) = 0.0
+create_stream_event(::CPU) = nothing
+record_stream_event!(::CPU, event, stream) = nothing
+wait_stream_event!(::CPU, stream, event) = nothing
 
 # Define an abstract field super type that is parametrized by the backend, the precision and
 # the array type (Array, CuArray, ROCArray)
@@ -159,24 +162,60 @@ get_backend(::AbstractField{B}) where B = B
 @inline get_halo_width(u::AbstractField) = u.topology.halo_width
 @inline get_numprocs_cart(u::AbstractField) = u.topology.numprocs_cart
 
-@inline function invalidate_halo!(u::AbstractField) 
-    if u.halo_valid isa Base.RefValue{Bool}
-        u.halo_valid[] = false
-    end
+# Faces and corners have different lifetimes: a face-only Dirac exchange must
+# not make a later gauge/corner stencil believe that its corners are current.
+mutable struct HaloValidity
+    faces::Bool
+    corners::Bool
+    plans::Dict{Bool,Any}
+end
 
+HaloValidity(valid=false) = HaloValidity(valid, valid, Dict{Bool,Any}())
+
+Base.getindex(v::HaloValidity) = v.corners
+
+function Base.setindex!(v::HaloValidity, valid::Bool)
+    v.faces = v.corners = valid
+    return valid
+end
+
+function Base.deepcopy_internal(v::HaloValidity, dict::IdDict)
+    get!(dict, v) do
+        # Exchange plans refer to the original field's buffers and MPI requests.
+        HaloValidity(v.faces, v.corners, Dict{Bool,Any}())
+    end
+end
+
+@inline function invalidate_halo!(u::AbstractField)
+    v = u.halo_valid
+    if v isa HaloValidity || v isa Base.RefValue{Bool}
+        v[] = false
+    end
     return nothing
 end
 
-@inline function validate_halo!(u::AbstractField)
-    if u.halo_valid isa Base.RefValue{Bool}
-        u.halo_valid[] = true
+@inline function validate_halo!(u::AbstractField, ::Val{edges}=Val(true)) where {edges}
+    v = u.halo_valid
+    if v isa HaloValidity
+        v.faces = true
+        v.corners |= edges
+    elseif v isa Base.RefValue{Bool}
+        # A legacy single validity flag can only cache a complete halo.
+        v[] = edges
     end
-
     return nothing
 end
 
-@inline function halo_is_valid(u::AbstractField)
-    return u.halo_valid isa Base.RefValue{Bool} ? u.halo_valid[] : true
+@inline function halo_is_valid(u::AbstractField, ::Val{edges}=Val(true)) where {edges}
+    is_distributed(u) || return true
+    v = u.halo_valid
+    return if v isa HaloValidity
+        (edges ? v.corners : v.faces)
+    elseif v isa Base.RefValue{Bool}
+        v[]
+    else
+        true
+    end
 end
 
 # Field iterators / lattice sites

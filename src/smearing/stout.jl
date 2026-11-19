@@ -79,7 +79,7 @@ function apply_stout_smearing!(Uout::Gaugefield{B,T,M}, C, Q, U, ρ) where {B,T,
     parallelfor(itr, B, Val(M), (U,), (Uout, C, Q), (Uout, C, Q, U); do_edges=Val(true)) do site, (Uout, C, Q, U)
         Base.Cartesian.@nexprs 4 μ -> (
             Qμ = calc_stout_Q_kernel!(Q, C, U, site, μ, ρ);
-            @inbounds Uout[μ, site] = proj_onto_SU3(cmatmul_oo(exp_iQ(Qμ), U[μ, site]))
+            #= @inbounds =# Uout[μ, site] = proj_onto_SU3(cmatmul_oo(exp_iQ(Qμ), U[μ, site]))
         )
     end
 
@@ -127,7 +127,7 @@ function stout_recursion_kernel!(Σ, Σ′, U, C, Q, Λ, site, μ, ρ)
     siteμ⁺ = move(site, μ, 1, Nμ)
     force_sum = zero3(float_type(U))
 
-    @inbounds begin
+    # @inbounds begin
         for ν in 1:4
             if ν == μ
                 continue
@@ -162,7 +162,7 @@ function stout_recursion_kernel!(Σ, Σ′, U, C, Q, Λ, site, μ, ρ)
             im * cmatmul_odo(link, C[μ, site], Λ[μ, site]) -
             im * ρ * cmatmul_oo(link, force_sum),
         )
-    end
+    # end
 
     return nothing
 end
@@ -180,7 +180,7 @@ function calc_stout_Λ!(Λ, Σ′, Q::Expfield{B}, U::Gaugefield{B,T,M}) where {
 end
 
 @inline function calc_stout_Λ_kernel!(Λ, Σ′, Q, U, site, μ)
-    @inbounds begin
+    # @inbounds begin
         q = Q[μ, site]
         Qₘ = get_Q(q)
         UΣ′ = cmatmul_oo(U[μ, site], Σ′[μ, site])
@@ -196,19 +196,19 @@ end
             q.f₂ * cmatmul_oo(UΣ′, Qₘ)
 
         Λ[μ, site] = traceless_hermitian(Γ)
-    end
+    # end
 
     return nothing
 end
 
 function calc_stout_Q_kernel!(Q, C, U, site, μ, ρ)
-    @inbounds begin
+    # @inbounds begin
         Cμ = ρ * staple(WilsonGaugeAction(), U, μ, site)
         C[μ, site] = Cμ
 
         Ω = cmatmul_od(Cμ, U[μ, site])
         Qμ = exp_iQ_coeffs(-im * traceless_antihermitian(Ω))
         Q[μ, site] = Qμ
-    end
+    # end
     return Qμ
 end
